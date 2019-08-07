@@ -16,7 +16,7 @@ def load_file(path):
     else:
         raise ValueError(f'unknown format: {os.path.basename(path)}')
 
-    return {x['name']: x for x in js_data}
+    return {x['name']: x for x in js_data['benchmarks']}
 
 
 def fmt_diff(ratio):
