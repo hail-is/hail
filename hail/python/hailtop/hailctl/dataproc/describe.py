@@ -1,4 +1,5 @@
 import json
+from os import path
 from zlib import decompress, MAX_WBITS
 from subprocess import check_output
 from statistics import median, mean, stdev
@@ -110,7 +111,7 @@ def main(args, pass_through_args):
 
     j = json.loads(
         decompress(
-            check_output(command + ['cat', args.file + '/metadata.json.gz']),
+            check_output(command + ['cat', path.join(args.file, 'metadata.json.gz')]),
             16 + MAX_WBITS
         )
     )
@@ -156,7 +157,7 @@ def main(args, pass_through_args):
 
     # Check for _SUCCESS
     try:
-        check_output(command + ['ls', args.file + '/_SUCCESS'])
+        check_output(command + ['ls', path.join(args.file, '_SUCCESS')])
     except:
         print(
             "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))
