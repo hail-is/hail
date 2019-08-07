@@ -1,6 +1,6 @@
 from hail import ir
 import abc
-from typing import Sequence, List, Set, Dict, Callable
+from typing import Sequence, List, Set, Dict, Callable, Tuple
 
 
 class Renderable(object):
@@ -136,12 +136,18 @@ class Renderer(object):
         return ''.join(builder)
 
 
-class Scope:
-    def __init__(self, depth: int):
+class BindingSite:
+    def __init__(self, lifted_lets: Dict[int, Tuple[str, 'ir.BaseIR']], depth: int):
         self.depth = depth
-        self.visited: Dict[int, 'ir.BaseIR'] = {}
-        self.lifted_lets: Dict[int, (str, 'ir.BaseIR')] = {}
-        self.let_bodies: List[str] = []
+        self.lifted_lets = lifted_lets
+
+
+class PrintStackFrame:
+    def __init__(self, binding_site: BindingSite):
+        self.depth = binding_site.depth
+        self.lifted_lets = binding_site.lifted_lets
+        self.visited = {}
+        self.let_bodies = []
 
 
 Vars = Dict[str, int]
@@ -149,23 +155,48 @@ Context = (Vars, Vars, Vars)
 
 
 class StackFrame:
-    def __init__(self, outermost_scope: int, context: Context, x: 'ir.BaseIR'):
+    def __init__(self, min_binding_depth: int, context: Context, x: 'ir.BaseIR'):
         # immutable
-        self.parent_outermost_scope = outermost_scope
-        self.parent_context = context
-        self.parent = x
+        self.min_binding_depth = min_binding_depth
+        self.context = context
+        self.node = x
         # mutable
-        self.parent_free_vars = {}
+        self.free_vars = {}
         self.visited: Dict[int, 'ir.BaseIR'] = {}
         self.lifted_lets: Dict[int, (str, 'ir.BaseIR')] = {}
-        self.let_bodies: List[str] = []
         # cached state while visiting a child
         self.child_idx = 0
-        self.child_outermost_scope = None
-        self.eval_b = None
-        self.agg_b = None
-        self.scan_b = None
-        self.new_bindings = None
+        self.child_eval_bindings = None
+        self.child_agg_bindings = None
+        self.child_scan_bindings = None
+
+    # compute depth at which we might bind this node
+    def bind_depth(self) -> int:
+        if len(self.free_vars) > 0:
+            bind_depth = max(self.free_vars.values())
+            bind_depth = max(bind_depth, self.min_binding_depth)
+        else:
+            bind_depth = self.min_binding_depth
+        return bind_depth
+
+    def make_child_frame(self, depth: int) -> 'StackFrame':
+        x = self.node
+        i = self.child_idx - 1
+        child = x.children[i]
+        if x.new_block(i):
+            child_outermost_scope = depth
+        else:
+            child_outermost_scope = self.min_binding_depth
+
+        child_context = x.child_context_without_bindings(i, self.context)
+        if x.binds(i):
+            (eval_c, agg_c, scan_c) = child_context
+            eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in self.child_eval_bindings])
+            agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in self.child_agg_bindings])
+            scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in self.child_scan_bindings])
+            child_context = (eval_c, agg_c, scan_c)
+
+        return StackFrame(child_outermost_scope, child_context, child)
 
 
 class CSERenderer(Renderer):
@@ -175,7 +206,7 @@ class CSERenderer(Renderer):
         self.jirs = {}
         self.memo: Dict[int, Sequence[str]] = {}
         self.uid_count = 0
-        self.scopes: Dict[int, Scope] = {}
+        self.binding_sites: Dict[int, BindingSite] = {}
 
     def uid(self) -> str:
         self.uid_count += 1
@@ -196,14 +227,14 @@ class CSERenderer(Renderer):
             return f'(JavaIR {jir_id})'
 
     @staticmethod
-    def find_in_scope(x: 'ir.BaseIR', context: List[Scope], outermost_scope: int) -> int:
+    def find_in_scope(x: 'ir.BaseIR', context: List[StackFrame], outermost_scope: int) -> int:
         for i in range(len(context) - 1, outermost_scope - 1, -1):
             if id(x) in context[i].visited:
                 return i
         return -1
 
     @staticmethod
-    def lifted_in_scope(x: 'ir.BaseIR', context: List[Scope]) -> int:
+    def lifted_in_scope(x: 'ir.BaseIR', context: List[StackFrame]) -> int:
         for i in range(len(context) - 1, -1, -1):
             if id(x) in context[i].lifted_lets:
                 return i
@@ -224,14 +255,14 @@ class CSERenderer(Renderer):
     # * 'self.scopes' is updated to map subtrees y of 'x' to scopes containing
     #   any lets to be inserted above y.
 
-    def print(self, builder: List[str], context: List[Scope], outermost_scope: int, depth: int, x: 'ir.BaseIR'):
+    def print(self, builder: List[str], context: List[PrintStackFrame], outermost_scope: int, depth: int, x: 'ir.BaseIR'):
         if id(x) in self.memo:
             builder.append(self.memo[id(x)])
             return
-        insert_lets = id(x) in self.scopes and len(self.scopes[id(x)].lifted_lets) > 0
+        insert_lets = id(x) in self.binding_sites and len(self.binding_sites[id(x)].lifted_lets) > 0
         if insert_lets:
             local_builder = []
-            context.append(self.scopes[id(x)])
+            context.append(PrintStackFrame(self.binding_sites[id(x)]))
         else:
             local_builder = builder
         head = x.render_head(self)
@@ -265,15 +296,16 @@ class CSERenderer(Renderer):
                     ir_child_num = self.print_renderable(local_builder, context, child_outermost_scope, depth + 1, ir_child_num, child)
         local_builder.append(x.render_tail(self))
         if insert_lets:
+            sf = context[-1]
             context.pop()
-            for let_body in self.scopes[id(x)].let_bodies:
+            for let_body in sf.let_bodies:
                 builder.extend(let_body)
             builder.extend(local_builder)
-            num_lets = len(self.scopes[id(x)].lifted_lets)
+            num_lets = len(sf.lifted_lets)
             for i in range(num_lets):
                 builder.append(')')
 
-    def print_renderable(self, builder: List[str], context: List[Scope], outermost_scope: int, depth: int, ir_child_num: int, x: Renderable):
+    def print_renderable(self, builder: List[str], context: List[PrintStackFrame], outermost_scope: int, depth: int, ir_child_num: int, x: Renderable):
         assert not isinstance(x, ir.BaseIR)
         head = x.render_head(self)
         if head != '':
@@ -290,109 +322,101 @@ class CSERenderer(Renderer):
         builder.append(x.render_tail(self))
         return ir_child_num
 
+    def compute_new_bindings(self, root: 'ir.BaseIR'):
+        # force computation of all types
+        root.typ
 
-    def __call__(self, x: 'ir.BaseIR') -> str:
-        x.typ
+        root_frame = StackFrame(0, ({}, {}, {}), root)
+        stack = [root_frame]
+        binding_sites = {}
 
-        state = StackFrame(0, ({}, {}, {}), x)
-        kont_stack = [state]
         while True:
-            state = kont_stack[-1]
-            depth = len(kont_stack)
-            i = state.child_idx
-            x = state.parent
+            frame = stack[-1]
+            node = frame.node
+            child_idx = frame.child_idx
+            frame.child_idx += 1
 
-            if i >= len(x.children):
-                if len(kont_stack) <= 1:
+            if child_idx >= len(node.children):
+                if len(stack) <= 1:
                     break
 
-                child_state = state
+                parent_frame = stack[-2]
 
-                if len(child_state.parent_free_vars) > 0:
-                    bind_depth = max(child_state.parent_free_vars.values())
-                    bind_depth = max(bind_depth, child_state.parent_outermost_scope)
-                else:
-                    bind_depth = child_state.parent_outermost_scope
-                kont_stack[bind_depth].visited[id(x)] = x
+                # mark node as visited at potential let insertion site
+                stack[frame.bind_depth()].visited[id(node)] = node
 
-                kont_stack.pop()
-                state = kont_stack[-1]
-                depth = len(kont_stack)
+                # if any lets being inserted here, add node to registry of
+                # binding sites
+                if frame.lifted_lets:
+                    binding_sites[id(node)] = \
+                        BindingSite(frame.lifted_lets, len(stack))
 
-                if child_state.lifted_lets:
-                    new_scope = Scope(depth)
-                    new_scope.lifted_lets = child_state.lifted_lets
-                    self.scopes[id(child_state.parent)] = new_scope
-                for var in [*state.eval_b, *state.agg_b, *state.scan_b]:
-                    child_state.parent_free_vars.pop(var, 0)
-                for (var, _) in child_state.lifted_lets.values():
-                    child_state.parent_free_vars.pop(var, 0)
-                state.parent_free_vars.update(child_state.parent_free_vars)
-                state.child_idx += 1
+                # subtract vars bound by parent from free_vars
+                for var in [*parent_frame.child_eval_bindings,
+                            *parent_frame.child_agg_bindings,
+                            *parent_frame.child_scan_bindings]:
+                    frame.free_vars.pop(var, 0)
+                # subtract vars that will be bound by inserted lets
+                for (var, _) in frame.lifted_lets.values():
+                    frame.free_vars.pop(var, 0)
+                # update parent's free variables
+                parent_frame.free_vars.update(frame.free_vars)
+                stack.pop()
                 continue
 
-            child = x.children[i]
+            child = node.children[child_idx]
 
             if self.stop_at_jir and hasattr(child, '_jir'):
                 self.memo[id(child)] = self.add_jir(child)
-                state.child_idx += 1
                 continue
 
-            seen_in_scope = self.find_in_scope(child, kont_stack, state.parent_outermost_scope)
+            seen_in_scope = self.find_in_scope(child, stack, frame.min_binding_depth)
 
             if seen_in_scope >= 0 and isinstance(child, ir.IR):
                 # we've seen 'child' before, should not traverse (or we will find
                 # too many lifts)
-                if id(child) not in kont_stack[seen_in_scope].lifted_lets:
+                if id(child) in stack[seen_in_scope].lifted_lets:
+                    (uid, _) = stack[seen_in_scope].lifted_lets[id(child)]
+                else:
                     # second time we've seen 'child', lift to a let
                     uid = self.uid()
-                    kont_stack[seen_in_scope].lifted_lets[id(child)] = (uid, child)
-                else:
-                    (uid, _) = kont_stack[seen_in_scope].lifted_lets[id(child)]
-                state.parent_free_vars[uid] = seen_in_scope
-                state.child_idx += 1
+                    stack[seen_in_scope].lifted_lets[id(child)] = (uid, child)
+                # Since we are not traversing 'child', we don't know its free
+                # variables. To prevent a parent from being lifted too high,
+                # we must register 'child' as having the free variable 'uid',
+                # which will be true when 'child' is replaced by "Ref uid".
+                frame.free_vars[uid] = seen_in_scope
                 continue
 
+            # first time visiting 'child'
+            # compute vars bound in 'child' by 'node'
             def get_vars(bindings):
                 if isinstance(bindings, dict):
                     bindings = bindings.items()
                 return [var for (var, _) in bindings]
-            state.eval_b = get_vars(x.bindings(i))
-            state.agg_b = get_vars(x.agg_bindings(i))
-            state.scan_b = get_vars(x.scan_bindings(i))
-
-            if x.new_block(i):
-                state.child_outermost_scope = depth
-            else:
-                state.child_outermost_scope = state.parent_outermost_scope
-
-            child_context = x.child_context_without_bindings(i, state.parent_context)
-            if x.binds(i):
-                (eval_c, agg_c, scan_c) = child_context
-                eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in state.eval_b])
-                agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in state.agg_b])
-                scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in state.scan_b])
-                child_context = (eval_c, agg_c, scan_c)
+            frame.child_eval_bindings = get_vars(node.bindings(child_idx))
+            frame.child_agg_bindings = get_vars(node.agg_bindings(child_idx))
+            frame.child_scan_bindings = get_vars(node.scan_bindings(child_idx))
 
             if isinstance(child, ir.Ref):
-                child_free_vars = {child.name: child_context[0][child.name]}
-                for var in [*state.eval_b, *state.agg_b, *state.scan_b]:
-                    child_free_vars.pop(var, 0)
-                state.parent_free_vars.update(child_free_vars)
-                state.child_idx += 1
+                if child.name not in frame.child_eval_bindings:
+                    (eval_c, _, _) = node.child_context_without_bindings(child_idx, frame.context)
+                    frame.free_vars.update({child.name: eval_c[child.name]})
                 continue
 
-            state = StackFrame(state.child_outermost_scope, child_context, child)
-            kont_stack.append(state)
+            stack.append(frame.make_child_frame(len(stack)))
             continue
 
-        for (var, _) in state.lifted_lets.values():
-            var_depth = state.parent_free_vars.pop(var, 0)
+        for (var, _) in root_frame.lifted_lets.values():
+            var_depth = root_frame.free_vars.pop(var, 0)
             assert var_depth == 0
-        assert(len(state.parent_free_vars) == 0)
-        root_scope = Scope(0)
-        root_scope.lifted_lets = state.lifted_lets
-        self.scopes[id(x)] = root_scope
+        assert(len(root_frame.free_vars) == 0)
+
+        binding_sites[id(root)] = BindingSite(frame.lifted_lets, 0)
+        return binding_sites
+
+    def __call__(self, root: 'ir.BaseIR') -> str:
+        self.binding_sites = self.compute_new_bindings(root)
         builder = []
-        self.print(builder, [], 0, 1, x)
+        self.print(builder, [], 0, 1, root)
         return ''.join(builder)
