@@ -296,7 +296,7 @@ REGIONMETHOD(void, Region, nativeClearParentReference)(
 }
 
 REGIONMETHOD(jint, Region, nativeGetBlockSize)(
-  JNIEnv*,
+  JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
@@ -304,7 +304,7 @@ REGIONMETHOD(jint, Region, nativeGetBlockSize)(
 }
 
 REGIONMETHOD(jint, Region, nativeGetNumChunks)(
-  JNIEnv*,
+  JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
@@ -312,7 +312,7 @@ REGIONMETHOD(jint, Region, nativeGetNumChunks)(
 }
 
 REGIONMETHOD(jint, Region, nativeGetNumUsedBlocks)(
-  JNIEnv*,
+  JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
@@ -321,7 +321,7 @@ REGIONMETHOD(jint, Region, nativeGetNumUsedBlocks)(
 
 
 REGIONMETHOD(jint, Region, nativeGetCurrentOffset)(
-  JNIEnv*,
+  JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
@@ -329,7 +329,7 @@ REGIONMETHOD(jint, Region, nativeGetCurrentOffset)(
 }
 
 REGIONMETHOD(jlong, Region, nativeGetBlockAddress)(
-  JNIEnv*,
+  JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
