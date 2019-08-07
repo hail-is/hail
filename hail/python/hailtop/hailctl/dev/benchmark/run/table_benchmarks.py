@@ -110,6 +110,13 @@ def table_annotate_many_nested_dependence():
         ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()
 
+
+@benchmark
+def table_aggregate_counter():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
+
+
 @benchmark
 def read_force_count_p1000():
     hl.read_table(resource('table_10M_par_1000.ht'))._force_count()

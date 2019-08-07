@@ -26,7 +26,6 @@ final case class CallStats() extends AggOp
 final case class Collect() extends AggOp
 final case class CollectAsSet() extends AggOp
 final case class Count() extends AggOp
-final case class Counter() extends AggOp
 final case class Downsample() extends AggOp
 final case class HardyWeinberg() extends AggOp
 final case class Inbreeding() extends AggOp
@@ -113,15 +112,6 @@ object AggOp {
     case (Min(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueMinDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
 
     case (Count(), Seq(), None, Seq()) => CodeAggregator[RegionValueCountAggregator](TInt64(), seqOpArgTypes = Array())
-
-    case (Counter(), Seq(), None, Seq(in)) => in match {
-      case _: TBoolean => CodeAggregator[RegionValueCounterBooleanAggregator](TDict(in, TInt64()), seqOpArgTypes = Array(classOf[Boolean]))
-      case _: TInt32 | _: TCall => CodeAggregator[RegionValueCounterIntAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Int]))
-      case _: TInt64 => CodeAggregator[RegionValueCounterLongAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
-      case _: TFloat32 => CodeAggregator[RegionValueCounterFloatAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Float]))
-      case _: TFloat64 => CodeAggregator[RegionValueCounterDoubleAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Double]))
-      case _ => CodeAggregator[RegionValueCounterAnnotationAggregator](TDict(in, TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
-    }
 
     case (Take(), constArgs@Seq(_: TInt32), None, Seq(in)) => in match {
       case _: TBoolean => CodeAggregator[RegionValueTakeBooleanAggregator](TArray(in), constrArgTypes = Array(classOf[Int]), seqOpArgTypes = Array(classOf[Boolean]))
@@ -221,7 +211,6 @@ object AggOp {
     case "max" | "Max" => Max()
     case "min" | "Min" => Min()
     case "count" | "Count" => Count()
-    case "counter" | "Counter" => Counter()
     case "take" | "Take" => Take()
     case "takeBy" | "TakeBy" => TakeBy()
     case "infoScore" | "InfoScore" => InfoScore()

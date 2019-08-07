@@ -510,7 +510,7 @@ def counter(expr) -> DictExpression:
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
-    return _agg_func('Counter', [expr], tdict(expr.dtype, tint64))
+    return _agg_func.group_by(expr, count())
 
 
 @typecheck(expr=expr_any,
