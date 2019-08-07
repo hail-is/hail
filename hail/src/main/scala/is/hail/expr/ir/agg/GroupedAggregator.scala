@@ -2,12 +2,12 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 
-class GroupedBTreeKey(kt: PType, er: EmitRegion, container: StateContainer) extends BTreeKey {
+class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region], container: StateContainer) extends BTreeKey {
   private val keyInline = kt.isPrimitive
   val storageType: PStruct = PStruct(required = true,
     "kt" -> (if (keyInline) kt else PInt64(kt.required)),
@@ -15,7 +15,7 @@ class GroupedBTreeKey(kt: PType, er: EmitRegion, container: StateContainer) exte
     "container" -> PInt64(true))
 
   val compType: PType = kt
-  private val kcomp = er.mb.getCodeOrdering[Int](kt, kt, CodeOrdering.compare)
+  private val kcomp = fb.getCodeOrdering[Int](kt, CodeOrdering.compare, ignoreMissingness = false)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -31,7 +31,7 @@ class GroupedBTreeKey(kt: PType, er: EmitRegion, container: StateContainer) exte
       if (keyInline)
         Region.storeIRIntermediate(kt)(koff, kv)
       else
-        Region.storeAddress(koff, StagedRegionValueBuilder.deepCopy(er, kt, coerce[Long](kv)))
+        Region.storeAddress(koff, StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv)))
     }
     if (!kt.required)
       storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
@@ -39,7 +39,7 @@ class GroupedBTreeKey(kt: PType, er: EmitRegion, container: StateContainer) exte
     Code(
       storeK,
       storeRegionIdx(dest, rIdx),
-      Region.storeAddress(containerOffset(dest), er.region.allocate(container.typ.alignment, container.typ.byteSize)))
+      Region.storeAddress(containerOffset(dest), region.allocate(container.typ.alignment, container.typ.byteSize)))
   }
 
   def regionIdx(off: Code[Long]): Code[Int] =
@@ -81,14 +81,14 @@ class GroupedBTreeKey(kt: PType, er: EmitRegion, container: StateContainer) exte
 
 }
 
-case class DictState(mb: EmitMethodBuilder, keyType: PType, nested: Array[AggregatorState]) extends PointerBasedRVAState {
+class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: Array[AggregatorState]) extends PointerBasedRVAState {
   val nStates: Int = nested.length
   val container: StateContainer = new StateContainer(nested, region)
   val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> container.typ)
-  val root: ClassFieldRef[Long] = mb.newField[Long]
-  val size: ClassFieldRef[Int] = mb.newField[Int]
-  val keyed = new GroupedBTreeKey(keyType, EmitRegion(mb, region), container)
-  val tree = new AppendOnlyBTree(mb.fb, keyed, region, root)
+  val root: ClassFieldRef[Long] = fb.newField[Long]
+  val size: ClassFieldRef[Int] = fb.newField[Int]
+  val keyed = new GroupedBTreeKey(keyType, fb, region, container)
+  val tree = new AppendOnlyBTree(fb, keyed, region, root)
 
   val typ: PStruct = PStruct(
     required = true,
@@ -99,7 +99,7 @@ case class DictState(mb: EmitMethodBuilder, keyType: PType, nested: Array[Aggreg
   private val initStatesOffset: Code[Long] = typ.fieldOffset(off, 0)
   private def initStateOffset(idx: Int): Code[Long] = container.getStateOffset(initStatesOffset, idx)
 
-  private val _elt = mb.newField[Long]
+  private val _elt = fb.newField[Long]
   def loadContainer(km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     val initValue = Code(
       size := size + 1,
@@ -166,7 +166,7 @@ case class DictState(mb: EmitMethodBuilder, keyType: PType, nested: Array[Aggreg
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.map(_.serialize(codec))
-    val kEnc = EmitPackEncoder.buildMethod(keyType, keyType, mb.fb)
+    val kEnc = EmitPackEncoder.buildMethod(keyType, keyType, fb)
 
     { ob: Code[OutputBuffer] =>
       Code(
@@ -184,11 +184,11 @@ case class DictState(mb: EmitMethodBuilder, keyType: PType, nested: Array[Aggreg
 
   def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.map(_.deserialize(codec))
-    val kDec = EmitPackDecoder.buildMethod(keyType, keyType, mb.fb);
+    val kDec = EmitPackDecoder.buildMethod(keyType, keyType, fb);
 
-    val readSize = mb.newField[Int]
-    val km = mb.newField[Boolean]
-    val kv = mb.newField()(typeToTypeInfo(keyType))
+    val readSize = fb.newField[Int]
+    val km = fb.newField[Boolean]
+    val kv = fb.newField()(typeToTypeInfo(keyType))
 
     { ib: Code[InputBuffer] =>
       Code(
@@ -208,7 +208,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
   val resultType: PDict = PDict(kt, resultEltType)
 
-  def createState(mb: EmitMethodBuilder): State = DictState(mb, kt, nestedAggs.map(_.createState(mb)))
+  def createState(fb: EmitFunctionBuilder[_]): State = new DictState(fb, kt, nestedAggs.map(_.createState(fb)))
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(inits) = init

@@ -324,8 +324,8 @@ class Aggregators2Suite extends HailSuite {
       Some(FastIndexedSeq(take)))
 
     val init = InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
-        InitOp2(0, FastIndexedSeq(I32(3)), take)
-      ))), lcAggSig)
+      InitOp2(0, FastIndexedSeq(I32(3)), take)
+    ))), lcAggSig)
 
     val stream = Ref("stream", TArray(arrayType))
     val seq = Array.tabulate(value.length) { i =>
@@ -336,6 +336,7 @@ class Aggregators2Suite extends HailSuite {
 
     val expected = Array.tabulate(value(0).length)(i => Row(Array.tabulate(3)(j => value(j)(i)).toFastIndexedSeq)).toFastIndexedSeq
     assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2)
+  }
 
   @Test def testGroup() {
     val pnn = AggSignature2(PrevNonnull(), FastSeq(), FastSeq(t), None)
@@ -403,34 +404,5 @@ class Aggregators2Suite extends HailSuite {
       (null, Row(Map((null, Row(Row(null, -2L), 3L, -2L))))))
 
     assertAggEquals(grouped2, initOpArgs, seqOpArgs, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
-  }
-
-  @Test def testNestedGroupPrimitiveKey() {
-    val rows = Array.tabulate(10)(Row(_)).toFastIndexedSeq
-    val rtyp = TArray(TStruct("idx" -> TInt32()))
-    val rref = Ref("rows", rtyp)
-
-    val count = AggSignature2(Count(), FastSeq(), FastSeq(), None)
-    val grouped1 = AggSignature2(Group(), FastSeq(TVoid), FastSeq(TInt32(), TVoid), Some(FastSeq(count)))
-    val grouped2 = AggSignature2(Group(), FastSeq(TVoid), FastSeq(TInt32(), TVoid), Some(FastSeq(grouped1)))
-
-    val initOpArgs = FastIndexedSeq(InitOp2(0, FastIndexedSeq(InitOp2(0, FastIndexedSeq(), count)), grouped1))
-
-    val seqOpArgs = Array.tabulate(rows.length)(i =>
-      FastIndexedSeq[IR](invoke("%", GetField(ArrayRef(rref, i), "idx"), 5),
-        SeqOp2(0,
-          FastIndexedSeq(
-            invoke("%", GetField(ArrayRef(rref, i), "idx"), 2),
-            SeqOp2(0, FastIndexedSeq(), count)),
-          grouped1)))
-
-
-    val expected = Map(0 -> Row(Map(0 -> Row(1L), 1 -> Row(1L))),
-      1 -> Row(Map(0 -> Row(1L), 1 -> Row(1L))),
-      2 -> Row(Map(0 -> Row(1L), 1 -> Row(1L))),
-      3 -> Row(Map(0 -> Row(1L), 1 -> Row(1L))),
-      4 -> Row(Map(0 -> Row(1L), 1 -> Row(1L))))
-
-    assertAggEquals(grouped2, initOpArgs, seqOpArgs, expected = expected, args = FastIndexedSeq(("rows", (rtyp, rows))))
   }
 }
