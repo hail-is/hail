@@ -1300,16 +1300,48 @@ private class Emit(
             res.isNull))
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
-      case MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
-        val dataContainer = dataIR.pType.asInstanceOf[PStreamable].asPArray
+      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
+        val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
+        val t = x.pType.asInstanceOf[PNDArray]
+        val srvb = new StagedRegionValueBuilder(mb, t.representation)
+        
+        val setup = Code(
+          shapet.setup,
+          datat.setup,
+          rowMajort.setup)
+        val value = coerce[Unit](Code(
+          srvb.start(),
+          srvb.addInt(0),
+          srvb.advance(),
+          srvb.addInt(0),
+          srvb.advance(),
+          shapet.m.mux(
+            Code._fatal("bad bad bad"),
+            srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PTuple], {srvb =>
 
+              var c = Code._empty[Unit]
 
-        throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `MakeNDArray`")
+              Array.tabulate(shapePType.size)(i => shapePType.isFieldMissing(coerce[Long](shapet.v), i).mux(
+                Code._fatal("Missing tuple .. . "),
+                srvb.addWithDeepCopy(PInt32Required, shapePType.loadField(coerce[Long](shapet.v), i))
+              )).foreachBetween { elt => c = Code(c, elt) } { c = Code(c, srvb.advance())}
+              c
+            })
+          ),
+          srvb.advance(),
+          srvb.addArray(t.representation.fieldType("strides").asInstanceOf[PArray], { srvb =>
+            srvb.start(0)
+          }),
+          srvb.advance(),
+          srvb.addIRIntermediate(t.representation.fieldType("data").asInstanceOf[PArray])(
+            t.representation.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray...."))
+        ))
+        EmitTriplet(setup, false, value)
       case NDArrayShape(ndIR) =>
         throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `NDArrayShape`")
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
