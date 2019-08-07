@@ -10,7 +10,7 @@ object CountAggregator extends StagedAggregator {
 
   val resultType: PType = PInt64()
 
-  def createState(fb: EmitFunctionBuilder[_]): State = PrimitiveRVAState(Array(PInt64(true)), fb)
+  def createState(fb: EmitFunctionBuilder[_]): State = new PrimitiveRVAState(Array(PInt64(true)), fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)

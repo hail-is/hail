@@ -13,7 +13,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   val resultType: PType = typ
 
   def createState(fb: EmitFunctionBuilder[_]): State =
-    TypedRVAState(stateType, fb)
+    new TypedRVAState(stateType, fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)

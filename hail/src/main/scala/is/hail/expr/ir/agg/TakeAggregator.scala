@@ -6,12 +6,11 @@ import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-import scala.language.existentials
 
 object TakeRVAS {
 }
 
-case class TakeRVAS(eltType: PType, resultType: PArray, fb: EmitFunctionBuilder[_ >: Null]) extends AggregatorState {
+class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   private val r: ClassFieldRef[Region] = fb.newField[Region]
   val region: Code[Region] = r.load()
 
@@ -120,7 +119,7 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
   val resultType: PArray = PArray(typ)
 
   def createState(fb: EmitFunctionBuilder[_]): State =
-    TakeRVAS(typ, resultType, fb)
+    new TakeRVAS(typ, resultType, fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

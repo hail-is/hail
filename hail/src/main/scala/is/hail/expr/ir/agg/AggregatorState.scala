@@ -7,10 +7,9 @@ import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 import is.hail.asm4s.coerce
-import scala.language.existentials
 
 trait AggregatorState {
-  def fb: EmitFunctionBuilder[_ >: Null]
+  def fb: EmitFunctionBuilder[_]
 
   def storageType: PType
 
@@ -52,7 +51,7 @@ trait PointerBasedRVAState extends AggregatorState {
   def copyFromAddress(src: Code[Long]): Code[Unit]
 }
 
-case class TypedRVAState(valueType: PType, fb: EmitFunctionBuilder[_ >: Null]) extends PointerBasedRVAState {
+class TypedRVAState(val valueType: PType, val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAState {
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     super.load(r => r.invalidate(), src)
 
@@ -69,7 +68,7 @@ case class TypedRVAState(valueType: PType, fb: EmitFunctionBuilder[_ >: Null]) e
   }
 }
 
-case class PrimitiveRVAState(types: Array[PType], fb: EmitFunctionBuilder[_ >: Null]) extends AggregatorState {
+class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   type ValueField = (Option[ClassFieldRef[Boolean]], ClassFieldRef[_], PType)
   assert(types.forall(_.isPrimitive))
 

@@ -6,12 +6,11 @@ import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-import scala.language.existentials
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-case class ArrayElementState(fb: EmitFunctionBuilder[_ >: Null], nested: Array[AggregatorState]) extends PointerBasedRVAState {
+class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[AggregatorState]) extends PointerBasedRVAState {
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
@@ -140,7 +139,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PArray(resultEltType)
 
-  def createState(fb: EmitFunctionBuilder[_]): State = ArrayElementState(fb, nestedAggs.map(_.createState(fb)))
+  def createState(fb: EmitFunctionBuilder[_]): State = new ArrayElementState(fb, nestedAggs.map(_.createState(fb)))
 
   // inits all things
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {

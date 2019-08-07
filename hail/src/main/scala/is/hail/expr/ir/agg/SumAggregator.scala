@@ -21,7 +21,7 @@ class SumAggregator(typ: PType) extends StagedAggregator {
     case _ => throw new UnsupportedOperationException(s"can't sum over type $typ")
   }
 
-  def createState(fb: EmitFunctionBuilder[_]): State = PrimitiveRVAState(Array(typ.setRequired(true)), fb)
+  def createState(fb: EmitFunctionBuilder[_]): State = new PrimitiveRVAState(Array(typ.setRequired(true)), fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
