@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitTriplet, EmitRegion, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitTriplet, EmitFunctionBuilder}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 
@@ -10,12 +10,12 @@ object StagedBlockLinkedList {
   val defaultBlockCap: Int = 64
 }
 
-class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
+class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_]) {
   import StagedBlockLinkedList._
 
-  val firstNode = mb.newField[Long]
-  val lastNode = mb.newField[Long]
-  val totalCount = mb.newField[Int]
+  val firstNode = fb.newField[Long]
+  val lastNode = fb.newField[Long]
+  val totalCount = fb.newField[Int]
 
   val storageType = PStruct(
     "firstNode" -> PInt64Required,
@@ -32,9 +32,9 @@ class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
     Region.storeAddress(storageType.fieldOffset(dst, 1), lastNode),
     Region.storeInt(storageType.fieldOffset(dst, 2), totalCount))
 
-  val i = mb.newField[Int]
-  val p = mb.newField[Boolean]
-  val tmpNode = mb.newField[Long]
+  val i = fb.newField[Int]
+  val p = fb.newField[Boolean]
+  val tmpNode = fb.newField[Long]
 
   type Node = Code[Long]
 
@@ -147,7 +147,7 @@ class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
           if(elemType.isPrimitive)
             Region.storePrimitive(elemType, dst)(elt.value)
           else
-            StagedRegionValueBuilder.deepCopy(mb.fb, r, elemType, elt.value, dst)
+            StagedRegionValueBuilder.deepCopy(fb, r, elemType, elt.value, dst)
         })),
       totalCount := totalCount + 1)
   }
@@ -184,8 +184,8 @@ class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
       })
   }
 
-  def toArray(er: EmitRegion): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(er, bufferType)
+  def toArray: Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(fb, bufferType)
     Code(writeToSRVB(srvb), srvb.end())
   }
 }

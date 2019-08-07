@@ -38,27 +38,20 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   def assertBLLContents(elemType: PType, expected: IndexedSeq[Any])(
     emit: (StagedBlockLinkedList, EmitRegion) => Code[Unit]
-  ) {
+  ) =
     assertEvalsToRV(expected, PArray(elemType)) { er =>
-      val bll = new StagedBlockLinkedList(elemType, er.mb)
-      Code(
-        bll.init(er.region),
-        emit(bll, er),
-        bll.toArray(er))
+      val bll = new StagedBlockLinkedList(elemType, er.mb.fb)
+      Code(bll.init(er.region), emit(bll, er), bll.toArray)
     }
+
+  def numBlocks(bll: StagedBlockLinkedList): Code[Int] = {
+    val count = bll.fb.newField[Int]
+    Code(count := 0, bll.foreachNode { b => count := count + 1 }, count)
   }
 
-  def numBlocks(er: EmitRegion, bll: StagedBlockLinkedList): Code[Int] = {
-    val count = er.mb.newField[Int]
-    Code(
-      count := 0,
-      bll.foreachNode { b => count := count + 1 },
-      count)
-  }
-
-  def sumElements(er: EmitRegion, bll: StagedBlockLinkedList): Code[Int] = {
+  def sumElements(bll: StagedBlockLinkedList): Code[Int] = {
     assert(bll.elemType.isOfType(PInt32()))
-    val acc = er.mb.newField[Int]
+    val acc = bll.fb.newField[Int]
     Code(
       acc := 0,
       bll.foreach { e =>
@@ -73,27 +66,27 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     EmitTriplet(Code._empty, true, Code._fatal("unreachable"))
 
   @Test def testInitialBlock() {
-    assertEvalsTo(1) { case er@EmitRegion(mb, r) =>
-      val bll = new StagedBlockLinkedList(PInt32(), mb)
-      Code(bll.init(r), numBlocks(er, bll))
+    assertEvalsTo(1) { case EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb.fb)
+      Code(bll.init(r), numBlocks(bll))
     }
     assertEvalsTo(StagedBlockLinkedList.defaultBlockCap) { case EmitRegion(mb, r) =>
-      val bll = new StagedBlockLinkedList(PInt32(), mb)
+      val bll = new StagedBlockLinkedList(PInt32(), mb.fb)
       Code(bll.init(r), bll.capacity(bll.firstNode))
     }
   }
 
   @Test def testPushNewBlocks() {
-    assertEvalsTo(3) { case er@EmitRegion(mb, r) =>
-      val bll = new StagedBlockLinkedList(PInt32(), mb)
+    assertEvalsTo(3) { case EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb.fb)
       Code(
         bll.init(r),
         bll.pushNewBlockNode(r, 20),
         bll.pushNewBlockNode(r, 30),
-        numBlocks(er, bll))
+        numBlocks(bll))
     }
     assertEvalsTo(55) { case EmitRegion(mb, r) =>
-      val bll = new StagedBlockLinkedList(PInt32(), mb)
+      val bll = new StagedBlockLinkedList(PInt32(), mb.fb)
       Code(
         bll.init(r),
         bll.pushNewBlockNode(r, 55),
@@ -103,7 +96,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   @Test def testPushInts() {
     def pushThen[T](er: EmitRegion, n: Int)(k: StagedBlockLinkedList => Code[T]): Code[T] = {
-      val bll = new StagedBlockLinkedList(PInt32(), er.mb)
+      val bll = new StagedBlockLinkedList(PInt32(), er.mb.fb)
       var setup: Code[Unit] = bll.initWithCapacity(er.region, 8)
       for (i <- 1 to n) {
         setup = Code(setup, bll.push(er.region,
@@ -116,11 +109,11 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     assertEvalsTo(5) { er => pushThen(er, n = 5)(_.totalCount) }
-    assertEvalsTo(1) { er => pushThen(er, n = 5)(numBlocks(er, _)) }
-    assertEvalsTo(2) { er => pushThen(er, n = 9)(numBlocks(er, _)) }
-    assertEvalsTo(45 - 6) { er => pushThen(er, n = 9)(sumElements(er, _)) }
+    assertEvalsTo(1) { er => pushThen(er, n = 5)(numBlocks) }
+    assertEvalsTo(2) { er => pushThen(er, n = 9)(numBlocks) }
+    assertEvalsTo(45 - 6) { er => pushThen(er, n = 9)(sumElements) }
     assertEvalsToRV(IndexedSeq(1, 2, 3, 4, 5, null, 7), PArray(PInt32())) { er =>
-      pushThen(er, n = 7)(_.toArray(er))
+      pushThen(er, n = 7)(_.toArray)
     }
   }
 
@@ -155,15 +148,15 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   @Test def testAppend() {
     assertEvalsToRV(IndexedSeq(1, 2, null, 3, null, 4), PArray(PInt32Optional)) { case er@EmitRegion(mb, r) =>
-      val bll1 = new StagedBlockLinkedList(PInt32(), mb)
-      val bll2 = new StagedBlockLinkedList(PInt32(), mb)
+      val bll1 = new StagedBlockLinkedList(PInt32(), mb.fb)
+      val bll2 = new StagedBlockLinkedList(PInt32(), mb.fb)
       Code(
         bll1.init(r),
         bll2.init(r),
         Code(bll1.push(r, some(1)), bll1.push(r, some(2)), bll1.push(r, none)),
         Code(bll2.push(r, some(3)), bll2.push(r, none), bll2.push(r, some(4))),
         bll1.append(r, bll2),
-        bll1.toArray(er))
+        bll1.toArray)
     }
   }
 
@@ -180,14 +173,14 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   @Test def testAppendShallow() {
     assertEvalsToRV(IndexedSeq(1, null, 2, 1, null, 2), PArray(PInt32Optional)) { case er@EmitRegion(mb, r) =>
-      val bll = new StagedBlockLinkedList(PInt32(), mb)
+      val bll = new StagedBlockLinkedList(PInt32(), mb.fb)
       val aoff = mb.newField[Long]
       Code(
         bll.init(r),
         aoff := buildTestArrayWithMissing(er),
         bll.appendShallow(r, PArray(PInt32Optional), aoff),
         bll.appendShallow(r, PArray(PInt32Optional), aoff),
-        bll.toArray(er))
+        bll.toArray)
     }
   }
 }
