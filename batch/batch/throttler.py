@@ -62,12 +62,13 @@ class PodThrottler:
 
         if pod_name in self.pending_pods or pod_name in self.created_pods:
             log.info(f'job {job.id} is already in the queue, ignoring')
-            return
+            return None
 
         self.pending_pods.add(pod_name)
 
         try:
             self.queue.put_nowait(job)
+            return None
         except asyncio.QueueFull as err:
             self.pending_pods.remove(pod_name)
             log.info(f'pod queue full, could not create {pod_name}')

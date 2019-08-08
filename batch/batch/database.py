@@ -76,7 +76,9 @@ async def _retry(cursor, f):
             return result
         except pymysql.err.OperationalError as err:
             saved_err = err
-            code, _ = err.args
+            x = err.args
+            assert len(x) == 2, x
+            code = x[0]
             if code != 1213:
                 raise err
             log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')

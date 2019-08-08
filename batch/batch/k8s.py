@@ -1,5 +1,6 @@
-import kubernetes as kube
 import logging
+
+import kubernetes as kube
 import prometheus_client as pc
 
 from .blocking_to_async import blocking_to_async
@@ -18,7 +19,7 @@ class EmptyContextManager:
 class NoSummary:
     EMPTY_CONTEXT_MANAGER = EmptyContextManager()
 
-    def time(self):
+    def time(self):  # pylint: disable=R0201
         return NoSummary.EMPTY_CONTEXT_MANAGER
 
 

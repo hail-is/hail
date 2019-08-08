@@ -1,7 +1,7 @@
+import logging
 import os
 
 import google
-import logging
 import hailtop.gear.auth as hj
 
 from .google_storage import GCS
