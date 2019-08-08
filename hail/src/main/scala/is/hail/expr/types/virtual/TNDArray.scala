@@ -18,9 +18,9 @@ object TNDArray {
   }
 }
 
-final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
+final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends ComplexType {
   lazy val nDims: Int = {
-    assert(nDimsBase.isInstanceOf[Nat], "Missing concrete number of dimensions.")
+    assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions. nDimsBase was $nDimsBase")
     nDimsBase.asInstanceOf[Nat].n
   }
   lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
@@ -62,4 +62,12 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
   def _typeCheck(a: Any): Boolean = throw new UnsupportedOperationException
 
   val ordering: ExtendedOrdering = null
+
+  override val representation = TStruct(required = true,
+    ("flags", TInt32Required),
+    ("offset", TInt32Required),
+    ("shape", TTuple(true, Array.tabulate(nDims)(_ => TInt32Required):_*)),
+    ("strides", TArray(TInt32Required, required=true)),
+    ("data", TArray(elementType, required = true))
+  )
 }

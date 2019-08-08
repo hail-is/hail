@@ -7,7 +7,7 @@ import is.hail.expr.types.virtual.TNDArray
 
 final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends ComplexPType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
-  assert(elementType.required)
+  assert(elementType.required, "elementType must be required")
 
   def _toPretty = s"NDArray[$elementType,$nDims]"
 
