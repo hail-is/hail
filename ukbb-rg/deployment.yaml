@@ -27,8 +27,8 @@ spec:
          imagePullPolicy: Always
          resources:
            requests:
-             memory: "3.75G"
-             cpu: "1"
+             memory: "1G"
+             cpu: "0.5"
          ports:
           - containerPort: 80
             protocol: TCP
