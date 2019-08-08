@@ -155,7 +155,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 
   def isCommutative: Boolean = {
     def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && (agg.op match {
-      case Take() | Collect() | PrevNonnull() => false
+      case Take() | Collect() | PrevNonnull() | TakeBy() => false
       case _ => true
     })
     aggs.forall(aggCommutes)
