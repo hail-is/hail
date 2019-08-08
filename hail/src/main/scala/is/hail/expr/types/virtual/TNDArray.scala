@@ -63,7 +63,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
 
   val ordering: ExtendedOrdering = null
 
-  override val representation = TStruct(required = true,
+  override lazy val representation = TStruct(required = true,
     ("flags", TInt32Required),
     ("offset", TInt32Required),
     ("shape", TTuple(true, Array.tabulate(nDims)(_ => TInt32Required):_*)),
