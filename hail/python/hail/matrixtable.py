@@ -3693,7 +3693,7 @@ class MatrixTable(ExprContainer):
 
         >>> table = hl.import_table('data/variant-lof.tsv')
         >>> table = table.transmute(**hl.parse_variant(table['v'])).key_by('locus', 'alleles')
-        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
+        >>> sites_mt = hl.MatrixTable.from_rows_table(table)
 
         Notes
         -----
@@ -4016,7 +4016,6 @@ class MatrixTable(ExprContainer):
                 for k, v in fields.items():
                     print(f'    {k.rjust(max_k_len)} : {v(results)}')
                 print()
-
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self

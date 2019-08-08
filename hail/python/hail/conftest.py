@@ -48,11 +48,6 @@ def init(doctest_namespace):
 def generate_datasets(doctest_namespace, output_dir):
     doctest_namespace['hl'] = hl
 
-    files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-    for f in files:
-        if os.path.isdir(f):
-            shutil.rmtree(f)
-
     ds = hl.import_vcf('data/sample.vcf.bgz')
     ds = ds.sample_rows(0.03)
     ds = ds.annotate_rows(use_as_marker=hl.rand_bool(0.5),
@@ -82,6 +77,7 @@ def generate_datasets(doctest_namespace, output_dir):
     ds = ds.annotate_rows(gene=['TTN'])
     ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')
     ds = ds.checkpoint(f'{output_dir.name}/example.vds', overwrite=True)
+
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
     doctest_namespace['dataset2'] = ds.annotate_globals(global_field=5)
@@ -97,6 +93,8 @@ def generate_datasets(doctest_namespace, output_dir):
     doctest_namespace['cols_to_remove'] = s_metadata
     doctest_namespace['rows_to_keep'] = v_metadata
     doctest_namespace['rows_to_remove'] = v_metadata
+
+    doctest_namespace['small_mt'] = hl.balding_nichols_model(3, 4, 4).checkpoint('data/small.mt')
 
     # Table
     table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')

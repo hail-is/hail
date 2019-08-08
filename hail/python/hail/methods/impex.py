@@ -1080,8 +1080,8 @@ def import_bgen(path,
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)
-            variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
-            variants = variants.key_by(**{fname: variants[uid][fname] for fname in fnames})
+            name, variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
+            variants = variants.key_by(**{fname: variants[name][fname] for fname in fnames})
             variants = variants.select()
         elif isinstance(variants, Table):
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):

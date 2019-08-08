@@ -1,5 +1,4 @@
 package is.hail.expr.ir.functions
-
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
