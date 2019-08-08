@@ -35,7 +35,6 @@ def configure_logging():
 configure_logging()
 log = logging.getLogger('notebook')
 
-k8s = kube.client.CoreV1Api()
 app = aiohttp.web.Application(client_max_size=None)
 routes = aiohttp.web.RouteTableDef()
 
@@ -47,14 +46,11 @@ def read_string(f):
         return f.read().strip()
 
 
-KUBERNETES_TIMEOUT_IN_SECONDS = float(
-    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 app.secret_key = read_string('/notebook-secrets/secret-key')
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
 
-log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 try:
@@ -84,10 +80,9 @@ async def start_pod(jupyter_token, image):
                 'hail.is/notebook-instance': INSTANCE_ID,
                 'uuid': pod_id}),
         spec=service_spec)
-    svc = await k8s.create_namespaced_service(
+    svc = await app['k8s'].create_namespaced_service(
         'default',
-        service_template,
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
+        service_template
     )
     pod_spec = kube.client.V1PodSpec(
         security_context=kube.client.V1SecurityContext(
@@ -118,10 +113,9 @@ async def start_pod(jupyter_token, image):
                 'uuid': pod_id,
             }),
         spec=pod_spec)
-    pod = await k8s.create_namespaced_pod(
+    pod = await app['k8s'].create_namespaced_pod(
         'default',
-        pod_template,
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        pod_template)
     return svc, pod
 
 
@@ -136,12 +130,13 @@ async def root(request):
     session = await aiohttp_session.get_session(request)
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
-        return {'form_action_url': request.app.router['new'].url_for(),
+        return {'form_action_url': str(request.app.router['new'].url_for()),
                 'images': list(WORKER_IMAGES),
                 'default': 'gew2019'}
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
-    url = (request.app.router['root'].url_for() +
+    # str(request.app.router['root'].url_for()) +
+    url = ('https://notebook.hail.is/' +
            f'instance/{svc_name}/?token={jupyter_token}')
     log.info('redirecting to ' + url)
     raise aiohttp.web.HTTPFound(url)
@@ -163,11 +158,12 @@ async def new_get(request):
 async def new_post(request):
     session = await aiohttp_session.get_session(request)
     log.info('new received')
-    password = request.form['password']
-    image = request.form['image']
+    form = await request.post()
+    password = form['password']
+    image = form['image']
     if password != PASSWORD or image not in WORKER_IMAGES:
         raise aiohttp.web.HTTPForbidden()
-    jupyter_token = base64.urlsafe_b64decode(fernet.Fernet.generate_key())
+    jupyter_token = fernet.Fernet.generate_key().decode('ascii')
     svc, pod = await start_pod(jupyter_token, WORKER_IMAGES[image])
     session['svc_name'] = svc.metadata.name
     session['pod_name'] = pod.metadata.name
@@ -193,19 +189,17 @@ async def auth(request):
 
 
 async def get_all_workers():
-    workers = await k8s.list_namespaced_pod(
+    workers = await app['k8s'].list_namespaced_pod(
         namespace='default',
         watch=False,
-        label_selector='app=notebook-worker',
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        label_selector='app=notebook-worker')
     workers_and_svcs = []
     for w in workers.items:
         uuid = w.metadata.labels['uuid']
-        svcs = await k8s.list_namespaced_service(
+        svcs = await app['k8s'].list_namespaced_service(
             namespace='default',
             watch=False,
-            label_selector='uuid=' + uuid,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
+            label_selector='uuid=' + uuid).items
         assert len(svcs) <= 1
         if len(svcs) == 1:
             workers_and_svcs.append((w, svcs[0]))
@@ -224,7 +218,7 @@ async def workers(request):
             request.app.router['admin-login'].url_for())
     workers_and_svcs = await get_all_workers()
     return {'workers': workers_and_svcs,
-            'workers_url': request.app.router['workers'].url_for(),
+            'workers_url': str(request.app.router['workers'].url_for()),
             'leader_instance': INSTANCE_ID}
 
 
@@ -255,17 +249,15 @@ async def delete_all_workers(request):
 
 async def delete_worker_pod(pod_name, svc_name):
     try:
-        await k8s.delete_namespaced_pod(
+        await app['k8s'].delete_namespaced_pod(
             pod_name,
-            'default',
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            'default')
     except kube.client.rest.ApiException as e:
         log.info(f'pod {pod_name} or associated service already deleted {e}')
     try:
-        await k8s.delete_namespaced_service(
+        await app['k8s'].delete_namespaced_service(
             svc_name,
-            'default',
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            'default')
     except kube.client.rest.ApiException as e:
         log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
 
@@ -273,7 +265,7 @@ async def delete_worker_pod(pod_name, svc_name):
 @routes.get('/admin-login', name='admin-login')
 @aiohttp_jinja2.template('admin-login.html')
 async def admin_login(request):
-    return {'form_action_url': request.app.router['workers'].url_for()}
+    return {'form_action_url': str(request.app.router['workers'].url_for())}
 
 
 @routes.post('/admin-login')
@@ -292,7 +284,7 @@ async def worker_image(request):
     return aiohttp.web.Response(text='\n'.join(WORKER_IMAGES.values()))
 
 
-@routes.get('/wait')
+@routes.get('/waitws')
 async def wait_websocket(request):
     session = await aiohttp_session.get_session(request)
     ws = aiohttp.web.WebSocketResponse()
@@ -303,10 +295,10 @@ async def wait_websocket(request):
     log.info(f'received wait websocket for {svc_name} {pod_name}')
     while True:
         try:
-            response = app['client_session'].head(
+            response = await app['client_session'].head(
                 f'https://notebook.hail.is/instance-ready/{svc_name}/',
                 timeout=1)
-            if response.status_code < 500:
+            if response.status < 500:
                 log.info(
                     f'HEAD on jupyter succeeded for {svc_name} {pod_name} '
                     f'response: {response}')
@@ -321,11 +313,21 @@ async def wait_websocket(request):
             log.info(f'GET on jupyter failed for {svc_name} {pod_name} {e}')
         await asyncio.sleep(1)
     await ws.send_str(
-        request.app.router['root'].url_for() +
+        # str(request.app.router['root'].url_for()) +
+        'https://notebook.hail.is/' +
         f'instance/{svc_name}/?token={jupyter_token}')
     await ws.close()
     log.info(f'notification sent to user for {svc_name} {pod_name}')
     return ws
+
+
+async def setup_k8s(app):
+    kube.config.load_incluster_config()
+    app['k8s'] = kube.client.CoreV1Api()
+
+
+async def cleanup(app):
+    await app['client_session'].close()
 
 
 if __name__ == '__main__':
@@ -338,11 +340,11 @@ if __name__ == '__main__':
     log.info(f'jinja2 up')
     app.add_routes(routes)
     log.info(f'routes registered')
-    kube.config.load_incluster_config()
-    log.info(f'k8s config loaded')
+    app.on_startup.append(setup_k8s)
+    log.info(f'k8s setup registered')
     app['client_session'] = aiohttp.ClientSession()
     log.info(f'aiohttp client session created')
-    app.on_cleanup.append(app['client_session'].close)
+    app.on_cleanup.append(cleanup)
     log.info(f'close registered')
     fernet_key = fernet.Fernet.generate_key()
     log.info(f'key generated')
