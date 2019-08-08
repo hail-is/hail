@@ -531,9 +531,6 @@ object Interpret {
           case Inbreeding() =>
             assert(seqOpArgTypes == FastIndexedSeq(TCall(), TFloat64()))
             new InbreedingAggregator(null)
-          case HardyWeinberg() =>
-            assert(seqOpArgTypes == FastIndexedSeq(TCall()))
-            new HWEAggregator()
           case Count() => new CountAggregator()
           case Collect() =>
             val IndexedSeq(aggType) = seqOpArgTypes

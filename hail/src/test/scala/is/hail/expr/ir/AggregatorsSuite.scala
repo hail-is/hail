@@ -160,12 +160,6 @@ class AggregatorsSuite extends HailSuite {
       Row(-0.6654567, 2))
   }
 
-  @Test def hardyWeinberg() {
-    runAggregator(HardyWeinberg(), TCall(),
-      FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), Call2(1, 1), null),
-      Row(0.571429, 0.657143))
-  }
-
   // FIXME Max Boolean not supported by old-style MaxAggregator
 
   @Test def maxInt32() {

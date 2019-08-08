@@ -184,11 +184,22 @@ class AggFunc(object):
                               Indices(indices.source, aggregated._indices.axes),
                               aggregations)
 
+    @property
+    def context(self):
+        if self._as_scan:
+            return 'scan'
+        else:
+            return 'agg'
+
 _agg_func = AggFunc()
 
 
 def _check_agg_bindings(expr, bindings):
-    bound_references = {ref.name for ref in expr._ir.search(lambda ir: isinstance(ir, Ref) and not isinstance(ir, TopLevelReference))}
+    bound_references = {ref.name for ref in expr._ir.search(
+        lambda ir: isinstance(ir, Ref)
+                   and not isinstance(ir, TopLevelReference)
+                   and not ir.name.startswith('__uid_scan')
+                   and not ir.name.startswith('__uid_agg'))}
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
@@ -896,8 +907,15 @@ def hardy_weinberg_test(expr) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `het_freq_hwe` and `p_value`.
     """
-    t = tstruct(het_freq_hwe=tfloat64, p_value=tfloat64)
-    return _agg_func('HardyWeinberg', [expr], t)
+    return hl.rbind(
+        hl.rbind(
+            expr,
+            lambda call: filter(call.ploidy == 2, counter(call.n_alt_alleles())
+                                .map_values(lambda i: hl.case()
+                                            .when(i < 1 << 31, hl.int(i))
+                                            .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
+            _ctx=_agg_func.context),
+        lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0)))
 
 
 @typecheck(f=func_spec(1, agg_expr(expr_any)), array_agg_expr=expr_oneof(expr_array(), expr_set()))
