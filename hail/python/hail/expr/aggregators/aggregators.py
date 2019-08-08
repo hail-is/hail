@@ -184,6 +184,13 @@ class AggFunc(object):
                               Indices(indices.source, aggregated._indices.axes),
                               aggregations)
 
+    @property
+    def context(self):
+        if self._as_scan:
+            return 'scan'
+        else:
+            return 'agg'
+
 _agg_func = AggFunc()
 
 
@@ -900,21 +907,14 @@ def hardy_weinberg_test(expr) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `het_freq_hwe` and `p_value`.
     """
-    if getattr(hardy_weinberg_test, '_as_scan', False):
-        ctx = 'scan'
-        agg_obj = hl.scan
-    else:
-        ctx = 'agg'
-        agg_obj = hl.agg
-
     return hl.rbind(
         hl.rbind(
             expr,
-            lambda call: agg_obj.filter(call.ploidy == 2, agg_obj.counter(call.n_alt_alleles())
-                                        .map_values(lambda i: hl.case()
-                                                    .when(i < 1 << 31, hl.int(i))
-                                                    .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
-            _ctx=ctx),
+            lambda call: filter(call.ploidy == 2, counter(call.n_alt_alleles())
+                                .map_values(lambda i: hl.case()
+                                            .when(i < 1 << 31, hl.int(i))
+                                            .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
+            _ctx=_agg_func.context),
         lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0)))
 
 

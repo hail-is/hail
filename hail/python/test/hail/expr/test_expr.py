@@ -2572,7 +2572,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['het_freq_hwe'], 0.57142857)
 
     def test_hardy_weinberg_agg(self):
-        mapping = hl.literal({
+        mapping = {
             (0, 0): hl.call(0, 0),
             (0, 1): hl.call(0),
             (0, 2): hl.call(1, 1),
@@ -2583,10 +2583,10 @@ class Tests(unittest.TestCase):
             (1, 2): hl.call(0, 0),
             (1, 3): hl.call(0, 0),
             (1, 4): hl.call(0, 0),
-        })
+        }
 
         mt = hl.utils.range_matrix_table(n_rows=3, n_cols=5)
-        mt = mt.annotate_rows(hwe = hl.agg.hardy_weinberg_test(mapping.get((mt.row_idx, mt.col_idx))))
+        mt = mt.annotate_rows(hwe = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx))))
         [r1, r2, r3] = mt.hwe.collect()
 
         self.assertAlmostEqual(r1['p_value'], 0.65714285)
@@ -2597,6 +2597,20 @@ class Tests(unittest.TestCase):
 
         assert r3['p_value'] == 0.5
         assert np.isnan(r3['het_freq_hwe'])
+
+        ht = hl.utils.range_table(6)
+        ht = ht.annotate(x = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5]))
+        all_x = ht.x.collect()
+        [first, *mid, penultimate, last] = all_x
+
+        assert first['p_value'] == 0.5
+        assert np.isnan(first['het_freq_hwe'])
+
+        self.assertAlmostEqual(penultimate['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate['het_freq_hwe'], 0.6)
+
+        self.assertAlmostEqual(last['p_value'], 0.65714285)
+        self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
 
     def test_pl_to_gp(self):
         res = hl.eval(hl.pl_to_gp([0, 10, 100]))
