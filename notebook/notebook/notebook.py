@@ -136,8 +136,7 @@ async def root(request):
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     # str(request.app.router['root'].url_for()) +
-    url = ('https://notebook.hail.is/' +
-           f'instance/{svc_name}/?token={jupyter_token}')
+    url = request.url.with_path(f'instance/{svc_name}/?token={jupyter_token}')
     log.info('redirecting to ' + url)
     raise aiohttp.web.HTTPFound(url)
 
@@ -312,10 +311,11 @@ async def wait_websocket(request):
         except Exception as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name} {e}')
         await asyncio.sleep(1)
-    await ws.send_str(
-        # str(request.app.router['root'].url_for()) +
-        'https://notebook.hail.is/' +
+    notebook_url_scheme = request.url.scheme.replace('ws', 'http')
+    notebook_url = request.url.with_scheme(notebook_url_scheme)
+    notebook_url = notebook_url.with_path(
         f'instance/{svc_name}/?token={jupyter_token}')
+    await ws.send_str(notebook_url)
     await ws.close()
     log.info(f'notification sent to user for {svc_name} {pod_name}')
     return ws
