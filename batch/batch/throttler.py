@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import traceback
 
 
 log = logging.getLogger('batch.throttler')
@@ -13,22 +14,41 @@ class PodThrottler:
         self.pending_pods = set()
         self.created_pods = set()
 
-        for _ in range(parallelism):
-            asyncio.ensure_future(self._create_pod())
+        workers = [asyncio.ensure_future(self._create_pod())
+                   for _ in range(parallelism)]
+
+        async def manager(workers):
+            while True:
+                failed, pending = asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
+                for fut in failed:
+                    err = fut.exception()
+                    assert err is not None
+                    err_msg = '\n'.join(
+                        traceback.format_exception(type(err), err, err.__traceback__))
+                    log.error(f'restarting failed worker: {err} {err_msg}')
+                    pending.append(asyncio.ensure_future(self._create_pod()))
+                workers = pending
+
+        asyncio.ensure_future(manager(workers))
 
     async def _create_pod(self):
         while True:
             await self.semaphore.acquire()
 
-            job = await self.queue.get()
-            pod_name = job._pod_name
+            try:
+                job = await self.queue.get()
+                pod_name = job._pod_name
 
-            if pod_name not in self.pending_pods:
-                log.info(f'pod {pod_name} was deleted before it was created, ignoring')
+                if pod_name not in self.pending_pods:
+                    log.info(f'pod {pod_name} was deleted before it was created, ignoring')
+                    self.semaphore.release()
+                    return
+
+                await job._create_pod()
+            except:
                 self.semaphore.release()
-                return
+                raise
 
-            await job._create_pod()
             self.pending_pods.remove(pod_name)
             self.created_pods.add(pod_name)
             self.queue.task_done()
