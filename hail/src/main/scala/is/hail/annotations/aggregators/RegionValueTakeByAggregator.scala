@@ -8,6 +8,8 @@ import scala.collection.mutable
 class RegionValueTakeByAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueAggregator {
   assert(n >= 0)
 
+  override def isCommutative: Boolean = false
+
   val ord = keyType.ordering.toOrdering.on[(Any, Any)] { case (e, k) => k }
   var _state = new mutable.PriorityQueue[(Any, Any)]()(ord)
 

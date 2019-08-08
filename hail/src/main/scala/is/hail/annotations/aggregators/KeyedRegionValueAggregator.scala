@@ -11,6 +11,8 @@ case class KeyedRegionValueAggregator(
   rvAggs: Array[RegionValueAggregator],
   keyType: Type) extends RegionValueAggregator {
 
+  override def isCommutative: Boolean = rvAggs.forall(_.isCommutative)
+
   var m = new java.util.HashMap[Any, Array[RegionValueAggregator]]() // this can't be private for reflection to work
 
   def newInstance(): KeyedRegionValueAggregator = {

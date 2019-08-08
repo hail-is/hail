@@ -812,7 +812,7 @@ object Interpret {
                     }
                     write(aggRegion, seqOps.getAggOffset())
                   }
-                }, combOpF)
+                }, combOpF, commutative = extracted.isCommutative)
 
               Region.scoped { r =>
                 val resF = f(0, r)
@@ -861,7 +861,7 @@ object Interpret {
             (globalsOffset, seqOpsFunction)
           })({ case ((globalsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
-          }, combOp)
+          }, combOp, commutative = rvAggs.forall(_.isCommutative))
         } else
           Array.empty[RegionValueAggregator]
 

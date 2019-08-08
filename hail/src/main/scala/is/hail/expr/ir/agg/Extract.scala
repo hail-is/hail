@@ -153,6 +153,14 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   val typ: PTuple = PTuple(aggs.map(Extract.getPType): _*)
   val nAggs: Int = aggs.length
 
+  def isCommutative: Boolean = {
+    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && (agg.op match {
+      case Take() | Collect() | PrevNonnull() | TakeBy() => false
+      case _ => true
+    })
+    aggs.forall(aggCommutes)
+  }
+
   def deserializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
     DeserializeAggs(i * nAggs, i2, spec, aggs)
 
