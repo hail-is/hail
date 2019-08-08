@@ -281,6 +281,21 @@ class CSERenderer(Renderer):
 
     class State:
         ...
+        def __init__(self, x, children, builder, context, outermost_scope, depth):
+            self.x = x
+            self.children = children
+            self.builder = builder
+            self.context = context
+            self.outermost_scope = outermost_scope
+            self.ir_child_num = 0
+            self.depth = depth
+            self.i = 0
+
+        def copy(self):
+            new_state = CSERenderer.State(self.x, self.children, self.builder, self.context, self.outermost_scope, self.depth)
+            new_state.ir_child_num = self.ir_child_num
+            new_state.i = self.i
+            return new_state
 
     def loop(self, state, k):
         if state.i >= len(state.children):
@@ -309,8 +324,8 @@ class CSERenderer(Renderer):
                     state.i += 1
                     return self.loop(state, k)
 
-                return self.print(let_body, state.context, child_outermost_scope,
-                           state.depth + 1, child, post_lift_visit)
+                new_state = self.State(child, child.render_children(self), let_body, state.context, child_outermost_scope, state.depth + 1)
+                return self.print(new_state, post_lift_visit)
             else:
                 state.builder.append(f'(Ref {name})')
                 state.i += 1
@@ -320,33 +335,23 @@ class CSERenderer(Renderer):
                 state.i += 1
                 return self.loop(state, k)
             if isinstance(child, ir.BaseIR):
-                return self.print(state.builder, state.context,
-                           child_outermost_scope, state.depth + 1, child,
-                           post_visit)
+                new_state = self.State(child, child.render_children(self), state.builder, state.context, child_outermost_scope, state.depth + 1)
+                return self.print(new_state, post_visit)
             else:
-                return self.print_renderable(
-                    state.builder, state.context,
-                    child_outermost_scope, state.depth + 1,
-                    state.ir_child_num, child, post_visit)
+                new_state = self.State(child, child.render_children(self), state.builder, state.context, child_outermost_scope, state.depth + 1)
+                new_state.ir_child_num = state.ir_child_num
+                return self.print_renderable(new_state, post_visit)
 
-    def print(self, builder: List[str], context: List[PrintStackFrame], outermost_scope: int, depth: int, x: 'ir.BaseIR', k):
-        state = self.State()
-        state.x = x
-        state.children = x.render_children(self)
-        state.builder = builder
-        state.context = context
-        state.outermost_scope = outermost_scope
-        state.ir_child_num = 0
-        state.depth = depth
-        state.i = 0
-
+    def print(self, state, k):
+        x = state.x
+        builder = state.builder
         if id(x) in self.memo:
             state.builder.append(self.memo[id(x)])
             return k()
         insert_lets = id(x) in self.binding_sites and len(self.binding_sites[id(x)].lifted_lets) > 0
         if insert_lets:
             state.builder = []
-            context.append(PrintStackFrame(self.binding_sites[id(x)]))
+            state.context.append(PrintStackFrame(self.binding_sites[id(x)]))
         head = x.render_head(self)
         if head != '':
             state.builder.append(head)
@@ -377,27 +382,21 @@ class CSERenderer(Renderer):
                 state.ir_child_num += 1
                 state.i += 1
                 return self.loop2(state, k)
-            return self.print(state.builder, state.context, state.outermost_scope, state.depth, child, post_visit_2)
+            new_state = self.State(child, child.render_children(self), state.builder, state.context, state.outermost_scope, state.depth)
+            return self.print(new_state, post_visit_2)
         else:
             def post_visit_renderable_2():
                 state.i += 1
                 return self.loop2(state, k)
-            return self.print_renderable(state.builder, state.context, state.outermost_scope, state.depth, state.ir_child_num, child, post_visit_renderable_2)
+            new_state = self.State(child, child.render_children(self), state.builder, state.context, state.outermost_scope, state.depth)
+            new_state.ir_child_num = state.ir_child_num
+            return self.print_renderable(new_state, post_visit_renderable_2)
 
-    def print_renderable(self, builder: List[str], context: List[PrintStackFrame], outermost_scope: int, depth: int, ir_child_num: int, x: Renderable, k):
-        assert not isinstance(x, ir.BaseIR)
-        head = x.render_head(self)
+    def print_renderable(self, state, k):
+        assert not isinstance(state.x, ir.BaseIR)
+        head = state.x.render_head(self)
         if head != '':
-            builder.append(head)
-        state = self.State()
-        state.x = x
-        state.children = x.render_children(self)
-        state.builder = builder
-        state.context = context
-        state.outermost_scope = outermost_scope
-        state.ir_child_num = ir_child_num
-        state.depth = depth
-        state.i = 0
+            state.builder.append(head)
         def post_children_renderable():
             state.builder.append(state.x.render_tail(self))
             return k()
@@ -488,4 +487,5 @@ class CSERenderer(Renderer):
         builder = []
         def post_root():
             return ''.join(builder)
-        return self.print(builder, [], 0, 1, root, post_root)
+        state = self.State(root, root.render_children(self), builder, [], 0, 1)
+        return self.print(state, post_root)
