@@ -275,6 +275,7 @@ class Job:
                         }),
             spec=pod_spec)
 
+        log.info(pod_template)
         _, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             if err.status == 409:
