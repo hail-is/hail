@@ -338,9 +338,19 @@ class CSERenderer(Renderer):
                 new_state = self.State(child, child.render_children(self), state.builder, state.context, child_outermost_scope, state.depth + 1)
                 return self.print(new_state, post_visit)
             else:
+                head = child.render_head(self)
+                if head != '':
+                    state.builder.append(head)
+
                 new_state = self.State(child, child.render_children(self), state.builder, state.context, child_outermost_scope, state.depth + 1)
                 new_state.ir_child_num = state.ir_child_num
-                return self.print_renderable(new_state, post_visit)
+
+                def post_children_renderable():
+                    new_state.builder.append(new_state.x.render_tail(self))
+                    state.i += 1
+                    return self.loop(state, k)
+
+                return self.loop2(new_state, post_children_renderable)
 
     def print(self, state, k):
         x = state.x
@@ -359,18 +369,21 @@ class CSERenderer(Renderer):
         def post_children():
             state.builder.append(state.x.render_tail(self))
             if insert_lets:
-                sf = state.context[-1]
-                state.context.pop()
-                for let_body in sf.let_bodies:
-                    builder.extend(let_body)
-                builder.extend(state.builder)
-                num_lets = len(sf.lifted_lets)
-                for _ in range(num_lets):
-                    builder.append(')')
+                self.add_lets(state, builder)
             return k()
 
         return self.loop(state, post_children)
 
+    @staticmethod
+    def add_lets(state, builder):
+        sf = state.context[-1]
+        state.context.pop()
+        for let_body in sf.let_bodies:
+            builder.extend(let_body)
+        builder.extend(state.builder)
+        num_lets = len(sf.lifted_lets)
+        for _ in range(num_lets):
+            builder.append(')')
 
     def loop2(self, state, k):
         if state.i >= len(state.children):
@@ -385,22 +398,18 @@ class CSERenderer(Renderer):
             new_state = self.State(child, child.render_children(self), state.builder, state.context, state.outermost_scope, state.depth)
             return self.print(new_state, post_visit_2)
         else:
-            def post_visit_renderable_2():
-                state.i += 1
-                return self.loop2(state, k)
+            head = child.render_head(self)
+            if head != '':
+                state.builder.append(head)
+
             new_state = self.State(child, child.render_children(self), state.builder, state.context, state.outermost_scope, state.depth)
             new_state.ir_child_num = state.ir_child_num
-            return self.print_renderable(new_state, post_visit_renderable_2)
 
-    def print_renderable(self, state, k):
-        assert not isinstance(state.x, ir.BaseIR)
-        head = state.x.render_head(self)
-        if head != '':
-            state.builder.append(head)
-        def post_children_renderable():
-            state.builder.append(state.x.render_tail(self))
-            return k()
-        return self.loop2(state, post_children_renderable)
+            def post_children_renderable():
+                new_state.builder.append(new_state.x.render_tail(self))
+                state.i += 1
+                return self.loop2(state, k)
+            return self.loop2(new_state, post_children_renderable)
 
     def compute_new_bindings(self, root: 'ir.BaseIR'):
         # force computation of all types
