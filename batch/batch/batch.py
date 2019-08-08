@@ -1332,12 +1332,12 @@ async def refresh_k8s_pods():
     log.info(f'k8s had {len(pods.items)} pods')
 
     seen_pods = set()
-    for pod in pods.items:
+
+    async def see_pod(pod):
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
-
-        job = await Job.from_k8s_labels(pod)
-        await update_job_with_pod(job, pod)
+        await pod_changed(pod)
+    asyncio.gather(*[see_pod(pod) for pod in pods.items])
 
     if app['pod_throttler'].full():
         log.info(f'pod creation queue is full; skipping restarting jobs not seen in k8s')
@@ -1345,10 +1345,12 @@ async def refresh_k8s_pods():
 
     log.info('restarting running jobs with pods not seen in k8s')
 
-    for job in pod_jobs:
-        if job._pod_name not in seen_pods:
-            log.info(f'restarting job {job.id}')
-            await update_job_with_pod(job, None)
+    async def restart_job(job):
+        log.info(f'restarting job {job.id}')
+        await update_job_with_pod(job, None)
+    asyncio.gather(*[restart_job(job)
+                     for job in pod_jobs
+                     if job._pod_name not in seen_pods])
 
 
 async def refresh_k8s_pvc():
