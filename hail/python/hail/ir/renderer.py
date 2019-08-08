@@ -348,7 +348,7 @@ class CSERenderer(Renderer):
                 def post_children():
                     new_state.builder.append(new_state.x.render_tail(self))
                     if insert_lets:
-                        self.add_lets(new_state, builder)
+                        self.add_lets(new_state.context, new_state.builder, builder)
                     self.post_lift_visit(state, let_body, lift_to, name)
                     return self.loop(state, k)
 
@@ -371,7 +371,7 @@ class CSERenderer(Renderer):
                 def post_children():
                     new_state.builder.append(child.render_tail(self))
                     if insert_lets:
-                        self.add_lets(new_state, state.builder)
+                        self.add_lets(new_state.context, new_state.builder, state.builder)
                     state.i += 1
                     return self.loop(state, k)
 
@@ -391,13 +391,36 @@ class CSERenderer(Renderer):
 
                 return self.loop2(new_state, post_children_renderable)
 
+    class Kont:
+        def __apply__(self):
+            pass
+
+    class PostChildren(Kont):
+        def __init__(self, node, state, insert_lets, builder, local_builder, k):
+            self.state = state
+            self.insert_lets = insert_lets
+            self.builder = builder
+            self.k = k
+            self.local_builder = local_builder
+            self.node = node
+            self.context = state.context
+
+    def apply(self, k: Kont):
+        if isinstance(k, self.PostChildren):
+            k.local_builder.append(k.node.render_tail(self))
+            if k.insert_lets:
+                CSERenderer.add_lets(k.context, k.local_builder, k.builder)
+            k.state.ir_child_num += 1
+            k.state.i += 1
+            return k.loop2(k.state, k.k)
+
     @staticmethod
-    def add_lets(state, builder):
-        sf = state.context[-1]
-        state.context.pop()
+    def add_lets(context, local_builder, builder):
+        sf = context[-1]
+        context.pop()
         for let_body in sf.let_bodies:
             builder.extend(let_body)
-        builder.extend(state.builder)
+        builder.extend(local_builder)
         num_lets = len(sf.lifted_lets)
         for _ in range(num_lets):
             builder.append(')')
@@ -541,7 +564,7 @@ class CSERenderer(Renderer):
         def post_children():
             state.builder.append(root.render_tail(self))
             if insert_lets:
-                self.add_lets(state, builder)
+                self.add_lets(state.context, state.builder, builder)
             return ''.join(builder)
 
         return self.loop(state, post_children)
