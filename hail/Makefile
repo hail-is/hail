@@ -1,7 +1,4 @@
-.PHONY: shadowJar build-info jars clean \
-  src/main/resources/build-info.properties \
-  python/hail/hail_version python/hail/hail_pip_version
-
+.PHONY: shadowJar jars clean
 
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
@@ -15,22 +12,32 @@ PARALLELISM := 2
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
+# not perfect, not robust to simdpp changes, but probably fine
+JAR_SOURCES != git ls-files src/main
+JAR_SOURCES += build.gradle
+JAR_TEST_SOURCES != git ls-files src/test
+
+BUILD_INFO := src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
+	python/hailtop/hailctl/hail_version
+SHADOW_JAR := build/libs/hail-all-spark.jar
+SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
+
+shadowJar: $(SHADOW_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
-shadowJar:
+$(SHADOW_JAR): $(JAR_SOURCES)
 	./gradlew releaseJar
 else
-shadowJar:
+$(SHADOW_JAR): $(JAR_SOURCES)
 	./gradlew shadowJar
 endif
-
-build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailtop/hailctl/hail_version
+$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+	./gradlew shadowTestJar
 
 define properties
 endef
 
-src/main/resources/build-info.properties:
+src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
@@ -40,20 +47,23 @@ src/main/resources/build-info.properties:
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
-python/hail/hail_version:
+python/hail/hail_version: Makefile
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
+
+python/hail/hail_pip_version: Makefile
+	echo $(HAIL_PIP_VERSION) > $@
 
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars: build-info
-	./gradlew shadowTestJar shadowJar
+jars: $(BUILD_INFO)
+	./gradlew shadowJar shadowTestJar
 
 python/README.md: ../README.md
 	cp ../README.md python/
 
-python/hail/hail-all-spark.jar: shadowJar
-	cp build/libs/hail-all-spark.jar python/hail/
+python/hail/hail-all-spark.jar: $(SHADOW_JAR)
+	cp -f $< $@
 
 .PHONY: install-editable
 install-editable: build-info init-scripts
@@ -61,7 +71,7 @@ install-editable: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(PIP) install -e
 
 .PHONY: pytest
-pytest: build-info shadowJar init-scripts
+pytest: $(BUILD_INFO) $(SHADOW_JAR) init-scripts
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
     --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
@@ -119,7 +129,6 @@ install: wheel
 
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
-
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
