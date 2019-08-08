@@ -38,7 +38,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
 
   type Node = Code[Long]
 
-  val bufferType = PArray(elemType.setRequired(false), required = true)
+  val bufferType = PArray(elemType, required = true)
 
   val nodeType = PStruct(
     "buf" -> bufferType,
@@ -75,14 +75,18 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
 
   private def pushPresent(n: Node, store: Code[Long] => Code[Unit]): Code[Unit] =
     Code(
-      bufferType.setElementPresent(buffer(n), count(n)),
+      if(elemType.required) Code._empty else bufferType.setElementPresent(buffer(n), count(n)),
       store(bufferType.elementOffset(buffer(n), capacity(n), count(n))),
       incrCount(n))
 
-  private def pushMissing(n: Node): Code[Unit] =
-    Code(
-      bufferType.setElementMissing(buffer(n), count(n)),
-      incrCount(n))
+  private def pushMissing(n: Node): Code[Unit] = {
+    if(elemType.required)
+      Code._fatal("cannot push missing onto list with required elements")
+    else
+      Code(
+        bufferType.setElementMissing(buffer(n), count(n)),
+        incrCount(n))
+  }
 
   private def allocateNode(r: Code[Region], cap: Code[Int]): (Code[Unit], Node) = {
     val setup = Code(
@@ -159,7 +163,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
 
   def appendShallow(r: Code[Region], atyp: PArray, aoff: Code[Long]): Code[Unit] = {
     assert(atyp.isOfType(bufferType))
-    assert(!atyp.elementType.required)
+    assert(atyp.elementType.required == elemType.required)
     val len = atyp.loadLength(r, aoff)
     Code(
       tmpNode := r.allocate(nodeType.alignment, nodeType.byteSize),

@@ -118,7 +118,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   }
 
   @Test def testPushLotsOfLongs() {
-    assertBLLContents(PInt64(), (0L until 1000).toIndexedSeq) { case (bll, EmitRegion(mb, r)) =>
+    assertBLLContents(PInt64Required, (0L until 1000).toIndexedSeq) { case (bll, EmitRegion(mb, r)) =>
       val i = mb.newField[Long]
       Code(
         i := 0,
@@ -138,7 +138,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   }
 
   @Test def testPushStrings() {
-    assertBLLContents(PString(), IndexedSeq("hello", null, "world!")) { case (bll, er@EmitRegion(_, r)) =>
+    assertBLLContents(PStringOptional, IndexedSeq("hello", null, "world!")) { case (bll, er@EmitRegion(_, r)) =>
       Code(
         bll.push(r, some(allocString(er, "hello"))),
         bll.push(r, none),
@@ -180,6 +180,30 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
         aoff := buildTestArrayWithMissing(er),
         bll.appendShallow(r, PArray(PInt32Optional), aoff),
         bll.appendShallow(r, PArray(PInt32Optional), aoff),
+        bll.toArray)
+    }
+  }
+
+  // [1, 2, 3]
+  def buildTestArray(er: EmitRegion): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(er, PArray(PInt32Required))
+    Code(
+      srvb.start(length = 3, init = true),
+      srvb.addInt(1), srvb.advance(),
+      srvb.addInt(2), srvb.advance(),
+      srvb.addInt(3), srvb.advance(),
+      srvb.end())
+  }
+
+  @Test def testAppendShallow2() {
+    assertEvalsToRV(IndexedSeq(1, 2, 3, 1, 2, 3), PArray(PInt32Required)) { case er@EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32Required, mb.fb)
+      val aoff = mb.newField[Long]
+      Code(
+        bll.init(r),
+        aoff := buildTestArray(er),
+        bll.appendShallow(r, PArray(PInt32Required), aoff),
+        bll.appendShallow(r, PArray(PInt32Required), aoff),
         bll.toArray)
     }
   }
