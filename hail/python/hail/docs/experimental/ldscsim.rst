@@ -1,5 +1,5 @@
-``ldscsim``
-===========
+`ldscsim`
+=========
 
 .. currentmodule:: hail.experimental.ldscsim
 
