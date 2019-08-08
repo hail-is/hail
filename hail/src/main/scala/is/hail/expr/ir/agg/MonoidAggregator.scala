@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
+import is.hail.expr.ir.{coerce => _, _}
 import is.hail.expr.types.physical.{PInt32, PInt64, PFloat32, PFloat64, PType}
 
 import scala.language.existentials
@@ -33,13 +33,19 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(elt) = seq
     val (mOpt, v, _) = state.fields(0)
-    Code(elt.setup, combine(mOpt, v, Some(elt.m), elt.v))
+    val eltm = state.fb.newField[Boolean]
+    val eltv = state.fb.newField(typeToTypeInfo(typ))
+    Code(elt.setup,
+      eltm := elt.m,
+      eltm.mux(Code._empty, eltv := elt.value),
+      combine(mOpt, v, Some(eltm), eltv)
+    )
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
     val (m1, v1, _) = state.fields(0)
     val (m2, v2, _) = other.fields(0)
-    combine(m1, v1, m2.map(implicitly(_)), v2)
+    combine(m1, v1, m2.map(_.load), v2.load)
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
