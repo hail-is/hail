@@ -338,6 +338,16 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         assert ht.aggregate(hl.agg.counter(10 - ht.idx).get(10, -1)) == 1
 
+    def test_counter(self):
+        a = hl.literal(["rabbit", "rabbit", None, "cat", "dog", None], dtype='array<str>')
+        b = hl.literal([[], [], [1, 2, 3], [1, 2], [1, 2, 3], None], dtype='array<array<int>>')
+
+        ht = hl.utils.range_table(6)
+        ac, bc = ht.aggregate(hl.tuple([hl.agg.counter(a[ht.idx]), hl.array(hl.agg.counter(b[ht.idx]))]))
+        assert ac == {'rabbit': 2, 'cat': 1, 'dog': 1, None: 2}
+        assert bc == [([], 2), ([1, 2], 1), ([1, 2, 3], 2), (None, 1)]
+
+
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,

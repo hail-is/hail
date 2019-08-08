@@ -538,9 +538,6 @@ object Interpret {
           case Collect() =>
             val IndexedSeq(aggType) = seqOpArgTypes
             new CollectAggregator(aggType)
-          case Counter() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
-            new CounterAggregator(aggType)
           case CollectAsSet() =>
             val IndexedSeq(aggType) = seqOpArgTypes
             new CollectSetAggregator(aggType)
