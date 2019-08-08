@@ -17,16 +17,19 @@ class PodThrottler:
         workers = [asyncio.ensure_future(self._create_pod())
                    for _ in range(parallelism)]
 
-        while True:
-            failed, pending = asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
-            for fut in failed:
-                err = fut.exception()
-                assert err is not None
-                err_msg = '\n'.join(
-                    traceback.format_exception(type(err), err, err.__traceback__))
-                log.error(f'restarting failed worker: {err} {err_msg}')
-                pending.append(asyncio.ensure_future(self._create_pod()))
-            workers = pending
+        async def manager(workers):
+            while True:
+                failed, pending = asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
+                for fut in failed:
+                    err = fut.exception()
+                    assert err is not None
+                    err_msg = '\n'.join(
+                        traceback.format_exception(type(err), err, err.__traceback__))
+                    log.error(f'restarting failed worker: {err} {err_msg}')
+                    pending.append(asyncio.ensure_future(self._create_pod()))
+                workers = pending
+
+        asyncio.ensure_future(manager(workers))
 
     async def _create_pod(self):
         while True:
