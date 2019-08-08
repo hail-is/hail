@@ -331,27 +331,18 @@ async def cleanup(app):
 
 
 if __name__ == '__main__':
-    log.info(f'starting')
     aiohttp_jinja2.setup(
         app,
         loader=jinja2.FileSystemLoader(os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             'templates')))
-    log.info(f'jinja2 up')
     app.add_routes(routes)
-    log.info(f'routes registered')
     app.on_startup.append(setup_k8s)
-    log.info(f'k8s setup registered')
     app['client_session'] = aiohttp.ClientSession()
-    log.info(f'aiohttp client session created')
     app.on_cleanup.append(cleanup)
-    log.info(f'close registered')
     fernet_key = fernet.Fernet.generate_key()
-    log.info(f'key generated')
     secret_key = base64.urlsafe_b64decode(fernet_key)
-    log.info(f'secret key genereated')
     aiohttp_session.setup(
         app,
         aiohttp_session.cookie_storage.EncryptedCookieStorage(secret_key))
-    log.info(f'session setup')
     aiohttp.web.run_app(app, host='0.0.0.0', port=5000)
