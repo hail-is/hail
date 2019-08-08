@@ -61,9 +61,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     val acc = er.mb.newField[Int]
     Code(
       acc := 0,
-      bll.foreachElemAddress { e =>
-        e.m.mux(Code._empty,
-          acc := acc + er.region.loadInt(e.value))
+      bll.foreach { e =>
+        e.m.mux(Code._empty, acc := acc + e.value)
       },
       acc)
   }

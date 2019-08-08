@@ -8,21 +8,6 @@ import is.hail.utils._
 
 object StagedBlockLinkedList {
   val defaultBlockCap: Int = 64
-
-  // src : Code[PointerTo[T]]
-  // dst : Code[PointerTo[T]]
-  private def deepCopy(er: EmitRegion, typ: PType, src: Code[Long], dst: Code[Long]): Code[Unit] =
-    storeDeepCopy(er, typ, Region.loadIRIntermediate(typ)(src), dst)
-
-  // v : Code[T]
-  // dst : Code[PointerTo[T]]
-  private def storeDeepCopy(er: EmitRegion, typ: PType, v: Code[_], dst: Code[Long]): Code[Unit] = {
-    val ftyp = typ.fundamentalType
-    if (ftyp.isPrimitive)
-      Region.storePrimitive(ftyp, dst)(v)
-    else
-      StagedRegionValueBuilder.deepCopy(er, typ, coerce[Long](v), dst)
-  }
 }
 
 class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
@@ -88,11 +73,6 @@ class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
       Region.storeInt(nodeType.fieldOffset(n, 1), count),
       nodeType.setFieldMissing(n, 2))
 
-  private def elemAddress(n: Node, i: Code[Int]): EmitTriplet =
-    EmitTriplet(Code._empty,
-      bufferType.isElementMissing(buffer(n), i),
-      bufferType.elementOffset(buffer(n), capacity(n), i))
-
   private def pushPresent(n: Node, store: Code[Long] => Code[Unit]): Code[Unit] =
     Code(
       bufferType.setElementPresent(buffer(n), count(n)),
@@ -142,34 +122,39 @@ class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
         tmpNode := next(tmpNode)))
   }
 
-  def foreachElemAddress(f: EmitTriplet => Code[Unit]): Code[Unit] = {
+  def foreach(f: EmitTriplet => Code[Unit]): Code[Unit] = {
+    def et(n: Node, i: Code[Int]) =
+      EmitTriplet(Code._empty,
+        bufferType.isElementMissing(buffer(n), i),
+        Region.loadIRIntermediate(elemType)(
+          bufferType.elementOffset(buffer(n), capacity(n), i)))
     foreachNode { n => Code(
       i := 0,
       Code.whileLoop(i < count(n),
-        f(elemAddress(n, i)),
+        f(et(n, i)),
         i := i + 1))
     }
   }
 
   def push(r: Code[Region], elt: EmitTriplet): Code[Unit] = {
-    val er = EmitRegion(mb, r)
     Code(
       (count(lastNode) >= capacity(lastNode)).orEmpty(
         pushNewBlockNode(r, defaultBlockCap)), // push a new block if lastNode is full
       elt.setup,
       elt.m.mux(
         pushMissing(lastNode),
-        pushPresent(lastNode, storeDeepCopy(er, elemType, elt.v, _))),
+        pushPresent(lastNode, { dst =>
+          if(elemType.isPrimitive)
+            Region.storePrimitive(elemType, dst)(elt.value)
+          else
+            StagedRegionValueBuilder.deepCopy(mb.fb, r, elemType, elt.value, dst)
+        })),
       totalCount := totalCount + 1)
   }
 
-  def pushFromAddress(r: Code[Region], addr: EmitTriplet): Code[Unit] =
-    push(r, EmitTriplet(addr.setup, addr.m,
-      Region.loadIRIntermediate(elemType)(addr.value)))
-
   def append(r: Code[Region], bll: StagedBlockLinkedList): Code[Unit] = {
     assert(bll.elemType.isOfType(elemType))
-    bll.foreachElemAddress(pushFromAddress(r, _))
+    bll.foreach(push(r, _))
   }
 
   def appendShallow(r: Code[Region], atyp: PArray, aoff: Code[Long]): Code[Unit] = {
@@ -187,15 +172,14 @@ class StagedBlockLinkedList(val elemType: PType, val mb: EmitMethodBuilder) {
   }
 
   def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
-    val er = EmitRegion(mb, srvb.region)
     assert(srvb.typ.isOfType(bufferType))
     Code(
       srvb.start(totalCount, init = true),
-      foreachElemAddress { addr =>
+      foreach { elt =>
         Code(
-          addr.m.mux(
+          elt.m.mux(
             srvb.setMissing(),
-            deepCopy(er, elemType, addr.value, srvb.currentOffset)),
+            srvb.addWithDeepCopy(elemType, elt.value)),
           srvb.advance())
       })
   }
