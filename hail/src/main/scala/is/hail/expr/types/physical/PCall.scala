@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TCall
 import is.hail.variant.Genotype
 
@@ -30,12 +30,12 @@ class PCall(override val required: Boolean) extends ComplexPType {
 
   def isPhased(c: Code[Int]): Code[Boolean] = (c & 0x1).ceq(1)
 
-  def forEachAllele(mb: EmitMethodBuilder, _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit] = {
-    val c = mb.newField[Int]
-    val c2 = mb.newField[Int]
-    val p = mb.newField[Int]
-    val j = mb.newField[Int]
-    val k = mb.newField[Int]
+  def forEachAllele(fb: EmitFunctionBuilder[_], _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit] = {
+    val c = fb.newField[Int]
+    val c2 = fb.newField[Int]
+    val p = fb.newField[Int]
+    val j = fb.newField[Int]
+    val k = fb.newField[Int]
 
     Code(
       c := _c,
