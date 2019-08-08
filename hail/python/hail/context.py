@@ -295,11 +295,11 @@ def citation(*, bibtex=False):
 
 
 def cite_hail():
-    return hl.citation(bibtex=False)
+    return citation(bibtex=False)
 
 
 def cite_hail_bibtex():
-    return hl.citation(bibtex=True)
+    return citation(bibtex=True)
 
 
 def stop():
