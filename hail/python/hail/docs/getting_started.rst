@@ -39,7 +39,7 @@ Create a `conda enviroment
 
     conda create -n hail python==3.6
     conda activate hail
-    pip install hail
+    pip3 install hail
 
 To try Hail out, open iPython or a Jupyter notebook and run:
 
