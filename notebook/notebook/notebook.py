@@ -331,11 +331,11 @@ async def cleanup(app):
 
 
 if __name__ == '__main__':
+    my_path = os.path.dirname(os.path.abspath(__file__))
     aiohttp_jinja2.setup(
         app,
-        loader=jinja2.FileSystemLoader(os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            'templates')))
+        loader=jinja2.FileSystemLoader(os.path.join(my_path, 'templates')))
+    routes.static('/static', os.path.join(my_path, 'static'))
     app.add_routes(routes)
     app.on_startup.append(setup_k8s)
     app['client_session'] = aiohttp.ClientSession()
