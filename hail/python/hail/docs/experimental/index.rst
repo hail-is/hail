@@ -42,8 +42,8 @@ Genetics Methods
     sparse_split_multi
 
 
-``dplyr``-inspired Methods
---------------------------
+`dplyr`-inspired Methods
+------------------------
 
 .. autosummary::
 
@@ -51,8 +51,8 @@ Genetics Methods
     separate
     spread
 
-``ldscsim``
------------
+`ldscsim`
+---------
 
 .. toctree::
 
