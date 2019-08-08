@@ -25,7 +25,7 @@ from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_u
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
-from .database import BatchDatabase, JobsBuilder, JobsTable
+from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER
 from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
@@ -127,7 +127,7 @@ class JobStateWriteFailure(Exception):
 
 class Job:
     async def _create_pvc(self):
-        pvc, err = await app['k8s'].create_pvc(
+        _, err = await app['k8s'].create_pvc(
             body=kube.client.V1PersistentVolumeClaim(
                 metadata=kube.client.V1ObjectMeta(
                     name=self._pvc_name,
@@ -275,7 +275,7 @@ class Job:
                         }),
             spec=pod_spec)
 
-        pod, err = await app['k8s'].create_pod(body=pod_template)
+        _, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')
@@ -330,7 +330,7 @@ class Job:
         if self._state == 'Running':
             future_logs = asyncio.gather(*[_read_log_from_k8s(task) for task in tasks])
             return {k: v for k, v in await future_logs}
-        elif self._state in ('Error', 'Failed', 'Success'):
+        if self._state in ('Error', 'Failed', 'Success'):
             return await _read_log_from_gcs()
 
     async def _read_pod_statuses(self):
@@ -354,9 +354,8 @@ class Job:
                 log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
             return pod_status
-        else:
-            assert(self._state in ('Error', 'Failed', 'Success'))
-            return await _read_pod_status_from_gcs()
+        assert self._state in ('Error', 'Failed', 'Success')
+        return await _read_pod_status_from_gcs()
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
@@ -510,6 +509,7 @@ class Job:
             await child.parent_new_state(new_state, *self.id)
 
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
+        del parent_job_id
         assert parent_batch_id == self.batch_id
         if new_state in complete_states:
             await self.create_if_ready()
@@ -551,7 +551,7 @@ class Job:
         if self._state == 'Running' and (not self._cancelled or self.always_run):
             app['pod_throttler'].create_pod(self)
 
-    async def mark_complete(self, pod, failed=False, failure_reason=None):
+    async def mark_complete(self, pod, failed=False, failure_reason=None):  # pylint: disable=R0915
         new_state = None
         exit_codes = [None for _ in tasks]
         durations = [None for _ in tasks]
@@ -991,7 +991,7 @@ async def _get_batches_list(params, user):
         success = success == '1'
     attributes = {}
     for k, v in params.items():
-        if k == 'complete' or k == 'success':  # params does not support deletion
+        if k in ('complete', 'success'):  # params does not support deletion
             continue
         if not k.startswith('a:'):
             abort(400, f'unknown query parameter {k}')
@@ -1208,7 +1208,7 @@ async def batch_id(request, userdata):
     raise web.HTTPFound(location=location)
 
 
-async def update_job_with_pod(job, pod):
+async def update_job_with_pod(job, pod):  # pylint: disable=R0911
     log.info(f'update job {job.id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
     if job and job._state == 'Pending':
         if pod:
@@ -1235,8 +1235,8 @@ async def update_job_with_pod(job, pod):
     if pod and pod.status and pod.status.phase == 'Pending':
         def image_pull_back_off_reason(container_status):
             if (container_status.state and
-                container_status.state.waiting and
-                container_status.state.waiting.reason == 'ImagePullBackOff'):
+                    container_status.state.waiting and
+                    container_status.state.waiting.reason == 'ImagePullBackOff'):
                 return (container_status.state.waiting.reason +
                         ': ' +
                         container_status.state.waiting.message)
