@@ -25,6 +25,8 @@ class RegionValuePrevNonnullAnnotationAggregator2(
   
   var present: Boolean = false
 
+  override def isCommutative: Boolean = false
+
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (!missing) {
       mb.clear()
@@ -70,6 +72,8 @@ class RegionValuePrevNonnullAnnotationAggregator2(
 
 class RegionValuePrevNonnullAnnotationAggregator(t: Type) extends RegionValueAggregator {
   var last: Annotation = null
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (!missing)
