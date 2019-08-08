@@ -25,6 +25,7 @@ Genetics Methods
 
 .. autosummary::
 
+    load_dataset
     ld_score
     ld_score_regression
     write_expression
@@ -35,16 +36,29 @@ Genetics Methods
     phase_by_transmission
     phase_trio_matrix_by_transmission
     explode_trio_matrix
-    load_dataset
     import_gtf
     get_gene_intervals
     export_entries_by_col
     sparse_split_multi
+
+
+``dplyr``-inspired Methods
+--------------------------
+
+.. autosummary::
+
     gather
     separate
     spread
 
+``ldscsim``
+-----------
 
+.. toctree::
+
+    ldscsim: a statistical genetics phenotype simulation framework <ldscsim>
+
+.. autofunction:: load_dataset
 .. autofunction:: ld_score
 .. autofunction:: ld_score_regression
 .. autofunction:: write_expression
@@ -55,7 +69,6 @@ Genetics Methods
 .. autofunction:: phase_by_transmission
 .. autofunction:: phase_trio_matrix_by_transmission
 .. autofunction:: explode_trio_matrix
-.. autofunction:: load_dataset
 .. autofunction:: import_gtf
 .. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
