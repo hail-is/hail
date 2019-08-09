@@ -3244,9 +3244,94 @@ def reversed(x):
     return x
 
 
+@typecheck(name=builtins.str,
+           exprs=tupleof(Expression),
+           filter_missing=builtins.bool,
+           filter_nan=builtins.bool)
+def _comparison_func(name, exprs, filter_missing, filter_nan):
+    if builtins.len(exprs) < 1:
+        raise ValueError(f"{name:!r} requires at least one argument")
+    if (builtins.len(exprs) == 1
+            and (isinstance(exprs[0].dtype, (tarray, tset)))
+            and is_numeric(exprs[0].dtype.element_type)):
+        [e] = exprs
+        if filter_nan and e.dtype.element_type in (tfloat32, tfloat64):
+            name = 'nan' + name
+        return array(e)._filter_missing_method(filter_missing, name, exprs[0].dtype.element_type)
+    else:
+        if not builtins.all(is_numeric(e.dtype) for e in exprs):
+            expr_types = ', '.join("'{}'".format(e.dtype) for e in exprs)
+            raise TypeError(f"{name!r} expects a single numeric array expression or multiple numeric expressions\n"
+                            f"  Found {builtins.len(exprs)} arguments with types {expr_types}")
+        unified_typ = unify_types_limited(*(e.dtype for e in exprs))
+        ec = coercer_from_dtype(unified_typ)
+        indices, aggs = unify_all(*exprs)
+
+        func_name = name
+        if filter_missing:
+            func_name += '_ignore_missing'
+        if filter_nan and unified_typ in (tfloat32, tfloat64):
+            func_name = 'nan' + func_name
+        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, l, r), [ec.coerce(e)._ir for e in exprs]),
+                              unified_typ,
+                              indices,
+                              aggs)
+
+
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
-           filter_missing=bool)
-def max(*exprs, filter_missing: bool = True) -> NumericExpression:
+           filter_missing=builtins.bool)
+def nanmax(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
+    """Returns the maximum value of a collection or of given arguments, excluding NaN.
+
+    Examples
+    --------
+
+    Compute the maximum value of an array:
+
+    >>> hl.eval(hl.nanmax([1.1, 50.1, float('nan')]))
+    50.1
+
+    Take the maximum value of arguments:
+
+    >>> hl.eval(hl.nanmax(1.1, 50.1, float('nan')))
+    50.1
+
+    Notes
+    -----
+    Like the Python builtin ``max`` function, this function can either take a
+    single iterable expression (an array or set of numeric elements), or
+    variable-length arguments of numeric expressions.
+
+    Note
+    ----
+    If `filter_missing` is ``True``, then the result is the maximum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    NaN arguments / array elements are ignored; the maximum value of `NaN` and
+    any non-`NaN` value `x` is `x`.
+
+    See Also
+    --------
+    :func:`max`, :func:`min`, :func:`nanmin`
+
+    Parameters
+    ----------
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
+        Single numeric array or set, or multiple numeric values.
+    filter_missing : :obj:`bool`
+        Remove missing arguments/elements before computing maximum.
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+    """
+
+    return _comparison_func('max', exprs, filter_missing, filter_nan=True)
+
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=builtins.bool)
+def max(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     """Returns the maximum element of a collection or of given numeric expressions.
 
     Examples
@@ -3270,54 +3355,46 @@ def max(*exprs, filter_missing: bool = True) -> NumericExpression:
 
     Note
     ----
-    Missing arguments / array elements are ignored if `filter_missing` is ``True``.
-    If `filter_missing` is ``False``, then any missing element causes the result to
-    be missing.
+    If `filter_missing` is ``True``, then the result is the maximum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    If any element or argument is `NaN`, then the result is `NaN`.
+
+    See Also
+    --------
+    :func:`nanmax`, :func:`min`, :func:`nanmin`
 
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
     filter_missing : :obj:`bool`
-        Remove missing elements from the collection before computing product.
+        Remove missing arguments/elements before computing maximum.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    if builtins.len(exprs) < 1:
-        raise ValueError("'max' requires at least one argument")
-    if builtins.len(exprs) == 1:
-        expr = exprs[0]
-        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
-            raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._filter_missing_method(filter_missing, 'max', expr.dtype.element_type)
-    else:
-        if not builtins.all(is_numeric(e.dtype) for e in exprs):
-            raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
-                "'{}'".format(e.dtype) for e in exprs)))
-        return max(hl.array(list(exprs)), filter_missing=filter_missing)
-
+    return _comparison_func('max', exprs, filter_missing, filter_nan=False)
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
-           filter_missing=bool)
-def min(*exprs, filter_missing: bool = True) -> NumericExpression:
-    """Returns the minimum of a collection or of given numeric expressions.
+           filter_missing=builtins.bool)
+def nanmin(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
+    """Returns the minimum value of a collection or of given arguments, excluding NaN.
 
     Examples
     --------
 
-    Take the minimum value of an array:
+    Compute the minimum value of an array:
 
-    >>> hl.eval(hl.min([2, 3, 5, 6, 7, 9]))
-    2
+    >>> hl.eval(hl.nanmin([1.1, 50.1, float('nan')]))
+    1.1
 
-    Take the minimum value:
+    Take the minimum value of arguments:
 
-    >>> hl.eval(hl.min(12, 50, 2))
-    2
+    >>> hl.eval(hl.nanmin(1.1, 50.1, float('nan')))
+    1.1
 
     Notes
     -----
@@ -3327,35 +3404,79 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
 
     Note
     ----
-    Missing arguments / array elements are ignored if `filter_missing` is ``True``.
-    If `filter_missing` is ``False``, then any missing element causes the result to
-    be missing.
+    If `filter_missing` is ``True``, then the result is the minimum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    NaN arguments / array elements are ignored; the minimum value of `NaN` and
+    any non-`NaN` value `x` is `x`.
+
+    See Also
+    --------
+    :func:`min`, :func:`max`, :func:`nanmax`
 
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
     filter_missing : :obj:`bool`
-        Remove missing elements from the collection before computing product.
+        Remove missing arguments/elements before computing minimum.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    if builtins.len(exprs) < 1:
-        raise ValueError("'min' requires at least one argument")
-    if builtins.len(exprs) == 1:
-        expr = exprs[0]
-        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
-            raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._filter_missing_method(filter_missing, 'min', expr.dtype.element_type)
-    else:
-        if not builtins.all(is_numeric(e.dtype) for e in exprs):
-            raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
-                "'{}'".format(e.dtype) for e in exprs)))
-        return min(hl.array(list(exprs)), filter_missing=filter_missing)
+
+    return _comparison_func('min', exprs, filter_missing, filter_nan=True)
+
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=builtins.bool)
+def min(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
+    """Returns the minimum element of a collection or of given numeric expressions.
+
+    Examples
+    --------
+
+    Take the minimum value of an array:
+
+    >>> hl.eval(hl.min([1, 3, 5, 6, 7, 9]))
+    1
+
+    Take the minimum value of arguments:
+
+    >>> hl.eval(hl.min(1, 50, 2))
+    1
+
+    Notes
+    -----
+    Like the Python builtin ``min`` function, this function can either take a
+    single iterable expression (an array or set of numeric elements), or
+    variable-length arguments of numeric expressions.
+
+    Note
+    ----
+    If `filter_missing` is ``True``, then the result is the minimum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    If any element or argument is `NaN`, then the result is `NaN`.
+
+    See Also
+    --------
+    :func:`nanmin`, :func:`max`, :func:`nanmax`
+
+    Parameters
+    ----------
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
+        Single numeric array or set, or multiple numeric values.
+    filter_missing : :obj:`bool`
+        Remove missing arguments/elements before computing minimum.
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+    """
+    return _comparison_func('min', exprs, filter_missing, filter_nan=False)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
