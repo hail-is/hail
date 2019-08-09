@@ -100,7 +100,7 @@ class BuildConfiguration:
         for step in self.steps:
             parent_jobs = flatten([parent_step.wrapped_job() for parent_step in  step_to_parent_steps[step]])
 
-            log.info(f"Cleanup {step.name} after running {parent_jobs}")
+            log.info(f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}")
 
             if step.scopes is None or scope in step.scopes:
                 step.cleanup(batch, scope, parent_jobs)
@@ -141,7 +141,7 @@ class Step(abc.ABC):
         return flatten([d.wrapped_job() for d in self.deps])
 
     def all_deps(self):
-        visited = set()
+        visited = set(self)
         frontier = [self]
 
         while frontier:
