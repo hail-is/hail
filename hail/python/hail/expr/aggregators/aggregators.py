@@ -1058,7 +1058,7 @@ def inbreeding(expr, prior) -> StructExpression:
                         lambda r: hl.struct(
                             f_stat=(r['observed_homs'] - r['expected_homs']) / (r['n_called'] - r['expected_homs']),
                             **r)
-                    ), _ctx='scan' if getattr(hardy_weinberg_test, '_as_scan', False) else 'agg')
+                    ), _ctx=_agg_func.context)
 
 
 @typecheck(call=expr_call, alleles=expr_array(expr_str))
