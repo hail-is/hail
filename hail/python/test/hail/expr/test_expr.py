@@ -2137,26 +2137,98 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(-(hl.literal([1, 2, 3]))), [-1, -2, -3])
 
     def test_max(self):
-        self.assertEqual(hl.eval(hl.max(1, 2)), 2)
-        self.assertEqual(hl.eval(hl.max(1.0, 2)), 2.0)
-        self.assertEqual(hl.eval(hl.max([1, 2])), 2)
-        self.assertEqual(hl.eval(hl.max([1.0, 2])), 2.0)
-        self.assertEqual(hl.eval(hl.max(0, 1.0, 2)), 2.0)
-        self.assertEqual(hl.eval(hl.max(0, 1, 2)), 2)
-        self.assertEqual(hl.eval(hl.max([0, 10, 2, 3, 4, 5, 6, ])), 10)
-        self.assertEqual(hl.eval(hl.max(0, 10, 2, 3, 4, 5, 6)), 10)
-        self.assert_evals_to(hl.max([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -2)
+        exprs_and_results = [
+            (hl.max(1, 2), 2),
+            (hl.max(1.0, 2), 2.0),
+            (hl.max([1, 2]), 2),
+            (hl.max([1.0, 2]), 2.0),
+            (hl.max(0, 1.0, 2), 2.0),
+            (hl.nanmax(0, 1.0, 2), 2.0),
+            (hl.max(0, 1, 2), 2),
+            (hl.max([0, 10, 2, 3, 4, 5, 6, ]), 10),
+            (hl.max(0, 10, 2, 3, 4, 5, 6), 10),
+            (hl.max([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -2),
+            (hl.max([float('nan'), -4, float('nan'), -3, -2, hl.null(tint32)]), float('nan')),
+            (hl.max(0.1, hl.null('float'), 0.0), 0.1),
+            (hl.max(0.1, hl.null('float'), float('nan')), float('nan')),
+            (hl.max(hl.null('float'), float('nan')), float('nan')),
+            (hl.max(0.1, hl.null('float'), float('nan'), filter_missing=False), None),
+            (hl.nanmax(0.1, hl.null('float'), float('nan')), 0.1),
+            (hl.max(hl.null('float'), float('nan')), float('nan')),
+            (hl.nanmax(hl.null('float'), float('nan')), float('nan')),
+            (hl.nanmax(hl.null('float'), float('nan'), 1.1, filter_missing=False), None),
+            (hl.max([0.1, hl.null('float'), 0.0]), 0.1),
+            (hl.max([hl.null('float'), float('nan')]), float('nan')),
+            (hl.max([0.1, hl.null('float'), float('nan')]), float('nan')),
+            (hl.max([0.1, hl.null('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmax([0.1, hl.null('float'), float('nan')]), 0.1),
+            (hl.nanmax([float('nan'), 1.1, 0.1, hl.null('float'), 0.0]), 1.1),
+            (hl.max([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), float('nan')),
+            (hl.max([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmax([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), 1.1),
+            (hl.nanmax([hl.null('float'), float('nan'), 1.1], filter_missing=False), None),
+            (hl.max({0.1, hl.null('float'), 0.0}), 0.1),
+            (hl.max({hl.null('float'), float('nan')}), float('nan')),
+            (hl.nanmax({float('nan'), 1.1, 0.1, hl.null('float'), 0.0}), 1.1),
+            (hl.nanmax({hl.null('float'), float('nan'), 1.1}, filter_missing=False), None),
+        ]
+
+        r = hl.eval(hl.tuple(x[0] for x in exprs_and_results))
+        for i in range(len(r)):
+            actual = r[i]
+            expected = exprs_and_results[i][1]
+            assert actual == expected or (
+                    actual is not None
+                    and expected is not None
+                    and (math.isnan(actual) and math.isnan(expected))), \
+                f'{i}: {actual}, {expected}'
 
     def test_min(self):
-        self.assertEqual(hl.eval(hl.min(1, 2)), 1)
-        self.assertEqual(hl.eval(hl.min(1.0, 2)), 1.0)
-        self.assertEqual(hl.eval(hl.min([1, 2])), 1)
-        self.assertEqual(hl.eval(hl.min([1.0, 2])), 1.0)
-        self.assertEqual(hl.eval(hl.min(0, 1.0, 2)), 0.0)
-        self.assertEqual(hl.eval(hl.min(0, 1, 2)), 0)
-        self.assertEqual(hl.eval(hl.min([0, 10, 2, 3, 4, 5, 6, ])), 0)
-        self.assertEqual(hl.eval(hl.min(4, 10, 2, 3, 4, 5, 6)), 2)
-        self.assert_evals_to(hl.min([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -5)
+        exprs_and_results = [
+            (hl.min(1, 2), 1),
+            (hl.min(1.0, 2), 1.0),
+            (hl.min([1, 2]), 1),
+            (hl.min([1.0, 2]), 1.0),
+            (hl.min(0, 1.0, 2), 0.0),
+            (hl.nanmin(0, 1.0, 2), 0.0),
+            (hl.min(0, 1, 2), 0),
+            (hl.min([10, 10, 2, 3, 4, 5, 6]), 2),
+            (hl.min(0, 10, 2, 3, 4, 5, 6), 0),
+            (hl.min([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -5),
+            (hl.min([float('nan'), -4, float('nan'), -3, -2, hl.null(tint32)]), float('nan')),
+            (hl.min(-0.1, hl.null('float'), 0.0), -0.1),
+            (hl.min(0.1, hl.null('float'), float('nan')), float('nan')),
+            (hl.min(hl.null('float'), float('nan')), float('nan')),
+            (hl.min(0.1, hl.null('float'), float('nan'), filter_missing=False), None),
+            (hl.nanmin(-0.1, hl.null('float'), float('nan')), -0.1),
+            (hl.min(hl.null('float'), float('nan')), float('nan')),
+            (hl.nanmin(hl.null('float'), float('nan')), float('nan')),
+            (hl.nanmin(hl.null('float'), float('nan'), 1.1, filter_missing=False), None),
+            (hl.min([-0.1, hl.null('float'), 0.0]), -0.1),
+            (hl.min([hl.null('float'), float('nan')]), float('nan')),
+            (hl.min([0.1, hl.null('float'), float('nan')]), float('nan')),
+            (hl.min([0.1, hl.null('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmin([-0.1, hl.null('float'), float('nan')]), -0.1),
+            (hl.nanmin([float('nan'), -1.1, 0.1, hl.null('float'), 0.0]), -1.1),
+            (hl.min([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), float('nan')),
+            (hl.min([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmin([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), 0.1),
+            (hl.nanmin([hl.null('float'), float('nan'), 1.1], filter_missing=False), None),
+            (hl.min({-0.1, hl.null('float'), 0.0}), -0.1),
+            (hl.min({hl.null('float'), float('nan')}), float('nan')),
+            (hl.nanmin({float('nan'), 1.1, -0.1, hl.null('float'), 0.0}), -0.1),
+            (hl.nanmin({hl.null('float'), float('nan'), 1.1}, filter_missing=False), None),
+        ]
+
+        r = hl.eval(hl.tuple(x[0] for x in exprs_and_results))
+        for i in range(len(r)):
+            actual = r[i]
+            expected = exprs_and_results[i][1]
+            assert actual == expected or (
+                    actual is not None
+                    and expected is not None
+                    and (math.isnan(actual) and math.isnan(expected))), \
+                f'{i}: {actual}, {expected}'
 
     def test_abs(self):
         self.assertEqual(hl.eval(hl.abs(-5)), 5)

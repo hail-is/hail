@@ -37,7 +37,9 @@ Numeric functions
 .. autosummary::
 
     min
+    nanmin
     max
+    nanmax
     mean
     median
     product
