@@ -91,10 +91,10 @@ class MinMonoid(val typ: PType) extends StagedMonoidSpec {
   def neutral: Option[Code[_]] = None
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case _: PInt32 => (coerce[Int](v1) < coerce[Int](v2)).mux(v1, v2)
-    case _: PInt64 => (coerce[Long](v1) < coerce[Long](v2)).mux(v1, v2)
-    case _: PFloat32 => (coerce[Float](v1) < coerce[Float](v2)).mux(v1, v2)
-    case _: PFloat64 => (coerce[Double](v1) < coerce[Double](v2)).mux(v1, v2)
+    case _: PInt32 => (coerce[Int](v2) < coerce[Int](v1)).mux(v2, v1)
+    case _: PInt64 => (coerce[Long](v2) < coerce[Long](v1)).mux(v2, v1)
+    case _: PFloat32 => (coerce[Float](v2) < coerce[Float](v1)).mux(v2, v1)
+    case _: PFloat64 => (coerce[Double](v2) < coerce[Double](v1)).mux(v2, v1)
     case _ => throw new UnsupportedOperationException(s"can't min over type $typ")
   }
 }
@@ -104,10 +104,10 @@ class MaxMonoid(val typ: PType) extends StagedMonoidSpec {
   def neutral: Option[Code[_]] = None
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case _: PInt32 => (coerce[Int](v1) > coerce[Int](v2)).mux(v1, v2)
-    case _: PInt64 => (coerce[Long](v1) > coerce[Long](v2)).mux(v1, v2)
-    case _: PFloat32 => (coerce[Float](v1) > coerce[Float](v2)).mux(v1, v2)
-    case _: PFloat64 => (coerce[Double](v1) > coerce[Double](v2)).mux(v1, v2)
+    case _: PInt32 => (coerce[Int](v2) > coerce[Int](v1)).mux(v2, v1)
+    case _: PInt64 => (coerce[Long](v2) > coerce[Long](v1)).mux(v2, v1)
+    case _: PFloat32 => (coerce[Float](v2) > coerce[Float](v1)).mux(v2, v1)
+    case _: PFloat64 => (coerce[Double](v2) > coerce[Double](v1)).mux(v2, v1)
     case _ => throw new UnsupportedOperationException(s"can't max over type $typ")
   }
 }
