@@ -1339,7 +1339,7 @@ private class Emit(
           }),
           srvb.advance(),
           srvb.addIRIntermediate(t.representation.fieldType("data").asInstanceOf[PArray])(
-            t.representation.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray...."))
+            t.representation.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray cannot have missing data"))
         ))
         EmitTriplet(setup, false, value)
       case NDArrayShape(ndIR) =>
