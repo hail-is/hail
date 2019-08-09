@@ -34,11 +34,10 @@ class PodThrottler:
     async def _create_pod(self):
         while True:
             await self.semaphore.acquire()
-
-            job = await self.queue.get()
-            pod_name = job._pod_name
-
             try:
+                job = await self.queue.get()
+                pod_name = job._pod_name
+
                 if pod_name not in self.pending_pods:
                     log.info(f'pod {pod_name} was deleted before it was created, ignoring')
                     self.semaphore.release()
