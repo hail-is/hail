@@ -185,15 +185,18 @@ async def rest_logout(request, userdata):
 @routes.get('/api/v1alpha/userinfo')
 async def userinfo(request):
     if 'Authorization' not in request.headers:
+        log.info('Authorization not in request.headers')
         raise web.HTTPUnauthorized()
 
     auth_header = request.headers['Authorization']
     if not auth_header.startswith('Bearer '):
+        log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
     session_id = auth_header[7:]
 
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
+        log.info('Session id != 44 bytes')
         raise web.HTTPUnauthorized()
 
     dbpool = request.app['dbpool']
@@ -207,6 +210,7 @@ WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < 
             users = await cursor.fetchall()
 
     if len(users) != 1:
+        log.info(f'Unknown session id: {session_id}')
         raise web.HTTPUnauthorized()
     user = users[0]
 

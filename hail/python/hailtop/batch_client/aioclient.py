@@ -6,11 +6,11 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
+from hailtop.utils import AsyncWorkerPool
 
 from .globals import complete_states
 
-job_array_size = 50
-max_job_submit_attempts = 3
+job_array_size = 1000
 
 
 def filter_params(complete, success, attributes):
@@ -259,6 +259,7 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
+        self.pool = AsyncWorkerPool(2)
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
@@ -369,23 +370,23 @@ class BatchBuilder:
         return j
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        n_attempts = 0
-        saved_err = None
-        while n_attempts < max_job_submit_attempts:
+        i = 0
+        while True:
             try:
                 return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
-            except Exception as err:  # pylint: disable=W0703
-                saved_err = err
-                n_attempts += 1
-                await asyncio.sleep(1)
-        raise saved_err
+            except Exception:  # pylint: disable=W0703
+                j = random.randrange(math.floor(1.1 ** i))
+                await asyncio.sleep(0.100 * j)
+                # max 44.5s
+                if i < 64:
+                    i += 1
 
     async def submit(self):
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        batch_doc = {}
+        batch_doc = {'n_jobs': len(self._job_docs)}
         if self.attributes:
             batch_doc['attributes'] = self.attributes
         if self.callback:
@@ -402,14 +403,16 @@ class BatchBuilder:
                 n += 1
                 docs.append(jdoc)
                 if n == job_array_size:
-                    await self._submit_job_with_retry(batch.id, docs)
+                    await self.pool.call(self._submit_job_with_retry, batch.id, docs)
                     n = 0
                     docs = []
 
             if docs:
-                await self._submit_job_with_retry(batch.id, docs)
+                await self.pool.call(self._submit_job_with_retry, batch.id, docs)
 
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+            await self.pool.wait()
+
+            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
         except Exception as err:  # pylint: disable=W0703
             if batch:
                 await batch.cancel()
@@ -427,11 +430,13 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, deploy_config=None, session=None, headers=None, _token=None):
+    async def __init__(self, deploy_config=None, session=None, headers=None,
+                       _token=None, _service='batch'):
+        assert _service in ('batch', 'batch2')
         if not deploy_config:
             deploy_config = get_deploy_config()
 
-        self.url = deploy_config.base_url('batch')
+        self.url = deploy_config.base_url(_service)
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
@@ -447,7 +452,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, 'batch'))
+            h.update(service_auth_headers(deploy_config, _service))
         self._headers = h
 
     async def _get(self, path, params=None):

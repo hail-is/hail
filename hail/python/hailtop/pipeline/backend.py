@@ -2,6 +2,7 @@ import abc
 import os
 import subprocess as sp
 import uuid
+import time
 from shlex import quote as shq
 from hailtop.batch_client.client import BatchClient, Job
 
@@ -186,20 +187,22 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self):
-        self._batch_client = BatchClient()
+    def __init__(self, _service='batch'):
+        self._batch_client = BatchClient(_service=_service)
 
     def close(self):
         self._batch_client.close()
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
+        start = time.time()
+
         bucket = self._batch_client.bucket
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
 
         remote_tmpdir = f'gs://{bucket}/pipeline/{subdir_name}'
         local_tmpdir = f'/io/pipeline/{subdir_name}'
 
-        default_image = 'ubuntu'
+        default_image = 'ubuntu:latest'
 
         attributes = pipeline.attributes
         if pipeline.name is not None:
@@ -318,12 +321,15 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
+        print(f'Built DAG with {n_jobs_submitted} in {round(time.time() - start, 3)} seconds:')
+        start = time.time()
         batch = batch.submit()
+        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs:')
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
