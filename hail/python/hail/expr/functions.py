@@ -3280,12 +3280,12 @@ def nanmax(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
 
     Compute the maximum value of an array:
 
-    >>> hl.eval(hl.max([1, 3, 5, 6, 7, 9]))
-    9
+    >>> hl.eval(hl.nanmax([1.1, 50.1, float('nan')]))
+    50.1
 
     Take the maximum value of arguments:
 
-    >>> hl.eval(hl.max(1.1, 50.1, float('nan')))
+    >>> hl.eval(hl.nanmax(1.1, 50.1, float('nan')))
     50.1
 
     Notes
@@ -3380,12 +3380,12 @@ def nanmin(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
 
     Compute the minimum value of an array:
 
-    >>> hl.eval(hl.min([3, 1, 5, 6, 7, 9]))
-    1
+    >>> hl.eval(hl.nanmin([1.1, 50.1, float('nan')]))
+    1.1
 
     Take the minimum value of arguments:
 
-    >>> hl.eval(hl.min(1.1, 50.1, float('nan')))
+    >>> hl.eval(hl.nanmin(1.1, 50.1, float('nan')))
     1.1at d
 
     Notes
