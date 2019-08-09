@@ -418,8 +418,6 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
     agg match {
       case tagg: KeyedAggregator[_, _] => agg.seqOp(x)
       case tagg: CountAggregator => agg.seqOp(0)
-      case tagg: InbreedingAggregator =>
-        agg.asInstanceOf[InbreedingAggregator].seqOp(r.get(0), r.get(1))
       case tagg: TakeByAggregator[_] =>
         agg.asInstanceOf[TakeByAggregator[_]].seqOp(r.get(0), r.get(1))
       case _ => agg.seqOp(r.get(0))

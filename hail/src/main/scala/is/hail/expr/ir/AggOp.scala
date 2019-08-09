@@ -176,11 +176,6 @@ object AggOp {
         initOpArgTypes = Some(Array(classOf[Int])),
         seqOpArgTypes = Array(classOf[Int]))
 
-    case (Inbreeding(), Seq(), None, seqOpArgs@Seq(_: TCall, _: TFloat64)) =>
-      CodeAggregator[RegionValueInbreedingAggregator](
-        RegionValueInbreedingAggregator.typ,
-        seqOpArgTypes = Array(classOf[Int], classOf[Double]))
-
     case (LinearRegression(), constArgs@Seq(_: TInt32, _: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
       CodeAggregator[RegionValueLinearRegressionAggregator](
         RegionValueLinearRegressionAggregator.typ,
@@ -209,7 +204,6 @@ object AggOp {
     case "takeBy" | "TakeBy" => TakeBy()
     case "infoScore" | "InfoScore" => InfoScore()
     case "callStats" | "CallStats" => CallStats()
-    case "inbreeding" | "Inbreeding" => Inbreeding()
     case "linreg" | "LinearRegression" => LinearRegression()
     case "downsample" | "Downsample" => Downsample()
     case "prevnonnull" | "PrevNonnull" => PrevNonnull()
