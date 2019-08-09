@@ -1418,7 +1418,7 @@ async def on_startup(app):
     app['log_store'] = LogStore(pool, INSTANCE_ID)
     app['pod_throttler'] = PodThrottler(QUEUE_SIZE, MAX_PODS, parallelism=16)
 
-    secret = app['k8s'].get_secret('example', 'jigold')
+    secret, err = await app['k8s'].get_secret('example', 'jigold')
     log.info(secret)
 
     asyncio.ensure_future(polling_event_loop())
