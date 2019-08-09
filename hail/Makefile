@@ -80,6 +80,9 @@ pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
     --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
 
+.PHONY: wheel
+wheel: $(WHEEL)
+
 $(WHEEL): $(BUILD_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	rm -rf build/deploy
 	mkdir -p build/deploy
