@@ -3,9 +3,11 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{coerce => _, _}
+import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.types.physical.{PInt32, PInt64, PFloat32, PFloat64, PType}
 
 import scala.language.existentials
+import scala.reflect.ClassTag
 
 trait StagedMonoidSpec {
   val typ: PType
@@ -86,29 +88,22 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   }
 }
 
-class MinMonoid(val typ: PType) extends StagedMonoidSpec {
+class ComparisonMonoid(val typ: PType, val functionName: String) extends StagedMonoidSpec {
 
   def neutral: Option[Code[_]] = None
 
-  def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case _: PInt32 => (coerce[Int](v2) < coerce[Int](v1)).mux(v2, v1)
-    case _: PInt64 => (coerce[Long](v2) < coerce[Long](v1)).mux(v2, v1)
-    case _: PFloat32 => (coerce[Float](v2) < coerce[Float](v1)).mux(v2, v1)
-    case _: PFloat64 => (coerce[Double](v2) < coerce[Double](v1)).mux(v2, v1)
-    case _ => throw new UnsupportedOperationException(s"can't min over type $typ")
-  }
-}
+  private def cmp[T](v1: Code[_], v2: Code[_])(implicit tct: ClassTag[T]): Code[T] =
+    Code.invokeStatic[Math,T,T,T](functionName, coerce[T](v1), coerce[T](v2))
 
-class MaxMonoid(val typ: PType) extends StagedMonoidSpec {
-
-  def neutral: Option[Code[_]] = None
+  private def nancmp[T](v1: Code[_], v2: Code[_])(implicit tct: ClassTag[T]): Code[T] =
+    Code.invokeScalaObject[T,T,T](UtilFunctions.getClass, "nan" + functionName, coerce[T](v1), coerce[T](v2))
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case _: PInt32 => (coerce[Int](v2) > coerce[Int](v1)).mux(v2, v1)
-    case _: PInt64 => (coerce[Long](v2) > coerce[Long](v1)).mux(v2, v1)
-    case _: PFloat32 => (coerce[Float](v2) > coerce[Float](v1)).mux(v2, v1)
-    case _: PFloat64 => (coerce[Double](v2) > coerce[Double](v1)).mux(v2, v1)
-    case _ => throw new UnsupportedOperationException(s"can't max over type $typ")
+    case _: PInt32 => cmp[Int](v1, v2)
+    case _: PInt64 => cmp[Long](v1, v2)
+    case _: PFloat32 => nancmp[Float](v1, v2)
+    case _: PFloat64 => nancmp[Double](v1, v2)
+    case _ => throw new UnsupportedOperationException(s"can't $functionName over type $typ")
   }
 }
 
@@ -142,7 +137,7 @@ class ProductMonoid(val typ: PType) extends StagedMonoidSpec {
   }
 }
 
-class MinAggregator(typ: PType) extends MonoidAggregator(new MinMonoid(typ))
-class MaxAggregator(typ: PType) extends MonoidAggregator(new MaxMonoid(typ))
+class MinAggregator(typ: PType) extends MonoidAggregator(new ComparisonMonoid(typ, "min"))
+class MaxAggregator(typ: PType) extends MonoidAggregator(new ComparisonMonoid(typ, "max"))
 class SumAggregator(typ: PType) extends MonoidAggregator(new SumMonoid(typ))
 class ProductAggregator(typ: PType) extends MonoidAggregator(new ProductMonoid(typ))
