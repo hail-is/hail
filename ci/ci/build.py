@@ -141,7 +141,7 @@ class Step(abc.ABC):
         return flatten([d.wrapped_job() for d in self.deps])
 
     def all_deps(self):
-        visited = set(self)
+        visited = set([self])
         frontier = [self]
 
         while frontier:
