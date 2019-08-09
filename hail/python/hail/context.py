@@ -2,6 +2,8 @@ import pkg_resources
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
 
+from pyspark.find_spark_home import _find_spark_home
+
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
@@ -166,6 +168,12 @@ class HailContext(object):
         Env._seed_generator = None
         hail.ir.clear_session_functions()
         ReferenceGenome._references = {}
+
+def init2():
+    spark_home = _find_spark_home()
+    spark_jars_path = os.path.join(spark_home, "jars")
+    spark_jars_list = os.listdir(spark_jars_path)
+    return spark_jars_list
 
 
 @typecheck(sc=nullable(SparkContext),

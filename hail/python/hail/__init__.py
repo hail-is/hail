@@ -21,7 +21,7 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .context import init, stop, spark_context, default_reference, \
+from .context import init, init2, stop, spark_context, default_reference, \
     get_reference, set_global_seed, _set_flags, _get_flags, \
     current_backend, debug_info, citation, cite_hail, cite_hail_bibtex
 from .table import Table, GroupedTable, asc, desc
@@ -46,6 +46,7 @@ scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg._
 
 __all__ = [
     'init',
+    'init2',
     'stop',
     'spark_context',
     'default_reference',
