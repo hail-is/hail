@@ -1203,6 +1203,17 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10).annotate(x = 'a')
         self.assertEqual(ht.aggregate(agg.take(ht.x, 2)), ['a', 'a'])
 
+    def test_agg_minmax(self):
+        nan = float('nan')
+        na = hl.null(hl.tfloat32)
+        size = 200
+        for aggfunc in (agg.min, agg.max):
+            array_with_nan = hl.array([0. if i == 1 else nan for i in range(size)])
+            array_with_na = hl.array([0. if i == 1 else na for i in range(size)])
+            t = hl.utils.range_table(size)
+            self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
+            self.assertEqual(t.aggregate(aggfunc(array_with_na[t.idx])), 0.)
+
     def test_str_ops(self):
         s = hl.literal("123")
         self.assertEqual(hl.eval(hl.int32(s)), 123)
