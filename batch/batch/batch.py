@@ -1420,6 +1420,7 @@ async def on_startup(app):
 
     secret, err = await app['k8s'].get_secret('example', namespace='jigold')
     log.info(secret)
+    log.info(err)
 
     asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(kube_event_loop())
