@@ -3432,12 +3432,12 @@ def min(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     Take the minimum value of an array:
 
     >>> hl.eval(hl.min([1, 3, 5, 6, 7, 9]))
-    9
+    1
 
     Take the minimum value of values:
 
     >>> hl.eval(hl.min(1, 50, 2))
-    50
+    1
 
     Notes
     -----
