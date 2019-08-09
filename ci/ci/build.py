@@ -94,7 +94,7 @@ class BuildConfiguration:
 
         step_to_parent_steps = defaultdict(set)
         for step in self.steps:
-            for dep in step.deps:
+            for dep in step.all_deps():
                 step_to_parent_steps[dep].add(step)
 
         for step in self.steps:
@@ -137,6 +137,19 @@ class Step(abc.ABC):
         if not self.deps:
             return None
         return flatten([d.wrapped_job() for d in self.deps])
+
+    def all_deps(self):
+        visited = set()
+        frontier = [self]
+
+        while frontier:
+            current = frontier.pop()
+            for d in current.deps:
+                if d not in visited:
+                    visited.add(d)
+                    frontier.append(d)
+        return visited
+
 
     @staticmethod
     def from_json(params):
