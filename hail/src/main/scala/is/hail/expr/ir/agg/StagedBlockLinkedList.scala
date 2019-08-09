@@ -2,9 +2,10 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitTriplet, EmitFunctionBuilder}
+import is.hail.expr.ir.{EmitTriplet, EmitRegion, EmitFunctionBuilder}
 import is.hail.expr.types.physical._
 import is.hail.utils._
+import is.hail.io.{OutputBuffer, InputBuffer, CodecSpec, EmitPackEncoder, EmitPackDecoder}
 
 object StagedBlockLinkedList {
   val defaultBlockCap: Int = 64
@@ -191,5 +192,37 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   def toArray: Code[Long] = {
     val srvb = new StagedRegionValueBuilder(fb, bufferType)
     Code(writeToSRVB(srvb), srvb.end())
+  }
+
+  def serialize(r: Code[Region], ob: Code[OutputBuffer]): Code[Unit] = {
+    Code(
+      foreachNode { n =>
+        // NOTE: we are only copying a portion of the missingness bytes, only as many as there are
+        // present (specifically: 'count(n)', not 'capacity(n)'). we can't use emitArray because it
+        // would mistakenly copy elements according to the capacity ...
+        val nMissingBytes = (count(n) + 7) >> 3
+        val writeMissingBytes = ob.writeBytes(r, buffer(n) + 4, nMissingBytes)
+        val eltm = bufferType.isElementMissing(r, buffer(n), i)
+        val eltOff = bufferType.elementOffsetInRegion(r, buffer(n), i)
+        val writeElt = EmitPackEncoder.emit(elemType, elemType, fb.apply_method, r, eltOff, ob)
+        Code(
+          ob.writeBoolean(true),
+          ob.writeInt(count(n)),
+          if(elemType.required) Code._empty else writeMissingBytes,
+          i := 0,
+          Code.whileLoop(i < count(n), Code(
+            if(elemType.required) writeElt else eltm.mux(Code._empty, writeElt),
+            i := i + 1)))
+      },
+      ob.writeBoolean(false))
+  }
+
+  def deserialize(r: Code[Region], ib: Code[InputBuffer]): Code[Unit] = {
+    // ... however, we can use EmitPackDecoder to decode an entire array and add it as a node
+    val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, r), bufferType)
+    val bufFType = bufferType.fundamentalType
+    Code.whileLoop(ib.readBoolean(),
+      EmitPackDecoder.emitArray(bufFType, bufFType, fb.apply_method, ib, srvb),
+      appendShallow(r, bufferType, srvb.end()))
   }
 }
