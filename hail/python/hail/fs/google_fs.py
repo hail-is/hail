@@ -8,9 +8,6 @@ from .fs import FS
 
 class GoogleCloudStorageFS(FS):
     def __init__(self):
-        if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
-            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/gsa-key/privateKeyData'
-
         self.client = gcsfs.core.GCSFileSystem(secure_serialize=True)
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 2**18):
