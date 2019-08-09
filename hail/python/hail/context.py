@@ -173,9 +173,16 @@ class HailContext(object):
 def init2():
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
-    spark_jars_list = os.listdir(spark_jars_path)
+    spark_jars_list = [jar for jar in os.listdir(spark_jars_path) if jar.startswith("scala") or jar.startswith("py4j")]
+    spark_jars_path_list = [os.path.join(spark_jars_path, spark_jar_name) for spark_jar_name in spark_jars_list]
+    hail_jars_path_list = ["hail-all-spark.jar"]
+    classpath_jars = spark_jars_path_list + hail_jars_path_list
+    classpath = ":".join(classpath_jars)
 
-    subprocess.call(["java"])
+    cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint"]
+    print(cmd)
+    ret = subprocess.call(cmd)
+    print(ret)
 
     return spark_jars_list
 
