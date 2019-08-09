@@ -3306,7 +3306,7 @@ def nanmax(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     See Also
     --------
     :func:`max`, :func:`min`, :func:`nanmin`
-    
+
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
@@ -3386,7 +3386,7 @@ def nanmin(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     Take the minimum value of arguments:
 
     >>> hl.eval(hl.nanmin(1.1, 50.1, float('nan')))
-    1.1at d
+    1.1
 
     Notes
     -----
@@ -3406,7 +3406,7 @@ def nanmin(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     See Also
     --------
     :func:`min`, :func:`max`, :func:`nanmax`
-    
+
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
@@ -3434,7 +3434,7 @@ def min(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     >>> hl.eval(hl.min([1, 3, 5, 6, 7, 9]))
     1
 
-    Take the minimum value of values:
+    Take the minimum value of arguments:
 
     >>> hl.eval(hl.min(1, 50, 2))
     1
