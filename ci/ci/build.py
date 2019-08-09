@@ -100,6 +100,8 @@ class BuildConfiguration:
         for step in self.steps:
             parent_jobs = flatten([parent_step.wrapped_job() for parent_step in  step_to_parent_steps[step]])
 
+            log.info(f"Cleanup {step.name} after running {parent_jobs}")
+
             if step.scopes is None or scope in step.scopes:
                 step.cleanup(batch, scope, parent_jobs)
 
