@@ -308,72 +308,6 @@ class CSERenderer(Renderer):
                 self.builder.append(head)
             return insert_lets
 
-    def loop(self, state, k):
-        if state.i >= len(state.children):
-            return self.apply(k)
-        state.builder.append(' ')
-        child = state.children[state.i]
-
-        new_state = self.State(child, child.render_children(self), state.builder, state.context, state.outermost_scope, state.depth)
-
-        if isinstance(state.x, ir.BaseIR):
-            if state.x.new_block(state.ir_child_num):
-                new_state.outermost_scope = state.depth
-        if isinstance(child, ir.BaseIR):
-            new_state.depth += 1
-            lift_to = self.lifted_in_scope(child, state.context)
-        else:
-            lift_to = -1
-
-        if (lift_to >= 0 and
-                state.context[lift_to] and
-                state.context[lift_to].depth >= state.outermost_scope):
-            state.ir_child_num += 1
-            (name, _) = state.context[lift_to].lifted_lets[id(child)]
-
-            if id(child) in state.context[lift_to].visited:
-                state.builder.append(f'(Ref {name})')
-                state.i += 1
-                return self.loop(state, k)
-
-            state.context[lift_to].visited[id(child)] = child
-
-            new_state.builder = [f'(Let {name} ']
-
-            if id(child) in self.memo:
-                pcl = self.PostChildrenLifted(state, state.builder, new_state.builder, self.memo[id(child)], lift_to, name, k)
-                return self.apply(pcl)
-
-            insert_lets = new_state.pre_add_lets(self.binding_sites)
-            assert(not insert_lets)
-
-            pcl = self.PostChildrenLifted(state, state.builder, new_state.builder, [child.render_tail(self)], lift_to, name, k)
-
-            return self.loop(new_state, pcl)
-
-        if isinstance(child, ir.BaseIR):
-            if id(child) in self.memo:
-                new_state.builder.append(*self.memo[id(child)])
-                state.i += 1
-                return self.loop(state, k)
-
-            insert_lets = new_state.pre_add_lets(self.binding_sites)
-
-            pc = self.PostChildren(state, state.builder, new_state.builder, [child.render_tail(self)], insert_lets, k)
-
-            return self.loop(new_state, pc)
-        else:
-            head = child.render_head(self)
-            if head != '':
-                state.builder.append(head)
-
-            new_state.ir_child_num = state.ir_child_num
-            insert_lets = False
-
-            pc = self.PostChildren(state, state.builder, new_state.builder, new_state.x.render_tail(self), insert_lets, k)
-
-            return self.loop(new_state, pc)
-
     class Kont:
         pass
 
@@ -404,29 +338,99 @@ class CSERenderer(Renderer):
             self.tail = tail
             self.insert_lets = insert_lets
 
-    def apply(self, k: Kont):
-        if isinstance(k, self.PostChildrenLifted):
-            k.local_builder.extend(k.tail)
-            k.local_builder.append(' ')
-            # let_bodies is built post-order, which guarantees earlier
-            # lets can't refer to later lets
-            k.state.context[k.lift_to].let_bodies.append(k.local_builder)
-            k.builder.append(f'(Ref {k.name})')
-            k.state.i += 1
-            return self.loop(k.state, k.k)
-        elif isinstance(k, self.PostChildren):
-            k.local_builder.extend(k.tail)
-            if k.insert_lets:
-                self.add_lets(k.state.context, k.local_builder, k.builder)
-            if not isinstance(k.state.x, ir.BaseIR):
-                k.state.ir_child_num += 1
-            k.state.i += 1
-            return self.loop(k.state, k.k)
-        else:
-            k.local_builder.append(k.tail)
-            if k.insert_lets:
-                self.add_lets(k.state.context, k.local_builder, k.builder)
-            return ''.join(k.builder)
+    def loop(self, state, k):
+        while True:
+            if state.i >= len(state.children):
+                if isinstance(k, self.PostChildrenLifted):
+                    k.local_builder.extend(k.tail)
+                    k.local_builder.append(' ')
+                    # let_bodies is built post-order, which guarantees earlier
+                    # lets can't refer to later lets
+                    k.state.context[k.lift_to].let_bodies.append(k.local_builder)
+                    k.builder.append(f'(Ref {k.name})')
+                    state = k.state
+                    state.i += 1
+                    k = k.k
+                    continue
+                elif isinstance(k, self.PostChildren):
+                    k.local_builder.extend(k.tail)
+                    if k.insert_lets:
+                        self.add_lets(k.state.context, k.local_builder, k.builder)
+                    if not isinstance(k.state.x, ir.BaseIR):
+                        k.state.ir_child_num += 1
+                    state = k.state
+                    state.i += 1
+                    k = k.k
+                    continue
+                else:
+                    assert isinstance(k, self.PostRoot)
+                    k.local_builder.append(k.tail)
+                    if k.insert_lets:
+                        self.add_lets(k.state.context, k.local_builder, k.builder)
+                    return ''.join(k.builder)
+
+            state.builder.append(' ')
+            child = state.children[state.i]
+
+            new_state = self.State(child, child.render_children(self), state.builder, state.context, state.outermost_scope, state.depth)
+
+            if isinstance(state.x, ir.BaseIR):
+                if state.x.new_block(state.ir_child_num):
+                    new_state.outermost_scope = state.depth
+            if isinstance(child, ir.BaseIR):
+                new_state.depth += 1
+                lift_to = self.lifted_in_scope(child, state.context)
+            else:
+                lift_to = -1
+
+            if (lift_to >= 0 and
+                    state.context[lift_to] and
+                    state.context[lift_to].depth >= state.outermost_scope):
+                state.ir_child_num += 1
+                (name, _) = state.context[lift_to].lifted_lets[id(child)]
+
+                if id(child) in state.context[lift_to].visited:
+                    state.builder.append(f'(Ref {name})')
+                    state.i += 1
+                    continue
+
+                state.context[lift_to].visited[id(child)] = child
+
+                new_state.builder = [f'(Let {name} ']
+
+                if id(child) in self.memo:
+                    pcl = self.PostChildrenLifted(state, state.builder, new_state.builder, self.memo[id(child)], lift_to, name, k)
+                    return self.apply(pcl)
+
+                insert_lets = new_state.pre_add_lets(self.binding_sites)
+                assert(not insert_lets)
+
+                k = self.PostChildrenLifted(state, state.builder, new_state.builder, [child.render_tail(self)], lift_to, name, k)
+                state = new_state
+                continue
+
+            if isinstance(child, ir.BaseIR):
+                if id(child) in self.memo:
+                    new_state.builder.append(*self.memo[id(child)])
+                    state.i += 1
+                    continue
+
+                insert_lets = new_state.pre_add_lets(self.binding_sites)
+
+                k = self.PostChildren(state, state.builder, new_state.builder, [child.render_tail(self)], insert_lets, k)
+                state = new_state
+                continue
+            else:
+                head = child.render_head(self)
+                if head != '':
+                    state.builder.append(head)
+
+                new_state.ir_child_num = state.ir_child_num
+                insert_lets = False
+
+                k = self.PostChildren(state, state.builder, new_state.builder, new_state.x.render_tail(self), insert_lets, k)
+                state = new_state
+                continue
 
     @staticmethod
     def add_lets(context, local_builder, builder):
