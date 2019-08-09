@@ -328,8 +328,8 @@ class Job:
             return task_name, pod_log
 
         if self._state == 'Running':
-            future_logs = asyncio.gather(*[_read_log_from_k8s(task) for task in tasks])
-            return {k: v for k, v in await future_logs}
+            future_logs = await asyncio.gather(*[_read_log_from_k8s(task) for task in tasks])
+            return {k: v for k, v in future_logs}
         if self._state in ('Error', 'Failed', 'Success'):
             return await _read_log_from_gcs()
 
@@ -1337,7 +1337,7 @@ async def refresh_k8s_pods():
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
         await pod_changed(pod)
-    asyncio.gather(*[see_pod(pod) for pod in pods.items])
+    await asyncio.gather(*[see_pod(pod) for pod in pods.items])
 
     if app['pod_throttler'].full():
         log.info(f'pod creation queue is full; skipping restarting jobs not seen in k8s')
@@ -1348,9 +1348,9 @@ async def refresh_k8s_pods():
     async def restart_job(job):
         log.info(f'restarting job {job.id}')
         await update_job_with_pod(job, None)
-    asyncio.gather(*[restart_job(job)
-                     for job in pod_jobs
-                     if job._pod_name not in seen_pods])
+    await asyncio.gather(*[restart_job(job)
+                           for job in pod_jobs
+                           if job._pod_name not in seen_pods])
 
 
 async def refresh_k8s_pvc():
