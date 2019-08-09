@@ -2,6 +2,7 @@ import abc
 import os.path
 import json
 import logging
+from collections import defaultdict
 from shlex import quote as shq
 import yaml
 import jinja2
@@ -88,22 +89,19 @@ class BuildConfiguration:
             if step.scopes is None or scope in step.scopes:
                 step.build(batch, code, scope)
 
-        parents = set()
-        for step in self.steps:
-            parents.update(step.wrapped_job())
-        parents = list(parents)
-
         if scope == 'dev':
             return
 
-        sink = batch.create_job('ubuntu:18.04',
-                                command=['/bin/true'],
-                                attributes={'name': 'sink'},
-                                parents=parents)
+        step_to_parent_steps = defaultdict(set)
+        for step in self.steps:
+            for dep in step.deps:
+                step_to_parent_steps[dep].add(step)
 
         for step in self.steps:
+            parent_jobs = flatten([parent_step.wrapped_job() for parent_step in  step_to_parent_steps[step]])
+
             if step.scopes is None or scope in step.scopes:
-                step.cleanup(batch, scope, [sink])
+                step.cleanup(batch, scope, parent_jobs)
 
 
 class Step(abc.ABC):
