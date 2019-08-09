@@ -241,11 +241,11 @@ class GTask:
 
         inst.tasks.remove(self)
 
-        assert not inst.pending
+        assert not inst.pending and inst.active
         inst_pool.instances_by_free_cores.remove(inst)
         inst.free_cores += self.cores
-        inst_pool.instances_by_free_cores.add(inst)
         inst_pool.free_cores += self.cores
+        inst_pool.instances_by_free_cores.add(inst)
         inst_pool.runner.changed.set()
 
         self.active_inst = None
@@ -381,17 +381,18 @@ class Instance:
         if not self.active:
             return
 
+        task_list = list(self.tasks)
+        for t in task_list:
+            t.unschedule()
+
         self.active = False
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.n_active_instances -= 1
+        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        # copy because put_on_ready => unschedule => removes from inst
-        for t in list(self.tasks):
-            assert t.active_inst == self
+        for t in task_list:
             await t.put_on_ready(self.inst_pool.runner)
         assert not self.tasks
-
-        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
         print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
