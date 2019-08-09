@@ -45,16 +45,18 @@ class HailContext(object):
                 raise FatalError('Hail has already been initialized, restart session '
                                  'or stop Hail to change configuration.')
 
+        hail_jar_path = None
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
-            conf = SparkConf()
+
+        conf = SparkConf()
+        if hail_jar_path:
             conf.set('spark.jars', hail_jar_path)
             conf.set('spark.driver.extraClassPath', hail_jar_path)
             conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
-            SparkContext._ensure_initialized(conf=conf)
-        else:
-            SparkContext._ensure_initialized()
+
+        SparkContext._ensure_initialized(conf=conf)
 
         self._gateway = SparkContext._gateway
         self._jvm = SparkContext._jvm
@@ -75,6 +77,7 @@ class HailContext(object):
             if apiserver_url is not None:
                 _backend = ServiceBackend(apiserver_url)
             else:
+                sc = self.create_spark_context(hail_jar_path)
                 _backend = SparkBackend()
         self._backend = _backend
 
@@ -152,6 +155,8 @@ class HailContext(object):
         install_exception_handler()
         Env.set_seed(global_seed)
 
+    def create_spark_context(self, hail_jar_path):
+        pass
 
     @property
     def default_reference(self):
