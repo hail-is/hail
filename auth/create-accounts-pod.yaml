@@ -46,6 +46,15 @@ spec:
            kubectl -n {{ default_ns.name }} create secret generic batch-tokens --from-file=/user-tokens/tokens.json
        fi
        # created batch
+       # create batch2
+       N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers batch2-tokens | wc -l | tr -d '[:space:]')
+       if [[ $N = 0 ]]; then
+           rm -f /user-tokens/tokens.json
+           kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+           python3 create-session.py '{"username":"batch","user_id":"hail|batch","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch-gsa-key","jwt_secret_name":"batch2-tokens"}'
+           kubectl -n {{ default_ns.name }} create secret generic batch2-tokens --from-file=/user-tokens/tokens.json
+       fi
+       # created batch2       
        # create ci
        N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
        if [[ $N = 0 ]]; then

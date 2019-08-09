@@ -369,16 +369,16 @@ class BatchBuilder:
         return j
 
     async def _submit_job_with_retry(self, batch_id, docs):
-        n_attempts = 0
-        saved_err = None
-        while n_attempts < max_job_submit_attempts:
+        i = 0
+        while True:
             try:
                 return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
-            except Exception as err:  # pylint: disable=W0703
-                saved_err = err
-                n_attempts += 1
-                await asyncio.sleep(1)
-        raise saved_err
+            except Exception:  # pylint: disable=W0703
+                j = random.randrange(math.floor(1.1 ** i))
+                await asyncio.sleep(0.100 * j)
+                # max 44.5s
+                if i < 64:
+                    i += 1
 
     async def submit(self):
         if self._submitted:
@@ -427,11 +427,13 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, deploy_config=None, session=None, headers=None, _token=None):
+    async def __init__(self, deploy_config=None, session=None, headers=None,
+                       _token=None, _service='batch'):
+        assert _service in ('batch', 'batch2')
         if not deploy_config:
             deploy_config = get_deploy_config()
 
-        self.url = deploy_config.base_url('batch')
+        self.url = deploy_config.base_url(_service)
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
@@ -447,7 +449,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, 'batch'))
+            h.update(service_auth_headers(deploy_config, _service))
         self._headers = h
 
     async def _get(self, path, params=None):
