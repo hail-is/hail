@@ -13,6 +13,7 @@ from hail.backend import Backend, ServiceBackend, SparkBackend
 
 import sys
 import os
+import subprocess
 
 
 class HailContext(object):
@@ -173,6 +174,9 @@ def init2():
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = os.listdir(spark_jars_path)
+
+    subprocess.call(["java"])
+
     return spark_jars_list
 
 
