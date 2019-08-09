@@ -1,7 +1,4 @@
-.PHONY: shadowJar build-info jars clean \
-  src/main/resources/build-info.properties \
-  python/hail/hail_version python/hail/hail_pip_version
-
+.PHONY: shadowJar jars clean
 
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
@@ -15,22 +12,36 @@ PARALLELISM := 2
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
+# not perfect, not robust to simdpp changes, but probably fine
+JAR_SOURCES != git ls-files src/main
+JAR_SOURCES += build.gradle
+JAR_TEST_SOURCES != git ls-files src/test
+PY_FILES != git ls-files python
+
+INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
+BUILD_INFO := src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
+	python/hailtop/hailctl/hail_version
+
+SHADOW_JAR := build/libs/hail-all-spark.jar
+SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
+WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+
+shadowJar: $(SHADOW_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
-shadowJar:
+$(SHADOW_JAR): $(JAR_SOURCES)
 	./gradlew releaseJar
 else
-shadowJar:
+$(SHADOW_JAR): $(JAR_SOURCES)
 	./gradlew shadowJar
 endif
-
-build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailtop/hailctl/hail_version
+$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+	./gradlew shadowTestJar
 
 define properties
 endef
 
-src/main/resources/build-info.properties:
+src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
@@ -40,34 +51,39 @@ src/main/resources/build-info.properties:
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
-python/hail/hail_version:
+python/hail/hail_version: Makefile
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
+
+python/hail/hail_pip_version: Makefile
+	echo $(HAIL_PIP_VERSION) > $@
 
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars: build-info
-	./gradlew shadowTestJar shadowJar
+jars: $(BUILD_INFO)
+	./gradlew shadowJar shadowTestJar
 
 python/README.md: ../README.md
 	cp ../README.md python/
 
-python/hail/hail-all-spark.jar: shadowJar
-	cp build/libs/hail-all-spark.jar python/hail/
+python/hail/hail-all-spark.jar: $(SHADOW_JAR)
+	cp -f $< $@
 
 .PHONY: install-editable
-install-editable: build-info init-scripts
+install-editable: $(BUILD_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(PIP) install -e
 
 .PHONY: pytest
-pytest: build-info shadowJar init-scripts
+pytest: $(BUILD_INFO) $(SHADOW_JAR) init-scripts
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
     --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
 
 .PHONY: wheel
-wheel: build-info shadowJar init-scripts
+wheel: $(WHEEL)
+
+$(WHEEL): $(BUILD_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -95,10 +111,8 @@ HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
-.PHONY: python/hailtop/hailctl/deploy.yaml
-python/hailtop/hailctl/deploy.yaml:
+python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
@@ -107,19 +121,18 @@ python/hailtop/hailctl/deploy.yaml:
 	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> $@
 
 .PHONY: upload-artifacts
-upload-artifacts: wheel
-	gsutil -m cp -r $(resources) $(wheel_path) $(cloud_base)
+upload-artifacts: $(WHEEL)
+	gsutil -m cp -r $(resources) $(WHEEL) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
 	$(UPLOAD_RETENTION)
 
 .PHONY: install
-install: wheel
+install: $(WHEEL)
 	-$(PIP) uninstall -y hail
-	$(PIP) install $(wheel_path)
+	$(PIP) install $(WHEEL)
 
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
-
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
@@ -129,8 +142,6 @@ test-dataproc: install-hailctl
 	for FILE in $(cluster_test_files); do \
 	  hailctl dataproc submit $(cluster_name) $$FILE || exit 1; done || exit
 
-.PHONY: init-scripts
-init-scripts: python/hailtop/hailctl/deploy.yaml
 
 DEPLOYED_VERSION = $(shell \
   $(PIP) --no-cache-dir search hail \
