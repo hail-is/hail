@@ -2,9 +2,9 @@ package is.hail.io
 
 import java.io.Closeable
 import java.util.Arrays
+
 import is.hail.utils._
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs._
+import is.hail.io.fs.FS
 
 import scala.collection.mutable
 
@@ -75,9 +75,9 @@ object IndexBTree {
   def write(
     arr: Array[Long],
     fileName: String,
-    hConf: Configuration,
+    fs: FS,
     branchingFactor: Int = 1024
-  ): Unit = hConf.writeDataFile(fileName) { w =>
+  ): Unit = fs.writeDataFile(fileName) { w =>
     w.write(btreeBytes(arr, branchingFactor))
   }
 
@@ -88,18 +88,18 @@ object IndexBTree {
     btreeLayers(arr, branchingFactor).map(_.mkString("[", " ", "]")).mkString("(BTREE\n", "\n", "\n)")
 }
 
-class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: Int = 1024) extends Closeable {
+class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) extends Closeable {
   val maxDepth = calcDepth()
-  private val fs = try {
-    hConf.fileSystem(indexFileName).open(new Path(indexFileName))
+  private val fileSystem = try {
+    fs.fileSystem(indexFileName).open
   } catch {
     case e: Exception => fatal(s"Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
   }
 
-  def close() = fs.close()
+  def close() = fileSystem.close()
 
   def calcDepth(): Int =
-    IndexBTree.calcDepth(hConf.getFileSize(indexFileName) / 8, branchingFactor)
+    IndexBTree.calcDepth(fs.getFileSize(indexFileName) / 8, branchingFactor)
 
   private def getOffset(depth: Int): Long = {
     (1 until depth).map(math.pow(branchingFactor, _).toLong * 8).sum
@@ -113,7 +113,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
 
     def searchBlock(): Long = {
       def read(prevValue: Long, prevPos: Long): Long = {
-        val currValue = fs.readLong()
+        val currValue = fileSystem.readLong()
 
         if (currentDepth != maxDepth && query >= prevValue && (query < currValue || currValue == -1L))
           prevPos
@@ -125,8 +125,8 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
           read(currValue, prevPos + 8)
       }
 
-      fs.seek(startIndex)
-      val firstValue = fs.readLong()
+      fileSystem.seek(startIndex)
+      val firstValue = fileSystem.readLong()
       if (currentDepth != maxDepth && query >= 0L && query <= firstValue)
         startIndex
       else if (currentDepth == maxDepth && query >= 0L && query <= firstValue)
@@ -137,7 +137,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
 
     def searchLastBlock(): (Long, Long) = {
       def read(prevValue: Long, prevPos: Long): (Long, Long) = {
-        val currValue = fs.readLong()
+        val currValue = fileSystem.readLong()
 
         if (query <= currValue || currValue == -1L)
           (prevPos + 8, currValue)
@@ -147,8 +147,8 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
           read(currValue, prevPos + 8)
       }
 
-      fs.seek(startIndex)
-      val firstValue = fs.readLong()
+      fileSystem.seek(startIndex)
+      val firstValue = fileSystem.readLong()
       if (query >= 0L && query <= firstValue)
         (startIndex, firstValue)
       else
@@ -203,7 +203,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
 // like an on-disk array and looks up values by index
 class OnDiskBTreeIndexToValue(
   path: String,
-  hConf: Configuration,
+  fs: FS,
   branchingFactor: Int = 1024
 ) extends AutoCloseable {
   private[this] def numLayers(size: Long): Int =
@@ -219,11 +219,11 @@ class OnDiskBTreeIndexToValue(
     leadingElements
   }
 
-  private[this] val layers = numLayers(hConf.getFileSize(path) / 8)
+  private[this] val layers = numLayers(fs.getFileSize(path) / 8)
   private[this] val junk = leadingElements(layers - 1)
-  private[this] var fs = try {
+  private[this] var fileSystem = try {
     log.info("reading index file: " + path)
-    hConf.fileSystem(path).open(new Path(path))
+    fs.fileSystem(path).open
   } catch {
     case e: Exception =>
       fatal(s"Could not find a BGEN .idx file at $path. Try running HailContext.index_bgen().", e)
@@ -236,8 +236,8 @@ class OnDiskBTreeIndexToValue(
       a
     } else {
       Arrays.sort(indices)
-      fs.seek((junk + indices(0)) * 8)
-      a(0) = fs.readLong()
+      fileSystem.seek((junk + indices(0)) * 8)
+      a(0) = fileSystem.readLong()
       assert(a(0) != -1)
       var i = 1
       while (i < indices.length) {
@@ -246,8 +246,8 @@ class OnDiskBTreeIndexToValue(
         } else {
           val jump = (indices(i) - indices(i - 1) - 1) * 8
           assert(jump >= 0)
-          fs.skipBytes(jump)
-          a(i) = fs.readLong()
+          fileSystem.skipBytes(jump)
+          a(i) = fileSystem.readLong()
           assert(a(i) != -1)
         }
         i += 1
@@ -257,9 +257,9 @@ class OnDiskBTreeIndexToValue(
   }
 
   override def close(): Unit = synchronized {
-    if (fs != null) {
-      fs.close()
-      fs = null
+    if (fileSystem != null) {
+      fileSystem.close()
+      fileSystem = null
     }
   }
 }

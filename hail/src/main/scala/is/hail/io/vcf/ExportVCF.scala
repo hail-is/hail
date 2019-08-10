@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, Interpret, LowerMatrixIR, MatrixValue}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -119,7 +119,7 @@ object ExportVCF {
     }
     tOption match {
       case Some(s) => s
-      case _ => fatal(s"INFO field '${ f.name }': VCF does not support type `${ f.typ }'.")
+      case _ => fatal(s"INFO field '${ f.name }': VCF does not support type '${ f.typ }'.")
     }
   }
 
@@ -140,7 +140,7 @@ object ExportVCF {
 
     tOption match {
       case Some(s) => s
-      case _ => fatal(s"FORMAT field '$fieldName': VCF does not support type `$t'.")
+      case _ => fatal(s"FORMAT field '$fieldName': VCF does not support type '$t'.")
     }
   }
 
@@ -159,7 +159,7 @@ object ExportVCF {
   def checkFormatSignature(tg: TStruct) {
     tg.fields.foreach { fd =>
       val valid = fd.typ match {
-        case it: TIterable => validFormatType(it.elementType)
+        case it: TContainer => validFormatType(it.elementType)
         case t => validFormatType(t)
       }
       if (!valid)
@@ -221,7 +221,12 @@ object ExportVCF {
 
   def apply(mt: MatrixTable, path: String, append: Option[String] = None,
     exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExportVCF(mt.value, path, append, exportType, metadata)
+    ExecuteContext.scoped { ctx =>
+
+      ExportVCF(Interpret(mt.lit, ctx, optimize = false)
+        .toMatrixValue(mt.colKey),
+        path, append, exportType, metadata)
+    }
   }
 
   def apply(mv: MatrixValue, path: String, append: Option[String],
@@ -232,11 +237,7 @@ object ExportVCF {
 
     val typ = mv.typ
 
-    val tg = typ.entryType match {
-      case t: TStruct => t.physicalType
-      case t =>
-        fatal(s"export_vcf requires g to have type TStruct, found $t")
-    }
+    val tg = mv.entryPType
 
     checkFormatSignature(tg.virtualType)
 
@@ -253,7 +254,7 @@ object ExportVCF {
     val tinfo =
       if (typ.rowType.hasField("info")) {
         typ.rowType.field("info").typ match {
-          case t: TStruct => t.asInstanceOf[TStruct].physicalType
+          case _: TStruct => mv.rvRowPType.field("info").typ.asInstanceOf[PStruct]
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
             PStruct.empty()
@@ -271,6 +272,7 @@ object ExportVCF {
 
     def header: String = {
       val sb = new StringBuilder()
+      val fs = HailContext.sFS
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
@@ -312,7 +314,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        mv.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        fs.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -362,16 +364,22 @@ object ExportVCF {
       }
     }
     val filtersType = TSet(TString())
-    val filtersPType = filtersType.physicalType
+    val filtersPType = if (typ.rowType.hasField("filters"))
+      mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
+    else null
 
     val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString()))
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64()))
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
 
-    val fullRowType = typ.rvRowType.physicalType
-    val localEntriesIndex = typ.entriesIdx
-    val localEntriesType = typ.entryArrayType.physicalType
+    val fullRowType = mv.rvRowPType
+    val localEntriesIndex = mv.entriesIdx
+    val localEntriesType = mv.entryArrayPType
+
+    val hc = HailContext.get
+    val fs = hc.sFS
+    val tmpDir = hc.tmpDir
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
@@ -463,6 +471,6 @@ object ExportVCF {
 
         sb.result()
       }
-    }.writeTable(path, HailContext.get.tmpDir, Some(header), exportType = exportType)
+    }.writeTable(fs, path, tmpDir, Some(header), exportType = exportType)
   }
 }

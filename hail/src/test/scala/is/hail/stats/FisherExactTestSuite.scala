@@ -1,18 +1,11 @@
 package is.hail.stats
 
-import is.hail.SparkSuite
-import is.hail.check.Gen._
-import is.hail.check.Prop._
-import is.hail.check.Properties
-import is.hail.utils._
-import is.hail.testUtils._
-import is.hail.variant.{MatrixTable, _}
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
-import scala.sys.process._
 
-class FisherExactTestSuite extends SparkSuite {
+class FisherExactTestSuite extends HailSuite {
 
   @Test def testPvalue() {
     val N = 200

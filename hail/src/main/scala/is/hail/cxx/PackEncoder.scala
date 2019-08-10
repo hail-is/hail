@@ -69,6 +69,7 @@ object PackEncoder {
     case _: PFloat64 => s"$output_buf_ptr->write_double($value);"
     case _: PBinary => encodeBinary(tub, output_buf_ptr, value)
     case t2: PArray => encodeArray(tub, t2, output_buf_ptr, value)
+    case t2: PNDArray => EncodeNDArray.npy(tub, t2, output_buf_ptr, value)
     case t2: PBaseStruct => encodeBaseStruct(tub, t2, output_buf_ptr, value)
   }
 

@@ -3,8 +3,9 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.{Field, TStruct, Type}
+import is.hail.expr.types.virtual.{Field, TStruct}
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 import scala.collection.JavaConverters._
 
@@ -81,6 +82,8 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def field(name: String): PField = fields(fieldIdx(name))
+
+  def fieldType(name: String): PType = types(fieldIdx(name))
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
@@ -183,7 +186,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
     fields.foreach { fd =>
       val n = fd.name
-      newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
+      newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
     PStruct(newFieldsBuilder.result(): _*)
   }
@@ -229,6 +232,18 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   def selectFields(names: Seq[String]): PStruct = {
     PStruct(required,
       names.map(f => f -> field(f).typ): _*)
+  }
+
+  def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row) = {
+    val t = PStruct(keep.map { n =>
+      n -> field(n).typ
+    }: _*)
+
+    val keepIdx = keep.map(fieldIdx)
+    val selectF: Row => Row = { r =>
+      Row.fromSeq(keepIdx.map(r.get))
+    }
+    (t, selectF)
   }
 
   def dropFields(names: Set[String]): PStruct =

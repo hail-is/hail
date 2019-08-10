@@ -8,6 +8,11 @@ with open('hail/hail_pip_version') as f:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+dependencies = []
+with open('requirements.txt', 'r') as f:
+    for line in f:
+        dependencies.append(line.strip())
+
 setup(
     name="hail",
     version=hail_pip_version,
@@ -17,24 +22,22 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://hail.is",
-    packages=find_packages(),
+    packages=find_packages('.'),
+    package_dir={
+        'hail': 'hail',
+        'hailtop': 'hailtop'},
     package_data={
-        '': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version']},
+        'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
+        'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
     python_requires=">=3.6",
-    install_requires=[
-        'numpy<2',
-        'pandas>0.22,<0.24',
-        'matplotlib<3',
-        'seaborn<0.9',
-        'bokeh<0.14',
-        'pyspark>=2.2,<2.3',
-        'parsimonious<0.9',
-        'ipykernel<5',
-        'decorator<5',
-        'requests>=2.21.0,<2.21.1',
-    ]
+    install_requires=dependencies,
+    entry_points={
+        'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
+    },
+    setup_requires=["pytest-runner", "wheel"],
+    tests_require=["pytest"]
 )

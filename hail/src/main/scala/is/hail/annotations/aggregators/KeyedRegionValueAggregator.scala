@@ -3,15 +3,15 @@ package is.hail.annotations.aggregators
 import java.util
 
 import is.hail.annotations.RegionValueBuilder
-import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 case class KeyedRegionValueAggregator(
   rvAggs: Array[RegionValueAggregator],
   keyType: Type) extends RegionValueAggregator {
+
+  override def isCommutative: Boolean = rvAggs.forall(_.isCommutative)
 
   var m = new java.util.HashMap[Any, Array[RegionValueAggregator]]() // this can't be private for reflection to work
 

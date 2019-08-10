@@ -1,9 +1,7 @@
 package is.hail.cxx
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.expr.types.physical.PType
 import is.hail.nativecode._
-import is.hail.rvd.RVDContext
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 
 class RegionValueIterator(it: Iterator[RegionValue]) extends Iterator[Long] {

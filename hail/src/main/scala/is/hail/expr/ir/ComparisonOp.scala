@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.CodeOrdering
-import is.hail.asm4s.Code
-import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.utils.lift
 
 object ComparisonOp {
 
@@ -35,6 +33,20 @@ object ComparisonOp {
       checkCompatible(t1, t2)
       Compare(t1, t2)
   }
+
+  def invert[T](op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
+    assert(!op.isInstanceOf[Compare])
+    op match {
+      case GT(t1, t2) => LTEQ(t1, t2)
+      case LT(t1, t2) => GTEQ(t1, t2)
+      case GTEQ(t1, t2) => LT(t1, t2)
+      case LTEQ(t1, t2) => GT(t1, t2)
+      case EQ(t1, t2) => NEQ(t1, t2)
+      case NEQ(t1, t2) => EQ(t1, t2)
+      case EQWithNA(t1, t2) => NEQWithNA(t1, t2)
+      case NEQWithNA(t1, t2) => EQWithNA(t1, t2)
+    }
+  }
 }
 
 sealed trait ComparisonOp[ReturnType] {
@@ -42,8 +54,9 @@ sealed trait ComparisonOp[ReturnType] {
   def t2: Type
   def op: CodeOrdering.Op
   val strict: Boolean = true
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering.F[ReturnType] = {
-    mb.getCodeOrdering[ReturnType](t1.physicalType, t2.physicalType, op)
+  def codeOrdering(mb: EmitMethodBuilder, t1p: PType, t2p: PType): CodeOrdering.F[ReturnType] = {
+    ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
+    mb.getCodeOrdering[ReturnType](t1p, t2p, op)
   }
 }
 

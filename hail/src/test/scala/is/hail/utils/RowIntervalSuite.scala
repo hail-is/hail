@@ -6,7 +6,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RowIntervalSuite extends TestNGSuite {
-  val pord = TTuple(IndexedSeq(TInt32(), TInt32(), TInt32())).ordering
+  val pord = TTuple(TInt32(), TInt32(), TInt32()).ordering
 
   @Test def testContains() {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).contains(pord, Row(1, 1, 3)))

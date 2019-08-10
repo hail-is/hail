@@ -1,6 +1,5 @@
 package is.hail.annotations
 
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._

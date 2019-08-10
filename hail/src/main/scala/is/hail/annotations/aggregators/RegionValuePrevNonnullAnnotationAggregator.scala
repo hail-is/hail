@@ -11,7 +11,7 @@ class RegionValuePrevNonnullAnnotationAggregator2(
   makeDecoder: (MemoryBuffer) => Decoder
 ) extends RegionValueAggregator {
   def this(t: PType) = this(t, {
-    val f = EmitPackEncoder(t)
+    val f = EmitPackEncoder(t, t)
     (mb: MemoryBuffer) => new CompiledPackEncoder(new MemoryOutputBuffer(mb), f)
   }, {
     val f = EmitPackDecoder(t, t)
@@ -24,6 +24,8 @@ class RegionValuePrevNonnullAnnotationAggregator2(
   @transient lazy val decoder: Decoder = makeDecoder(mb)
   
   var present: Boolean = false
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (!missing) {
@@ -70,6 +72,8 @@ class RegionValuePrevNonnullAnnotationAggregator2(
 
 class RegionValuePrevNonnullAnnotationAggregator(t: Type) extends RegionValueAggregator {
   var last: Annotation = null
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (!missing)

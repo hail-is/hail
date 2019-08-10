@@ -1,12 +1,12 @@
 package is.hail.linalg
   
 import breeze.linalg.DenseMatrix
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check.Gen
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class RowMatrixSuite extends SparkSuite {
+class RowMatrixSuite extends HailSuite {
   private def rowArrayToRowMatrix(a: Array[Array[Double]], nPartitions: Int = sc.defaultParallelism): RowMatrix = {
     require(a.length > 0)
     val nRows = a.length
@@ -34,7 +34,7 @@ class RowMatrixSuite extends SparkSuite {
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
     val localMatrix = rowArrayToLocalMatrix(rowArrays)
     
-    BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(fname)
+    BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(sFS, fname)
     
     assert(rowMatrix.toBreezeMatrix() === localMatrix)
   }
@@ -47,7 +47,7 @@ class RowMatrixSuite extends SparkSuite {
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0))
     
-    BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(fname, forceRowMajor = true)
+    BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(sFS, fname, forceRowMajor = true)
     
     val rowMatrixFromBlock = RowMatrix.readBlockMatrix(hc, fname, Some(1))
     
@@ -63,7 +63,7 @@ class RowMatrixSuite extends SparkSuite {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
       partSize <- Seq(1, 2, 4, 9, 11)
     } {
-      BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).write(fname, overwrite = true, forceRowMajor = true)
+      BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).write(sFS, fname, overwrite = true, forceRowMajor = true)
       val rowMatrix = RowMatrix.readBlockMatrix(hc, fname, Some(partSize))
       
       assert(rowMatrix.toBreezeMatrix() === lm)
@@ -71,7 +71,7 @@ class RowMatrixSuite extends SparkSuite {
   }
   
   private def readCSV(fname: String): Array[Array[Double]] =
-    hc.hadoopConf.readLines(fname)( it =>
+    hc.sFS.readLines(fname)( it =>
       it.map(_.value)
         .map(_.split(",").map(_.toDouble))
         .toArray[Array[Double]]

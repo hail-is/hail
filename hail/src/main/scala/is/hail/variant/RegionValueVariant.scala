@@ -1,8 +1,8 @@
 package is.hail.variant
 
-import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr.types.physical.{PArray, PString, PStruct}
+import is.hail.utils._
 
 class RegionValueVariant(rowType: PStruct) extends View {
   private val locusField = rowType.fieldByName("locus")

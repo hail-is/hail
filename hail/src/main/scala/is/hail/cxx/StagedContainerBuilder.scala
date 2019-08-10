@@ -1,6 +1,6 @@
 package is.hail.cxx
 
-import is.hail.expr.types.physical.{PBaseStruct, PContainer, PType}
+import is.hail.expr.types.physical.{PBaseStruct, PContainer}
 
 object StagedContainerBuilder {
   def builderType(containerPType: PContainer): Type = {

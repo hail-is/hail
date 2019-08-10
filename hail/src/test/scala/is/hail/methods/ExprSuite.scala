@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
@@ -11,7 +11,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
 
-class ExprSuite extends SparkSuite {
+class ExprSuite extends HailSuite {
 
   @Test def testTypePretty() {
     // for arbType

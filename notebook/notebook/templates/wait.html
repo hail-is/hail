@@ -6,7 +6,7 @@
     <link rel="stylesheet" type="text/css" href="/static/centering.css">
     <script>
       let protocol = location.protocol.replace("http", "ws")
-      let sock = new WebSocket(protocol + location.host + "/wait");
+      let sock = new WebSocket(protocol + location.host + "/waitws");
       sock.onmessage = function (event) {
         console.log(event)
         window.location.replace(event.data)

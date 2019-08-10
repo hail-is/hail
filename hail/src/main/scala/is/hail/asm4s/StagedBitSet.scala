@@ -1,8 +1,5 @@
 package is.hail.asm4s
 
-import org.objectweb.asm.tree._
-import scala.collection.generic.Growable
-
 abstract class StagedBitSet {
 
   private var used = 0

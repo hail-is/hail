@@ -6,6 +6,7 @@
 #include "hail/Decoder.h"
 #include "hail/Encoder.h"
 #include "hail/Region.h"
+#include "hail/FS.h"
 #include "hail/Upcalls.h"
 #include "hail/Utils.h"
 
@@ -129,11 +130,16 @@ class SparkEnv {
 struct SparkFunctionContext {
   RegionPtr region_;
   SparkEnv spark_env_;
+  FS fs_;
+  const char * literals_;
 
-  SparkFunctionContext(RegionPtr region, jobject spark_utils) :
-  region_(region), spark_env_(spark_utils) { }
+  SparkFunctionContext(RegionPtr region, jobject spark_utils, jobject fs, const char * literals) :
+  region_(region), spark_env_(spark_utils), fs_(fs), literals_(literals) { }
 
-  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr) { }
+  SparkFunctionContext(RegionPtr region, const char * literals) :
+  SparkFunctionContext(region, nullptr, nullptr, literals) { }
+
+  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr, nullptr, nullptr) { }
 };
 
 }

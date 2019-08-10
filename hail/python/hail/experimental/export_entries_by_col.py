@@ -2,8 +2,8 @@ import hail as hl
 from hail.typecheck import *
 
 
-@typecheck(mt=hl.MatrixTable, path=str, batch_size=int, bgzip=bool)
-def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, bgzip: bool = True):
+@typecheck(mt=hl.MatrixTable, path=str, batch_size=int, bgzip=bool, header_json_in_file=bool)
+def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, bgzip: bool = True, header_json_in_file: bool = True):
     """Export entries of the `mt` by column as separate text files.
 
     Examples
@@ -65,11 +65,14 @@ def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, 
         Number of columns to write per iteration.
     bgzip : :obj:`bool`
         BGZip output files.
+    header_json_in_file : :obj:`bool`
+        Include JSON header in each component file (if False, only written to index.tsv)
     """
     hl.utils.java.Env.backend().execute(
         hl.ir.MatrixToValueApply(mt._mir,
                                  {'name': 'MatrixExportEntriesByCol',
                                   'parallelism': batch_size,
                                   'path': path,
-                                  'bgzip': bgzip})
+                                  'bgzip': bgzip,
+                                  'headerJsonInFile': header_json_in_file})
     )

@@ -2,7 +2,7 @@ package is.hail.nativecode
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.{SparkSuite, variant}
+import is.hail.{HailSuite, variant}
 import is.hail.annotations._
 import is.hail.cxx._
 import is.hail.expr.Parser
@@ -15,7 +15,7 @@ import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
-class NativeDecoderSuite extends SparkSuite {
+class NativeDecoderSuite extends HailSuite {
 
   @Test def testCXXInputStream(): Unit = {
     val tub = new TranslationUnitBuilder()
@@ -82,7 +82,7 @@ class NativeDecoderSuite extends SparkSuite {
            |auto jis = h->at(0);
            |
            |auto is = std::make_shared<InputStream>(up, jis);
-           |${ spec.nativeInputBufferType } leb_buf {is};
+           |${ spec.nativeInputBufferType("InputStream") } leb_buf {is};
            |
            |leb_buf.skip_boolean();
            |if (leb_buf.read_boolean() != true) { return 0; }

@@ -12,6 +12,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
   }
 
+  def storeBoolean(off: Code[Long], v: Code[Boolean]): Code[Unit] = {
+    region.invoke[Long, Boolean, Unit]("storeBoolean", off, v)
+  }
+
   def storeInt(off: Code[Long], v: Code[Int]): Code[Unit] = {
     region.invoke[Long,Int,Unit]("storeInt", off, v)
   }
@@ -164,7 +168,29 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   ): Code[Long] =
     region.invoke[Region, Long, Int, Int, Long]("appendStringSlice", fromRegion, fromOff, start, n)
 
-  def clear(): Code[Unit] = {
-    region.invoke[Unit]("clear")
-  }
+  def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
+
+  def reference(other: Code[Region]): Code[Unit] =
+    region.invoke[Region, Unit]("reference", other)
+
+  def setNumParents(n: Code[Int]): Code[Unit] =
+    region.invoke[Int, Unit]("setNumParents", n)
+
+  def setParentReference(r: Code[Region], i: Code[Int]): Code[Unit] =
+    region.invoke[Region, Int, Unit]("setParentReference", r, i)
+
+  def getParentReference(i: Code[Int], size: Int): Code[Region] =
+    region.invoke[Int, Int, Region]("getParentReference", i, size)
+
+  def setFromParentReference(src: Code[Region], i: Code[Int], blockSize: Code[Int]): Code[Unit] =
+    region.invoke[Region, Int, Int, Unit]("setFromParentReference", src, i, blockSize)
+
+  def clearParentReference(i: Code[Int]): Code[Unit] =
+    region.invoke[Int, Unit]("clearParentReference", i)
+
+  def isValid: Code[Boolean] = region.invoke[Boolean]("isValid")
+
+  def invalidate(): Code[Unit] = region.invoke[Unit]("invalidate")
+
+  def getNewRegion(blockSize: Code[Int]): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
 }

@@ -1,0 +1,15 @@
+<suite name="CppCodegenSuite" verbose="1">
+    <test name="TestCppCodegen">
+      <classes>
+           <class name="is.hail.nativecode.NativeCodeSuite"/>
+           <method name="is.hail.annotations.AnnotationsSuite.testReadWrite"/>
+           <class name="is.hail.annotations.UnsafeSuite">
+               <methods>
+                   <exclude name="testCodecForNonWrappedTypes" />
+               </methods>
+           </class>
+           <method name="is.hail.expr.ir.TableIRSuite.testShuffleAndJoinDoesntMemoryLeak"/>
+           <class name="is.hail.io.IndexSuite"/>
+      </classes>
+    </test>
+</suite>

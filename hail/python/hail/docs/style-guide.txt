@@ -5,10 +5,8 @@
  - [sphinx v1.5.4](http://www.sphinx-doc.org/)
  - [nbsphinx](http://nbsphinx.readthedocs.io/)
  - [read the docs Sphinx theme v0.1.9](https://github.com/snide/sphinx_rtd_theme)
- - matplotlib
  - pandas
  - numpy
- - seaborn
 
 ## Function Documentation Structure
  - Description

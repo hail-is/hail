@@ -1,9 +1,9 @@
 package is.hail.expr
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
-class ParserSuite extends SparkSuite{
+class ParserSuite extends HailSuite{
   @Test def testOneOfLiteral() = {
     val strings = Array("A", "B", "AB", "AA", "CAD", "EF")
     val p = Parser.oneOfLiteral(strings)

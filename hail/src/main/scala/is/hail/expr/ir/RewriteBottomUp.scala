@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 object RewriteBottomUp {
-  def apply(ir: BaseIR, rule: (BaseIR) => Option[BaseIR]): BaseIR = {
+  def apply(ir: BaseIR, rule: BaseIR => Option[BaseIR]): BaseIR = {
     def rewrite(ast: BaseIR): BaseIR = {
       val newChildren = ast.children.map(rewrite)
 

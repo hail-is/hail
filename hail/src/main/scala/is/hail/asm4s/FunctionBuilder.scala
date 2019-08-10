@@ -3,17 +3,16 @@ package is.hail.asm4s
 import java.io._
 import java.util
 
-import scala.collection.JavaConverters._
-import scala.collection.generic.Growable
-import scala.collection.mutable
-import scala.language.{higherKinds, implicitConversions}
 import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 
+import scala.collection.JavaConverters._
+import scala.collection.generic.Growable
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object FunctionBuilder {
@@ -135,6 +134,17 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
   var definedFields: ArrayBuilder[Growable[AbstractInsnNode] => Unit] = new ArrayBuilder(16)
 
   def addField[T : TypeInfo](value: Code[T]): ClassFieldRef[T] = {
+    val cfr = newField[T]
+    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
+      il += new TypeInsnNode(CHECKCAST, name)
+      value.emit(il)
+      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
+    }
+    definedFields += add
+    cfr
+  }
+
+  def addField[T](value: Code[_], dummy: Boolean)(implicit ti: TypeInfo[T]): ClassFieldRef[T] = {
     val cfr = newField[T]
     val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
       il += new TypeInsnNode(CHECKCAST, name)
@@ -344,20 +354,20 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
     new (() => F) with java.io.Serializable {
       @transient
-      @volatile private var f: F = null
+      @volatile private var theClass: Class[_] = null
 
       def apply(): F = {
         try {
-          if (f == null) {
+          if (theClass == null) {
             this.synchronized {
-              if (f == null) {
+              if (theClass == null) {
                 childClasses.foreach { case (fn, b) => loadClass(fn, b) }
-                f = loadClass(n, bytes).newInstance().asInstanceOf[F]
+                theClass = loadClass(n, bytes)
               }
             }
           }
 
-          f
+          theClass.newInstance().asInstanceOf[F]
         } catch {
           //  only triggers on classloader
           case e@(_: Exception | _: LinkageError) => {

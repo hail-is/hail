@@ -1,25 +1,21 @@
 package is.hail.methods
 
-import is.hail.{HailContext, SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
-import is.hail.check.Prop._
-import is.hail.check.{Gen, Properties}
-import is.hail.expr.ir.{Interpret, TextTableReader}
-import is.hail.expr.types._
+import is.hail.expr.ir.{Interpret, MatrixToTableApply, TableIR, TextTableReader}
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
 import is.hail.table.Table
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import is.hail.{HailContext, HailSuite, TestUtils}
 import org.testng.SkipException
+import org.testng.annotations.Test
 
 import scala.language._
 import scala.sys.process._
 
-class IBDSuite extends SparkSuite {
+class IBDSuite extends HailSuite {
 
   def toI(a: Any): Int =
     a.asInstanceOf[Int]
@@ -63,7 +59,7 @@ class IBDSuite extends SparkSuite {
 
     ExportVCF(vds, vcfFile)
 
-    hadoopConf.copy(vcfFile, localVCFFile)
+    sFS.copy(vcfFile, localVCFFile)
 
     val thresholdString = min.map(x => s" --min $x").getOrElse("") +
       max.map(x => s" --max $x").getOrElse("") +
@@ -74,7 +70,7 @@ class IBDSuite extends SparkSuite {
     val genomeFile = tmpdir + ".genome"
     val localGenomeFile = localTmpdir + ".genome"
 
-    hadoopConf.copy(localGenomeFile, genomeFile)
+    sFS.copy(localGenomeFile, genomeFile)
 
     val rdd = TextTableReader.read(hc)(Array(tmpdir + ".genome"),
       types = Map(("IID1", TString()), ("IID2", TString()), ("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()),
@@ -110,7 +106,7 @@ class IBDSuite extends SparkSuite {
     }
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
-    val us = IBD.toRDD(Interpret(IBD.pyApply(vds.ast))).collect().toMap
+    val us = IBD.toRDD(Interpret(MatrixToTableApply(vds.ast, IBD()), ctx)).collect().toMap
 
     val plink = runPlinkIBD(vds)
     val sampleIds = vds.stringSampleIds
@@ -121,6 +117,6 @@ class IBDSuite extends SparkSuite {
 
   @Test def ibdSchemaCorrect() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val us = new Table(HailContext.get, IBD.pyApply(vds.ast)).typeCheck()
+    val us = new Table(HailContext.get, MatrixToTableApply(vds.ast, IBD())).typeCheck()
   }
 }

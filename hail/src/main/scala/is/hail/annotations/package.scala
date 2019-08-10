@@ -2,9 +2,11 @@ package is.hail
 
 import is.hail.utils.Muple
 
-package object annotations {
-
+package annotations {
   class AnnotationPathException(msg: String = "") extends Exception(msg)
+}
+
+package object annotations {
 
   type  Annotation = Any
 

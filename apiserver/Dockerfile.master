@@ -1,5 +1,0 @@
-FROM hail-base
-
-COPY start-master.sh /
-
-CMD ["/start-master.sh"]

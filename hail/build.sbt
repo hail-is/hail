@@ -1,7 +1,10 @@
 import Dependencies._
 
-lazy val spark = "2.2.0"
+lazy val spark = "2.4.0"
 lazy val si = spark match {
+  case "2.4.2" => SparkInfo("0.10.7", "0.13.2")
+  case "2.4.1" => SparkInfo("0.10.7", "0.13.2")
+  case "2.4.0" => SparkInfo("0.10.7", "0.13.2")
   case "2.2.0" => SparkInfo("0.10.4", "0.13.1")
   case "2.1.0" => SparkInfo("0.10.4", "0.12")
   case "2.0.2" => SparkInfo("0.10.3", "0.11.2")
@@ -19,6 +22,18 @@ lazy val root = (project in file(".")).
     sparkVersion := spark,
     sparkComponents ++= Seq("sql", "mllib"),
     resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/",
+    Compile / javacOptions ++= Seq(
+      "-Xlint:all"
+    ),
+    Compile / scalacOptions ++= Seq(
+      "-Xfatal-warnings",
+      "-Xno-patmat-analysis",
+      "-Xlint:_",
+      "-deprecation",
+      "-unchecked",
+      "-Xlint:-infer-any",
+      "-Xlint:-unsound-match"
+    ),
     libraryDependencies ++= Seq(
       scalaTest % Test
         , "org.ow2.asm" % "asm" % "5.1"
@@ -55,5 +70,6 @@ lazy val root = (project in file(".")).
       ShadeRule
         .rename("org.objectweb.asm.**" -> "shaded.@1")
         .inLibrary(hadoopClient)
-    )
+    ),
+    unmanagedClasspath in Test += baseDirectory.value / "prebuilt" / "lib"
   )

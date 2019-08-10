@@ -15,10 +15,10 @@ object UnaryOp {
   }
 
   def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
-    returnType(op, t)
+    returnType((op, t))
 
   def getReturnType(op: UnaryOp, t: Type): Type =
-    returnType(op, t).getOrElse(incompatible(t, op))
+    returnType((op, t)).getOrElse(incompatible(t, op))
 
   private def incompatible[T](t: Type, op: UnaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to values of type $t")

@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: site-deployment
+  labels:
+    app: site
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: site
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: site
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - site
+              topologyKey: "kubernetes.io/hostname"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      containers:
+       - name: site
+         image: "{{ site_image.image }}"
+         resources:
+           requests:
+             memory: "250M"
+             cpu: "100m"
+           limits:
+             memory: "1G"
+             cpu: "1"
+         ports:
+          - containerPort: 80
+         livenessProbe:
+           httpGet:
+             path: /health
+             port: 80
+           initialDelaySeconds: 5
+           periodSeconds: 5
+         readinessProbe:
+           httpGet:
+             path: /
+             port: 80
+           initialDelaySeconds: 5
+           periodSeconds: 5
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: site
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: site
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 80

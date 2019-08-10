@@ -39,6 +39,10 @@ Methods
 .. autosummary::
 
     linear_mixed_model
+    linear_mixed_regression_rows
+    linear_regression_rows
+    logistic_regression_rows
+    poisson_regression_rows
     pca
     row_correlation
 
@@ -65,6 +69,7 @@ Methods
     realized_relationship_matrix
     sample_qc
     skat
+    lambda_gc
     split_multi
     split_multi_hts
     transmission_disequilibrium_test

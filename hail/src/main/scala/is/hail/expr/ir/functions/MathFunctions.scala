@@ -8,6 +8,7 @@ import org.apache.commons.math3.special.Gamma
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.asm4s
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 
 object MathFunctions extends RegistryFunctions {
@@ -115,74 +116,75 @@ object MathFunctions extends RegistryFunctions {
     registerIR("toFloat32", tnum("T"), TFloat32())(x => Cast(x, TFloat32()))
     registerIR("toFloat64", tnum("T"), TFloat64())(x => Cast(x, TFloat64()))
     
-    registerScalaFunction("abs", TInt32(), TInt32())(mathPackageClass, "abs")
-    registerScalaFunction("abs", TInt64(), TInt64())(mathPackageClass, "abs")
-    registerScalaFunction("abs", TFloat32(), TFloat32())(mathPackageClass, "abs")
-    registerScalaFunction("abs", TFloat64(), TFloat64())(mathPackageClass, "abs")
+    registerScalaFunction("abs", Array(TInt32()), TInt32(), null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", Array(TInt64()), TInt64(), null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", Array(TFloat32()), TFloat32(), null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", Array(TFloat64()), TFloat64(), null)(mathPackageClass, "abs")
 
-    registerScalaFunction("**", TInt32(), TInt32(), TFloat64())(thisClass, "pow")
-    registerScalaFunction("**", TInt64(), TInt64(), TFloat64())(thisClass, "pow")
-    registerScalaFunction("**", TFloat32(), TFloat32(), TFloat64())(thisClass, "pow")
-    registerScalaFunction("**", TFloat64(), TFloat64(), TFloat64())(thisClass, "pow")
+    registerScalaFunction("**", Array(TInt32(), TInt32()), TFloat64(), null)(thisClass, "pow")
+    registerScalaFunction("**", Array(TInt64(), TInt64()), TFloat64(), null)(thisClass, "pow")
+    registerScalaFunction("**", Array(TFloat32(), TFloat32()), TFloat64(), null)(thisClass, "pow")
+    registerScalaFunction("**", Array(TFloat64(), TFloat64()), TFloat64(), null)(thisClass, "pow")
 
-    registerScalaFunction("exp", TFloat64(), TFloat64())(mathPackageClass, "exp")
-    registerScalaFunction("log10", TFloat64(), TFloat64())(mathPackageClass, "log10")
-    registerScalaFunction("sqrt", TFloat64(), TFloat64())(mathPackageClass, "sqrt")
-    registerScalaFunction("log", TFloat64(), TFloat64())(mathPackageClass, "log")
-    registerScalaFunction("log", TFloat64(), TFloat64(), TFloat64())(thisClass, "log")
-    registerScalaFunction("gamma", TFloat64(), TFloat64())(thisClass, "gamma")
+    registerScalaFunction("exp", Array(TFloat64()), TFloat64(), null)(mathPackageClass, "exp")
+    registerScalaFunction("log10", Array(TFloat64()), TFloat64(), null)(mathPackageClass, "log10")
+    registerScalaFunction("sqrt", Array(TFloat64()), TFloat64(), null)(mathPackageClass, "sqrt")
+    registerScalaFunction("log", Array(TFloat64()), TFloat64(), null)(mathPackageClass, "log")
+    registerScalaFunction("log", Array(TFloat64(), TFloat64()), TFloat64(), null)(thisClass, "log")
+    registerScalaFunction("gamma", Array(TFloat64()), TFloat64(), null)(thisClass, "gamma")
+    registerScalaFunction("binomTest", Array(TInt32(), TInt32(), TFloat64(), TInt32()), TFloat64(), null)(statsPackageClass, "binomTest")
 
-    registerScalaFunction("binomTest", TInt32(), TInt32(), TFloat64(), TInt32(), TFloat64())(statsPackageClass, "binomTest")
+    registerScalaFunction("dbeta", Array(TFloat64(), TFloat64(), TFloat64()), TFloat64(), null)(statsPackageClass, "dbeta")
 
-    registerScalaFunction("dbeta", TFloat64(), TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dbeta")
+    registerScalaFunction("pnorm", Array(TFloat64()), TFloat64(), null)(statsPackageClass, "pnorm")
+    registerScalaFunction("qnorm", Array(TFloat64()), TFloat64(), null)(statsPackageClass, "qnorm")
 
-    registerScalaFunction("pnorm", TFloat64(), TFloat64())(statsPackageClass, "pnorm")
-    registerScalaFunction("qnorm", TFloat64(), TFloat64())(statsPackageClass, "qnorm")
+    registerScalaFunction("dpois", Array(TFloat64(), TFloat64()), TFloat64(), null)(statsPackageClass, "dpois")
+    registerScalaFunction("dpois", Array(TFloat64(), TFloat64(), TBoolean()), TFloat64(), null)(statsPackageClass, "dpois")
 
-    registerScalaFunction("dpois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "dpois")
-    registerScalaFunction("dpois", TFloat64(), TFloat64(), TBoolean(), TFloat64())(statsPackageClass, "dpois")
+    registerScalaFunction("ppois", Array(TFloat64(), TFloat64()), TFloat64(), null)(statsPackageClass, "ppois")
+    registerScalaFunction("ppois", Array(TFloat64(), TFloat64(), TBoolean(), TBoolean()), TFloat64(), null)(statsPackageClass, "ppois")
 
-    registerScalaFunction("ppois", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "ppois")
-    registerScalaFunction("ppois", TFloat64(), TFloat64(), TBoolean(), TBoolean(), TFloat64())(statsPackageClass, "ppois")
+    registerScalaFunction("qpois", Array(TFloat64(), TFloat64()), TInt32(), null)(statsPackageClass, "qpois")
+    registerScalaFunction("qpois", Array(TFloat64(), TFloat64(), TBoolean(), TBoolean()), TInt32(), null)(statsPackageClass, "qpois")
 
-    registerScalaFunction("qpois", TFloat64(), TFloat64(), TInt32())(statsPackageClass, "qpois")
-    registerScalaFunction("qpois", TFloat64(), TFloat64(), TBoolean(), TBoolean(), TInt32())(statsPackageClass, "qpois")
+    registerScalaFunction("pchisqtail", Array(TFloat64(), TFloat64()), TFloat64(), null)(statsPackageClass, "chiSquaredTail")
+    registerScalaFunction("qchisqtail", Array(TFloat64(), TFloat64()), TFloat64(), null)(statsPackageClass, "inverseChiSquaredTail")
 
-    registerScalaFunction("pchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "chiSquaredTail")
-    registerScalaFunction("qchisqtail", TFloat64(), TFloat64(), TFloat64())(statsPackageClass, "inverseChiSquaredTail")
+    registerScalaFunction("floor", Array(TFloat32()), TFloat32(), null)(thisClass, "floor")
+    registerScalaFunction("floor", Array(TFloat64()), TFloat64(), null)(thisClass, "floor")
 
-    registerScalaFunction("floor", TFloat32(), TFloat32())(thisClass, "floor")
-    registerScalaFunction("floor", TFloat64(), TFloat64())(thisClass, "floor")
+    registerScalaFunction("ceil", Array(TFloat32()), TFloat32(), null)(thisClass, "ceil")
+    registerScalaFunction("ceil", Array(TFloat64()), TFloat64(), null)(thisClass, "ceil")
 
-    registerScalaFunction("ceil", TFloat32(), TFloat32())(thisClass, "ceil")
-    registerScalaFunction("ceil", TFloat64(), TFloat64())(thisClass, "ceil")
+    registerScalaFunction("%", Array(TInt32(), TInt32()), TInt32(), null)(thisClass, "mod")
+    registerScalaFunction("%", Array(TInt64(), TInt64()), TInt64(), null)(thisClass, "mod")
+    registerScalaFunction("%", Array(TFloat32(), TFloat32()), TFloat32(), null)(thisClass, "mod")
+    registerScalaFunction("%", Array(TFloat64(), TFloat64()), TFloat64(), null)(thisClass, "mod")
 
-    registerScalaFunction("%", TInt32(), TInt32(), TInt32())(thisClass, "mod")
-    registerScalaFunction("%", TInt64(), TInt64(), TInt64())(thisClass, "mod")
-    registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
-    registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
+    registerJavaStaticFunction("isnan", Array(TFloat32()), TBoolean(), null)(jFloatClass, "isNaN")
+    registerJavaStaticFunction("isnan", Array(TFloat64()), TBoolean(), null)(jDoubleClass, "isNaN")
 
-    registerJavaStaticFunction("isnan", TFloat32(), TBoolean())(jFloatClass, "isNaN")
-    registerJavaStaticFunction("isnan", TFloat64(), TBoolean())(jDoubleClass, "isNaN")
+    registerJavaStaticFunction("is_finite", Array(TFloat32()), TBoolean(), null)(jFloatClass, "isFinite")
+    registerJavaStaticFunction("is_finite", Array(TFloat64()), TBoolean(), null)(jDoubleClass, "isFinite")
 
-    registerJavaStaticFunction("is_finite", TFloat32(), TBoolean())(jFloatClass, "isFinite")
-    registerJavaStaticFunction("is_finite", TFloat64(), TBoolean())(jDoubleClass, "isFinite")
+    registerJavaStaticFunction("is_infinite", Array(TFloat32()), TBoolean(), null)(jFloatClass, "isInfinite")
+    registerJavaStaticFunction("is_infinite", Array(TFloat64()), TBoolean(), null)(jDoubleClass, "isInfinite")
 
-    registerJavaStaticFunction("is_infinite", TFloat32(), TBoolean())(jFloatClass, "isInfinite")
-    registerJavaStaticFunction("is_infinite", TFloat64(), TBoolean())(jDoubleClass, "isInfinite")
-
-    registerJavaStaticFunction("sign", TInt32(), TInt32())(jIntegerClass, "signum")
-    registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
-    registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
-    registerJavaStaticFunction("sign", TFloat64(), TFloat64())(jMathClass, "signum")
+    registerJavaStaticFunction("sign", Array(TInt32()), TInt32(), null)(jIntegerClass, "signum")
+    registerScalaFunction("sign", Array(TInt64()), TInt64(), null)(mathPackageClass, "signum")
+    registerJavaStaticFunction("sign", Array(TFloat32()), TFloat32(), null)(jMathClass, "signum")
+    registerJavaStaticFunction("sign", Array(TFloat64()), TFloat64(), null)(jMathClass, "signum")
     
-    registerScalaFunction("approxEqual", TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean(), TBoolean())(thisClass, "approxEqual")
+    registerScalaFunction("approxEqual", Array(TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean()), TBoolean(), null)(thisClass, "approxEqual")
 
-    registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
+    registerWrappedScalaFunction("entropy", TString(), TFloat64(), null)(thisClass, "irentropy")
 
-    registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
-      val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, fetStruct.physicalType)
+    registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct.virtualType,
+      (_, _, _, _) => fetStruct
+    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d)) =>
+      val res = r.mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
@@ -198,9 +200,11 @@ object MathFunctions extends RegistryFunctions {
       )
     }
     
-    registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
-      val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, chisqStruct.physicalType)
+    registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct.virtualType,
+      (_, _, _, _) => chisqStruct
+    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d))  =>
+      val res = r.mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
@@ -212,9 +216,11 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
-      val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, chisqStruct.physicalType)
+    registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct.virtualType,
+      (_, _, _, _, _) => chisqStruct
+    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), (mccT, min_cell_count)) =>
+      val res = r.mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
         srvb.start(),
@@ -226,9 +232,10 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
-      val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, hweStruct.physicalType)
+    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(),
+      hweStruct.virtualType, (_, _, _) => hweStruct) { case (r, rt, (nhrT, nHomRef), (nhT, nHet), (nhvT, nHomVar)) =>
+      val res = r.mb.newLocal[Array[Double]]
+      val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),

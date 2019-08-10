@@ -1,12 +1,13 @@
 import abc
 import json
+from hail.expr.types import hail_type
 from ..typecheck import *
-from ..utils.java import escape_str
+from ..utils.misc import escape_str
 
 
 class MatrixWriter(object):
     @abc.abstractmethod
-    def render(self, r):
+    def render(self):
         pass
 
     @abc.abstractmethod
@@ -18,19 +19,25 @@ class MatrixNativeWriter(MatrixWriter):
     @typecheck_method(path=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      codec_spec=nullable(str))
-    def __init__(self, path, overwrite, stage_locally, codec_spec):
+                      codec_spec=nullable(str),
+                      partitions=nullable(str),
+                      partitions_type=nullable(hail_type))
+    def __init__(self, path, overwrite, stage_locally, codec_spec, partitions, partitions_type):
         self.path = path
         self.overwrite = overwrite
         self.stage_locally = stage_locally
         self.codec_spec = codec_spec
+        self.partitions = partitions
+        self.partitions_type = partitions_type
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
                   'stageLocally': self.stage_locally,
-                  'codecSpecJSONStr': self.codec_spec}
+                  'codecSpecJSONStr': self.codec_spec,
+                  'partitions': self.partitions,
+                  'partitionsTypeStr': self.partitions_type._parsable_string() if self.partitions_type is not None else None}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -38,7 +45,10 @@ class MatrixNativeWriter(MatrixWriter):
                other.path == self.path and \
                other.overwrite == self.overwrite and \
                other.stage_locally == self.stage_locally and \
-               other.codec_spec == self.codec_spec
+               other.codec_spec == self.codec_spec and \
+               other.partitions == self.partitions and \
+               other.partitions_type == self.partitions_type
+               
 
 
 class MatrixVCFWriter(MatrixWriter):
@@ -52,7 +62,7 @@ class MatrixVCFWriter(MatrixWriter):
         self.export_type = export_type
         self.metadata = metadata
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixVCFWriter',
                   'path': self.path,
                   'append': self.append,
@@ -75,7 +85,7 @@ class MatrixGENWriter(MatrixWriter):
         self.path = path
         self.precision = precision
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixGENWriter',
                   'path': self.path,
                   'precision': self.precision}
@@ -87,12 +97,30 @@ class MatrixGENWriter(MatrixWriter):
                other.precision == self.precision
 
 
+class MatrixBGENWriter(MatrixWriter):
+    @typecheck_method(path=str, export_type=int)
+    def __init__(self, path, export_type):
+        self.path = path
+        self.export_type = export_type
+
+    def render(self):
+        writer = {'name': 'MatrixBGENWriter',
+                  'path': self.path,
+                  'exportType': self.export_type}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixBGENWriter) and \
+               other.path == self.path and \
+               other.export_type == self.export_type
+
+
 class MatrixPLINKWriter(MatrixWriter):
     @typecheck_method(path=str)
     def __init__(self, path):
         self.path = path
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixPLINKWriter',
                   'path': self.path}
         return escape_str(json.dumps(writer))
@@ -111,7 +139,7 @@ class MatrixNativeMultiWriter(object):
         self.overwrite = overwrite
         self.stage_locally = stage_locally
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixNativeMultiWriter',
                   'prefix': self.prefix,
                   'overwrite': self.overwrite,

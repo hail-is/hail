@@ -4,15 +4,7 @@ import is.hail.expr.types.virtual.Type
 
 import scala.language.implicitConversions
 
-package object expr extends HailRepFunctions {
-  type SymbolTable = Map[String, (Int, Type)]
-
-  def emptySymTab = Map.empty[String, (Int, Type)]
-
-  def hailType[T: HailRep]: Type = implicitly[HailRep[T]].typ
-
-  type Aggregator = TypedAggregator[Any]
-
+package expr {
   abstract class TypedAggregator[+S] extends Serializable {
     def seqOp(x: Any): Unit
 
@@ -22,6 +14,16 @@ package object expr extends HailRepFunctions {
 
     def copy(): TypedAggregator[S]
   }
+}
+
+package object expr extends HailRepFunctions {
+  type SymbolTable = Map[String, (Int, Type)]
+
+  def emptySymTab = Map.empty[String, (Int, Type)]
+
+  def hailType[T: HailRep]: Type = implicitly[HailRep[T]].typ
+
+  type Aggregator = TypedAggregator[Any]
 
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
 }

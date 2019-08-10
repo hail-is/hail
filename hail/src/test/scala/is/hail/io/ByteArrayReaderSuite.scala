@@ -1,7 +1,7 @@
 package is.hail.io
 
-import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
 
 class ByteArrayReaderSuite extends TestNGSuite {
   @Test

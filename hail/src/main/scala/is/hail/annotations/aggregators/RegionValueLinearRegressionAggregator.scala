@@ -1,7 +1,6 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.stats.LinearRegressionCombiner
 

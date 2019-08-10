@@ -60,7 +60,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
 
   def includesEnd: Boolean = right.sign > 0
 
-  private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
+  private def ext(pord: ExtendedOrdering): IntervalEndpointOrdering = pord.intervalEndpointOrdering
 
   def contains(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).compare(left, p) < 0 && ext(pord).compare(right, p) > 0
@@ -225,5 +225,51 @@ object Interval {
         if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.left, yi.left)
       }
     }
+  }
+
+  def union(xs: Array[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
+
+    val sorted = xs.sortBy(_.left: Any)(ord.toOrdering)
+
+    val ab = new ArrayBuilder[Interval]()
+    var i = 0
+    while (i < sorted.length) {
+      var interval = sorted(i)
+      i += 1
+      while (i < sorted.length && ord.gteq(interval.right, sorted(i).left)) {
+        interval = Interval(interval.left, ordMax(interval.right, sorted(i).right, ord))
+        i += 1
+      }
+
+      ab += interval
+    }
+    ab.result()
+  }
+
+  // assumes that both `x1` and `x2` are both sorted, non-overlapping interval sequences.
+  def intersection(x1: Array[Interval], x2: Array[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
+
+    var i = 0
+    var j = 0
+    val ab = new ArrayBuilder[Interval]()
+
+    while (!(i >= x1.length || j >= x2.length)) {
+      val l = x1(i)
+      val r = x2(j)
+
+      if (ord.gteq(l.left, r.right))
+        j += 1
+      else if (ord.gteq(r.left, l.right))
+        i += 1
+      else {
+        val overlap = Interval(ordMax(l.left, r.left, ord), ordMin(l.right, r.right, ord))
+        ab += overlap
+        if (ord.lt(l.right, r.right))
+          i += 1
+        else
+          j += 1
+      }
+    }
+    ab.result()
   }
 }

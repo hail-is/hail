@@ -1,10 +1,9 @@
-import json
 import hail as hl
 
-gvcfs = ['gs://hail-ci/gvcfs/HG00096.g.vcf.gz',
-         'gs://hail-ci/gvcfs/HG00268.g.vcf.gz']
+gvcfs = ['gs://hail-common/test-resources/HG00096.g.vcf.gz',
+         'gs://hail-common/test-resources/HG00268.g.vcf.gz']
 hl.init(default_reference='GRCh38')
-parts = [
+parts_json = [
     {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
      'end': {'locus': {'contig': 'chr20', 'position': 18708366}},
      'includeStart': True,
@@ -18,5 +17,7 @@ parts = [
      'includeStart': True,
      'includeEnd': True},
 ]
-parts_str = json.dumps(parts)
-vcfs = hl.import_vcfs(gvcfs, parts_str)
+
+parts = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus('GRCh38'))))._convert_from_json(parts_json)
+for mt in hl.import_vcfs(gvcfs, parts):
+    mt._force_count_rows()

@@ -1,6 +1,5 @@
 package is.hail.expr
 
-import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
 
@@ -55,17 +54,32 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseLocusInterval(input: String, rg: RGBase): Interval = {
-    parseAll[Interval](locusInterval(rg), input) match {
+  def parseLocusInterval(input: String, rg: RGBase, invalidMissing: Boolean): Interval = {
+    parseAll[Interval](locusInterval(rg, invalidMissing), input) match {
       case Success(r, _) => r
-      case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
+      case NoSuccess(msg, next) => fatal(
+        s"""invalid interval expression: '$input': $msg
+           |  Acceptable formats:
+           |    CHR:POS-CHR:POS e.g. 1:12345-1:17299 or [5:151111-8:191293]
+           |            An interval from the starting locus (chromosome, position)
+           |            to the ending locus. By default the bounds are left-inclusive,
+           |            right-exclusive, but may be configured by inclusion of square
+           |            brackets ('[' or ']') for open endpoints, or parenthesis ('('
+           |            or ')') for closed endpoints. The POS field may be the words
+           |            'START' or 'END' to denote the start or end of the chromosome.
+           |    CHR:POS-POS e.g. 1:14244-912382
+           |            The same interval as '[1:14244-1:912382)'
+           |    CHR-CHR e.g. '1-22' or 'X-Y'
+           |            The same intervals as '[1:START-22:END'] or '[X:START-Y:END]'
+           |    CHR e.g. '5' or 'X'
+           |            The same intervals as '[5:START-5:END]' or '[X:START-X:END]'  """.stripMargin)
     }
   }
 
   def parseCall(input: String): Call = {
     parseAll[Call](call, input) match {
       case Success(r, _) => r
-      case NoSuccess(msg, next) => fatal(s"invalid call expression: `$input': $msg")
+      case NoSuccess(msg, next) => fatal(s"invalid call expression: '$input': $msg")
     }
   }
 
@@ -125,7 +139,7 @@ object Parser extends JavaTokenParsers {
       bounds ^^ { int => Interval(int._1, int._2, int._3, int._4) }
   }
 
-  def locusInterval(rgBase: RGBase): Parser[Interval] = {
+  def locusInterval(rgBase: RGBase, invalidMissing: Boolean): Parser[Interval] = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
     val contig = rg.contigParser
 
@@ -143,11 +157,7 @@ object Parser extends JavaTokenParsers {
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1), Locus(c2, rg.contigLength(c2)), true, true) } |
         contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c)), true, true) }
 
-    intervalWithEndpoints(valueParser) ^^ { i =>
-      val normInterval = rg.normalizeLocusInterval(i)
-      rg.checkLocusInterval(normInterval)
-      normInterval
-    }
+    intervalWithEndpoints(valueParser) ^^ { i => rg.toLocusInterval(i, invalidMissing) }
   }
 
   def locusUnchecked(rg: RGBase): Parser[Locus] =

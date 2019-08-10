@@ -3,12 +3,20 @@ import datetime
 import difflib
 import shutil
 import tempfile
-from collections import defaultdict, Counter, OrderedDict
+from collections import defaultdict, Counter
 from random import Random
+import json
+import re
+from urllib.parse import urlparse
+from io import StringIO
+
+import numpy as np
 
 import hail
+import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
+
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
@@ -105,6 +113,8 @@ def check_positive_and_in_range(caller, name, value):
 def wrap_to_list(s):
     if isinstance(s, list):
         return s
+    elif isinstance(s, tuple):
+        return list(s)
     else:
         return [s]
 
@@ -129,7 +139,7 @@ def get_env_or_default(maybe, envvar, default):
 
 
 def uri_path(uri):
-    return Env.jutils().uriPath(uri)
+    return urlparse(uri).path
 
 
 def local_path_uri(path):
@@ -416,10 +426,10 @@ def process_joins(obj, exprs):
     for e in exprs:
         joins = e._ir.search(lambda a: isinstance(a, hail.ir.Join))
         for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
-            if j not in used_joins:
+            if j.idx not in used_joins:
                 left = j.join_func(left)
                 all_uids.extend(j.temp_vars)
-                used_joins.add(j)
+                used_joins.add(j.idx)
 
     def cleanup(table):
         remaining_uids = [uid for uid in all_uids if uid in table._fields]
@@ -452,3 +462,107 @@ def timestamp_path(base, suffix=''):
                     '-',
                     datetime.datetime.now().strftime("%Y%m%d-%H%M"),
                     suffix])
+
+
+def np_type_to_hl_type(t):
+    if t == np.int64:
+        return hail.tint64
+    elif t == np.int32:
+        return hail.tint32
+    elif t == np.float64:
+        return hail.tfloat64
+    elif t == np.float32:
+        return hail.tfloat32
+    elif t == np.bool:
+        return hail.tbool
+    else:
+        raise TypeError(f'Unsupported numpy type: {t}')
+
+def upper_hex(n, num_digits=None):
+    if num_digits is None:
+        return "{0:X}".format(n)
+    else:
+        return "{0:0{1}X}".format(n, num_digits)
+
+def escape_str(s, backticked=False):
+    sb = StringIO()
+
+    rewrite_dict = {
+        '\b': '\\b',
+        '\n': '\\n',
+        '\t': '\\t',
+        '\f': '\\f',
+        '\r': '\\r'
+    }
+
+    for ch in s:
+        chNum = ord(ch)
+        if chNum > 0x7f:
+            sb.write("\\u" + upper_hex(chNum, 4))
+        elif chNum < 32:
+            if ch in rewrite_dict:
+                sb.write(rewrite_dict[ch])
+            else:
+                if chNum > 0xf:
+                    sb.write("\\u00" + upper_hex(chNum))
+                else:
+                    sb.write("\\u000" + upper_hex(chNum))
+        else:
+            if ch == '"':
+                if backticked:
+                    sb.write('"')
+                else:
+                    sb.write('\\\"')
+            elif ch == '`':
+                if backticked:
+                    sb.write("\\`")
+                else:
+                    sb.write("`")
+            elif ch == '\\':
+                sb.write('\\\\')
+            else:
+                sb.write(ch)
+
+    escaped = sb.getvalue()
+    sb.close()
+
+    return escaped
+   
+def escape_id(s):
+    if re.fullmatch(r'[_a-zA-Z]\w*', s):
+        return s
+    else:
+        return "`{}`".format(escape_str(s, backticked=True))
+
+def dump_json(obj):
+    return f'"{escape_str(json.dumps(obj))}"'
+
+def parsable_strings(strs):
+    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
+    return f"({strs})"
+
+def _dumps_partitions(partitions, row_key_type):
+    parts_type = partitions.dtype
+    if not (isinstance(parts_type, hl.tarray) and
+            isinstance(parts_type.element_type, hl.tinterval)):
+        raise ValueError(f'partitions type invalid: {parts_type} must be array of intervals')
+
+    point_type = parts_type.element_type.point_type
+
+    f1, t1 = next(iter(row_key_type.items()))
+    if point_type == t1:
+        partitions = hl.map(lambda x: hl.interval(
+            start=hl.struct(**{f1: x.start}),
+            end=hl.struct(**{f1: x.end}),
+            includes_start=x.includes_start,
+            includes_end=x.includes_end),
+            partitions)
+    else:
+        if not isinstance(point_type, hl.tstruct):
+            raise ValueError(f'partitions has wrong type: {point_type} must be struct or type of first row key field')
+        if not point_type._is_prefix_of(row_key_type):
+            raise ValueError(f'partitions type invalid: {point_type} must be prefix of {row_key_type}')
+
+    
+    s = json.dumps(partitions.dtype._convert_to_json(hl.eval(partitions)))
+    return s, partitions.dtype

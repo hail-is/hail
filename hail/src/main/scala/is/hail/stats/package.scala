@@ -1,15 +1,11 @@
 package is.hail
 
-import breeze.linalg.Matrix
-import is.hail.annotations.Annotation
-import is.hail.expr.types._
+import is.hail.expr.types.physical.{PFloat64, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import is.hail.variant._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.apache.spark.sql.Row
 
 package object stats {
 
@@ -109,7 +105,7 @@ package object stats {
     }
   }
 
-  val hweStruct = TStruct("het_freq_hwe" -> TFloat64(), "p_value" -> TFloat64())
+  val hweStruct = PStruct("het_freq_hwe" -> PFloat64(), "p_value" -> PFloat64())
 
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -123,7 +119,7 @@ package object stats {
     Array(LH.getNumericalMean / n, LH.exactMidP(nAB))
   }
   
-  val chisqStruct = TStruct("p_value" -> TFloat64(), "odds_ratio" -> TFloat64())
+  val chisqStruct = PStruct("p_value" -> PFloat64(), "odds_ratio" -> PFloat64())
   
   def chiSquaredTest(a0: Int, b0: Int, c0: Int, d0: Int): Array[Double] = {
     if (a0 < 0 || b0 < 0 || c0 < 0 || d0 < 0)
@@ -152,11 +148,11 @@ package object stats {
       fisherExactTest(a, b, c, d)
   }
   
-  val fetStruct = TStruct(
-    "p_value" -> TFloat64(),
-    "odds_ratio" -> TFloat64(),
-    "ci_95_lower" -> TFloat64(),
-    "ci_95_upper" -> TFloat64())
+  val fetStruct = PStruct(
+    "p_value" -> PFloat64(),
+    "odds_ratio" -> PFloat64(),
+    "ci_95_lower" -> PFloat64(),
+    "ci_95_upper" -> PFloat64())
 
   def fisherExactTest(a: Int, b: Int, c: Int, d: Int): Array[Double] =
     fisherExactTest(a, b, c, d, 1.0, 0.95, "two.sided")

@@ -14,10 +14,10 @@ object ExportGen {
 
   def apply(mv: MatrixValue, path: String, precision: Int = 4) {
     val hc = HailContext.get
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
 
-    hConf.writeTable(path + ".sample",
-      "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.value.map { a =>
+    fs.writeTable(path + ".sample",
+      "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.javaValue.map { a =>
         val r = a.asInstanceOf[Row]
         assert(r.length == 3)
 
@@ -36,7 +36,7 @@ object ExportGen {
       }.toArray)
 
     val localNSamples = mv.nCols
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowPType
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
@@ -100,7 +100,7 @@ object ExportGen {
         }
         sb.result()
       }
-    }.writeTable(path + ".gen", hc.tmpDir, None)
+    }.writeTable(hc.sFS, path + ".gen", hc.tmpDir, None)
   }
 }
 

@@ -2,14 +2,15 @@ package is.hail.expr.ir
 
 import java.io.PrintWriter
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import org.testng.annotations.Test
+import is.hail.TestUtils._
 
 object ScalaTestObject {
   def testFunction(): Int = 1
@@ -27,16 +28,18 @@ class ScalaTestCompanion {
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
     registerIR("addone", TInt32(), TInt32())(ApplyBinaryPrimOp(Add(), _, I32(1)))
-    registerJavaStaticFunction("compare", TInt32(), TInt32(), TInt32())(classOf[java.lang.Integer], "compare")
-    registerScalaFunction("foobar1", TInt32())(ScalaTestObject.getClass, "testFunction")
-    registerScalaFunction("foobar2", TInt32())(ScalaTestCompanion.getClass, "testFunction")
-    registerCode("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x")){ (_, a: Code[Int], b: Code[Int]) => a + b }
-    registerCode("testCodeUnification2", tv("x"), tv("x")){ case (_, a: Code[Long]) => a }
+    registerJavaStaticFunction("compare", Array(TInt32(), TInt32()), TInt32(), null)(classOf[java.lang.Integer], "compare")
+    registerScalaFunction("foobar1", Array(), TInt32(), null)(ScalaTestObject.getClass, "testFunction")
+    registerScalaFunction("foobar2", Array(), TInt32(), null)(ScalaTestCompanion.getClass, "testFunction")
+    registerCode[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null){
+      case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int]))  => a + b }
+    registerCode("testCodeUnification2", tv("x"), tv("x"), null){ case (_, rt, (aT, a: Code[Long])) => a }
   }
 }
 
-class FunctionSuite extends SparkSuite {
+class FunctionSuite extends HailSuite {
 
+  implicit val execStrats = ExecStrategy.javaOnly
   val region = Region()
 
   TestRegisterFunctions.registerAll()
@@ -44,61 +47,38 @@ class FunctionSuite extends SparkSuite {
   def emitFromFB[F >: Null : TypeInfo](fb: FunctionBuilder[F]) =
     new EmitFunctionBuilder[F](fb.parameterTypeInfo, fb.returnTypeInfo, fb.packageName)
 
-  def toF[R: TypeInfo](ir: IR): AsmFunction1[Region, R] = {
-    val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, R])
-    Emit(ir, fb)
-    fb.resultWithIndex(Some(new PrintWriter(System.out)))(0)
-  }
-
-  def toF[A: TypeInfo, R: TypeInfo](ir: IR): AsmFunction3[Region, A, Boolean, R] = {
-    val fb = emitFromFB(FunctionBuilder.functionBuilder[Region, A, Boolean, R])
-    Emit(ir, fb)
-    fb.resultWithIndex(Some(new PrintWriter(System.out)))(0)
-  }
-
   def lookup(meth: String, types: Type*)(irs: IR*): IR =
     IRFunctionRegistry.lookupConversion(meth, types).get(irs)
 
   @Test
   def testCodeFunction() {
-    val ir = MakeStruct(Seq(("x", lookup("triangle", TInt32())(In(0, TInt32())))))
-    val f = toF[Int, Long](ir)
-    val off = f(region, 5, false)
-    val expected = (5 * (5 + 1)) / 2
-    val actual = region.loadInt(TStruct("x"-> TInt32()).physicalType.loadField(region, off, 0))
-    assert(actual == expected)
+    assertEvalsTo(lookup("triangle", TInt32())(In(0, TInt32())),
+      FastIndexedSeq(5 -> TInt32()),
+      (5 * (5 + 1)) / 2)
   }
 
   @Test
   def testStaticFunction() {
-    val ir = lookup("compare", TInt32(), TInt32())(In(0, TInt32()), I32(0))
-    val f = toF[Int, Int](ir)
-    val actual = f(region, 5, false)
-    assert(actual > 0)
+    assertEvalsTo(lookup("compare", TInt32(), TInt32())(In(0, TInt32()), I32(0)) > 0,
+      FastIndexedSeq(5 -> TInt32()),
+      true)
   }
 
   @Test
   def testScalaFunction() {
-    val ir = lookup("foobar1")()
-    val f = toF[Int](ir)
-    val actual = f(region)
-    assert(actual == 1)
+    assertEvalsTo(lookup("foobar1")(), 1)
   }
 
   @Test
   def testIRConversion() {
-    val ir = lookup("addone", TInt32())(In(0, TInt32()))
-    val f = toF[Int, Int](ir)
-    val actual = f(region, 5, false)
-    assert(actual == 6)
+    assertEvalsTo(lookup("addone", TInt32())(In(0, TInt32())),
+      FastIndexedSeq(5 -> TInt32()),
+      6)
   }
 
   @Test
   def testScalaFunctionCompanion() {
-    val ir = lookup("foobar2")()
-    val f = toF[Int](ir)
-    val actual = f(region)
-    assert(actual == 2)
+    assertEvalsTo(lookup("foobar2")(), 2)
   }
 
   @Test
@@ -111,8 +91,8 @@ class FunctionSuite extends SparkSuite {
 
   @Test
   def testUnphasedDiploidGtIndexCall() {
-    val ir = lookup("UnphasedDiploidGtIndexCall", TInt32())(In(0, TInt32()))
-    val f = toF[Int, Int](ir)
-    assert(f(region, 0, false) == Call2.fromUnphasedDiploidGtIndex(0))
+    assertEvalsTo(lookup("UnphasedDiploidGtIndexCall", TInt32())(In(0, TInt32())),
+      FastIndexedSeq(0 -> TInt32()),
+      Call2.fromUnphasedDiploidGtIndex(0))
   }
 }

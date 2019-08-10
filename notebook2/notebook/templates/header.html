@@ -9,16 +9,18 @@
 
   <div id="profile-divider"></div>
 
-  {% if session['user'] %}
-    <b id='user-name'>{{ session['user']['name'] }}</b>
-    <form action='/logout' method='POST'>
-      <button class='link-button' type='submit'>
-        Log out
-      </button>
-    </form>
+  {% if g.user %}
+  <a href="/user"
+    ><b id="user-name">{{ g.user["name"] }}</b></a
+  >
+  <form action="/logout" method="POST">
+    <button class="link-button" type="submit">
+      Log out
+    </button>
+  </form>
   {% else %}
-    <a class='link-button' href='/login'>
-      Login
-    </a>
+  <a class="link-button" href="/login">
+    Login
+  </a>
   {% endif %}
 </div>

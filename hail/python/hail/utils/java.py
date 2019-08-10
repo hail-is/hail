@@ -8,6 +8,7 @@ from threading import Thread
 import py4j
 import hail
 
+
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
@@ -22,9 +23,13 @@ class Env:
     _seed_generator = None
 
     @staticmethod
-    def get_uid():
+    def get_uid(base=None):
+        if base:
+            str_base = base
+        else:
+            str_base = ''
         Env._counter += 1
-        return "__uid_{}".format(Env._counter)
+        return f"__uid_{str_base}{Env._counter}"
 
     @staticmethod
     def jvm():
@@ -37,6 +42,7 @@ class Env:
     def hail():
         if not Env._hail_package:
             Env._hail_package = getattr(Env.jvm(), 'is').hail
+
         return Env._hail_package
 
     @staticmethod
@@ -66,16 +72,22 @@ class Env:
     def backend():
         return Env.hc()._backend
 
+    @staticmethod
     def spark_backend(op):
         b = Env.backend()
         if isinstance(b, hail.backend.SparkBackend):
             return b
         else:
-            raise NotImplementedError(f"{b.__class__.__name__} doesn't support {op}, only SparkBackend")
+            raise NotImplementedError(
+                f"{b.__class__.__name__} doesn't support {op}, only SparkBackend")
 
     @staticmethod
-    def sql_context():
-        return Env.hc()._sql_context
+    def fs():
+        return Env.backend().fs
+
+    @staticmethod
+    def spark_session():
+        return Env.hc()._spark_session
 
     _dummy_table = None
 
@@ -152,15 +164,6 @@ def jiterable_to_list(it):
     else:
         return None
 
-def dump_json(obj):
-    return f'"{escape_str(json.dumps(obj))}"'
-
-def escape_str(s):
-    return Env.jutils().escapePyString(s)
-
-def parsable_strings(strs):
-    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
-    return f"({strs})"
 
 
 _parsable_str = re.compile(r'[\w_]+')
@@ -177,14 +180,9 @@ def unescape_parsable(s):
     return bytes(s.replace('\\`', '`'), 'utf-8').decode('unicode_escape')
 
 
-def escape_id(s):
-    if re.fullmatch(r'[_a-zA-Z]\w*', s):
-        return s
-    else:
-        return Env.jutils().escapeIdentifier(s)
-
 def jarray_to_list(a):
     return list(a) if a else None
+
 
 class Log4jLogger:
     log_pkg = None

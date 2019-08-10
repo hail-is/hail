@@ -1,7 +1,5 @@
 package is.hail.nativecode
 
-import com.sun.jna.Native
-
 //
 // NativeBase is a Scala object which stores a C++ std::shared_ptr<NativeObj>
 //

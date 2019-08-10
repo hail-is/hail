@@ -1,0 +1,11 @@
+{
+	"title": "Hail",
+	"description": "<p>Library for scalable genomic data analysis. See the <a href=\"https://www.hail.iw\">project website</a> for more information.",
+	"license": "MIT",
+    "creators": [
+	    {
+	        "affiliation": "Broad Institute of Harvard and MIT", 
+	        "name": "Hail Team"
+	    }
+	]
+}

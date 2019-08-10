@@ -14,11 +14,12 @@ DEFAULT_REF = 'GRCh38'
 def chunks(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
-def run_combiner(sample_list, json, out_path, tmp_path, summary_path=None, overwrite=False):
+def run_combiner(sample_list, intervals, out_path, tmp_path, summary_path=None, overwrite=False):
+    import gc
     # make the temp path a directory, no matter what
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     vcfs = [comb.transform_one(vcf)
-            for vcf in hl.import_vcfs(sample_list, json, array_elements_required=False)]
+            for vcf in hl.import_vcfs(sample_list, intervals, array_elements_required=False)]
     combined = [comb.combine_gvcfs(mts) for mts in chunks(vcfs, MAX_COMBINER_LENGTH)]
     if len(combined) == 1:
         combined[0].write(out_path, overwrite=overwrite)
@@ -32,6 +33,7 @@ def run_combiner(sample_list, json, out_path, tmp_path, summary_path=None, overw
             i += 1
             wmts = [hl.read_matrix_table(path) for path in paths]
             combined = [comb.combine_gvcfs(mts) for mts in chunks(wmts, MAX_COMBINER_LENGTH)]
+            gc.collect()  # need to try to free memory on the master
         combined[0].write(out_path, overwrite=overwrite)
     if summary_path is not None:
         mt = hl.read_matrix_table(out_path)
@@ -79,10 +81,11 @@ def main():
     args = parser.parse_args()
     samples = build_sample_list(args.sample_map, args.sample_file)
     with open(args.json) as j:
-        json = j.read()
+        ty = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome='GRCh38'))))
+        intervals = ty._from_json(j.read())
     hl.init(default_reference=DEFAULT_REF,
             log='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
-    run_combiner(samples, json, args.out_file, args.tmp_path, summary_path=args.summarize,
+    run_combiner(samples, intervals, args.out_file, args.tmp_path, summary_path=args.summarize,
                  overwrite=True)
 
 

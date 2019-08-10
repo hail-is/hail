@@ -1,20 +1,20 @@
 package is.hail.expr.ir.functions
 
 import is.hail.HailContext
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
 import org.json4s.jackson
 
-class MatrixWriteBlockMatrix(path: String,
+case class MatrixWriteBlockMatrix(path: String,
   overwrite: Boolean,
   entryField: String,
   blockSize: Int) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
-  def execute(mv: MatrixValue): Any = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
     val rvd = mv.rvd
 
     // FIXME
@@ -22,7 +22,7 @@ class MatrixWriteBlockMatrix(path: String,
 
     val hc = HailContext.get
     val sc = hc.sc
-    val hadoopConf = hc.hadoopConf
+    val fs = hc.sFS
 
     val partStarts = partitionCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
@@ -31,14 +31,14 @@ class MatrixWriteBlockMatrix(path: String,
     val localNCols = mv.nCols
 
     if (overwrite)
-      hadoopConf.delete(path, recursive = true)
-    else if (hadoopConf.exists(path))
+      fs.delete(path, recursive = true)
+    else if (fs.exists(path))
       fatal(s"file already exists: $path")
 
-    hadoopConf.mkDir(path)
+    fs.mkDir(path)
 
     // write blocks
-    hadoopConf.mkDir(path + "/parts")
+    fs.mkDir(path + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
       new WriteBlocksRDD(path, rvd, sc, partStarts, entryField, gp)
@@ -49,7 +49,7 @@ class MatrixWriteBlockMatrix(path: String,
     blockPartFiles.foreach { case (i, f) => partFiles(i) = f }
 
     // write metadata
-    hadoopConf.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+    fs.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, localNCols, gp.maybeBlocks, partFiles),
@@ -59,7 +59,7 @@ class MatrixWriteBlockMatrix(path: String,
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
 
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+    fs.writeTextFile(path + "/_SUCCESS")(out => ())
 
     null
   }

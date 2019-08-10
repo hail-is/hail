@@ -4,8 +4,10 @@ import java.io.InputStream
 import is.hail.utils._
 
 class RichInputStream(val in: InputStream) extends AnyVal {
-  def readFully(to: Array[Byte], toOff: Int, n: Int): Unit =
-    if (readRepeatedly(to, toOff, n) < n) fatal("Premature end of file")
+  def readFully(to: Array[Byte], toOff: Int, n: Int): Unit = {
+    val nRead = readRepeatedly(to, toOff, n)
+    if (nRead < n) fatal(s"Premature end of file: expected $n bytes, found $nRead")
+  }
 
   def readRepeatedly(to: Array[Byte], toOff: Int, n: Int): Int = {
     assert(toOff + n <= to.length)

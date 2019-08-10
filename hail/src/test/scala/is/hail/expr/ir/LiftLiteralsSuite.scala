@@ -1,17 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.types.virtual.TInt64
 import is.hail.utils.FastSeq
 import is.hail.TestUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class LiftLiteralsSuite extends SparkSuite {
+class LiftLiteralsSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
 
   @Test def testNestedGlobalsRewrite() {
-    val tab = TableLiteral(TableRange(10, 1).execute(hc))
+    val tab = TableLiteral(TableRange(10, 1).execute(ctx), ctx)
     val ir = TableGetGlobals(
       TableMapGlobals(
         tab,

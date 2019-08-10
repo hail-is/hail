@@ -6,18 +6,18 @@ import com.fasterxml.jackson.core.JsonParseException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
-import is.hail.expr.ir.TableValue
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.methods.VEP._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
-import org.apache.hadoop
+import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -29,8 +29,8 @@ case class VEPConfiguration(
   vep_json_schema: TStruct)
 
 object VEP {
-  def readConfiguration(hadoopConf: hadoop.conf.Configuration, path: String): VEPConfiguration = {
-    val jv = hadoopConf.readFile(path) { in =>
+  def readConfiguration(fs: FS, path: String): VEPConfiguration = {
+    val jv = fs.readFile(path) { in =>
       JsonMethods.parse(in)
     }
     implicit val formats = defaultJSONFormats + new TStructSerializer
@@ -83,7 +83,7 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, proc) = List((Locus("1", 13372), IndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
@@ -101,22 +101,21 @@ object VEP {
 }
 
 case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
-  private val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
-  private val vepSignature = conf.vep_json_schema
+  private lazy val conf = VEP.readConfiguration(HailContext.sFS, config)
+  private lazy val vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
 
-  override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: TableType): TableType = {
     val vepType = if (csq) TArray(TString()) else vepSignature
-    val t = TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
-    (t, t.canonicalRVDType)
+    TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
   }
 
-  override def execute(tv: TableValue): TableValue = {
+  override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
-    val conf = readConfiguration(HailContext.get.hadoopConf, config)
+    val conf = readConfiguration(HailContext.sFS, config)
     val vepSignature = conf.vep_json_schema
 
     val cmd = conf.command.map(s =>
@@ -133,7 +132,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val localBlockSize = blockSize
 
-    val localRowType = tv.typ.rowType.physicalType
+    val localRowType = tv.rvd.rowPType
     val rowKeyOrd = tv.typ.keyType.ordering
 
     val prev = tv.rvd
@@ -217,7 +216,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepRVDType = prev.typ.copy(rowType = (prev.rowType ++ TStruct("vep" -> vepType)).physicalType)
+    val vepRVDType = prev.typ.copy(rowType = PType.canonical(prev.rowType ++ TStruct("vep" -> vepType)).asInstanceOf[PStruct])
 
     val vepRowType = vepRVDType.rowType
 
@@ -249,7 +248,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     TableValue(
       TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
-      BroadcastRow(globalValue, globalType, HailContext.get.sc),
+      BroadcastRow(ctx, globalValue, globalType),
       vepRVD)
   }
 }

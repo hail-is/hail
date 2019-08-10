@@ -1,14 +1,11 @@
-FROM alpine:3.8
+FROM {{ base_image.image }}
 
-RUN apk add --no-cache \
-  py3-cffi \
-  py3-cryptography \
-  python3 \
-  && true
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN python3 -m pip install --no-cache-dir /hailtop \
+  && rm -rf /hailtop
 
-COPY setup.py /batch/
-COPY batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch
-COPY test /test
+COPY batch/test/ /test/
+RUN python3 -m pip install --no-cache-dir pytest-instafail==0.4.1
 
-CMD ["python3", "-m", "unittest", "-v", "/test/test_batch.py"]
+CMD ["python3", "-m", "pytest", "-v", "--instafail", "/test/"]

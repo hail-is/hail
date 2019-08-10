@@ -194,7 +194,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           it.advance()
           findNextValid
         }
-        def findNextValid {
+        def findNextValid() {
           while (self.isValid && !it.isValid) {
             self.advance()
             if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
@@ -206,7 +206,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
   private[this] trait ValidityCachingStateMachine extends StateMachine[A] {
     private[this] var _isValid: Boolean = _
     final def isValid = _isValid
-    final def refreshValidity: Unit =
+    final def refreshValidity(): Unit =
       _isValid = calculateValidity
     def calculateValidity: Boolean
     def value: A

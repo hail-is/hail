@@ -17,5 +17,6 @@ pytest \
   --ignore=docs/conf.py \
   --ignore=tests \
   --ignore=setup.py \
+  --ignore=fs/google_fs.py \
   --ignore=docs/doctest_write_data.py \
   $@

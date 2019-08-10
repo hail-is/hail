@@ -1,7 +1,10 @@
 <suite name="SuiteAll" verbose="1">
     <test name="TestAll">  
         <packages>  
-            <package name="is.hail"/>
+          <package name="is.hail.*">
+            <exclude name="is.hail.scheduler"></exclude>
+            <exclude name="is.hail.backend.distributed"></exclude>
+	  </package>
         </packages>
     </test>
 </suite>

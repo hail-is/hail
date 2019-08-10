@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
@@ -36,21 +36,21 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt32()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Int]("counter")
+    registerSeeded("counter_seeded", TInt32(), null) { case (r, rt, seed) =>
+      getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded("seed_seeded", TInt64()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Long]("seed")
+    registerSeeded("seed_seeded", TInt64(), null) { case (r, rt, seed) =>
+      getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded("pi_seeded", TInt32()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Int]("partitionIndex")
+    registerSeeded("pi_seeded", TInt32(), null) { case (r, rt, seed) =>
+      getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }
 }
 
-class RandomFunctionsSuite extends SparkSuite {
+class RandomFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
@@ -69,7 +69,7 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRandomAcrossJoins() {
-    def asArray(ir: TableIR) = Interpret(ir).rdd.collect()
+    def asArray(ir: TableIR) = Interpret(ir, ctx).rdd.collect()
 
     val joined = TableJoin(
       mapped2(10, 4),
@@ -86,7 +86,7 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningAfterRandomness() {
-    val mapped = Interpret(mapped2(15, 4)).rvd
+    val mapped = Interpret(mapped2(15, 4), ctx).rvd
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
@@ -134,7 +134,7 @@ class RandomFunctionsSuite extends SparkSuite {
           "pi" -> partitionIdx,
           "counter" -> counter)))
 
-    val expected = Interpret(tir).rvd.toRows.collect()
+    val expected = Interpret(tir, ctx).rvd.toRows.collect()
     val actual = new Table(hc, tir).rdd.collect()
 
     assert(expected.sameElements(actual))

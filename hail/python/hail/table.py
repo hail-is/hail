@@ -1,29 +1,35 @@
+from collections import Counter
+
+import itertools
 import pandas
 import pyspark
-import warnings
-
 from typing import *
 
-import hail as hl
 from hail.expr.expressions import *
-from hail.expr.types import *
 from hail.expr.table_type import *
-from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
-from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import *
 
-from collections import OrderedDict, Counter
-import itertools
-
 table_type = lazy()
+
+
+class TableIndexKeyError(Exception):
+    def __init__(self, key_type, index_expressions):
+        self.key_type = key_type
+        self.index_expressions = index_expressions
 
 
 class Ascending(object):
     def __init__(self, col):
         self.col = col
+
+    def __eq__(self, other):
+        return isinstance(other, Ascending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
 
     def _j_obj(self):
         return scala_package_object(Env.hail().table).asc(self.col)
@@ -32,6 +38,12 @@ class Ascending(object):
 class Descending(object):
     def __init__(self, col):
         self.col = col
+
+    def __eq__(self, other):
+        return isinstance(other, Descending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
 
     def _j_obj(self):
         return scala_package_object(Env.hail().table).desc(self.col)
@@ -49,6 +61,7 @@ def desc(col):
     """Sort by `col` descending."""
 
     return Descending(col)
+
 
 class ExprContainer(object):
 
@@ -132,7 +145,7 @@ class GroupedTable(ExprContainer):
 
         >>> table_result = (table1.group_by(table1.ID)
         ...                       .partition_hint(5)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Notes
         -----
@@ -185,12 +198,12 @@ class GroupedTable(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -294,15 +307,15 @@ class Table(ExprContainer):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = agg.mean(table1.C1),
-    ...                                       mean_c2 = agg.mean(table1.C2),
-    ...                                       stats_c3 = agg.stats(table1.C3)))
+    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = hl.agg.mean(table1.C1),
+    ...                                       mean_c2 = hl.agg.mean(table1.C2),
+    ...                                       stats_c3 = hl.agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group by a field and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
-    ...                 .aggregate(mean_height_data = agg.mean(table1.HT)))
+    ...                 .aggregate(mean_height_data = hl.agg.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -315,7 +328,7 @@ class Table(ExprContainer):
     @staticmethod
     def _from_java(jtir):
         return Table(JavaTable(jtir))
-    
+
     def __init__(self, tir):
         super(Table, self).__init__()
 
@@ -975,6 +988,10 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Warning
+        -------
+        Do not export to a path that is being read from in the same pipeline.
+
         Parameters
         ----------
         output : :obj:`str`
@@ -994,7 +1011,8 @@ class Table(ExprContainer):
         """
 
         Env.backend().execute(
-            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel), delimiter))
+            TableWrite(self._tir, TableTextWriter(output, types_file, header,
+                                                  Env.hail().utils.ExportType.getExportType(parallel), delimiter)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1004,12 +1022,12 @@ class Table(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -1034,17 +1052,17 @@ class Table(ExprContainer):
         First, variable-length string arguments:
 
         >>> table_result = (table1.group_by('C1', 'C2')
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Second, field reference variable-length arguments:
 
         >>> table_result = (table1.group_by(table1.C1, table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Last, expression keyword arguments:
 
         >>> table_result = (table1.group_by(C1 = table1.C1, C2 = table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
@@ -1054,21 +1072,21 @@ class Table(ExprContainer):
         The following two usages are equivalent, grouping by one field, `x`:
 
         >>> table_result = (table3.group_by(table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         >>> table_result = (table3.group_by(x = table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         The keyword argument syntax permits arbitrary expressions:
 
         >>> table_result = (table1.group_by(foo=table1.X ** 2 + 1)
-        ...                       .aggregate(meanZ = agg.mean(table1.Z)))
+        ...                       .aggregate(meanZ = hl.agg.mean(table1.Z)))
 
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
         >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = table1.HT // 20)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Note
         ----
@@ -1101,8 +1119,8 @@ class Table(ExprContainer):
         --------
         Aggregate over rows:
 
-        >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
-        ...                            mean_x=agg.mean(table1.X)))
+        >>> table1.aggregate(hl.struct(fraction_male=hl.agg.fraction(table1.SEX == 'M'),
+        ...                            mean_x=hl.agg.mean(table1.X)))
         Struct(fraction_male=0.5, mean_x=6.5)
 
         Note
@@ -1133,9 +1151,10 @@ class Table(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _read_if_exists=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-                   _codec_spec: Optional[str] = None) -> 'Table':
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'Table':
         """Checkpoint the table to disk by writing and reading.
 
         Parameters
@@ -1166,7 +1185,8 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
-        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_table(output)
 
     @typecheck_method(output=str,
@@ -1197,126 +1217,199 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
+        Env.backend().execute(TableWrite(self._tir, TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
     def _show(self, n, width, truncate, types):
-        width = max(width, 8)
+        return Table._Show(self, n, width, truncate, types)
 
-        if truncate:
-            truncate = min(max(truncate, 4), width - 4)
-        else:
-            truncate = width - 4
-
-        def trunc(s):
-            if len(s) > truncate:
-                return s[:truncate - 3] + "..."
+    class _Show:
+        def __init__(self, table, n, width, truncate, types):
+            if n is None or width is None:
+                import shutil
+                (columns, lines) = shutil.get_terminal_size((80, 10))
+                width = width or columns
+                n = n or min(max(10, (lines - 20)), 100)
+            self.table = table
+            self.n = n
+            self.width = max(width, 8)
+            if truncate:
+                self.truncate = min(max(truncate, 4), width - 4)
             else:
-                return s
+                self.truncate = width - 4
+            self.types = types
+            self._data = None
 
-        def hl_repr(v):
-            if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
-                s = hl.format('%.2e', v)
-            elif isinstance(v.dtype, hl.tarray):
-                s = "[" + hl.delimit(hl.map(hl_repr, v), ",") + "]"
-            elif isinstance(v.dtype, hl.tset):
-                s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
-            elif isinstance(v.dtype, hl.tdict):
-                s = "{" + hl.delimit(hl.map(lambda x: hl_repr(x[0]) + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
-            elif v.dtype == hl.tstr:
-                s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
-            elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
-                s = "(" + hl.delimit([hl_repr(v[i]) for i in range(len(v))], ",") + ")"
-            else:
-                s = hl.str(v)
-            return hl.cond(hl.is_defined(v), s, "NA")
+        def __str__(self):
+            return self._ascii_str()
 
-        def hl_trunc(s):
-            return hl.cond(hl.len(s) > truncate,
-                           s[:truncate - 3] + "...",
-                           s)
+        def __repr__(self):
+            return self.__str__()
 
-        def hl_format(v):
-            return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
+        def data(self):
+            if self._data is None:
+                t = self.table.flatten()
+                row_dtype = t.row.dtype
+                t = t.select(**{k: Table._hl_format(v, self.truncate) for (k, v) in t.row.items()})
+                rows, has_more = t._take_n(self.n)
+                self._data = (rows, has_more, row_dtype)
+            return self._data
 
-        t = self
-        t = t.flatten()
-        fields = list(t.row)
-        trunc_fields = [trunc(f) for f in fields]
-        n_fields = len(fields)
+        def _repr_html_(self):
+            return self._html_str()
 
-        type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
-        right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
+        def _ascii_str(self):
+            truncate = self.truncate
+            types = self.types
 
-        t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
-        rows = t.take(n + 1)
+            def trunc(s):
+                if len(s) > truncate:
+                    return s[:truncate - 3] + "..."
+                else:
+                    return s
 
-        has_more = len(rows) > n
-        rows = rows[:n]
+            rows, has_more, dtype = self.data()
+            fields = list(dtype)
+            trunc_fields = [trunc(f) for f in fields]
+            n_fields = len(fields)
 
-        rows = [[row[f] for f in fields] for row in rows]
+            type_strs = [trunc(str(dtype[f])) for f in fields] if types else [''] * len(fields)
+            right_align = [hl.expr.types.is_numeric(dtype[f]) for f in fields]
 
-        max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
+            rows = [[row[f] for f in fields] for row in rows]
 
-        column_blocks = []
-        start = 0
-        i = 1
-        w = column_width[0] + 4
-        while i < len(fields):
-            w = w + column_width[i] + 3
-            if w > width:
-                column_blocks.append((start, i))
-                start = i
-                w = column_width[i] + 4
-            i = i + 1
-        assert i == n_fields
-        column_blocks.append((start, i))
+            max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
+            column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
 
-        def format_hline(widths):
-            return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
+            column_blocks = []
+            start = 0
+            i = 1
+            w = column_width[0] + 4
+            while i < len(fields):
+                w = w + column_width[i] + 3
+                if w > self.width:
+                    column_blocks.append((start, i))
+                    start = i
+                    w = column_width[i] + 4
+                i = i + 1
+            assert i == n_fields
+            column_blocks.append((start, i))
 
-        def pad(v, w, ra):
-            e =  w - len(v)
-            if ra:
-                return ' ' * e + v
-            else:
-                return v + ' ' * e
+            def format_hline(widths):
+                return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
 
-        def format_line(values, widths, right_align):
-            values = map(pad, values, widths, right_align)
-            return '| ' + ' | '.join(values) + ' |\n'
+            def pad(v, w, ra):
+                e =  w - len(v)
+                if ra:
+                    return ' ' * e + v
+                else:
+                    return v + ' ' * e
 
-        s = ''
-        first = True
-        for (start, end) in column_blocks:
-            if first:
-                first = False
-            else:
-                s += '\n'
+            def format_line(values, widths, right_align):
+                values = map(pad, values, widths, right_align)
+                return '| ' + ' | '.join(values) + ' |\n'
 
-            block_column_width = column_width[start:end]
-            block_right_align = right_align[start:end]
-            hline = format_hline(block_column_width)
+            s = ''
+            first = True
+            for (start, end) in column_blocks:
+                if first:
+                    first = False
+                else:
+                    s += '\n'
 
-            s += hline
-            s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
-            s += hline
-            if types:
-                s += format_line(type_strs[start:end], block_column_width, block_right_align)
+                block_column_width = column_width[start:end]
+                block_right_align = right_align[start:end]
+                hline = format_hline(block_column_width)
+
                 s += hline
+                s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
+                s += hline
+                if types:
+                    s += format_line(type_strs[start:end], block_column_width, block_right_align)
+                    s += hline
+                for row in rows:
+                    row = row[start:end]
+                    s += format_line(row, block_column_width, block_right_align)
+                s += hline
+
+            if has_more:
+                n_rows = len(rows)
+                s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+
+            return s
+
+        def _html_str(self):
+            import html
+            types = self.types
+
+            rows, has_more, dtype = self.data()
+            fields = list(dtype)
+
+            def format_line(values):
+                return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
+
+            s = '<table>'
+            s += '<thead style="font-weight: bold;">'
+            s += format_line(fields)
+            if types:
+                s += format_line([html.escape(str(dtype[f])) for f in fields])
+            s += '</thead><tbody>'
             for row in rows:
-                row = row[start:end]
-                s += format_line(row, block_column_width, block_right_align)
-            s += hline
+                s += format_line([html.escape(row[f]) for f in row])
+            s += '</tbody></table>'
 
-        if has_more:
-            n_rows = len(rows)
-            s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+            if has_more:
+                n_rows = len(rows)
+                s += '<p style="background: #fdd; padding: 0.4em;">'
+                s += f"showing top { n_rows } { plural('row', n_rows) }"
+                s += '</p>\n'
 
-        return s
+            return s
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
-    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
+
+    def _take_n(self, n):
+        if n < 0:
+            rows = self.collect()
+            has_more = False
+        else:
+            rows = self.take(n + 1)
+            has_more = len(rows) > n
+            rows = rows[:n]
+        return rows, has_more
+
+
+    @staticmethod
+    def _hl_repr(v):
+        if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
+            s = hl.format('%.2e', v)
+        elif isinstance(v.dtype, hl.tarray):
+            s = "[" + hl.delimit(hl.map(Table._hl_repr, v), ",") + "]"
+        elif isinstance(v.dtype, hl.tset):
+            s = "{" + hl.delimit(hl.map(Table._hl_repr, hl.array(v)), ",") + "}"
+        elif isinstance(v.dtype, hl.tdict):
+            s = "{" + hl.delimit(hl.map(lambda x: Table._hl_repr(x[0]) + ":" + Table._hl_repr(x[1]), hl.array(v)), ",") + "}"
+        elif v.dtype == hl.tstr:
+            s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
+        elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
+            if len(v) == 0:
+                s = '()'
+            else:
+                s = "(" + hl.delimit(hl.array([Table._hl_repr(v[i]) for i in range(len(v))]), ",") + ")"
+        else:
+            s = hl.str(v)
+        return hl.cond(hl.is_defined(v), s, "NA")
+
+    @staticmethod
+    def _hl_trunc(s, truncate):
+        return hl.cond(hl.len(s) > truncate,
+                       s[:truncate - 3] + "...",
+                       s)
+
+    @staticmethod
+    def _hl_format(v, truncate):
+        return hl.bind(lambda s: Table._hl_trunc(s, truncate), Table._hl_repr(v))
+
+    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc), n_rows=nullable(int))
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1337,8 +1430,8 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        n : :obj:`int`
-            Maximum number of rows to show.
+        n or n_rows : :obj:`int`
+            Maximum number of rows to show, or negative to show all rows.
         width : :obj:`int`
             Horizontal width at which to break fields.
         truncate : :obj:`int`, optional
@@ -1349,9 +1442,20 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
+        if n_rows is not None and n is not None:
+            raise ValueError(f'specify one of n_rows or n, received {n_rows} and {n}')
+        if n_rows is not None:
+            n = n_rows
+        del n_rows
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
         handler(self._show(n, width, truncate, types))
 
-    def index(self, *exprs) -> 'StructExpression':
+    def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -1417,17 +1521,29 @@ class Table(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
+        try:
+            return self._index(*exprs, all_matches=all_matches)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+
+            raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
+                                      f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
+                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+
+    def _index(self, *exprs, all_matches=False) -> 'Expression':
         exprs = tuple(exprs)
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
         if non_exprs:
-            raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
+            raise TypeError(f"Index arguments must be expressions, found {non_exprs}")
 
         from hail.matrixtable import MatrixTable
         indices, aggregations = unify_all(*exprs)
@@ -1435,43 +1551,39 @@ class Table(ExprContainer):
 
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
-            raise ExpressionException('Cannot index table with a scalar expression')
+            raise ExpressionException('Cannot index with a scalar expression')
 
-        def types_compatible(left, right):
-            left = list(left)
-            right = list(right)
-            return (types_match(left, right)
-                    or (len(left) == 1
-                        and len(right) == 1
-                        and isinstance(left[0].dtype, tinterval)
-                        and left[0].dtype.point_type == right[0].dtype))
+        is_interval = (len(exprs) == 1
+                       and len(self.key) > 0
+                       and isinstance(self.key[0].dtype, hl.tinterval)
+                       and exprs[0].dtype == self.key[0].dtype.point_type)
 
-        if not types_compatible(self.key.values(), exprs):
+        if not types_match(list(self.key.values()), list(exprs)):
             if (len(exprs) == 1
-                    and isinstance(exprs[0], TupleExpression)
-                    and types_compatible(self.key.values(), exprs[0])):
-                return self.index(*exprs[0])
-            elif (len(exprs) == 1
-                  and isinstance(exprs[0], StructExpression)
-                  and types_compatible(self.key.values(), exprs[0].values())):
-                return self.index(*exprs[0].values())
-            else:
-                raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                          f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                          f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+                    and isinstance(exprs[0], TupleExpression)):
+                return self._index(*exprs[0], all_matches=all_matches)
+
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], StructExpression)):
+                return self._index(*exprs[0].values(), all_matches=all_matches)
+
+            if not is_interval:
+                raise TableIndexKeyError(self.key.dtype, exprs)
 
         uid = Env.get_uid()
 
+        if all_matches and not is_interval:
+            return self.collect_by_key(uid).index(*exprs)[uid]
+
         new_schema = self.row_value.dtype
+        if all_matches:
+            new_schema = hl.tarray(new_schema)
 
         if isinstance(src, Table):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
             is_key = len(src.key) >= len(exprs) and all(expr is key_field for expr, key_field in zip(exprs, src.key.values()))
-            is_interval = (len(self.key) == 1
-                           and isinstance(self.key[0].dtype, hl.tinterval)
-                           and exprs[0].dtype == self.key[0].dtype.point_type)
 
             if not is_key:
                 uids = [Env.get_uid() for i in range(len(exprs))]
@@ -1491,7 +1603,7 @@ class Table(ExprContainer):
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table(TableIntervalJoin(left._tir, self._tir, uid))
+                    left = Table(TableIntervalJoin(left._tir, self._tir, uid, all_matches))
                 else:
                     left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)
@@ -1513,16 +1625,6 @@ class Table(ExprContainer):
             elif indices == src._row_indices:
                 is_subset_row_key = len(exprs) <= len(src.row_key) and all(
                     expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
-                is_interval = (len(self.key) == 1
-                               and isinstance(self.key[0].dtype, hl.tinterval)
-                               and exprs[0].dtype == self.key[0].dtype.point_type)
-
-                if is_interval and (len(exprs) != 1 or
-                                    exprs[0] is not src.row_key[0] or
-                                    self.key[0].dtype.point_type != exprs[0].dtype):
-                    raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                              f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                              f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
                 if not (is_subset_row_key or is_interval):
                     # foreign-key join
@@ -1554,14 +1656,14 @@ class Table(ExprContainer):
                                 ))
                             )
                 else:
-                    joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
-                        left._mir, right._tir, uid))
+                    def joiner(left: MatrixTable):
+                        return MatrixTable(MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
                            joiner)
                 return construct_expr(ast, new_schema, indices, aggregations)
-            elif indices == src._col_indices:
+            elif indices == src._col_indices and not (is_interval and all_matches):
                 all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
@@ -1803,8 +1905,8 @@ class Table(ExprContainer):
 
         return self.annotate(**{name: hl.scan.count()})
 
-    @typecheck_method(tables=table_type)
-    def union(self, *tables) -> 'Table':
+    @typecheck_method(tables=table_type, unify=bool)
+    def union(self, *tables, unify: bool = False) -> 'Table':
         """Union the rows of multiple tables.
 
         Examples
@@ -1816,32 +1918,63 @@ class Table(ExprContainer):
 
         Notes
         -----
-
-        If a row appears in both tables identically, it is duplicated in the
-        result. The left and right tables must have the same schema and key.
+        If a row appears in more than one table identically, it is duplicated
+        in the result. All tables must have the same key names and types. They
+        must also have the same row types, unless the `unify` parameter is
+        ``True``, in which case a field appearing in any table will be included
+        in the result, with missing values for tables that do not contain the
+        field. If a field appears in multiple tables with incompatible types,
+        like arrays and strings, then an error will be raised.
 
         Parameters
         ----------
         tables : varargs of :class:`.Table`
             Tables to union.
+        unify : :obj:`bool`
+            Attempt to unify table field.
 
         Returns
         -------
         :class:`.Table`
             Table with all rows from each component table.
         """
-        left_key = list(self.key)
+        left_key = self.key.dtype
         for i, ht, in enumerate(tables):
-            right_key = list(ht.key)
-            if not ht.row.dtype == self.row.dtype:
-                raise ValueError(f"'union': table {i} has a different row type.\n"
-                                f"  Expected:  {self.row.dtype}\n"
-                                f"  Table {i}: {ht.row.dtype}")
-            elif left_key != right_key:
+            if left_key != ht.key.dtype:
                 raise ValueError(f"'union': table {i} has a different key."
-                                f"  Expected:  {left_key}\n"
-                                f"  Table {i}: {right_key}")
-        return Table(TableUnion([self._tir] + [table._tir for table in tables]))
+                                 f"  Expected:  {left_key}\n"
+                                 f"  Table {i}: {ht.key.dtype}")
+
+            if not (unify or ht.row.dtype == self.row.dtype):
+                raise ValueError(f"'union': table {i} has a different row type.\n"
+                                 f"  Expected:  {self.row.dtype}\n"
+                                 f"  Table {i}: {ht.row.dtype}\n"
+                                 f"  If the tables have the same fields in different orders, or some\n"
+                                 f"    common and some unique fields, then the 'unify' parameter may be\n"
+                                 f"    able to coerce the tables to a common type.")
+        all_tables = [self]
+        all_tables.extend(tables)
+
+        if unify and not len(set(ht.row_value.dtype for ht in all_tables)) == 1:
+            discovered = defaultdict(dict)
+            for i, ht in enumerate(all_tables):
+                for field_name in ht.row_value:
+                    discovered[field_name][i] = ht[field_name]
+            all_fields = [{} for _ in all_tables]
+            for field_name, expr_dict in discovered.items():
+                *unified, can_unify = hl.expr.expressions.unify_exprs(*expr_dict.values())
+                if not can_unify:
+                    raise ValueError(f"cannot unify field {field_name!r}: found fields of types "
+                                     f"{[str(t) for t in {e.dtype for e in expr_dict.values()}]}")
+                unified_map = dict(zip(expr_dict.keys(), unified))
+                default = hl.null(unified[0].dtype)
+                for i in range(len(all_tables)):
+                    all_fields[i][field_name] = unified_map.get(i, default)
+
+            for i, t in enumerate(all_tables):
+                all_tables[i] = t.select(**all_fields[i])
+
+        return Table(TableUnion([table._tir for table in all_tables]))
 
     @typecheck_method(n=int, _localize=bool)
     def take(self, n, _localize=True):
@@ -2410,14 +2543,9 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a flat schema (no struct fields).
         """
-        def _flatten(prefix, s):
-            if isinstance(s, StructExpression):
-                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
-            else:
-                return [(prefix, s)]
         # unkey but preserve order
         t = self.order_by(*self.key)
-        t = t.select(**{k: v for (f, e) in t.row.items() for (k, v) in _flatten(f, e)})
+        t = Table(TableMapRows(t._tir, t.row.flatten()._ir))
         return t
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
@@ -2695,6 +2823,52 @@ class Table(ExprContainer):
             **{col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))})
         return ht._unlocalize_entries(entries_uid, col_data_uid, col_key)
 
+    @typecheck_method(columns=sequenceof(str), entry_field_name=nullable(str), col_field_name=str)
+    def to_matrix_table_row_major(self, columns, entry_field_name=None, col_field_name='col'):
+        """Construct a matrix table from a table in row major representation. Each element in `columns`
+        is a field that will become an entry field in the matrix table. Fields omitted from `columns` become row
+        fields. If `columns` are structs, then the matrix table will have the entry fields of those structs. Otherwise,
+        the matrix table will have one entry field named `entry_field_name` whose values come from the values
+        of the `columns` fields. The matrix table is column indexed by `col_field_name`.
+
+        Notes
+        -----
+        All fields in `columns` must have the same type.
+
+        Parameters
+        ----------
+        columns : Sequence[str]
+            Fields to be used as columns.
+        entry_field_name : :obj:`str` or None
+            Field name for the entries of the matrix table.
+        col_field_name : :obj:`str`
+            Field name for the columns of the matrix table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        if len(columns) == 0:
+            raise ValueError('Columns must be non-empty.')
+
+        fields = [self[field] for field in columns]
+        col_types = set([field.dtype for field in fields])
+        if len(col_types) != 1:
+            raise ValueError('All columns must have the same type.')
+
+        if all([isinstance(col_typ, hl.tstruct) for col_typ in col_types]):
+            if entry_field_name is not None:
+                raise ValueError('Cannot both provide struct columns and an entry field name.')
+            entries = hl.array(fields)
+        else:
+            if entry_field_name is None:
+                raise ValueError('Must provide an entry field name.')
+            entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
+
+        t = self.transmute(entries=entries)
+        t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
+        return t._unlocalize_entries('entries', 'cols', [col_field_name])
+
     @property
     def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.
@@ -2798,7 +2972,7 @@ class Table(ExprContainer):
         ----------
         df : :class:`.pyspark.sql.DataFrame`
             PySpark DataFrame.
-        
+
         key : :obj:`str` or :obj:`list` of :obj:`str`
             Key fields.
 
@@ -2891,14 +3065,14 @@ class Table(ExprContainer):
         r = other
         r = r.select_globals(**{right_global_value: r.globals})
         r = r.select(**{right_value: r._value})
-        
+
         t = l._zip_join(r)
 
         if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
             g = hl.eval(t.globals)
             print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
             return False
-        
+
         if not t.all(_values_similar(t[left_value], t[right_value], tolerance, absolute)):
             print('Table._same: rows differ:')
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
@@ -2906,7 +3080,7 @@ class Table(ExprContainer):
             for r in bad_rows:
                 print(f'  {r[left_value]}, {r[right_value]}')
             return False
-        
+
         return True
 
 
@@ -3038,8 +3212,8 @@ class Table(ExprContainer):
     def _filter_partitions(self, parts, keep=True) -> 'Table':
         return Table(TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
-    @typecheck_method(cols_field_name=str,
-                      entries_field_name=str,
+    @typecheck_method(entries_field_name=str,
+                      cols_field_name=str,
                       col_key=sequenceof(str))
     def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key) -> 'hl.MatrixTable':
         return hl.MatrixTable(CastTableToMatrix(
@@ -3047,7 +3221,40 @@ class Table(ExprContainer):
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
-    def _multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
+    def multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
+        """Combine many tables in a zip join
+
+        Notes
+        -----
+        The row type of the returned table is a struct with the key fields, and
+        one extra field, `data_field_name`, which is an array of structs with
+        the non key fields, one per input. The array elements are missing if
+        their corresponding input had no row with that key or possibly if there
+        is another input with more rows with that key than the corresponding
+        input.
+
+        The global type of the returned table is an array of structs of the
+        global type of all of the inputs.
+
+        The types for every input must be identical, not merely compatible,
+        including the keys.
+
+        A zip join is similar to an outer join however rows are not duplicated
+        to create the full Cartesian product of duplicate keys. Instead, there
+        is exactly one entry in some `data_field_name` array for every row in
+        the inputs.
+
+        Parameters
+        ----------
+        tables : :obj:`List[Table]`
+            A list of tables to combine
+        data_field_name : :obj:`str`
+            The name of the resulting data field
+        global_field_name : :obj:`str`
+            The name of the resulting global field
+
+        .. include:: _templates/experimental.rst
+        """
         if not tables:
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]

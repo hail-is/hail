@@ -1,11 +1,11 @@
 import pkg_resources
 from pyspark import SparkContext, SparkConf
-from pyspark.sql import SQLContext
+from pyspark.sql import SparkSession
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
-from hail.utils import wrap_to_list, get_env_or_default
+from hail.utils import get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 from hail.backend import Backend, ServiceBackend, SparkBackend
 
@@ -27,12 +27,13 @@ class HailContext(object):
                       default_reference=str,
                       idempotent=bool,
                       global_seed=nullable(int),
+                      optimizer_iterations=nullable(int),
                       _backend=nullable(Backend))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log=None, quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
                  default_reference="GRCh37", idempotent=False,
-                 global_seed=6348563392232659379, _backend=None):
+                 global_seed=6348563392232659379, optimizer_iterations=None, _backend=None):
 
         if Env._hc:
             if idempotent:
@@ -44,10 +45,10 @@ class HailContext(object):
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
-            sys.stderr.write(f'using hail jar at {hail_jar_path}\n')
             conf = SparkConf()
+            conf.set('spark.jars', hail_jar_path)
             conf.set('spark.driver.extraClassPath', hail_jar_path)
-            conf.set('spark.executor.extraClassPath', hail_jar_path)
+            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             SparkContext._ensure_initialized(conf=conf)
         else:
             SparkContext._ensure_initialized()
@@ -75,6 +76,7 @@ class HailContext(object):
         self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
+        optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
         version = read_version_info()
         hail.__version__ = version
@@ -90,26 +92,26 @@ class HailContext(object):
         if idempotent:
             self._jhc = self._hail.HailContext.getOrCreate(
                 jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir)
+                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
         else:
             self._jhc = self._hail.HailContext.apply(
                 jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir)
+                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jsql_context = self._jhc.sqlContext()
-        self._sql_context = SQLContext(self.sc, jsqlContext=self._jsql_context)
+        self._jspark_session = self._jhc.sparkSession()
+        self._spark_session = SparkSession(self.sc, self._jhc.sparkSession())
 
         super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
-        
+
         ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
         ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
         ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
-        
+
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
         else:
@@ -119,8 +121,8 @@ class HailContext(object):
 
         if jar_version != version:
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                   f"  JAR:    {jar_version}\n"
-                   f"  Python: {version}")
+                               f"  JAR:    {jar_version}\n"
+                               f"  Python: {version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -162,9 +164,9 @@ class HailContext(object):
         uninstall_exception_handler()
         Env._dummy_table = None
         Env._seed_generator = None
+        hail.ir.clear_session_functions()
+        ReferenceGenome._references = {}
 
-    def upload_log(self):
-        self._jhc.uploadLog()
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
@@ -179,12 +181,15 @@ class HailContext(object):
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
+           _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
-         min_block_size=1, branching_factor=50, tmp_dir='/tmp',
+         min_block_size=0, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
-         global_seed=6348563392232659379, _backend=None):
+         global_seed=6348563392232659379,
+         _optimizer_iterations=None,
+         _backend=None):
     """Initialize Hail and Spark.
 
     Examples
@@ -226,7 +231,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Spark context. By default, a Spark context will be created.
     app_name : :obj:`str`
         Spark application name.
-    master : :obj:`str`
+    master : :obj:`str`, optional
         Spark master.
     local : :obj:`str`
        Local-mode master, used if `master` is not defined here or in the
@@ -250,15 +255,58 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         or ``'GRCm38'``.
     idempotent : :obj:`bool`
         If ``True``, calling this function is a no-op if Hail has already been initialized.
+    global_seed : :obj:`int`, optional
+        Global random seed.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference, idempotent, global_seed, _backend)
+                default_reference, idempotent, global_seed,
+                _optimizer_iterations,_backend)
+
+
+def _hail_cite_url():
+    version = read_version_info()
+    [tag, sha_prefix] = version.split("-")
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        # pip installed
+        return f"https://github.com/hail-is/hail/releases/tag/{tag}"
+    return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
+
+
+def citation(*, bibtex=False):
+    """Generate a Hail citation.
+
+    Parameters
+    ----------
+    bibtex : bool
+        Generate a citation in BibTeX form.
+
+    Returns
+    -------
+    str
+    """
+    if bibtex:
+        return f"@misc{{Hail," \
+            f"  author = {{Hail Team}}," \
+            f"  title = {{Hail}}," \
+            f"  howpublished = {{\\url{{{_hail_cite_url()}}}}}" \
+            f"}}"
+    return f"Hail Team. Hail {hail.__version__}. {_hail_cite_url()}."
+
+
+def cite_hail():
+    return citation(bibtex=False)
+
+
+def cite_hail_bibtex():
+    return citation(bibtex=True)
+
 
 def stop():
     """Stop the currently running Hail session."""
     if Env._hc:
         Env.hc().stop()
+        Env._hc = None
 
 def spark_context():
     """Returns the active Spark context.
@@ -268,6 +316,9 @@ def spark_context():
     :class:`pyspark.SparkContext`
     """
     return Env.hc().sc
+
+def current_backend():
+    return Env.hc()._backend
 
 def default_reference():
     """Returns the default reference genome ``'GRCh37'``.
@@ -328,64 +379,6 @@ def read_version_info() -> str:
     # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
     return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
 
-@typecheck(url=str)
-def _set_upload_url(url):
-    Env.hc()._jhc.setUploadURL(url)
-
-@typecheck(email=nullable(str))
-def set_upload_email(email):
-    """Set upload email.
-
-    If email is not set, uploads will be anonymous.  Upload email can
-    also be set through the `HAIL_UPLOAD_EMAIL` environment variable
-    or the `hail.uploadEmail` Spark configuration property.
-
-    Parameters
-    ----------
-    email : :obj:`str`
-        Email contact to include with uploaded data.  If `email` is
-        `None`, uploads will be anonymous.
-
-    """
-
-    Env.hc()._jhc.setUploadEmail(email)
-
-def enable_pipeline_upload():
-    """Upload all subsequent pipelines to the Hail team in order to
-    help improve Hail.
-    
-    Pipeline upload can also be enabled by setting the environment
-    variable `HAIL_ENABLE_PIPELINE_UPLOAD` or the Spark configuration
-    property `hail.enablePipelineUpload` to `true`.
-
-    Warning
-    -------
-    Shares potentially sensitive data with the Hail team.
-
-    """
-    
-    Env.hc()._jhc.enablePipelineUpload()
-
-def disable_pipeline_upload():
-    """Disable the uploading of pipelines.  By default, pipeline upload is
-    disabled.
-
-    """
-    
-    Env.hc()._jhc.disablePipelineUpload()
-
-@typecheck()
-def upload_log():
-    """Uploads the Hail log to the Hail team.
-
-    Warning
-    -------
-    Shares potentially sensitive data with the Hail team.
-
-    """
-
-    Env.hc()._jhc.uploadLog()
-
 
 def _set_flags(**flags):
     available = set(Env.hc()._jhc.flags().available())
@@ -398,3 +391,18 @@ def _set_flags(**flags):
     if len(invalid) != 0:
         raise FatalError("Flags {} not valid. Valid flags: \n    {}"
                          .format(', '.join(invalid), '\n    '.join(available)))
+
+
+def _get_flags(*flags):
+    return {flag: Env.hc()._jhc.flags().get(flag) for flag in flags}
+
+
+def debug_info():
+    hail_jar_path = None
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+    return {
+        'spark_conf': spark_context()._conf.getAll(),
+        'hail_jar_path': hail_jar_path,
+        'version': hail.__version__
+    }

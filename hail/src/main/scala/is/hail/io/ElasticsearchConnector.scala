@@ -1,11 +1,9 @@
 package is.hail.io
 
-import is.hail.HailContext
-import is.hail.table.Table
 import org.apache.spark
 import org.elasticsearch.spark.sql._
 
-import collection.JavaConverters._
+import scala.collection.JavaConverters._
 import scala.collection.Map
 
 object ElasticsearchConnector {

@@ -8,13 +8,7 @@ import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-package object asm4s {
-
-  def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
-
-  def coerce[T](c: Code[_]): Code[T] =
-    c.asInstanceOf[Code[T]]
-
+package asm4s {
   trait TypeInfo[T] {
     val name: String
     val iname: String = name
@@ -27,6 +21,38 @@ package object asm4s {
 
     def newArray(): AbstractInsnNode
   }
+
+  class ClassInfo[C <: AnyRef](implicit val cct: ClassTag[C]) extends TypeInfo[C] {
+    val name = Type.getDescriptor(cct.runtimeClass)
+    override val iname = Type.getInternalName(cct.runtimeClass)
+    val loadOp = ALOAD
+    val storeOp = ASTORE
+    val aloadOp = AALOAD
+    val astoreOp = AASTORE
+    val returnOp = ARETURN
+
+    def newArray() = new TypeInsnNode(ANEWARRAY, iname)
+  }
+
+  class ArrayInfo[T](implicit val tct: ClassTag[Array[T]]) extends TypeInfo[Array[T]] {
+    val name = Type.getDescriptor(tct.runtimeClass)
+    override val iname = Type.getInternalName(tct.runtimeClass)
+    val loadOp = ALOAD
+    val storeOp = ASTORE
+    val aloadOp = AALOAD
+    val astoreOp = AASTORE
+    val returnOp = ARETURN
+
+    def newArray() = new TypeInsnNode(ANEWARRAY, iname)
+  }
+}
+
+package object asm4s {
+
+  def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
+
+  def coerce[T](c: Code[_]): Code[T] =
+    c.asInstanceOf[Code[T]]
 
   implicit object BooleanInfo extends TypeInfo[Boolean] {
     val name = "Z"
@@ -137,32 +163,8 @@ package object asm4s {
   implicit def classInfo[C <: AnyRef](implicit cct: ClassTag[C]): TypeInfo[C] =
     new ClassInfo
 
-  class ClassInfo[C <: AnyRef](implicit val cct: ClassTag[C]) extends TypeInfo[C] {
-    val name = Type.getDescriptor(cct.runtimeClass)
-    override val iname = Type.getInternalName(cct.runtimeClass)
-    val loadOp = ALOAD
-    val storeOp = ASTORE
-    val aloadOp = AALOAD
-    val astoreOp = AASTORE
-    val returnOp = ARETURN
-
-    def newArray() = new TypeInsnNode(ANEWARRAY, iname)
-  }
-
   implicit def arrayInfo[T](implicit cct: ClassTag[Array[T]]): TypeInfo[Array[T]] =
     new ArrayInfo
-
-  class ArrayInfo[T](implicit val tct: ClassTag[Array[T]]) extends TypeInfo[Array[T]] {
-    val name = Type.getDescriptor(tct.runtimeClass)
-    override val iname = Type.getInternalName(tct.runtimeClass)
-    val loadOp = ALOAD
-    val storeOp = ASTORE
-    val aloadOp = AALOAD
-    val astoreOp = AASTORE
-    val returnOp = ARETURN
-
-    def newArray() = new TypeInsnNode(ANEWARRAY, iname)
-  }
 
   object HailClassLoader extends ClassLoader(getClass.getClassLoader) {
     def loadOrDefineClass(name: String, b: Array[Byte]): Class[_] = {

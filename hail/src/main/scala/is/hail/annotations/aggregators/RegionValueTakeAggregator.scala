@@ -1,14 +1,14 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.expr._
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
 class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
   private var ab = new MissingBooleanArrayBuilder()
 
+  override def isCommutative: Boolean = false
+  
   def seqOp(region: Region, x: Boolean, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
@@ -47,6 +47,8 @@ class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
 
 class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
   private var ab = new MissingIntArrayBuilder()
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
     if (ab.length() < n)
@@ -87,6 +89,8 @@ class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
 class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
   private var ab = new MissingLongArrayBuilder()
 
+  override def isCommutative: Boolean = false
+
   def seqOp(region: Region, x: Long, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
@@ -125,6 +129,8 @@ class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
 
 class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
   private var ab = new MissingFloatArrayBuilder()
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
     if (ab.length() < n)
@@ -165,6 +171,8 @@ class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
 class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
   private var ab = new MissingDoubleArrayBuilder()
 
+  override def isCommutative: Boolean = false
+
   def seqOp(region: Region, x: Double, missing: Boolean) {
     if (ab.length() < n)
       if (missing)
@@ -203,6 +211,8 @@ class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {
 
 class RegionValueTakeAnnotationAggregator(n: Int, t: Type) extends RegionValueAggregator {
   private var ab = new MissingAnnotationArrayBuilder()
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (ab.length() < n)

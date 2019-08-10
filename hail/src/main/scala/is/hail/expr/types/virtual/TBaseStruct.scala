@@ -37,8 +37,6 @@ abstract class TBaseStruct extends Type {
 
   def fields: IndexedSeq[Field]
   
-  def fieldRequired: Array[Boolean]
-
   override def children: Seq[Type] = types
 
   def size: Int
@@ -104,6 +102,4 @@ abstract class TBaseStruct extends Type {
       })
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
-
-  def missingIdx: Array[Int]
 }

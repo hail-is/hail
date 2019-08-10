@@ -11,25 +11,14 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
 
-class VSMSuite extends SparkSuite {
-
-  @Test def testSkipDropSame() {
-    val f = tmpDir.createTempFile("sample", extension = ".vds")
-
-    TestUtils.importVCF(hc, "src/test/resources/sample2.vcf")
-      .write(f)
-
-    assert(hc.readVDS(f, dropSamples = true)
-      .same(hc.readVDS(f).dropCols()))
-  }
-
+class VSMSuite extends HailSuite {
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 
@@ -80,15 +69,15 @@ class VSMSuite extends SparkSuite {
 
   @Test def testInvalidMetadata() {
     TestUtils.interceptFatal("metadata does not contain file version") {
-      hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
+      hc.readVDS("src/test/resources/0.1-1fd5cc7.vds")
     }
   }
 
   @Test def testFilesWithRequiredGlobals() {
     val ht = Table.read(hc, "src/test/resources/required_globals.ht").tir
-    Interpret(TableRepartition(ht, 10, RepartitionStrategy.SHUFFLE)).rvd.count()
+    Interpret(TableRepartition(ht, 10, RepartitionStrategy.SHUFFLE), ctx).rvd.count()
 
     val mt = MatrixTable.read(hc, "src/test/resources/required_globals.mt").ast
-    Interpret(MatrixRepartition(mt, 10, RepartitionStrategy.SHUFFLE)).rvd.count()
+    Interpret(MatrixRepartition(mt, 10, RepartitionStrategy.SHUFFLE), ctx, optimize = false).rvd.count()
   }
 }

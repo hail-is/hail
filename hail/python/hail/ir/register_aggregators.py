@@ -3,10 +3,14 @@ from .ir import register_aggregator
 def register_aggregators():
     from hail.expr.types import dtype
 
-    register_aggregator('Fraction', (), None, (dtype('bool'),), dtype('float64'))
-
-    stats_aggregator_type = dtype('struct{mean:float64,stdev:float64,min:float64,max:float64,n:int64,sum:float64}')
-    register_aggregator('Statistics', (), None, (dtype('float64'),), stats_aggregator_type)
+    register_aggregator('ApproxCDF', (dtype('int32'),), None, (dtype('int32'),),
+                        dtype('struct{values:array<int32>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+    register_aggregator('ApproxCDF', (dtype('int32'),), None, (dtype('int64'),),
+                        dtype('struct{values:array<int64>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+    register_aggregator('ApproxCDF', (dtype('int32'),), None, (dtype('float32'),),
+                        dtype('struct{values:array<float32>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+    register_aggregator('ApproxCDF', (dtype('int32'),), None, (dtype('float64'),),
+                        dtype('struct{values:array<float64>,ranks:array<int64>,_compaction_counts:array<int32>}'))
 
     register_aggregator('Collect', (), None, (dtype("?in"),), dtype('array<?in>'))
 
@@ -47,9 +51,6 @@ def register_aggregators():
 
     register_aggregator('TakeBy', (dtype('int32'),), None, (dtype('?in'), dtype('?key'),), dtype('array<?in>'))
 
-    histogram_aggregator_type = dtype('struct{bin_edges:array<float64>,bin_freq:array<int64>,n_smaller:int64,n_larger:int64}')
-    register_aggregator('Histogram', (dtype('float64'), dtype('float64'), dtype('int32'),), None, (dtype('float64'),), histogram_aggregator_type)
-
     downsample_aggregator_type = dtype('array<tuple(float64, float64, array<str>)>')
     register_aggregator('Downsample', (dtype('int32'),), None, (dtype('float64'), dtype('float64'), dtype('array<?T>'),), downsample_aggregator_type)
 
@@ -61,7 +62,5 @@ def register_aggregators():
 
     linreg_aggregator_type = dtype('struct{beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>,multiple_standard_error:float64,multiple_r_squared:float64,adjusted_r_squared:float64,f_stat:float64,multiple_p_value:float64,n:int64}')
     register_aggregator('LinearRegression', (dtype('int32'), dtype('int32'),), None, (dtype('float64'), dtype('array<float64>'),), linreg_aggregator_type)
-
-    register_aggregator('PearsonCorrelation', (), None, (dtype('tfloat64'), dtype('float64'),), dtype('float64'))
 
     register_aggregator('PrevNonnull', (), None, (dtype('?in'),), dtype('?in'))

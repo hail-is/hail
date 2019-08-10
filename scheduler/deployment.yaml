@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  labels:
+    app: scheduler
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: scheduler
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: scheduler
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+       - name: scheduler
+         image: "{{ scheduler_image.image }}"
+         resources:
+           requests:
+             memory: "1G"
+             cpu: "1"
+         ports:
+          - containerPort: 5000
+          - containerPort: 5051
+          - containerPort: 5052
+          - containerPort: 5053
+         readinessProbe:
+           httpGet:
+             path: /healthcheck
+             port: 5000
+           initialDelaySeconds: 5
+           periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scheduler
+  labels:
+    app: scheduler
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  - name: executor
+    port: 5051
+    protocol: TCP
+    targetPort: 5051
+  - name: client-submit
+    port: 5052
+    protocol: TCP
+    targetPort: 5052
+  - name: client-result
+    port: 5053
+    protocol: TCP
+    targetPort: 5053
+  selector:
+    app: scheduler

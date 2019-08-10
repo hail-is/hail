@@ -171,7 +171,7 @@ object StringEscapeUtils {
           case 'n' => sb += '\n'
           case 'b' => sb += '\b'
           case 'u' => inUnicode = true
-          case _ => fatal(s"Got invalid string escape character: `\\$ch'")
+          case _ => fatal(s"Got invalid string escape character: '\\$ch'")
         }
       } else if (ch == '\\')
         hadSlash = true

@@ -138,6 +138,11 @@ class Tests(unittest.TestCase):
         qgs = vds.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(vds.y1)),
                                               y=agg.filter(hl.rand_bool(0.1), agg.collect(vds.GT))))
 
+    def test_col_agg_no_rows(self):
+        mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
+        mt = mt.annotate_cols(x = hl.agg.count())
+        assert mt.x.collect() == [0, 0, 0]
+
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
               .annotate_globals(g1=5)
@@ -261,6 +266,11 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(result.entries()._same(expected))
 
+    def test_aggregate_cols_by_init_op(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        cs = mt.group_cols_by(mt.s).aggregate(cs = hl.agg.call_stats(mt.GT, mt.alleles))
+        cs._force_count_rows() # should run without error
+
     def test_aggregate_rows_by(self):
         mt = hl.utils.range_matrix_table(4, 2)
         mt = (mt.annotate_rows(group=mt.row_idx < 2)
@@ -321,15 +331,15 @@ class Tests(unittest.TestCase):
         ds.annotate_entries(**exprs)
         ds.select_entries(**exprs)
 
-        ds1.explode_cols('\%!^!@#&#&$%#$%')
-        ds1.explode_cols(ds1['\%!^!@#&#&$%#$%'])
+        ds1.explode_cols(r'\%!^!@#&#&$%#$%')
+        ds1.explode_cols(ds1[r'\%!^!@#&#&$%#$%'])
         ds1.group_cols_by(ds1.a).aggregate(**{'*``81': agg.count()})
 
-        ds1.drop('\%!^!@#&#&$%#$%')
-        ds1.drop(ds1['\%!^!@#&#&$%#$%'])
+        ds1.drop(r'\%!^!@#&#&$%#$%')
+        ds1.drop(ds1[r'\%!^!@#&#&$%#$%'])
 
-        ds2.explode_rows('\%!^!@#&#&$%#$%')
-        ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
+        ds2.explode_rows(r'\%!^!@#&#&$%#$%')
+        ds2.explode_rows(ds2[r'\%!^!@#&#&$%#$%'])
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
     def test_semi_anti_join_rows(self):
@@ -377,11 +387,26 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.index_cols(mt.col_key).take(1), mt.index_cols(mt.s).take(1))
         self.assertEqual(mt[mt.row_key, mt.col_key].take(1), mt[(mt.locus, mt.alleles), mt.s].take(1))
 
+    def test_index_keyless(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable row key: *<<<empty key>>>"):
+            mt.key_rows_by().index_rows(mt.row_idx)
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable col key: *<<<empty key>>>"):
+            mt.key_cols_by().index_cols(mt.col_idx)
+
     def test_table_join(self):
         ds = self.get_vds()
         # test different row schemas
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
+
+    def test_table_product_join(self):
+        left = hl.utils.range_matrix_table(5, 1)
+        right = hl.utils.range_table(5)
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        left = left.annotate_rows(matches=right.index(left.row_key, all_matches=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
@@ -395,8 +420,26 @@ class Tests(unittest.TestCase):
 
     def test_literals_rebuild(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.annotate_rows(x = hl.cond(hl.len(hl.literal([1,2,3])) < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
+
+    def test_globals_lowering(self):
+        mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
+        lit = hl.literal(hl.utils.Struct(x = 0))
+
+        mt.annotate_rows(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.annotate_cols(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.filter_rows(mt.globals == lit)._force_count_rows()
+        mt.filter_cols(mt.globals == lit)._force_count_rows()
+        mt.filter_entries(mt.globals == lit)._force_count_rows()
+        (mt.group_rows_by(mt.row_idx)
+         .aggregate_rows(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
+        (mt.group_cols_by(mt.col_idx)
+         .aggregate_cols(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
 
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
@@ -426,6 +469,11 @@ class Tests(unittest.TestCase):
         right = hl.import_vcf(resource('joinright.vcf'))
 
         self.assertTrue(left.union_cols(right)._same(joined))
+
+    def test_union_cols_distinct(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.key_rows_by(x = mt.row_idx // 2)
+        assert mt.union_cols(mt).count_rows() == 5
 
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
@@ -523,6 +571,28 @@ class Tests(unittest.TestCase):
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
+    def test_interval_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
+        intervals = hl.utils.range_table(4)
+        intervals = intervals.key_by(interval=hl.interval(intervals.idx * 10, intervals.idx * 10 + 5))
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key))
+        rows = left.rows()
+        self.assertTrue(rows.all(hl.case()
+                                 .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
+                                 .default(hl.is_missing(rows.interval_matches))))
+
+    def test_interval_product_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(interval=hl.interval(
+            1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+            (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        intervals = intervals.annotate(i=intervals.idx % 5)
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key, all_matches=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
+
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
@@ -567,6 +637,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(et.count(), 100)
         self.assertTrue(et.all(et.x == et.col_idx + et.row_idx))
 
+    def test_entries_table_no_keys(self):
+        mt = hl.utils.range_matrix_table(2, 2)
+        mt = mt.annotate_entries(x = (mt.row_idx, mt.col_idx))
+
+        original_order = [
+            hl.utils.Struct(row_idx=0, col_idx=0, x=(0, 0)),
+            hl.utils.Struct(row_idx=0, col_idx=1, x=(0, 1)),
+            hl.utils.Struct(row_idx=1, col_idx=0, x=(1, 0)),
+            hl.utils.Struct(row_idx=1, col_idx=1, x=(1, 1)),
+        ]
+
+        assert mt.entries().collect() == original_order
+        assert mt.key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
+
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
@@ -576,6 +662,10 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(10, 10)
         s = hl.literal({1, 3, 5, 7})
         self.assertEqual(mt.filter_cols(s.contains(mt.col_idx)).count_cols(), 4)
+
+    def test_filter_cols_agg(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        assert mt.filter_cols(hl.agg.count() > 5).count_cols() == 10
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
@@ -644,6 +734,38 @@ class Tests(unittest.TestCase):
         ds.write(f)
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
+
+    def test_indexed_read(self):
+        mt = hl.utils.range_matrix_table(2000, 100, 10)
+        f = new_temp_file(suffix='mt')
+        mt.write(f)
+        mt2 = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ])
+        self.assertEqual(mt2.n_partitions(), 2)
+        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+
+        mt2 = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ], _filter_intervals=True)
+        self.assertEqual(mt2.n_partitions(), 3)
+        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+
+    def test_indexed_read_vcf(self):
+        vcf = self.get_vds(10)
+        f = new_temp_file(suffix='mt')
+        vcf.write(f)
+        l1, l2, l3, l4 = hl.Locus('20', 10000000), hl.Locus('20', 11000000), hl.Locus('20', 13000000), hl.Locus('20', 14000000)
+        mt = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=l1, end=l2),
+            hl.Interval(start=l3, end=l4),
+        ])
+        self.assertEqual(mt.n_partitions(), 2)
+        p = (vcf.locus >= l1) & (vcf.locus < l2)
+        q = (vcf.locus >= l3) & (vcf.locus < l4)
+        self.assertTrue(vcf.filter_rows(p | q)._same(mt))
 
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
@@ -1132,6 +1254,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
         self.assertTrue(mt1._same(mt2))
 
+    def test_matrix_type_equality(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt2 = mt.annotate_entries(foo=1)
+        assert mt._type == mt._type
+        assert mt._type != mt2._type
+
     def test_entry_filtering(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
@@ -1145,3 +1273,79 @@ class Tests(unittest.TestCase):
         assert mt.aggregate_entries(hl.agg.count()) == 100
         assert all(x == 10 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
         assert all(x == 10 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+    def test_entry_filter_stats(self):
+        mt = hl.utils.range_matrix_table(40, 20)
+        mt = mt.filter_entries((mt.row_idx % 4 == 0) & (mt.col_idx % 4 == 0), keep=False)
+        mt = mt.compute_entry_filter_stats()
+
+        row_expected = hl.dict({True: hl.struct(n_filtered=5,
+                                                n_remaining=15,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=20,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_rows(hl.agg.all(mt.entry_stats_row == row_expected[mt.row_idx % 4 == 0]))
+
+        col_expected = hl.dict({True: hl.struct(n_filtered=10,
+                                                n_remaining=30,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=40,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
+
+    def test_show(self):
+        mt = self.get_vds()
+        mt.show()
+
+    def test_partitioned_write(self):
+        mt = hl.utils.range_matrix_table(40, 3, 5)
+
+        def test_parts(parts, expected=mt):
+            parts = [
+                hl.Interval(start=hl.Struct(row_idx=s), end=hl.Struct(row_idx=e),
+                            includes_start=_is, includes_end=ie)
+                for (s, e, _is, ie) in parts
+            ]
+
+            tmp = new_temp_file(suffix='mt')
+            mt.write(tmp, _partitions=parts)
+
+            mt2 = hl.read_matrix_table(tmp)
+            self.assertEqual(mt2.n_partitions(), len(parts))
+            self.assertTrue(mt2._same(expected))
+
+        test_parts([
+            (0, 40, True, False)
+        ])
+
+        test_parts([
+            (-34, -31, True, True),
+            (-30, 9, True, True),
+            (10, 107, True, True),
+            (108, 1000, True, True)
+        ])
+
+        test_parts([
+            (0, 5, True, False),
+            (35, 40, True, True)
+        ],
+                   mt.filter_rows((mt.row_idx < 5) | (mt.row_idx >= 35)))
+
+        test_parts([
+            (5, 35, True, False)
+        ],
+                   mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
+
+    def test_partitioned_write_coerce(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        parts = [
+            hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))
+        ]
+        tmp = new_temp_file(suffix='mt')
+        mt.write(tmp, _partitions=parts)
+
+        mt2 = hl.read_matrix_table(tmp)
+        assert mt2.n_partitions() == len(parts)
+        assert hl.filter_intervals(mt, parts)._same(mt2)

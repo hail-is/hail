@@ -1,0 +1,100 @@
+<html lang="en">
+  <head>
+    <title>Scheduler</title>
+  </head>
+  <style>
+    * {
+      font-family: sans-serif;
+      padding-right: 15px;
+    }
+  </style>
+  <body>
+    <h1>Executors</h1>
+    {% if executors %}
+    <table>
+      <thead>
+        <tr>
+          <th align="right">id</th>
+          <th align="right">cores</th>
+          <th align="right">n_running</th>
+        </tr>
+      </thead>
+      <tbody>
+	{% for e in executors %}
+        <tr>
+          <td align="right">{{ e['id'] }}</td>
+          <td align="right">{{ e['n_cores'] }}</td>
+          <td align="right">{{ e['n_running'] }}</td>
+        </tr>
+	{% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    No executors.
+    {% endif %}
+    
+    
+    <h1>Jobs</h1>
+    {% if jobs %}
+    <table>
+      <thead>
+        <tr>
+          <th align="right">client</th>
+          <th align="right">id</th>
+          <th align="right">start_time</th>
+          <th align="right">end_time</th>
+          <th align="right">n_tasks</th>
+          <th align="right">n_submitted</th>
+          <th align="right">n_complete</th>
+          <th align="right">n_running</th>
+        </tr>
+      </thead>
+      <tbody>
+	{% for j in jobs %}
+        <tr>
+          <td align="right">{{ j['client'] }}</td>
+          <td align="right">{{ j['id'] }}</td>
+          <td align="right">{{ j['start_time'] }}</td>
+          <td align="right">{{ j['end_time'] }}</td>
+          <td align="right">{{ j['n_tasks'] }}</td>
+          <td align="right">{{ j['n_submitted'] }}</td>
+          <td align="right">{{ j['n_complete'] }}</td>
+          <td align="right">{{ j['n_running'] }}</td>
+        </tr>
+	{% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    No jobs.
+    {% endif %}
+
+    <h1>Applications</h1>
+    {% if apps %}
+    <table>
+      <thead>
+        <tr>
+          <th align="right">id</th>
+          <th align="left">token</th>
+          <th align="left">is_disconnected</th>
+          <th align="right">job_id</th>
+        </tr>
+      </thead>
+      <tbody>
+	{% for app in apps %}
+        <tr>
+          <td align="right">{{ app['id'] }}</td>
+          <td align="left">{{ app['token'] }}</td>
+          <td align="left">{{ app['is_disconnected'] }}</td>
+          {% if app['job_id'] %}
+          <td align="right">{{ app['job_id'] }}</td>
+          {% endif %}
+        </tr>
+	{% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    No applications.
+    {% endif %}
+    
+  </body>
+</html>

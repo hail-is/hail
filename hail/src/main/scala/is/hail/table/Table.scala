@@ -2,10 +2,11 @@ package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{ir, _}
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.expr.{ir, _}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -13,8 +14,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -32,10 +32,13 @@ abstract class AbstractTableSpec extends RelationalSpec {
   def references_rel_path: String
   def table_type: TableType
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+
+  def rowsSpec(path: String): AbstractRVDSpec = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
   def rvdType(path: String): RVDType = {
-    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
+    val rows = rowsSpec(path)
     RVDType(rows.encodedType, rows.key)
   }
+  def indexed(path: String): Boolean = rowsSpec(path).indexed
 }
 
 case class TableSpec(
@@ -52,7 +55,9 @@ object Table {
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    TableLiteral(TableValue(signature, key, df.rdd))
+    ExecuteContext.scoped { ctx =>
+      TableLiteral(TableValue(ctx, signature, key, df.rdd), ctx)
+    }
   }
 
   def read(hc: HailContext, path: String): Table =
@@ -62,10 +67,10 @@ object Table {
     delimiter: String = "\\t",
     missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-    val (data, typ) = LoadPlink.parseFam(path, ffConfig, HailContext.get.hadoopConf)
+    val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.sFS)
     val jv = JSONAnnotationImpex.exportAnnotation(
-      Row(typ.toString, data),
-      TStruct("type" -> TString(), "data" -> TArray(typ)))
+      Row(ptyp.toString, data),
+      TStruct("type" -> TString(), "data" -> TArray(ptyp.virtualType)))
     JsonMethods.compact(jv)
   }
 
@@ -140,13 +145,44 @@ object Table {
     globals: Annotation,
     isSorted: Boolean
   ): Table = {
-    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature.physicalType))
-    new Table(hc, TableLiteral(
-      TableValue(
-        TableType(signature, FastIndexedSeq(), globalSignature),
-        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        RVD.unkeyed(signature.physicalType, crdd2)))
-    ).keyBy(key, isSorted)
+    val pType = PType.canonical(signature).asInstanceOf[PStruct]
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, pType))
+    ExecuteContext.scoped { ctx =>
+      new Table(hc, TableKeyBy(TableLiteral(
+        TableValue(
+          TableType(signature, FastIndexedSeq(), globalSignature),
+          BroadcastRow(ctx, globals.asInstanceOf[Row], globalSignature),
+          RVD.unkeyed(pType, crdd2)), ctx),
+        key, isSorted))
+    }
+  }
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: PStruct,
+    key: IndexedSeq[String]
+  ): Table = apply(hc, ContextRDD.weaken[RVDContext](rdd), signature, key, TStruct.empty(), Annotation.empty, false)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: PStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Annotation,
+    isSorted: Boolean
+  ): Table = {
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
+    ExecuteContext.scoped { ctx =>
+      new Table(hc, TableLiteral(
+        TableValue(
+          TableType(signature.virtualType, FastIndexedSeq(), globalSignature),
+          BroadcastRow(ctx, globals.asInstanceOf[Row], globalSignature),
+          RVD.unkeyed(signature, crdd2)),
+        ctx)
+      ).keyBy(key, isSorted)
+    }
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -178,21 +214,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     key: IndexedSeq[String] = FastIndexedSeq(),
     globalSignature: TStruct = TStruct.empty(),
     globals: Row = Row.empty
-  ) = this(hc,
+  ) = this(hc, ExecuteContext.scoped { ctx =>
         TableLiteral(
           TableValue(
             TableType(signature, key, globalSignature),
-            BroadcastRow(globals, globalSignature, hc.sc),
-            RVD.coerce(RVDType(signature.physicalType, key), crdd)))
+            BroadcastRow(ctx, globals, globalSignature),
+            RVD.coerce(RVDType(PType.canonical(signature).asInstanceOf[PStruct], key), crdd)), ctx)}
   )
 
   def typ: TableType = tir.typ
 
-  lazy val value@TableValue(ktType, globals, rvd) = Interpret(tir, optimize = true)
+  lazy val (globals, rvd, rdd, lit) = {
+    ExecuteContext.scoped { ctx =>
+      val tv = Interpret(tir, ctx, optimize = true)
+      (tv.globals.safeJavaValue, tv.rvd, tv.rdd, TableLiteral(tv, ctx))
+    }
+  }
 
   val TableType(signature, key, globalSignature) = tir.typ
-
-  lazy val rdd: RDD[Row] = value.rdd
 
   if (!(fieldNames ++ globalSignature.fieldNames).areDistinct())
     fatal(s"Column names are not distinct: ${ (fieldNames ++ globalSignature.fieldNames).duplicates().mkString(", ") }")
@@ -207,7 +246,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def nPartitions: Int = rvd.getNumPartitions
 
-  def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
+  def count(): Long = ExecuteContext.scoped { ctx => ir.Interpret[Long](ctx, ir.TableCount(tir)) }
 
   def valueSignature: TStruct = {
     val (t, _) = signature.filterSet(key.toSet, include = false)
@@ -216,11 +255,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def typeCheck() {
 
-    if (!globalSignature.typeCheck(globals.value)) {
+    if (!globalSignature.typeCheck(globals)) {
       fatal(
         s"""found violation of global signature
            |  Schema: ${ globalSignature.toString }
-           |  Annotation: ${ globals.value }""".stripMargin)
+           |  Annotation: ${ globals }""".stripMargin)
     }
 
     val localSignature = signature
@@ -268,11 +307,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
            | right: ${ other.globalSignature.toString }
            |""".stripMargin)
       false
-    } else if (!globalSignatureOpt.valuesSimilar(globals.value, other.globals.value)) {
+    } else if (!globalSignatureOpt.valuesSimilar(globals, other.globals)) {
       info(
         s"""different global annotations:
-           | left: ${ globals.value }
-           | right: ${ other.globals.value }
+           | left: ${ globals }
+           | right: ${ other.globals }
            |""".stripMargin)
       false
     } else if (key.nonEmpty) {
@@ -327,9 +366,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
-  def annotateGlobal(a: Annotation, t: String, name: String): Table =
-    annotateGlobal(a, IRParser.parseType(t), name)
-
   def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
     new Table(hc, TableKeyBy(tir, keys, isSorted))
 
@@ -347,19 +383,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableMapRows(tir, newRow))
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
-    ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType, delimiter))
+    ExecuteContext.scoped { ctx =>
+      ir.Interpret[Unit](ctx, ir.TableWrite(tir, ir.TableTextWriter(path, typesFile, header, exportType, delimiter)))
+    }
   }
 
   def distinctByKey(): Table = {
     new Table(hc, ir.TableDistinct(tir))
-  }
-
-  // expandTypes must be called before toDF
-  def toDF(sqlContext: SQLContext): DataFrame = {
-    val localSignature = signature.physicalType
-    sqlContext.createDataFrame(
-      rvd.map { rv => SafeRow(localSignature, rv) },
-      signature.schema.asInstanceOf[StructType])
   }
 
   def explode(column: String): Table = new Table(hc, TableExplode(tir, Array(column)))
@@ -371,31 +401,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def collect(): Array[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.TableWrite(tir, path, overwrite, stageLocally, codecSpecJSONStr))
-  }
-
-  def cache(): Table = persist("MEMORY_ONLY")
-
-  def persist(storageLevel: String): Table = {
-    val level = try {
-      StorageLevel.fromString(storageLevel)
-    } catch {
-      case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
+    ExecuteContext.scoped { ctx =>
+      ir.Interpret[Unit](ctx, ir.TableWrite(tir, TableNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
     }
-
-    copy2(rvd = rvd.persist(level))
   }
-
-  def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: BroadcastRow = globals): Table = {
-    new Table(hc, TableLiteral(
-      TableValue(TableType(signature, key, globalSignature), globals, rvd)
-    ))
+    globals: BroadcastRow = null): Table = ExecuteContext.scoped { ctx =>
+    new Table(hc,
+      TableLiteral(TableValue(TableType(signature, key, globalSignature),
+        Option(globals).getOrElse(BroadcastRow(ctx, this.globals, globalSignature)),
+        rvd),
+        ctx)
+    )
   }
 }

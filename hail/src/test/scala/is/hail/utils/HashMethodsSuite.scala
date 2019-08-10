@@ -1,9 +1,9 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
-class HashMethodsSuite extends SparkSuite {
+class HashMethodsSuite extends HailSuite {
   @Test def testMultGF() {
     import PolyHash._
 

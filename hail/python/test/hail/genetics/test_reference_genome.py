@@ -71,11 +71,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(not grch37.has_liftover('GRCh38') and not grch38.has_liftover('GRCh37'))
         grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
         grch38.add_liftover(resource('grch38_to_grch37_chr20.over.chain.gz'), 'GRCh37')
-        self.assertTrue(grch37.has_liftover('GRCh38') and grch38.has_liftover('GRCh37'))
+        assert grch37.has_liftover('GRCh38')
+        assert grch38.has_liftover('GRCh37')
 
         ds = hl.import_vcf(resource('sample.vcf'))
         t = ds.annotate_rows(liftover=hl.liftover(hl.liftover(ds.locus, 'GRCh38'), 'GRCh37')).rows()
-        self.assertTrue(t.all(t.locus == t.liftover))
+        assert t.all(t.locus == t.liftover)
 
         null_locus = hl.null(hl.tlocus('GRCh38'))
 

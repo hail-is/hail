@@ -1,28 +1,73 @@
-.PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
-.PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
-.PHONY: run-service deploy
+.PHONY: build base-image clean
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
+DOMAIN ?= hail.is
+IP ?= 35.224.105.117
 
-HAIL_CI_LOCAL_BATCH_PORT ?= 8888
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../gear python3
 
-setup-conda-env:
-	conda env create --name hail-ci -f environment.yml
+PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-update-conda-env:
-	conda env update --name hail-ci -f environment.yml
+flake8-stmp: $(PY_FILES)
+	python3 -m flake8 ci
+	touch $@
 
-build-hail-ci:
-	cd ../ && docker build . -t hail-ci -f ci/Dockerfile
+pylint-stmp: $(PY_FILES)
+	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
+	touch $@
 
-push-hail-ci: IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
-push-hail-ci: build-hail-ci
-	docker tag hail-ci ${IMAGE}
-	docker push ${IMAGE}
-	echo ${IMAGE} > hail-ci-image
-	echo built ${IMAGE}
+check: flake8-stmp pylint-stmp
 
-restart-all-proxies: restart-proxy restart-batch-proxy
+ifeq ($(IN_HAIL_CI),1)
+.PHONY: push deploy
+
+PROJECT := $(shell gcloud config get-value project)
+
+CI_UTILS_LATEST = gcr.io/$(PROJECT)/ci-utils:latest
+CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
+
+CI_LATEST = gcr.io/$(PROJECT)/ci:latest
+CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
+
+build-ci-utils:
+	make -C ../docker build
+	-docker pull $(CI_UTILS_LATEST)
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
+	docker build -t ci-utils -f Dockerfile.ci-utils.out --cache-from ci-utils,$(CI_UTILS_LATEST),base .
+
+push-ci-utils: build-ci-utils
+	docker tag ci-utils $(CI_UTILS_LATEST)
+	docker push $(CI_UTILS_LATEST)
+	docker tag ci-utils $(CI_UTILS_IMAGE)
+	docker push $(CI_UTILS_IMAGE)
+
+build:
+	make -C ../docker build
+	-docker	pull $(CI_LATEST)
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	docker build -t ci -f Dockerfile.out --cache-from ci,$(CI_LATEST),base ..
+
+push: build
+	docker tag ci $(CI_LATEST)
+	docker push $(CI_LATEST)
+	docker tag ci $(CI_IMAGE)
+	docker push $(CI_IMAGE)
+
+deploy: push push-ci-utils
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-ci-user-config"}}' deployment.yaml deployment.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
+else
+build-ci-utils:
+	make -C ../docker build
+	docker build -t ci-utils -f Dockerfile.ci-utils .
+
+build:
+	make -C ../docker build
+	docker build -t ci -f Dockerfile ..
+endif
+
+PROXY_REMOTE_PORT = 3001
 
 restart-proxy: ZONE = $(shell gcloud compute instances list --filter=name=dk-test --format="value(ZONE)")
 restart-proxy:
@@ -34,55 +79,24 @@ restart-proxy:
 	  ssh \
 	  --zone "$(ZONE)" \
 	  "dk-test" \
-	  --ssh-flag="-R 0.0.0.0:${HAIL_CI_REMOTE_PORT}:127.0.0.1:5000" \
+	  --ssh-flag="-R 0.0.0.0:${PROXY_REMOTE_PORT}:127.0.0.1:5000" \
 	  --ssh-flag='-N' \
 	  --ssh-flag='-T' \
 	  --ssh-flag='-v' \
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 	sleep 2 && kill -0 $$(cat proxy.pid)
 
-restart-batch-proxy:
-	-kill $(shell cat batch-proxy.pid)
-	-kill -9 $(shell cat batch-proxy.pid)
-	-rm -rf batch-proxy.pid
-	$(eval BATCH_POD := $(shell kubectl get pods \
-                           -l app=batch \
-                           --field-selector=status.phase==Running \
-                           -o name \
-                         | sed 's:pods/::' \
-                         | head -n 1))
-	kubectl port-forward ${BATCH_POD} 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
-	sleep 2 && kill -0 $$(cat batch-proxy.pid)
-
-
-
-run-local: HAIL_CI_REMOTE_PORT = 3000
+# Paradox: can't push locally, but ci needs ci-utils.  Just use the latest.
 run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-run-local: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	. ../loadconda && conda activate hail-ci && python run_ci.py
+run-local: restart-proxy
+	HAIL_GCP_PROJECT=$(PROJECT) \
+	  HAIL_DOMAIN=$(DOMAIN) \
+	  HAIL_IP=$(IP) \
+	  HAIL_CI_UTILS_IMAGE=gcr.io/hail-vdc/ci-utils:f477fdaa98d0e640f1bc2003ccfe1d2a86cf2d7531ff595476ca2412d28fc678 \
+	  $(PYTHON) -c 'import ci; ci.run()'
 
-run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
-run-local-for-tests: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-run-local-for-tests: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-	. ../loadconda && conda activate hail-ci && pip install ./batch && python run_ci.py
+run-docker:
+	docker run -p 5000:5000 ci
 
-test-locally: HAIL_CI_REMOTE_PORT = 3001
-test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-test-locally: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	. ../loadconda && ./test-locally.sh
-
-run-service:
-	kubectl apply -f k8s/service.yaml
-
-deploy: push-hail-ci
-	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
-	  -e "s,@image@,$(shell cat hail-ci-image)," \
-	  < deployment.yaml.in > k8s/deployment.yaml
-	kubectl -n default apply -f k8s
+clean:
+	rm -f flake8-stmp pylint-stmp

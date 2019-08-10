@@ -7,6 +7,7 @@ package object hail {
   private object HailBuildInfo {
 
     import java.util.Properties
+
     import is.hail.utils._
 
     val (

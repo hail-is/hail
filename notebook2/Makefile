@@ -1,10 +1,11 @@
-.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag
+.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag gear
 
 PROJECT = $(shell gcloud config get-value project)
 IMAGE_SHORT_NAMES = $(shell ls -1 images)
 BUILT = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_BUILT)
 PUSHED = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED)
 PUSHED_LATEST_TAG = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED_LATEST_TAG)
+APISERVER_JUPYTER_IMAGE = $(shell kubectl -n default get deployments apiserver -o json -o "jsonpath={.metadata.annotations.hail-jupyter-image}")
 
 .PHONY: $(IMAGE_SHORT_NAMES)
 
@@ -33,9 +34,12 @@ build/images/%/_PUSHED_LATEST_TAG: build/images/%/_BUILT
 $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 
 notebook-worker-images: $(PUSHED)
-	cat $^ > $@
+	cat $^ > $@ && test $(APISERVER_JUPYTER_IMAGE) && echo $(APISERVER_JUPYTER_IMAGE) >> $@
 
-build: $(BUILT) notebook-worker-images
+gear:
+	cp -rf ../gear ./
+
+build: $(BUILT) notebook-worker-images gear
 ifeq ($(CI_BUILD),true)
 	-docker pull gcr.io/${PROJECT}/notebook2:latest
 	docker build . -t notebook2 --cache-from=gcr.io/${PROJECT}/notebook2:latest
@@ -74,3 +78,4 @@ clean-workers:
 
 clean:
 	rm -rf build
+	rm notebook-worker-images

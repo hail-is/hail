@@ -8,7 +8,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
-import is.hail.expr.ir.{IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDContext
@@ -30,8 +30,8 @@ object PCRelate {
   val PhiK2K0: StatisticSubset = 2
   val PhiK2K0K1: StatisticSubset = 3
 
-  case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
-    def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
+  case class Result[MM](phiHat: MM, k0: MM, k1: MM, k2: MM) {
+    def map[N](f: MM => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
   val defaultMinKinship: Double = Double.NegativeInfinity
@@ -55,15 +55,17 @@ object PCRelate {
     blockSize: Int,
     minKinship: Double,
     statistics: PCRelate.StatisticSubset): TableIR = {
-    
-    val scoresLocal = Interpret(scores).asInstanceOf[IndexedSeq[Row]].toArray
-    assert(scoresLocal.length == blockedG.nCols)
-    
-    val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
-    
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    TableLiteral(TableValue(sig, keys, toRowRdd(result, blockSize, minKinship, statistics)))
+    ExecuteContext.scoped { ctx =>
+      val scoresLocal = Interpret[IndexedSeq[Row]](ctx, scores).toArray
+      assert(scoresLocal.length == blockedG.nCols)
+
+      val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
+
+      val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
+
+      TableLiteral(TableValue(ctx, sig, keys, toRowRdd(result, blockSize, minKinship, statistics)), ctx)
+    }
   }
 
   private[methods] def apply(hc: HailContext,
@@ -179,10 +181,9 @@ object PCRelate {
   // now only used in tests
   private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.numCols
-    val localRowType = vds.rvRowType
-    val localRowPType = localRowType.physicalType
+    val localRowPType = vds.rvRowPType
     val partStarts = vds.partitionStarts()
-    val partStartsBc = vds.sparkContext.broadcast(partStarts)
+    val partStartsBc = vds.hc.backend.broadcast(partStarts)
     val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>
       val view = HardCallView(localRowPType)
       val missingIndices = new ArrayBuilder[Int]()
@@ -262,7 +263,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
     val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
-    this.phi(mu, variance, blockedG).write(phiFile)
+    this.phi(mu, variance, blockedG).write(hc.sFS, phiFile)
     val phi = BlockMatrix.read(hc, phiFile)
 
     if (statistics >= PhiK2) {

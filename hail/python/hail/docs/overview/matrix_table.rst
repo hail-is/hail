@@ -304,7 +304,7 @@ creating a tuple or struct. This is encouraged, because grouping two
 computations together is far more efficient by traversing the dataset only once
 rather than twice.
 
-    >>> mt.aggregate_entries((agg.stats(mt.DP), agg.stats(mt.GQ)))  # doctest: +NOTEST
+    >>> mt.aggregate_entries((hl.agg.stats(mt.DP), hl.agg.stats(mt.GQ)))  # doctest: +NOTEST
     (Struct(mean=41.83915800445897, stdev=41.93057654787303, min=0.0, max=450.0, n=34537, sum=1444998.9999999995),
     Struct(mean=67.73196915777027, stdev=29.80840934057741, min=0.0, max=99.0, n=33720, sum=2283922.0000000135))
 
@@ -330,7 +330,7 @@ compute statistics about the entry field `GQ` for each grouping of `case_status`
 Next we group the columns by `case_status` and aggregate:
 
     >>> mt_grouped = (mt_ann.group_cols_by(mt_ann.case_status)
-    ...                 .aggregate(gq_stats = agg.stats(mt_ann.GQ)))
+    ...                 .aggregate(gq_stats = hl.agg.stats(mt_ann.GQ)))
     >>> print(mt_grouped.entry.dtype.pretty())
     struct {
         gq_stats: struct {

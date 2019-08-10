@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<configuration>
+
+  <property>
+    <name>google.cloud.auth.service.account.enable</name>
+    <value>true</value>
+  </property>
+  
+  <property>
+    <name>google.cloud.auth.service.account.json.keyfile</name>
+    <value>/gsa-key/privateKeyData</value>
+  </property>
+  
+</configuration>

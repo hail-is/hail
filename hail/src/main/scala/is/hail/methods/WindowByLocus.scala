@@ -1,7 +1,8 @@
 package is.hail.methods
 
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical.{PLocus, PStruct}
@@ -17,17 +18,17 @@ import scala.collection.mutable
 case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
   def preservesPartitionCounts: Boolean = false
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (MatrixType, RVDType) = {
-    val newType = childType.copyParts(
+  def typ(childType: MatrixType): MatrixType = {
+    childType.copy(
       rowType = childType.rowType ++ TStruct("prev_rows" -> TArray(childType.rowType)),
       entryType = childType.entryType ++ TStruct("prev_entries" -> TArray(childType.entryType))
     )
-
-    newType -> newType.canonicalRVDType
   }
 
-  def execute(mv: MatrixValue): MatrixValue = {
-    val (newType, rvdType) = typeInfo(mv.typ, mv.rvd.typ)
+  def execute(ctx: ExecuteContext, mv: MatrixValue): MatrixValue = {
+    val newType = typ(mv.typ)
+    val newTableType = newType.canonicalTableType
+    val rvdType = newTableType.canonicalRVDType
 
     val oldBounds = mv.rvd.partitioner.rangeBounds
     val adjBounds = oldBounds.map { interval =>
@@ -46,7 +47,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
     val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
     val rg = localRVRowType.types(locusIndex).asInstanceOf[PLocus].rg
 
-    val rangeBoundsBc = mv.sparkContext.broadcast(oldBounds)
+    val rangeBoundsBc = HailContext.backend.broadcast(oldBounds)
 
     val nCols = mv.nCols
 
@@ -83,8 +84,9 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
         deque.push(locus -> RegionValue(cpRegion, rvb.end()))
       }
 
+      val pLocus = localRVRowType.field("locus").typ.asInstanceOf[PLocus]
       def getLocus(row: RegionValue): Locus =
-        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
+        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), pLocus)
 
       val unsafeRow = new UnsafeRow(localRVRowType)
       val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
@@ -94,7 +96,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
       }
 
       bit.map { rv =>
-        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
+        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), pLocus)
 
         def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
           || x._1.contig != locus.contig)
@@ -162,7 +164,6 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
       }
     }
 
-    mv.copy(typ = newType,
-      rvd = RVD(newType.canonicalRVDType, mv.rvd.partitioner, newRDD))
+    mv.copy(newType, TableValue(newTableType, mv.tv.globals, RVD(rvdType, mv.rvd.partitioner, newRDD)))
   }
 }

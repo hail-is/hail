@@ -16,7 +16,7 @@ class IntervalSuite extends TestNGSuite {
   val tinterval1 = TInterval(tpoint1)
   val na = NA(tinterval1)
 
-  def point(i: Int): IR = MakeTuple(Seq(I32(i)))
+  def point(i: Int): IR = MakeTuple.ordered(Seq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
     invoke("Interval", start, end, Literal.coerce(TBoolean(), includeStart), Literal.coerce(TBoolean(), includeEnd))
   }
@@ -102,5 +102,57 @@ class IntervalSuite extends TestNGSuite {
       val interval2 = toIRInterval(setInterval2)
       assert(eval(invoke("overlaps", interval1, interval2)) == setInterval1.probablyOverlaps(setInterval2))
     }
+  }
+
+
+  def intInterval(start: Int, end: Int, includesStart: Boolean = true, includesEnd: Boolean = false): Interval =
+    Interval(start, end, includesStart, includesEnd)
+
+  @Test def testIntervalSortAndReduce() {
+    val ord = TInt32().ordering.intervalEndpointOrdering
+
+    assert(Interval.union(Array[Interval](), ord).sameElements(Array[Interval]()))
+    assert(Interval.union(Array(intInterval(0, 10)), ord)
+      .sameElements(Array(intInterval(0, 10))))
+
+    assert(Interval.union(Array(
+      intInterval(0, 10),
+      intInterval(0, 20, includesEnd = true),
+      intInterval(20, 30),
+      intInterval(40, 50)
+    ).reverse, ord).toSeq == FastSeq(
+      intInterval(0, 30),
+      intInterval(40, 50)
+    ))
+  }
+
+  @Test def testIntervalIntersection() {
+    val ord = TInt32().ordering.intervalEndpointOrdering
+
+    val x1 = Array[Interval](
+      intInterval(5, 10),
+      intInterval(15, 20),
+      intInterval(25, 26)
+    )
+    val x2 = Array[Interval](
+      intInterval(0, 1),
+      intInterval(5, 22),
+      intInterval(23, 24),
+      intInterval(24, 25),
+      intInterval(25, 26),
+      intInterval(26, 27)
+    )
+
+    val x3 = Array[Interval](
+      intInterval(7, 19, includesEnd = true)
+    )
+
+    assert(Interval.intersection(x1, Array[Interval](), ord).isEmpty)
+    assert(Interval.intersection(Array[Interval](), x2, ord).isEmpty)
+    assert(Interval.intersection(x1, x2, ord).toSeq == x1.toSeq)
+    assert(Interval.intersection(x1, x2, ord).toSeq == x1.toSeq)
+    assert(Interval.intersection(x1, x3, ord).toSeq == FastSeq[Interval](
+      intInterval(7, 10),
+      intInterval(15, 19, includesEnd = true)))
   }
 }

@@ -1,40 +1,40 @@
 package is.hail.methods
 
 import breeze.linalg._
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.utils._
-import org.apache.spark.storage.StorageLevel
 
 case class LogisticRegression(
   test: String,
-  yFields: Array[String],
+  yFields: Seq[String],
   xField: String,
-  covFields: Array[String],
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  covFields: Seq[String],
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val logRegTest = LogisticRegressionTest.tests(test)
     val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
-    val tableType = TableType(childType.rowKeyStruct ++ passThroughType ++ multiPhenoSchema, childType.rowKey, TStruct())
-    (tableType, tableType.canonicalRVDType)
+    TableType(childType.rowKeyStruct ++ passThroughType ++ multiPhenoSchema, childType.rowKey, TStruct())
   }
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val logRegTest = LogisticRegressionTest.tests(test)
-    val (tableType, newRVDType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val newRVDType = tableType.canonicalRVDType
 
     val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
 
-    val (yVecs, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields, covFields)
+    val (yVecs, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
     (0 until yVecs.cols).foreach(col => {
       if (!yVecs(::, col).forall(yi => yi == 0d || yi == 1d))
@@ -71,26 +71,25 @@ case class LogisticRegression(
       nullFit
     })
 
-    val sc = mv.sparkContext
-    val completeColIdxBc = sc.broadcast(completeColIdx)
+    val backend = HailContext.backend
+    val completeColIdxBc = backend.broadcast(completeColIdx)
 
-    val yVecsBc = sc.broadcast(yVecs)
-    val XBc = sc.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
-    val nullFitBc = sc.broadcast(nullFits)
-    val logRegTestBc = sc.broadcast(logRegTest)
-    val resultSchemaBc = sc.broadcast(logRegTest.schema)
+    val yVecsBc = backend.broadcast(yVecs)
+    val XBc = backend.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
+    val nullFitBc = backend.broadcast(nullFits)
+    val logRegTestBc = backend.broadcast(logRegTest)
 
-    val fullRowType = mv.typ.rvRowType.physicalType
-    val entryArrayType = mv.typ.entryArrayType.physicalType
-    val entryType = mv.typ.entryType.physicalType
+    val fullRowType = mv.rvRowPType
+    val entryArrayType = mv.entryArrayPType
+    val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = mv.typ.entriesIdx
+    val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.typ.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = mv.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
@@ -99,7 +98,6 @@ case class LogisticRegression(
       val missingCompleteCols = new ArrayBuilder[Int]()
       val _nullFits = nullFitBc.value
       val _yVecs = yVecsBc.value
-      val _resultSchema = resultSchemaBc.value
       val X = XBc.value.copy
       it.map { rv =>
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
@@ -126,6 +124,6 @@ case class LogisticRegression(
       }
     }
 
-    TableValue(tableType, BroadcastRow.empty(), newRVD)
+    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }

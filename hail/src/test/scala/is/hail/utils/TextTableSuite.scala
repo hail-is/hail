@@ -1,11 +1,11 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.expr.ir.TextTableReader
 import is.hail.expr.types.virtual._
 import org.testng.annotations.Test
 
-class TextTableSuite extends SparkSuite {
+class TextTableSuite extends HailSuite {
 
   @Test def testTypeGuessing() {
 
@@ -36,7 +36,7 @@ class TextTableSuite extends SparkSuite {
       "-200 -200.0 . 155.2 GRCH123.2:2:A:T true 1:2"
     ), 3).map { x => WithContext(x, Context(x, "none", None)) }
 
-    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".", null)
+    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", Set("."), null)
 
     assert(imputed.sameElements(Array(
       Some(TInt32()),

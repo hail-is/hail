@@ -3,6 +3,7 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
@@ -10,18 +11,19 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.nativecode.NativeStatus
-import is.hail.utils._
+import is.hail.utils.{ExecutionTimer, _}
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile, LoweredJVMCompile = Value
 
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
+  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
+  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile, CxxCompile)
 }
 
 object TestUtils {
@@ -32,7 +34,7 @@ object TestUtils {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     val msg =
-      s"""expected fatal exception with pattern `$regex'
+      s"""expected fatal exception with pattern '$regex'
          |  Found: ${ thrown.getMessage } """
     if (!p)
       println(msg)
@@ -146,7 +148,8 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        val (res, _) = HailContext.backend.cxxLowerAndExecute(x, optimize = false)
+        res
       } catch {
         case e: CXXUnsupportedOperation =>
           throw e
@@ -182,10 +185,10 @@ object TestUtils {
         }
       }
 
-      val rewritten = Subst(rewrite(x), substEnv)
+      val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
       val f = cxx.Compile(
         argsVar, argsType.physicalType,
-        MakeTuple(FastSeq(rewritten)), false)
+        MakeTuple.ordered(FastSeq(rewritten)), false)
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
@@ -203,6 +206,12 @@ object TestUtils {
         SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
       }
     }
+  }
+
+  def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+    if (agg.isDefined || !env.isEmpty || !args.isEmpty)
+      throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
+    HailContext.backend.jvmLowerAndExecute(x, optimize = false)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -248,7 +257,7 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
@@ -275,8 +284,8 @@ object TestUtils {
           // aggregate
           i = 0
           rvAggs.foreach(_.clear())
-          initOps(0)(region, rvAggs, argsOff, false)
-          var seqOpF = seqOps(0)
+          initOps(0, region)(region, rvAggs, argsOff, false)
+          var seqOpF = seqOps(0, region)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType.physicalType)
@@ -290,8 +299,8 @@ object TestUtils {
 
           val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
-          initOps(0)(region, rvAggs2, argsOff, false)
-          seqOpF = seqOps(1)
+          initOps(0, region)(region, rvAggs2, argsOff, false)
+          seqOpF = seqOps(1, region)
           while (i < aggElements.length) {
             // FIXME use second region for elements
             rvb.start(aggType.physicalType)
@@ -316,14 +325,14 @@ object TestUtils {
           rvb.endTuple()
           val aggResultsOff = rvb.end()
 
-          val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
+          val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -338,7 +347,7 @@ object TestUtils {
           rvb.endTuple()
           val argsOff = rvb.end()
 
-          val resultOff = f(0)(region, argsOff, false)
+          val resultOff = f(0, region)(region, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
     }
@@ -359,9 +368,12 @@ object TestUtils {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]) {
     val t = x.typ
 
-    val i = Interpret[Any](x, env, args, agg)
-    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
-    val c = eval(x, env, args, agg)
+    val (i, i2, c) = ExecuteContext.scoped { ctx =>
+      val i = Interpret[Any](ctx, x, env, args, agg)
+      val i2 = Interpret[Any](ctx, x, env, args, agg, optimize = false)
+      val c = eval(x, env, args, agg)
+      (i, i2, c)
+    }
 
     assert(t.typeCheck(i))
     assert(t.typeCheck(i2))
@@ -378,6 +390,11 @@ object TestUtils {
       case _: CXXUnsupportedOperation =>
     }
   }
+
+  def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit = {
+    assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
+  }
+
 
   def assertEvalsTo(x: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
@@ -401,28 +418,37 @@ object TestUtils {
     expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
 
-    TypeCheck(x,
-      env.mapValues(_._2),
-      agg.map(_._2.toEnv))
+    TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    ExecStrategy.values.foreach { strat =>
-      try {
-        val res = strat match {
-          case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
-          case ExecStrategy.InterpretUnoptimized => Interpret[Any](x, env, args, agg, optimize = false)
-          case ExecStrategy.JvmCompile =>
-            assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
-            eval(x, env, args, agg)
-          case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+    ExecuteContext.scoped { ctx =>
+      val filteredExecStrats: Set[ExecStrategy] =
+        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+        else {
+          info("skipping interpret and non-lowering compile steps on non-spark backend")
+          execStrats.intersect(ExecStrategy.backendOnly)
         }
-        assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"($res, $expected)")
-      } catch {
-        case e: Exception =>
-          if (execStrats.contains(strat)) throw e
+
+      filteredExecStrats.foreach { strat =>
+        try {
+          val res = strat match {
+            case ExecStrategy.Interpret => Interpret[Any](ctx, x, env, args, agg)
+            case ExecStrategy.InterpretUnoptimized => Interpret[Any](ctx, x, env, args, agg, optimize = false)
+            case ExecStrategy.JvmCompile =>
+              assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+              eval(x, env, args, agg)
+            case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+            case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
+          }
+          assert(t.typeCheck(res))
+          assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
+        } catch {
+          case e: Exception =>
+            error(s"error from strategy $strat")
+            if (execStrats.contains(strat)) throw e
+        }
       }
     }
   }
@@ -432,9 +458,11 @@ object TestUtils {
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
-    interceptException[E](regex)(Interpret[Any](x, env, args, agg))
-    interceptException[E](regex)(Interpret[Any](x, env, args, agg, optimize = false))
-    interceptException[E](regex)(eval(x, env, args, agg))
+    ExecuteContext.scoped { ctx =>
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg))
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg, optimize = false))
+      interceptException[E](regex)(eval(x, env, args, agg))
+    }
   }
 
   def assertFatal(x: IR, regex: String) {
@@ -473,12 +501,9 @@ object TestUtils {
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
     partitionsJSON: String = null): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    } // Needed for tests
+    rg.foreach { referenceGenome =>
+      ReferenceGenome.addReference(referenceGenome)
+    }
     val entryFloatType = TFloat64()._toPretty
 
     val reader = MatrixVCFReader(
@@ -496,32 +521,8 @@ object TestUtils {
       TextInputFilterAndReplace(),
       partitionsJSON
     )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
     new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
-
-  def importPlink(hc: HailContext,
-    bed: String,
-    bim: String,
-    fam: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-
-    val reader = MatrixPLINKReader(bed, bim, fam,
-      nPartitions, delimiter, missing, quantPheno,
-      a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
-      skipInvalidLoci)
-
-    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropCols = false, dropRows = false, reader))
-  }
-
 
   def vdsFromCallMatrix(hc: HailContext)(
     callMat: Matrix[BoxedCall],
@@ -542,7 +543,7 @@ object TestUtils {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, MatrixType.fromParts(
+    MatrixTable.fromLegacy(hc, MatrixType(
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),

@@ -1,14 +1,17 @@
 package is.hail.annotations
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.asm4s._
+import is.hail.check.{Gen, Prop}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class StagedRegionValueSuite extends SparkSuite {
+class StagedRegionValueSuite extends HailSuite {
 
   val showRVInfo = true
 
@@ -114,7 +117,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt.virtualType, FastIndexedSeq(input)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -129,7 +132,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testStruct() {
-    val rt = TStruct("a" -> TString(), "b" -> TInt32()).physicalType
+    val rt = PStruct("a" -> PString(), "b" -> PInt32())
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -155,7 +158,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, TStruct("a" -> TString(), "b" -> TInt32()), Annotation("hello", input)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt, Annotation("hello", input)))
 
     if (showRVInfo) {
       printRegion(region2, "struct")
@@ -171,7 +174,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testArrayOfStruct() {
-    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
+    val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -234,7 +237,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testMissingRandomAccessArray() {
-    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
+    val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
     val region = Region()
@@ -275,7 +278,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testSetFieldPresent() {
-    val rt = TStruct("a" -> TInt32(), "b" -> TString(), "c" -> TFloat64()).physicalType
+    val rt = PStruct("a" -> PInt32(), "b" -> PString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
     val r = Region()
@@ -313,7 +316,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testStructWithArray() {
-    val rt = TStruct("a" -> TString(), "b" -> TArray(TInt32())).physicalType
+    val rt = PStruct("a" -> PString(), "b" -> PArray(PInt32()))
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val codeInput = fb.getArg[String](2)
@@ -336,7 +339,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(),
         srvb.addString(codeInput),
         srvb.advance(),
-        srvb.addArray(PArray(PInt32()), array),
+        srvb.addArray(rt.types(1).asInstanceOf[PArray], array),
         srvb.end()
       )
     )
@@ -378,7 +381,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testMissingArray() {
-    val rt = TArray(TInt32()).physicalType
+    val rt = PArray(PInt32())
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val codeInput = fb.getArg[Int](2)
@@ -406,7 +409,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, TArray(TInt32()), FastIndexedSeq(input, null)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input, null)))
 
     if (showRVInfo) {
       printRegion(region2, "missing array")
@@ -424,7 +427,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testAddPrimitive() {
-    val t = TStruct("a" -> TInt32(), "b" -> TBoolean(), "c" -> TFloat64()).physicalType
+    val t = PStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Double, Long]
     val srvb = new StagedRegionValueBuilder(fb, t)
 
@@ -450,7 +453,41 @@ class StagedRegionValueSuite extends SparkSuite {
         region.loadDouble(t.loadField(region, off, 2)))
     }
 
-    assert(run(3, true, 42.0) == (3, true, 42.0))
-    assert(run(42, false, -1.0) == (42, false, -1.0))
+    assert(run(3, true, 42.0) == ((3, true, 42.0)))
+    assert(run(42, false, -1.0) == ((42, false, -1.0)))
+  }
+
+  @Test def testDeepCopy() {
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+      .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
+
+    val p = Prop.forAll(g) { case (t, a) =>
+      assert(t.virtualType.typeCheck(a))
+      val copy = Region.scoped { region =>
+        val copyOff = Region.scoped { srcRegion =>
+          val src = ScalaToRegionValue(srcRegion, t, a)
+
+          val fb = EmitFunctionBuilder[Region, Long, Long]
+          fb.emit(
+            StagedRegionValueBuilder.deepCopy(
+              EmitRegion.default(fb.apply_method),
+              t,
+              fb.getArg[Long](2).load()))
+          val copyF = fb.resultWithIndex()(0, region)
+          val newOff = copyF(region, src)
+
+
+          //clear old stuff
+          val len = srcRegion.allocate(0) - src
+          srcRegion.storeBytes(src, Array.fill(len.toInt)(0.toByte))
+          newOff
+        }
+        SafeRow(t, region, copyOff)
+      }
+      copy == a
+    }
+    p.check()
   }
 }

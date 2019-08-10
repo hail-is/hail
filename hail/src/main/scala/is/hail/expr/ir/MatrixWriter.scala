@@ -1,7 +1,8 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.virtual.Type
 import is.hail.io._
-import is.hail.io.gen.ExportGen
+import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils.ExportType
@@ -10,9 +11,17 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter], classOf[MatrixPLINKWriter]))
+      List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]))
     override val typeHintFieldName = "name"
   }
+}
+
+case class WrappedMatrixWriter(writer: MatrixWriter,
+  colsFieldName: String,
+  entriesFieldName: String,
+  colKey: IndexedSeq[String]) extends TableWriter {
+  def apply(tv: TableValue): Unit = writer(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixWriter {
@@ -23,9 +32,11 @@ case class MatrixNativeWriter(
   path: String,
   overwrite: Boolean = false,
   stageLocally: Boolean = false,
-  codecSpecJSONStr: String = null
+  codecSpecJSONStr: String = null,
+  partitions: String = null,
+  partitionsTypeStr: String = null
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = mv.write(path, overwrite, stageLocally, codecSpecJSONStr)
+  def apply(mv: MatrixValue): Unit = mv.write(path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
 }
 
 case class MatrixVCFWriter(
@@ -42,6 +53,13 @@ case class MatrixGENWriter(
   precision: Int = 4
 ) extends MatrixWriter {
   def apply(mv: MatrixValue): Unit = ExportGen(mv, path, precision)
+}
+
+case class MatrixBGENWriter(
+  path: String,
+  exportType: Int
+) extends MatrixWriter {
+  def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path, exportType)
 }
 
 case class MatrixPLINKWriter(

@@ -254,23 +254,26 @@ class ArrayCoercer(ExprCoercer):
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
+# NDArrayExpressions must be created explicity using `hl._ndarray`
 class NDArrayCoercer(ExprCoercer):
-    def __init__(self, t: HailType):
+    def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(NDArrayCoercer, self).__init__()
-        self.t = t
+        self.ec = ec
 
     @property
     def str_t(self):
-        return f'ndarray<{self.t}>'
+        return f'ndarray<{self.ec.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
-        return False
+        assert isinstance(t, tndarray)
+        return self.ec._requires_conversion(t.element_type)
 
     def can_coerce(self, t: HailType) -> bool:
-        return isinstance(t, tndarray) and self.t == t.element_type
+        return isinstance(t, tndarray) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
-        raise NotImplementedError
+        assert isinstance(x, hl.expr.NDArrayExpression)
+        return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
 class SetCoercer(ExprCoercer):
@@ -390,6 +393,41 @@ class StructCoercer(ExprCoercer):
         return hl.struct(**{name: c.coerce(x[name]) for name, c in self.fields.items()})
 
 
+class UnionCoercer(ExprCoercer):
+    def __init__(self, cases: Optional[Dict[str, ExprCoercer]] = None):
+        super(UnionCoercer, self).__init__()
+        self.cases = cases
+
+    @property
+    def str_t(self) -> str:
+        if self.cases is None:
+            return 'union'
+        else:
+            case_strs = ', '.join(f'{escape_parsable(name)}: {c.str_t}' for name, c in self.cases.items())
+            return f'union{{{case_strs}}})'
+
+    def _requires_conversion(self, t: HailType) -> bool:
+        assert isinstance(t, tunion)
+        if self.cases is None:
+            return False
+        else:
+            return any(c._requires_conversion(t[name]) for name, c in self.cases.items())
+
+    def can_coerce(self, t: HailType):
+        if self.cases is None:
+            return isinstance(t, tunion)
+        else:
+            return (isinstance(t, tunion)
+                    and len(t) == len(self.cases)
+                    and all(expected[0] == actual[0] and expected[1].can_coerce(actual[1])
+                            for expected, actual in zip(self.cases.items(), t.items())))
+
+    def _coerce(self, x: Expression):
+        assert isinstance(x, hl.expr.StructExpression)
+        assert list(x.keys()) == list(self.cases.keys())
+        raise NotImplementedError()
+
+
 class OneOfExprCoercer(ExprCoercer):
     def __init__(self, *options: ExprCoercer):
         super(OneOfExprCoercer, self).__init__()
@@ -433,6 +471,7 @@ expr_set = SetCoercer
 expr_dict = DictCoercer
 expr_tuple = TupleCoercer
 expr_struct = StructCoercer
+expr_union = UnionCoercer
 expr_numeric = expr_oneof(expr_int32, expr_int64, expr_float32, expr_float64)
 
 primitives: Dict[HailType, ExprCoercer] = {
@@ -456,7 +495,7 @@ def coercer_from_dtype(t: HailType) -> ExprCoercer:
     elif isinstance(t, tarray):
         return expr_array(coercer_from_dtype(t.element_type))
     elif isinstance(t, tndarray):
-        return expr_ndarray(t.element_type)
+        return expr_ndarray(coercer_from_dtype(t.element_type))
     elif isinstance(t, tset):
         return expr_set(coercer_from_dtype(t.element_type))
     elif isinstance(t, tdict):
@@ -464,6 +503,8 @@ def coercer_from_dtype(t: HailType) -> ExprCoercer:
                          coercer_from_dtype(t.value_type))
     elif isinstance(t, ttuple):
         return expr_tuple([coercer_from_dtype(t_) for t_ in t.types])
-    else:
-        assert isinstance(t, tstruct)
+    elif isinstance(t, tstruct):
         return expr_struct({name: coercer_from_dtype(t_) for name, t_ in t.items()})
+    else:
+        assert isinstance(t, tunion)
+        return expr_union({name: coercer_from_dtype(t_) for name, t_ in t.items()})

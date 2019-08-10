@@ -51,7 +51,13 @@ object DictFunctions extends RegistryFunctions {
 
     registerIR("[]", tdict, tv("key"), tv("value")) { (d, k) =>
       val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
-      val errormsg = "Key not found in dictionary."
+      val errormsg = invoke("+",
+        Str("Key '"),
+        invoke("+",
+          invoke("str", k),
+          invoke("+",
+            Str("'    not found in dictionary. Keys: "),
+            invoke("str", invoke("keys", d)))))
       get(d, k, Die(errormsg, vtype))
     }
 
@@ -60,7 +66,7 @@ object DictFunctions extends RegistryFunctions {
       ArrayMap(
         ToArray(d),
         elt.name,
-        MakeTuple(Seq(GetField(elt, "key"), GetField(elt, "value"))))
+        MakeTuple.ordered(Seq(GetField(elt, "key"), GetField(elt, "value"))))
     }
 
     registerIR("keySet", tdict, TSet(tv("key"))) { d =>

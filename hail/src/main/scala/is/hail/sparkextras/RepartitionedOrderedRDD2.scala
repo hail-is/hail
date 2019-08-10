@@ -1,12 +1,11 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.rvd.{RVD, RVDPartitioner, RVDType, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 class OrderedDependency[T](
     oldPartitionerBc: Broadcast[RVDPartitioner],

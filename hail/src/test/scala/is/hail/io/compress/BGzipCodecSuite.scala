@@ -1,6 +1,6 @@
 package is.hail.io.compress
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.utils._
@@ -27,8 +27,8 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
     val file = files.head
     val path = file.getPath
     val length = file.getLen
-    val fs = path.getFileSystem(hConf)
-    val blkLocations = fs.getFileBlockLocations(file, 0, length)
+    val fileSystem = path.getFileSystem(hConf)
+    val blkLocations = fileSystem.getFileBlockLocations(file, 0, length)
 
     Array.tabulate(splitPoints.length - 1) { i =>
       val s = splitPoints(i)
@@ -43,7 +43,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   }
 }
 
-class BGzipCodecSuite extends SparkSuite {
+class BGzipCodecSuite extends HailSuite {
   @Test def test() {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 
@@ -59,16 +59,13 @@ class BGzipCodecSuite extends SparkSuite {
      */
     val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
 
-    val uncompHPath = new hd.fs.Path(uncompPath)
-    val compHPath = new hd.fs.Path(compPath)
+    val fileSystem = sFS.fileSystem(uncompPath)
 
-    val fs = uncompHPath.getFileSystem(hadoopConf)
-
-    val uncompIS = fs.open(uncompHPath)
+    val uncompIS = fileSystem.open(uncompPath)
     val uncomp = IOUtils.toByteArray(uncompIS)
     uncompIS.close()
 
-    val decompIS = new BGzipInputStream(fs.open(compHPath))
+    val decompIS = new BGzipInputStream(fileSystem.open(compPath))
     val decomp = IOUtils.toByteArray(decompIS)
     decompIS.close()
 
@@ -101,7 +98,7 @@ class BGzipCodecSuite extends SparkSuite {
 
     val p = forAll(g) { splits =>
 
-      val jobConf = new hd.conf.Configuration(hadoopConf)
+      val jobConf = new hd.conf.Configuration(sc.hadoopConfiguration)
       jobConf.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
         compPath,
@@ -129,13 +126,10 @@ class BGzipCodecSuite extends SparkSuite {
     val uncompPath = "src/test/resources/sample.vcf"
     val compPath = "src/test/resources/sample.vcf.gz"
 
-    val uncompHPath = new hd.fs.Path(uncompPath)
-    val compHPath = new hd.fs.Path(compPath)
+    val fileSystem = sFS.fileSystem(uncompPath)
+    val compIS = fileSystem.open(compPath)
 
-    val fs = uncompHPath.getFileSystem(hadoopConf)
-    val compIS = fs.open(compHPath)
-
-    using (fs.open(uncompHPath)) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
+    using (fileSystem.open(uncompPath)) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
       val fromEnd = 48 // arbitrary number of bytes from the end of block to attempt to seek to
       for (((cOff, nOff), uOff) <- blockStarts.zip(uncompBlockStarts);
            e <- Seq(0, 1024, maxBlockSize - fromEnd)) {

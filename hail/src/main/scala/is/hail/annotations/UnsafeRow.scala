@@ -4,7 +4,6 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}
@@ -40,7 +39,7 @@ class UnsafeIndexedSeq(
 }
 
 object UnsafeRow {
-  def readBinary(region: Region, boff: Long): Array[Byte] = {
+  def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] = {
     val binLength = PBinary.loadLength(region, boff)
     region.loadBytes(PBinary.bytesOffset(boff), binLength)
   }
@@ -51,15 +50,17 @@ object UnsafeRow {
   def readBaseStruct(t: PBaseStruct, region: Region, offset: Long): UnsafeRow =
     new UnsafeRow(t, region, offset)
 
-  def readString(region: Region, boff: Long): String =
-    new String(readBinary(region, boff))
+  def readString(region: Region, boff: Long, t: PString): String =
+    new String(readBinary(region, boff, t.fundamentalType))
 
-  def readLocus(region: Region, offset: Long, rg: RGBase): Locus = {
-    val ft = rg.locusType.physicalType.fundamentalType.asInstanceOf[PStruct]
+  def readLocus(region: Region, offset: Long, t: PLocus): Locus = {
+    val ft = t.representation.asInstanceOf[PStruct]
     Locus(
-      readString(region, ft.loadField(region, offset, 0)),
+      readString(region, ft.loadField(region, offset, 0), ft.types(0).asInstanceOf[PString]),
       region.loadInt(ft.loadField(region, offset, 1)))
   }
+
+  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
 
   def read(t: PType, region: Region, offset: Long): Any = {
     t match {
@@ -73,13 +74,13 @@ object UnsafeRow {
         readArray(t, region, offset)
       case t: PSet =>
         readArray(t, region, offset).toSet
-      case _: PString => readString(region, offset)
-      case _: PBinary => readBinary(region, offset)
+      case t: PString => readString(region, offset, t)
+      case t: PBinary => readBinary(region, offset, t)
       case td: PDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: PBaseStruct => readBaseStruct(t, region, offset)
-      case x: PLocus => readLocus(region, offset, x.rg)
+      case x: PLocus => readLocus(region, offset, x)
       case x: PInterval =>
         val start: Annotation =
           if (x.startDefined(region, offset))

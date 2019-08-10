@@ -1,9 +1,6 @@
 package is.hail.cxx
 
 import is.hail.expr.types.physical._
-import is.hail.utils.ArrayBuilder
-
-import scala.collection.mutable
 
 object EmitTriplet {
   def apply(pType: PType, setup: Code, m: Code, v: Code, region: EmitRegion): EmitTriplet =
@@ -85,13 +82,89 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
 
 object SparkFunctionContext {
   def apply(fb: FunctionBuilder, spark_context: Variable): SparkFunctionContext =
-    SparkFunctionContext(s"$spark_context.spark_env_", EmitRegion(fb, s"$spark_context.region_"))
+    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.fs_",
+      EmitRegion(fb, s"$spark_context.region_"))
 
   def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
 }
 
-case class SparkFunctionContext(sparkEnv: Code, region: EmitRegion)
+case class SparkFunctionContext(sparkEnv: Code, fs: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
+}
+
+object NDArrayEmitter {
+  def broadcastFlags(fb: FunctionBuilder, nDims: Int, shape: Code): Seq[Variable] = {
+    val broadcasted = 0
+    val notBroadcasted = 1
+    IndexedSeq.tabulate(nDims) { dim =>
+      fb.variable(s"not_broadcasted_$dim", "int", s"$shape[$dim] > 1 ? $notBroadcasted : $broadcasted")
+    }
+  }
+
+  def zeroBroadcastedDims(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
+    broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
+      fb.variable("new_loop_var", "int", s"$flag * $loopVar")
+    }
+  }
+
+  def loadElement(nd: Variable, idxs: Seq[Variable], elemType: PType): Code = {
+    val index = linearizeIndices(idxs, s"$nd.strides")
+    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
+  }
+
+  private def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
+    idxs.zipWithIndex.foldRight("0") { case ((idxVar, dim), linearIndex) =>
+      s"($idxVar * $strides[$dim] + $linearIndex)"
+    }
+  }
+}
+
+abstract class NDArrayEmitter(
+  fb: FunctionBuilder,
+  resultRegion: EmitRegion,
+  val nDims: Int,
+  val shape: Variable,
+  val setup: Code) {
+
+  fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+
+  def outputElement(idxVars: Seq[Variable]): Code
+
+  def emit(elemType: PType): Code = {
+    val container = PArray(elemType)
+
+    val builder = new StagedContainerBuilder(fb, resultRegion.region, container)
+    val data = fb.variable("data", "const char *")
+    // Always stores the result as row-major
+    val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
+
+    s"""
+      |({
+      | ${ setup }
+      | ${ strides.define }
+      |
+      | ${ builder.start(s"(int) n_elements($shape)") }
+      | ${ emitLoops(builder) }
+      |
+      | ${ data.defineWith(s"${ container.cxxImpl }::elements_address(${ builder.end() })") }
+      | make_ndarray(0, 0, ${elemType.byteSize}, $shape, $strides, $data);
+      |})
+    """.stripMargin
+  }
+
+  private def emitLoops(builder: StagedContainerBuilder): Code = {
+    val idxVars = Seq.tabulate(nDims) { i => fb.variable(s"dim${i}_", "int") }
+
+    val body = Code(builder.add(outputElement(idxVars)), builder.advance())
+    idxVars.zipWithIndex.foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
+      s"""
+         |${ dimVar.define }
+         |for ($dimVar = 0; $dimVar < $shape[$dimIdx]; ++$dimVar) {
+         |  $innerLoops
+         |}
+         |""".stripMargin
+    }
+  }
 }

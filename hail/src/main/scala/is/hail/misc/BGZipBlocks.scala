@@ -3,14 +3,14 @@ package is.hail.misc
 import java.io.InputStream
 
 import is.hail.io.compress.BGzipInputStream
-import org.apache.hadoop
+import is.hail.io.fs.FS
 
 object BGZipBlocks {
   //Print block starts of block gzip (bgz) file
-  def apply(hadoopConf: hadoop.conf.Configuration, file: String) {
+  def apply(fs: FS, file: String) {
     var buf = new Array[Byte](64 * 1024)
 
-    // position of `buf[0]' in input stream
+    // position of 'buf[0]' in input stream
     var bufPos = 0L
 
     var bufSize = 0
@@ -39,11 +39,10 @@ object BGZipBlocks {
       f()
     }
 
-    val hPath = new hadoop.fs.Path(file)
-    val fs = hPath.getFileSystem(hadoopConf)
+    val fileSystem = fs.fileSystem(file)
 
     // no decompression codec
-    val is = fs.open(hPath)
+    val is = fileSystem.open(file)
 
     fillBuf(is)
 

@@ -1,10 +1,9 @@
 package is.hail.annotations
 
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.utils._
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
@@ -12,7 +11,7 @@ import scala.language.implicitConversions
 /**
   * This testing suite evaluates the functionality of the [[is.hail.annotations]] package
   */
-class AnnotationsSuite extends SparkSuite {
+class AnnotationsSuite extends HailSuite {
   @Test def test() {
     /*
       The below tests are designed to check for a subset of variants and info fields, that:
@@ -52,8 +51,8 @@ class AnnotationsSuite extends SparkSuite {
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
     assert(vas.fieldOption("info", "AC").exists(f => f.typ == TArray(TInt32()) || f.typ == TArray(+TInt32())))
-    assert(acQuery(variantAnnotationMap(firstVariant)) == IndexedSeq(89))
-    assert(acQuery(variantAnnotationMap(anotherVariant)) == IndexedSeq(13))
+    assert(acQuery(variantAnnotationMap(firstVariant)) == FastIndexedSeq(89))
+    assert(acQuery(variantAnnotationMap(anotherVariant)) == FastIndexedSeq(13))
 
     // type Boolean/flag - info.DB (dbSNP membership)
     val dbQuery = vas.query("info", "DB")

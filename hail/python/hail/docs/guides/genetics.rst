@@ -315,6 +315,42 @@ Multiple Phenotypes
             patterns of missingness. Approach #2 will do two passes over the data while Approaches #1 and #3 will
             do one pass over the data and compute the regression statistics for each phenotype simultaneously.
 
+Using Variants (SNPs) as Covariates
++++++++++++++++++++++++++++++++++++
+
+:**tags**: sample genotypes covariate
+
+:**description**: Use sample genotype dosage at specific variant(s) as covariates in regression routines.
+
+:**code**:
+
+    List the variants of interest:
+
+    >>> my_snps = ['20:13714384:A:C', '20:17479730:T:C']
+
+    Annotate the variants as a global field:
+
+    >>> mt_filt = mt.annotate_globals(
+    ...     snps = hl.set([hl.parse_variant(x) for x in my_snps]))
+
+    Filter rows to these variants:
+
+    >>> mt_filt = mt_filt.filter_rows(mt_filt.snps.contains(mt_filt.row_key))
+
+    Aggregate to collect a dictionary per sample of SNP to allele dosage:
+
+        >>> sample_genos = mt_filt.annotate_cols(
+        ...     genotypes = hl.dict(hl.agg.collect( (hl.variant_str(mt_filt.row_key), mt_filt.GT.n_alt_alleles()) )))
+        >>> mt_annot = mt.annotate_cols(snp_covs = sample_genos.cols()[mt.s].genotypes)
+
+    Run the GWAS with :func:`.linear_regression_rows` using variant dosages as covariates:
+
+    >>> gwas = hl.linear_regression_rows(
+    ...     x=mt_annot.GT.n_alt_alleles(),
+    ...     y=mt_annot.pheno.blood_pressure,
+    ...     covariates=[1, mt_annot.pheno.age, *(mt_annot.snp_covs.get(x) for x in my_snps)])
+
+:**dependencies**: :func:`.linear_regression_rows`, :func:`.aggregators.collect`, :func:`.parse_variant`, :func:`.variant_str`
 
 Stratified by Group
 +++++++++++++++++++

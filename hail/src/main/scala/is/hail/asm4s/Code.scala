@@ -1,7 +1,6 @@
 package is.hail.asm4s
 
 import java.io.PrintStream
-
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
@@ -118,7 +117,7 @@ object Code {
       }
     }
 
-  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
+  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T]): Code[T] = {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         il += new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass))
@@ -206,6 +205,14 @@ object Code {
     invokeScalaObject[S](
       cls, method, Array[Class[_]](
         a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6))
+
+  def invokeScalaObject[A1, A2, A3, A4, A5, A6, A7, S](
+    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7])(
+    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], sct: ClassTag[S]
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls, method, Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7))
 
   def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
@@ -412,6 +419,21 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
         il += lfalse
         celse.emit(il)
         il += new JumpInsnNode(GOTO, lafter)
+        il += ltrue
+        cthen.emit(il)
+        // fall through
+        il += lafter
+      }
+    }
+  }
+
+  def orEmpty[T](cthen: Code[T]): Code[T] = {
+    val cond = lhs.toConditional
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        val lafter = new LabelNode
+        val ltrue = new LabelNode
+        cond.emitConditional(il, ltrue, lafter)
         il += ltrue
         cthen.emit(il)
         // fall through
@@ -874,7 +896,7 @@ class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
       }
     }
 
-  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
+  def ifNull[U](cnullcase: Code[U], cnonnullcase: Code[U]): Code[U] =
     isNull.mux(cnullcase, cnonnullcase)
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =

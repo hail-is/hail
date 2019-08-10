@@ -11,7 +11,7 @@ from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.stats import LinearMixedModel
 from hail.table import Table
 from hail.typecheck import *
@@ -26,6 +26,8 @@ from hail.utils.java import *
            max=nullable(numeric))
 def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> Table:
     """Compute matrix of identity-by-descent estimates.
+
+    .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -47,6 +49,9 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     Notes
     -----
+    
+    The dataset must have a column field named `s` which is a :class:`.StringExpression`
+    and which uniquely identifies a column.
 
     The implementation is based on the IBD algorithm described in the `PLINK
     paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
@@ -74,7 +79,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        Variant-keyed :class:`.MatrixTable` containing genotype information.
+        Variant-keyed and sample-keyed :class:`.MatrixTable` containing genotype information.
     maf : :class:`.Float64Expression`, optional
         Row-indexed expression for the minor allele frequency.
     bounded : :obj:`bool`
@@ -92,18 +97,23 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     :class:`.Table`
     """
 
+    require_col_key_str(dataset, 'identity_by_descent')
+
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)
         dataset = dataset.select_rows(__maf = maf)
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.pyApply(
-        Env.spark_backend('ibd')._to_java_ir(require_biallelic(dataset, 'ibd')._mir),
-        joption('__maf' if maf is not None else None),
-        bounded,
-        joption(min),
-        joption(max)))
+    dataset = require_biallelic(dataset, 'ibd')
+
+    return Table(MatrixToTableApply(dataset._mir, {
+        'name': 'IBD',
+        'mafFieldName': '__maf' if maf is not None else None,
+        'bounded': bounded,
+        'min': min,
+        'max': max,
+    }))
 
 
 @typecheck(call=expr_call,
@@ -126,7 +136,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     Remove samples where imputed sex does not equal reported sex:
 
     >>> imputed_sex = hl.impute_sex(dataset.GT)
-    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female)
+    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female,
+    ...                                      keep=False)
 
     Notes
     -----
@@ -1315,6 +1326,43 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     return Table(MatrixToTableApply(mt._mir, config))
 
 
+@typecheck(p_value=expr_numeric,
+           approximate=bool)
+def lambda_gc(p_value, approximate=True):
+    """
+    Compute genomic inflation factor (lambda GC) from an Expression of p-values.
+
+    .. include:: ../_templates/experimental.rst
+
+    Parameters
+    ----------
+    p_value : :class:`.NumericExpression`
+        Row-indexed numeric expression of p-values.
+    approximate : :obj:`bool`
+        If False, computes exact lambda GC (slower and uses more memory).
+
+    Returns
+    -------
+    :obj:`float`
+        Genomic inflation factor (lambda genomic control).
+    """
+    check_row_indexed('lambda_gc', p_value)
+    t = table_source('lambda_gc', p_value)
+    med_chisq = _lambda_gc_agg(p_value, approximate)
+    return t.aggregate(med_chisq)
+
+
+@typecheck(p_value=expr_numeric,
+           approximate=bool)
+def _lambda_gc_agg(p_value, approximate=True):
+    chisq = hl.qchisqtail(p_value, 1)
+    if approximate:
+        med_chisq = hl.agg.approx_quantiles(chisq, 0.5)
+    else:
+        med_chisq = hl.median(hl.agg.collect(chisq))
+    return med_chisq / hl.qchisqtail(0.5, 1)
+
+
 @typecheck(call_expr=expr_call,
            k=int,
            compute_loadings=bool)
@@ -1497,14 +1545,13 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         'entryField': field,
         'k': k,
         'computeLoadings': compute_loadings
-    }))
-         .cache())
+    })).persist())
 
     g = t.index_globals()
     scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
     if not compute_loadings:
         t = None
-    return hl.eval(g.eigenvalues), scores, t
+    return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
 @typecheck(call_expr=expr_call,
@@ -1798,7 +1845,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.annotate_rows(__mean_gt=agg.mean(mt.__gt))
     mean_imputed_gt = hl.or_else(hl.float64(mt.__gt), mt.__mean_gt)
 
@@ -1982,7 +2029,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
 
         left = split_rows(make_array(lambda locus: locus == ds['locus']), False)
         moved = split_rows(make_array(lambda locus: locus != ds['locus']), True)
-    return left.union(moved) if is_table else left.union_rows(moved)
+    return left.union(moved) if is_table else left.union_rows(moved, _check_cols=False)
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
@@ -2053,8 +2100,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     the minimum over multiallelic `PL` entries for genotypes that map to that
     genotype.
 
-    `GQ` is recomputed from `PL` if `PL` is provided. If not, it is copied from the
-    original GQ.
+    `GQ` is recomputed from `PL` if `PL` is provided and is not
+    missing. If not, it is copied from the original GQ.
 
     Here is a second example for a het non-ref
 
@@ -2136,6 +2183,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     -------
     :class:`.MatrixTable` or :class:`.Table`
         A biallelic variant dataset.
+
     """
 
     split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
@@ -2191,7 +2239,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
                                                 ).map(lambda j: split.PL[j]))))))
         update_entries_expression['PL'] = pl
         if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = hl.gq_from_pl(pl)
+            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
     else:
         if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = split.GQ
@@ -2264,7 +2312,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
     check_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
@@ -2337,7 +2385,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
     check_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
                         __ACsq=agg.sum(mt.__gt * mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
@@ -2583,9 +2631,11 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Windowed correlation matrix between variants.
         Row and column indices correspond to matrix table variant index.
     """
-    starts, stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr)
+    starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
     ld = hl.row_correlation(entry_expr, block_size)
-    return ld.sparsify_row_intervals(starts, stops)
+    return BlockMatrix._from_java(ld._jbm.filterRowIntervalsIR(
+        Env.backend()._to_java_ir(starts_and_stops._ir),
+        False))
 
 
 @typecheck(n_populations=int,
@@ -2933,7 +2983,7 @@ def filter_alleles(mt: MatrixTable,
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
     right = right.key_rows_by(locus=right.__new_locus, alleles=right.__new_alleles)
-    return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
+    return left.union_rows(right, _check_cols=False).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 
 @typecheck(mt=MatrixTable, f=anytype, subset=bool)

@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual.Type
 import is.hail.io.{CodecSpec, Encoder}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import org.apache.hadoop.conf.Configuration
+import is.hail.io.fs.FS
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
 
@@ -34,10 +34,33 @@ case class IndexNodeInfo(
 
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
+
+  def builder(
+    keyType: Type,
+    annotationType: Type,
+    branchingFactor: Int = 4096,
+    attributes: Map[String, Any] = Map.empty[String, Any]
+  ): (FS, String) => IndexWriter = {
+    val codecSpec = CodecSpec.default
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
+    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType);
+    { (fs, path) =>
+      new IndexWriter(
+        fs,
+        path,
+        keyType,
+        annotationType,
+        makeLeafEncoder,
+        makeInternalEncoder,
+        branchingFactor,
+        attributes)
+    }
+  }
 }
 
+
 class IndexWriter(
-  hConf: Configuration,
+  fs: FS,
   path: String,
   keyType: Type,
   annotationType: Type,
@@ -48,14 +71,14 @@ class IndexWriter(
   require(branchingFactor > 1)
 
   private var elementIdx = 0L
-  private val region = new Region()
+  private val region = Region()
   private val rvb = new RegionValueBuilder(region)
 
   private val leafNodeBuilder = new LeafNodeBuilder(keyType, annotationType, 0L)
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
-  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(fs.unsafeWriter(path + "/index"))
 
   private val leafEncoder = makeLeafEncoder(trackedOS)
   private val internalEncoder = makeInternalEncoder(trackedOS)
@@ -146,11 +169,11 @@ class IndexWriter(
   }
 
   private def writeMetadata(rootOffset: Long) = {
-    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
+    fs.writeTextFile(path + "/metadata.json.gz") { out =>
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,
-        height, 
+        height,
         keyType.parsableString(),
         annotationType.parsableString(),
         elementIdx,

@@ -15,10 +15,11 @@ Regardless of installation method, you will need:
   ten, or eleven due to our dependency on Spark.
 - Python 3.6 or later, we recommend `Anaconda's Python 3
   <https://www.anaconda.com/download/>`_
+- A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
 
 For all methods *other than using pip*, you will additionally need `Spark
-2.2.x
-<https://www.apache.org/dyn/closer.lua/spark/spark-2.2.2/spark-2.2.2-bin-hadoop2.7.tgz>`_.
+2.4.x
+<https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_.
 
 
 Installation
@@ -36,9 +37,9 @@ Create a `conda enviroment
 
 .. code-block:: sh
 
-    conda create --name hail python>=3.6
+    conda create -n hail python==3.6
     conda activate hail
-    pip install hail
+    pip3 install hail
 
 To try Hail out, open iPython or a Jupyter notebook and run:
 
@@ -49,7 +50,7 @@ To try Hail out, open iPython or a Jupyter notebook and run:
     >>> mt.count()
 
 You're now all set to run the
-`tutorials <https://hail.is/docs/devel/tutorials-landing.html>`__ locally!
+`tutorials <https://hail.is/docs/0.2/tutorials-landing.html>`__ locally!
 
 Building your own JAR
 ~~~~~~~~~~~~~~~~~~~~~
@@ -66,7 +67,7 @@ On Mac OS X, you might try::
 
 To build the Hail JAR compatible with Spark 2.3.0, execute this::
 
-    ./gradlew -Dspark.version=2.3.0 shadowJar
+    ./gradlew -Dspark.version=2.3.0 releaseJar
 
 The Spark version in this command should match whichever version of Spark you
 would like to build against.
@@ -74,20 +75,12 @@ would like to build against.
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.2 cluster. For example, Google and Amazon offer
-optimized Spark performance and exceptional scalability to thousands of cores
-without the overhead of installing and managing an on-premesis cluster.
+Hail can run on any Spark 2.4 cluster. For example, Google and Amazon make it
+possible to rent Spark clusters with many thousands of cores on-demand,
+providing for the elastic compute requirements of scientific research without
+an up-front capital investment.
 
-On `Google Dataproc <https://cloud.google.com/dataproc/>`_,
-we provide pre-built JARs and a Python package
-`cloudtools <https://github.com/Nealelab/cloudtools>`_
-to simplify running Hail, whether through an interactive Jupyter notebook or by
-submitting Python scripts.
-
-On `Amazon EMR <https://aws.amazon.com/emr/details/spark/>`_, we recommend using the Hail
-`cloudformation <https://github.com/hms-dbmi/hail-on-AWS-spot-instances>`_ tool
-developed by Carlos De Niz in the
-`Avillach Lab <https://avillach-lab.hms.harvard.edu/>`_ at Harvard Medical School.
+For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
@@ -104,7 +97,7 @@ profile file for your shell (e.g. ``~/.bash_profile``).
 
 .. code-block:: sh
 
-    export SPARK_HOME=/path/to/spark-2.2.0/
+    export SPARK_HOME=/path/to/spark-2.4.0/
     export HAIL_HOME=/path/to/hail/
     export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$HAIL_HOME/build/distributions/hail-python.zip"
     export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python"
@@ -188,9 +181,9 @@ the same as above, except:
  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
    version of Spark and the associated py4j version. The following example
    builds a Hail JAR for Cloudera's
-   2.2.0 version of Spark::
+   2.4.0 version of Spark::
 
-    ./gradlew shadowJar -Dspark.version=2.2.0.cloudera -Dpy4j.version=0.10.4
+    ./gradlew releaseJar -Dspark.version=2.4.0.cloudera -Dpy4j.version=0.10.7
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,

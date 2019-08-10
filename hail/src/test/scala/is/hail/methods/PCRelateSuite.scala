@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.TestUtils._
@@ -11,7 +11,7 @@ import scala.language.postfixOps
 
 import scala.sys.process._
 
-class PCRelateSuite extends SparkSuite {
+class PCRelateSuite extends HailSuite {
   private val blockSize: Int = BlockMatrix.defaultBlockSize
 
   private def toD(a: java.lang.Double): Double =

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-fetcher
+  labels:
+    app: image-fetcher
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: image-fetcher
+  template:
+    metadata:
+      labels:
+        app: image-fetcher
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+      - name: image-fetcher
+        image: "{{ image_fetcher_image.image }}"
+        resources:
+          requests:
+            cpu: 1m
+            memory: 100Mi
+        volumeMounts:
+        - name: docksock
+          mountPath: /var/run/docker.sock
+        - name: gcr-pull-key
+          mountPath: /secrets
+      volumes:
+      - name: docksock
+        hostPath:
+          path: /var/run/docker.sock
+      - name: gcr-pull-key
+        secret:
+          optional: False
+          secretName: gcr-pull-key

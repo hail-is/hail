@@ -1,13 +1,14 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 
 import scala.collection.mutable
 
 class RegionValueTakeByAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueAggregator {
   assert(n >= 0)
+
+  override def isCommutative: Boolean = false
 
   val ord = keyType.ordering.toOrdering.on[(Any, Any)] { case (e, k) => k }
   var _state = new mutable.PriorityQueue[(Any, Any)]()(ord)
@@ -50,7 +51,7 @@ class RegionValueTakeByAggregator(n: Int, aggType: Type, keyType: Type) extends 
 
 class RegionValueTakeByBooleanBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Boolean, xm: Boolean, k: Boolean, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByBooleanBooleanAggregator = new RegionValueTakeByBooleanBooleanAggregator(n, aggType, keyType)
@@ -64,7 +65,7 @@ class RegionValueTakeByBooleanBooleanAggregator(n: Int, aggType: Type, keyType: 
 
 class RegionValueTakeByBooleanIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Boolean, xm: Boolean, k: Int, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByBooleanIntAggregator = new RegionValueTakeByBooleanIntAggregator(n, aggType, keyType)
@@ -78,7 +79,7 @@ class RegionValueTakeByBooleanIntAggregator(n: Int, aggType: Type, keyType: Type
 
 class RegionValueTakeByBooleanLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Boolean, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByBooleanLongAggregator = new RegionValueTakeByBooleanLongAggregator(n, aggType, keyType)
@@ -92,7 +93,7 @@ class RegionValueTakeByBooleanLongAggregator(n: Int, aggType: Type, keyType: Typ
 
 class RegionValueTakeByBooleanFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Boolean, xm: Boolean, k: Float, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByBooleanFloatAggregator = new RegionValueTakeByBooleanFloatAggregator(n, aggType, keyType)
@@ -106,7 +107,7 @@ class RegionValueTakeByBooleanFloatAggregator(n: Int, aggType: Type, keyType: Ty
 
 class RegionValueTakeByBooleanDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Boolean, xm: Boolean, k: Double, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByBooleanDoubleAggregator = new RegionValueTakeByBooleanDoubleAggregator(n, aggType, keyType)
@@ -120,7 +121,7 @@ class RegionValueTakeByBooleanDoubleAggregator(n: Int, aggType: Type, keyType: T
 
 class RegionValueTakeByBooleanAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Boolean, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k))
+    seqOp((if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k)))
   }
 
   override def newInstance(): RegionValueTakeByBooleanAnnotationAggregator = new RegionValueTakeByBooleanAnnotationAggregator(n, aggType, keyType)
@@ -134,7 +135,7 @@ class RegionValueTakeByBooleanAnnotationAggregator(n: Int, aggType: Type, keyTyp
 
 class RegionValueTakeByIntBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Int, xm: Boolean, k: Boolean, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByIntBooleanAggregator = new RegionValueTakeByIntBooleanAggregator(n, aggType, keyType)
@@ -148,7 +149,7 @@ class RegionValueTakeByIntBooleanAggregator(n: Int, aggType: Type, keyType: Type
 
 class RegionValueTakeByIntIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Int, xm: Boolean, k: Int, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByIntIntAggregator = new RegionValueTakeByIntIntAggregator(n, aggType, keyType)
@@ -162,7 +163,7 @@ class RegionValueTakeByIntIntAggregator(n: Int, aggType: Type, keyType: Type) ex
 
 class RegionValueTakeByIntLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Int, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByIntLongAggregator = new RegionValueTakeByIntLongAggregator(n, aggType, keyType)
@@ -176,7 +177,7 @@ class RegionValueTakeByIntLongAggregator(n: Int, aggType: Type, keyType: Type) e
 
 class RegionValueTakeByIntFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Int, xm: Boolean, k: Float, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByIntFloatAggregator = new RegionValueTakeByIntFloatAggregator(n, aggType, keyType)
@@ -190,7 +191,7 @@ class RegionValueTakeByIntFloatAggregator(n: Int, aggType: Type, keyType: Type) 
 
 class RegionValueTakeByIntDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Int, xm: Boolean, k: Double, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByIntDoubleAggregator = new RegionValueTakeByIntDoubleAggregator(n, aggType, keyType)
@@ -204,7 +205,7 @@ class RegionValueTakeByIntDoubleAggregator(n: Int, aggType: Type, keyType: Type)
 
 class RegionValueTakeByIntAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Int, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k))
+    seqOp((if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k)))
   }
 
   override def newInstance(): RegionValueTakeByIntAnnotationAggregator = new RegionValueTakeByIntAnnotationAggregator(n, aggType, keyType)
@@ -218,7 +219,7 @@ class RegionValueTakeByIntAnnotationAggregator(n: Int, aggType: Type, keyType: T
 
 class RegionValueTakeByLongBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Boolean, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByLongBooleanAggregator = new RegionValueTakeByLongBooleanAggregator(n, aggType, keyType)
@@ -232,7 +233,7 @@ class RegionValueTakeByLongBooleanAggregator(n: Int, aggType: Type, keyType: Typ
 
 class RegionValueTakeByLongIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Int, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByLongIntAggregator = new RegionValueTakeByLongIntAggregator(n, aggType, keyType)
@@ -246,7 +247,7 @@ class RegionValueTakeByLongIntAggregator(n: Int, aggType: Type, keyType: Type) e
 
 class RegionValueTakeByLongLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByLongLongAggregator = new RegionValueTakeByLongLongAggregator(n, aggType, keyType)
@@ -260,7 +261,7 @@ class RegionValueTakeByLongLongAggregator(n: Int, aggType: Type, keyType: Type) 
 
 class RegionValueTakeByLongFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Float, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByLongFloatAggregator = new RegionValueTakeByLongFloatAggregator(n, aggType, keyType)
@@ -274,7 +275,7 @@ class RegionValueTakeByLongFloatAggregator(n: Int, aggType: Type, keyType: Type)
 
 class RegionValueTakeByLongDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Double, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByLongDoubleAggregator = new RegionValueTakeByLongDoubleAggregator(n, aggType, keyType)
@@ -288,7 +289,7 @@ class RegionValueTakeByLongDoubleAggregator(n: Int, aggType: Type, keyType: Type
 
 class RegionValueTakeByLongAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k))
+    seqOp((if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k)))
   }
 
   override def newInstance(): RegionValueTakeByLongAnnotationAggregator = new RegionValueTakeByLongAnnotationAggregator(n, aggType, keyType)
@@ -302,7 +303,7 @@ class RegionValueTakeByLongAnnotationAggregator(n: Int, aggType: Type, keyType: 
 
 class RegionValueTakeByFloatBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Float, xm: Boolean, k: Boolean, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByFloatBooleanAggregator = new RegionValueTakeByFloatBooleanAggregator(n, aggType, keyType)
@@ -316,7 +317,7 @@ class RegionValueTakeByFloatBooleanAggregator(n: Int, aggType: Type, keyType: Ty
 
 class RegionValueTakeByFloatIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Float, xm: Boolean, k: Int, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByFloatIntAggregator = new RegionValueTakeByFloatIntAggregator(n, aggType, keyType)
@@ -330,7 +331,7 @@ class RegionValueTakeByFloatIntAggregator(n: Int, aggType: Type, keyType: Type) 
 
 class RegionValueTakeByFloatLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Float, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByFloatLongAggregator = new RegionValueTakeByFloatLongAggregator(n, aggType, keyType)
@@ -344,7 +345,7 @@ class RegionValueTakeByFloatLongAggregator(n: Int, aggType: Type, keyType: Type)
 
 class RegionValueTakeByFloatFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Float, xm: Boolean, k: Float, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByFloatFloatAggregator = new RegionValueTakeByFloatFloatAggregator(n, aggType, keyType)
@@ -358,7 +359,7 @@ class RegionValueTakeByFloatFloatAggregator(n: Int, aggType: Type, keyType: Type
 
 class RegionValueTakeByFloatDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Float, xm: Boolean, k: Double, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByFloatDoubleAggregator = new RegionValueTakeByFloatDoubleAggregator(n, aggType, keyType)
@@ -372,7 +373,7 @@ class RegionValueTakeByFloatDoubleAggregator(n: Int, aggType: Type, keyType: Typ
 
 class RegionValueTakeByFloatAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Float, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k))
+    seqOp((if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k)))
   }
 
   override def newInstance(): RegionValueTakeByFloatAnnotationAggregator = new RegionValueTakeByFloatAnnotationAggregator(n, aggType, keyType)
@@ -386,7 +387,7 @@ class RegionValueTakeByFloatAnnotationAggregator(n: Int, aggType: Type, keyType:
 
 class RegionValueTakeByDoubleBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Double, xm: Boolean, k: Boolean, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByDoubleBooleanAggregator = new RegionValueTakeByDoubleBooleanAggregator(n, aggType, keyType)
@@ -400,7 +401,7 @@ class RegionValueTakeByDoubleBooleanAggregator(n: Int, aggType: Type, keyType: T
 
 class RegionValueTakeByDoubleIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Double, xm: Boolean, k: Int, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByDoubleIntAggregator = new RegionValueTakeByDoubleIntAggregator(n, aggType, keyType)
@@ -414,7 +415,7 @@ class RegionValueTakeByDoubleIntAggregator(n: Int, aggType: Type, keyType: Type)
 
 class RegionValueTakeByDoubleLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Double, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByDoubleLongAggregator = new RegionValueTakeByDoubleLongAggregator(n, aggType, keyType)
@@ -428,7 +429,7 @@ class RegionValueTakeByDoubleLongAggregator(n: Int, aggType: Type, keyType: Type
 
 class RegionValueTakeByDoubleFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Double, xm: Boolean, k: Float, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByDoubleFloatAggregator = new RegionValueTakeByDoubleFloatAggregator(n, aggType, keyType)
@@ -442,7 +443,7 @@ class RegionValueTakeByDoubleFloatAggregator(n: Int, aggType: Type, keyType: Typ
 
 class RegionValueTakeByDoubleDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Double, xm: Boolean, k: Double, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else k)
+    seqOp((if (xm) null else x, if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByDoubleDoubleAggregator = new RegionValueTakeByDoubleDoubleAggregator(n, aggType, keyType)
@@ -456,7 +457,7 @@ class RegionValueTakeByDoubleDoubleAggregator(n: Int, aggType: Type, keyType: Ty
 
 class RegionValueTakeByDoubleAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Double, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k))
+    seqOp((if (xm) null else x, if (km) null else SafeRow.read(keyType.physicalType, region, k)))
   }
 
   override def newInstance(): RegionValueTakeByDoubleAnnotationAggregator = new RegionValueTakeByDoubleAnnotationAggregator(n, aggType, keyType)
@@ -470,7 +471,7 @@ class RegionValueTakeByDoubleAnnotationAggregator(n: Int, aggType: Type, keyType
 
 class RegionValueTakeByAnnotationBooleanAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Boolean, km: Boolean) {
-    seqOp(if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k)
+    seqOp((if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByAnnotationBooleanAggregator = new RegionValueTakeByAnnotationBooleanAggregator(n, aggType, keyType)
@@ -484,7 +485,7 @@ class RegionValueTakeByAnnotationBooleanAggregator(n: Int, aggType: Type, keyTyp
 
 class RegionValueTakeByAnnotationIntAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Int, km: Boolean) {
-    seqOp(if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k)
+    seqOp((if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByAnnotationIntAggregator = new RegionValueTakeByAnnotationIntAggregator(n, aggType, keyType)
@@ -498,7 +499,7 @@ class RegionValueTakeByAnnotationIntAggregator(n: Int, aggType: Type, keyType: T
 
 class RegionValueTakeByAnnotationLongAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k)
+    seqOp((if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByAnnotationLongAggregator = new RegionValueTakeByAnnotationLongAggregator(n, aggType, keyType)
@@ -512,7 +513,7 @@ class RegionValueTakeByAnnotationLongAggregator(n: Int, aggType: Type, keyType: 
 
 class RegionValueTakeByAnnotationFloatAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Float, km: Boolean) {
-    seqOp(if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k)
+    seqOp((if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByAnnotationFloatAggregator = new RegionValueTakeByAnnotationFloatAggregator(n, aggType, keyType)
@@ -526,7 +527,7 @@ class RegionValueTakeByAnnotationFloatAggregator(n: Int, aggType: Type, keyType:
 
 class RegionValueTakeByAnnotationDoubleAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Double, km: Boolean) {
-    seqOp(if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k)
+    seqOp((if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else k))
   }
 
   override def newInstance(): RegionValueTakeByAnnotationDoubleAggregator = new RegionValueTakeByAnnotationDoubleAggregator(n, aggType, keyType)
@@ -540,7 +541,7 @@ class RegionValueTakeByAnnotationDoubleAggregator(n: Int, aggType: Type, keyType
 
 class RegionValueTakeByAnnotationAnnotationAggregator(n: Int, aggType: Type, keyType: Type) extends RegionValueTakeByAggregator(n, aggType, keyType) {
   def seqOp(region: Region, x: Long, xm: Boolean, k: Long, km: Boolean) {
-    seqOp(if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else SafeRow.read(keyType.physicalType, region, k))
+    seqOp((if (xm) null else SafeRow.read(aggType.physicalType, region, x), if (km) null else SafeRow.read(keyType.physicalType, region, k)))
   }
 
   override def newInstance(): RegionValueTakeByAnnotationAnnotationAggregator = new RegionValueTakeByAnnotationAnnotationAggregator(n, aggType, keyType)

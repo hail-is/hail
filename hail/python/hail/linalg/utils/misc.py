@@ -3,6 +3,7 @@ import numpy as np
 import hail as hl
 from hail.typecheck import *
 from hail.expr.expressions import expr_locus, expr_float64, check_row_indexed
+from hail.utils.java import Env
 
 
 @typecheck(a=np.ndarray,
@@ -79,8 +80,9 @@ def array_windows(a, radius):
 
 @typecheck(locus_expr=expr_locus(),
            radius=oneof(int, float),
-           coord_expr=nullable(expr_float64))
-def locus_windows(locus_expr, radius, coord_expr=None):
+           coord_expr=nullable(expr_float64),
+           _localize=bool)
+def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     """Returns start and stop indices for window around each locus.
 
     Examples
@@ -165,67 +167,58 @@ def locus_windows(locus_expr, radius, coord_expr=None):
     if radius < 0:
         raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
     check_row_indexed('locus_windows', locus_expr)
-    if coord_expr is None:
-        global_pos_list = locus_expr.global_position().collect()
-        n_loci = len(global_pos_list)
-        global_pos = np.zeros(n_loci, dtype=np.int64)
-        for i, p in enumerate(global_pos_list):
-            if p is None:
-                raise ValueError(f"locus_windows: missing value for 'locus_expr' global position at row {i}")
-            global_pos[i] = p
-        coord = global_pos
-        del global_pos_list
-    else:
+    if coord_expr is not None:
         check_row_indexed('locus_windows', coord_expr)
-        global_pos_and_coord =\
-            hl.tuple([locus_expr.global_position(), coord_expr]).collect()  # raises exception if sources differ
-        n_loci = len(global_pos_and_coord)
 
-        global_pos = np.zeros(n_loci, dtype=np.int64)
-        coord = np.zeros(n_loci, dtype=np.float64)
-        for i, x in enumerate(global_pos_and_coord):
-            if x[0] is None:
-                raise ValueError(f"locus_windows: missing value for 'locus_expr' global position at row {i}")
-            global_pos[i] = x[0]
-            if x[1] is None:
-                raise ValueError(f"locus_windows: missing value for 'coord_expr' at row {i}")
-            coord[i] = x[1]
-        del global_pos_and_coord
+    src = locus_expr._indices.source
+    if locus_expr not in src._fields_inverse:
+        locus = Env.get_uid()
+        annotate_fields = {locus: locus_expr}
 
-    if n_loci == 0:
-        return np.zeros(shape=0, dtype=np.int64), np.zeros(shape=0, dtype=np.int64)
+        if coord_expr is not None:
+            if coord_expr not in src._fields_inverse:
+                coords = Env.get_uid()
+                annotate_fields[coords] = coord_expr
+            else:
+                coords = src._fields_inverse[coord_expr]
 
-    contig_name = locus_expr.dtype.reference_genome.contigs
-    contig_len = locus_expr.dtype.reference_genome.lengths
-    contig_cum_len = np.cumsum([contig_len[name] for name in contig_name])
+        if isinstance(src, hl.MatrixTable):
+            new_src = src.annotate_rows(**annotate_fields)
+        else:
+            new_src = src.annotate(**annotate_fields)
 
-    assert(global_pos[-1] < contig_cum_len[-1])
+        locus_expr = new_src[locus]
+        if coord_expr is not None:
+            coord_expr = new_src[coords]
 
-    contig_start_idx = _compute_contig_start_idx(global_pos, contig_cum_len)
-    n_contigs = len(contig_start_idx)
-    contig_start_idx.append(n_loci)
-    contig_bounds = [array_windows(coord[contig_start_idx[c]:contig_start_idx[c + 1]], radius)
-                     for c in range(n_contigs)]
-    starts = np.concatenate([contig_start_idx[c] + contig_bounds[c][0] for c in range(n_contigs)])
-    stops = np.concatenate([contig_start_idx[c] + contig_bounds[c][1] for c in range(n_contigs)])
+    if coord_expr is None:
+        coord_expr = locus_expr.position
 
-    return starts, stops
+    rg = locus_expr.dtype.reference_genome
+    contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
 
+    # check loci are in sorted order
+    last_pos = hl.fold(lambda a, elt: (hl.case()
+                                         .when(a <= elt, elt)
+                                         .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
+                       -1,
+                       hl.agg.collect(hl.case()
+                                        .when(hl.is_defined(locus_expr), locus_expr.global_position())
+                                        .or_error("locus_windows: missing value for 'locus_expr'.")))
+    checked_contig_groups = (hl.case()
+                               .when(last_pos >= 0, contig_group_expr)
+                               .or_error("locus_windows: 'locus_expr' has length 0"))
 
-def _compute_contig_start_idx(global_pos, contig_cum_len):
-    last = global_pos[0]
-    contig_start_idx = [0]
-    cum_len_iter = iter(contig_cum_len)
-    cum_len = next(cum_len_iter)
-    for i in range(len(global_pos)):
-        curr = global_pos[i]
-        if curr < last:
-            raise ValueError("locus_windows: 'locus_expr' global position must be in ascending order")
-        while curr >= cum_len:
-            contig_start_idx.append(i)
-            cum_len = next(cum_len_iter)
-        last = curr
-    return contig_start_idx
+    contig_groups = locus_expr._aggregation_method()(checked_contig_groups, _localize=False)
+
+    coords = hl.sorted(hl.array(contig_groups)).map(lambda t: t[1])
+    starts_and_stops = hl._locus_windows_per_contig(coords, radius)
+
+    if not _localize:
+        return starts_and_stops
+
+    starts, stops = hl.eval(starts_and_stops)
+    return np.array(starts), np.array(stops)
 
 
 def _check_dims(a, name, ndim, min_size=1):
@@ -236,3 +229,15 @@ def _check_dims(a, name, ndim, min_size=1):
         if a.shape[i] < min_size:
             raise ValueError(f'{name}.shape[{i}] must be at least '
                              f'{min_size}, found {a.shape[i]}')
+
+
+def _ndarray_matmul_ndim(l, r):
+    if l == 1 and r == 1:
+        return 0
+    elif l == 1:
+        return r - 1
+    elif r == 1:
+        return l - 1
+    else:
+        assert l == r
+        return l

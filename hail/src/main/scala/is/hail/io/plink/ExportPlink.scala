@@ -61,31 +61,31 @@ object ExportPlink {
   def apply(mv: MatrixValue, path: String): Unit = {
     val hc = HailContext.get
     val sc = hc.sc
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
 
-    val tmpBedDir = hConf.getTemporaryFile(hc.tmpDir)
-    val tmpBimDir = hConf.getTemporaryFile(hc.tmpDir)
+    val tmpBedDir = fs.getTemporaryFile(hc.tmpDir)
+    val tmpBimDir = fs.getTemporaryFile(hc.tmpDir)
 
-    hConf.mkDir(tmpBedDir)
-    hConf.mkDir(tmpBimDir)
+    fs.mkDir(tmpBedDir)
+    fs.mkDir(tmpBimDir)
 
-    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val bcFS = hc.bcFS
 
     val nPartitions = mv.rvd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
-    val nSamples = mv.colValues.value.length
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val nSamples = mv.colValues.javaValue.length
+    val fullRowType = mv.rvRowPType
 
     val (partFiles, nRecordsWrittenPerPartition) = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-      val hConf = sHConfBc.value.value
+      val fs = bcFS.value
       val f = partFile(d, i, TaskContext.get)
       val bedPartPath = tmpBedDir + "/" + f
       val bimPartPath = tmpBimDir + "/" + f
       var rowCount = 0L
 
-      hConf.writeTextFile(bimPartPath) { bimOS =>
-        hConf.writeFile(bedPartPath) { bedOS =>
+      fs.writeTextFile(bimPartPath) { bimOS =>
+        fs.writeFile(bedPartPath) { bedOS =>
           val v = new RegionValueVariant(fullRowType)
           val a = new BimAnnotationView(fullRowType)
           val hcv = HardCallView(fullRowType)
@@ -109,12 +109,12 @@ object ExportPlink {
 
     val nRecordsWritten = nRecordsWrittenPerPartition.sum
 
-    hConf.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
-    hConf.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlink.bedHeader))
-    hConf.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true, partFilesOpt = Some(partFiles))
+    fs.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
+    fs.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlink.bedHeader))
+    fs.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true, partFilesOpt = Some(partFiles))
 
-    hConf.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
-    hConf.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false, partFilesOpt = Some(partFiles))
+    fs.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
+    fs.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false, partFilesOpt = Some(partFiles))
 
     mv.colsTableValue.export(path + ".fam", header = false)
 
@@ -165,7 +165,7 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
   private var nBitsStaged = 0
 
   def +=(i: Int) {
-    data |= ((i.toUIntFromRep.toLong & bitMask) << nBitsStaged)
+    data |= ((i & 0xffffffffL & bitMask) << nBitsStaged)
     nBitsStaged += nBitsPerItem
     write()
   }

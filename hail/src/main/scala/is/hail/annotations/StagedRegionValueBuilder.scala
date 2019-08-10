@@ -2,10 +2,94 @@ package is.hail.annotations
 
 import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, FunctionBuilder, _}
+import is.hail.expr.ir
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
 import is.hail.utils._
 
-import scala.language.postfixOps
+object StagedRegionValueBuilder {
+  def fixupStruct(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PBaseStruct, value: Code[Long]): Code[Unit] = {
+    coerce[Unit](Code(typ.fields.map { f =>
+      if (f.typ.isPrimitive)
+        Code._empty
+      else {
+        val fix = f.typ.fundamentalType match {
+          case t@(_: PBinary | _: PArray) =>
+            region.storeAddress(typ.fieldOffset(value, f.index),
+              deepCopy(fb, region, t, typ.loadField(region, value, f.index)))
+          case t: PBaseStruct =>
+              fixupStruct(fb, region, t, typ.loadField(region, value, f.index))
+        }
+        typ.isFieldDefined(region, value, f.index).mux(fix, Code._empty)
+      }
+    }: _*))
+  }
+
+  def fixupArray(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PArray, value: Code[Long]): Code[Unit] = {
+    if (typ.elementType.isPrimitive)
+      return Code._empty
+
+    val i = fb.newField[Int]
+    val len = fb.newField[Int]
+
+    val perElt = typ.elementType.fundamentalType match {
+      case t@(_: PBinary | _: PArray) =>
+        region.storeAddress(typ.elementOffset(value, len, i),
+          deepCopy(fb, region, t, typ.loadElement(region, value, i)))
+      case t: PBaseStruct =>
+        val off = fb.newField[Long]
+        Code(off := typ.elementOffset(value, len, i),
+          fixupStruct(fb, region, t, off))
+    }
+
+    Code(
+      i := 0,
+      len := typ.loadLength(region, value),
+      Code.whileLoop(i < len,
+        typ.isElementDefined(region, value, i).mux(perElt, Code._empty),
+        i := i + 1))
+  }
+
+  def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, src: Code[Long], dest: Code[Long]): Code[Unit] = {
+    typ.fundamentalType match {
+      case t if t.isPrimitive => region.copyFrom(region, src, dest, t.byteSize)
+      case t@(_: PBinary | _: PArray) =>
+        region.storeAddress(dest, deepCopy(fb, region, t, src))
+      case t: PBaseStruct =>
+        Code(region.copyFrom(region, src, dest, t.byteSize),
+          fixupStruct(fb, region, t, dest))
+      case t => fatal(s"unknown type $t")
+    }
+  }
+
+  def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
+    val offset = fb.newField[Long]
+
+    val copy = typ.fundamentalType match {
+      case _: PBinary =>
+        Code(
+          offset := PBinary.allocate(region, PBinary.loadLength(region, value)),
+          region.copyFrom(region, value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
+      case t: PArray =>
+        Code(
+          offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(region, value))),
+          region.copyFrom(region, value, offset, t.contentsByteSize(t.loadLength(region, value))),
+          fixupArray(fb, region, t, offset))
+      case t =>
+        Code(
+          offset := region.allocate(t.alignment, t.byteSize),
+          deepCopy(fb, region, t, value, offset))
+    }
+    Code(copy, offset)
+  }
+
+  def deepCopy(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
+    deepCopy(er.mb.fb, er.region, typ, value)
+
+  def deepCopy(er: EmitRegion, typ: PType, src: Code[Long], dest: Code[Long]): Code[Unit] =
+    deepCopy(er.mb.fb, er.region, typ, src, dest)
+}
 
 class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
 
@@ -19,6 +103,10 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def this(mb: MethodBuilder, rowType: PType) = {
     this(mb, rowType, mb.getArg[Region](1), null)
+  }
+
+  def this (er: ir.EmitRegion, rowType: PType) = {
+    this(er.mb, rowType, er.region, null)
   }
 
   private val ftype = typ.fundamentalType
@@ -67,7 +155,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       c = Code(c, region.storeAddress(pOffset, startOffset))
     }
     if (init)
-      c = Code(c, t.initialize(region, startOffset, length, idx))
+      c = Code(c, t.stagedInitialize(startOffset, length))
     c = Code(c, elementsOffset.store(startOffset + t.elementsOffset(length)))
     Code(c, idx.store(0))
   }
@@ -75,10 +163,10 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def start(init: Boolean): Code[Unit] = {
     val t = ftype.asInstanceOf[PBaseStruct]
     var c = if (pOffset == null)
-      startOffset.store(region.allocate(t.alignment, t.byteSize))
+        startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
       startOffset.store(pOffset)
-    assert(staticIdx == 0)
+    staticIdx = 0
     if (t.size > 0)
       c = Code(c, elementsOffset := startOffset + t.byteOffsets(0))
     if (init)
@@ -97,15 +185,41 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     }
   }
 
-  def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toI.toB)
+  def checkType(knownType: Type): Unit = {
+    val current = ftype match {
+      case t: PArray => t.elementType.virtualType
+      case t: PBaseStruct =>
+        t.types(staticIdx).virtualType
+      case t => t.virtualType
+    }
+    if (!current.isOfType(knownType))
+      throw new RuntimeException(s"bad SRVB addition: expected $current, tried to add $knownType")
+  }
 
-  def addInt(v: Code[Int]): Code[Unit] = region.storeInt(currentOffset, v)
+  def addBoolean(v: Code[Boolean]): Code[Unit] = {
+    checkType(TBoolean())
+    region.storeByte(currentOffset, v.toI.toB)
+  }
 
-  def addLong(v: Code[Long]): Code[Unit] = region.storeLong(currentOffset, v)
+  def addInt(v: Code[Int]): Code[Unit] = {
+    checkType(TInt32())
+    region.storeInt(currentOffset, v)
+  }
 
-  def addFloat(v: Code[Float]): Code[Unit] = region.storeFloat(currentOffset, v)
+  def addLong(v: Code[Long]): Code[Unit] = {
+    checkType(TInt64())
+    region.storeLong(currentOffset, v)
+  }
 
-  def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
+  def addFloat(v: Code[Float]): Code[Unit] = {
+    checkType(TFloat32())
+    region.storeFloat(currentOffset, v)
+  }
+
+  def addDouble(v: Code[Double]): Code[Unit] = {
+    checkType(TFloat64())
+    region.storeDouble(currentOffset, v)
+  }
 
   def allocateBinary(n: Code[Int]): Code[Long] = {
     val boff = mb.newField[Long]
@@ -113,7 +227,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       boff := PBinary.allocate(region, n),
       region.storeInt(boff, n),
       ftype match {
-        case _: PBinary => _empty
+        case _: PBinary => startOffset := boff
         case _ =>
           region.storeAddress(currentOffset, boff)
       },
@@ -153,6 +267,18 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
+  def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = t.fundamentalType match {
+    case _: PBoolean => addBoolean(v.asInstanceOf[Code[Boolean]])
+    case _: PInt32 => addInt(v.asInstanceOf[Code[Int]])
+    case _: PInt64 => addLong(v.asInstanceOf[Code[Long]])
+    case _: PFloat32 => addFloat(v.asInstanceOf[Code[Float]])
+    case _: PFloat64 => addDouble(v.asInstanceOf[Code[Double]])
+    case _ =>
+      StagedRegionValueBuilder.deepCopy(
+        EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region),
+        t, coerce[Long](v), currentOffset)
+  }
+
   def advance(): Code[Unit] = {
     ftype match {
       case t: PArray => Code(
@@ -167,5 +293,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     }
   }
 
-  def end(): Code[Long] = startOffset
+  def end(): Code[Long] = {
+    startOffset
+  }
 }

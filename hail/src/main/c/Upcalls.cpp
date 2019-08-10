@@ -40,7 +40,6 @@ UpcallConfig::UpcallConfig() {
   auto cl4 = env->FindClass("is/hail/cxx/RegionValueIterator");
   RVIterator_hasNext_ = env->GetMethodID(cl4, "hasNext", "()Z");
   RVIterator_next_ = env->GetMethodID(cl4, "next", "()J");
-
 }
 
 namespace {

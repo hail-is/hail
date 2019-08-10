@@ -1,16 +1,19 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
+import java.io._
 
-import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
+import is.hail.{HailContext, asm4s}
 import is.hail.asm4s._
+import is.hail.backend.BackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.physical.{PTuple, PType}
+import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
+import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -44,12 +47,34 @@ object EmitFunctionBuilder {
     new EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-trait FunctionWithHadoopConfiguration {
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
+trait FunctionWithFS {
+  def addFS(fs: FS): Unit
+}
+
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
+
+  def setNumSerialized(i: Int): Unit
+
+  def setSerializedAgg(i: Int, b: Array[Byte]): Unit
+
+  def getSerializedAgg(i: Int): Array[Byte]
+}
+
+trait FunctionWithLiterals {
+  def addLiterals(lit: Array[Byte], r: Region): Unit
 }
 
 trait FunctionWithSeededRandomness {
   def setPartitionIndex(idx: Int): Unit
+}
+
+trait FunctionWithBackend {
+  def setBackend(spark: BackendUtils): Unit
 }
 
 class EmitMethodBuilder(
@@ -98,20 +123,32 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
+  private[this] val literalsMap: mutable.Map[(Type, Any), Code[_]] =
+    mutable.Map[(Type, Any), Code[_]]()
+
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElse(rg, {
+    rgMap.getOrElseUpdate(rg, {
       val fromParent = parentfb.getReferenceGenome(rg)
       val field = addField[ReferenceGenome](fromParent)
       field.load()
     })
 
   override def getType(t: Type): Code[Type] =
-    typMap.getOrElse(t, {
+    typMap.getOrElseUpdate(t, {
       val fromParent = parentfb.getType(t)
       val field = addField[Type](fromParent)
       field.load()
     })
 
+  override def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    literalsMap.getOrElseUpdate(t -> v, {
+      val fromParent = parentfb.addLiteral(v, t, region)
+      val ti: TypeInfo[_] = typeToTypeInfo(t)
+      val field = addField(fromParent, dummy = true)(ti)
+      field.load()
+    })
+  }
 }
 
 class EmitFunctionBuilder[F >: Null](
@@ -144,27 +181,165 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] var _hconf: SerializableHadoopConfiguration = _
-  private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
+  private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
+    mutable.Map[(Type, Any), ClassFieldRef[_]]()
+  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
 
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
-    assert(hConf != null)
-    if (_hconf == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
-      val confField = newField[SerializableHadoopConfiguration]
-      val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
+  def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
+    f.load()
+  }
+
+  private[this] def encodeLiterals(): Array[Byte] = {
+    val spec = CodecSpec.defaultUncompressed
+    val literals = literalsMap.toArray
+    val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
+
+    val dec = spec.buildEmitDecoderF[Long](litType, litType, this)
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
+    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]], typeInfo[Region]), typeInfo[Unit])
+    val off = mb2.newLocal[Long]
+    val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
+      f.storeAny(mb2.getArg[Region](2).load().loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
+    }
+
+    mb2.emit(Code(
+      encLitField := mb2.getArg[Array[Byte]](1),
+      off := dec(mb2.getArg[Region](2).load(),
+        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
+      Code(storeFields: _*)
+    ))
+    methods.append(mb2)
+
+    val baos = new ByteArrayOutputStream()
+    val enc = spec.buildEncoder(litType, litType)(baos)
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(litType)
+      rvb.startTuple()
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
+      rvb.endTuple()
+      enc.writeRegionValue(region, rvb.end())
+    }
+    enc.flush()
+    enc.close()
+    baos.toByteArray
+  }
+
+  private[this] var _hfs: FS = _
+  private[this] var _hfield: ClassFieldRef[FS] = _
+
+  private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
+  private[this] var _backendField: ClassFieldRef[BackendUtils] = _
+
+  private[this] var _aggSigs: Array[AggSignature2] = _
+  private[this] var _aggRegion: ClassFieldRef[Region] = _
+  private[this] var _aggOff: ClassFieldRef[Long] = _
+  private[this] var _aggState: agg.StateContainer = _
+  private[this] var _nSerialized: Int = 0
+  private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
+
+  def addAggStates(aggSigs: Array[AggSignature2]): (agg.StateContainer, Code[Long]) = {
+    if (_aggSigs != null) {
+      assert(aggSigs sameElements _aggSigs)
+      return _aggState -> _aggOff
+    }
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithAggRegion].iname)
+    _aggSigs = aggSigs
+    _aggRegion = newField[Region]
+    _aggOff = newField[Long]
+    _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray, _aggRegion)
+    _aggSerialized = newField[Array[Array[Byte]]]
+
+    val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
+    val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val getF = new EmitMethodBuilder(this, "getAggOffset", Array(), typeInfo[Long])
+    val setNSer = new EmitMethodBuilder(this, "setNumSerialized", Array(typeInfo[Int]), typeInfo[Unit])
+    val setSer = new EmitMethodBuilder(this, "setSerializedAgg", Array(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
+    val getSer = new EmitMethodBuilder(this, "getSerializedAgg", Array(typeInfo[Int]), typeInfo[Array[Byte]])
+
+    methods += newF
+    methods += setF
+    methods += getF
+    methods += setNSer
+    methods += setSer
+    methods += getSer
+
+    newF.emit(
+      Code(_aggRegion := newF.getArg[Region](1),
+        _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggState.toCode((i, s) => s.createState),
+        _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize),
+        _aggState.newStates))
+
+    setF.emit(
+      Code(
+        _aggRegion := setF.getArg[Region](1),
+        _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggState.toCode((i, s) => s.createState),
+        _aggOff := setF.getArg[Long](2),
+        _aggState.load(0, _aggOff)))
+
+    getF.emit(Code(_aggState.store(0, _aggOff), _aggOff))
+
+    setNSer.emit(_aggSerialized := Code.newArray[Array[Byte]](setNSer.getArg[Int](1)))
+
+    setSer.emit(_aggSerialized.load().update(setSer.getArg[Int](1), setSer.getArg[Array[Byte]](2)))
+
+    getSer.emit(_aggSerialized.load()(getSer.getArg[Int](1)))
+
+    _aggState -> _aggOff
+  }
+
+  def getSerializedAgg(i: Int): Code[Array[Byte]] = {
+    if (_nSerialized <= i)
+      _nSerialized = i + 1
+    _aggSerialized.load()(i)
+  }
+
+  def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = {
+    if (_nSerialized <= i)
+      _nSerialized = i + 1
+    _aggSerialized.load().update(i, b)
+  }
+
+  def backend(): Code[BackendUtils] = {
+    if (_backendField == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
+      val backendField = newField[BackendUtils]
+      val mb = new EmitMethodBuilder(this, "setBackend", Array(typeInfo[BackendUtils]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
-      _hconf = hConf
+      mb.emit(backendField := mb.getArg[BackendUtils](1))
+      _backendField = backendField
+    }
+    _backendField
+  }
+
+  def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+    _mods += name -> mod
+  }
+
+  def getFS: Code[FS] = {
+    if (_hfs == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
+      val confField = newField[FS]
+      val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
+      methods.append(mb)
+      mb.emit(confField := mb.getArg[FS](1))
+      _hfs = HailContext.sFS
       _hfield = confField
     }
-    assert(_hconf.value == hConf.value && _hfield != null)
-  }
 
-  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
-    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
+    assert(_hfs == HailContext.sFS && _hfield != null)
     _hfield.load()
   }
+
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+     getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
+
+  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("unsafeWriter", path)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
@@ -190,53 +365,49 @@ class EmitFunctionBuilder[F >: Null](
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
-        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], ti, typeInfo[Region], ti), rt)
+        val newMB = newMethod(Array[TypeInfo[_]](ti, ti), rt)
         val ord = t1.codeOrdering(newMB, t2)
-        val r1 = newMB.getArg[Region](1)
-        val r2 = newMB.getArg[Region](3)
-        val v1 = newMB.getArg(2)(ti)
-        val v2 = newMB.getArg(4)(ti)
+        val v1 = newMB.getArg(1)(ti)
+        val v2 = newMB.getArg(3)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compareNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.equiv => ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.lt => ord.ltNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.lteq => ord.lteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.gt => ord.gtNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.gteq => ord.gteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.neq => !ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.compare => ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.equiv => ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.lt => ord.ltNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.lteq => ord.lteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.gt => ord.gtNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.gteq => ord.gteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.neq => !ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
         }
         newMB.emit(c)
         newMB
       } else {
-        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], ti, typeInfo[Region], typeInfo[Boolean], ti), rt)
+        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
         val ord = t1.codeOrdering(newMB, t2)
-        val r1 = newMB.getArg[Region](1)
-        val r2 = newMB.getArg[Region](4)
-        val m1 = newMB.getArg[Boolean](2)
-        val v1 = newMB.getArg(3)(ti)
-        val m2 = newMB.getArg[Boolean](5)
-        val v2 = newMB.getArg(6)(ti)
+        val m1 = newMB.getArg[Boolean](1)
+        val v1 = newMB.getArg(2)(ti)
+        val m2 = newMB.getArg[Boolean](3)
+        val v2 = newMB.getArg(4)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.compare => ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.equiv => ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.lt => ord.lt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.lteq => ord.lteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.gt => ord.gt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.gteq => ord.gteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.neq => !ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
         }
         newMB.emit(c)
         newMB
       }
-      val f = { (rx: Code[Region], x: (Code[Boolean], Code[_]), ry: Code[Region], y: (Code[Boolean], Code[_])) =>
+      val f = { (x: (Code[Boolean], Code[_]), y: (Code[Boolean], Code[_])) =>
         if (ignoreMissingness)
-          newMB.invoke(rx, x._2, ry, y._2)
+          newMB.invoke(x._2, y._2)
         else
-          newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
+          newMB.invoke(x._1, x._2, y._1, y._2)
       }
       f
     })
-    (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
+    (v1: (Code[Boolean], Code[_]), v2: (Code[Boolean], Code[_])) => coerce[T](f(v1, v2))
   }
 
   def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
@@ -261,11 +432,14 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
-    val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
+  def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
+    val mb = new EmitMethodBuilder(this, s"${prefix}_${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb
   }
+
+  override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder =
+    newMethod("method", argsInfo, returnInfo)
 
   override def newMethod[R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](), typeInfo[R])
@@ -330,21 +504,31 @@ class EmitFunctionBuilder[F >: Null](
     rng
   }
 
-  def resultWithIndex(print: Option[PrintWriter] = None): Int => F = {
+  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
     makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
+    val hasLiterals: Boolean = literalsMap.nonEmpty
+    val literals: Array[Byte] = if (hasLiterals) encodeLiterals() else Array()
+
+    val literalsBc = HailContext.get.backend.broadcast(literals)
+
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
-    val localHConf = _hconf
+    val localFS = _hfs
+
+    val nSerializedAggs = _nSerialized
+
+    val useBackend = _backendField != null
+    val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
-    new ((Int) => F) with java.io.Serializable {
+    new ((Int, Region) => F) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(idx: Int): F = {
+      def apply(idx: Int, region: Region): F = {
         try {
           if (theClass == null) {
             this.synchronized {
@@ -355,8 +539,14 @@ class EmitFunctionBuilder[F >: Null](
             }
           }
           val f = theClass.newInstance().asInstanceOf[F]
-          if (localHConf != null)
-            f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+          if (localFS != null)
+            f.asInstanceOf[FunctionWithFS].addFS(localFS)
+          if (useBackend)
+            f.asInstanceOf[FunctionWithBackend].setBackend(backend)
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value, region)
+          if (nSerializedAggs != 0)
+            f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

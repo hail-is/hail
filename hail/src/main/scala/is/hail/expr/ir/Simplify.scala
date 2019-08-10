@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.table.Ascending
 import is.hail.utils._
 
@@ -131,6 +131,14 @@ object Simplify {
 
     case x@If(NA(_), _, _) => NA(x.typ)
 
+    case Coalesce(values) if isDefinitelyDefined(values.head) => values.head
+
+    case Coalesce(values) if values.zipWithIndex.exists { case (ir, i) => isDefinitelyDefined(ir) && i != values.size - 1 } =>
+      val idx = values.indexWhere(isDefinitelyDefined)
+      Coalesce(values.take(idx + 1))
+
+    case Coalesce(values) if values.size == 1 => values.head
+
     case x@ArrayMap(NA(_), _, _) => NA(x.typ)
 
     case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)
@@ -143,10 +151,6 @@ object Simplify {
 
     case IsNA(x) if isDefinitelyDefined(x) => False()
 
-    case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
-
-    case Let(n, _, b) if !Mentions(b, n) => b
-
     case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
 
     case x@If(False(), _, altr) if x.typ == altr.typ => altr
@@ -157,7 +161,15 @@ object Simplify {
       else
         If(IsNA(c), NA(cnsq.typ), cnsq)
 
+    case If(ApplyUnaryPrimOp(Bang(), c), cnsq, altr) => If(c, altr, cnsq)
+
+    case If(c1, If(c2, cnsq2, _), altr1) if c1 == c2 => If(c1, cnsq2, altr1)
+
+    case If(c1, cnsq1, If(c2, _, altr2)) if c1 == c2 => If(c1, cnsq1, altr2)
+
     case Cast(x, t) if x.typ == t => x
+
+    case CastRename(x, t) if x.typ == t => x
 
     case ApplyBinaryPrimOp(Add(), I32(0), x) => x
     case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
@@ -166,6 +178,17 @@ object Simplify {
 
     case ApplyIR("indexArray", Seq(a, i@I32(v))) if v >= 0 =>
       ArrayRef(a, i)
+
+    case ToArray(x) if x.typ.isInstanceOf[TArray] => x
+
+    case ApplyIR("contains", Seq(ToArray(x), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", x, element)
+
+    case ApplyIR("contains", Seq(Literal(t, v), element)) if t.isInstanceOf[TArray] =>
+      invoke("contains", Literal(TSet(t.asInstanceOf[TArray].elementType, t.required), v.asInstanceOf[IndexedSeq[_]].toSet), element)
+
+    case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", x, element)
+
+    case x: ApplyIR if x.body.size < 10 => x.explicitNode
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
@@ -188,8 +211,14 @@ object Simplify {
     case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayFlatMap(a, n1, Let(n2, b1, b2))
 
+    case ArrayMap(a, elt, r: Ref) if r.name == elt && r.typ == a.typ.asInstanceOf[TArray].elementType => a
+
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))
+
+    case NDArrayShape(MakeNDArray(_, shape, _)) => shape
+
+    case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
       val (_, x) = fields.find { case (n, _) => n == name }.get
@@ -231,6 +260,34 @@ object Simplify {
 
     case InsertFields(struct, Seq(), _) => struct
 
+    case Let(x, InsertFields(parentRef: Ref, insFields, ord1), InsertFields(Ref(x2, _), fields, ord2)) if x2 == x && {
+      val insFieldSet = insFields.map(_._1).toSet
+
+      def allRefsCanBePassedThrough(ir1: IR, newBindingEnv: BindingEnv[Type]): Boolean = ir1 match {
+        case GetField(Ref(`x`, _), fd) if !insFieldSet.contains(fd) => true
+        case Ref(`x`, _) => newBindingEnv.eval.lookupOption(x).isDefined
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case _ => ir1.children
+          .iterator
+          .zipWithIndex
+          .forall {
+            case (child: IR, idx) =>
+              allRefsCanBePassedThrough(child, ChildBindings(ir1, idx, newBindingEnv))
+            case _ => true
+          }
+      }
+
+      val baseEnv = BindingEnv(Env.empty[Type], Some(Env.empty[Type]), Some(Env.empty[Type]))
+      fields.forall { case (_, ir) =>
+        allRefsCanBePassedThrough(ir, baseEnv)
+      }
+    } =>
+      val e = Env[IR]((x, parentRef))
+      Subst(
+        InsertFields(InsertFields(parentRef, insFields, ord1), fields, ord2),
+        BindingEnv(e, Some(e), Some(e)))
+
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
 
@@ -250,11 +307,12 @@ object Simplify {
       assert(x2.typ == x.typ)
       x2
 
-    case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
+    case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
 
     case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
+    case TableCount(CastMatrixToTable(child, _, _)) => TableCount(MatrixRowsTable(child))
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
@@ -263,11 +321,18 @@ object Simplify {
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
-    case TableCount(TableIntervalJoin(child, _, _)) => TableCount(child)
+    case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+    case TableCount(TableExplode(child, path)) =>
+      TableAggregate(child,
+        ApplyAggOp(
+          FastIndexedSeq(),
+          None,
+          FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
+          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
 
     // TableGetGlobals should simplify very aggressively
     case TableGetGlobals(child) if child.typ.globalType == TStruct() => MakeStruct(FastSeq())
@@ -293,7 +358,7 @@ object Simplify {
     case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
       val uid = genUID()
       val ref = Ref(uid, child.typ.globalType)
-      Let(uid, TableGetGlobals(child), Subst(newGlobals, Env.empty[IR].bind("global", ref)))
+      Let(uid, TableGetGlobals(child), Subst(newGlobals, BindingEnv(Env.empty[IR].bind("global", ref))))
     case TableGetGlobals(TableExplode(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableUnion(children)) => TableGetGlobals(children.head)
     case TableGetGlobals(TableDistinct(child)) => TableGetGlobals(child)
@@ -314,6 +379,11 @@ object Simplify {
     case TableCollect(TableParallelize(x, _)) => x
     case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
 
+    case TableAggregate(TableMapRows(child, newRow), query) if !ContainsScan(newRow) =>
+      val uid = genUID()
+      TableAggregate(child,
+        AggLet(uid, newRow, Subst(query, BindingEnv(agg = Some(Env("row" -> Ref(uid, newRow.typ))))), isScan = false))
+
     case ApplyIR("annotate", Seq(s, MakeStruct(fields))) =>
       InsertFields(s, fields)
 
@@ -322,6 +392,9 @@ object Simplify {
     case ApplyComparisonOp(EQ(_, _), True(), expr) => expr
     case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang(), expr)
     case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang(), expr)
+
+    case ApplyUnaryPrimOp(Bang(), ApplyComparisonOp(op, l, r)) =>
+      ApplyComparisonOp(ComparisonOp.invert(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
@@ -398,12 +471,11 @@ object Simplify {
     case MatrixColsTable(MatrixRead(typ, dropCols, false, reader)) =>
       MatrixColsTable(MatrixRead(typ, dropCols, dropRows = true, reader))
 
-    case MatrixRowsTable(MatrixFilterRows(child, pred))
-      if !Mentions(pred, "g") && !Mentions(pred, "sa") && !ContainsAgg(pred) =>
+    case MatrixRowsTable(MatrixFilterRows(child, pred)) =>
       val mrt = MatrixRowsTable(child)
       TableFilter(
         mrt,
-        Subst(pred, Env("va" -> Ref("row", mrt.typ.rowType))))
+        Subst(pred, BindingEnv(Env("va" -> Ref("row", mrt.typ.rowType)))))
 
     case MatrixRowsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixRowsTable(child), newGlobals)
     case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
@@ -416,19 +488,15 @@ object Simplify {
     case MatrixRowsTable(MatrixKeyRowsBy(child, keys, isSorted)) => TableKeyBy(MatrixRowsTable(child), keys, isSorted)
 
     case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
-      if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") &&
-        !ContainsAgg(newRow) && canRepartition && isDeterministicallyRepartitionable(x) && !ContainsScan(newRow) =>
+      if newKey.isEmpty
+        && !ContainsAgg(newRow)
+        && canRepartition
+        && isDeterministicallyRepartitionable(x)
+        && !ContainsScan(newRow) =>
       val mct = MatrixColsTable(child)
       TableMapRows(
         mct,
-        Subst(newRow, Env("sa" -> Ref("row", mct.typ.rowType))))
-
-    case MatrixColsTable(MatrixFilterCols(child, pred))
-      if !Mentions(pred, "g") && !Mentions(pred, "va") =>
-      val mct = MatrixColsTable(child)
-      TableFilter(
-        mct,
-        Subst(pred, Env("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(newRow, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
 
     case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
@@ -438,7 +506,12 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
-    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) => TableMapGlobals(child, Let("global", ng1, ng2))
+    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
+      val uid = genUID()
+      TableMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
+
+    case TableHead(MatrixColsTable(child), n) if child.typ.colKey.isEmpty =>
+      if (n > Int.MaxValue) MatrixColsTable(child) else MatrixColsTable(MatrixColsHead(child, n.toInt))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -456,10 +529,10 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key) // FIXME: https://github.com/hail-is/hail/issues/6234
+        && sortFields.forall(_.sortOrder == Ascending)
         && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
-      val uid = genUID()
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
       val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
@@ -477,6 +550,12 @@ object Simplify {
           FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
+    case TableDistinct(TableDistinct(child)) => TableDistinct(child)
+    case TableDistinct(TableAggregateByKey(child, expr)) => TableAggregateByKey(child, expr)
+    case TableDistinct(TableMapRows(child, newRow)) => TableMapRows(TableDistinct(child), newRow)
+    case TableDistinct(TableLeftJoinRightDistinct(child, right, root)) => TableLeftJoinRightDistinct(TableDistinct(child), right, root)
+    case TableDistinct(TableRepartition(child, n, strategy)) if canRepartition => TableRepartition(TableDistinct(child), n, strategy)
+
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
 
@@ -489,6 +568,39 @@ object Simplify {
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
+
+    case TableZipUnchecked(left, right) if left.typ.rowType.size == 0 =>
+      if (left.typ.globalType.size == 0)
+        right
+      else
+        TableMapGlobals(right, TableGetGlobals(left))
+
+    // push down filter intervals nodes
+    case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
+      TableFilter(TableFilterIntervals(child, intervals, keep), pred)
+    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) if !ContainsScan(newRow) =>
+      TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
+      TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableRepartition(child, n, strategy), intervals, keep) =>
+      TableRepartition(TableFilterIntervals(child, intervals, keep), n, strategy)
+    case TableFilterIntervals(TableLeftJoinRightDistinct(child, right, root), intervals, true) =>
+      TableLeftJoinRightDistinct(TableFilterIntervals(child, intervals, true), TableFilterIntervals(right, intervals, true), root)
+    case TableFilterIntervals(TableIntervalJoin(child, right, root, product), intervals, keep) =>
+      TableIntervalJoin(TableFilterIntervals(child, intervals, keep), right, root, product)
+    case TableFilterIntervals(TableExplode(child, path), intervals, keep) =>
+      TableExplode(TableFilterIntervals(child, intervals, keep), path)
+    case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
+      TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
+    case TableFilterIntervals(TableFilterIntervals(child, i1, keep1), i2, keep2) if keep1 == keep2 =>
+      val ord = child.typ.keyType.ordering.intervalEndpointOrdering
+      val intervals = if (keep1)
+      // keep means intersect intervals
+        Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)
+      else
+      // remove means union intervals
+        Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
+      TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
@@ -505,6 +617,11 @@ object Simplify {
     case x@MatrixMapEntries(child, Ref("g", _)) =>
       assert(child.typ == x.typ)
       child
+
+    case x@MatrixMapEntries(MatrixMapEntries(child, newEntries1), newEntries2) =>
+      val uid = genUID()
+      val ne2 = Subst(newEntries2, BindingEnv(Env("g" -> Ref(uid, newEntries1.typ))))
+      MatrixMapEntries(child, Let(uid, newEntries1, ne2))
 
     case MatrixMapGlobals(child, Ref("global", _)) => child
 
@@ -533,10 +650,61 @@ object Simplify {
 
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
-    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
+    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
+      val uid = genUID()
+      MatrixMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
+
+    // Note: the following MMR and MMC fusing rules are much weaker than they could be. If they contain aggregations
+    // but those aggregations that mention "row" / "sa" but do not depend on the updated value, we should locally
+    // prune and fuse anyway.
+    case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va")
+      && !Exists.inIR(newRow2, {
+      case a: ApplyAggOp => a.initOpArgs.exists(_.exists(Mentions(_, "va"))) // Lowering produces invalid IR
+      case _ => false
+    }) =>
+      val uid = genUID()
+      MatrixMapRows(child, Let(uid, newRow1,
+        Subst(newRow2, BindingEnv[IR](Env(("va", Ref(uid, newRow1.typ))),
+          agg = Some(Env.empty[IR]),
+          scan = Some(Env.empty[IR])))))
+
+    case MatrixMapCols(MatrixMapCols(child, newCol1, nk1), newCol2, nk2) if !Mentions.inAggOrScan(newCol2, "sa") =>
+      val uid = genUID()
+      MatrixMapCols(child, Let(uid, newCol1,
+        Subst(newCol2, BindingEnv[IR](Env(("sa", Ref(uid, newCol1.typ))),
+          agg = Some(Env.empty[IR]),
+          scan = Some(Env.empty[IR])))),
+        if (nk2.isDefined) nk2 else nk1)
+
+    // bubble up MatrixColsHead node
+    case MatrixColsHead(MatrixMapCols(child, newCol, newKey), n) => MatrixMapCols(MatrixColsHead(child, n), newCol, newKey)
+    case MatrixColsHead(MatrixMapEntries(child, newEntries), n) => MatrixMapEntries(MatrixColsHead(child, n), newEntries)
+    case MatrixColsHead(MatrixFilterEntries(child, newEntries), n) => MatrixFilterEntries(MatrixColsHead(child, n), newEntries)
+    case MatrixColsHead(MatrixKeyRowsBy(child, keys, isSorted), n) => MatrixKeyRowsBy(MatrixColsHead(child, n), keys, isSorted)
+    case MatrixColsHead(MatrixAggregateRowsByKey(child, rowExpr, entryExpr), n) => MatrixAggregateRowsByKey(MatrixColsHead(child, n), rowExpr, entryExpr)
+    case MatrixColsHead(MatrixChooseCols(child, oldIndices), n) => MatrixChooseCols(child, oldIndices.take(n))
+    case MatrixColsHead(MatrixColsHead(child, n1), n2) => MatrixColsHead(child, math.min(n1, n2))
+    case MatrixColsHead(MatrixFilterRows(child, pred), n) => MatrixFilterRows(MatrixColsHead(child, n), pred)
+    case MatrixColsHead(MatrixRead(t, dr, dc, MatrixRangeReader(nRows, nCols, nPartitions)), n) =>
+      MatrixRead(t, dr, dc, MatrixRangeReader(nRows, math.min(nCols, n), nPartitions))
+    case MatrixColsHead(MatrixMapRows(child, newRow), n) if !Mentions.inAggOrScan(newRow, "sa") =>
+      MatrixMapRows(MatrixColsHead(child, n), newRow)
+    case MatrixColsHead(MatrixMapGlobals(child, newGlobals), n) => MatrixMapGlobals(MatrixColsHead(child, n), newGlobals)
+    case MatrixColsHead(MatrixAnnotateColsTable(child, table, root), n) => MatrixAnnotateColsTable(MatrixColsHead(child, n), table, root)
+    case MatrixColsHead(MatrixAnnotateRowsTable(child, table, root, product), n) => MatrixAnnotateRowsTable(MatrixColsHead(child, n), table, root, product)
+    case MatrixColsHead(MatrixRepartition(child, nPar, strategy), n) => MatrixRepartition(MatrixColsHead(child, n), nPar, strategy)
+    case MatrixColsHead(MatrixExplodeRows(child, path), n) => MatrixExplodeRows(MatrixColsHead(child, n), path)
+    case MatrixColsHead(MatrixUnionRows(children), n) =>
+      // could prevent a dimension mismatch error, but we view errors as undefined behavior, so this seems OK.
+      MatrixUnionRows(children.map(MatrixColsHead(_, n)))
+    case MatrixColsHead(MatrixDistinctByRow(child), n) => MatrixDistinctByRow(MatrixColsHead(child, n))
+    case MatrixColsHead(MatrixRename(child, glob, col, row, entry), n) => MatrixRename(MatrixColsHead(child, n), glob, col, row, entry)
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
     case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
+    case BlockMatrixSlice(BlockMatrixMap(child, f), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), f)
+    case BlockMatrixSlice(BlockMatrixMap2(l, r, f), slices) =>
+      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), f)
   }
 }

@@ -5,8 +5,8 @@ import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVDPartitioner
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
 import org.testng.Assert._
+import org.testng.annotations.Test
 
 class IntervalSuite extends TestNGSuite {
 

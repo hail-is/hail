@@ -318,7 +318,7 @@ object Call extends Serializable {
             unphasedDiploidGtIndex(Call2(p.j, p.k))
           } else
             unphasedDiploidGtIndex(c)
-        assert(udtn < nGenotypes, s"Invalid call found `${ c.toString }' for number of alleles equal to `$nAlleles'.")
+        assert(udtn < nGenotypes, s"Invalid call found '${ c.toString }' for number of alleles equal to '$nAlleles'.")
       case _ =>
         alleles(c).foreach(a => assert(a >= 0 && a < nAlleles))
     }

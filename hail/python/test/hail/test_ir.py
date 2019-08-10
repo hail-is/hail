@@ -29,7 +29,8 @@ class ValueIRTests(unittest.TestCase):
         table = ir.TableRange(5, 3)
 
         matrix_read = ir.MatrixRead(ir.MatrixNativeReader(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
+            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
+            False, False)
 
         block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader('fake_file_path'))
 
@@ -39,10 +40,11 @@ class ValueIRTests(unittest.TestCase):
             ir.NA(hl.tint32),
             ir.IsNA(i),
             ir.If(b, i, j),
+            ir.Coalesce(i, j),
             ir.Let('v', i, v),
             ir.Ref('x'),
-            ir.ApplyBinaryOp('+', i, j),
-            ir.ApplyUnaryOp('-', i),
+            ir.ApplyBinaryPrimOp('+', i, j),
+            ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i),
@@ -53,9 +55,13 @@ class ValueIRTests(unittest.TestCase):
             ir.ToDict(da),
             ir.ToArray(a),
             ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
-                           ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64)),
+                           ir.MakeTuple([ir.I64(1), ir.I64(2)]),
                            ir.TrueIR()),
-            ir.NDArrayRef(nd, ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64))),
+            ir.NDArrayShape(nd),
+            ir.NDArrayReshape(nd, ir.MakeTuple([ir.I64(5)])),
+            ir.NDArrayRef(nd, [ir.I64(1), ir.I64(2)]),
+            ir.NDArrayMap(nd, 'v', v),
+            ir.NDArrayMatMul(nd, nd),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),
@@ -65,13 +71,12 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayScan(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
             ir.ArrayFor(a, 'v', ir.Void()),
-            ir.AggFilter(ir.TrueIR(), ir.I32(0)),
-            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
-            ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
-            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
+            ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
+            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
+            ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
+            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', 'y', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
-            ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),
             ir.ApplyAggOp('CallStats', [], [ir.I32(2)], [call]),
             ir.ApplyAggOp('TakeBy', [ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)]),
             ir.Begin([ir.Void()]),
@@ -81,8 +86,6 @@ class ValueIRTests(unittest.TestCase):
             ir.GetField(s, 'x'),
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
-            ir.StringSlice(st, ir.I32(1), ir.I32(2)),
-            ir.StringLength(st),
             ir.In(2, hl.tfloat64),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', b, c),
@@ -95,10 +98,13 @@ class ValueIRTests(unittest.TestCase):
             ir.TableToValueApply(table, {'name': 'ForceCountTable'}),
             ir.MatrixToValueApply(matrix_read, {'name': 'ForceCountMatrixTable'}),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
-            ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
-            ir.TableExport(table, new_temp_file(), None, True, 0, ","),
+            ir.TableWrite(table, ir.TableNativeWriter(new_temp_file(), False, True, "fake_codec_spec$$")),
+            ir.TableWrite(table, ir.TableTextWriter(new_temp_file(), None, True, 0, ",")),
             ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
-            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "")),
+            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "", None, None)),
+            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "",
+                                                              '[{"start":{"row_idx":0},"end":{"row_idx": 10},"includeStart":true,"includeEnd":false}]',
+                                                              hl.dtype('array<interval<struct{row_idx:int32}>>'))),
             ir.MatrixWrite(matrix_read, ir.MatrixVCFWriter(new_temp_file(), None, False, None)),
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
@@ -113,7 +119,7 @@ class ValueIRTests(unittest.TestCase):
                'a': hl.tarray(hl.tint32),
                'aa': hl.tarray(hl.tarray(hl.tint32)),
                'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
-               'nd': hl.tndarray(hl.tfloat64),
+               'nd': hl.tndarray(hl.tfloat64, 1),
                'v': hl.tint32,
                's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
                't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
@@ -133,11 +139,12 @@ class TableIRTests(unittest.TestCase):
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
-            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
+            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
+            False, False)
 
         range = ir.TableRange(10, 4)
         table_irs = [
@@ -182,7 +189,8 @@ class TableIRTests(unittest.TestCase):
             ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
             ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
             ir.MatrixToTableApply(matrix_read, {'name': 'LinearRegressionRowsSingle', 'yFields': ['col_m'], 'xField': 'entry_m', 'covFields': [], 'rowBlockSize': 10, 'passThrough': []}),
-            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True})
+            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 
         return table_irs
@@ -201,9 +209,11 @@ class MatrixIRTests(unittest.TestCase):
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
-            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
+            ir.MatrixNativeReader(
+                resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
+            False, False)
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
         matrix_irs = [
@@ -211,6 +221,7 @@ class MatrixIRTests(unittest.TestCase):
             ir.MatrixUnionRows(matrix_range, matrix_range),
             ir.MatrixDistinctByRow(matrix_range),
             ir.MatrixRowsHead(matrix_read, 5),
+            ir.MatrixColsHead(matrix_read, 5),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
                 '__entries',
@@ -237,7 +248,9 @@ class MatrixIRTests(unittest.TestCase):
             ir.MatrixExplodeCols(matrix_read, ['col_aset']),
             ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo'),
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
-            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
+            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.MatrixRename(matrix_read, {'global_f32': 'global_foo'}, {'col_f32': 'col_foo'}, {'row_aset': 'row_aset2'}, {'entry_f32': 'entry_foo'}),
+            ir.MatrixFilterIntervals(matrix_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 
         return matrix_irs
@@ -249,6 +262,17 @@ class MatrixIRTests(unittest.TestCase):
             except Exception as e:
                 raise ValueError(str(x)) from e
 
+    def test_highly_nested_ir(self):
+        N = 10
+        M = 250
+        ht = hl.utils.range_table(N)
+        for i in range(M):
+            ht = ht.annotate(**{f'x{i}': i})
+        str(ht._tir)
+
+        # TODO: Scala Pretty errors out with a StackOverflowError here
+        # ht._force_count()
+
 
 class BlockMatrixIRTests(unittest.TestCase):
     def blockmatrix_irs(self):
@@ -256,8 +280,8 @@ class BlockMatrixIRTests(unittest.TestCase):
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
-        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryOp('+', ir.Ref('l'), ir.Ref('r')))
-        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
+        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')))
+        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryPrimOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)
@@ -271,6 +295,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
+        slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
 
         return [
             read,
@@ -285,7 +310,8 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_row,
             squared_bm,
             transpose,
-            matmul
+            matmul,
+            slice_bm
         ]
 
     def test_parses(self):
@@ -322,5 +348,5 @@ class ValueTests(unittest.TestCase):
                     ir.Ref("global"),
                     [("foo", row_v)],
                     None))
-            new_globals = hl.eval(hl.Table(map_globals_ir).globals)
-            self.assertEquals(new_globals, hl.Struct(foo=v))
+            new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
+            self.assertEqual(new_globals, hl.Struct(foo=v))

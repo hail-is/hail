@@ -1,15 +1,11 @@
 package is.hail.variant
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class LocusIntervalSuite extends SparkSuite {
-  val rg = ReferenceGenome.GRCh37
-  val pord = rg.locusType.ordering
-
-  def genomicInterval(contig: String, start: Int, end: Int): Interval =
-    Interval(Locus(contig, start), Locus(contig, end), true, false)
+class LocusIntervalSuite extends HailSuite {
+  def rg = ReferenceGenome.GRCh37
 
   @Test def testParser() {
     val xMax = rg.contigLength("X")
@@ -44,8 +40,8 @@ class LocusIntervalSuite extends SparkSuite {
     // test normalizing end points
     assert(Locus.parseInterval(s"(X:100-${ xMax + 1 })", rg) == Interval(Locus("X", 100), Locus("X", xMax), false, true))
     assert(Locus.parseInterval(s"(X:0-$xMax]", rg) == Interval(Locus("X", 1), Locus("X", xMax), true, true))
-    TestUtils.interceptFatal("Start `X:0' is not within the range")(Locus.parseInterval("[X:0-5)", rg))
-    TestUtils.interceptFatal(s"End `X:${ xMax + 1 }' is not within the range")(Locus.parseInterval(s"[X:1-${ xMax + 1 }]", rg))
+    TestUtils.interceptFatal("Start 'X:0' is not within the range")(Locus.parseInterval("[X:0-5)", rg))
+    TestUtils.interceptFatal(s"End 'X:${ xMax + 1 }' is not within the range")(Locus.parseInterval(s"[X:1-${ xMax + 1 }]", rg))
 
     assert(Locus.parseInterval("[16:29500000-30200000)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))
     assert(Locus.parseInterval("[16:29.5M-30.2M)", rg) == Interval(Locus("16", 29500000), Locus("16", 30200000), true, false))

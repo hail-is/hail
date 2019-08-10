@@ -8,7 +8,8 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter]))
+      List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
+        classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter]))
     override val typeHintFieldName: String = "name"
   }
 }
@@ -24,12 +25,12 @@ case class BlockMatrixNativeWriter(
   forceRowMajor: Boolean,
   stageLocally: Boolean) extends BlockMatrixWriter {
 
-  def apply(hc: HailContext, bm: BlockMatrix): Unit = bm.write(path, overwrite, forceRowMajor, stageLocally)
+  def apply(hc: HailContext, bm: BlockMatrix): Unit = bm.write(hc.sFS, path, overwrite, forceRowMajor, stageLocally)
 }
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
-    RichDenseMatrixDouble.exportToDoubles(hc, path, bm.toBreezeMatrix(), forceRowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(hc.sFS, path, bm.toBreezeMatrix(), forceRowMajor = true)
   }
 }
 
@@ -42,4 +43,28 @@ case class BlockMatrixRectanglesWriter(
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
     bm.exportRectangles(hc, path, rectangles, delimiter, binary)
   }
+}
+
+abstract class BlockMatrixMultiWriter {
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit
+}
+
+case class BlockMatrixBinaryMultiWriter(
+  prefix: String,
+  overwrite: Boolean) extends BlockMatrixMultiWriter {
+
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit =
+    BlockMatrix.binaryWriteBlockMatrices(bms, prefix, overwrite)
+}
+
+case class BlockMatrixTextMultiWriter(
+  prefix: String,
+  overwrite: Boolean,
+  delimiter: String,
+  header: Option[String],
+  addIndex: Boolean,
+  compression: Option[String]) extends BlockMatrixMultiWriter {
+
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit =
+    BlockMatrix.exportBlockMatrices(bms, prefix, overwrite, delimiter, header, addIndex, compression)
 }

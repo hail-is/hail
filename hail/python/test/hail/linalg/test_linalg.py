@@ -15,9 +15,9 @@ class Tests(unittest.TestCase):
     @staticmethod
     def _np_matrix(a):
         if isinstance(a, BlockMatrix):
-            return np.matrix(a.to_numpy())
+            return np.array(a.to_numpy())
         else:
-            return np.matrix(a)
+            return np.array(a)
 
     def _assert_eq(self, a, b):
         self.assertTrue(np.array_equal(self._np_matrix(a), self._np_matrix(b)))
@@ -160,17 +160,51 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
 
+        self._assert_eq(bm.to_numpy(_force_blocking=True), a)
+
+    def test_to_table(self):
+        schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
+        rows = [{'row_idx': 0, 'entries': [0.0, 1.0]},
+                {'row_idx': 1, 'entries': [2.0, 3.0]},
+                {'row_idx': 2, 'entries': [4.0, 5.0]},
+                {'row_idx': 3, 'entries': [6.0, 7.0]},
+                {'row_idx': 4, 'entries': [8.0, 9.0]}]
+
+        for n_partitions in [1, 2, 3]:
+            for block_size in [1, 2, 5]:
+                expected = hl.Table.parallelize(rows, schema, 'row_idx', n_partitions)
+                bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], block_size)
+                actual = bm.to_table_row_major(n_partitions)
+                self.assertTrue(expected._same(actual))
+
+    def test_to_matrix_table(self):
+        n_partitions = 2
+        rows, cols = 2, 5
+        bm = BlockMatrix._create(rows, cols, [float(i) for i in range(10)])
+        actual = bm.to_matrix_table_row_major(n_partitions)
+
+        expected = hl.utils.range_matrix_table(rows, cols)
+        expected = expected.annotate_entries(element=hl.float64(expected.row_idx * cols + expected.col_idx))
+        expected = expected.key_cols_by(col_idx=hl.int64(expected.col_idx))
+        expected = expected.key_rows_by(row_idx=hl.int64(expected.row_idx))
+        assert expected._same(actual)
+
+        bm = BlockMatrix.random(50, 100, block_size=25, seed=0)
+        mt = bm.to_matrix_table_row_major(n_partitions)
+        mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
+        assert mt._same(mt_round_trip)
+
     def test_elementwise_ops(self):
-        nx = np.matrix([[2.0]])
-        nc = np.matrix([[1.0], [2.0]])
-        nr = np.matrix([[1.0, 2.0, 3.0]])
-        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
         e = 2.0
-        x = BlockMatrix.from_numpy(nx)
-        c = BlockMatrix.from_numpy(nc)
-        r = BlockMatrix.from_numpy(nr)
-        m = BlockMatrix.from_numpy(nm)
+        x = BlockMatrix.from_numpy(nx, block_size=8)
+        c = BlockMatrix.from_numpy(nc, block_size=8)
+        r = BlockMatrix.from_numpy(nr, block_size=8)
+        m = BlockMatrix.from_numpy(nm, block_size=8)
 
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))
@@ -194,11 +228,11 @@ class Tests(unittest.TestCase):
         self._assert_eq(r + r, 2 * r)
         self._assert_eq(m + m, 2 * m)
 
-        self._assert_eq(x + c, np.matrix([[3.0], [4.0]]))
-        self._assert_eq(x + r, np.matrix([[3.0, 4.0, 5.0]]))
-        self._assert_eq(x + m, np.matrix([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(c + m, np.matrix([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(r + m, np.matrix([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
+        self._assert_eq(x + c, np.array([[3.0], [4.0]]))
+        self._assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
+        self._assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
+        self._assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
+        self._assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
         self._assert_eq(x + c, c + x)
         self._assert_eq(x + r, r + x)
         self._assert_eq(x + m, m + x)
@@ -236,11 +270,11 @@ class Tests(unittest.TestCase):
         self._assert_eq(r - r, np.zeros((1, 3)))
         self._assert_eq(m - m, np.zeros((2, 3)))
 
-        self._assert_eq(x - c, np.matrix([[1.0], [0.0]]))
-        self._assert_eq(x - r, np.matrix([[1.0, 0.0, -1.0]]))
-        self._assert_eq(x - m, np.matrix([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(c - m, np.matrix([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(r - m, np.matrix([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
+        self._assert_eq(x - c, np.array([[1.0], [0.0]]))
+        self._assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
+        self._assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
+        self._assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
+        self._assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
         self._assert_eq(x - c, -(c - x))
         self._assert_eq(x - r, -(r - x))
         self._assert_eq(x - m, -(m - x))
@@ -278,11 +312,11 @@ class Tests(unittest.TestCase):
         self._assert_eq(r * r, r ** 2)
         self._assert_eq(m * m, m ** 2)
 
-        self._assert_eq(x * c, np.matrix([[2.0], [4.0]]))
-        self._assert_eq(x * r, np.matrix([[2.0, 4.0, 6.0]]))
-        self._assert_eq(x * m, np.matrix([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(c * m, np.matrix([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(r * m, np.matrix([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
+        self._assert_eq(x * c, np.array([[2.0], [4.0]]))
+        self._assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
+        self._assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
+        self._assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
+        self._assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
         self._assert_eq(x * c, c * x)
         self._assert_eq(x * r, r * x)
         self._assert_eq(x * m, m * x)
@@ -320,11 +354,11 @@ class Tests(unittest.TestCase):
         self._assert_close(r / r, np.ones((1, 3)))
         self._assert_close(m / m, np.ones((2, 3)))
 
-        self._assert_close(x / c, np.matrix([[2 / 1.0], [2 / 2.0]]))
-        self._assert_close(x / r, np.matrix([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
-        self._assert_close(x / m, np.matrix([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(c / m, np.matrix([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(r / m, np.matrix([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
+        self._assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
+        self._assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
+        self._assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+        self._assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+        self._assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
         self._assert_close(x / c, 1 / (c / x))
         self._assert_close(x / r, 1 / (r / x))
         self._assert_close(x / m, 1 / (m / x))
@@ -347,19 +381,23 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nm, m / m)
 
     def test_special_elementwise_ops(self):
-        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
         m = BlockMatrix.from_numpy(nm)
 
         self._assert_close(m ** 3, nm ** 3)
         self._assert_close(m.sqrt(), np.sqrt(nm))
+        self._assert_close(m.ceil(), np.ceil(nm))
+        self._assert_close(m.floor(), np.floor(nm))
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
     def test_matrix_ops(self):
-        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
+        nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        square = BlockMatrix.from_numpy(nsquare, block_size=2)
 
-        nrow = np.matrix([[7.0, 8.0, 9.0]])
+        nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_numpy(nrow, block_size=2)
 
         self._assert_eq(m.T, nm.T)
@@ -379,9 +417,19 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: m @ m)
         self.assertRaises(ValueError, lambda: m @ nm)
 
-        self._assert_eq(m.diagonal(), np.array([1.0, 5.0]))
-        self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
-        self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
+        self._assert_eq(m.diagonal(), np.array([[1.0, 5.0]]))
+        self._assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
+        self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
+
+        self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
+        self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
+        self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
+                                                         [14.0, 15.0, 16.0],
+                                                         [16.0, 17.0, 18.0]]))
+        self._assert_eq(m.sum(axis=0) + row.T, np.array([[12.0, 14.0, 16.0],
+                                                         [13.0, 15.0, 17.0],
+                                                         [14.0, 16.0, 18.0]]))
+        self._assert_eq(square.sum(axis=0).T + square.sum(axis=1), np.array([[18.0], [30.0], [42.0]]))
 
     def test_fill(self):
         nd = np.ones((3, 5))
@@ -432,12 +480,16 @@ class Tests(unittest.TestCase):
                         (-8, slice(3, 4)),
                         (-1, slice(3, 4))]:
             self._assert_eq(bm[indices], np.expand_dims(nd[indices], 0))
+            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
+            self._assert_eq(bm - bm[indices], nd - nd[indices])
 
         for indices in [(slice(3, 4), 0),
                         (slice(3, 4), 1),
                         (slice(3, 4), -8),
                         (slice(3, 4), -1)]:
             self._assert_eq(bm[indices], np.expand_dims(nd[indices], 1))
+            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
+            self._assert_eq(bm - bm[indices], nd - nd[indices])
 
         for indices in [(slice(0, 8), slice(0, 10)),
                         (slice(0, 8, 2), slice(0, 10, 2)),
@@ -448,6 +500,8 @@ class Tests(unittest.TestCase):
                         (slice(4, None), slice(4, None)),
                         (slice(None, None), slice(None, None))]:
             self._assert_eq(bm[indices], nd[indices])
+            self._assert_eq(bm[indices][:, :2], nd[indices][:, :2])
+            self._assert_eq(bm[indices][:2, :], nd[indices][:2, :])
 
         self.assertRaises(ValueError, lambda: bm[0, ])
 
@@ -726,6 +780,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
+    def test_from_entry_expr_filtered(self):
+        mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
+        bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error
+        assert np.isnan(bm.entries().entry.collect()[0])
+
     def test_array_windows(self):
         def assert_eq(a, b):
             self.assertTrue(np.array_equal(a, np.array(b)))
@@ -798,7 +857,7 @@ class Tests(unittest.TestCase):
         assert_eq(starts, [0, 1, 1, 3, 3, 5])
         assert_eq(stops, [1, 3, 3, 5, 5, 6])
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         self.assertTrue('ascending order' in str(cm.exception))
 
@@ -824,30 +883,18 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
 
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
-
-    def test_compute_contig_start_idx(self):
-        res = hl.linalg.utils._compute_contig_start_idx(
-            global_pos=[0, 1, 2, 2, 4, 4, 5, 5],
-            contig_cum_len=[1, 2, 4, 8])
-        self.assertEqual(res, [0, 1, 2, 4])
-
-        res = hl.linalg.utils._compute_contig_start_idx(
-            global_pos=[0, 0, 1, 2, 3, 4, 5, 5],
-            contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
-
-        self.assertEqual(res, [0, 0, 2, 2, 4, 6])
 
     def test_write_overwrite(self):
         path = new_temp_file()

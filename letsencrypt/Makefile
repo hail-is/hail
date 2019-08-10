@@ -2,7 +2,7 @@ STATIC_CONFIG = letsencrypt-pod.yaml letsencrypt.sh
 
 .PHONY: $(STATIC_CONFIG) build push start-service run clean
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 
 $(STATIC_CONFIG): %: %.in

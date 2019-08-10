@@ -8,14 +8,14 @@ import is.hail.HailContext
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.conf.Configuration
+import is.hail.io.fs.FS
 
 import scala.language.postfixOps
 import scala.collection.concurrent
 
-class SerializableReferenceSequenceFile(val hConf: SerializableHadoopConfiguration, val fastaFile: String, val indexFile: String) extends Serializable {
+class SerializableReferenceSequenceFile(val fs: FS, val fastaFile: String, val indexFile: String) extends Serializable {
   @transient lazy val value = {
-    val localFastaFile = FASTAReader.getLocalFastaFileName(hConf.value, fastaFile, indexFile)
+    val localFastaFile = FASTAReader.getLocalFastaFileName(fs, fastaFile, indexFile)
     ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(localFastaFile))
   }
 }
@@ -26,32 +26,32 @@ object FASTAReader {
   def getLocalIndexFileName(fastaFile: String): String =
     ReferenceSequenceFileFactory.getFastaIndexFileName(new java.io.File(fastaFile).toPath).toString
 
-  def getLocalFastaFileName(hConf: Configuration, fastaFile: String, indexFile: String): String =
-    localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(hConf, fastaFile, indexFile))
+  def getLocalFastaFileName(fs: FS, fastaFile: String, indexFile: String): String =
+    localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(fs, fastaFile, indexFile))
 
-  def getUriLocalIndexFile(hConf: Configuration, indexFile: String): String = {
-    val tmpDir = TempDir(hConf)
+  def getUriLocalIndexFile(fs: FS, indexFile: String): String = {
+    val tmpDir = TempDir(fs)
     val localIndexFile = tmpDir.createLocalTempFile(extension = "fai")
-    hConf.copy(indexFile, localIndexFile)
+    fs.copy(indexFile, localIndexFile)
     uriPath(localIndexFile)
   }
 
-  def setup(hConf: Configuration, fastaFile: String, indexFile: String): String = {
-    val tmpDir = TempDir(hConf)
+  def setup(fs: FS, fastaFile: String, indexFile: String): String = {
+    val tmpDir = TempDir(fs)
     val localFastaFile = tmpDir.createLocalTempFile(extension = "fasta")
     val uriLocalFastaFile = uriPath(localFastaFile)
 
-    hConf.readFile(fastaFile) { in =>
-      hConf.writeFile(localFastaFile) { out =>
+    fs.readFile(fastaFile) { in =>
+      fs.writeFile(localFastaFile) { out =>
         IOUtils.copy(in, out)
       }}
 
     val localIndexFile = "file://" + getLocalIndexFileName(uriLocalFastaFile)
-    hConf.copy(indexFile, localIndexFile)
+    fs.copy(indexFile, localIndexFile)
 
-    if (!hConf.exists(localFastaFile))
+    if (!fs.exists(localFastaFile))
       fatal(s"Error while copying FASTA file to local file system. Did not find '$localFastaFile'.")
-    if (!hConf.exists(localIndexFile))
+    if (!fs.exists(localIndexFile))
       fatal(s"Error while copying FASTA index file to local file system. Did not find '$localIndexFile'.")
 
     uriLocalFastaFile
@@ -64,14 +64,14 @@ object FASTAReader {
     if (capacity <= 0)
       fatal(s"'capacity' must be greater than 0. Found $capacity.")
 
-    new FASTAReader(hc.sHadoopConf, rg, fastaFile, indexFile, blockSize, capacity)
+    new FASTAReader(hc.sFS, rg, fastaFile, indexFile, blockSize, capacity)
   }
 }
 
-class FASTAReader(val hConf: SerializableHadoopConfiguration, val rg: ReferenceGenome,
+class FASTAReader(val fs: FS, val rg: ReferenceGenome,
   val fastaFile: String, val indexFile: String, val blockSize: Int, val capacity: Int) extends Serializable {
 
-  val reader = new SerializableReferenceSequenceFile(hConf, fastaFile, indexFile)
+  val reader = new SerializableReferenceSequenceFile(fs, fastaFile, indexFile)
   assert(reader.value.isIndexed)
 
   @transient private[this] lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {

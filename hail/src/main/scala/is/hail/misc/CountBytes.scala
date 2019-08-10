@@ -20,7 +20,7 @@ class CountBytesRecordReader extends NewRecordReader[LongWritable, LongWritable]
 
   def initialize(genericSplit: NewInputSplit, context: NewTaskAttemptContext) {
     val split = genericSplit.asInstanceOf[NewFileSplit]
-    println("split", split)
+    println(("split", split))
     val job = context.getConfiguration
     start = split.getStart
     end = start + split.getLength
@@ -29,7 +29,7 @@ class CountBytesRecordReader extends NewRecordReader[LongWritable, LongWritable]
     val forceBGz = job.getBoolean("forceBGz", false)
 
     val path = file.toUri.getPath
-    println("path", path)
+    println(("path", path))
     bgzCompressed = (path.endsWith(".gz") && forceBGz) || path.endsWith(".bgz")
 
     // open the file and seek to the start of the split

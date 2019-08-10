@@ -1,4 +1,0 @@
-#!/bin/bash
-
-source activate hail
-jupyter "$@"

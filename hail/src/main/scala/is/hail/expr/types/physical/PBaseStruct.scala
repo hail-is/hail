@@ -125,6 +125,16 @@ abstract class PBaseStruct extends PType {
     region.allocate(alignment, byteSize)
   }
 
+  def setAllMissing(off: Code[Long]): Code[Unit] = {
+    var c: Code[Unit] = Code._empty
+    var i = 0
+    while (i < nMissingBytes) {
+      c = Code(c, Region.storeByte(off + i.toLong, const(0xFF.toByte)))
+      i += 1
+    }
+    c
+  }
+
   def clearMissingBits(region: Region, off: Long) {
     var i = 0
     while (i < nMissingBytes) {
@@ -133,15 +143,18 @@ abstract class PBaseStruct extends PType {
     }
   }
 
-  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] = {
+  def clearMissingBits(off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
     var i = 0
     while (i < nMissingBytes) {
-      c = Code(c, region.storeByte(off + i.toLong, const(0)))
+      c = Code(c, Region.storeByte(off + i.toLong, const(0)))
       i += 1
     }
     c
   }
+
+  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] =
+    clearMissingBits(off)
 
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
     isFieldDefined(rv.region, rv.offset, fieldIdx)
@@ -149,34 +162,46 @@ abstract class PBaseStruct extends PType {
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
-  def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+  def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (fieldRequired(fieldIdx))
       false
     else
-      region.loadBit(offset, missingIdx(fieldIdx))
+      Region.loadBit(offset, missingIdx(fieldIdx).toLong)
+
+  def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+    isFieldMissing(offset, fieldIdx)
+
+  def isFieldDefined(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+    !isFieldMissing(offset, fieldIdx)
 
   def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    !isFieldMissing(region, offset, fieldIdx)
+    isFieldDefined(offset, fieldIdx)
 
   def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
+    Region.setBit(offset, missingIdx(fieldIdx))
   }
+
+  def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
+    setFieldMissing(offset, fieldIdx)
 
   def setFieldPresent(region: Region, offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
     region.clearBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldPresent(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     assert(!fieldRequired(fieldIdx))
-    region.clearBit(offset, missingIdx(fieldIdx))
+    Region.clearBit(offset, missingIdx(fieldIdx))
   }
+
+  def setFieldPresent(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
+    setFieldPresent(offset, fieldIdx)
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
     offset + byteOffsets(fieldIdx)
@@ -194,12 +219,15 @@ abstract class PBaseStruct extends PType {
     }
   }
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Long] =
-    loadField(region, fieldOffset(offset, fieldIdx), types(fieldIdx))
+  def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] =
+    loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
 
-  private def loadField(region: Code[Region], fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
+  def loadField(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Long] =
+    loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
+
+  private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
     fieldType.fundamentalType match {
-      case _: PArray | _: PBinary => region.loadAddress(fieldOffset)
+      case _: PArray | _: PBinary => Region.loadAddress(fieldOffset)
       case _ => fieldOffset
     }
   }

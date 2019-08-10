@@ -1,8 +1,8 @@
 package is.hail.nativecode
 
-import java.io.ByteArrayOutputStream
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.cxx._
 import is.hail.expr.types.virtual.{TInt32, TInterval, TSet, TStruct, _}
@@ -12,7 +12,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class NativeEncoderSuite extends SparkSuite {
+class NativeEncoderSuite extends HailSuite {
 
   @Test def testCXXOutputStream(): Unit = {
     val tub = new TranslationUnitBuilder()
@@ -56,77 +56,85 @@ class NativeEncoderSuite extends SparkSuite {
     testOS.close()
   }
 
-  @Test def testOutputBuffers(): Unit = {
-    val tub = new TranslationUnitBuilder()
-    tub.include("hail/hail.h")
-    tub.include("hail/Encoder.h")
-    tub.include("hail/ObjectArray.h")
-    tub.include("<cstdio>")
-    tub.include("<memory>")
+  @Test def testOutputBuffers() {
+    CodecSpec.bufferSpecs.foreach { spec =>
+      val tub = new TranslationUnitBuilder()
+      tub.include("hail/hail.h")
+      tub.include("hail/Encoder.h")
+      tub.include("hail/ObjectArray.h")
+      tub.include("<cstdio>")
+      tub.include("<memory>")
 
-    val fb = tub.buildFunction("testOutputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
+      val fb = tub.buildFunction("testOutputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
 
-    val bytes = Array.tabulate[Byte](100)(i => new Integer(i + 97).byteValue())
+      val bytes = Array.tabulate[Byte](100)(i => new Integer(i + 97).byteValue())
 
-    fb +=
-      s"""
-         |UpcallEnv up;
-         |auto h = reinterpret_cast<ObjectArray*>(${ fb.getArg(1) });
-         |auto jos = h->at(0);
-         |
-         |auto os = std::make_shared<OutputStream>(up, jos);
-         |using LZ4Buf = LZ4OutputBlockBuffer<${ LZ4Utils.maxCompressedLength(32) + 4 }, StreamOutputBlockBuffer>;
-         |using BlockBuf = BlockingOutputBuffer<32, LZ4Buf>;
-         |LEB128OutputBuffer<BlockBuf> leb_buf {os};
-         |
-         |leb_buf.write_boolean(true);
-         |leb_buf.write_byte(3);
-         |leb_buf.write_int(3);
-         |leb_buf.write_long(3l);
-         |leb_buf.write_float(3.3f);
-         |leb_buf.write_double(3.3);
-         |leb_buf.write_bytes(new char[${ bytes.length }] {${ bytes.mkString(", ") }}, ${ bytes.length });
-         |leb_buf.flush();
-         |leb_buf.close();
-         |
-         |return 0;
+      fb +=
+        s"""
+           |UpcallEnv up;
+           |auto h = reinterpret_cast<ObjectArray*>(${ fb.getArg(1) });
+           |auto jos = h->at(0);
+           |
+           |auto os = std::make_shared<OutputStream>(up, jos);
+           |${ spec.nativeOutputBufferType } buf { os };
+           |
+           |buf.write_boolean(true);
+           |buf.write_byte(3);
+           |buf.write_int(3);
+           |buf.write_long(3);
+           |buf.write_float(3.3f);
+           |buf.write_double(3.3);
+           |buf.write_bytes(new char[${ bytes.length }] {${ bytes.mkString(", ") }}, ${ bytes.length });
+           |buf.flush();
+           |buf.close();
+           |
+           |return 0;
        """.stripMargin
 
-    val f = fb.end()
+      val f = fb.end()
 
-    val mod = tub.end().build("-O1 -llz4")
+      val mod = tub.end().build("-O1 -llz4")
 
-    val st = new NativeStatus()
-    val testOB = mod.findLongFuncL1(st, f.name)
-    assert(st.ok, st.toString())
-    mod.close()
+      val st = new NativeStatus()
+      val testOB = mod.findLongFuncL1(st, f.name)
+      assert(st.ok, st.toString())
+      mod.close()
 
-    val compiled = new ByteArrayOutputStream()
-    val objArray = new ObjectArray(compiled)
+      val compiled = new ByteArrayOutputStream()
+      val objArray = new ObjectArray(compiled)
 
-    assert(testOB(st, objArray.get()) == 0)
-    objArray.close()
-    testOB.close()
+      assert(testOB(st, objArray.get()) == 0)
+      objArray.close()
+      testOB.close()
 
-    val expected = new ByteArrayOutputStream()
-    Region.scoped { region =>
-      val ob = new LEB128OutputBuffer(
-        new BlockingOutputBuffer(32,
-          new LZ4OutputBlockBuffer(32,
-            new StreamBlockOutputBuffer(expected))))
-      ob.writeBoolean(true)
-      ob.writeByte(3)
-      ob.writeInt(3)
-      ob.writeLong(3)
-      ob.writeFloat(3.3f)
-      ob.writeDouble(3.3)
-      val off = region.allocate(bytes.length)
-      region.storeBytes(off, bytes)
-      ob.writeBytes(region, off, bytes.length)
-      ob.flush()
+      val expected = new ByteArrayOutputStream()
+      val ob = spec.buildOutputBuffer(expected)
+      Region.scoped { region =>
+        ob.writeBoolean(true)
+        ob.writeByte(3)
+        ob.writeInt(3)
+        ob.writeLong(3)
+        ob.writeFloat(3.3f)
+        ob.writeDouble (3.3)
+        val off = region.allocate(bytes.length)
+        region.storeBytes(off, bytes)
+        ob.writeBytes(region, off, bytes.length)
+        ob.flush()
+      }
+
+      val expectedDecoded = spec.buildInputBuffer(new ByteArrayInputStream(expected.toByteArray))
+      val actualDecoded = spec.buildInputBuffer(new ByteArrayInputStream(compiled.toByteArray))
+      assert(expectedDecoded.readBoolean() == actualDecoded.readBoolean())
+      assert(expectedDecoded.readByte() == actualDecoded.readByte())
+      assert(expectedDecoded.readInt() == actualDecoded.readInt())
+      assert(expectedDecoded.readLong() == actualDecoded.readLong())
+      assert(expectedDecoded.readFloat() == actualDecoded.readFloat())
+      assert(expectedDecoded.readDouble() == actualDecoded.readDouble())
+      bytes.foreach { b =>
+        assert(expectedDecoded.readByte() == b)
+        assert(actualDecoded.readByte() == b)
+      }
     }
-
-    assert(compiled.toByteArray sameElements expected.toByteArray)
   }
 
   @Test def testEncoder(): Unit = {

@@ -166,6 +166,26 @@ class SizedTupleChecker(TypeChecker):
         return 'tuple[' + ','.join(["{}".format(ec.expects()) for ec in self.ec]) + ']'
 
 
+class SliceChecker(TypeChecker):
+    def __init__(self, start_checker, stop_checker, step_checker):
+        self.startc = start_checker
+        self.stopc = stop_checker
+        self.stepc = step_checker
+        super(SliceChecker, self).__init__()
+
+    def check(self, x, caller, param):
+        if not isinstance(x, slice):
+            raise TypecheckFailure
+        start_ = self.startc.check(x.start, caller, param)
+        stop_ = self.stopc.check(x.stop, caller, param)
+        step_ = self.stepc.check(x.step, caller, param)
+
+        return slice(start_, stop_, step_)
+
+    def expects(self):
+        return f'slice[{self.startc.expects()}, {self.stopc.expects()}, {self.stepc.expects()}]'
+
+
 class LinkedListChecker(TypeChecker):
     def __init__(self, type):
         self.type = type
@@ -374,6 +394,10 @@ def tupleof(t):
 
 def sized_tupleof(*args):
     return SizedTupleChecker(*[only(x) for x in args])
+
+
+def sliceof(startt, stopt, stept):
+    return SliceChecker(only(startt), only(stopt), only(stept))
 
 
 def linked_list(t):

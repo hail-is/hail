@@ -1,0 +1,19 @@
+<suite name="DistributedBackendSuite" verbose="1">
+    <test name="TestDistributedBackend">
+        <classes>
+            <class name="is.hail.expr.ir.TableIRSuite">
+                <methods>
+                    <exclude name="testRangeRead" />
+                    <exclude name="testTableJoin" />
+                    <exclude name="testTableKeyBy" />
+                    <exclude name="testTableParallelize" />
+                    <exclude name="testShuffleAndJoinDoesntMemoryLeak" />
+                    <exclude name="testTableRename" />
+                    <exclude name="testTableWrite" />
+                    <exclude name="testTableMultiWayZipJoin" />
+                    <exclude name="testTableMultiWayZipJoinGlobals" />
+                </methods>
+            </class>
+        </classes>
+    </test>
+</suite>

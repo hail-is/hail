@@ -1,9 +1,0 @@
-name: scorecard
-dependencies:
-- python=3.7
-- flask
-- flask-cors
-- humanize
-- pip
-- pip:
-    - PyGithub

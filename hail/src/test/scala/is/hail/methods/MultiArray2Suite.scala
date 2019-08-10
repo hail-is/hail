@@ -1,10 +1,10 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.utils.MultiArray2
 import org.testng.annotations.Test
 
-class MultiArray2Suite extends SparkSuite{
+class MultiArray2Suite extends HailSuite{
   @Test def test() = {
 
     // test multiarray of size 0 will be created
@@ -55,18 +55,18 @@ class MultiArray2Suite extends SparkSuite{
 
     // Test zip with two ints
     val ma3 = ma1.zip(ma2)
-    assert(ma3(2,2) == (4,4))
-    assert(ma3(6,1) == (6,7))
+    assert(ma3(2,2) == ((4, 4)))
+    assert(ma3(6,1) == ((6, 7)))
 
     // Test zip with multi-arrays of different types
     val ma4 = MultiArray2.fill[String](10,3)("foo")
     val ma5 = ma1.zip(ma4)
-    assert(ma5(2,2) == (4,"foo"))
-    assert(ma5(0,0) == (0,"foo"))
+    assert(ma5(2,2) == ((4,"foo")))
+    assert(ma5(0,0) == ((0,"foo")))
 
     // Test row slice
     for (row <- ma5.rows; idx <- 0 until row.length) {
-      assert(row(idx) == (row.i*idx,"foo"))
+      assert(row(idx) == ((row.i*idx, "foo")))
     }
 
     intercept[IllegalArgumentException] {
@@ -97,7 +97,7 @@ class MultiArray2Suite extends SparkSuite{
 
     // Test column slice
     for (column <- ma5.columns; idx <- 0 until column.length) {
-      assert(column(idx) == (column.j*idx,"foo"))
+      assert(column(idx) == ((column.j*idx, "foo")))
     }
 
   }

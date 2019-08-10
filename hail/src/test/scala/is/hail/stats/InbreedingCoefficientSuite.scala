@@ -1,11 +1,11 @@
 package is.hail.stats
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
 import scala.language._
 
-class InbreedingCoefficientSuite extends SparkSuite {
+class InbreedingCoefficientSuite extends HailSuite {
 
   @Test def signatureIsCorrect() {
     assert(InbreedingCombiner.signature.typeCheck((new InbreedingCombiner()).asAnnotation))

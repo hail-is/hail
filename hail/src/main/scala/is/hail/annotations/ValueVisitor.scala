@@ -1,6 +1,5 @@
 package is.hail.annotations
 
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 
 trait ValueVisitor {

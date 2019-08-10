@@ -2,20 +2,18 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
-import org.apache.spark.util.StatCounter
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
-import scala.collection.JavaConverters._
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 object Aggregators {
 
@@ -36,33 +34,6 @@ class CountAggregator() extends TypedAggregator[Long] {
   }
 
   def copy() = new CountAggregator()
-}
-
-class FractionAggregator(f: (Any) => Any)
-  extends TypedAggregator[java.lang.Double] {
-
-  var _num = 0L
-  var _denom = 0L
-
-  def result =
-    if (_denom == 0L)
-      null
-    else
-      _num.toDouble / _denom
-
-  def seqOp(x: Any) {
-    val r = f(x)
-    _denom += 1
-    if (r.asInstanceOf[Boolean])
-      _num += 1
-  }
-
-  def combOp(agg2: this.type) {
-    _num += agg2._num
-    _denom += agg2._denom
-  }
-
-  def copy() = new FractionAggregator(f)
 }
 
 class ExistsAggregator(f: (Any) => Any)
@@ -105,69 +76,6 @@ class ForallAggregator(f: (Any) => Any)
   }
 
   def copy() = new ForallAggregator(f)
-}
-
-class StatAggregator() extends TypedAggregator[Annotation] {
-
-  var _state = new StatCounter()
-
-  def result = Annotation(
-    if (_state.count == 0d) null else _state.mean,
-    if (_state.count == 0d) null else _state.stdev,
-    if (_state.count == 0d) null else _state.min,
-    if (_state.count == 0d) null else _state.max,
-    _state.count,
-    _state.sum)
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(DoubleNumericConversion.to(x))
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new StatAggregator()
-}
-
-class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] {
-  var m = new mutable.HashMap[Any, Long]
-
-  def result: Map[Annotation, Long] = m.toMap
-
-  def seqOp(x: Any) {
-    // FIXME only need to copy on the first one
-    val cx = Annotation.copy(t, x)
-    m.updateValue(cx, 0L, _ + 1)
-  }
-
-  def combOp(agg2: this.type) {
-    agg2.m.foreach { case (k, v) =>
-      m.updateValue(k, 0L, _ + v)
-    }
-  }
-
-  def copy() = new CounterAggregator(t)
-}
-
-class HistAggregator(indices: Array[Double])
-  extends TypedAggregator[Annotation] {
-
-  var _state = new HistogramCombiner(indices)
-
-  def result = _state.toAnnotation
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(DoubleNumericConversion.to(x))
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new HistAggregator(indices)
 }
 
 class CollectSetAggregator(t: Type) extends TypedAggregator[Set[Any]] {
@@ -216,24 +124,6 @@ class InfoScoreAggregator(t: PType) extends TypedAggregator[Annotation] {
   }
 
   def copy() = new InfoScoreAggregator(t)
-}
-
-class HWEAggregator() extends TypedAggregator[Annotation] {
-
-  var _state = new HWECombiner()
-
-  def result = _state.asAnnotation
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(x.asInstanceOf[Call])
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new HWEAggregator()
 }
 
 class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregator[T] {
@@ -289,7 +179,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
       else {
         if (r.length != _state.length)
           fatal(
-            s"""cannot aggregate arrays of unequal length with `sum'
+            s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ _state.length }) and (${ r.length })""".stripMargin)
         else {
           var i = 0
@@ -310,7 +200,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
     else if (agg2._state != null) {
       if (_state.length != agg2state.length)
         fatal(
-          s"""cannot aggregate arrays of unequal length with `sum'
+          s"""cannot aggregate arrays of unequal length with 'sum'
              |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".
             stripMargin)
       for (i <- _state.indices)
@@ -324,6 +214,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
 class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
 
   import ev.numeric
+
   import Ordering.Implicits._
 
   var _state: T = ev.numeric.zero
@@ -352,6 +243,7 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   extends TypedAggregator[BoxedT] {
 
   import ev.numeric
+
   import Ordering.Implicits._
 
   var _state: T = ev.numeric.zero
@@ -527,26 +419,6 @@ class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type)
     val lra = new LinearRegressionAggregator(xF, k, k0, xType)
     lra.combiner = combiner.copy()
     lra
-  }
-}
-
-class PearsonCorrelationAggregator() extends TypedAggregator[Any] {
-  var combiner = new PearsonCorrelationCombiner()
-
-  def seqOp(xy: Any) = {
-    val (x, y) = xy.asInstanceOf[(Any, Any)]
-    if (x != null && y != null)
-      combiner.merge(x.asInstanceOf[Double], y.asInstanceOf[Double])
-  }
-
-  def combOp(agg2: this.type): Unit = combiner.merge(agg2.combiner)
-
-  def result: Annotation = combiner.result()
-
-  def copy(): TypedAggregator[Any] = {
-    val pca = new PearsonCorrelationAggregator()
-    pca.combiner = combiner.copy()
-    pca
   }
 }
 

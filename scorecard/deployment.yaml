@@ -1,0 +1,58 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: scorecard-deployment
+  labels:
+    app: scorecard
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: scorecard
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: scorecard
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+      - name: scorecard
+        image: "{{ scorecard_image.image }}"
+        resources:
+          requests:
+            memory: "500M"
+            cpu: "500m"
+        ports:
+        - containerPort: 5000
+        volumeMounts:
+          - mountPath: /secrets
+            readOnly: true
+            name: scorecard-github-access-token
+        readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: scorecard-github-access-token
+          secret:
+            secretName: scorecard-github-access-token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scorecard
+  labels:
+    app: scorecard
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: scorecard

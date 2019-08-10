@@ -2,9 +2,7 @@ package is.hail.stats
 
 import breeze.linalg._
 import is.hail.annotations.RegionValue
-import is.hail.expr._
 import is.hail.expr.ir.MatrixValue
-import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils._
@@ -65,7 +63,7 @@ object RegressionUtils {
       field.index
     }
     mv.colValues
-      .value
+      .javaValue
       .map { a =>
         val struct = a.asInstanceOf[Row]
         fieldIndices.map(i => Option(struct.get(i)).map(_.asInstanceOf[Double]))

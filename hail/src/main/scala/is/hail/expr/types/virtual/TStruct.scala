@@ -46,32 +46,17 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
-  val types: Array[Type] = fields.map(_.typ).toArray
+  lazy val types: Array[Type] = fields.map(_.typ).toArray
 
-  val fieldRequired: Array[Boolean] = types.map(_.required)
+  lazy val fieldIdx: collection.Map[String, Int] = toMapFast(fields)(_.name, _.index)
 
-  val fieldIdx: collection.Map[String, Int] =
-    toMapFast(fields)(_.name, _.index)
+  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
-  val fieldNames: Array[String] = fields.map(_.name).toArray
+  def size: Int = fields.length
 
-  if (!fieldNames.areDistinct()) {
-    val duplicates = fieldNames.duplicates()
-    fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
-      s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
-  }
+  override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize), required)
 
-  val size: Int = fields.length
-
-  override def truncate(newSize: Int): TStruct =
-    TStruct(fields.take(newSize), required)
-
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
-  val nMissingBytes = (nMissing + 7) >>> 3
-  val byteOffsets = new Array[Long](size)
-
-  val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
+  lazy val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
@@ -100,8 +85,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def field(name: String): Field = fields(fieldIdx(name))
 
   def fieldType(name: String): Type = types(fieldIdx(name))
-
-  def toTTuple: TTuple = new TTuple(types, required)
 
   override def fieldOption(path: List[String]): Option[Field] =
     if (path.isEmpty)
@@ -214,7 +197,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
 
-    val rightFieldIdx = other.fields.map { f => f.name -> (f.index, f.typ) }.toMap
+    val rightFieldIdx = other.fields.map { f => f.name -> (f.index -> f.typ) }.toMap
     val leftFields = fieldNames.toSet
 
     fields.foreach { f =>
@@ -284,7 +267,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
     fields.foreach { fd =>
       val n = fd.name
-      newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
+      newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
     TStruct(newFieldsBuilder.result(): _*)
   }
@@ -393,7 +376,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def typeAfterSelect(keep: IndexedSeq[Int]): TStruct =
     TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  override val fundamentalType: TStruct = {
+  override lazy val fundamentalType: TStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })

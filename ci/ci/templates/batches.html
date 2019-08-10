@@ -1,0 +1,49 @@
+<html lang="en">
+  <head>
+    <title>CI | Batches</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+  </head>
+  <body>
+    <p><a href="/">ci</a> : batches</p>
+    
+    <h1>Batches</h1>
+    {% if batches %}
+    <table>
+      <thead>
+        <tr>
+          <th align="right">id</th>
+          <th align="left">type</th>
+          <th align="left">state</th>
+        </tr>
+      </thead>
+      <tbody>
+	{% for batch in batches %}
+        <tr>
+          <td align="right">
+            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td align="left">
+            {% if 'attributes' in batch %}
+            {% if 'deploy' in batch['attributes'] %}
+            deploy
+            {% elif 'test' in batch['attributes'] %}
+            test
+            {% else %}
+            unknown
+            {% endif %}
+            {% endif %}
+          </td>
+          <td align="left">
+            {% if 'state' in batch and batch['state'] %}
+            {{ batch['state'] }}
+            {% endif %}
+            {% if not batch['complete'] %}
+            running
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </body>
+</html>

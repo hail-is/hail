@@ -24,10 +24,10 @@ object BinaryOp {
   }
 
   def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
-    returnType(op, l, r)
+    returnType((op, l, r))
 
   def getReturnType(op: BinaryOp, l: Type, r: Type): Type =
-    returnType(op, l, r).getOrElse(incompatible(l, r, op))
+    returnType((op, l, r)).getOrElse(incompatible(l, r, op))
 
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")

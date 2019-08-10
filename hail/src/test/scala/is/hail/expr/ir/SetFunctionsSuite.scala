@@ -103,24 +103,6 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("product", nas), null)
   }
 
-  @Test def max() {
-    assertEvalsTo(invoke("max", IRSet(7)), 7)
-    assertEvalsTo(invoke("max", IRSet(3, 7)), 7)
-    assertEvalsTo(invoke("max", IRSet(3, null, 7)), null)
-    assertEvalsTo(invoke("max", IRSet()), null)
-    assertEvalsTo(invoke("max", IRSet(null)), null)
-    assertEvalsTo(invoke("max", nas), null)
-  }
-
-  @Test def min() {
-    assertEvalsTo(invoke("min", IRSet(3)), 3)
-    assertEvalsTo(invoke("min", IRSet(3, 7)), 3)
-    assertEvalsTo(invoke("min", IRSet(3, null, 7)), null)
-    assertEvalsTo(invoke("min", IRSet()), null)
-    assertEvalsTo(invoke("min", IRSet(null)), null)
-    assertEvalsTo(invoke("min", nas), null)
-  }
-
   @Test def mean() {
     assertEvalsTo(invoke("mean", IRSet(3, 7)), 5.0)
     assertEvalsTo(invoke("mean", IRSet(3, null, 7)), null)

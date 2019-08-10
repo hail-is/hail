@@ -27,7 +27,7 @@ class OriginUnionRDD[T: ClassTag, S: ClassTag](
     arr
   }
 
-  override def getDependencies(): Seq[Dependency[_]] = {
+  override def getDependencies: Seq[Dependency[_]] = {
     val deps = new ArrayBuffer[Dependency[_]]
     var i = 0
     for (rdd <- rdds) {

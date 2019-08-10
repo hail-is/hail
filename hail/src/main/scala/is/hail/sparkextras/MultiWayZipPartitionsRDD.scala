@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
-import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
 
 import scala.reflect.ClassTag
 

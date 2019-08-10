@@ -2,26 +2,26 @@ package is.hail.nativecode
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.cxx._
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class RegionValueIteratorSuite extends SparkSuite {
+class RegionValueIteratorSuite extends HailSuite {
 
-  def getData(): (BufferSpec, TTuple, IndexedSeq[Row]) = {
+  def getData(): (BufferSpec, PTuple, IndexedSeq[Row]) = {
     val spec = new LEB128BufferSpec(
       new BlockingBufferSpec(32,
         new LZ4BlockBufferSpec(32,
           new StreamBlockBufferSpec)))
-    val t = TTuple(TInterval(TStruct("x"->TSet(TInt32()))))
+    val t = PTuple(PInterval(PStruct("x" -> PSet(PInt32()))))
 
     val a = FastIndexedSeq(
       Row(Interval(Row(Set(-1478292367)), Row(Set(2084728308)), true, true)),
@@ -35,10 +35,10 @@ class RegionValueIteratorSuite extends SparkSuite {
   @Test def testScalaRegionValueIterator(): Unit = {
     hc
     val (spec, t, a) = getData()
-    val decMod = PackDecoder.buildModule(t.physicalType, t.physicalType, spec)
+    val decMod = PackDecoder.buildModule(t, t, spec)
 
     val tub = new TranslationUnitBuilder
-    val encClass = PackEncoder(t.physicalType, spec, tub)
+    val encClass = PackEncoder(t, spec, tub)
 
     tub.include("<jni.h>")
     tub.include("hail/PartitionIterators.h")
@@ -65,12 +65,12 @@ class RegionValueIteratorSuite extends SparkSuite {
     val bin = mod.getBinary
 
     val result = hc.sc.parallelize(a, 2).mapPartitions { rowsIt =>
-      val rows = rowsIt.toIndexedSeq
+      val rows = rowsIt.toFastIndexedSeq
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
         val it = new RegionValueIterator(rows.toIterator.map { r =>
-          rvb.start(t.physicalType)
-          rvb.addAnnotation(t, r)
+          rvb.start(t)
+          rvb.addAnnotation(t.virtualType, r)
           RegionValue(region, rvb.end())
         })
 
@@ -86,7 +86,7 @@ class RegionValueIteratorSuite extends SparkSuite {
         val decoder = new NativePackDecoder(bais, decMod)
 
         rows.map { r =>
-          SafeRow(t.asInstanceOf[TBaseStruct].physicalType, region, decoder.readRegionValue(region))
+          SafeRow(t, region, decoder.readRegionValue(region))
         }.toIterator
       }
     }.collect()
@@ -97,9 +97,9 @@ class RegionValueIteratorSuite extends SparkSuite {
   @Test def testCXXRegionValueIterator(): Unit = {
     val (spec, t, a) = getData()
 
-    val encMod = PackEncoder.buildModule(t.physicalType, spec)
+    val encMod = PackEncoder.buildModule(t, spec)
     val tub = new TranslationUnitBuilder()
-    val decClass = PackDecoder(t.physicalType, t.physicalType, spec, tub)
+    val decClass = PackDecoder(t, t, "InputStream", spec, tub)
     tub.include("hail/PartitionIterators.h")
     tub.include("hail/ObjectArray.h")
     val makeItF = tub.buildFunction("make_iterator", Array("NativeStatus *"->"st", "long" -> "reg", "long" -> "obj"), "NativeObjPtr")
@@ -123,14 +123,14 @@ class RegionValueIteratorSuite extends SparkSuite {
     val makeIt = CXXRegionValueIterator(s"ScalaStagingIterator<$itType>", tub, modToPtr)
 
     val encoded = hc.sc.parallelize(a, 2).mapPartitions { case (rowsIt) =>
-      val rows = rowsIt.toIndexedSeq
+      val rows = rowsIt.toFastIndexedSeq
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
         val baos = new ByteArrayOutputStream()
         val encoder = new NativePackEncoder(baos, encMod)
         rows.foreach { r =>
-          rvb.start(t.physicalType)
-          rvb.addAnnotation(t, r)
+          rvb.start(t)
+          rvb.addAnnotation(t.virtualType, r)
           encoder.writeByte(1)
           encoder.writeRegionValue(region, rvb.end())
         }
@@ -142,7 +142,7 @@ class RegionValueIteratorSuite extends SparkSuite {
 
     val result = ContextRDD.weaken[RVDContext](encoded).cmapPartitions { case (ctx, it) =>
       makeIt(ctx.region, new ObjectArray(new ByteArrayInputStream(it.next())))
-    }.map(SafeRow(t.asInstanceOf[TBaseStruct].physicalType, _)).collect()
+    }.map(SafeRow(t, _)).collect()
 
     assert(result sameElements a)
   }

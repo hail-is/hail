@@ -1,14 +1,12 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
-import is.hail.check.Arbitrary._
+import is.hail.HailSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.utils.richUtils.RichHadoopConfiguration
-import is.hail.variant._
+import is.hail.io.fs.HadoopFS
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 
-class UtilsSuite extends SparkSuite {
+class UtilsSuite extends HailSuite {
   @Test def testD_==() {
     assert(D_==(1, 1))
     assert(D_==(1, 1 + 1E-7))
@@ -58,11 +56,11 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testHadoopStripCodec() {
-    assert(hadoopConf.stripCodec("file.tsv") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.gz") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.bgz") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.lz4") == "file.tsv")
-    assert(hadoopConf.stripCodec("file") == "file")
+    assert(sFS.stripCodec("file.tsv") == "file.tsv")
+    assert(sFS.stripCodec("file.tsv.gz") == "file.tsv")
+    assert(sFS.stripCodec("file.tsv.bgz") == "file.tsv")
+    assert(sFS.stripCodec("file.tsv.lz4") == "file.tsv")
+    assert(sFS.stripCodec("file") == "file")
   }
 
   @Test def testPairRDDNoDup() {
@@ -86,9 +84,9 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testSortFileStatus() {
-    val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-    val partFileNames = rhc.glob("src/test/resources/part-*").sortBy(fs => getPartNumber(fs.getPath.getName)).map(_.getPath.getName)
+    val partFileNames = fs.glob("src/test/resources/part-*").sortBy(fileSystem => getPartNumber(fileSystem.getPath.getName)).map(_.getPath.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }
@@ -112,72 +110,6 @@ class UtilsSuite extends SparkSuite {
     assert(stringList.sorted(ord1) == stringList)
     val ord2 = dictionaryOrdering(byFirstLetter, longestToShortestLength)
     assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
-  }
-
-  @Test def testUInt() {
-    assert(UInt((1L << 32) - 1) == 4294967295L)
-    assert(UInt(4294967295L) == 4294967295L)
-    assert(UInt(327886) == 327886)
-    assert(UInt(4294967295L) == 4294967295d)
-
-    assert(UInt(2147483647) + UInt(5) == UInt(2147483652L))
-    assert(UInt(2147483647) + 5 == UInt(2147483652L))
-    assert(UInt(2147483647) + 0.5 == 2147483647.5)
-    assert(UInt(2147483647) + 5L == 2147483652L)
-
-    assert(UInt(2147483647) - UInt(5) == UInt(2147483642L))
-    assert(UInt(2147483647) - 1 == UInt(2147483646L))
-    assert(UInt(2147483647) - 0.5 == 2147483646.5)
-    assert(UInt(2147483647) - 1L == 2147483646L)
-
-    assert(UInt(2147483647) * UInt(2) == UInt(4294967294L))
-    assert(UInt(2147483647) * 2 == UInt(4294967294L))
-    assert(UInt(2147483647) * 1.2 == 2.5769803764E9)
-    assert(UInt(2147483647) * 2L == 4294967294L)
-
-    assert(UInt(2147483647) / UInt(2) == UInt(1073741823L))
-    assert(UInt(2147483647) / 2 == UInt(1073741823L))
-    assert(UInt(2147483647) / 2.0 == 1073741823.5)
-    assert(UInt(2147483647) / 2L == 1073741823L)
-
-    assert(UInt(2147483647) == UInt(2147483647))
-    assert(UInt(2147483647) == 2147483647)
-    assert(UInt(2147483647) == 2147483647d)
-    assert(UInt(2147483647) == 2147483647L)
-
-    assert(UInt(4294967295L) != UInt(0))
-    assert(UInt(4294967295L) != -1)
-    assert(UInt(4294967295L) != 0.5)
-    assert(UInt(4294967295L) != -1L)
-
-    assert(UInt(4294967295L) > UInt(0))
-    assert(UInt(4294967295L) > -1)
-    assert(UInt(5) > 4.5)
-    assert(UInt(5) > -1L)
-
-    assert(UInt(4294967295L) >= UInt(0))
-    assert(UInt(5) >= -1)
-    assert(UInt(5) >= 4.5)
-    assert(UInt(5) >= -1L)
-
-    assert(UInt(0) < UInt(4294967295L))
-    assert(UInt(5000L) < 5500)
-    assert(UInt(4294967295L) < 4294967299.5)
-    assert(UInt(4294967295L) < 4294967299L)
-
-    assert(UInt(0) <= UInt(4294967295L))
-    assert(UInt(5000L) <= 5500)
-    assert(UInt(4294967295L) <= 4294967299.5)
-    assert(UInt(4294967295L) <= 4294967299L)
-
-    assert(UInt(4294967295L) == (UInt(4294967295L) + UInt(0)))
-
-    intercept[AssertionError](UInt(-5).toInt)
-    intercept[AssertionError](UInt(5L) - UInt(4294967295L))
-    intercept[AssertionError](UInt(4294967295L * 10))
-    intercept[AssertionError](UInt(4294967294L) + UInt(10))
-    intercept[AssertionError](UInt(-1) * UInt(2))
-    intercept[AssertionError](UInt(-3) + UInt(5) == UInt(2))
   }
 
   @Test def testCollectAsSet() {

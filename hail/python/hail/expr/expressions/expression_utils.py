@@ -130,6 +130,37 @@ def analyze(caller: str,
 
 
 @typecheck(expression=expr_any)
+def eval_timed(expression):
+    """Evaluate a Hail expression, returning the result and the times taken for
+    each stage in the evaluation process.
+
+    Parameters
+    ----------
+    expression : :class:`.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
+
+    Returns
+    -------
+    (Any, dict)
+        Result of evaluating `expression` and a dictionary of the timings
+    """
+    from hail.utils.java import Env
+
+    analyze('eval_timed', expression, Indices(expression._indices.source))
+
+    if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        return Env.backend().execute(expression._ir, True)
+    else:
+        uid = Env.get_uid()
+        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+        return Env.backend().execute(ir, True)
+
+
+@typecheck(expression=expr_any)
 def eval(expression):
     """Evaluate a Hail expression, returning the result.
 
@@ -149,13 +180,14 @@ def eval(expression):
 
     Parameters
     ----------
-    expression
+    expression : :class:`.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
 
     Returns
     -------
     Any
     """
-    return eval_typed(expression)[0]
+    return eval_timed(expression)[0]
 
 
 @typecheck(expression=expr_any)
@@ -187,18 +219,7 @@ def eval_typed(expression):
         Result of evaluating `expression`, and its type.
 
     """
-    from hail.utils.java import Env
-
-    analyze('eval_typed', expression, Indices(expression._indices.source))
-
-    if expression._indices.source is None:
-        ir_type = expression._ir.typ
-        expression_type = expression.dtype
-        if ir_type != expression.dtype:
-            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        return (Env.backend().execute(expression._ir), expression.dtype)
-    else:
-        return expression.collect()[0], expression.dtype
+    return eval(expression), expression.dtype
 
 
 def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
@@ -246,6 +267,19 @@ def matrix_table_source(caller, expr):
     if not isinstance(source, MatrixTable):
         raise ValueError(
             "{}: Expect an expression of 'MatrixTable', found {}".format(
+                caller,
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    return source
+
+
+@typecheck(caller=str,
+           expr=Expression)
+def table_source(caller, expr):
+    from hail import Table
+    source = expr._indices.source
+    if not isinstance(source, Table):
+        raise ValueError(
+            "{}: Expect an expression of 'Table', found {}".format(
                 caller,
                 "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     return source

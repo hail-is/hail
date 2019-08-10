@@ -3,15 +3,14 @@ package is.hail.stats
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
+import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
+import is.hail.expr.types.physical.{PFloat64, PInt64, PStruct}
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
@@ -27,17 +26,19 @@ object LinearMixedModel {
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
   
-  private val rowType = TStruct(
-      "idx" -> TInt64(),
-      "beta" -> TFloat64(),
-      "sigma_sq" -> TFloat64(),
-      "chi_sq" -> TFloat64(),
-      "p_value" -> TFloat64())
+  private val rowType = PStruct(
+      "idx" -> PInt64(),
+      "beta" -> PFloat64(),
+      "sigma_sq" -> PFloat64(),
+      "chi_sq" -> PFloat64(),
+      "p_value" -> PFloat64())
 
-  private val tableType = TableType(rowType, FastIndexedSeq("idx"), TStruct())
+  private val tableType = TableType(rowType.virtualType, FastIndexedSeq("idx"), TStruct())
 
   def toTableIR(rvd: RVD): TableIR = {
-    TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, HailContext.get.sc), rvd))
+    ExecuteContext.scoped { ctx =>
+      TableLiteral(TableValue(tableType, BroadcastRow.empty(ctx), rvd), ctx)
+    }
   }
 }
 
@@ -56,10 +57,9 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       fatal(s"pa_t and a_t must have the same number of rows, but found ${pa_t.nRows} and ${a_t.nRows}")
     else if (!(pa_t.partitionCounts() sameElements a_t.partitionCounts()))
       fatal(s"pa_t and a_t both have ${pa_t.nRows} rows, but row partitions are not aligned")
-        
-    val sc = hc.sc
-    val lmmDataBc = sc.broadcast(lmmData)
-    val rowType = LinearMixedModel.rowType.physicalType
+
+    val lmmDataBc = hc.backend.broadcast(lmmData)
+    val rowType = LinearMixedModel.rowType
 
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
       val LMMData(gamma, nullResidualSq, py, px, d, ydy, xdy0, xdx0, Some(y), Some(x)) = lmmDataBc.value
@@ -126,9 +126,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
   }
   
   def fitFullRank(pa_t: RowMatrix): TableIR = {
-    val sc = hc.sc
-    val lmmDataBc = sc.broadcast(lmmData)
-    val rowType = LinearMixedModel.rowType.physicalType
+    val lmmDataBc = hc.backend.broadcast(lmmData)
+    val rowType = LinearMixedModel.rowType
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value

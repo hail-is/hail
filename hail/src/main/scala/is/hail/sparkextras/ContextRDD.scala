@@ -7,12 +7,38 @@ import org.apache.spark.ExposedUtils
 
 import scala.reflect.ClassTag
 
-class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
+object Combiner {
+  def apply[U](zero: U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U] = {
+    assert(associative)
+    if (commutative)
+      new CommutativeAndAssociativeCombiner(zero, combine)
+    else
+      new AssociativeCombiner(zero, combine)
+  }
+}
+
+abstract class Combiner[U] {
+  def combine(i: Int, value0: U)
+
+  def result(): U
+}
+
+class CommutativeAndAssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] {
+  var state: U = zero
+
+  def combine(i: Int, value0: U): Unit = state = combine(state, value0)
+
+  def result(): U = state
+}
+
+class AssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] {
+
   case class TreeValue(var value: U, var end: Int)
 
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
   def combine(i: Int, value0: U) {
+    log.info(s"at result $i, AssociativeCombiner contains ${ t.size() } queued results")
     var value = value0
     var end = i
 
@@ -49,7 +75,7 @@ class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
 object ContextRDD {
   def apply[C <: AutoCloseable : Pointed, T: ClassTag](
     rdd: RDD[C => Iterator[T]]
-  ): ContextRDD[C, T] = new ContextRDD(rdd, point[C])
+  ): ContextRDD[C, T] = new ContextRDD(rdd, () => point[C]())
 
   def empty[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
@@ -60,7 +86,7 @@ object ContextRDD {
   def empty[C <: AutoCloseable : Pointed, T: ClassTag](
     sc: SparkContext
   ): ContextRDD[C, T] =
-    new ContextRDD(sc.emptyRDD[C => Iterator[T]], point[C])
+    new ContextRDD(sc.emptyRDD[C => Iterator[T]], () => point[C]())
 
   // this one weird trick permits the caller to specify T without C
   sealed trait Empty[T] {
@@ -76,7 +102,7 @@ object ContextRDD {
   def union[C <: AutoCloseable : Pointed, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
-  ): ContextRDD[C, T] = union(sc, xs, point[C])
+  ): ContextRDD[C, T] = union(sc, xs, () => point[C]())
 
   def union[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
@@ -180,7 +206,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   private[this] def sparkManagedContext(): C = {
     val c = mkc()
-    TaskContext.get().addTaskCompletionListener { _ =>
+    TaskContext.get().addTaskCompletionListener { (_: TaskContext) =>
       c.close()
     }
     c
@@ -423,6 +449,18 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       preservesPartitioning),
     mkc)
 
+  def cmapPartitionsWithIndexAndValue[U: ClassTag, V](
+    values: Array[V],
+    f: (Int, C, V, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] = new ContextRDD(
+    new MapPartitionsWithValueRDD[(C) => Iterator[T], (C) => Iterator[U], V](
+      rdd,
+      values,
+      (i, v, part) => inCtx(ctx => f(i, ctx, v, part.flatMap(_(ctx)))),
+      preservesPartitioning),
+    mkc)
+
   def cmapPartitionsAndContextWithIndex[U: ClassTag](
     f: (Int, C, Iterator[C => Iterator[T]]) => Iterator[U],
     preservesPartitioning: Boolean = false
@@ -578,8 +616,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       },
       partitions)
 
-  def blocked(partitionEnds: Array[Int]): ContextRDD[C, T] =
-    new ContextRDD(new BlockedRDD(rdd, partitionEnds), mkc)
+  def blocked(partFirst: Array[Int], partLast: Array[Int]): ContextRDD[C, T] = {
+    new ContextRDD(new BlockedRDD(rdd, partFirst, partLast), mkc)
+  }
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -588,8 +627,8 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def preferredLocations(partition: Partition): Seq[String] =
     rdd.preferredLocations(partition)
 
-  private[this] def clean[T <: AnyRef](value: T): T =
-    ExposedUtils.clean(sparkContext, value)
+  private[this] def clean[U <: AnyRef](value: U): U =
+    ExposedUtils.clean(value)
 
   def partitions: Array[Partition] = rdd.partitions
 

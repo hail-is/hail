@@ -1,10 +1,10 @@
 package is.hail.nativecode
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.cxx._
 import org.testng.annotations.Test
 
-class NativeCodeSuite extends SparkSuite {
+class NativeCodeSuite extends HailSuite {
 
   @Test def testNativePtr() = {
     var a = new NativeStatus()

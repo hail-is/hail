@@ -1,12 +1,12 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 
-class FlipbookIteratorSuite extends SparkSuite {
+class FlipbookIteratorSuite extends HailSuite {
 
   class Box[A] extends AnyRef {
     var value: A = _

@@ -4,6 +4,7 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 
+@SuppressWarnings("sunapi")
 public final class Memory {
     private static final Unsafe unsafe;
 
@@ -76,6 +77,10 @@ public final class Memory {
 
     public static void memcpy(byte[] dst, long dstOff, long src, long n) {
         copyToArray(dst, dstOff, src, n);
+    }
+
+    public static void memset(long offset, long size, byte b) {
+        unsafe.setMemory(offset, size, b);
     }
 
     public static boolean loadBoolean(long addr) {

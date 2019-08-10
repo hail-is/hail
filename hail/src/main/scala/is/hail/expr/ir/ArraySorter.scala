@@ -1,13 +1,13 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
-import is.hail.expr.types._
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.types.physical.{PArray, PType}
 
-class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
+class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
+  val mb: EmitMethodBuilder = r.mb
 
   def sort(sorter: DependentEmitFunction[_]): Code[Unit] = {
     val localF = ti match {
@@ -21,7 +21,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
   }
 
   def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, PArray(typ))
+    val srvb = new StagedRegionValueBuilder(r, PArray(typ))
     Code(
       srvb.start(array.size),
       Code.whileLoop(srvb.arrayIdx < array.size,
@@ -58,7 +58,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder) {
       i := 0,
       n := 0,
       Code.whileLoop(i < array.size,
-        Code.whileLoop(i < array.size && discardNext(mb.getArg[Region](1), array(n), array.isMissing(n), array(i), array.isMissing(i)),
+        Code.whileLoop(i < array.size && discardNext(r.region, array(n), array.isMissing(n), array(i), array.isMissing(i)),
           i += 1),
         n += 1,
         (i < array.size && i.cne(n)).mux(

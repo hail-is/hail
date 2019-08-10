@@ -1,16 +1,13 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.types.virtual._
 import is.hail.TestUtils._
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.testng.annotations.{BeforeClass, Test}
+import org.testng.annotations.Test
 
-class ArrayDeforestationSuite extends SparkSuite {
-
-  @BeforeClass def ensureHC() { initializeHailContext() }
-
+class ArrayDeforestationSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.values
 
   def primitiveArrayNoRegion(len: IR): IR =
@@ -49,7 +46,7 @@ class ArrayDeforestationSuite extends SparkSuite {
   }
 
   def arrayFoldWithStruct(len: IR, v1: Int, v2: Int): IR = {
-    val zero = MakeTuple(FastSeq(
+    val zero = MakeTuple.ordered(FastSeq(
       MakeStruct(FastSeq[(String, IR)]("f1" -> v1, "f2" -> v2)),
       MakeStruct(FastSeq[(String, IR)]("f1" -> v1, "f2" -> v2))))
     val array = arrayWithRegion(len)
@@ -59,7 +56,7 @@ class ArrayDeforestationSuite extends SparkSuite {
       array,
       zero,
       accum.name, value.name,
-      MakeTuple(FastSeq(GetTupleElement(accum, 1), value)))
+      MakeTuple.ordered(FastSeq(GetTupleElement(accum, 1), value)))
   }
 
   @Test def testArrayFold() {

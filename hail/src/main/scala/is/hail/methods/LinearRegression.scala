@@ -2,9 +2,10 @@ package is.hail.methods
 
 import breeze.linalg._
 import breeze.numerics.sqrt
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
@@ -14,13 +15,13 @@ import is.hail.utils._
 import net.sourceforge.jdistlib.T
 
 case class LinearRegressionRowsSingle(
-  yFields: Array[String],
+  yFields: Seq[String],
   xField: String,
-  covFields: Array[String],
+  covFields: Seq[String],
   rowBlockSize: Int,
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val schema = TStruct(
       ("n", TInt32()),
@@ -30,18 +31,16 @@ case class LinearRegressionRowsSingle(
       ("standard_error", TArray(TFloat64())),
       ("t_stat", TArray(TFloat64())),
       ("p_value", TArray(TFloat64())))
-    val tt = TableType(
+    TableType(
       childType.rowKeyStruct ++ passThroughType ++ schema,
       childType.rowKey,
       TStruct())
-
-    tt -> tt.canonicalRVDType
   }
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(mv: MatrixValue): TableValue = {
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields, covFields)
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
     val n = y.rows // n_complete_samples
     val k = cov.cols // nCovariates
@@ -62,12 +61,12 @@ case class LinearRegressionRowsSingle(
 
     val Qty = Qt * y
 
-    val sc = mv.sparkContext
-    val completeColIdxBc = sc.broadcast(completeColIdx)
-    val yBc = sc.broadcast(y)
-    val QtBc = sc.broadcast(Qt)
-    val QtyBc = sc.broadcast(Qty)
-    val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
+    val backend = HailContext.backend
+    val completeColIdxBc = backend.broadcast(completeColIdx)
+    val yBc = backend.broadcast(y)
+    val QtBc = backend.broadcast(Qt)
+    val QtyBc = backend.broadcast(Qty)
+    val yypBc = backend.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
@@ -77,7 +76,9 @@ case class LinearRegressionRowsSingle(
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (tableType, rvdType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val rvdType = tableType.canonicalRVDType
+
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
     val nDependentVariables = yFields.length
 
@@ -166,18 +167,18 @@ case class LinearRegressionRowsSingle(
             }
           }
       })
-    TableValue(tableType, BroadcastRow.empty(), newRVD)
+    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
 
 case class LinearRegressionRowsChained(
-  yFields: Array[Array[String]],
+  yFields: Seq[Seq[String]],
   xField: String,
-  covFields: Array[String],
+  covFields: Seq[String],
   rowBlockSize: Int,
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val chainedSchema = TStruct(
       ("n", TArray(TInt32())),
@@ -187,19 +188,17 @@ case class LinearRegressionRowsChained(
       ("standard_error", TArray(TArray(TFloat64()))),
       ("t_stat", TArray(TArray(TFloat64()))),
       ("p_value", TArray(TArray(TFloat64()))))
-    val tt = TableType(
+    TableType(
       childType.rowKeyStruct ++ passThroughType ++ chainedSchema,
       childType.rowKey,
       TStruct())
-
-    tt -> tt.canonicalRVDType
   }
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
 
-    val localData = yFields.map(RegressionUtils.getPhenosCovCompleteSamples(mv, _, covFields))
+    val localData = yFields.map(y => RegressionUtils.getPhenosCovCompleteSamples(mv, y.toArray, covFields.toArray))
 
     val k = covFields.length // nCovariates
     val bcData = localData.zipWithIndex.map { case ((y, cov, completeColIdx), i) =>
@@ -222,8 +221,7 @@ case class LinearRegressionRowsChained(
       ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
     }
 
-    val sc = mv.sparkContext
-    val bc = sc.broadcast(bcData)
+    val bc = HailContext.backend.broadcast(bcData)
     val nGroups = bcData.length
 
     val fullRowType = mv.rvd.rowPType
@@ -235,7 +233,8 @@ case class LinearRegressionRowsChained(
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (tableType, rvdType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val rvdType = tableType.canonicalRVDType
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
 
     val newRVD = mv.rvd.boundary.mapPartitions(
@@ -355,7 +354,7 @@ case class LinearRegressionRowsChained(
             }
           }
       })
-    TableValue(tableType, BroadcastRow.empty(), newRVD)
+    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
 

@@ -4,7 +4,7 @@ set -e
 
 REVISION=$(git rev-parse HEAD)
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-DATE=$(git rev-parse --abbrev-ref HEAD)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 URL=$(git config --get remote.origin.url)
 SPARK_VERSION=$1
 HAIL_PIP_VERSION=$2

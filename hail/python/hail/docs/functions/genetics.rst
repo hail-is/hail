@@ -11,6 +11,7 @@ Genetics functions
     parse_locus
     parse_variant
     parse_locus_interval
+    variant_str
     call
     unphased_diploid_gt_index_call
     parse_call
@@ -42,6 +43,7 @@ Genetics functions
 .. autofunction:: parse_locus
 .. autofunction:: parse_variant
 .. autofunction:: parse_locus_interval
+.. autofunction:: variant_str
 .. autofunction:: call
 .. autofunction:: unphased_diploid_gt_index_call
 .. autofunction:: parse_call

@@ -86,32 +86,24 @@ object ExtendedOrdering {
       private val elemOrd = if (ord != null) ord.toOrdering else null
 
       def compareNonnull(x: T, y: T): Int = {
-        val ax = x.asInstanceOf[Array[T]]
-        val ay = y.asInstanceOf[Array[T]]
         itOrd.compareNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
           y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
       }
 
       override def ltNonnull(x: T, y: T): Boolean = {
-        val ax = x.asInstanceOf[Array[T]]
-        val ay = y.asInstanceOf[Array[T]]
         itOrd.ltNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
           y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
       }
 
       override def lteqNonnull(x: T, y: T): Boolean = {
-        val ax = x.asInstanceOf[Array[T]]
-        val ay = y.asInstanceOf[Array[T]]
         itOrd.lteqNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
           y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
       }
 
       override def equivNonnull(x: T, y: T): Boolean = {
-        val ax = x.asInstanceOf[Array[T]]
-        val ay = y.asInstanceOf[Array[T]]
         itOrd.equivNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
           y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)

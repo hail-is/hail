@@ -1,15 +1,15 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.utils._
-import org.testng.annotations.Test
 import org.testng.SkipException
+import org.testng.annotations.Test
 
 import scala.language.postfixOps
 import scala.sys.process._
 
-class LogisticRegressionModelSuite extends SparkSuite {
+class LogisticRegressionModelSuite extends HailSuite {
 
   @Test def covariatesVsInterceptOnlyTest() {
 
@@ -140,110 +140,6 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(scoreStats.p, 0.3724319159, tolerance = 1.0E-5))
   }
 
-  @Test def covariatesVsInterceptOnlyR() {
-    if (sys.env.contains("HAIL_TEST_SKIP_R")) {
-      throw new SkipException("Skipping tests requiring Rscript")
-    }
-
-    val tol = 1E-5
-
-    def assertArray(v: DenseVector[Double], a: Array[Double], tolerance: Double = tol) {
-      assert(v.length == a.length)
-      (v.data, a).zipped.foreach((ai, bi) => assert(D_==(ai, bi, tolerance)))
-    }
-
-    def readResults(file: String) = {
-      hadoopConf.readLines(file) {
-        _.map {
-          _.map { _.split("""\t""").map(_.toDouble) }.value
-        }.toArray
-      }
-    }
-
-    def jsonStr[T](arr: Array[T]) = arr.mkString("[ ", ", ", " ]")
-
-    val rows = 6
-    val cols = 2
-    val XArray = Array[Double](0, 2, 1, -2, -2, 4, -1, 3, 5, 0, -4, 3)
-    val yArray = Array[Double](0, 0, 1, 1, 1, 1)
-
-    val jsonString =
-      s"""{"rows": $rows,
-          |"cols": $cols,
-          |"X": ${ jsonStr(XArray) },
-          |"y": ${ jsonStr(yArray) }
-          |}""".stripMargin
-
-    val inputFile = tmpDir.createLocalTempFile("localInput", ".json")
-    val waldFile = tmpDir.createLocalTempFile("localWald", ".tsv")
-    val lrtFile = tmpDir.createLocalTempFile("localLRT", ".tsv")
-    val scoreFile = tmpDir.createLocalTempFile("localScore", ".tsv")
-    val firthFitFile = tmpDir.createLocalTempFile("firthfit", ".tsv")
-    val firthLrtFile = tmpDir.createLocalTempFile("firthlrt", ".tsv")
-
-    hadoopConf.writeTextFile(inputFile) { _.write(jsonString) }
-
-    val rScript = s"Rscript src/test/resources/regressionLogistic.R " +
-      s"${ uriPath(inputFile) } " + s"${ uriPath(waldFile) } ${ uriPath(lrtFile) } " +
-      s"${ uriPath(scoreFile) } ${ uriPath(firthFitFile) } ${ uriPath(firthLrtFile) }"
-
-    rScript !
-
-    val waldR = readResults(waldFile)
-    val lrtR = readResults(lrtFile)
-    val scoreR = readResults(scoreFile)
-    val firthFitR = readResults(firthFitFile)
-    val firthLrtR = readResults(firthLrtFile)
-
-    val waldBR = waldR.map(_ (0))
-    val waldSeR = waldR.map(_ (1))
-    val waldZR = waldR.map(_ (2))
-    val waldPR = waldR.map(_ (3))
-
-    val lrtChi2R = lrtR(0)(0)
-    val lrtPR = lrtR(1)(0)
-
-    val scoreChi2R = scoreR(0)(0)
-    val scorePR = scoreR(1)(0)
-
-    val firthBR = firthFitR.map(_(0))
-    val firthLogLkhd0R = firthLrtR(0)(0)
-    val firthLogLkhdR = firthLrtR(1)(0)
-    val firthChi2R = 2 * (firthLogLkhdR - firthLogLkhd0R)
-    val firthPValR = firthLrtR(2)(0)
-
-    val y = DenseVector(yArray)
-    val C = new DenseMatrix(rows, cols, XArray)
-    val ones = DenseMatrix.fill[Double](6, 1)(1d)
-
-    val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.fit()
-
-    val X = DenseMatrix.horzcat(ones, C)
-
-    val waldStats = WaldTest.test(X, y, nullFit, "logistic").stats.get
-    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic").stats.get
-    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic").stats.get
-    val firthTest = LogisticFirthTest.test(X, y, nullFit, "logistic")
-    val firthStats = firthTest.stats.get
-    val firthFit = firthTest.fitStats
-
-    assertArray(waldStats.b, waldBR)
-    assertArray(waldStats.se, waldSeR)
-    assertArray(waldStats.z, waldZR)
-    assertArray(waldStats.p, waldPR)
-
-    assert(D_==(lrStats.chi2, lrtChi2R, tol))
-    assert(D_==(lrStats.p, lrtPR, tol))
-
-    assert(D_==(scoreStats.chi2, scoreChi2R, tol))
-    assert(D_==(scoreStats.p, scorePR, tol))
-
-    assertArray(firthStats.b, firthBR)
-    assert(D_==(firthFit.logLkhd, firthLogLkhdR, tol))
-    assert(D_==(firthStats.p, firthPValR, tol))
-  }
-  
   @Test def firthSeparationTest() {
     val y = DenseVector(0d, 0d, 0d, 1d, 1d, 1d)
     val X = y.asDenseMatrix.t

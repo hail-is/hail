@@ -1,16 +1,18 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.expr.ir._
-import is.hail.table.Table
 import is.hail.annotations._
-import is.hail.expr.types.physical.PString
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
+import is.hail.expr.ir._
+import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.types.physical.{PFloat64, PInt64, PString, PStruct}
+import is.hail.expr.types.virtual.{TFloat64, TStruct}
+import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
-import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
-import org.apache.spark.rdd.RDD
+import is.hail.table.Table
 import is.hail.utils._
+import is.hail.variant.{Call, Genotype, HardCallView}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.higherKinds
@@ -20,10 +22,8 @@ object IBDInfo {
     IBDInfo(Z0, Z1, Z2, Z1 / 2 + Z2)
   }
 
-  val signature =
-    TStruct(("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()), ("PI_HAT", TFloat64()))
-
-  private val pType = signature.physicalType
+  val pType =
+    PStruct(("Z0", PFloat64()), ("Z1", PFloat64()), ("Z2", PFloat64()), ("PI_HAT", PFloat64()))
 
   def fromRegionValue(rv: RegionValue): IBDInfo =
     fromRegionValue(rv.region, rv.offset)
@@ -54,10 +54,8 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
 }
 
 object ExtendedIBDInfo {
-  val signature =
-    TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64()), ("ibs1", TInt64()), ("ibs2", TInt64()))
-
-  private val pType = signature.physicalType
+  val pType =
+    PStruct(("ibd", IBDInfo.pType), ("ibs0", PInt64()), ("ibs1", PInt64()), ("ibs2", PInt64()))
 
   def fromRegionValue(rv: RegionValue): ExtendedIBDInfo =
     fromRegionValue(rv.region, rv.offset)
@@ -217,8 +215,8 @@ object IBD {
 
     val nSamples = input.nCols
 
-    val rowType = input.typ.rvRowType
-    val rowPType = rowType.physicalType
+    val rowType = input.rvRowType
+    val rowPType = input.rvRowPType
     val unnormalizedIbse = input.rvd.mapPartitions { it =>
       val view = HardCallView(rowPType)
       it.map { rv =>
@@ -291,7 +289,7 @@ object IBD {
           eibd = calculateIBDInfo(ibses(idx * 3), ibses(idx * 3 + 1), ibses(idx * 3 + 2), ibse, bounded)
           if min.forall(eibd.ibd.PI_HAT >= _) && max.forall(eibd.ibd.PI_HAT <= _)
         } yield {
-          rvb.start(ibdSignature.physicalType)
+          rvb.start(ibdPType)
           rvb.startStruct()
           rvb.addString(sampleIds(i))
           rvb.addString(sampleIds(j))
@@ -303,37 +301,12 @@ object IBD {
       }
   }
 
-  def pyApply(inputIR: MatrixIR,
-    mafFieldName: Option[String] = None,
-    bounded: Boolean = true,
-    min: Option[Double] = None,
-    max: Option[Double] = None): TableIR = {
-    min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
-    max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
+  private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
+  private val ibdKey = FastIndexedSeq("i", "j")
 
-    val input = Interpret(inputIR)
-    input.requireUniqueSamples("ibd")
-
-    min.liftedZip(max).foreach { case (min, max) =>
-      if (min > max) {
-        fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
-      }
-    }
-
-    val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
-    val sampleIds = input.stringSampleIds
-
-    TableLiteral(TableValue(ibdSignature, FastIndexedSeq("i", "j"),
-      computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)))
-  }
-
-  private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
-
-  private val ibdPType = ibdSignature.physicalType
-
-  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
+  def toKeyTable(hc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(sc, ktRdd, ibdSignature, IndexedSeq("i", "j"))
+    Table(hc, ktRdd, ibdPType, FastIndexedSeq("i", "j"))
   }
 
   def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
@@ -352,12 +325,12 @@ object IBD {
   }
 
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
-    val rvRowType = input.typ.rvRowType
-    val rvRowPType = rvRowType.physicalType
+    val rvRowType = input.rvRowType
+    val rvRowPType = input.rvRowPType
     val field = rvRowType.field(fieldName)
     assert(field.typ.isOfType(TFloat64()))
     val rowKeysF = input.typ.extractRowKey
-    val entriesIdx = input.typ.entriesIdx
+    val entriesIdx = input.entriesIdx
 
     val idx = rvRowType.fieldIdx(fieldName)
 
@@ -374,5 +347,33 @@ object IBD {
       }
       maf
     }
+  }
+}
+
+case class IBD(
+  mafFieldName: Option[String] = None,
+  bounded: Boolean = true,
+  min: Option[Double] = None,
+  max: Option[Double] = None) extends MatrixToTableFunction {
+
+  min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
+  max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
+
+  min.liftedZip(max).foreach { case (min, max) =>
+    if (min > max) {
+      fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
+    }
+  }
+
+  def preservesPartitionCounts: Boolean = false
+
+  def typ(childType: MatrixType): TableType =
+    TableType(IBD.ibdPType.virtualType, IBD.ibdKey, TStruct.empty())
+
+  def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
+    input.requireUniqueSamples("ibd")
+    val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
+    val crdd = IBD.computeIBDMatrix(input, computeMaf, min, max, input.stringSampleIds, bounded)
+    TableValue(ctx, IBD.ibdPType, IBD.ibdKey, crdd)
   }
 }

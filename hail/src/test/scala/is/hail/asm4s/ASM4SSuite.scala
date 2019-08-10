@@ -3,11 +3,11 @@ package is.hail.asm4s
 import java.io.PrintWriter
 
 import is.hail.asm4s.Code._
+import is.hail.asm4s.FunctionBuilder._
 import is.hail.check.{Gen, Prop}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import is.hail.asm4s.FunctionBuilder._
-import org.objectweb.asm.tree.InsnNode
+
 import scala.language.postfixOps
 
 trait Z2Z { def apply(z:Boolean): Boolean }

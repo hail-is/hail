@@ -2,22 +2,18 @@ package is.hail.annotations
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check._
-import is.hail.check.Arbitrary._
-import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
 import is.hail.utils._
-import org.apache.spark.SparkEnv
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.util.Random
 
-class UnsafeSuite extends SparkSuite {
+class UnsafeSuite extends HailSuite {
   def subsetType(t: Type): Type = {
     t match {
       case t: TStruct =>
@@ -54,6 +50,7 @@ class UnsafeSuite extends SparkSuite {
     val region = Region()
     val region2 = Region()
     val region3 = Region()
+    val region4 = Region()
     val rvb = new RegionValueBuilder(region)
 
     val path = tmpDir.createTempFile(extension = "ser")
@@ -95,11 +92,59 @@ class UnsafeSuite extends SparkSuite {
         val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
+
+        val aos2 = new ByteArrayOutputStream()
+        val en2 = codecSpec.buildEncoder(t.physicalType, requestedType.physicalType)(aos2)
+        en2.writeRegionValue(region, offset)
+        en2.flush()
+
+        region4.clear()
+        val ais4 = new ByteArrayInputStream(aos2.toByteArray)
+        val dec4 = codecSpec.buildDecoder(requestedType.physicalType, requestedType.physicalType)(ais4)
+        val offset4 = dec4.readRegionValue(region4)
+        val ur4 = new UnsafeRow(requestedType.physicalType, region4, offset4)
+        assert(requestedType.typeCheck(ur4))
+        if (!requestedType.valuesSimilar(a2, ur4)) {
+          println(t)
+          println(requestedType)
+          println(a2)
+          println(ur4)
+        }
+        assert(requestedType.valuesSimilar(a2, ur4))
       }
 
       true
     }
     p.check()
+  }
+
+  @Test def testCodecForNonWrappedTypes() {
+    val valuesAndTypes = FastIndexedSeq(
+      5 -> PInt32(),
+      6L -> PInt64(),
+      5.5f -> PFloat32(),
+      5.7d -> PFloat64(),
+      "foo" -> PString(),
+      Array[Byte](61, 62, 63) -> PBinary(),
+      FastIndexedSeq[Int](1, 2, 3) -> PArray(PInt32()))
+
+    valuesAndTypes.foreach { case (v, t) =>
+      Region.scoped { region =>
+        val off = ScalaToRegionValue(region, t, v)
+        CodecSpec.codecSpecs.foreach { spec =>
+          val baos = new ByteArrayOutputStream()
+          val enc = spec.buildEncoder(t)(baos)
+          enc.writeRegionValue(region, off)
+          enc.flush()
+
+          val serialized = baos.toByteArray
+          val dec = spec.buildDecoder(t, t)(new ByteArrayInputStream(serialized))
+          val res = dec.readRegionValue(region)
+
+          assert(t.unsafeOrdering().equiv(RegionValue(region, res), RegionValue(region, off)))
+        }
+      }
+    }
   }
 
   @Test def testBufferWriteReadDoubles() {
@@ -130,7 +175,7 @@ class UnsafeSuite extends SparkSuite {
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue, Gen.choose(0, 100), Gen.choose(0, 100)))
       .filter { case (t, a, n, n2) => a != null }
     val p = Prop.forAll(g) { case (t, a, n, n2) =>
-      val pt = t.physicalType
+      val pt = PType.canonical(t)
       t.typeCheck(a)
 
       // test addAnnotation
@@ -170,12 +215,13 @@ class UnsafeSuite extends SparkSuite {
       // test addRegionValue nested
       t match {
         case t: TStruct =>
+          val ps = pt.asInstanceOf[PStruct]
           region2.clear()
           region2.allocate(1, n) // preallocate
-          rvb2.start(t.physicalType)
+          rvb2.start(ps)
           rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset4 = rvb2.end()
-          val ur4 = new UnsafeRow(t.physicalType, region2, offset4)
+          val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
       }
@@ -190,10 +236,11 @@ class UnsafeSuite extends SparkSuite {
       // test addRegionValue to same region nested
       t match {
         case t: TStruct =>
-          rvb.start(t.physicalType)
+          val ps = pt.asInstanceOf[PStruct]
+          rvb.start(ps)
           rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset6 = rvb.end()
-          val ur6 = new UnsafeRow(t.physicalType, region, offset6)
+          val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
       }
@@ -293,19 +340,19 @@ class UnsafeSuite extends SparkSuite {
       tv.typeCheck(a2)
 
       region.clear()
-      rvb.start(tv.physicalType.fundamentalType)
+      rvb.start(t)
       rvb.addRow(tv, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(tv.physicalType, region, offset)
+      val ur1 = new UnsafeRow(t, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      rvb2.start(tv.physicalType.fundamentalType)
+      rvb2.start(t)
       rvb2.addRow(tv, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(tv.physicalType, region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
       val ord = tv.ordering
@@ -329,7 +376,91 @@ class UnsafeSuite extends SparkSuite {
     }
     p.check()
   }
-  
+
+  @Test def testRegionAllocation() {
+    val pool = RegionPool.get
+
+    case class Counts(regions: Int, freeRegions: Int) {
+      def allocate(n: Int): Counts =
+        copy(regions = regions + math.max(0, n - freeRegions),
+          freeRegions = math.max(0, freeRegions - n))
+
+      def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
+        copy(freeRegions = freeRegions + nRegions)
+    }
+
+    var before: Counts = null
+    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
+
+    def assertAfterEquals(c: => Counts): Unit = {
+      before = after
+      after = Counts(pool.numRegions(), pool.numFreeRegions())
+      assert(after == c)
+    }
+
+    Region.scoped { region =>
+      assertAfterEquals(before.allocate(1))
+
+      Region.scoped { region2 =>
+        assertAfterEquals(before.allocate(1))
+        region.reference(region2)
+      }
+      assertAfterEquals(before)
+    }
+    assertAfterEquals(before.free(2))
+
+    Region.scoped { region =>
+      Region.scoped { region2 => region.reference(region2) }
+      Region.scoped { region2 => region.reference(region2) }
+      assertAfterEquals(before.allocate(3))
+    }
+    assertAfterEquals(before.free(3))
+  }
+
+  @Test def testRegionReferences() {
+    def offset(region: Region) = region.allocate(0)
+    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
+    def assertUsesRegions[T](n: Int)(f: => T): T = {
+      val usedRegionCount = numUsed()
+      val res = f
+      assert(usedRegionCount == numUsed() - n)
+      res
+    }
+
+    val region = Region()
+    region.setNumParents(5)
+
+    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.SMALL) }) { r =>
+      offset(r)
+    }
+
+    val off2 = Region.tinyScoped { r =>
+      region.setParentReference(r, 2)
+      offset(r)
+    }
+
+    using(region.getParentReference(2, Region.TINY)) { r =>
+      assert(offset(r) == off2)
+    }
+
+    using(region.getParentReference(4, Region.SMALL)) { r =>
+      assert(offset(r) == off4)
+    }
+
+    assertUsesRegions(-1) { region.clearParentReference(2) }
+    assertUsesRegions(-1) { region.clearParentReference(4) }
+  }
+
+  @Test def testRegionSizes() {
+    Region.smallScoped { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
+    }
+
+    Region.tinyScoped { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
+    }
+  }
+
   // Tests for Region serialization have been removed since an off-heap Region
   // contains absolute addresses and can't be serialized/deserialized without 
   // knowing the RegionValue Type.

@@ -6,15 +6,14 @@ import is.hail.cxx
 import is.hail.utils._
 
 object PContainer {
-  def loadLength(region: Region, aoff: Long): Int =
-    region.loadInt(aoff)
+  def loadLength(aoff: Long): Int =
+    Region.loadInt(aoff)
 
-  def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
-    region.loadInt(aoff)
+  def loadLength(aoff: Code[Long]): Code[Int] =
+    Region.loadInt(aoff)
 }
 
-abstract class PContainer extends PType {
-  def elementType: PType
+abstract class PContainer extends PIterable {
 
   def elementByteSize: Long
 
@@ -23,10 +22,16 @@ abstract class PContainer extends PType {
   def contentsAlignment: Long
 
   final def loadLength(region: Region, aoff: Long): Int =
-    PContainer.loadLength(region, aoff)
+    PContainer.loadLength(aoff)
+
+  final def loadLength(aoff: Code[Long]): Code[Int] =
+    PContainer.loadLength(aoff)
 
   final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
-    PContainer.loadLength(region, aoff)
+    loadLength(aoff)
+
+
+  def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
 
   def _elementsOffset(length: Int): Long =
     if (elementType.required)
@@ -70,14 +75,20 @@ abstract class PContainer extends PType {
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
     elementType.required || !region.loadBit(aoff + 4, i)
 
-  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    !isElementDefined(region, aoff, i)
+  def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    !isElementDefined(aoff, i)
 
-  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    isElementMissing(aoff, i)
+
+  def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)
       true
     else
-      !region.loadBit(aoff + 4, i.toL)
+      !Region.loadBit(aoff + 4L, i.toL)
+
+  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    isElementDefined(aoff, i)
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
@@ -120,7 +131,7 @@ abstract class PContainer extends PType {
   def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
-      case _: PArray | _: PBinary => region.loadAddress(off)
+      case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
   }
@@ -128,21 +139,27 @@ abstract class PContainer extends PType {
   def loadElement(region: Region, aoff: Long, i: Int): Long =
     loadElement(region, aoff, region.loadInt(aoff), i)
 
+  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = {
+    val off = elementOffset(aoff, Region.loadInt(aoff), i)
+    elementType.fundamentalType match {
+      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _ => off
+    }
+  }
+
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    loadElement(region, aoff, region.loadInt(aoff), i)
+    loadElement(aoff, i)
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
-  // FIXME expose intrinsic to just memset this
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+    region.allocate(contentsAlignment, contentsByteSize(length))
+
   private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
     val nMissingBytes = (length + 7) / 8
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(aoff + 4 + i, value)
-      i += 1
-    }
+    Region.setMemory(aoff + 4, nMissingBytes, value)
   }
 
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {
@@ -165,20 +182,13 @@ abstract class PContainer extends PType {
       clearMissingBits(region, aoff, length)
   }
 
-  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] = {
-    var c = region.storeInt(aoff, length)
+  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
     if (elementType.required)
-      return c
-    Code(
-      c,
-      a.store((length + 7) >>> 3),
-      Code.whileLoop(a > 0,
-        Code(
-          a.store(a - 1),
-          region.storeByte(aoff + 4L + a.toL, const(0))
-        )
-      )
-    )
+      Region.storeInt(aoff, length)
+    else
+      Code(
+        Region.storeInt(aoff, length),
+        Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =

@@ -10,11 +10,14 @@ Requirements
 You'll need:
 
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_
+- `Spark 2.4.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_
 
-  - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
+  - Hail is compatible with Spark 2.2.x, 2.3.x, and 2.4.x, but it *will not*
+    work with Spark 1.x.x, 2.0.x, or 2.1.x.
 
-- `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- Python 3.6 or later, we recommend `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
+
 
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
@@ -34,9 +37,23 @@ The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
 
-Build a Hail JAR compatible with Spark 2.2.0::
+By default, hail uses pre-compiled native libraries that are compatible with
+recent Mac OS X and Debian releases. If you're not using on of these OSes, you
+must rebuild the native libraries from source and move them into place before
+building a shadowJar::
+
+    ./gradlew nativeLibPrebuilt
+
+Build a Hail JAR compatible with Spark 2.4.0::
+
+    ./gradlew -Dspark.version=2.4.0 shadowJar
+
+Should you wish to build a Hail JAR compatible with a different Spark version (2.2.0 here)::
 
     ./gradlew -Dspark.version=2.2.0 shadowJar
+
+The end user documentation encourages users to use the `releaseJar` target which
+ensures that `nativeLibPrebuilt` is run before `shadowJar`.
 
 
 Environment Variables and Conda Environments
@@ -51,22 +68,26 @@ You will need to set some environment variables so that Hail can find Spark, Spa
     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$SPARK_CLASSPATH --conf spark.executor.extraClassPath=$SPARK_CLASSPATH --driver-memory 8G pyspark-shell"
 
 
-Hail uses `conda environments <https://conda.io/docs/using/envs.html>`_ to
-manage some of hail's python dependencies. First, create a conda
-environment for hail:
+First, create a conda environment for hail:
 
 .. code-block:: bash
 
-    conda env create -f ./python/hail/dev-environment.yml
+    conda create -n hail python==3.6
 
-Activate the environment
+Activate the environment:
 
 .. code-block:: bash
 
-    source activate hail
+    conda activate hail
 
 Now the shell prompt should include the name of the environment, in this case
 "hail".
+
+Use make to install dependencies:
+
+.. code-block:: bash
+
+    make -C hail install-deps
 
 Now you can import hail from a python interpreter::
 
@@ -81,7 +102,7 @@ Now you can import hail from a python interpreter::
     Using Spark's default log4j profile: org/apache/spark/log4j-defaults.properties
     Setting default log level to "WARN".
     To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
-    Running on Apache Spark version 2.2.0
+    Running on Apache Spark version 2.4.0
     SparkUI available at http://10.1.6.36:4041
     Welcome to
          __  __     <>__
@@ -101,13 +122,13 @@ When you are finished developing hail, disable the environment
 
     source deactivate hail
 
-The ``dev-environment.yml`` file may change without warning; therefore, after
+The ``requirements.txt`` files may change without warning; therefore, after
 pulling new changes from a remote repository, we always recommend updating the
-conda environment
+conda environment:
 
 .. code-block:: bash
 
-    conda env update hail -f ./python/hail/dev-environment.yml
+    make -C hail install-deps
 
 
 Building the Docs
@@ -130,19 +151,6 @@ Several Hail tests have additional dependencies:
  - `PLINK 1.9 <http://www.cog-genomics.org/plink2>`_
 
  - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
-
- - `R 3.3.4 <http://www.r-project.org/>`_ with CRAN packages ``jsonlite``, ``SKAT`` and ``logistf``,
-   as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__
-   from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package.
-   These can be installed within R using:
-
-   .. code-block:: R
-
-      install.packages(c("jsonlite", "SKAT", "logistf"))
-      source("https://bioconductor.org/biocLite.R")
-      biocLite("GENESIS")
-      biocLite("SNPRelate")
-      biocLite("GWASTools")
 
 To execute all Hail tests, run:
 

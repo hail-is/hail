@@ -15,20 +15,29 @@ object Copy {
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
         Cast(v, typ)
+      case CastRename(_, typ) =>
+        val IndexedSeq(v: IR) = newChildren
+        CastRename(v, typ)
       case NA(t) => NA(t)
       case IsNA(value) =>
         val IndexedSeq(value: IR) = newChildren
         IsNA(value)
+      case Coalesce(_) =>
+        Coalesce(newChildren.map(_.asInstanceOf[IR]))
       case If(_, _, _) =>
         val IndexedSeq(cond: IR, cnsq: IR, altr: IR) = newChildren
         If(cond, cnsq, altr)
       case Let(name, _, _) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
         Let(name, value, body)
-      case AggLet(name, _, _) =>
+      case AggLet(name, _, _, isScan) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
-        AggLet(name, value, body)
+        AggLet(name, value, body, isScan)
       case Ref(name, t) => Ref(name, t)
+      case RelationalRef(name, t) => RelationalRef(name, t)
+      case RelationalLet(name, _, _) =>
+        val IndexedSeq(value: IR, body: IR) = newChildren
+        RelationalLet(name, value, body)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
         ApplyBinaryPrimOp(op, l, r)
@@ -41,6 +50,9 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
+      case MakeStream(args, typ) => 
+        assert(args.length == newChildren.length)
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)
       case ArrayRef(_, _) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
         ArrayRef(a, i)
@@ -50,12 +62,41 @@ object Copy {
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
+      case StreamRange(_, _, _) =>
+        val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
+        StreamRange(start, stop, step)
       case MakeNDArray(_, _, _) =>
-        val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
-        MakeNDArray(data, shape, row_major)
+        val IndexedSeq(data: IR, shape: IR, rowMajor: IR) = newChildren
+        MakeNDArray(data, shape, rowMajor)
+      case NDArrayShape(_) =>
+        NDArrayShape(newChildren(0).asInstanceOf[IR])
+      case NDArrayReshape(_, _) =>
+        val IndexedSeq(nd: IR, shape: IR) = newChildren
+        NDArrayReshape(nd, shape)
       case NDArrayRef(_, _) =>
-        val IndexedSeq(nd: IR, idxs: IR) = newChildren
-        NDArrayRef(nd, idxs)
+        val (nd: IR) +: (idxs: IndexedSeq[_]) = newChildren
+        NDArrayRef(nd, idxs.asInstanceOf[IndexedSeq[IR]])
+      case NDArraySlice(_, _) =>
+        val IndexedSeq(nd: IR, slices: IR) = newChildren
+        NDArraySlice(nd, slices)
+      case NDArrayMap(_, name, _) =>
+        val IndexedSeq(nd: IR, body: IR) = newChildren
+        NDArrayMap(nd, name, body)
+      case NDArrayMap2(_, _, lName, rName, _) =>
+        val IndexedSeq(l: IR, r: IR, body: IR) = newChildren
+        NDArrayMap2(l, r, lName, rName, body)
+      case NDArrayReindex(_, indexExpr) =>
+        val IndexedSeq(nd: IR) = newChildren
+        NDArrayReindex(nd, indexExpr)
+      case NDArrayAgg(_, axes) =>
+        val IndexedSeq(nd: IR) = newChildren
+        NDArrayAgg(nd, axes)
+      case NDArrayMatMul(_, _) =>
+        val IndexedSeq(l: IR, r: IR) = newChildren
+        NDArrayMatMul(l, r)
+      case NDArrayWrite(_, _) =>
+        val IndexedSeq(nd: IR, path: IR) = newChildren
+        NDArrayWrite(nd, path)
       case ArraySort(_, l, r, _) =>
         val IndexedSeq(a: IR, comp: IR) = newChildren
         ArraySort(a, l, r, comp)
@@ -68,6 +109,9 @@ object Copy {
       case ToArray(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToArray(a)
+      case ToStream(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        ToStream(a)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
         LowerBoundOnOrderedCollection(orderedCollection, elem, asKey)
@@ -98,18 +142,24 @@ object Copy {
       case ArrayAgg(_, name, _) =>
         val IndexedSeq(a: IR, query: IR) = newChildren
         ArrayAgg(a, name, query)
-      case AggFilter(_, _) =>
+      case ArrayAggScan(_, name, _) =>
+        val IndexedSeq(a: IR, query: IR) = newChildren
+        ArrayAggScan(a, name, query)
+      case AggFilter(_, _, isScan) =>
         val IndexedSeq(cond: IR, aggIR: IR) = newChildren
-        AggFilter(cond, aggIR)
-      case AggExplode(_, name, _) =>
+        AggFilter(cond, aggIR, isScan)
+      case AggExplode(_, name, _, isScan) =>
         val IndexedSeq(array: IR, aggBody: IR) = newChildren
-        AggExplode(array, name, aggBody)
-      case AggGroupBy(_, _) =>
+        AggExplode(array, name, aggBody, isScan)
+      case AggGroupBy(_, _, isScan) =>
         val IndexedSeq(key: IR, aggIR: IR) = newChildren
-        AggGroupBy(key, aggIR)
-      case AggArrayPerElement(a, name, aggBody) =>
-        val IndexedSeq(newA: IR, newAggBody: IR) = newChildren
-        AggArrayPerElement(newA, name, newAggBody)
+        AggGroupBy(key, aggIR, isScan)
+      case AggArrayPerElement(_, elementName, indexName, _, _, isScan) =>
+        val (newA, newAggBody, newKnownLength) = newChildren match {
+          case IndexedSeq(newA: IR, newAggBody: IR) => (newA, newAggBody, None)
+          case IndexedSeq(newA: IR, newAggBody: IR, newKnownLength: IR) => (newA, newAggBody, Some(newKnownLength))
+        }
+        AggArrayPerElement(newA, elementName, indexName, newAggBody, newKnownLength, isScan)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
@@ -126,6 +176,15 @@ object Copy {
         InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
       case SeqOp(_, _, aggSig) =>
         SeqOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
+      case InitOp2(i, _, aggSig) =>
+        InitOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case SeqOp2(i, _, aggSig) =>
+        SeqOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case x@(_: ResultOp2 | _: CombOp2) =>
+        assert(newChildren.isEmpty)
+        x
+      case x: SerializeAggs => x
+      case x: DeserializeAggs => x
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
@@ -142,17 +201,12 @@ object Copy {
           initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
           args.takeRight(x.nSeqOpArgs),
           aggSig)
-      case MakeTuple(_) =>
-        MakeTuple(newChildren.map(_.asInstanceOf[IR]))
+      case MakeTuple(fields) =>
+        assert(fields.length == newChildren.length)
+        MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })
       case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx)
-      case StringSlice(_, _, _) =>
-        val IndexedSeq(s: IR, start: IR, n: IR) = newChildren
-        StringSlice(s, start, n)
-      case StringLength(_) =>
-        val IndexedSeq(s: IR) = newChildren
-        StringLength(s)
       case In(i, t) => In(i, t)
       case Die(_, typ) =>
         val IndexedSeq(s: IR) = newChildren
@@ -192,12 +246,11 @@ object Copy {
       case MatrixAggregate(_, _) =>
         val IndexedSeq(child: MatrixIR, query: IR) = newChildren
         MatrixAggregate(child, query)
-      case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
+      case TableWrite(_, writer) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(_, path, typesFile, header, exportType, delimiter) =>
-        val IndexedSeq(child: TableIR) = newChildren
-        TableExport(child, path, typesFile, header, exportType, delimiter)
+        TableWrite(child, writer)
+      case TableMultiWrite(_, writer) =>
+        TableMultiWrite(newChildren.map(_.asInstanceOf[TableIR]), writer)
       case TableToValueApply(_, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)
@@ -210,6 +263,8 @@ object Copy {
       case BlockMatrixWrite(_, writer) =>
         val IndexedSeq(newChild: BlockMatrixIR) = newChildren
         BlockMatrixWrite(newChild, writer)
+      case BlockMatrixMultiWrite(_, writer) =>
+        BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)
