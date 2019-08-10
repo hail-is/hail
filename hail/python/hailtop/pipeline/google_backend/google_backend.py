@@ -743,8 +743,19 @@ class GRunner:
         self.app.add_routes([
             web.post('/activate_worker', self.handle_activate_worker),
             web.post('/deactivate_worker', self.handle_deactivate_worker),
-            web.post('/task_complete', self.handle_task_complete)
+            web.post('/task_complete', self.handle_task_complete),
+            web.post('/pool/size', self.handle_pool_size)
         ])
+
+    async def handle_pool_size(self, request):
+        return await asyncio.shield(self.handle_pool_size2(request))
+
+    async def handle_pool_size2(self, request):
+        body = await request.json()
+        pool_size = body['pool_size']
+        old_pool_size = self.inst_pool.pool_size
+        self.inst_pool.pool_size = pool_size
+        print(f'pool_size changed: {old_pool_size} => {pool_size}')
 
     async def handle_activate_worker(self, request):
         return await asyncio.shield(self.handle_activate_worker2(request))
