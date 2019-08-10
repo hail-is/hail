@@ -147,7 +147,7 @@ def write_range_table_p10():
         ht = hl.utils.range_table(10_000_000, 10)
         ht.write(path.join(tmpdir, 'tmp.ht'))
 
-# @benchmark segfaulting
+@benchmark
 def read_with_index_p1000():
     rows = 10_000_000
     bins = 1_000
