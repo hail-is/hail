@@ -1395,7 +1395,7 @@ class MatrixTable(ExprContainer):
         filtering the matrix table to row keys not present in another table.
 
         To restrict to rows whose key is present in `other`, use
-        :meth:`.anti_join_rows`.
+        :meth:`.semi_join_rows`.
 
         Examples
         --------
@@ -1474,7 +1474,7 @@ class MatrixTable(ExprContainer):
         filtering the matrix table to column keys not present in another table.
 
         To restrict to columns whose key is present in `other`, use
-        :meth:`.anti_join_cols`.
+        :meth:`.semi_join_cols`.
 
         Examples
         --------
