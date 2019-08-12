@@ -162,20 +162,6 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     bll.foreach(push(r, _))
   }
 
-  def appendShallow(r: Code[Region], atyp: PArray, aoff: Code[Long]): Code[Unit] = {
-    assert(atyp.isOfType(bufferType))
-    assert(atyp.elementType.required == elemType.required)
-    val len = atyp.loadLength(r, aoff)
-    Code(
-      tmpNode := r.allocate(nodeType.alignment, nodeType.byteSize),
-      initNode(tmpNode,
-        buf = aoff,
-        count = len),
-      setNext(lastNode, tmpNode),
-      lastNode := tmpNode,
-      totalCount := totalCount + len)
-  }
-
   def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
     assert(srvb.typ.isOfType(bufferType))
     Code(
@@ -187,11 +173,6 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
             srvb.addWithDeepCopy(elemType, elt.value)),
           srvb.advance())
       })
-  }
-
-  def toArray: Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(fb, bufferType)
-    Code(writeToSRVB(srvb), srvb.end())
   }
 
   def serialize(r: Code[Region], ob: Code[OutputBuffer]): Code[Unit] = {
@@ -223,6 +204,18 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val bufFType = bufferType.fundamentalType
     Code.whileLoop(ib.readBoolean(),
       EmitPackDecoder.emitArray(bufFType, bufFType, fb.apply_method, ib, srvb),
-      appendShallow(r, bufferType, srvb.end()))
+      appendShallow(r, srvb.end()))
+  }
+
+  private def appendShallow(r: Code[Region], aoff: Code[Long]): Code[Unit] = {
+    val len = bufferType.loadLength(r, aoff)
+    Code(
+      tmpNode := r.allocate(nodeType.alignment, nodeType.byteSize),
+      initNode(tmpNode,
+        buf = aoff,
+        count = len),
+      setNext(lastNode, tmpNode),
+      lastNode := tmpNode,
+      totalCount := totalCount + len)
   }
 }
