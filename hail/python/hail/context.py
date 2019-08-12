@@ -77,8 +77,8 @@ class HailContext(object):
             if apiserver_url is not None:
                 _backend = ServiceBackend(apiserver_url)
             else:
-                sc = self.create_spark_context(hail_jar_path)
-                _backend = SparkBackend()
+                #sc = self.create_spark_context(hail_jar_path)
+                _backend = SparkBackend(sc)
         self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
@@ -155,8 +155,6 @@ class HailContext(object):
         install_exception_handler()
         Env.set_seed(global_seed)
 
-    def create_spark_context(self, hail_jar_path):
-        pass
 
     @property
     def default_reference(self):

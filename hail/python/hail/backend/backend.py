@@ -163,9 +163,12 @@ class AbstractPy4JBackend(Backend):
 
 
 class SparkBackend(AbstractPy4JBackend):
-    def __init__(self, spark_context):
+    def __init__(self, maybe_spark_context):
         self._fs = None
-        self._sc = spark_context
+        if maybe_spark_context:
+            self._sc = maybe_spark_context
+        else:
+            pass
 
     @property
     def fs(self):
