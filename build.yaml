@@ -381,12 +381,8 @@ steps:
      valueFrom: hail_base_image.image
    script: |
      set -ex
-     cd /hail/python/hail
-     python3 -m pytest --instafail \
-       --doctest-modules \
-       --doctest-glob='*.rst' \
-       --ignore=docs/conf.py \
-       --ignore=docs/doctest_write_data.py
+     cd /hail
+     make doctest
    dependsOn:
     - hail_base_image
  - kind: runImage

@@ -75,10 +75,41 @@ install-editable: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(PIP) install -e
 
 .PHONY: pytest
-pytest: $(BUILD_INFO) $(SHADOW_JAR) init-scripts
+pytest: $(BUILD_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-    --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
+    --addopts '-v -n $(PARALLELISM) --dist=loadscope \
+    --color=no \
+    --instafail \
+    -r A \
+    --self-contained-html \
+    --html=build/reports/pytest.html \
+    --noconftest \
+    $(PYTEST_ARGS)'
+
+.PHONY: doctest
+doctest: $(BUILD_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+doctest: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(HAIL_PYTHON3) setup.py pytest \
+	  --addopts "-v -n $(PARALLELISM) --maxfail=1 \
+    --color=no \
+    --instafail \
+    -r A \
+    --self-contained-html \
+    --html=build/reports/pytest-doctest.html \
+    --dist=loadscope \
+    --doctest-modules \
+    --doctest-glob='*.rst' \
+    --ignore=setup.py \
+    --ignore=setup-hailtop.py \
+    --ignore=hail/docs/conf.py \
+    --ignore=cluster-tests \
+    --ignore=hailtop \
+    --ignore=test \
+    --ignore=hail/docs/doctest_write_data.py \
+    --ignore=hail/docs/getting_started_developing.rst \
+    --ignore=hail/docs/getting_started.rst \
+    $(PYTEST_ARGS)"
 
 .PHONY: wheel
 wheel: $(WHEEL)

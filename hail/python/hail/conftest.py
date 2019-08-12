@@ -1,3 +1,4 @@
+import pkg_resources
 import pytest
 import os
 import shutil
@@ -29,23 +30,25 @@ def init(doctest_namespace):
     # This gets run once per process -- must avoid race conditions
     print("setting up doctest...")
 
-    olddir = os.getcwd()
-    os.chdir("docs/")
+    docs_root = pkg_resources.resource_filename(__name__, 'docs')
+    data_root = f'{docs_root}/data'
+    output_root = f'{docs_root}/output'
 
     doctest_namespace['hl'] = hl
 
-    if not os.path.isdir("output/"):
+    if not os.path.isdir(output_root):
         try:
-            os.mkdir("output/")
+            os.mkdir(output_root)
         except OSError:
             pass
 
     files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
     for f in files:
+        f = f'{docs_root}/{f}'
         if os.path.isdir(f):
             shutil.rmtree(f)
 
-    ds = hl.read_matrix_table('data/example.vds')
+    ds = hl.read_matrix_table(f'{data_root}/example.vds')
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
     doctest_namespace['dataset2'] = ds.annotate_globals(global_field=5)
@@ -63,27 +66,27 @@ def init(doctest_namespace):
     doctest_namespace['rows_to_remove'] = v_metadata
 
     # Table
-    table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
+    table1 = hl.import_table('{data_root}/kt_example1.tsv', impute=True, key='ID')
     table1 = table1.annotate_globals(global_field_1=5, global_field_2=10)
     doctest_namespace['table1'] = table1
     doctest_namespace['other_table'] = table1
 
-    table2 = hl.import_table('data/kt_example2.tsv', impute=True, key='ID')
+    table2 = hl.import_table('{data_root}/kt_example2.tsv', impute=True, key='ID')
     doctest_namespace['table2'] = table2
 
-    table4 = hl.import_table('data/kt_example4.tsv', impute=True,
+    table4 = hl.import_table('{data_root}/kt_example4.tsv', impute=True,
                              types={'B': hl.tstruct(B0=hl.tbool, B1=hl.tstr),
                                     'D': hl.tstruct(cat=hl.tint32, dog=hl.tint32),
                                     'E': hl.tstruct(A=hl.tint32, B=hl.tint32)})
     doctest_namespace['table4'] = table4
 
-    people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
+    people_table = hl.import_table('{data_root}/explode_example.tsv', delimiter='\\s+',
                                    types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)},
                                    key='Name')
     doctest_namespace['people_table'] = people_table
 
     # TDT
-    doctest_namespace['tdt_dataset'] = hl.import_vcf('data/tdt_tiny.vcf')
+    doctest_namespace['tdt_dataset'] = hl.import_vcf('{data_root}/tdt_tiny.vcf')
 
     ds2 = hl.variant_qc(ds)
     doctest_namespace['ds2'] = ds2.select_rows(AF=ds2.variant_qc.AF)
@@ -120,10 +123,9 @@ def init(doctest_namespace):
     doctest_namespace['gnomad_data'] = gnomad_data.select(gnomad_data.info.AF)
 
     # BGEN
-    bgen = hl.import_bgen('data/example.8bits.bgen',
+    bgen = hl.import_bgen('{data_root}/example.8bits.bgen',
                           entry_fields=['GT', 'GP', 'dosage'])
     doctest_namespace['variants_table'] = bgen.rows()
 
     print("finished setting up doctest...")
     yield
-    os.chdir(olddir)
