@@ -1309,12 +1309,12 @@ private class Emit(
 
         val t = x.pType.asInstanceOf[PNDArray]
         val srvb = new StagedRegionValueBuilder(mb, t.representation)
-        
+
         val setup = Code(
           shapet.setup,
           datat.setup,
           rowMajort.setup)
-        val value = coerce[Unit](Code(
+        val value = coerce[Long](Code(
           srvb.start(),
           srvb.addInt(0),
           srvb.advance(),
@@ -1322,24 +1322,29 @@ private class Emit(
           srvb.advance(),
           shapet.m.mux(
             Code._fatal("Missing shape"),
-            srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PTuple], {srvb =>
+            Code(
+              srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PTuple], { srvb =>
 
-              var c = Code._empty[Unit]
+                var c = Code._empty[Unit]
 
-              Array.tabulate(shapePType.size)(i => shapePType.isFieldMissing(coerce[Long](shapet.v), i).mux(
-                Code._fatal("Missing tuple entry"),
-                srvb.addWithDeepCopy(PInt32Required, region.loadInt(shapePType.loadField(coerce[Long](shapet.v), i)))
-              )).foreachBetween { elt => c = Code(c, elt) } { c = Code(c, srvb.advance())}
-              c
-            })
-          ),
-          srvb.advance(),
-          srvb.addArray(t.representation.fieldType("strides").asInstanceOf[PArray], { srvb =>
-            srvb.start(0)
-          }),
-          srvb.advance(),
-          srvb.addIRIntermediate(t.representation.fieldType("data").asInstanceOf[PArray])(
-            t.representation.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray cannot have missing data"))
+                Array.tabulate(shapePType.size)(i => shapePType.isFieldMissing(coerce[Long](shapet.v), i).mux(
+                  Code._fatal("Missing tuple entry"),
+                  srvb.addWithDeepCopy(PInt32Required, region.loadInt(shapePType.loadField(coerce[Long](shapet.v), i)))
+                )).foreachBetween { elt => c = Code(c, elt) } {
+                  c = Code(c, srvb.advance())
+                }
+                c
+              }),
+              srvb.advance(),
+              srvb.addArray(t.representation.fieldType("strides").asInstanceOf[PArray], { srvb =>
+                srvb.start(0)
+              }),
+              srvb.advance(),
+              srvb.addIRIntermediate(t.representation.fieldType("data").asInstanceOf[PArray])(
+                datat.v), //t.representation.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray cannot have missing data"))
+              srvb.end()
+            )
+          )
         ))
         EmitTriplet(setup, false, value)
       case NDArrayShape(ndIR) =>
