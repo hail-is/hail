@@ -1323,18 +1323,18 @@ private class Emit(
           shapet.m.mux(
             Code._fatal("Missing shape"),
             Code(
-              srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PTuple], { srvb =>
-
-                var c = Code._empty[Unit]
-
-                Array.tabulate(shapePType.size)(i => shapePType.isFieldMissing(coerce[Long](shapet.v), i).mux(
-                  Code._fatal("Missing tuple entry"),
-                  srvb.addWithDeepCopy(PInt32Required, region.loadInt(shapePType.loadField(coerce[Long](shapet.v), i)))
-                )).foreachBetween { elt => c = Code(c, elt) } {
-                  c = Code(c, srvb.advance())
+              {
+                val nDims = shapePType.size
+                var index = 0
+                var missingCheckCode = Code._empty
+                while (index < nDims) {
+                  missingCheckCode = Code(missingCheckCode,
+                    shapePType.isFieldMissing(coerce[Long](shapet.v), index).orEmpty(Code._fatal(s"shape missing at index $index")))
+                  index += 1
                 }
-                c
-              }),
+                missingCheckCode
+              },
+              srvb.addIRIntermediate(shapePType)(shapet.v),
               srvb.advance(),
               srvb.addArray(t.representation.fieldType("strides").asInstanceOf[PArray], { srvb =>
                 srvb.start(0)
