@@ -23,8 +23,6 @@ from ..utils import PipelineException
 
 uvloop.install()
 
-HOSTNAME = socket.gethostname()
-
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
@@ -455,6 +453,7 @@ class Instance:
 
 class InstancePool:
     def __init__(self, runner, service_account, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+        self.runner = runner
         self.service_account = service_account
         self.worker_cores = worker_cores
         # 2x overschedule
@@ -462,7 +461,6 @@ class InstancePool:
         self.worker_disk_size_gb = worker_disk_size_gb
         self.pool_size = pool_size
         self.max_instances = max_instances
-        self.runner = runner
 
         self.token = new_token()
         self.machine_name_prefix = f'pipeline-{self.token}-worker-'
@@ -543,8 +541,8 @@ class InstancePool:
             # pass configuration from deployment scripts to instances.
             'metadata': {
                 'items': [{
-                    'key': 'driver',
-                    'value': HOSTNAME
+                    'key': 'driver_base_url',
+                    'value': self.runner.base_url
                 }, {
                     'key': 'inst_token',
                     'value': inst_token
@@ -692,7 +690,7 @@ class GRunner:
                 output_paths.append(p)
         return output_paths
 
-    def __init__(self, pipeline, verbose, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+    def __init__(self, pipeline, verbose, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances, port):
         self.pipeline = pipeline
         self.verbose = verbose
 
@@ -706,6 +704,11 @@ class GRunner:
         while self.scratch_dir_path and self.scratch_dir_path[0] == '/':
             self.scratch_dir_path = self.scratch_dir_path[1:]
 
+        self.port = port
+
+        hostname = socket.gethostname()
+        self.base_url = f'http://{hostname}:{port}'
+
         self.inst_pool = InstancePool(self, service_account, worker_cores, worker_disk_size_gb, pool_size, max_instances)
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
@@ -715,7 +718,7 @@ class GRunner:
         self.n_pending_tasks = len(pipeline._tasks)
 
         self.changed = asyncio.Event()
-        self.ready_queue = asyncio.Queue(maxsize=100)
+        self.ready_queue = asyncio.Queue(maxsize=1000)
         self.ready = sortedcontainers.SortedSet(key=lambda inst: inst.cores)
         self.ready_cores = 0
 
@@ -925,7 +928,7 @@ class GRunner:
         try:
             app_runner = web.AppRunner(self.app)
             await app_runner.setup()
-            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+            site = web.TCPSite(app_runner, '0.0.0.0', self.port)
             await site.start()
 
             await self.inst_pool.start()
@@ -956,20 +959,21 @@ class GRunner:
 
 
 class GoogleBackend(Backend):
-    def __init__(self, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+    def __init__(self, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances, *, port=5000):
         self.service_account = service_account
         self.scratch_dir = scratch_dir
         self.worker_cores = worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
         self.pool_size = pool_size
         self.max_instances = max_instances
+        self.port = port
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         if dry_run:
             print('do stuff')
             return
 
-        runner = GRunner(pipeline, verbose, self.service_account, self.scratch_dir, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances)
+        runner = GRunner(pipeline, verbose, self.service_account, self.scratch_dir, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances, self.port)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(runner.run())
         loop.run_until_complete(loop.shutdown_asyncgens())

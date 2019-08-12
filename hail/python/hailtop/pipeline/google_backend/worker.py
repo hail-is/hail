@@ -172,9 +172,9 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
 
 
 class Worker:
-    def __init__(self, cores, driver, token):
+    def __init__(self, cores, driver_base_url, token):
         self.cores = cores
-        self.driver = driver
+        self.driver_base_url = driver_base_url
         self.token = token
         self.free_cores = cores
         self.tasks = set()
@@ -233,6 +233,8 @@ class Worker:
 
         log.info(f'running task {task_token} attempt {attempt_token}')
 
+        start_time = time.time()
+
         await check_shell(f'mkdir -p /shared/{task_token}-{attempt_token}')
 
         input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
@@ -254,11 +256,16 @@ class Worker:
         # cleanup
         asyncio.ensure_future(delete_task_shared(task_token, attempt_token))
 
+        end_time = time.time()
+
+        duration = end_time - start_time
+        status['duration'] = duration
+
         log.info(f'task {task_token} done status {status}')
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post(f'http://{self.driver}:5000/task_complete', json=status):
+            async with session.post(f'{self.driver_base_url}/task_complete', json=status):
                 log.info(f'task {task_token} status posted')
                 self.last_updated = time.time()
 
@@ -287,7 +294,7 @@ class Worker:
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                async with session.post(f'http://{self.driver}:5000/deactivate_worker', json=body):
+                async with session.post(f'{self.driver_base_url}/deactivate_worker', json=body):
                     log.info('deactivated')
         finally:
             if site:
@@ -303,7 +310,7 @@ class Worker:
                 body = {'inst_token': self.token}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    async with session.post(f'http://{self.driver}:5000/activate_worker', json=body) as resp:
+                    async with session.post(f'{self.driver_base_url}/activate_worker', json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
                             log.info('registered')
@@ -320,9 +327,9 @@ class Worker:
 
 
 cores = int(os.environ['CORES'])
-driver = os.environ['DRIVER']
+driver_base_url = os.environ['DRIVER_BASE_URL']
 inst_token = os.environ['INST_TOKEN']
-worker = Worker(cores, driver, inst_token)
+worker = Worker(cores, driver_base_url, inst_token)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
