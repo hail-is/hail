@@ -95,6 +95,7 @@ object UnsafeRow {
         val includesStart = x.includesStart(region, offset)
         val includesEnd = x.includesEnd(region, offset)
         Interval(start, end, includesStart, includesEnd)
+      case nd: PNDArray => UnsafeRow.read(nd.representation, region, offset)
     }
   }
 }
