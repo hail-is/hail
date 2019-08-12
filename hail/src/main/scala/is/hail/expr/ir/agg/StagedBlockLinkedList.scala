@@ -218,4 +218,25 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       lastNode := tmpNode,
       totalCount := totalCount + len)
   }
+
+  def initWithDeepCopy(r: Code[Region], other: StagedBlockLinkedList): Code[Unit] = {
+    val buf = buffer(firstNode)
+    val bufi = bufferType.elementOffsetInRegion(r, buf, i)
+    Code(
+      initWithCapacity(r, other.totalCount),
+      i := 0,
+      other.foreach { et =>
+        Code(
+          et.m.mux(bufferType.setElementMissing(r, buf, i),
+            Code(
+              bufferType.setElementPresent(r, buf, i),
+              if(elemType.isPrimitive)
+                Region.storePrimitive(elemType, bufi)(et.value)
+              else
+                StagedRegionValueBuilder.deepCopy(fb, r, elemType, et.value, bufi))),
+          incrCount(firstNode),
+          i := i + 1)
+      },
+      totalCount := other.totalCount)
+  }
 }
