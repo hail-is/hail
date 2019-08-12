@@ -61,6 +61,9 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['dataset_to_union_1'] = ds
     doctest_namespace['dataset_to_union_2'] = ds
 
+    gene_cnsq = hl.read_matrix_table('data/gene_cnsq.mt')
+    doctest_namespace['gene_cnsq'] = gene_cnsq
+
     v_metadata = ds.rows().annotate_globals(global_field=5).annotate(consequence='SYN')
     doctest_namespace['v_metadata'] = v_metadata
 

@@ -486,7 +486,7 @@ def all(condition) -> BooleanExpression:
     return count_where(~condition) == 0
 
 
-@typecheck(expr=expr_any)
+@typecheck(expr=expr_any, weight=nullable(expr_any))
 def counter(expr, weight=None) -> DictExpression:
     """Count the occurrences of each unique record and return a dictionary.
 
@@ -500,8 +500,34 @@ def counter(expr, weight=None) -> DictExpression:
     For each sample and gene, count the number of alternate alleles in each
     consequence category:
 
-    >>> ds.group_rows_by(ds.gene).aggregate(
-    ...     count_by_consequence=hl.agg.counter(mt.consequence, mt.GT.n_alt_alleles()))
+    >>> gene_cnsq.show(include_row_fields=True, n_cols=2, width=120)
+    +---------------+------------+-------------------+--------------+-------+-------+
+    | locus         | alleles    | genes             | consequence  | s1.GT | s2.GT |
+    +---------------+------------+-------------------+--------------+-------+-------+
+    | locus<GRCh37> | array<str> | array<str>        | str          | call  | call  |
+    +---------------+------------+-------------------+--------------+-------+-------+
+    | 1:1           | ["A","T"]  | ["GENE1"]         | "missense"   | 0/1   | 1/1   |
+    | 1:2           | ["A","T"]  | ["GENE1"]         | "nonsense"   | 0/1   | 1/1   |
+    | 1:3           | ["A","T"]  | ["GENE1"]         | "synonymous" | 0/0   | 0/1   |
+    | 1:4           | ["A","T"]  | ["GENE1","GENE2"] | "missense"   | 1/1   | 0/1   |
+    | 1:5           | ["A","T"]  | ["GENE2"]         | "nonsense"   | 1/1   | 0/1   |
+    | 1:6           | ["A","T"]  | ["GENE2"]         | "nonsense"   | 0/0   | 0/1   |
+    +---------------+------------+-------------------+--------------+-------+-------+
+    <BLANKLINE>
+    >>> gene_cnsq = gene_cnsq.explode_rows(gene_cnsq.genes)
+    >>> gene_sample = gene_cnsq.group_rows_by(gene_cnsq.genes).aggregate(
+    ...     count_by_consequence=hl.agg.counter(gene_cnsq.consequence,
+    ...                                         gene_cnsq.GT.n_alt_alleles()))
+    >>> gene_sample.show(width=120)
+    +---------+--------------------------------------------+--------------------------------------------+
+    | genes   | s1.count_by_consequence                    | s2.count_by_consequence                    |
+    +---------+--------------------------------------------+--------------------------------------------+
+    | str     | dict<str, int64>                           | dict<str, int64>                           |
+    +---------+--------------------------------------------+--------------------------------------------+
+    | "GENE1" | {"missense":3,"nonsense":1,"synonymous":0} | {"missense":3,"nonsense":2,"synonymous":1} |
+    | "GENE2" | {"missense":2,"nonsense":2}                | {"missense":1,"nonsense":2}                |
+    +---------+--------------------------------------------+--------------------------------------------+
+    <BLANKLINE>
 
     Notes
     -----

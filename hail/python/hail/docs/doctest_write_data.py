@@ -53,3 +53,18 @@ burden_ds = hl.variant_qc(burden_ds)
 genekt = hl.import_locus_intervals('data/gene.interval_list')
 burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
 burden_ds.write('data/example_burden.vds', overwrite=True)
+
+gene_cnsq = hl.import_matrix_table('data/gene_cnsq_ds.txt',
+                                   row_fields={
+                                       'locus': hl.tstr,
+                                       'alleles': hl.tstr,
+                                       'genes': hl.tstr,
+                                       'consequence': hl.tstr},
+                                   row_key=[],
+                                   entry_type=hl.tstr)
+gene_cnsq = gene_cnsq.key_rows_by().drop('row_id')
+gene_cnsq = gene_cnsq.key_rows_by(locus=hl.parse_locus(gene_cnsq.locus),
+                                  alleles=gene_cnsq.alleles.split(','))
+gene_cnsq = gene_cnsq.annotate_rows(genes=gene_cnsq.genes.split(','))
+gene_cnsq = gene_cnsq.transmute_entries(GT=hl.parse_call(gene_cnsq.x))
+gene_cnsq.write('data/gene_cnsq.mt', overwrite=True)
