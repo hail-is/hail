@@ -1321,14 +1321,14 @@ private class Emit(
           srvb.addInt(0),
           srvb.advance(),
           shapet.m.mux(
-            Code._fatal("bad bad bad"),
+            Code._fatal("Missing shape"),
             srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PTuple], {srvb =>
 
               var c = Code._empty[Unit]
 
               Array.tabulate(shapePType.size)(i => shapePType.isFieldMissing(coerce[Long](shapet.v), i).mux(
-                Code._fatal("Missing tuple .. . "),
-                srvb.addWithDeepCopy(PInt32Required, shapePType.loadField(coerce[Long](shapet.v), i))
+                Code._fatal("Missing tuple entry"),
+                srvb.addWithDeepCopy(PInt32Required, region.loadInt(shapePType.loadField(coerce[Long](shapet.v), i)))
               )).foreachBetween { elt => c = Code(c, elt) } { c = Code(c, srvb.advance())}
               c
             })
