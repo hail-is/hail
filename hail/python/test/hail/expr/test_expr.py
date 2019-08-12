@@ -350,6 +350,11 @@ class Tests(unittest.TestCase):
         assert ac == {'rabbit': 2, 'cat': 1, 'dog': 1, None: 2}
         assert bc == [([], 2), ([1, 2], 1), ([1, 2, 3], 2), (None, 1)]
 
+        c = hl.literal([0, 0, 3, 2, 3, 0], dtype='array<array<int>>')
+        actual = ht.aggregate(hl.agg.counter(a[ht.idx], c[ht.idx]))
+        expected = {'rabbit': 0, 'cat': 2, 'dog': 2, None: 3}
+        assert actual == expected
+
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)

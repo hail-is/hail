@@ -487,7 +487,7 @@ def all(condition) -> BooleanExpression:
 
 
 @typecheck(expr=expr_any)
-def counter(expr) -> DictExpression:
+def counter(expr, weight=None) -> DictExpression:
     """Count the occurrences of each unique record and return a dictionary.
 
     Examples
@@ -497,8 +497,17 @@ def counter(expr) -> DictExpression:
     >>> table1.aggregate(hl.agg.counter(table1.SEX))  # doctest: +NOTEST
     {'M': 2L, 'F': 2L}
 
+    For each sample and gene, count the number of alternate alleles in each
+    consequence category:
+
+    >>> ds.group_rows_by(ds.gene).aggregate(
+    ...     count_by_consequence=hl.agg.counter(mt.consequence, mt.GT.n_alt_alleles()))
+
     Notes
     -----
+    If you need a more complex grouped aggregation than :func:`counter`
+    supports, try using :func:`group_by`.
+
     This aggregator method returns a dict expression whose key type is the
     same type as `expr` and whose value type is :class:`.Expression` of type :py:data:`.tint64`.
     This dict contains a key for each unique value of `expr`, and the value
@@ -521,7 +530,9 @@ def counter(expr) -> DictExpression:
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
-    return _agg_func.group_by(expr, count())
+    if weight is None:
+        return _agg_func.group_by(expr, count())
+    return _agg_func.group_by(expr, hl.agg.sum(weight))
 
 
 @typecheck(expr=expr_any,
