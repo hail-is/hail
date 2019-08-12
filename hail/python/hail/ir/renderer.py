@@ -312,25 +312,15 @@ class CSERenderer(Renderer):
         pass
 
     class PostChildrenLifted(Kont):
-        def __init__(self, state, builder, local_builder, tail, lift_to, name, k):
+        def __init__(self, state, builder, local_builder, tail, lift_to, name):
             self.state = state
             self.builder = builder
-            self.k = k
             self.local_builder = local_builder
             self.tail = tail
             self.lift_to = lift_to
             self.name = name
 
     class PostChildren(Kont):
-        def __init__(self, state, builder, local_builder, tail, insert_lets, k):
-            self.state = state
-            self.builder = builder
-            self.k = k
-            self.local_builder = local_builder
-            self.tail = tail
-            self.insert_lets = insert_lets
-
-    class PostRoot(Kont):
         def __init__(self, state, builder, local_builder, tail, insert_lets):
             self.state = state
             self.builder = builder
@@ -338,9 +328,33 @@ class CSERenderer(Renderer):
             self.tail = tail
             self.insert_lets = insert_lets
 
-    def loop(self, state, k):
+    def loop(self, root):
+        root_builder = []
+        root_state = self.State(root, root.render_children(self), root_builder, [], 0, 1)
+        if id(root) in self.memo:
+            root_state.builder.append(self.memo[id(root)])
+            return ''.join(root_builder)
+        insert_lets = id(root) in self.binding_sites and len(self.binding_sites[id(root)].lifted_lets) > 0
+        if insert_lets:
+            root_state.builder = []
+            root_state.context.append(PrintStackFrame(self.binding_sites[id(root)]))
+        head = root.render_head(self)
+        if head != '':
+            root_state.builder.append(head)
+
+        stack = []
+
+        state = root_state
+
         while True:
             if state.i >= len(state.children):
+                if not stack:
+                    root_state.builder.append(root.render_tail(self))
+                    insert_lets = id(root) in self.binding_sites and len(self.binding_sites[id(root)].lifted_lets) > 0
+                    if insert_lets:
+                        self.add_lets(root_state.context, root_state.builder, root_builder)
+                    return ''.join(root_builder)
+                k = stack[-1]
                 if isinstance(k, self.PostChildrenLifted):
                     k.local_builder.extend(k.tail)
                     k.local_builder.append(' ')
@@ -350,9 +364,10 @@ class CSERenderer(Renderer):
                     k.builder.append(f'(Ref {k.name})')
                     state = k.state
                     state.i += 1
-                    k = k.k
+                    stack.pop()
                     continue
-                elif isinstance(k, self.PostChildren):
+                else:
+                    assert isinstance(k, self.PostChildren)
                     k.local_builder.extend(k.tail)
                     if k.insert_lets:
                         self.add_lets(k.state.context, k.local_builder, k.builder)
@@ -360,14 +375,8 @@ class CSERenderer(Renderer):
                         k.state.ir_child_num += 1
                     state = k.state
                     state.i += 1
-                    k = k.k
+                    stack.pop()
                     continue
-                else:
-                    assert isinstance(k, self.PostRoot)
-                    k.local_builder.append(k.tail)
-                    if k.insert_lets:
-                        self.add_lets(k.state.context, k.local_builder, k.builder)
-                    return ''.join(k.builder)
 
             state.builder.append(' ')
             child = state.children[state.i]
@@ -399,13 +408,14 @@ class CSERenderer(Renderer):
                 new_state.builder = [f'(Let {name} ']
 
                 if id(child) in self.memo:
-                    pcl = self.PostChildrenLifted(state, state.builder, new_state.builder, self.memo[id(child)], lift_to, name, k)
+                    pcl = self.PostChildrenLifted(state, state.builder, new_state.builder, self.memo[id(child)], lift_to, name)
+                    # FIXME
                     return self.apply(pcl)
 
                 insert_lets = new_state.pre_add_lets(self.binding_sites)
                 assert(not insert_lets)
 
-                k = self.PostChildrenLifted(state, state.builder, new_state.builder, [child.render_tail(self)], lift_to, name, k)
+                stack.append(self.PostChildrenLifted(state, state.builder, new_state.builder, [child.render_tail(self)], lift_to, name))
                 state = new_state
                 continue
 
@@ -417,7 +427,7 @@ class CSERenderer(Renderer):
 
                 insert_lets = new_state.pre_add_lets(self.binding_sites)
 
-                k = self.PostChildren(state, state.builder, new_state.builder, [child.render_tail(self)], insert_lets, k)
+                stack.append(self.PostChildren(state, state.builder, new_state.builder, [child.render_tail(self)], insert_lets))
                 state = new_state
                 continue
             else:
@@ -428,7 +438,7 @@ class CSERenderer(Renderer):
                 new_state.ir_child_num = state.ir_child_num
                 insert_lets = False
 
-                k = self.PostChildren(state, state.builder, new_state.builder, new_state.x.render_tail(self), insert_lets, k)
+                stack.append(self.PostChildren(state, state.builder, new_state.builder, new_state.x.render_tail(self), insert_lets))
                 state = new_state
                 continue
 
@@ -525,19 +535,5 @@ class CSERenderer(Renderer):
 
     def __call__(self, root: 'ir.BaseIR') -> str:
         self.binding_sites = self.compute_new_bindings(root)
-        builder = []
-        state = self.State(root, root.render_children(self), builder, [], 0, 1)
-        if id(root) in self.memo:
-            state.builder.append(self.memo[id(root)])
-            return ''.join(builder)
-        insert_lets = id(root) in self.binding_sites and len(self.binding_sites[id(root)].lifted_lets) > 0
-        if insert_lets:
-            state.builder = []
-            state.context.append(PrintStackFrame(self.binding_sites[id(root)]))
-        head = root.render_head(self)
-        if head != '':
-            state.builder.append(head)
 
-        pc = self.PostRoot(state, builder, state.builder, root.render_tail(self), insert_lets)
-
-        return self.loop(state, pc)
+        return self.loop(root)
