@@ -60,7 +60,7 @@ but the value ``5`` is only stored once for the entire dataset and NOT once per
 row of the table. The output of :meth:`.Table.describe` lists what all of the row
 fields and global fields are.
 
-    >>> ht.describe()  # doctest: +NOTEST
+    >>> ht.describe()  # doctest: +SKIP
     ----------------------------------------
     Global fields:
         None
@@ -99,10 +99,10 @@ special characters in it. The Python type of each attribute is an
 :class:`.Expression` that also contains context about its type and source, in
 this case a row field of table `ht`.
 
-    >>> ht  # doctest: +NOTEST
+    >>> ht  # doctest: +SKIP
     <hail.table.Table at 0x110791a20>
 
-    >>> ht.ID  # doctest: +NOTEST
+    >>> ht.ID  # doctest: +SKIP
     <Int32Expression of type int32>
 
 

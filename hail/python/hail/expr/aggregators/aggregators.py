@@ -261,11 +261,11 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     Examples
     --------
     Estimate the median of the `HT` field.
-    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +SKIP
     64
 
     Estimate the quartiles of the `HT` field.
-    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +SKIP
     [50, 60, 64, 71, 86]
 
     Warning
@@ -494,7 +494,7 @@ def counter(expr, weight=None) -> DictExpression:
     --------
     Count the number of individuals for each unique `SEX` value:
 
-    >>> table1.aggregate(hl.agg.counter(table1.SEX))  # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.counter(table1.SEX))  # doctest: +SKIP
     {'M': 2L, 'F': 2L}
 
     For each sample and gene, count the number of alternate alleles in each
@@ -1046,18 +1046,19 @@ def inbreeding(expr, prior) -> StructExpression:
     +------------------+-----------+-------------+------------------+------------------+
     | str              |   float64 |       int64 |          float64 |            int64 |
     +------------------+-----------+-------------+------------------+------------------+
-    | "C1046::HG02024" |  3.88e-01 |          12 |         1.04e+01 |               11 |
-    | "C1046::HG02025" |  3.99e-01 |          13 |         1.13e+01 |               12 |
-    | "C1046::HG02026" |  3.88e-01 |          12 |         1.04e+01 |               11 |
-    | "C1047::HG00731" | -1.31e+00 |          12 |         1.07e+01 |                9 |
-    | "C1047::HG00732" |  1.00e+00 |          12 |         1.04e+01 |               12 |
-    | "C1047::HG00733" | -8.04e-01 |          13 |         1.13e+01 |               10 |
-    | "C1048::HG02024" |  3.88e-01 |          12 |         1.04e+01 |               11 |
-    | "C1048::HG02025" |  3.99e-01 |          13 |         1.13e+01 |               12 |
-    | "C1048::HG02026" |  1.00e+00 |          12 |         1.04e+01 |               12 |
-    | "C1049::HG00731" | -1.41e+00 |          13 |         1.13e+01 |                9 |
+    | "C1046::HG02024" | -6.54e-01 |          10 |         8.79e+00 |                8 |
+    | "C1046::HG02025" |  1.93e-01 |          11 |         9.76e+00 |               10 |
+    | "C1046::HG02026" |  1.73e-01 |          10 |         8.79e+00 |                9 |
+    | "C1047::HG00731" | -6.14e-01 |          11 |         9.76e+00 |                9 |
+    | "C1047::HG00732" |  1.00e+00 |          10 |         8.79e+00 |               10 |
+    | "C1047::HG00733" | -6.14e-01 |          11 |         9.76e+00 |                9 |
+    | "C1048::HG02024" | -6.54e-01 |          10 |         8.79e+00 |                8 |
+    | "C1048::HG02025" |  1.93e-01 |          11 |         9.76e+00 |               10 |
+    | "C1048::HG02026" |  1.73e-01 |          10 |         8.79e+00 |                9 |
+    | "C1049::HG00731" | -6.14e-01 |          11 |         9.76e+00 |                9 |
     +------------------+-----------+-------------+------------------+------------------+
     showing top 10 rows
+    <BLANKLINE>
 
     Notes
     -----
@@ -1130,7 +1131,7 @@ def call_stats(call, alleles) -> StructExpression:
     | 20:13765944   | [132,2]      | [9.85e-01,1.49e-02] |         134 |
     | 20:13765954   | [180,2]      | [9.89e-01,1.10e-02] |         182 |
     | 20:13845987   | [2,198]      | [1.00e-02,9.90e-01] |         200 |
-    | 20:16223957   | [145,45]     | [7.63e-01,2.37e-01] |         190 |
+    | 20:16360654   | [199,1]      | [9.95e-01,5.00e-03] |         200 |
     +---------------+--------------+---------------------+-------------+
     <BLANKLINE>
     +---------------------------+
@@ -1147,7 +1148,7 @@ def call_stats(call, alleles) -> StructExpression:
     | [65,0]                    |
     | [89,0]                    |
     | [0,98]                    |
-    | [64,14]                   |
+    | [99,0]                   |
     +---------------------------+
     showing top 10 rows
     <BLANKLINE>
@@ -1197,7 +1198,7 @@ def hist(expr, start, end, bins) -> StructExpression:
     --------
     Compute a histogram of field `GQ`:
 
-    >>> dataset.aggregate_entries(hl.agg.hist(dataset.GQ, 0, 100, 10))  # doctest: +NOTEST
+    >>> dataset.aggregate_entries(hl.agg.hist(dataset.GQ, 0, 100, 10))  # doctest: +SKIP
     Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
            bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
            n_smaller=0,
@@ -1404,7 +1405,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     --------
     Regress HT against an intercept (1), SEX, and C1:
 
-    >>> table1.aggregate(hl.agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))  # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))  # doctest: +SKIP
     Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
            standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
            t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
@@ -1544,7 +1545,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> ds.aggregate_cols(hl.agg.corr(ds.pheno.age, ds.pheno.blood_pressure))  # doctest: +NOTEST
+    >>> ds.aggregate_cols(hl.agg.corr(ds.pheno.age, ds.pheno.blood_pressure))  # doctest: +SKIP
     0.16592876044845484
 
     Notes
@@ -1592,7 +1593,7 @@ def group_by(group, agg_expr) -> DictExpression:
     Compute linear regression statistics stratified by SEX:
 
     >>> table1.aggregate(hl.agg.group_by(table1.SEX,
-    ...                                  hl.agg.linreg(table1.HT, table1.C1, nested_dim=0)))  # doctest: +NOTEST
+    ...                                  hl.agg.linreg(table1.HT, table1.C1, nested_dim=0)))  # doctest: +SKIP
     {
     'F': Struct(beta=[6.153846153846154],
                 standard_error=[0.7692307692307685],
@@ -1661,7 +1662,7 @@ def array_agg(f, array):
 
     Aggregate to compute the fraction ``True`` per element:
 
-    >>> ht.aggregate(hl.agg.array_agg(lambda element: hl.agg.fraction(element), ht.arr))  # doctest: +NOTEST
+    >>> ht.aggregate(hl.agg.array_agg(lambda element: hl.agg.fraction(element), ht.arr))  # doctest: +SKIP
     [0.54, 0.55, 0.46, 0.52, 0.48]
 
     Notes

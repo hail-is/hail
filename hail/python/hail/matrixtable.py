@@ -727,7 +727,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all column field names:
 
-        >>> list(dataset.col)  # doctest: +NOTEST
+        >>> list(dataset.col)  # doctest: +SKIP
         ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -745,7 +745,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all non-key column field names:
 
-        >>> list(dataset.col_value)  # doctest: +NOTEST
+        >>> list(dataset.col_value)  # doctest: +SKIP
         ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -1952,7 +1952,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_rows(hl.struct(n_high_quality=hl.agg.count_where(dataset.qual > 40),
         ...                                  mean_qual=hl.agg.mean(dataset.qual)))
-        Struct(n_high_quality=13, mean_qual=544323.8915384616)
+        Struct(n_high_quality=11, mean_qual=625857.870909091)
 
         Notes
         -----
@@ -2050,7 +2050,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_entries(hl.struct(global_gq_mean=hl.agg.mean(dataset.GQ),
         ...                                     call_rate=hl.agg.fraction(hl.is_defined(dataset.GT))))
-        Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
+        Struct(global_gq_mean=72.4484389782403, call_rate=0.9609090909090909)
 
         Notes
         -----
@@ -2281,7 +2281,7 @@ class MatrixTable(ExprContainer):
         ...     .explode_cols('foo'))
         >>> mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
 
-        >>> mt.cols().show() # doctest: +NOTEST
+        >>> mt.cols().show() # doctest: +SKIP
         +---------+-------+
         | col_idx |   foo |
         +---------+-------+
@@ -2295,7 +2295,7 @@ class MatrixTable(ExprContainer):
         |       2 |     6 |
         +---------+-------+
 
-        >>> mt.entries().show() # doctest: +NOTEST
+        >>> mt.entries().show() # doctest: +SKIP
         +---------+---------+-------+-------+
         | row_idx | col_idx |   foo |   bar |
         +---------+---------+-------+-------+
@@ -2326,7 +2326,7 @@ class MatrixTable(ExprContainer):
         |       2 | [4,5,6]      |
         +---------+--------------+
 
-        >>> mt.entries().show() # doctest: +NOTEST
+        >>> mt.entries().show() # doctest: +SKIP
         +---------+---------+--------------+--------------+
         | row_idx | col_idx | foo          | bar          |
         +---------+---------+--------------+--------------+
@@ -2463,7 +2463,7 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
+        >>> dataset = dataset.checkpoint(f'{output_dir}/dataset_checkpoint.mt')
 
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -2482,7 +2482,7 @@ class MatrixTable(ExprContainer):
         Examples
         --------
 
-        >>> dataset.write('output/dataset.mt')
+        >>> dataset.write(f'{output_dir}/dataset.mt')
 
         Warning
         -------

@@ -18,7 +18,7 @@ def write_expression(expr, path, overwrite=False):
    >>> mean_norm = ht.aggregate(hl.agg.mean(ht.x), _localize=False)
    >>> mean_norm
    >>> hl.eval(mean_norm)
-   >>> hl.experimental.write_expression(mean_norm, 'output/expression.he')
+   >>> hl.experimental.write_expression(mean_norm, f'{output_dir}/expression.he')
 
    Parameters
    ----------
@@ -49,8 +49,8 @@ def read_expression(path):
 
    Example
    -------
-   >>> hl.experimental.write_expression(hl.array([1, 2]), 'output/test_expression.he')
-   >>> expression = hl.experimental.read_expression('output/test_expression.he')
+   >>> hl.experimental.write_expression(hl.array([1, 2]), f'{output_dir}/test_expression.he')
+   >>> expression = hl.experimental.read_expression(f'{output_dir}/test_expression.he')
    >>> hl.eval(expression)
 
    Parameters

@@ -92,7 +92,7 @@ Matrix Table
 
     .. code-block:: python
 
-        >>> mt.describe()  # doctest: +NOTEST
+        >>> mt.describe()  # doctest: +SKIP
         ----------------------------------------
         Global fields:
             'populations': array<str>
@@ -138,7 +138,7 @@ Table
 
     .. code-block:: python
 
-        >>> ht.describe()  # doctest: +NOTEST
+        >>> ht.describe()  # doctest: +SKIP
         ----------------------------------------
         Global fields:
             None
@@ -161,7 +161,7 @@ Expression
 
     .. code-block:: python
 
-        >>> mt.s.describe()  # doctest: +NOTEST
+        >>> mt.s.describe()  # doctest: +SKIP
         --------------------------------------------------------
         Type:
             str
@@ -254,9 +254,10 @@ Expression
     | 20:13765944   | ["C","G"]  | NA            |
     | 20:13765954   | ["C","T"]  | "rs113805278" |
     | 20:13845987   | ["C","T"]  | "rs761811"    |
-    | 20:16223957   | ["T","C"]  | "rs1000121"   |
+    | 20:16360654   | ["T","C"]  | "rs112875458"   |
     +---------------+------------+---------------+
     showing top 10 rows
+    <BLANKLINE>
 
 :**dependencies**: :meth:`.Expression.show`
 

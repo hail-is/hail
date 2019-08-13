@@ -1,11 +1,10 @@
-import pytest
-import os
-import shutil
-import hail as hl
-
 import doctest
+import os
+import pytest
+import shutil
+import tempfile
 
-NOTEST = doctest.register_optionflag('NOTEST')
+import hail as hl
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +15,7 @@ def patch_doctest_check_output(monkeypatch):
     def patched_check_output(self, want, got, optionflags):
         return ((not want)
                 or (want.strip() == 'None')
-                or (NOTEST & optionflags)
+                or optionflags
                 or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
 
     monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
@@ -30,39 +29,77 @@ def init(doctest_namespace):
     print("setting up doctest...")
 
     olddir = os.getcwd()
+<<<<<<< HEAD
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
     try:
         generate_datasets(doctest_namespace)
+=======
+    output_dir = None
+    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                          "docs"))
+    output_dir = tempfile.TemporaryDirectory()
+    try:
+        doctest_namespace['output_dir'] = output_dir.name
+        generate_datasets(doctest_namespace, output_dir)
+        print(f'output_dir: {output_dir.name}')
+>>>>>>> fix
         print("finished setting up doctest...")
         yield
     finally:
         os.chdir(olddir)
+<<<<<<< HEAD
 
 
 def generate_datasets(doctest_namespace):
-    doctest_namespace['hl'] = hl
+=======
+        if output_dir:
+            output_dir.cleanup()
 
-    if not os.path.isdir("output/"):
-        try:
-            os.mkdir("output/")
-        except OSError:
-            pass
+
+def generate_datasets(doctest_namespace, output_dir):
+>>>>>>> fix
+    doctest_namespace['hl'] = hl
 
     files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
     for f in files:
         if os.path.isdir(f):
             shutil.rmtree(f)
 
-    ds = hl.read_matrix_table('data/example.vds')
+    ds = hl.import_vcf('data/sample.vcf.bgz')
+    ds = ds.sample_rows(0.03)
+    ds = ds.annotate_rows(use_as_marker=hl.rand_bool(0.5),
+                          panel_maf=0.1,
+                          anno1=5,
+                          anno2=0,
+                          consequence="LOF",
+                          gene="A",
+                          score=5.0)
+    ds = ds.annotate_rows(a_index=1)
+    ds = hl.sample_qc(hl.variant_qc(ds))
+    ds = ds.annotate_cols(is_case=True,
+                          pheno=hl.struct(is_case=hl.rand_bool(0.5),
+                                          is_female=hl.rand_bool(0.5),
+                                          age=hl.rand_norm(65, 10),
+                                          height=hl.rand_norm(70, 10),
+                                          blood_pressure=hl.rand_norm(120, 20),
+                                          cohort_name="cohort1"),
+                          cov=hl.struct(PC1=hl.rand_norm(0, 1)),
+                          cov1=hl.rand_norm(0, 1),
+                          cov2=hl.rand_norm(0, 1),
+                          cohort="SIGMA")
+    ds = ds.annotate_globals(global_field_1=5,
+                             global_field_2=10,
+                             pli={'SCN1A': 0.999, 'SONIC': 0.014},
+                             populations=['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
+    ds = ds.annotate_rows(gene=['TTN'])
+    ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')
+    ds = ds.checkpoint(f'{output_dir.name}/example.vds', overwrite=True)
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
     doctest_namespace['dataset2'] = ds.annotate_globals(global_field=5)
     doctest_namespace['dataset_to_union_1'] = ds
     doctest_namespace['dataset_to_union_2'] = ds
-
-    gene_cnsq = hl.read_matrix_table('data/gene_cnsq.mt')
-    doctest_namespace['gene_cnsq'] = gene_cnsq
 
     v_metadata = ds.rows().annotate_globals(global_field=5).annotate(consequence='SYN')
     doctest_namespace['v_metadata'] = v_metadata
@@ -135,5 +172,15 @@ def generate_datasets(doctest_namespace):
     bgen = hl.import_bgen('data/example.8bits.bgen',
                           entry_fields=['GT', 'GP', 'dosage'])
     doctest_namespace['variants_table'] = bgen.rows()
+
+    burden_ds = hl.import_vcf('data/example_burden.vcf')
+    burden_kt = hl.import_table('data/example_burden.tsv', key='Sample', impute=True)
+    burden_ds = burden_ds.annotate_cols(burden = burden_kt[burden_ds.s])
+    burden_ds = burden_ds.annotate_rows(weight = hl.float64(burden_ds.locus.position))
+    burden_ds = hl.variant_qc(burden_ds)
+    genekt = hl.import_locus_intervals('data/gene.interval_list')
+    burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
+    burden_ds = burden_ds.checkpoint(f'{output_dir.name}/example_burden.vds', overwrite=True)
+    doctest_namespace['burden_ds'] = burden_ds
 
     print("finished setting up doctest...")

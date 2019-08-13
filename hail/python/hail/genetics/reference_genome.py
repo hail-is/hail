@@ -290,7 +290,7 @@ class ReferenceGenome(object):
         --------
 
         >>> my_rg = hl.ReferenceGenome("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
-        >>> my_rg.write("output/new_reference.json")
+        >>> my_rg.write(f"{output_dir}/new_reference.json")
 
         Notes
         -----

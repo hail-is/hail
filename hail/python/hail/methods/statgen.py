@@ -813,17 +813,17 @@ def linear_mixed_model(y,
     Initialize a model using three fixed effects (including intercept) and
     genetic marker random effects:
 
-    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker)
-    >>> model, _ = hl.linear_mixed_model(
+    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker) # doctest: +SKIP
+    >>> model, _ = hl.linear_mixed_model( # doctest: +SKIP
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
     ...     z_t=marker_ds.GT.n_alt_alleles(),
-    ...     p_path='output/p.bm')
+    ...     p_path=f'{output_dir}/p.bm')
 
     Fit the model and examine :math:`h^2`:
 
-    >>> model.fit()
-    >>> model.h_sq
+    >>> model.fit()  # doctest: +SKIP
+    >>> model.h_sq  # doctest: +SKIP
 
     Sanity-check the normalized likelihood of :math:`h^2` over the percentile
     grid:
@@ -833,7 +833,7 @@ def linear_mixed_model(y,
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)
+    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)  # doctest: +SKIP
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -841,12 +841,12 @@ def linear_mixed_model(y,
     as above with :math:`P` written as a block matrix but returned as an
     ndarray:
 
-    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()
-    >>> model, p = hl.linear_mixed_model(
+    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()  # doctest: +SKIP
+    >>> model, p = hl.linear_mixed_model(  # doctest: +SKIP
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,
-    ...     p_path='output/p.bm',
+    ...     p_path=f'{output_dir}/p.bm',
     ...     overwrite=True)
 
     Notes
@@ -1150,7 +1150,6 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    >>> burden_ds = hl.read_matrix_table('data/example_burden.vds')
     >>> skat_table = hl.skat(key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
@@ -2058,7 +2057,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     Examples
     --------
 
-    >>> hl.split_multi_hts(dataset).write('output/split.vds')
+    >>> hl.split_multi_hts(dataset).write(f'{output_dir}/split.vds')
 
     Notes
     -----
@@ -2142,7 +2141,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     >>> split_ds = hl.split_multi_hts(dataset)
     >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.a_index - 1],
     ...                                   **split_ds.info)) # doctest: +SKIP
-    >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
+    >>> hl.export_vcf(split_ds, f'{output_dir}/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 
