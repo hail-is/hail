@@ -126,7 +126,7 @@ object JSONAnnotationImpex {
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
         case TNDArray(elementType, nDims, required)  => {
-          ???
+          val nd = a.asInstanceOf[]
         }
       }
     }
