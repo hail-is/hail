@@ -246,8 +246,8 @@ steps:
      valueFrom: hail_run_image.image
    resources:
      requests:
-       memory: "1G"
-       cpu: "1"
+       memory: "4G"
+       cpu: "4"
    script: |
      set -ex
      cd /io
@@ -273,8 +273,8 @@ steps:
      valueFrom: hail_run_image.image
    resources:
      requests:
-       memory: "1G"
-       cpu: "1"
+       memory: "3G"
+       cpu: "3"
    script: |
      set -ex
      cd /io
@@ -348,8 +348,8 @@ steps:
      valueFrom: hail_run_image.image
    resources:
      requests:
-       memory: "1G"
-       cpu: "1"
+       memory: "4G"
+       cpu: "4"
    script: |
      set -ex
      cd /io
@@ -360,7 +360,7 @@ steps:
      export HAIL_DOCTEST_DATA_DIR=./data
      export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
-     python3 -m pytest --instafail test --durations=50
+     python3 -m pytest -n 4 --instafail test --durations=50
    inputs:
      - from: /hail.jar
        to: /io/hail.jar
@@ -393,10 +393,13 @@ steps:
    name: make_docs
    image:
      valueFrom: hail_base_image.image
+   resources:
+     requests:
+       cpu: "2"
    script: |
      set -ex
      export HAIL_SHORT_VERSION='0.2'
-     export SPHINXOPTS='-tchecktutorial'
+     export SPHINXOPTS='-tchecktutorial -j 2'
      mkdir -p {{ token }}/python
      cd {{ token }}
      unzip -q -d python /io/hail.zip

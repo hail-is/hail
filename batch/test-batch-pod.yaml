@@ -6,6 +6,10 @@ spec:
   containers:
   - name: test-batch
     image: "{{ test_batch_image.image }}"
+    resources:
+      requests:
+        memory: "2G"
+        cpu: "2"
     env:
      - name: POD_IP
        valueFrom:

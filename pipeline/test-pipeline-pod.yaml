@@ -6,6 +6,10 @@ spec:
   containers:
   - name: test-pipeline
     image: "{{ test_pipeline_image.image }}"
+    resources:
+      requests:
+        memory: "2G"
+        cpu: "2"
     env:
      - name: HAIL_TOKEN_FILE
        value: '/test-jwt/jwt'

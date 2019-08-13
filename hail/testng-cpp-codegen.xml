@@ -1,4 +1,4 @@
-<suite name="CppCodegenSuite" verbose="1">
+<suite name="CppCodegenSuite" verbose="1" parallel="classes" thread-count="3">
     <test name="TestCppCodegen">
       <classes>
            <class name="is.hail.nativecode.NativeCodeSuite"/>
