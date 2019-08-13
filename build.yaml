@@ -379,10 +379,10 @@ steps:
    name: test_python_docs
    image:
      valueFrom: hail_base_image.image
-    resources:
-      requests:
-        memory: "2G"
-        cpu: "2"
+   resources:
+     requests:
+       memory: "2G"
+       cpu: "2"
    script: |
      set -ex
      cd /hail/python/hail
