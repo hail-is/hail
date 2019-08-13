@@ -106,30 +106,30 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
     val kEnc = EmitPackEncoder.buildMethod(t, t, fb)
 
     { ob: Code[OutputBuffer] =>
-      Code(
-        ob.writeInt(size),
-        foreach { (km, kv) =>
-          Code(
-            ob.writeBoolean(km),
-            (!km).orEmpty(kEnc.invoke(region, kv, ob)))
-        })
+      tree.bulkStore(ob) { (ob, src) =>
+        Code(
+          ob.writeBoolean(key.isKeyMissing(src)),
+          (!key.isKeyMissing(src)).orEmpty(
+            kEnc.invoke(region, key.loadKey(src), ob)))
+      }
     }
   }
 
   def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
     val kDec = EmitPackDecoder.buildMethod(t, t, fb)
-    val readSize = fb.newField[Int]
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(t))
 
     { ib: Code[InputBuffer] =>
       Code(
-        readSize := ib.readInt(),
         init,
-        Code.whileLoop(size < readSize,
-          km := ib.readBoolean(),
-          (!km).orEmpty(kv := kDec.invoke(region, ib)),
-          insert(km, kv)))
+        tree.bulkLoad(ib) { (ib, dest) =>
+          Code(
+            km := ib.readBoolean(),
+            (!km).orEmpty(kv.storeAny(kDec.invoke(region, ib))),
+            key.store(dest, km, kv),
+            size := size + 1)
+        })
     }
   }
 }

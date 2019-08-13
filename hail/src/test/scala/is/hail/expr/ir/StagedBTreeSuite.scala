@@ -58,8 +58,7 @@ object BTreeBackedSet {
     fb.emit(Code(
       r := fb.getArg[Region](1),
       btree.init,
-      ib2 := ib,
-      btree.bulkLoad(ib2) { (ib, off) =>
+      btree.bulkLoad(ib) { (ib, off) =>
         Code(
           km := ib.readBoolean(),
           kv := km.mux(0L, ib.readLong()),
