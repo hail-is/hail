@@ -759,6 +759,7 @@ class GRunner:
         old_pool_size = self.inst_pool.pool_size
         self.inst_pool.pool_size = pool_size
         print(f'pool_size changed: {old_pool_size} => {pool_size}')
+        return web.Response()
 
     async def handle_activate_worker(self, request):
         return await asyncio.shield(self.handle_activate_worker2(request))
