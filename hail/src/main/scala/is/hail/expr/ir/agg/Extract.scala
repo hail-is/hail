@@ -103,7 +103,7 @@ object TableMapIRNew {
         if (i < scanAggCount) {
           partitionIndices(i) = os.getPos
           os.writeInt(x.length)
-          os.write(x)
+          os.write(x, 0, x.length)
           os.hflush()
         }
       }
@@ -122,8 +122,10 @@ object TableMapIRNew {
         is.seek(filePosition)
         val aggSize = is.readInt()
         val partAggs = new Array[Byte](aggSize)
-        val nread = is.read(partAggs)
-        assert(nread == aggSize)
+        val nread = is.read(partAggs, 0, aggSize)
+        if (nread != aggSize) {
+          fatal(s"aggs read wrong number of bytes: $nread vs $aggSize")
+        }
         partAggs
       }
 
