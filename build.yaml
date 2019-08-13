@@ -379,10 +379,16 @@ steps:
    name: test_python_docs
    image:
      valueFrom: hail_base_image.image
+    resources:
+      requests:
+        memory: "2G"
+        cpu: "2"
    script: |
      set -ex
      cd /hail/python/hail
-     python3 -m pytest --instafail \
+     python3 -m pytest \
+       -n 2 \
+       --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
        --ignore=docs/conf.py \
