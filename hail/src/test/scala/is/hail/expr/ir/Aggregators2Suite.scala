@@ -128,6 +128,13 @@ class Aggregators2Suite extends HailSuite {
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = rows.last, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
+  @Test def testProduct() {
+    val aggSig = AggSignature2(Product(), FastSeq(), FastSeq(TInt64()), None)
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
+
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = -70L, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
   @Test def testTake() {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32(), "y" -> TInt64()),
@@ -201,6 +208,24 @@ class Aggregators2Suite extends HailSuite {
       ArrayFor(ArrayRange(0, ArrayLen(a), 1), idx.name,
         Let(elt.name, ArrayRef(a, idx),
           SeqOp2(aggIdx, FastIndexedSeq(idx, seqOps(elt)), eltSig)))))
+  }
+
+  @Test def testMin() {
+    val aggSig = AggSignature2(Min(), FastSeq[Type](), FastSeq[Type](TInt64()), None)
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
+    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64())))
+
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = -2L, args = FastIndexedSeq(("rows", (arrayType, rows))))
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgsNA, expected = null, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
+  @Test def testMax() {
+    val aggSig = AggSignature2(Max(), FastSeq[Type](), FastSeq[Type](TInt64()), None)
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
+    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64())))
+
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = 7L, args = FastIndexedSeq(("rows", (arrayType, rows))))
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgsNA, expected = null, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
   @Test def testArrayElementsAgg() {

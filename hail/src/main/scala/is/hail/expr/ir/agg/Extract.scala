@@ -237,6 +237,12 @@ object Extract {
   def getAgg(aggSig: AggSignature2): StagedAggregator = aggSig match {
     case AggSignature2(Sum(), _, Seq(t), _) =>
       new SumAggregator(t.physicalType)
+    case AggSignature2(Product(), _, Seq(t), _) =>
+      new ProductAggregator(t.physicalType)
+    case AggSignature2(Min(), _, Seq(t), _) =>
+      new MinAggregator(t.physicalType)
+    case AggSignature2(Max(), _, Seq(t), _) =>
+      new MaxAggregator(t.physicalType)
     case AggSignature2(Count(), _, _, _) =>
       CountAggregator
     case AggSignature2(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
