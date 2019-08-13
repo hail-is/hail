@@ -167,8 +167,9 @@ class PR(Code):
 
     @build_state.setter
     def build_state(self, new_state):
-        self._build_state_timestamp = datetime.datetime.now()
-        self._build_state = new_state
+        if new_state != self._build_state:
+            self._build_state_timestamp = datetime.datetime.now()
+            self._build_state = new_state
 
     def pretty_status_age(self):
         return pretty_timestamp_age(self._build_state_timestamp)
