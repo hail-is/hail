@@ -201,8 +201,7 @@ class Job:
                     name='batch-gsa-key')],
             ports=[kube.client.V1ContainerPort(container_port=5000)])
 
-    def _keep_alive_container(self):
-        del self
+    def _keep_alive_container(self):  # pylint: disable=R0201
         sh_expression = f"""
         set -ex
         python3 -m batch.keep_alive_sidecar
