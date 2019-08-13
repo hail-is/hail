@@ -3,6 +3,8 @@ import json
 import math
 from collections import Mapping, Sequence
 
+import numpy as np
+
 import hail as hl
 from hail import genetics
 from hail.expr.nat import NatBase, NatLiteral
@@ -576,7 +578,8 @@ class tndarray(HailType):
         return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
-        raise NotImplementedError
+        print(x)
+        return np.ndarray(shape=x['shape'])
 
     def _convert_to_json(self, x):
         raise NotImplementedError
