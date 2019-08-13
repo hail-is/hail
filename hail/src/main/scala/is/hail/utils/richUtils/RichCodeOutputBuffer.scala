@@ -41,4 +41,6 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
     case _: PFloat32 => v => writeFloat(coerce[Float](v))
     case _: PFloat64 => v => writeDouble(coerce[Double](v))
   }
+
+  def flush(): Code[Unit] = out.invoke[Unit]("flush")
 }

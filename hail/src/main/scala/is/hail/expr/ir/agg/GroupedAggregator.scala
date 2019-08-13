@@ -100,19 +100,22 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   private def initStateOffset(idx: Int): Code[Long] = container.getStateOffset(initStatesOffset, idx)
 
   private val _elt = fb.newField[Long]
-  def loadContainer(km: Code[Boolean], kv: Code[_]): Code[Unit] = {
-    val initValue = Code(
+
+  def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
+    Code(
       size := size + 1,
       region.setNumParents(size * (nStates + 1)),
       keyed.initValue(_elt, km, kv, size * nStates),
-      container.newStates,
-      container.toCode((i, s) => s.copyFrom(initStateOffset(i))))
+      container.newStates)
+  }
 
+  def loadContainer(km: Code[Boolean], kv: Code[_]): Code[Unit] =
     Code(
       _elt := tree.getOrElseInitialize(km, km.mux(defaultValue(keyType), kv)),
-      keyed.isEmpty(_elt).mux(initValue,
+      keyed.isEmpty(_elt).mux(Code(
+        initElement(_elt, km, kv),
+        container.toCode((i, s) => s.copyFrom(initStateOffset(i)))),
         container.load(keyed.regionIdx(_elt), keyed.containerAddress(_elt))))
-  }
 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
     Code(loadContainer(km, kv), seqOps, container.store(keyed.regionIdx(_elt), keyed.containerAddress(_elt)))
@@ -167,16 +170,22 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.map(_.serialize(codec))
     val kEnc = EmitPackEncoder.buildMethod(keyType, keyType, fb)
+    val km = fb.newField[Boolean]
+    val kv = fb.newField()(typeToTypeInfo(keyType))
 
     { ob: Code[OutputBuffer] =>
       Code(
         container.load(0, initStatesOffset),
         container.toCode((i, _) => serializers(i)(ob)),
-        ob.writeInt(size),
-        foreach { (km, kv) =>
+        tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
           Code(
+            km := keyed.isKeyMissing(kvOff),
+            kv.storeAny(keyed.loadKey(kvOff)),
             ob.writeBoolean(km),
             (!km).orEmpty(kEnc.invoke(region, kv, ob)),
+            container.load(
+              keyed.regionIdx(kvOff),
+              keyed.containerAddress(kvOff)),
             container.toCode((i, _) => serializers(i)(ob)))
         })
     }
@@ -184,20 +193,22 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.map(_.deserialize(codec))
-    val kDec = EmitPackDecoder.buildMethod(keyType, keyType, fb);
-
-    val readSize = fb.newField[Int]
+    val kDec = EmitPackDecoder.buildMethod(keyType, keyType, fb)
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(keyType))
 
     { ib: Code[InputBuffer] =>
       Code(
         init(container.toCode((i, _) => deserializers(i)(ib))),
-        readSize := ib.readInt(),
-        Code.whileLoop(size < readSize,
-          km := ib.readBoolean(),
-          (!km).orEmpty(kv := kDec.invoke(region, ib)),
-          withContainer(km, kv, container.toCode((i, _) => deserializers(i)(ib)))))
+        tree.bulkLoad(ib) { (ib, koff) =>
+          Code(
+            _elt := koff,
+            km := ib.readBoolean(),
+            (!km).orEmpty(kv := kDec.invoke(region, ib)),
+            initElement(_elt, km, kv),
+            container.toCode((i, _) => deserializers(i)(ib)),
+            container.store(keyed.regionIdx(_elt), keyed.containerAddress(_elt)))
+        })
     }
   }
 }
