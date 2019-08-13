@@ -1307,6 +1307,9 @@ private class Emit(
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
+        log.info(s"SHAPE IR: ${shapeIR}")
+        log.info(s"SHAPE PTYPE: ${shapePType}")
+
         val t = x.pType.asInstanceOf[PNDArray]
         val srvb = new StagedRegionValueBuilder(mb, t.representation)
 
@@ -1319,23 +1322,33 @@ private class Emit(
           srvb.addInt(0),
           srvb.advance(),
           srvb.addInt(0),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+            "println", srvb.currentOffset),
           srvb.advance(),
           shapet.m.mux(
             Code._fatal("Missing shape"),
             Code(
-              {
-                val nDims = shapePType.size
-                var index = 0
-                var missingCheckCode = Code._empty
-                while (index < nDims) {
-                  missingCheckCode = Code(missingCheckCode,
-                    shapePType.isFieldMissing(coerce[Long](shapet.v), index).orEmpty(Code._fatal(s"shape missing at index $index")))
-                  index += 1
-                }
-                missingCheckCode
-              },
-              srvb.addIRIntermediate(shapePType)(shapet.v),
+              srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PBaseStruct], { srvb: StagedRegionValueBuilder =>
+                Code(
+                  srvb.start(),
+                  {
+                    val nDims = shapePType.size
+                    var index = 0
+                    var shapeCopyingCode = Code._empty[Unit]
+                    while (index < nDims) {
+                      shapeCopyingCode = Code(shapeCopyingCode,
+                        shapePType.isFieldMissing(coerce[Long](shapet.v), index).mux[Unit](
+                          Code._fatal(s"shape missing at index $index"),
+                          Code(srvb.addLong(region.loadLong(shapePType.loadField(coerce[Long](shapet.v), index))), srvb.advance())
+                        ))
+                      index += 1
+                    }
+                    shapeCopyingCode
+                  }
+                )
+              }),
               srvb.advance(),
+
               srvb.addArray(t.representation.fieldType("strides").asInstanceOf[PArray], { srvb =>
                 srvb.start(0)
               }),
