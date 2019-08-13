@@ -72,7 +72,7 @@ python/hail/hail-all-spark.jar: $(SHADOW_JAR)
 .PHONY: install-editable
 install-editable: $(BUILD_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md python/hail/hail-all-spark.jar
-	cd python && $(PIP) install -e
+	cd python && $(PIP) install -e .
 
 .PHONY: pytest
 pytest: $(BUILD_INFO) $(SHADOW_JAR) init-scripts
