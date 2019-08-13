@@ -1199,6 +1199,10 @@ class Tests(unittest.TestCase):
                                      .when(((t.idx - 1) % 3) == 0, t.idx - 2)
                                      .default(t.idx - 1))))
 
+    def test_agg_table_take(self):
+        ht = hl.utils.range_table(10).annotate(x = 'a')
+        self.assertEqual(ht.aggregate(agg.take(ht.x, 2)), ['a', 'a'])
+
     def test_str_ops(self):
         s = hl.literal("123")
         self.assertEqual(hl.eval(hl.int32(s)), 123)
