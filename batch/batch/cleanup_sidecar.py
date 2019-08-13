@@ -19,6 +19,7 @@ server = StoppableServer(app, '0.0.0.0', 5000)
 
 @routes.post('/')
 async def finish(request):
+    del request
     if copy_output_cmd is not None:
         log.info(f'copying out data')
         try:

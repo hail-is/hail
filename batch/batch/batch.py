@@ -202,6 +202,7 @@ class Job:
             ports=[kube.client.V1ContainerPort(container_port=5000)])
 
     def _keep_alive_container(self):
+        del self
         sh_expression = f"""
         set -ex
         python3 -m batch.keep_alive_sidecar
@@ -573,17 +574,17 @@ class Job:
     async def _terminate_keep_alive_pod(self, pod):
         try:
             async with app['client_session'].post(f'http://{pod.status.pod_ip}:5001/') as resp:
-                assert(resp.status == 200)
-        except Exception as e:
+                assert resp.status == 200
+        except Exception as e:  # pylint: disable=W0703
             log.info(f'could not connect to keep-alive pod, but '
                      f'pod will be deleted shortly anyway {e}')
 
     async def _terminate_cleanup_pod(self, pod):
         try:
             async with app['client_session'].post(f'http://{pod.status.pod_ip}:5000/') as resp:
-                assert(resp.status == 200)
+                assert resp.status == 200
             return None
-        except Exception as err:
+        except Exception as err:  # pylint: disable=W0703
             return err
 
     async def mark_failed(self, failure_reason):
@@ -1190,7 +1191,7 @@ async def batch_id(request, userdata):
     raise web.HTTPFound(location=location)
 
 
-async def update_job_with_pod(job, pod):  # pylint: disable=R0911
+async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
     log.info(f'update job {job.id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
     if job and job._state == 'Pending':
         if pod:
@@ -1249,7 +1250,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         await job.mark_unscheduled()
         return
 
-    if pod and pod.status:
+    if pod and pod.status:  # pylint: disable=R1702
         if pod.status.init_container_statuses:
             assert len(pod.status.init_container_statuses) == 1
             init_status = pod.status.init_container_statuses[0]

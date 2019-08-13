@@ -1,7 +1,4 @@
-import asyncio
 import logging
-import sys
-import traceback
 
 from aiohttp import web
 from hailtop import gear
@@ -18,6 +15,7 @@ server = StoppableServer(app, '0.0.0.0', 5001)
 
 @routes.post('/')
 async def finish(request):
+    del request
     log.info(f'received shutdown request')
     await server.stop(0)
     return web.Response()
