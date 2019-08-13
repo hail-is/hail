@@ -104,6 +104,7 @@ object TableMapIRNew {
           partitionIndices(i) = os.getPos
           os.writeInt(x.length)
           os.write(x)
+          os.hflush()
         }
       }
     }
