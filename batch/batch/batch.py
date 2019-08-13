@@ -687,7 +687,8 @@ class Job:
         if self.is_complete():
             result['exit_code'] = {
                 k: v for k, v in zip(['input', 'main', 'output'], self.exit_codes)}
-            result['duration'] = self.durations
+            result['duration'] = {
+                k: v for k, v in zip(['input', 'main', 'output'], self.durations)}
 
         if self.attributes:
             result['attributes'] = self.attributes
