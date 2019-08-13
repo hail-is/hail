@@ -111,7 +111,8 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
   }
 
   def loadElement(idx: Code[Int]): (Code[Boolean], Code[_]) = {
-    (eltArray.isElementMissing(data, idx), Region.loadIRIntermediate(eltType)(eltArray.loadElement(region, data, capacity, idx)))
+    val (m, off) = elementOffset(idx)
+    (m, Region.loadIRIntermediate(eltType)(off))
   }
 
   private def resize(): Code[Unit] = {
