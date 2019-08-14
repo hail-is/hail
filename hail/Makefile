@@ -1,6 +1,7 @@
 .PHONY: shadowJar jars clean
 
 include env_var.mk
+.DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
 SUFFIXES:
 
