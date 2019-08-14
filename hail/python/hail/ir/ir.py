@@ -509,7 +509,6 @@ class MakeNDArray(IR):
         self.data = data
         self.shape = shape
         self.row_major = row_major
-        print(f"Shape: {self.shape}")
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
