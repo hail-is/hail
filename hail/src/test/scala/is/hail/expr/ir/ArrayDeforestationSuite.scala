@@ -64,4 +64,17 @@ class ArrayDeforestationSuite extends HailSuite {
     assertEvalsTo(arrayFoldWithStruct(5, -5, -6), Row(Row(4, 0), Row(5, 0)))
   }
 
+  @Test def testStreamifyNestedSort() {
+    val t = TInt32()
+    val x = Ref("x", t)
+    assertEvalsTo(
+      ArrayMap(
+        ArraySort(
+          MakeArray(
+            Seq(I32(1), I32(2), I32(3)),
+            TArray(t))),
+        "x",
+        x * 5),
+      IndexedSeq(5, 10, 15))
+  }
 }
