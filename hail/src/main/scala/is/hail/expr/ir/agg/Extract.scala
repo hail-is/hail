@@ -122,7 +122,12 @@ object TableMapIRNew {
         is.seek(filePosition)
         val aggSize = is.readInt()
         val partAggs = new Array[Byte](aggSize)
-        val nread = is.read(partAggs, 0, aggSize)
+        var nread = is.read(partAggs, 0, aggSize)
+        var r = nread
+        while (r > 0 && nread < aggSize) {
+          r = is.read(partAggs, nread, aggSize - nread)
+          if (r > 0) nread += r
+        }
         if (nread != aggSize) {
           fatal(s"aggs read wrong number of bytes: $nread vs $aggSize")
         }
