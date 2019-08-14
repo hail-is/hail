@@ -3005,7 +3005,7 @@ class Tests(unittest.TestCase):
             (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]))
 
     @skip_unless_spark_backend()
-    @run_with_cxx_compile()
+    #@run_with_cxx_compile()
     def test_ndarray_shape(self):
         np_e = np.array(3)
         np_row = np.array([1, 2, 3])
