@@ -100,8 +100,15 @@ class SparkBackend(Backend):
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
             r = CSERenderer(stop_at_jir=True)
+            r_old = Renderer(stop_at_jir=True)
             # FIXME parse should be static
-            ir._jir = ir.parse(r(ir), ir_map=r.jirs)
+            no_cse = r_old(ir)
+            print('without cse:')
+            print(no_cse)
+            cse = r(ir)
+            print('with cse:')
+            print(cse)
+            ir._jir = ir.parse(cse, ir_map=r.jirs)
         return ir._jir
 
     def execute(self, ir, timed=False):
