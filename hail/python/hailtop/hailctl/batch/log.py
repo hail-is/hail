@@ -12,14 +12,14 @@ def main(args, pass_through_args, client):
 
     logs = maybe_job.log()
 
-    if 'input' in logs:
-        print("Input Logs:")
-        print(logs['input'])
+    if 'setup' in logs:
+        print("Setup Logs:")
+        print(logs['setup'])
 
     if 'main' in logs:
         print("Main Logs:")
         print(logs['main'])
 
-    if 'output' in logs:
-        print("Output Logs:")
-        print(logs['output'])
+    if 'cleanup' in logs:
+        print("Cleanup Logs:")
+        print(logs['cleanup'])
