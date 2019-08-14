@@ -34,7 +34,6 @@ class PodThrottler:
     async def _create_pod(self):
         while True:
             await self.semaphore.acquire()
-
             try:
                 job = await self.queue.get()
                 pod_name = job._pod_name

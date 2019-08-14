@@ -13,9 +13,8 @@ log = logging.getLogger('batch.logstore')
 class LogStore:
     log_file_name = 'container_logs'
     pod_status_file_name = 'pod_status'
-    results_file_name = 'container_results'
 
-    files = (log_file_name, pod_status_file_name, results_file_name)
+    files = (log_file_name, pod_status_file_name)
 
     @staticmethod
     def _parse_uri(uri):
