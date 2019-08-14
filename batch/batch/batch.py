@@ -1224,7 +1224,8 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
                         container_status.state.waiting.message)
             return None
 
-        all_container_statuses = pod.status.init_container_statuses[:] or []
+        all_container_statuses = []
+        all_container_statuses.extend(pod.status.init_container_statuses or [])
         all_container_statuses.extend(pod.status.container_statuses or [])
 
         image_pull_back_off_reasons = []
