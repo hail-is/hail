@@ -1224,7 +1224,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
                         container_status.state.waiting.message)
             return None
 
-        all_container_statuses = pod.status.init_container_statuses or []
+        all_container_statuses = pod.status.init_container_statuses[:] or []
         all_container_statuses.extend(pod.status.container_statuses or [])
 
         image_pull_back_off_reasons = []
@@ -1251,7 +1251,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
 
     if pod and pod.status:  # pylint: disable=R1702
         if pod.status.init_container_statuses:
-            assert len(pod.status.init_container_statuses) == 1
+            assert len(pod.status.init_container_statuses) == 1, pod
             init_status = pod.status.init_container_statuses[0]
             if init_status.state and init_status.state.terminated and init_status.state.terminated.exit_code != 0:
                 log.info(f'job {job.id} failed -- setup container exited {init_status.state.terminated.exit_code}')
