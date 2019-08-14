@@ -1307,9 +1307,6 @@ private class Emit(
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        log.info(s"SHAPE IR: ${shapeIR}")
-        log.info(s"SHAPE PTYPE: ${shapePType}")
-
         val t = x.pType.asInstanceOf[PNDArray]
         val srvb = new StagedRegionValueBuilder(mb, t.representation)
 
@@ -1322,8 +1319,6 @@ private class Emit(
           srvb.addInt(0),
           srvb.advance(),
           srvb.addInt(0),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-            "println", srvb.currentOffset),
           srvb.advance(),
           shapet.m.mux(
             Code._fatal("Missing shape"),

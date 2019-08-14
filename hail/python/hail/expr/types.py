@@ -579,7 +579,7 @@ class tndarray(HailType):
 
     def _convert_from_json(self, x):
         print(x)
-        return np.ndarray(shape=x['shape'])
+        return np.ndarray(shape=x['shape'], buffer=np.array(x['data']))
 
     def _convert_to_json(self, x):
         raise NotImplementedError
