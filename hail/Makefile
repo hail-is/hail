@@ -207,7 +207,7 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-clean:
+clean: clean-env
 	./gradlew clean
 	rm -rf build/deploy
 	rm -rf python/hail/hail-all-spark.jar
