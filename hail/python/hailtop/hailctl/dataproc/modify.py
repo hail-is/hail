@@ -1,3 +1,4 @@
+import os.path
 import sys
 from subprocess import check_call
 
@@ -55,6 +56,7 @@ def main(args, pass_through_args):
 
     if (args.wheel is not None):
         wheel = args.wheel
+        wheelfile = os.path.basename(wheel)
         cmds = []
         if wheel.startswith("gs://"):
             cmds.append([
@@ -64,9 +66,9 @@ def main(args, pass_through_args):
                 '{}-m'.format(args.name),
                 '--zone={}'.format(args.zone),
                 '--',
-                f'sudo gsutil cp {wheel} /home/hail/ && '
+                f'sudo gsutil cp {wheel} /tmp/ && '
                 'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                'sudo /opt/conda/default/bin/pip install --no-dependencies /home/hail/*.whl'
+                f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile}'
             ])
         else:
             cmds.extend([
@@ -86,7 +88,7 @@ def main(args, pass_through_args):
                     f'--zone={args.zone}',
                     '--',
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                    'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/*.whl'
+                    f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile}'
                 ]
             ])
 
