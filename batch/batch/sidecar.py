@@ -100,7 +100,7 @@ async def process_pod(pod, failed=False, failure_reason=None):
             pod_log = pod_log.decode('ascii')
             ec = 0
         except sp.CalledProcessError as e:
-            pod_log = str(e) + '\n' + e.output
+            pod_log = f'{e}\n{e.output}'
             ec = e.returncode
 
     pod_status, err = await k8s.read_pod_status(pod_name, pretty=True)

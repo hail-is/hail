@@ -186,6 +186,7 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
+    print(head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 

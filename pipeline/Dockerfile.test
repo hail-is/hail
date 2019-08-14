@@ -6,5 +6,6 @@ RUN python3 -m pip install --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
 COPY pipeline/test /test/
+RUN python3 -m pip install --no-cache-dir pytest-instafail
 
 CMD ["python3", "-m", "pytest", "--instafail", "-v", "-s", "/test/"]
