@@ -29,8 +29,8 @@ JAR_TEST_SOURCES != git ls-files src/test
 PY_FILES != git ls-files python
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
-BUILD_INFO := src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO := python/hail/hail_version python/hail/hail_pip_version python/hailtop/hailctl/hail_version
+SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
@@ -38,14 +38,14 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
 shadowJar: $(SHADOW_JAR)
 
-$(SHADOW_JAR): $(JAR_SOURCES) env/SHORT_REVISION
+$(SHADOW_JAR): $(JAR_SOURCES) env/SHORT_REVISION $(SCALA_BUILD_INFO)
 ifdef HAIL_COMPILE_NATIVES
 	./gradlew releaseJar
 else
 	./gradlew shadowJar
 endif
 
-$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES) env/SHORT_REVISION
+$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES) env/SHORT_REVISION  $(SCALA_BUILD_INFO)
 	./gradlew shadowTestJar
 
 define properties
@@ -71,7 +71,7 @@ python/hail/hail_pip_version: Makefile
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars: $(BUILD_INFO)
+jars:
 	./gradlew shadowJar shadowTestJar
 
 python/README.md: ../README.md
@@ -81,12 +81,12 @@ python/hail/hail-all-spark.jar: $(SHADOW_JAR)
 	cp -f $< $@
 
 .PHONY: install-editable
-install-editable: $(BUILD_INFO) $(INIT_SCRIPTS)
+install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(PIP) install -e .
 
 .PHONY: pytest
-pytest: $(BUILD_INFO) $(SHADOW_JAR) init-scripts
+pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) init-scripts
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
     --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
@@ -94,7 +94,7 @@ pytest: python/README.md python/hail/hail-all-spark.jar
 .PHONY: wheel
 wheel: $(WHEEL)
 
-$(WHEEL): $(BUILD_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
+$(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
