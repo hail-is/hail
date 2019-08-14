@@ -1233,9 +1233,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
         if image_pull_back_off_reasons:
-            await job.mark_complete(pod=pod,
-                                    failed=True,
-                                    failure_reason="\n".join(image_pull_back_off_reasons))
+            await job.mark_failed("\n".join(image_pull_back_off_reasons))
             return
 
     if not pod and not app['pod_throttler'].is_queued(job):
