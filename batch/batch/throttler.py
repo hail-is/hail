@@ -19,7 +19,7 @@ class PodThrottler:
 
         async def manager(workers):
             while True:
-                failed, pending = asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
+                failed, pending = await asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
                 for fut in failed:
                     err = fut.exception()
                     assert err is not None
