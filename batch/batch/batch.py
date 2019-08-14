@@ -104,11 +104,10 @@ def jsonify(data):
     return web.json_response(data)
 
 
-GCLOUD_AUTHENTICATE = """
+GCLOUD_AUTHENTICATE = """\
 (gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData || \\
     (sleep $(( 5 + (RANDOM % 5) )); \\
-    gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData))
-"""
+    gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData))"""
 
 
 def copy(files):
