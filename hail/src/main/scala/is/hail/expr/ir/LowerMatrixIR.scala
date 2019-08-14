@@ -66,6 +66,11 @@ object LowerMatrixIR {
     BindingEnv(e, agg = Some(e), scan = Some(e))
   }
 
+  def matrixGlobalSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
+    val e = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
+    BindingEnv(e, agg = Some(e), scan = Some(e))
+  }
+
   def matrixSubstEnvIR(child: MatrixIR, lowered: TableIR): BindingEnv[IR] = {
     val e = Env[IR]("global" -> SelectFields(Ref("global", lowered.typ.globalType), child.typ.globalType.fieldNames),
       "va" -> SelectFields(Ref("row", lowered.typ.rowType), child.typ.rowType.fieldNames))
@@ -128,7 +133,7 @@ object LowerMatrixIR {
             irRange(0, 'global (colsField).len)
               .filter('i ~>
                 (let(sa = 'global (colsField)('i))
-                  in subst(pred, matrixSubstEnv(child))))))
+                  in subst(pred, matrixGlobalSubstEnv(child))))))
           .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
           .mapGlobals('global
             .insertFields(colsField ->

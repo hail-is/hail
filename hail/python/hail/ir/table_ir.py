@@ -139,8 +139,8 @@ class TableMapGlobals(TableIR):
     def new_block(i):
         return i == 1
 
-    def bindings(self, i):
-        return self.child.typ.global_bindings() if i == 1 else []
+    def bindings(self, i, default_value=None):
+        return self.child.typ.global_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1
@@ -202,11 +202,11 @@ class TableMapRows(TableIR):
             self.new_row.typ,
             self.child.typ.row_key)
 
-    def bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
-    def scan_bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def scan_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1
@@ -276,8 +276,8 @@ class TableFilter(TableIR):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
 
-    def bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1
@@ -309,16 +309,16 @@ class TableKeyByAndAggregate(TableIR):
                                self.new_key.typ._concat(self.expr.typ),
                                list(self.new_key.typ))
 
-    def bindings(self, i):
+    def bindings(self, i, default_value=None):
         if i == 1:
-            return self.child.typ.global_bindings()
+            return self.child.typ.global_env(default_value)
         elif i == 2:
-            return self.child.typ.row_bindings()
+            return self.child.typ.row_env(default_value)
         else:
-            return []
+            return {}
 
-    def agg_bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1 or i == 2
@@ -341,11 +341,11 @@ class TableAggregateByKey(TableIR):
                                child_typ.key_type._concat(self.expr.typ),
                                child_typ.row_key)
 
-    def bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
-    def agg_bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1

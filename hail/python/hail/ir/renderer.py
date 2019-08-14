@@ -173,7 +173,10 @@ class StackFrame:
     # compute depth at which we might bind this node
     def bind_depth(self) -> int:
         if len(self.free_vars) > 0:
-            bind_depth = max(self.free_vars.values())
+            try:
+                bind_depth = max(self.free_vars.values())
+            except:
+                raise
             bind_depth = max(bind_depth, self.min_binding_depth)
         else:
             bind_depth = self.min_binding_depth
@@ -189,24 +192,11 @@ class StackFrame:
             child_outermost_scope = self.min_binding_depth
 
         # compute vars bound in 'child' by 'node'
-        def get_vars(bindings):
-            return [var for (var, _) in bindings]
-        eval_bindings = get_vars(x.bindings(i))
-        agg_bindings = get_vars(x.agg_bindings(i))
-        scan_bindings = get_vars(x.scan_bindings(i))
-
-        child_context = x.child_context_without_bindings(i, self.context)
-        if x.binds(i):
-            (eval_c, agg_c, scan_c) = child_context
-            eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in
-                                                    eval_bindings])
-            agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in
-                                                  agg_bindings])
-            scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in
-                                                    scan_bindings])
-            child_context = (eval_c, agg_c, scan_c)
-
+        eval_bindings = x.bindings(i, 0).keys()
+        agg_bindings = x.agg_bindings(i, 0).keys()
+        scan_bindings = x.scan_bindings(i, 0).keys()
         new_bindings = (eval_bindings, agg_bindings, scan_bindings)
+        child_context = x.child_context(i, self.context, depth)
 
         return StackFrame(child_outermost_scope, child_context, child,
                           new_bindings)
@@ -237,19 +227,11 @@ class CSERenderer(Renderer):
         self.uid_count += 1
         return f'__cse_{self.uid_count}'
 
-    def add_jir(self, x: 'ir.BaseIR'):
+    def add_jir(self, jir):
         jir_id = f'm{self.jir_count}'
         self.jir_count += 1
-        self.jirs[jir_id] = x._jir
-        if isinstance(x, ir.MatrixIR):
-            return f'(JavaMatrix {jir_id})'
-        elif isinstance(x, ir.TableIR):
-            return f'(JavaTable {jir_id})'
-        elif isinstance(x, ir.BlockMatrixIR):
-            return f'(JavaBlockMatrix {jir_id})'
-        else:
-            assert isinstance(x, ir.IR)
-            return f'(JavaIR {jir_id})'
+        self.jirs[jir_id] = jir
+        return jir_id
 
     @staticmethod
     def find_in_scope(x: 'ir.BaseIR', context: List[StackFrame], outermost_scope: int) -> int:
@@ -290,16 +272,16 @@ class CSERenderer(Renderer):
             self.depth = depth
             self.i = 0
 
-        def pre_add_lets(self, binding_sites, context):
-            x = self.x
-            insert_lets = id(x) in binding_sites and len(binding_sites[id(x)].lifted_lets) > 0
-            if insert_lets:
-                self.builder = []
-                context.append(PrintStackFrame(binding_sites[id(x)]))
-            head = x.render_head(self)
-            if head != '':
-                self.builder.append(head)
-            return insert_lets
+    def pre_add_lets(self, state, binding_sites, context):
+        x = state.x
+        insert_lets = id(x) in binding_sites and len(binding_sites[id(x)].lifted_lets) > 0
+        if insert_lets:
+            state.builder = []
+            context.append(PrintStackFrame(binding_sites[id(x)]))
+        head = x.render_head(self)
+        if head != '':
+            state.builder.append(head)
+        return insert_lets
 
     class Kont:
         pass
@@ -408,7 +390,7 @@ class CSERenderer(Renderer):
                     stack.append(self.PostChildrenLifted(new_state, state.builder, lift_to, name))
                     continue
 
-                insert_lets = new_state.pre_add_lets(self.binding_sites, context)
+                insert_lets = self.pre_add_lets(new_state, self.binding_sites, context)
                 assert(not insert_lets)
 
                 stack.append(self.PostChildrenLifted(new_state, state.builder, lift_to, name))
@@ -420,7 +402,7 @@ class CSERenderer(Renderer):
                     state.i += 1
                     continue
 
-                insert_lets = new_state.pre_add_lets(self.binding_sites, context)
+                insert_lets = self.pre_add_lets(new_state, self.binding_sites, context)
 
                 stack.append(self.PostChildren(new_state, state.builder, insert_lets))
                 continue
@@ -447,9 +429,6 @@ class CSERenderer(Renderer):
             builder.append(')')
 
     def compute_new_bindings(self, root: 'ir.BaseIR'):
-        # force computation of all types
-        root.typ
-
         root_frame = StackFrame(0, ({}, {}, {}), root)
         stack = [root_frame]
         binding_sites = {}
@@ -467,7 +446,8 @@ class CSERenderer(Renderer):
                 parent_frame = stack[-2]
 
                 # mark node as visited at potential let insertion site
-                stack[frame.bind_depth()].visited[id(node)] = node
+                if not node.is_effectful():
+                    stack[frame.bind_depth()].visited[id(node)] = node
 
                 # if any lets being inserted here, add node to registry of
                 # binding sites
@@ -483,7 +463,18 @@ class CSERenderer(Renderer):
             child = node.children[child_idx]
 
             if self.stop_at_jir and hasattr(child, '_jir'):
-                self.memo[id(child)] = self.add_jir(child)
+                jir_id = self.add_jir(child._jir)
+                if isinstance(child, ir.MatrixIR):
+                    jref = f'(JavaMatrix {jir_id})'
+                elif isinstance(child, ir.TableIR):
+                    jref = f'(JavaTable {jir_id})'
+                elif isinstance(child, ir.BlockMatrixIR):
+                    jref = f'(JavaBlockMatrix {jir_id})'
+                else:
+                    assert isinstance(child, ir.IR)
+                    jref = f'(JavaIR {jir_id})'
+
+                self.memo[id(child)] = jref
                 continue
 
             seen_in_scope = self.find_in_scope(child, stack,
@@ -508,11 +499,13 @@ class CSERenderer(Renderer):
             # first time visiting 'child'
 
             if isinstance(child, ir.Ref):
-                if child.name not in (var for (var, _) in
-                                      node.bindings(child_idx)):
+                if child.name not in node.bindings(child_idx, default_value=0).keys():
                     (eval_c, _, _) = node.child_context_without_bindings(
                         child_idx, frame.context)
-                    frame.free_vars.update({child.name: eval_c[child.name]})
+                    try:
+                        frame.free_vars.update({child.name: eval_c[child.name]})
+                    except:
+                        raise
                 continue
 
             stack.append(frame.make_child_frame(len(stack)))

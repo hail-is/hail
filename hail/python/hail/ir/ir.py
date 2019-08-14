@@ -279,11 +279,18 @@ class Let(IR):
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, *self.bindings(1)), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
         self._type = self.body._type
 
-    def bindings(self, i):
-        return [(self.name, self.value._type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.value._type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 1
@@ -552,11 +559,18 @@ class NDArrayMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, (self.name, self.nd.typ.element_type)), agg_env)
+        self.body._compute_type(_env_bind(env, [(self.name, self.nd.typ.element_type)]), agg_env)
         self._type = tndarray(self.body.typ, self.nd.typ.ndim)
 
-    def bindings(self, i):
-        return [(self.name, self.nd.typ.element_type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.nd.typ.element_type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 1
@@ -679,6 +693,10 @@ class NDArrayWrite(IR):
         self.path._compute_type(env, agg_env)
         self._type = tvoid
 
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
 
 class ArraySort(IR):
     @typecheck_method(a=IR, l_name=str, r_name=str, compare=IR)
@@ -707,8 +725,15 @@ class ArraySort(IR):
         self.a._compute_type(env, agg_env)
         self._type = self.a.typ
 
-    def bindings(self, i):
-        return [(self.l_name, self.a.typ.element_type), (self.r_name, self.a.typ.element_type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.a.typ.element_type
+            else:
+                value = default_value
+            return {self.l_name: value, self.r_name: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 1
@@ -820,11 +845,18 @@ class ArrayMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, (self.name, self.a.typ.element_type)), agg_env)
+        self.body._compute_type(_env_bind(env, [(self.name, self.a.typ.element_type)]), agg_env)
         self._type = tarray(self.body.typ)
 
-    def bindings(self, i):
-        return [(self.name, self.a.typ.element_type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.a.typ.element_type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 1
@@ -854,11 +886,18 @@ class ArrayFilter(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, (self.name, self.a.typ.element_type)), agg_env)
+        self.body._compute_type(_env_bind(env, [(self.name, self.a.typ.element_type)]), agg_env)
         self._type = self.a.typ
 
-    def bindings(self, i):
-        return [(self.name, self.a.typ.element_type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.a.typ.element_type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 1
@@ -888,11 +927,17 @@ class ArrayFlatMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, (self.name, self.a.typ.element_type)), agg_env)
+        self.body._compute_type(_env_bind(env, [(self.name, self.a.typ.element_type)]), agg_env)
         self._type = tarray(self.body.typ.element_type)
 
-    def bindings(self, i):
-        return [(self.name, self.a.typ.element_type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.a.typ.element_type
+            else:
+                value = default_value
+            return {self.name: value}
+        return {}
 
     def binds(self, i):
         return i == 1
@@ -927,13 +972,19 @@ class ArrayFold(IR):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
         self.body._compute_type(
-            _env_bind(env, (self.value_name, self.a.typ.element_type),
-                           (self.accum_name, self.zero.typ)),
+            _env_bind(env, [(self.value_name, self.a.typ.element_type),
+                           (self.accum_name, self.zero.typ)]),
             agg_env)
         self._type = self.zero.typ
 
-    def bindings(self, i):
-        return [(self.accum_name, self.zero.typ), (self.value_name, self.a.typ.element_type)] if i == 2 else []
+    def bindings(self, i, default_value=None):
+        if i == 2:
+            if default_value is None:
+                return {self.accum_name: self.zero.typ, self.value_name: self.a.typ.element_type}
+            else:
+                return {self.accum_name: default_value, self.value_name: default_value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 2
@@ -968,13 +1019,19 @@ class ArrayScan(IR):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
         self.body._compute_type(
-            _env_bind(env, (self.value_name, self.a.typ.element_type),
-                           (self.accum_name, self.zero.typ)),
+            _env_bind(env, [(self.value_name, self.a.typ.element_type),
+                           (self.accum_name, self.zero.typ)]),
             agg_env)
         self._type = tarray(self.body.typ)
 
-    def bindings(self, i):
-        return [(self.accum_name, self.zero.typ), (self.value_name, self.a.typ.element_type)] if i == 2 else []
+    def bindings(self, i, default_value=None):
+        if i == 2:
+            if default_value is None:
+                return {self.accum_name: self.zero.typ, self.value_name: self.a.typ.element_type}
+            else:
+                return {self.accum_name: default_value, self.value_name: default_value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 2
@@ -1006,10 +1063,16 @@ class ArrayLeftJoinDistinct(IR):
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
 
-    def bindings(self, i):
-        return [(self.l_name, self.left.typ.element_type),
-                (self.r_name, self.right.typ.element_type)]\
-            if i == 2 or i == 3 else []
+    def bindings(self, i, default_value=None):
+        if i == 2 or i == 3:
+            if default_value is None:
+                return {self.l_name: self.left.typ.element_type,
+                        self.r_name: self.right.typ.element_type}
+            else:
+                return {self.l_name: default_value,
+                        self.r_name: default_value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 2 or i == 3
@@ -1039,11 +1102,18 @@ class ArrayFor(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, (self.value_name, self.a.typ.element_type)), agg_env)
+        self.body._compute_type(_env_bind(env, [(self.value_name, self.a.typ.element_type)]), agg_env)
         self._type = tvoid
 
-    def bindings(self, i):
-        return [(self.value_name, self.a.typ.element_type)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.a.typ.element_type
+            else:
+                value = default_value
+            return {self.value_name: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 1
@@ -1104,15 +1174,22 @@ class AggExplode(IR):
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        new_agg = _env_bind(agg_env, (self.name, self.array.typ.element_type))
-        self.agg_body._compute_type(env, _env_bind(agg_env, (self.name, self.array.typ.element_type)))
+        new_agg = _env_bind(agg_env, [(self.name, self.array.typ.element_type)])
+        self.agg_body._compute_type(env, new_agg)
         self._type = self.agg_body.typ
 
-    def agg_bindings(self, i):
-        return [(self.name, self.array.typ.element_type)] if i == 1 else []
+    def agg_bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.array.typ.element_type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
 
-    def scan_bindings(self, i):
-        return [(self.name, self.array.typ.element_type)] if i == 1 else []
+    def scan_bindings(self, i, default_value=None):
+        return self.agg_bindings(i, default_value)
 
     def binds(self, i):
         return i == 1
@@ -1176,8 +1253,8 @@ class AggArrayPerElement(IR):
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        self.agg_ir._compute_type(_env_bind(env, (self.index_name, tint32)),
-                                  _env_bind(agg_env, (self.element_name, self.array.typ.element_type)))
+        self.agg_ir._compute_type(_env_bind(env, [(self.index_name, tint32)]),
+                                  _env_bind(agg_env, [(self.element_name, self.array.typ.element_type)]))
         self._type = tarray(self.agg_ir.typ)
 
     @property
@@ -1190,14 +1267,25 @@ class AggArrayPerElement(IR):
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
 
-    def bindings(self, i):
-        return [(self.index_name, tint32)] if i == 1 else []
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            value = tint32 if default_value is None else default_value
+            return {self.index_name: value}
+        else:
+            return {}
 
-    def agg_bindings(self, i):
-        return [(self.element_name, self.array.typ.element_type)] if i == 1 else []
+    def agg_bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.array.typ.element_type
+            else:
+                value = default_value
+            return {self.element_name: value}
+        else:
+            return {}
 
-    def scan_bindings(self, i):
-        return [(self.element_name, self.array.typ.element_type)] if i == 1 else []
+    def scan_bindings(self, i, default_value=None):
+        return self.agg_bindings(i, default_value)
 
     def binds(self, i):
         return i == 1
@@ -1575,6 +1663,10 @@ class Die(IR):
     def _compute_type(self, env, agg_env):
         self._type = self._typ
 
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
 
 _function_registry = defaultdict(list)
 _seeded_function_registry = defaultdict(list)
@@ -1696,6 +1788,10 @@ class ApplySeeded(IR):
 
         self._type = lookup_seeded_function_return_type(self.function, [a.typ for a in self.args])
 
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
 
 class Uniroot(IR):
     @typecheck_method(argname=str, function=IR, min=IR, max=IR)
@@ -1721,13 +1817,17 @@ class Uniroot(IR):
         return other.argname == self.argname
 
     def _compute_type(self, env, agg_env):
-        self.function._compute_type(_env_bind(env, (self.argname, tfloat64)), agg_env)
+        self.function._compute_type(_env_bind(env, [(self.argname, tfloat64)]), agg_env)
         self.min._compute_type(env, agg_env)
         self.max._compute_type(env, agg_env)
         self._type = tfloat64
 
-    def bindings(self, i):
-        return [(self.argname, tfloat64)] if i == 0 else []
+    def bindings(self, i, default_value=None):
+        if i == 0:
+            value = tfloat64 if default_value is None else default_value
+            return {self.argname: value}
+        else:
+            return {}
 
     def binds(self, i):
         return i == 0
@@ -1797,11 +1897,11 @@ class TableAggregate(IR):
     def new_block(self, i: int):
         return i == 1
 
-    def bindings(self, i):
-        return self.child.typ.global_bindings() if i == 1 else []
+    def bindings(self, i, default_value=None):
+        return self.child.typ.global_env(default_value) if i == 1 else {}
 
-    def agg_bindings(self, i):
-        return self.child.typ.row_bindings() if i == 1 else []
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1
@@ -1830,11 +1930,11 @@ class MatrixAggregate(IR):
     def new_block(self, i: int):
         return i == 1
 
-    def bindings(self, i):
-        return self.child.typ.global_bindings() if i == 1 else []
+    def bindings(self, i, default_value=None):
+        return self.child.typ.global_env(default_value) if i == 1 else {}
 
-    def agg_bindings(self, i):
-        return self.child.typ.entry_bindings() if i == 1 else []
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.entry_env(default_value) if i == 1 else {}
 
     def binds(self, i):
         return i == 1
@@ -1861,6 +1961,10 @@ class TableWrite(IR):
         self.child._compute_type()
         self._type = tvoid
 
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
 class MatrixWrite(IR):
     @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)
     def __init__(self, child, matrix_writer):
@@ -1881,6 +1985,10 @@ class MatrixWrite(IR):
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
         self._type = tvoid
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
 
 
 class MatrixMultiWrite(IR):
@@ -1903,6 +2011,10 @@ class MatrixMultiWrite(IR):
             x._compute_type()
         self._type = tvoid
 
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
 
 class BlockMatrixWrite(IR):
     @typecheck_method(child=BlockMatrixIR, writer=BlockMatrixWriter)
@@ -1923,6 +2035,10 @@ class BlockMatrixWrite(IR):
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
         self._type = tvoid
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
 
 
 class BlockMatrixMultiWrite(IR):
@@ -1945,6 +2061,10 @@ class BlockMatrixMultiWrite(IR):
         for x in self.block_matrices:
             x._compute_type()
         self._type = tvoid
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
 
 
 class TableToValueApply(IR):

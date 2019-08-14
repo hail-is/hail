@@ -7,7 +7,7 @@ from hail.expr.types import HailType
 from .renderer import Renderer, Renderable, RenderableStr
 
 
-def _env_bind(env, *bindings):
+def _env_bind(env, bindings):
     if bindings:
         if env:
             res = env.copy()
@@ -85,20 +85,33 @@ class BaseIR(Renderable):
     def __hash__(self):
         return 31 + hash(str(self))
 
+    @abc.abstractmethod
     def new_block(self, i: int) -> bool:
-        return self.uses_agg_context(i) or self.uses_scan_context(i)
+        ...
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return False
 
     def binds(self, i: int) -> bool:
         return False
 
-    def bindings(self, i: int) -> List[Tuple[str, HailType]]:
-        return []
+    def bindings(self, i: int, default_value=None):
+        """Compute variables bound in child 'i'.
 
-    def agg_bindings(self, i: int) -> List[Tuple[str, HailType]]:
-        return []
+        Returns
+        -------
+        dict
+            mapping from bound variables to 'default_value', if provided,
+            otherwise to their types
+        """
+        return {}
 
-    def scan_bindings(self, i: int) -> List[Tuple[str, HailType]]:
-        return []
+    def agg_bindings(self, i: int, default_value=None):
+        return {}
+
+    def scan_bindings(self, i: int, default_value=None):
+        return {}
 
     def uses_agg_context(self, i: int) -> bool:
         return False
@@ -119,15 +132,11 @@ class BaseIR(Renderable):
         base = self.child_context_without_bindings(i, parent_context)
         if not self.binds(i):
             return base
-        eval_b = self.bindings(i)
-        agg_b = self.agg_bindings(i)
-        scan_b = self.scan_bindings(i)
-        if default_value is not None:
-            eval_b = [(var, default_value) for (var, _) in eval_b]
-            agg_b  = [(var, default_value) for (var, _) in agg_b]
-            scan_b = [(var, default_value) for (var, _) in scan_b]
+        eval_b = self.bindings(i, default_value)
+        agg_b = self.agg_bindings(i, default_value)
+        scan_b = self.scan_bindings(i, default_value)
         (eval_c, agg_c, scan_c) = base
-        return _env_bind(eval_c, *eval_b), _env_bind(agg_c, *agg_b), _env_bind(scan_c, *scan_b)
+        return _env_bind(eval_c, eval_b), _env_bind(agg_c, agg_b), _env_bind(scan_c, scan_b)
 
 
 class IR(BaseIR):
@@ -177,15 +186,21 @@ class IR(BaseIR):
             assert self._type is not None, self
         return self._type
 
+    def new_block(self, i: int) -> bool:
+        return self.uses_agg_context(i) or self.uses_scan_context(i)
+
     @abc.abstractmethod
     def _compute_type(self, env, agg_env):
         raise NotImplementedError(self)
 
     def parse(self, code, ref_map={}, ir_map={}):
-        return Env.hail().expr.ir.IRParser.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
+        try:
+            return Env.hail().expr.ir.IRParser.parse_value_ir(
+                code,
+                {k: t._parsable_string() for k, t in ref_map.items()},
+                ir_map)
+        except:
+            raise
 
 
 class TableIR(BaseIR):
@@ -202,6 +217,9 @@ class TableIR(BaseIR):
             self._compute_type()
             assert self._type is not None, self
         return self._type
+
+    def new_block(self, i: int) -> bool:
+        return True
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_table_ir(code, ref_map, ir_map)
@@ -224,6 +242,9 @@ class MatrixIR(BaseIR):
             self._compute_type()
             assert self._type is not None, self
         return self._type
+
+    def new_block(self, i: int) -> bool:
+        return True
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_matrix_ir(code, ref_map, ir_map)
@@ -248,6 +269,9 @@ class BlockMatrixIR(BaseIR):
             self._compute_type()
             assert self._type is not None, self
         return self._type
+
+    def new_block(self, i: int) -> bool:
+        return True
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, ref_map, ir_map)

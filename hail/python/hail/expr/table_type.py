@@ -80,17 +80,17 @@ class ttable(object):
                       self.row_type._rename(row_map),
                       [row_map.get(k, k) for k in self.row_key])
 
-    def row_env(self):
-        return dict(self.row_bindings())
+    def row_env(self, default_value=None):
+        if default_value is None:
+            return {'global': self.global_type, 'row': self.row_type}
+        else:
+            return {'global': default_value, 'row': default_value}
 
-    def row_bindings(self):
-        return [('global', self.global_type), ('row', self.row_type)]
-
-    def global_env(self):
-        return dict(self.global_bindings())
-
-    def global_bindings(self):
-        return [('global', self.global_type)]
+    def global_env(self, default_value=None):
+        if default_value is None:
+            return {'global': self.global_type}
+        else:
+            return {'global': default_value}
 
 
 import pprint
