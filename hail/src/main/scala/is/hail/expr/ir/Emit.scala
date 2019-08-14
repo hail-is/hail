@@ -1367,8 +1367,12 @@ private class Emit(
           )
         ))
         EmitTriplet(setup, false, value)
-      case NDArrayShape(ndIR) =>
-        throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `NDArrayShape`")
+      case x@NDArrayShape(ndIR) =>
+        val ndt = emit(ndIR)
+        val t = x.pType.asInstanceOf[PNDArray]
+        val shape = t.representation.loadField(region, coerce[Long](ndt.v), "shape")
+
+        EmitTriplet(ndt.setup, false, shape)
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
