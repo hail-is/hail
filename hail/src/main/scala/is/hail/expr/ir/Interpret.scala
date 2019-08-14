@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PTuple, PType}
+import is.hail.expr.types.physical.{PNDArray, PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.methods._
@@ -720,7 +720,6 @@ object Interpret {
           null
         else
           stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
-
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
