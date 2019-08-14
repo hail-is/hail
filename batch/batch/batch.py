@@ -104,10 +104,9 @@ def jsonify(data):
     return web.json_response(data)
 
 
-GCLOUD_AUTHENTICATE = """\
-(gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData || \\
-    (sleep $(( 5 + (RANDOM % 5) )); \\
-    gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData))"""
+def resiliently_authenticate(key_file):
+    gcloud_auth = f'gcloud -q auth activate-service-account --key-file={key_file}'
+    return f"""({gcloud_auth} || (sleep $(( 5 + (RANDOM % 5) )); {gcloud_auth}))"""
 
 
 def copy(files):
@@ -122,7 +121,7 @@ def copy(files):
         return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
     copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
-    return f'set -ex; {GCLOUD_AUTHENTICATE} && {copies}'
+    return f'set -ex; {resiliently_authenticate("/gsa-key/privateKeyData")} && {copies}'
 
 
 class JobStateWriteFailure(Exception):
@@ -163,7 +162,7 @@ class Job:
 
         sh_expression = f"""
         set -ex
-        {GCLOUD_AUTHENTICATE}
+        {resiliently_authenticate("/batch-gsa-key/privateKeyData")}
         gsutil -q stat {success_file} && exit 1
         rm -rf /io/*
         {copy(self.input_files)}
