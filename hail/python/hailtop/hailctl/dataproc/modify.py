@@ -35,18 +35,18 @@ def main(args, pass_through_args):
         modify_args.append('--max-idle={}'.format(args.max_idle))
 
     if modify_args:
-        cmd = [
-                  'gcloud',
-                  'dataproc',
-                  'clusters',
-                  'update',
-                  args.name] + modify_args
+        cmd = ['gcloud',
+               'dataproc',
+               'clusters',
+               'update',
+               args.name] + modify_args
 
-        if args.max_idle or args.graceful_decommission_timeout:
+        if args.beta:
             cmd.insert(1, 'beta')
 
+        cmd.extend(pass_through_args)
+
         # print underlying gcloud command
-        print('gcloud update config command:')
         print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
         # Update cluster
