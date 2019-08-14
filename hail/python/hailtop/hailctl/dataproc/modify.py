@@ -1,5 +1,7 @@
 import os.path
 import sys
+import yaml
+import pkg_resources
 from subprocess import check_call
 
 
@@ -16,6 +18,8 @@ def init_parser(parser):
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
+    parser.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match"
+                        "the currently installed version")
 
 
 def main(args, pass_through_args):
@@ -33,6 +37,9 @@ def main(args, pass_through_args):
 
     if args.max_idle:
         modify_args.append('--max-idle={}'.format(args.max_idle))
+
+    if args.update_hail_version and args.wheel:
+        sys.exit("Error: Cannot specify both --update-hail-version and --wheel")
 
     if modify_args:
         cmd = ['gcloud',
@@ -54,7 +61,14 @@ def main(args, pass_through_args):
             print("Updating cluster '{}'...".format(args.name))
             check_call(cmd)
 
-    if (args.wheel is not None):
+    if args.update_hail_version:
+        if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
+            raise RuntimeError(f"package has no 'deploy.yaml' file")
+        updated_wheel = yaml.safe_load(
+            pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']['wheel']
+        args.wheel = updated_wheel
+
+    if args.wheel is not None:
         wheel = args.wheel
         wheelfile = os.path.basename(wheel)
         cmds = []
