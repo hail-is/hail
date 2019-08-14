@@ -1303,6 +1303,8 @@ private class Emit(
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
+        val nDims = shapePType.size
+
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
@@ -1327,7 +1329,6 @@ private class Emit(
                 Code(
                   srvb.start(),
                   {
-                    val nDims = shapePType.size
                     var index = 0
                     var shapeCopyingCode = Code._empty[Unit]
                     while (index < nDims) {
@@ -1344,8 +1345,19 @@ private class Emit(
               }),
               srvb.advance(),
 
-              srvb.addArray(t.representation.fieldType("strides").asInstanceOf[PArray], { srvb =>
-                srvb.start(0)
+              srvb.addBaseStruct(t.representation.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
+                Code (
+                  srvb.start(),
+                  {
+                    var index = 0
+                    var strideWritingCode = Code._empty[Unit]
+                    while (index < nDims) {
+                      strideWritingCode = Code(strideWritingCode,
+                        srvb.addLong(dataContainer.elementType.byteSize), srvb.advance())
+                      index += 1
+                    }
+                    strideWritingCode
+                  })
               }),
               srvb.advance(),
               srvb.addIRIntermediate(t.representation.fieldType("data").asInstanceOf[PArray])(

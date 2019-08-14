@@ -18,7 +18,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       ("flags", PInt32Required),
       ("offset", PInt32Required),
       ("shape", PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*)),
-      ("strides", PArray(PInt32Required, required = true)),
+      ("strides", PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*)),
       ("data", PArray(elementType, required = true)))
   }
 }

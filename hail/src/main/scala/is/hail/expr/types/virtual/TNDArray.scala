@@ -67,7 +67,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     ("flags", TInt32Required),
     ("offset", TInt32Required),
     ("shape", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
-    ("strides", TArray(TInt32Required, required=true)),
+    ("strides", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
     ("data", TArray(elementType, required = true))
   )
 }
