@@ -33,10 +33,6 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     Region.storeAddress(storageType.fieldOffset(dst, 1), lastNode),
     Region.storeInt(storageType.fieldOffset(dst, 2), totalCount))
 
-  val i = fb.newField[Int]
-  val p = fb.newField[Boolean]
-  val tmpNode = fb.newField[Long]
-
   type Node = Code[Long]
 
   val bufferType = PArray(elemType, required = true)
@@ -89,54 +85,55 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
         incrCount(n))
   }
 
-  private def allocateNode(r: Code[Region], cap: Code[Int]): (Code[Unit], Node) = {
-    val setup = Code(
-      tmpNode := r.allocate(nodeType.alignment, nodeType.byteSize),
-      initNode(tmpNode,
+  private def allocateNode(dstNode: Settable[Long])(r: Code[Region], cap: Code[Int]): Code[Unit] =
+    Code(
+      dstNode := r.allocate(nodeType.alignment, nodeType.byteSize),
+      initNode(dstNode,
         buf = r.allocate(bufferType.contentsAlignment, bufferType.contentsByteSize(cap)),
         count = 0),
-      bufferType.stagedInitialize(buffer(tmpNode), cap))
-    (setup, tmpNode)
-  }
+      bufferType.stagedInitialize(buffer(dstNode), cap))
 
-  def initWithCapacity(r: Code[Region], initialCap: Code[Int]): Code[Unit] = {
-    val (setup, n) = allocateNode(r, initialCap)
-    Code(setup,
-      firstNode := n,
-      lastNode := n,
+  private def initWithCapacity(r: Code[Region], initialCap: Code[Int]): Code[Unit] = {
+    Code(
+      allocateNode(firstNode)(r, initialCap),
+      lastNode := firstNode,
       totalCount := 0)
   }
 
   def init(r: Code[Region]): Code[Unit] =
     initWithCapacity(r, defaultBlockCap)
 
-  private[agg] def pushNewBlockNode(r: Code[Region], cap: Code[Int]): Code[Unit] = {
-    val (setup, newNode) = allocateNode(r, cap)
-    Code(setup,
+  private def pushNewBlockNode(r: Code[Region], cap: Code[Int]): Code[Unit] = {
+    val newNode = fb.newField[Long]
+    Code(
+      allocateNode(newNode)(r, cap),
       setNext(lastNode, newNode),
       lastNode := newNode)
   }
 
-  private[agg] def foreachNode(f: Node => Code[Unit]): Code[Unit] = {
+  private def foreachNode(tmpNode: Settable[Long])(body: Code[Unit]): Code[Unit] = {
+    val present = fb.newField[Boolean]
     Code(
       tmpNode := firstNode,
-      p := true,
-      Code.whileLoop(p,
-        f(tmpNode),
-        p := hasNext(tmpNode),
+      present := true,
+      Code.whileLoop(present,
+        body,
+        present := hasNext(tmpNode),
         tmpNode := next(tmpNode)))
   }
 
   def foreach(f: EmitTriplet => Code[Unit]): Code[Unit] = {
-    def et(n: Node, i: Code[Int]) =
+    val n = fb.newField[Long]
+    val i = fb.newField[Int]
+    val et =
       EmitTriplet(Code._empty,
         bufferType.isElementMissing(buffer(n), i),
         Region.loadIRIntermediate(elemType)(
           bufferType.elementOffset(buffer(n), capacity(n), i)))
-    foreachNode { n => Code(
+    foreachNode(n) { Code(
       i := 0,
       Code.whileLoop(i < count(n),
-        f(et(n, i)),
+        f(et),
         i := i + 1))
     }
   }
@@ -176,8 +173,10 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   }
 
   def serialize(r: Code[Region], ob: Code[OutputBuffer]): Code[Unit] = {
+    val n = fb.newField[Long]
+    val i = fb.newField[Int]
     Code(
-      foreachNode { n =>
+      foreachNode(n) {
         // NOTE: we are only copying a portion of the missingness bytes, only as many as there are
         // present (specifically: 'count(n)', not 'capacity(n)'). we can't use emitArray because it
         // would mistakenly copy elements according to the capacity ...
@@ -209,17 +208,19 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
 
   private def appendShallow(r: Code[Region], aoff: Code[Long]): Code[Unit] = {
     val len = bufferType.loadLength(r, aoff)
+    val newNode = fb.newField[Long]
     Code(
-      tmpNode := r.allocate(nodeType.alignment, nodeType.byteSize),
-      initNode(tmpNode,
+      newNode := r.allocate(nodeType.alignment, nodeType.byteSize),
+      initNode(newNode,
         buf = aoff,
         count = len),
-      setNext(lastNode, tmpNode),
-      lastNode := tmpNode,
+      setNext(lastNode, newNode),
+      lastNode := newNode,
       totalCount := totalCount + len)
   }
 
   def initWithDeepCopy(r: Code[Region], other: StagedBlockLinkedList): Code[Unit] = {
+    val i = fb.newField[Int]
     val buf = buffer(firstNode)
     val bufi = bufferType.elementOffsetInRegion(r, buf, i)
     Code(
