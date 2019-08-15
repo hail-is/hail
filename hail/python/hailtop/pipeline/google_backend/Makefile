@@ -5,10 +5,12 @@ PY_FILES := __init__.py worker.py google_backend.py
 
 flake8-stmp: $(PY_FILES)
 	(cd .. && python3 -m flake8 google_backend)
+	python3 -m flake8 worker
 	touch $@
 
 pylint-stmp: $(PY_FILES)
 	(cd .. && python3 -m pylint --rcfile ../../../../pylintrc google_backend --score=n)
+	python3 -m pylint --rcfile ../../../../../pylintrc worker --score=n
 	touch $@
 
 .PHONY: check

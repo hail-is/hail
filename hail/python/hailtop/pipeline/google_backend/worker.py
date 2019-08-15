@@ -130,7 +130,7 @@ async def delete_task_shared(task_token, attempt_token):
         log.exception(f'{cmd} failed')
 
 
-async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd, sem=None):
+async def docker_run(scratch_dir, task_token, task_name, cores, mem_in_gb, attempt_token, step_name, image, cmd, sem=None):
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
 
     if not sem:
@@ -141,7 +141,7 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
         attempts = 0
         while not container_id:
             try:
-                docker_cmd = f'docker run -d -v /shared/{task_token}-{attempt_token}:/shared --cpus {cores} --memory {cores * 3.5}g {shq(image)} /bin/bash -c {shq(cmd)}'
+                docker_cmd = f'docker run -d -v /shared/{task_token}-{attempt_token}:/shared --cpus {cores} --memory {mem_in_gb}g {shq(image)} /bin/bash -c {shq(cmd)}'
                 log.info(f'running {full_step}: {docker_cmd}')
                 container_id, _ = await check_shell_output(docker_cmd)
                 container_id = container_id.decode('utf-8').strip()
@@ -225,6 +225,7 @@ class Worker:
         task_token = config['task_token']
         task_name = config['task_name']
         cores = config['cores']
+        mem_in_gb = config['mem_in_gb']
         attempt_token = config['attempt_token']
         inputs_cmd = config['inputs_cmd']
         image = config['image']
@@ -237,7 +238,8 @@ class Worker:
 
         await check_shell(f'mkdir -p /shared/{task_token}-{attempt_token}')
 
-        input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
+        # 0.81 is per-core budget for high-cpu
+        input_ec = await docker_run(scratch_dir, task_token, task_name, 1, 0.81, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
 
         status = {
             'task_token': task_token,
@@ -246,11 +248,11 @@ class Worker:
         }
 
         if input_ec == 0:
-            main_ec = await docker_run(scratch_dir, task_token, task_name, cores, attempt_token, 'main', image, cmd, self.cpu_sem)
+            main_ec = await docker_run(scratch_dir, task_token, task_name, cores, mem_in_gb, attempt_token, 'main', image, cmd, self.cpu_sem)
             status['main'] = main_ec
 
             if main_ec == 0:
-                output_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'output', 'google/cloud-sdk:255.0.0-alpine', outputs_cmd)
+                output_ec = await docker_run(scratch_dir, task_token, task_name, 1, 0.81, attempt_token, 'output', 'google/cloud-sdk:255.0.0-alpine', outputs_cmd)
                 status['output'] = output_ec
 
         # cleanup

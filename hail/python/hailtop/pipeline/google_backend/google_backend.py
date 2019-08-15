@@ -452,9 +452,10 @@ class Instance:
 
 
 class InstancePool:
-    def __init__(self, runner, service_account, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+    def __init__(self, runner, service_account, worker_type, worker_cores, worker_disk_size_gb, pool_size, max_instances):
         self.runner = runner
         self.service_account = service_account
+        self.worker_type = worker_type
         self.worker_cores = worker_cores
         # 2x overschedule
         self.worker_capacity = 2 * worker_cores
@@ -500,7 +501,7 @@ class InstancePool:
         machine_name = self.token_machine_name(inst_token)
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
             'labels': {
                 'role': 'pipeline_worker',
                 'inst_token': inst_token
@@ -690,7 +691,7 @@ class GRunner:
                 output_paths.append(p)
         return output_paths
 
-    def __init__(self, pipeline, verbose, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances, port):
+    def __init__(self, pipeline, verbose, service_account, scratch_dir, worker_type, worker_cores, worker_disk_size_gb, pool_size, max_instances, port):
         self.pipeline = pipeline
         self.verbose = verbose
 
@@ -709,7 +710,16 @@ class GRunner:
         hostname = socket.gethostname()
         self.base_url = f'http://{hostname}:{port}'
 
-        self.inst_pool = InstancePool(self, service_account, worker_cores, worker_disk_size_gb, pool_size, max_instances)
+        if worker_type == 'standard':
+            m = 3.75
+        elif worker_type == 'highmem':
+            m = 6.5
+        else:
+            assert worker_type == 'highcpu', worker_type
+            m = 0.9
+        self.worker_mem_per_core_in_gb = 0.9 * m
+
+        self.inst_pool = InstancePool(self, service_account, worker_type, worker_cores, worker_disk_size_gb, pool_size, max_instances)
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
 
@@ -870,6 +880,7 @@ class GRunner:
             'task_name': pt.name,
             'task_token': t.token,
             'cores': t.cores,
+            'mem_in_gb': t.cores * self.worker_mem_per_core_in_gb,
             'attempt_token': attempt_token,
             'inputs_cmd': inputs_cmd,
             'image': pt._image,
@@ -960,9 +971,11 @@ class GRunner:
 
 
 class GoogleBackend(Backend):
-    def __init__(self, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances, *, port=5000):
+    def __init__(self, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances, *, worker_type='standard', port=5000):
+        assert worker_type in ('standard', 'highcpu', 'highmem'), worker_type
         self.service_account = service_account
         self.scratch_dir = scratch_dir
+        self.worker_type = worker_type
         self.worker_cores = worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
         self.pool_size = pool_size
@@ -974,7 +987,7 @@ class GoogleBackend(Backend):
             print('do stuff')
             return
 
-        runner = GRunner(pipeline, verbose, self.service_account, self.scratch_dir, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances, self.port)
+        runner = GRunner(pipeline, verbose, self.service_account, self.scratch_dir, self.worker_type, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances, self.port)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(runner.run())
         loop.run_until_complete(loop.shutdown_asyncgens())
