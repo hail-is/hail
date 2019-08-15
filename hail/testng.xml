@@ -1,4 +1,4 @@
-<suite name="SuiteAll" verbose="1" parallel="classes" thread-count="4">
+<suite name="SuiteAll" verbose="1">
     <test name="TestAll">
         <packages>
           <package name="is.hail.*">
