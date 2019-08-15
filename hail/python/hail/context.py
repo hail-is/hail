@@ -50,6 +50,15 @@ class HailContext(object):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
 
+        # Steps:
+        # 1. Figure out what backend I'm going to use (all python)
+        #   - How do I specify this? Current way is is based on environment variable, not a fan.
+        # 2. Construct the python backend object.
+        # 3. Ask the Python backend object for a  JVM? (not true of apiserver backend though...)
+        #   - Let's be more general. Ask the Python backend to set itself up, which may include grabbing a JVM.
+        #   - HailContext getOrCreate cannot take a SparkContext. It could take an optional "JVM Backend".
+
+
         conf = SparkConf()
         if hail_jar_path:
             conf.set('spark.jars', hail_jar_path)

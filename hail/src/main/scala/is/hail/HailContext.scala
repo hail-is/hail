@@ -644,7 +644,7 @@ class HailContext private(
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
     val regexp = regex.r
-    sc.textFilesLines(sFS.globAll(files))
+    backend.asSpark().sc.textFilesLines(sFS.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.asInstanceOf[Context].file)
