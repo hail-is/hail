@@ -1,10 +1,9 @@
 import os
 from stat import S_ISREG, S_ISDIR
-from typing import Dict, List, Union, Tuple
+from typing import Dict, List
 import gcsfs
 from hurry.filesize import size
 from shutil import copy2
-import glob
 
 from .fs import FS
 
@@ -57,21 +56,6 @@ class GoogleCloudStorageFS(FS):
             self.client.put(src, dest)
         else:
             copy2(src, dest)
-
-    def rm(self, paths: Union[list, tuple, str]):
-        to_delete = paths if isinstance(paths, (tuple, list)) else [paths]
-
-        for path in to_delete:
-            if(self._is_local(path)):
-                for file in glob.glob(path):
-                    if not os.path.exists(file):
-                        continue
-                    if os.path.isfile(file):
-                        os.remove(file)
-                    else:
-                        os.remove(file)
-            else:
-                self.client.rm(path)
 
     def exists(self, path: str) -> bool:
         if self._is_local(path):
