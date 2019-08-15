@@ -468,7 +468,7 @@ steps:
     - kind: Pod
       name: create-ci-tables
       for: completed
-      timeout: 120
+      timeout: 240
    dependsOn:
      - default_ns
      - base_image
@@ -511,7 +511,7 @@ steps:
     - kind: Pod
       name: create-batch-tables
       for: completed
-      timeout: 120
+      timeout: 240
    dependsOn:
      - default_ns
      - create_batch_tables_image
@@ -525,7 +525,7 @@ steps:
     - kind: Pod
       name: create-batch-tables
       for: completed
-      timeout: 120
+      timeout: 240
    dependsOn:
      - default_ns
      - create_batch_tables_image
