@@ -58,11 +58,14 @@ object PBaseStruct {
 }
 
 abstract class PBaseStruct extends PType {
+  // TODO: why are types, fields, fieldRequired defs here
   def types: Array[PType]
 
   def fields: IndexedSeq[PField]
 
   def fieldRequired: Array[Boolean]
+
+  override val inferredRequired: Boolean = fieldRequired.forall( isRequired => isRequired )
 
   def size: Int
 

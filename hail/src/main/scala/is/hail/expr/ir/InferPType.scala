@@ -8,16 +8,23 @@ object InferPType {
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
     ir._pType2 = ir match {
-      case I32(_) => PInt32()
-      case I64(_) => PInt64()
-      case F32(_) => PFloat32()
-      case F64(_) => PFloat64()
-      case Str(_) => PString()
-      case Literal(t, _) => PType.canonical(t)
-      case True() | False() => PBoolean()
+      case I32(_) => PInt32(true)
+      case I64(_) => PInt64(true)
+      case F32(_) => PFloat32(true)
+      case F64(_) => PFloat64(true)
+      case Str(_) => PString(true)
+      case Literal(t, _) => PType.canonical(t, true)
+      case True() | False() => PBoolean(true)
       case Void() => PVoid
-      case Cast(_, t) => PType.canonical(t)
-      case CastRename(_, t) => PType.canonical(t)
+      // TODO: What to do if cast on missing data?
+      case Cast(ir, _) => {
+        InferPType(ir, env)
+        ir.pType2
+      }
+      case CastRename(ir, _) => {
+        InferPType(ir, env)
+        ir.pType2
+      }
       case NA(t) => PType.canonical(t)
       case IsNA(_) => PBoolean()
       case Coalesce(values) => {
@@ -35,8 +42,24 @@ object InferPType {
       }
       case Ref(name, _) => env.lookup(name)
       case In(_, t) => PType.canonical(t)
-      case MakeArray(_, t) => PType.canonical(t)
-      case MakeStream(_, t) => PType.canonical(t)
+      case MakeArray(irs, _) => {
+        val allRequired = irs.forall(ir => {
+          InferPType(ir, env)
+
+          ir.pType2.inferredRequired
+        })
+
+        irs(0).pType2.setRequired(allRequired)
+      }
+      case MakeStream(irs, _) => {
+        val allRequired = irs.forall(ir => {
+          InferPType(ir, env)
+
+          ir.pType2.inferredRequired
+        })
+
+        irs(0).pType2.setRequired(allRequired)
+      }
       case MakeNDArray(data, shape, _) => {
         InferPType(data, env)
         InferPType(shape, env)
@@ -45,10 +68,11 @@ object InferPType {
 
         PNDArray(coerce[PArray](data.pType2).elementType, nElem)
       }
-      case _: ArrayLen => PInt32()
-      case _: ArrayRange => PArray(PInt32())
-      case _: StreamRange => PStream(PInt32())
-      case _: LowerBoundOnOrderedCollection => PInt32()
+        // TODO: are these required, or do we allow their definition on missing data
+      case _: ArrayLen => PInt32(true)
+      case _: ArrayRange => PArray(PInt32(true), true)
+      case _: StreamRange => PStream(PInt32(true), true)
+      case _: LowerBoundOnOrderedCollection => PInt32(true)
       case _: ArrayFor => PVoid
       case _: InitOp => PVoid
       case _: SeqOp => PVoid
@@ -59,14 +83,15 @@ object InferPType {
         InferPType(cnsq, env)
         InferPType(altr, env)
 
-        assert(cond.pType2 == PBoolean())
+        assert((cnsq.pType2 isOfType altr.pType2) && (cond.pType2 isOfType PBoolean()))
 
-        if (cnsq.pType2 != altr.pType2)
-          cnsq.pType2.deepOptional()
-        else {
-          assert(cnsq.pType2 isOfType altr.pType2)
-          cnsq.pType2
+        if(cond.pType2.required) {
+          assert(cnsq.pType2.required && altr.pType.required)
+        } else {
+          assert(!(cnsq.pType2.required || altr.pType.required))
         }
+
+        return cnsq.pType2
       }
       case Let(name, value, body) => {
         InferPType(value, env)
@@ -316,3 +341,4 @@ object InferPType {
     assert(ir.pType2.virtualType == ir.typ)
   }
 }
+

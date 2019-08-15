@@ -262,7 +262,6 @@ object IRParser {
   def string_literals: TokenIterator => Array[String] = literals(string_literal)
   def int32_literals: TokenIterator => Array[Int] = literals(int32_literal)
   def int64_literals: TokenIterator => Array[Long] = literals(int64_literal)
-  def boolean_literals: TokenIterator => Array[Boolean] = literals(boolean_literal)
 
   def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
     it.head match {

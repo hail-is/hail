@@ -120,6 +120,29 @@ object PType {
     }
   }
 
+  def canonical(t: Type, required: Boolean): PType = {
+    t match {
+      case t: TInt32 => PInt32(required)
+      case t: TInt64 => PInt64(required)
+      case t: TFloat32 => PFloat32(required)
+      case t: TFloat64 => PFloat64(required)
+      case t: TBoolean => PBoolean(required)
+      case t: TBinary => PBinary(required)
+      case t: TString => PString(required)
+      case t: TCall => PCall(required)
+      case t: TLocus => PLocus(t.rg, required)
+      case t: TInterval => PInterval(canonical(t.pointType), required)
+      case t: TStream => PStream(canonical(t.elementType), required)
+      case t: TArray => PArray(canonical(t.elementType), required)
+      case t: TSet => PSet(canonical(t.elementType), required)
+      case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), required)
+      case t: TTuple => PTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), required)
+      case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), required)
+      case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims, required)
+      case TVoid => PVoid
+    }
+  }
+
   // currently identity
   def canonical(t: PType): PType = {
     t match {
@@ -199,6 +222,8 @@ abstract class PType extends BaseType with Serializable {
 
   def required: Boolean
 
+  val inferredRequired: Boolean = required
+
   final def unary_+(): PType = setRequired(true)
 
   final def unary_-(): PType = setRequired(false)
@@ -270,6 +295,19 @@ abstract class PType extends BaseType with Serializable {
       case t: PArray => PArray(t.elementType.deepOptional())
       case t: PSet => PSet(t.elementType.deepOptional())
       case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
+      case t: PStruct =>
+        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
+      case t: PTuple =>
+        PTuple(t.types.map(_.deepOptional()): _*)
+      case t =>
+        t.setRequired(false)
+    }
+
+  def copyWithRequiredeness(required: Boolean): PType =
+    this match {
+      case t: PArray => PArray(t.elementType, required)
+      case t: PSet => PSet(t.elementType, required)
+      case t: PDict => PDict(t.keyType, t.valueType.deepOptional())
       case t: PStruct =>
         PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
       case t: PTuple =>

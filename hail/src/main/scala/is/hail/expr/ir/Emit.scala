@@ -271,6 +271,7 @@ private class Emit(
     *
     **/
   private def emit(ir: IR, env: E, region: EmitRegion, container: Option[AggContainer]): EmitTriplet = {
+    val test = (None, region, container)
     emit(ir, env,
       // FIXME hasAggreagtors
       if (nSpecialArguments == 2)

@@ -13,10 +13,10 @@ case object PBooleanRequired extends PBoolean(true)
 class PBoolean(override val required: Boolean) extends PType {
   lazy val virtualType: TBoolean = TBoolean(required)
 
-  def _toPretty = "Boolean"
+  def _toPretty = s"Boolean (required: ${required})"
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("bool")
+    sb.append(s"bool (required: ${required})")
   }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
