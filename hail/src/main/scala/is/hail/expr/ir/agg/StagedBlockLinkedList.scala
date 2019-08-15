@@ -155,6 +155,8 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   }
 
   def append(r: Code[Region], bll: StagedBlockLinkedList): Code[Unit] = {
+    // it would take additional logic to get self-append to work, but we don't need it to anyways
+    assert(bll ne this)
     assert(bll.elemType.isOfType(elemType))
     bll.foreach(push(r, _))
   }
@@ -220,6 +222,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   }
 
   def initWithDeepCopy(r: Code[Region], other: StagedBlockLinkedList): Code[Unit] = {
+    assert(other ne this)
     val i = fb.newField[Int]
     val buf = buffer(firstNode)
     val bufi = bufferType.elementOffsetInRegion(r, buf, i)
