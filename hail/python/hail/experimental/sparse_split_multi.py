@@ -102,7 +102,15 @@ def sparse_split_multi(sparse_mt):
                                   alleles=[mr.alleles[0], mr.alleles[1]],
                                   a_index=i,
                                   was_split=True))
-                        .or_error("Found non-left-aligned variant in sparse_split_multi")),
+                        .or_error(
+                            "Found non-left-aligned variant in sparse_split_multi\n"
+                            + "old locus: " + hl.str(ds.locus) + "\n"
+                            + "old ref  : " + ds.alleles[0] + "\n"
+                            + "old alt  : " + ds.alleles[i] + "\n"
+                            + "mr locus : " + hl.str(mr.locus) + "\n"
+                            + "mr ref   : " + mr.alleles[0] + "\n"
+                            + "mr alt   : " + mr.alleles[1]
+                            )),
                        hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))
 
     explode_structs = hl.cond(hl.len(ds.alleles) < 3,
