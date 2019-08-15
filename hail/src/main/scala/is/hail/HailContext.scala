@@ -280,7 +280,8 @@ object HailContext {
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
-    val hc = new HailContext(SparkBackend(sparkContext), new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration)), logFile, tmpDir, branchingFactor, optimizerIterations)
+    val sparkBackend = SparkBackend(sparkContext)
+    val hc = new HailContext(sparkBackend, sparkBackend.getHadoopFS(), logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")

@@ -3,6 +3,8 @@ package is.hail.backend.spark
 import is.hail.HailContext
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir._
+import is.hail.io.fs.HadoopFS
+import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 
@@ -18,6 +20,8 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
 
 case class SparkBackend(sc: SparkContext) extends Backend {
 
+  var _hadoopFS: HadoopFS = null
+
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
   def parallelizeAndComputeWithIndex[T : ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U] = {
@@ -27,6 +31,13 @@ case class SparkBackend(sc: SparkContext) extends Backend {
       assert(!it.hasNext)
       Iterator.single(f(elt, i))
     }.collect()
+  }
+
+  def getHadoopFS() = {
+    if (_hadoopFS == null) {
+      _hadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+    }
+    _hadoopFS
   }
 
   override def asSpark(): SparkBackend = this
