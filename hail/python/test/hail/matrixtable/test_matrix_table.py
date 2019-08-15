@@ -653,6 +653,12 @@ class Tests(unittest.TestCase):
         assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
         assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
 
+    def test_entries_table_with_out_of_order_row_key_fields(self):
+        mt = hl.utils.range_matrix_table(10, 10, 1)
+        mt = mt.select_rows(key2=0, key1=mt.row_idx)
+        mt = mt.key_rows_by(mt.key1, mt.key2)
+        mt.entries()._force_count()
+
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
