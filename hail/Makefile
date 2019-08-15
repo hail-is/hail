@@ -3,7 +3,7 @@
 include env_var.mk
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
-SUFFIXES:
+.SUFFIXES:
 
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
