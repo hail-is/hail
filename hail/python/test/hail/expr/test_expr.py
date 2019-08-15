@@ -316,6 +316,10 @@ class Tests(unittest.TestCase):
         table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
         table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
 
+    def test_approx_cdf_all_missing(self):
+        table = hl.utils.range_table(10).annotate(foo=hl.null(tint))
+        table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
+
     def test_approx_cdf_col_aggregate(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
