@@ -9,6 +9,8 @@ import is.hail.io.{OutputBuffer, InputBuffer, CodecSpec, EmitPackEncoder, EmitPa
 
 object StagedBlockLinkedList {
   val defaultBlockCap: Int = 64
+
+  private val nil: Long = 0L
 }
 
 class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_]) {
@@ -40,7 +42,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   val nodeType = PStruct(
     "buf" -> bufferType,
     "count" -> PInt32Required,
-    "next" -> PInt64Optional)
+    "next" -> PInt64Required)
 
   private def buffer(n: Node): Code[Long] =
     Region.loadAddress(nodeType.fieldOffset(n, 0))
@@ -58,17 +60,16 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     Region.loadAddress(nodeType.fieldOffset(n, 2))
 
   private def hasNext(n: Node): Code[Boolean] =
-    nodeType.isFieldDefined(n, 2)
+    next(n) cne nil
 
-  private def setNext(n: Node, nNext: Node): Code[Unit] = Code(
-    nodeType.setFieldPresent(n, 2),
-    Region.storeAddress(nodeType.fieldOffset(n, 2), nNext))
+  private def setNext(n: Node, nNext: Node): Code[Unit] =
+    Region.storeAddress(nodeType.fieldOffset(n, 2), nNext)
 
   private def initNode(n: Node, buf: Code[Long], count: Code[Int]): Code[Unit] =
     Code(
       Region.storeAddress(nodeType.fieldOffset(n, 0), buf),
       Region.storeInt(nodeType.fieldOffset(n, 1), count),
-      nodeType.setFieldMissing(n, 2))
+      Region.storeAddress(nodeType.fieldOffset(n, 2), nil))
 
   private def pushPresent(n: Node, store: Code[Long] => Code[Unit]): Code[Unit] =
     Code(
