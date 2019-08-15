@@ -120,7 +120,7 @@ async def get_pr(request):
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
             for j in status['jobs']:
-                j['duration'] = Job.total_duration(j)
+                j['duration'] = humanize.naturaldelta(Job.total_duration(j))
                 j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
@@ -164,7 +164,7 @@ async def get_batch(request):
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
     for j in status['jobs']:
-        j['duration'] = Job.total_duration(j)
+        j['duration'] = humanize.naturaldelta(Job.total_duration(j))
         j['exit_code'] = Job.exit_code(j)
     return {
         'batch': status
