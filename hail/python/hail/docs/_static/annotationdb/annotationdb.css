@@ -98,6 +98,7 @@
   height: 770px;
   width: 100%;
   overflow-y: auto;
+  font-size: 0.875rem;
 }
 
 #annotation-db textarea {
