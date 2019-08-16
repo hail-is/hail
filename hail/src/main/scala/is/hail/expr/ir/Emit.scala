@@ -1309,8 +1309,8 @@ private class Emit(
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val t = x.pType.asInstanceOf[PNDArray]
-        val srvb = new StagedRegionValueBuilder(mb, t.representation)
+        val repr = x.pType.asInstanceOf[PNDArray].representation
+        val srvb = new StagedRegionValueBuilder(mb, repr)
 
         val setup = Code(
           shapet.setup,
@@ -1325,7 +1325,7 @@ private class Emit(
           shapet.m.mux(
             Code._fatal("Missing shape"),
             Code(
-              srvb.addBaseStruct(t.representation.fieldType("shape").asInstanceOf[PBaseStruct], { srvb: StagedRegionValueBuilder =>
+              srvb.addBaseStruct(repr.fieldType("shape").asInstanceOf[PBaseStruct], { srvb: StagedRegionValueBuilder =>
                 Code(
                   srvb.start(),
                   {
@@ -1333,9 +1333,9 @@ private class Emit(
                     var shapeCopyingCode = Code._empty[Unit]
                     while (index < nDims) {
                       shapeCopyingCode = Code(shapeCopyingCode,
-                        shapePType.isFieldMissing(coerce[Long](shapet.v), index).mux[Unit](
+                        shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
                           Code._fatal(s"shape missing at index $index"),
-                          Code(srvb.addLong(region.loadLong(shapePType.loadField(coerce[Long](shapet.v), index))), srvb.advance())
+                          Code(srvb.addLong(region.loadLong(shapePType.loadField(shapet.value[Long], index))), srvb.advance())
                         ))
                       index += 1
                     }
@@ -1345,7 +1345,7 @@ private class Emit(
               }),
               srvb.advance(),
 
-              srvb.addBaseStruct(t.representation.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
+              srvb.addBaseStruct(repr.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
                 Code (
                   srvb.start(),
                   {
@@ -1360,8 +1360,8 @@ private class Emit(
                   })
               }),
               srvb.advance(),
-              srvb.addIRIntermediate(t.representation.fieldType("data").asInstanceOf[PArray])(
-                t.representation.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray cannot have missing data")),
+              srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
+                repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray cannot have missing data")),
               srvb.end()
             )
           )
@@ -1369,8 +1369,8 @@ private class Emit(
         EmitTriplet(setup, false, value)
       case x@NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
-        val t = x.pType.asInstanceOf[PNDArray]
-        val shape = t.representation.loadField(region, coerce[Long](ndt.v), "shape")
+        val t = x.pType.asInstanceOf[PNDArray].representation
+        val shape = t.loadField(region, ndt.value[Long], "shape")
 
         EmitTriplet(ndt.setup, false, shape)
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>

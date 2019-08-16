@@ -306,6 +306,8 @@ object Code {
     assert(f.isStatic)
     f.put(null, rhs)
   }
+
+  def foreach[A](it: Seq[A])(f: A => Code[_]): Code[_] = Code(it.map(f): _*)
 }
 
 trait Code[+T] {
