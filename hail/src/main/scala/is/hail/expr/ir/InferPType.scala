@@ -8,13 +8,14 @@ object InferPType {
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
     ir._pType2 = ir match {
+        // TODO: can these all be given null as a value, like Literals?
       case I32(_) => PInt32(true)
       case I64(_) => PInt64(true)
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
       case Literal(t, _) => PType.canonical(t, true)
-      case True() | False() => PBoolean(true)
+      case True() | False() => PBoolean(false)
       case Void() => PVoid
       // TODO: What to do if cast on missing data?
       case Cast(ir, _) => {
@@ -25,8 +26,8 @@ object InferPType {
         InferPType(ir, env)
         ir.pType2
       }
-      case NA(t) => PType.canonical(t)
-      case IsNA(_) => PBoolean()
+      case NA(t) => PType.canonical(t, false)
+      case IsNA(_) => PBoolean(true)
       case Coalesce(values) => {
         val vit = values.iterator
         val head = vit.next()
@@ -46,7 +47,7 @@ object InferPType {
         val allRequired = irs.forall(ir => {
           InferPType(ir, env)
 
-          ir.pType2.inferredRequired
+          ir.pType2.required
         })
 
         irs(0).pType2.setRequired(allRequired)
@@ -55,7 +56,7 @@ object InferPType {
         val allRequired = irs.forall(ir => {
           InferPType(ir, env)
 
-          ir.pType2.inferredRequired
+          ir.pType2.required
         })
 
         irs(0).pType2.setRequired(allRequired)
@@ -77,7 +78,7 @@ object InferPType {
       case _: InitOp => PVoid
       case _: SeqOp => PVoid
       case _: Begin => PVoid
-      case Die(_, t) => PType.canonical(t)
+      case Die(_, t) => PType.canonical(t, true)
       case If(cond, cnsq, altr) => {
         InferPType(cond, env)
         InferPType(cnsq, env)
@@ -85,13 +86,7 @@ object InferPType {
 
         assert((cnsq.pType2 isOfType altr.pType2) && (cond.pType2 isOfType PBoolean()))
 
-        if(cond.pType2.required) {
-          assert(cnsq.pType2.required && altr.pType.required)
-        } else {
-          assert(!(cnsq.pType2.required || altr.pType.required))
-        }
-
-        return cnsq.pType2
+        cnsq.pType2.setRequired(cnsq.pType2.required && altr.pType2.required)
       }
       case Let(name, value, body) => {
         InferPType(value, env)
