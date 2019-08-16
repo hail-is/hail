@@ -40,10 +40,10 @@ own Hail script.
     </div>
     </div>
     </div>
-    <div class="panel panel-default">
+    <div class="panel panel-default" >
     <div class="panel-heading" style="font-weight:bold">Database Query
-    <div class="btn-group pull-right">
-    <button class="btn btn-default btn-sm" onclick="copy()" style="height: 25px; font-weight:24">Copy to Clipboard</button>
+    <div class="btn-group pull-right" id="copy-button-container">
+    <button class="btn btn-default btn-sm" onclick="copy()">Copy to Clipboard</button>
     </div>
     </div>
     <div class="panel-body">
