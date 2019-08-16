@@ -501,6 +501,9 @@ object PruneDeadFields {
             PruneDeadFields.selectKey(child.typ.rowType, child.typ.key))), memo)
       case TableToTableApply(child, f) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case BlockMatrixToTableApply(bm, aux, _) =>
+        memoizeBlockMatrixIR(bm, bm.typ, memo)
+        memoizeValueIR(aux, aux.typ, memo)
       case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
       case RelationalLetTable(name, value, body) =>
         memoizeTableIR(body, requestedType, memo)
@@ -1313,6 +1316,10 @@ object PruneDeadFields {
         val value2 = rebuildIR(value, BindingEnv.empty, memo)
         memo.relationalRefs += name -> value2.typ
         RelationalLetTable(name, value2, rebuild(body, memo))
+      case BlockMatrixToTableApply(bmir, aux, function) =>
+        val bmir2 = rebuild(bmir, memo)
+        val aux2 = rebuildIR(aux, BindingEnv.empty, memo)
+        BlockMatrixToTableApply(bmir2, aux2, function)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)

@@ -1558,11 +1558,11 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            min_individual_maf=numeric,
            k=nullable(int),
            scores_expr=nullable(expr_array(expr_float64)),
-           min_kinship=numeric,
+           min_kinship=nullable(numeric),
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
            block_size=nullable(int))
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
-              min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
+              min_kinship=None, statistics="all", block_size=None) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -1808,8 +1808,8 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         source as `call_expr`. All array values must have the same positive length,
         corresponding to the number of principal components, and all scores must
         be non-missing. Exactly one of `k` and `scores_expr` must be specified.
-    min_kinship : :obj:`float`
-        Pairs of samples with kinship lower than ``min_kinship`` are excluded
+    min_kinship : :obj:`float`, optional
+        If set, pairs of samples with kinship lower than ``min_kinship`` are excluded
         from the results.
     statistics : :obj:`str`
         Set of statistics to compute.
@@ -1855,15 +1855,15 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     g = BlockMatrix.from_entry_expr(mean_imputed_gt,
                                     block_size=block_size)
 
-    int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
+    pcs = scores_table.collect(_localize=False).map(lambda x: x.__scores)
 
-    ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
-                          .pyApply(g._jbm,
-                                   Env.spark_backend('pc_relate')._to_java_ir(scores_table.collect(_localize=False)._ir),
-                                   min_individual_maf,
-                                   block_size,
-                                   min_kinship,
-                                   int_statistics))
+    ht = Table(BlockMatrixToTableApply(g._bmir, pcs._ir, {
+        'name': 'PCRelate',
+        'maf': min_individual_maf,
+        'blockSize': block_size,
+        'minKinship': min_kinship,
+        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
+    }))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')

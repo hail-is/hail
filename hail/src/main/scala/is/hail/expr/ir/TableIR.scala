@@ -10,7 +10,7 @@ import is.hail.expr.types.physical.{PArray, PBaseStruct, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir
-import is.hail.expr.ir.functions.{MatrixToTableFunction, TableToTableFunction}
+import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -1686,6 +1686,28 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     function.execute(ctx, child.execute(ctx))
+  }
+}
+
+case class BlockMatrixToTableApply(
+  bm: BlockMatrixIR,
+  aux: IR,
+  function: BlockMatrixToTableFunction) extends TableIR {
+
+  override lazy val children: IndexedSeq[BaseIR] = Array(bm, aux)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
+    BlockMatrixToTableApply(
+      newChildren(0).asInstanceOf[BlockMatrixIR],
+      newChildren(1).asInstanceOf[IR],
+      function)
+
+  override lazy val typ: TableType = function.typ(bm.typ, aux.typ)
+
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
+    val b = bm.execute(ctx)
+    val (a, _) = CompileAndEvaluate[Any](ctx, aux, optimize = false)
+    function.execute(ctx, b, a)
   }
 }
 
