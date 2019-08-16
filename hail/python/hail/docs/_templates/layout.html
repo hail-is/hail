@@ -7,8 +7,8 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['../../vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js'] %}
-{%- set css_files = ['../../vendors/bootstrap/css/bootstrap.min.css'] + css_files + ['/navbar.css', '_static/rtd_modifications.css'] %}
+{%- set script_files = script_files + ['/vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js'] %}
+{%- set css_files = css_files + ['/navbar.css', '_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotation_database_ui" %}
 {%- set css_files = css_files + ['_static/annotationdb/bootstrap-treeview.min.css', '_static/annotationdb/annotationdb.css'] %}
@@ -42,6 +42,7 @@
   {% endif %}
   
   <script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
+  <link rel='stylesheet' href='/vendors/bootstrap/css/bootstrap.min.css' type='text/css'/>
 
   {# RTD hosts this file, so just load on non RTD builds #}
   {% if not READTHEDOCS %}
@@ -108,7 +109,7 @@
 
   <nav
     class="navbar navbar-default navbar-static-top d-flex align-content-start justify-content-start flex-row"
-    id="hail-navbar" style='z-index:999'
+    id="hail-navbar" style='z-index:999; padding: 1.618em; position:fixed; width: 100%;'
   ></nav>
 
   <div class="wy-grid-for-nav">

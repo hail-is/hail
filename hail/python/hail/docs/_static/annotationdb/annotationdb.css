@@ -1,113 +1,112 @@
 #rowDiv{
-    margin: auto;
-    text-align: center;
-    width: 50%;
-    
+  margin: auto;
+  text-align: center;
+  width: 50%;
 }
 
-input[type="text"]{
-    height: 40px;
-    font-size: 20px;
-    font-weight: bold;
-    margin-left: 27px;
+#searchInput {
+  height: 40px;
+  font-size: 20px;
+  font-weight: bold;
+  margin-left: 27px;
+  font-size: .875rem;
 }
 
 #searchDatabase{
-    height: 40px;
-    font-size: 15px;
-    font-weight: bold;
+  height: 40px;
+  font-size: .875rem;
+  font-weight: bold;
 }
 
-div.search span,
-div.search input[name="keyword"] {
-  display: block;
-  width: 350px;
+div.search span, #searchInput {
+display: block;
+width: 350px;
 }
 
-div.search input[name="keyword"] {
-  margin-top: 4px;
-  margin-left: 0px;
+#searchInput {
+margin-top: 4px;
+margin-left: 0px;
 }
 
 .btn-group-sm>.btn, .btn-sm {
-    padding: 5px 10px;
-    font-size: 14px;
-    line-height: 0.7;
-    border-radius: 3px;
+  padding: 5px 10px;
+  font-size: 14px;
+  line-height: 0.7;
+  border-radius: 3px;
 }
 
 .panel{
-    background-color: #fff;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    box-shadow: 0 1px 1px rgba(0,0,0,.05);
+  background-color: #fff;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0,0,0,.05);
 }
 
-div.panel {
-  margin-bottom: 15px;
+.panel {
+margin-bottom: 15px;
 }
 
 .panel-default {
-    border-color: #ddd;
+  border-color: #ddd;
 }
 
 .panel-body {
-    padding: 15px;
+  padding: 15px;
 }
 
 .panel-default>.panel-heading {
-    color: #333;
-    background-color: #f5f5f5;
-    border-color: #ddd;
+  color: #333;
+  background-color: #f5f5f5;
+  border-color: #ddd;
 }
 
 div.panel-heading{
-    padding: 10px 15px;
-    border-bottom: 1px solid transparent;
-    border-top-left-radius: 3px;
-    border-top-right-radius: 3px;
+  padding: 10px 15px;
+  border-bottom: 1px solid transparent;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
 }
 
 div.panel .panel-body p:last-child {
-  margin-bottom: 0;
+margin-bottom: 0;
 }
 
 
 #table1 th{
-  padding-top: 12px;
-  padding-bottom: 12px;
-  text-align: left;
-  background-color: #f5f5f5;
-  color: black;
+padding-top: 12px;
+padding-bottom: 12px;
+text-align: left;
+background-color: #f5f5f5;
+color: black;
 }
 
 
 #table1 td, #table1 th{
-  display: table-cell;
-  border: 1px solid #ddd;
-  padding: 8px;
-  width: auto;
+display: table-cell;
+border: 1px solid #ddd;
+padding: 8px;
+width: auto;
 }
 
 body {
-    font-family: "Helvetica Neue";
-    font-size: 14px;
-    line-height: 1.42857143;
+  font-family: "Helvetica Neue";
+  font-size: 14px;
+  line-height: 1.42857143;
 }
 
 table{
-    border-spacing: 0;
-    border-collapse: collapse;
-    resize: none;
-    table-layout:fixed;
-    display: block;
-    height: 770px;
-    width: 747px;
-    overflow-y: auto;
+  border-spacing: 0;
+  border-collapse: collapse;
+  resize: none;
+  table-layout:fixed;
+  display: block;
+  height: 770px;
+  width: 747px;
+  overflow-y: auto;
 
 }
 
 textarea {
-  resize: none;
-  font-size: 14px;
+resize: none;
+font-size: 14px;
 }

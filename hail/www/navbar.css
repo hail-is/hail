@@ -26,7 +26,6 @@
 }
 
 #hail-navbar #hail-container-fluid {
-  max-width: 42rem;
   margin: auto;
   height: 100%;
 }
@@ -139,8 +138,8 @@
 #hail-navbar .container-fluid {
   margin-right: auto;
   margin-left: auto;
-  padding-left: 0.875rem;
-  padding-right: 0.875rem;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 #hail-navbar .dropdown {
@@ -441,8 +440,6 @@
 
 #hail-navbar .navbar-collapse {
   overflow-x: visible;
-  padding-right: 15px;
-  padding-left: 15px;
   border-top: 1px solid transparent;
   -webkit-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
