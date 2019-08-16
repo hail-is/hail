@@ -7,8 +7,8 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['../../bootstrap.min.js', '_static/toggle.js'] %}
-{%- set css_files = css_files + ['navbar.css', '_static/rtd_modifications.css'] %}
+{%- set script_files = script_files + ['../../vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js'] %}
+{%- set css_files = ['../../vendors/bootstrap/css/bootstrap.min.css'] + css_files + ['/navbar.css', '_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotation_database_ui" %}
 {%- set css_files = css_files + ['_static/annotationdb/bootstrap-treeview.min.css', '_static/annotationdb/annotationdb.css'] %}
@@ -106,37 +106,10 @@
 
 <body class="wy-body-for-nav" role="document">
 
-  <nav class="navbar navbar-default navbar-static-top" id="hail-navbar">
-  <div class="container-fluid" id="hail-container-fluid">
-      <div class="navbar-header" id="hail-navbar-header">
-        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#hail-navbar-collapse" aria-expanded="false">
-          <span class="sr-only">Toggle navigation</span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-        </button>
-
-        <a class="navbar-left" id="hail-navbar-brand" href="{{ url_root + '../../index.html' }}"><img alt="Hail" id="logo" src="{{ url_root + 'hail-logo-cropped.png' }}"></a>
-
-      </div>
-
-      <div class="collapse navbar-collapse" id="hail-navbar-collapse">
-        <ul class="nav navbar-nav navbar-right">
-            <li id="home" class="nav-item"><a href="{{ url_root + '../../index.html' }}">HOME</a></li>
-          <li id="docs" class="nav-item">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">DOCS<span class="caret"></span></a>
-            <ul class="dropdown-menu dropdown-menu-left">
-              <li><a class="dropdown-item" href="{{ url_root + '../stable/index.html' }}">0.2 (Stable)</a></li>
-              <li><a class="dropdown-item" href="{{ url_root + '../0.1/index.html' }}">0.1 (Deprecated)</a></li>
-            </ul>
-          </li>
-            <li id="forum" class="nav-item"><a href="http://discuss.hail.is">FORUM</a></li>
-            <li id="chat" class="nav-item"><a href="http://hail.zulipchat.com">CHAT</a></li>
-            <li id="code" class="nav-item"><a href="https://github.com/hail-is/hail">CODE</a></li>
-        </ul>
-      </div>
-    </div>
-  </nav>
+  <nav
+    class="navbar navbar-default navbar-static-top d-flex align-content-start justify-content-start flex-row"
+    id="hail-navbar" style='z-index:999'
+  ></nav>
 
   <div class="wy-grid-for-nav">
 
@@ -247,6 +220,14 @@
       });
   </script>
   {% endif %}
+  <script type="text/javascript">
+    jQuery(function ($) {
+      $("#hail-navbar").load("/navbar.html", function() {
+        $(".nav li").removeClass("active");
+        $("#home").addClass("active");
+      });
+    });
+</script>
 
   {%- block footer %} {% endblock %}
 
