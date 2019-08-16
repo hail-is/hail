@@ -7,11 +7,9 @@ import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types.virtual._
-import is.hail.stats.PearsonCorrelationCombiner
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
-import org.apache.commons.math3.stat.correlation.PearsonsCorrelation
 import is.hail.utils._
 import is.hail.expr.ir.IRBuilder._
 import org.apache.spark.sql.Row
@@ -52,10 +50,6 @@ class AggregatorsSuite extends HailSuite {
 
   @Test def sumInt64() {
     runAggregator(Sum(), TInt64(), FastIndexedSeq(-1L, 2L, 3L), 4L)
-  }
-
-  @Test def fraction() {
-    runAggregator(Fraction(), TBoolean(), FastIndexedSeq(true, false, null, true, false), 2.0 / 5.0)
   }
 
   @Test def collectBoolean() {
@@ -102,67 +96,6 @@ class AggregatorsSuite extends HailSuite {
       constrArgs = FastIndexedSeq(),
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq())
-  }
-
-  @Test def counterString() {
-    runAggregator(Counter(),
-      TString(),
-      FastIndexedSeq("rabbit", "rabbit", null, "cat", "dog", null),
-      Map("rabbit" -> 2L, "cat" -> 1L, "dog" -> 1L, (null, 2L)))
-  }
-
-  @Test def counterArray() {
-    runAggregator(Counter(),
-      TArray(TInt32()),
-      FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq(1, 2, 3), null, FastIndexedSeq(), FastIndexedSeq(1), null),
-      Map(FastIndexedSeq() -> 2L, FastIndexedSeq(1, 2, 3) -> 1L, FastIndexedSeq(1) -> 1L, (null, 2L)))
-  }
-
-  @Test def counterBoolean() {
-    runAggregator(Counter(),
-      TBoolean(),
-      FastIndexedSeq(true, true, null, false, false, false, null),
-      Map(true -> 2L, false -> 3L, (null, 2L)))
-
-    runAggregator(Counter(),
-      TBoolean(),
-      FastIndexedSeq(true, true, false, false, false),
-      Map(true -> 2L, false -> 3L))
-  }
-
-  @Test def counterInt() {
-    runAggregator(Counter(),
-      TInt32(),
-      FastIndexedSeq(1, 3, null, 1, 4, 3, null),
-      Map(1 -> 2L, 3 -> 2L, 4 -> 1L, (null, 2L)))
-  }
-
-  @Test def counterLong() {
-    runAggregator(Counter(),
-      TInt64(),
-      FastIndexedSeq(1L, 3L, null, 1L, 4L, 3L, null),
-      Map(1L -> 2L, 3L -> 2L, 4L -> 1L, (null, 2L)))
-  }
-
-  @Test def counterFloat() {
-    runAggregator(Counter(),
-      TFloat32(),
-      FastIndexedSeq(1f, 3f, null, 1f, 4f, 3f, null),
-      Map(1f -> 2L, 3f -> 2L, 4f -> 1L, (null, 2L)))
-  }
-
-  @Test def counterDouble() {
-    runAggregator(Counter(),
-      TFloat64(),
-      FastIndexedSeq(1D, 3D, null, 1D, 4D, 3D, null),
-      Map(1D -> 2L, 3D -> 2L, 4D -> 1L, (null, 2L)))
-  }
-
-  @Test def counterCall() {
-    runAggregator(Counter(),
-      TCall(),
-      FastIndexedSeq(Call2(0, 0), Call2(0, 0), null, Call2(0, 1), Call2(1, 1), Call2(0, 0), null),
-      Map(Call2(0, 0) -> 3L, Call2(0, 1) -> 1L, Call2(1, 1) -> 1L, (null, 2L)))
   }
 
   @Test def collectAsSetBoolean() {
@@ -227,12 +160,6 @@ class AggregatorsSuite extends HailSuite {
       Row(-0.6654567, 2))
   }
 
-  @Test def hardyWeinberg() {
-    runAggregator(HardyWeinberg(), TCall(),
-      FastIndexedSeq(Call2(0, 0), Call2(0, 1), Call2(0, 1), Call2(1, 1), null),
-      Row(0.571429, 0.657143))
-  }
-
   // FIXME Max Boolean not supported by old-style MaxAggregator
 
   @Test def maxInt32() {
@@ -281,13 +208,6 @@ class AggregatorsSuite extends HailSuite {
   @Test def takeString() {
     runAggregator(Take(), TString(), FastIndexedSeq("a", null, "b"), FastIndexedSeq("a", null),
       constrArgs = FastIndexedSeq(I32(2)))
-  }
-
-  @Test def testHist() {
-    runAggregator(Histogram(), TFloat64(),
-      FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
-      Row((0 to 10).map(_.toDouble).toFastIndexedSeq, FastIndexedSeq(1L, 0L, 2L, 0L, 2L, 0L, 0L, 0L, 0L, 1L), 1L, 2L),
-      constrArgs = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
   }
 
   @Test
@@ -628,25 +548,6 @@ class AggregatorsSuite extends HailSuite {
     assertTakeByEvalsTo(TCall(), TInt64(), 3,
       FastIndexedSeq(Row(Call2(0, 0), 4L), Row(null, null), Row(null, 2L), Row(Call2(0, 1), 0L), Row(Call2(1, 1), 1L), Row(Call2(0, 2), null)),
       FastIndexedSeq(Call2(0, 1), Call2(1, 1), null))
-  }
-
-  @Test def pearsonCorrelationAggregator() {
-    val g = Gen.oneOfGen(Gen.choose(-100d, 100d), Gen.const(null))
-    Prop.forAll(Gen.buildableOf[Array](Gen.zip(g, g))) { values =>
-      val bothDefined = values.filter { case (x, y) => x != null && y != null }
-      val xa = bothDefined.map(_._1.asInstanceOf[Double])
-      val ya = bothDefined.map(_._2.asInstanceOf[Double])
-      val expected = new PearsonsCorrelation().correlation(xa, ya)
-      runAggregator(PearsonCorrelation(),
-        TStruct("x" -> TFloat64(), "y" -> TFloat64()),
-        values.map { elt: (Any, Any) =>  Row(elt._1, elt._2) },
-        expected,
-        constrArgs = FastIndexedSeq(),
-        initOpArgs = None,
-        seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()))
-      )
-      true
-    }.check()
   }
 
   @Test def linearRegression1x() {

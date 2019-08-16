@@ -1,5 +1,6 @@
 import os
 import sys
+import string
 import timeit
 from urllib.request import urlretrieve
 
@@ -45,7 +46,7 @@ _initialized = False
 
 
 def download_data():
-    global _initialized, _data_dir, _mt
+    global _data_dir, _mt
     _data_dir = os.environ.get('HAIL_BENCHMARK_DIR', '/tmp/hail_benchmark_data')
     print(f'using benchmark data directory {_data_dir}')
     os.makedirs(_data_dir, exist_ok=True)
@@ -55,15 +56,17 @@ def download_data():
                                                        'table_10M_par_1000.ht',
                                                        'table_10M_par_100.ht',
                                                        'table_10M_par_10.ht',
-                                                       'gnomad_dp_simulation.mt'])
+                                                       'gnomad_dp_simulation.mt',
+                                                       'many_strings_table.ht'])
     if not all(os.path.exists(file) for file in files):
+        hl.init()  # use all cores
+
         vcf = os.path.join(_data_dir, 'profile.vcf.bgz')
         print('files not found - downloading...', end='', flush=True)
-        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/profile.vcf.bgz',
-                    os.path.join(_data_dir, vcf))
+        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/profile.vcf.bgz', vcf)
         print('done', flush=True)
         print('importing...', end='', flush=True)
-        hl.import_vcf(vcf).write(os.path.join(_data_dir, 'profile.mt'), overwrite=True)
+        hl.import_vcf(vcf, min_partitions=16).write(os.path.join(_data_dir, 'profile.mt'), overwrite=True)
 
         ht = hl.utils.range_table(10_000_000, 1000).annotate(**{f'f_{i}': hl.rand_unif(0, 1) for i in range(5)})
         ht = ht.checkpoint(os.path.join(_data_dir, 'table_10M_par_1000.ht'), overwrite=True)
@@ -72,14 +75,17 @@ def download_data():
 
         mt = hl.utils.range_matrix_table(n_rows=250_000, n_cols=1_000, n_partitions=32)
         mt = mt.annotate_entries(x=hl.int(hl.rand_unif(0, 4.5) ** 3))
-        mt.write(os.path.join(_data_dir, 'gnomad_dp_simulation.mt'))
+        mt.write(os.path.join(_data_dir, 'gnomad_dp_simulation.mt'), overwrite=True)
 
-        print('done', flush=True)
+        print('downloading many strings table...')
+        mst_tsv = os.path.join(_data_dir, 'many_strings_table.tsv.bgz')
+        mst_ht = os.path.join(_data_dir, 'many_strings_table.ht')
+        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_strings_table.tsv.bgz', mst_tsv)
+        print('importing...')
+        hl.import_table(mst_tsv).write(mst_ht, overwrite=True)
+        hl.stop()
     else:
         print('all files found.', flush=True)
-
-    _initialized = True
-    _mt = hl.read_matrix_table(resource('profile.mt'))
 
 
 def _ensure_initialized():
@@ -89,10 +95,13 @@ def _ensure_initialized():
 
 
 def initialize(args):
+    global _initialized, _mt
     assert not _initialized
-    hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
 
     download_data()
+    hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
+    _initialized = True
+    _mt = hl.read_matrix_table(resource('profile.mt'))
 
     # make JVM do something to ensure that it is fresh
     hl.utils.range_table(1)._force_count()
@@ -146,4 +155,4 @@ def run_list(tests, config: RunConfig):
         if name not in _registry:
             raise ValueError(f'test {name!r} not found')
         else:
-            _run(_registry[name], config, f'[{i+1}/{n_tests}] ')
+            _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')

@@ -28,8 +28,7 @@ setup(
         'hailtop': 'hailtop'},
     package_data={
         'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
-        'hailtop': ['hail_pip_version', 'hail_version'],
-        'hailtop.hailctl': ['deploy.yaml']},
+        'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -39,6 +38,6 @@ setup(
     entry_points={
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },
-    setup_requires=["pytest-runner"],
+    setup_requires=["pytest-runner", "wheel"],
     tests_require=["pytest"]
 )

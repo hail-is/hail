@@ -38,7 +38,7 @@ buildScan {
 //  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
 String MAJOR = 0
 String MINOR = 2
-String PATCH = 18
+String PATCH = 19
 String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
 // By default pip hides versions ending in ".devN". Use these for testing.
 String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")
@@ -237,7 +237,9 @@ task(checkSettings) doLast {
 }
 
 test {
-    useTestNG {}
+    useTestNG() {
+        suites 'testng.xml'
+    }
 
     // avoid stack overflow in lmmLargeExampleTest on some systems
     jvmArgs '-Xss4m'

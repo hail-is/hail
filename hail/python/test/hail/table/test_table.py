@@ -518,6 +518,11 @@ class Tests(unittest.TestCase):
         j = t1.annotate(f=t2[t1.a].x)
         self.assertEqual(j.count(), t1.count())
 
+    def test_index_keyless_table(self):
+        t = hl.utils.range_table(10).key_by()
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "Table key: *<<<empty key>>>"):
+            t[t.idx]
+
     def test_aggregation_with_no_aggregators(self):
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
@@ -852,6 +857,22 @@ class Tests(unittest.TestCase):
         expected = list(range(10))[::-1]
         self.assertEqual(rt.order_by('x').idx.take(10), expected)
         self.assertEqual(rt.order_by('x').idx.collect(), expected)
+
+    def test_order_by_expr(self):
+        ht = hl.utils.range_table(10, 3)
+        ht = ht.annotate(xs = hl.range(0, 1).map(lambda x: hl.int(hl.rand_unif(0, 100))))
+
+        asc = ht.order_by(ht.xs[0])
+        desc = ht.order_by(hl.desc(ht.xs[0]))
+
+        res = ht.xs[0].collect()
+
+        res_asc = sorted(res)
+        res_desc = sorted(res, reverse=True)
+
+        assert asc.xs[0].collect() == res_asc
+        assert desc.xs[0].collect() == res_desc
+        assert [s['xs'][0] for s in desc.take(5)] == res_desc[:5]
 
     def test_null_joins(self):
         tr = hl.utils.range_table(7, 1)

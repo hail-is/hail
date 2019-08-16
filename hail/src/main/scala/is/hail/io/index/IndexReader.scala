@@ -268,7 +268,6 @@ class IndexReader(fs: FS,
     iterator(0, lowerBound(key))
 
   def close() {
-    region.close()
     leafDecoder.close()
     internalDecoder.close()
     log.info(s"Index reader cache queries: ${ cacheHits + cacheMisses }")

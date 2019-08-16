@@ -131,6 +131,9 @@ class MergeFailureBatch:
 
 HIGH_PRIORITY = 'prio:high'
 STACKED_PR = 'stacked PR'
+WIP = 'WIP'
+
+DO_NOT_MERGE = {STACKED_PR, WIP}
 
 
 class PR(Code):
@@ -164,8 +167,9 @@ class PR(Code):
 
     @build_state.setter
     def build_state(self, new_state):
-        self._build_state_timestamp = datetime.datetime.now()
-        self._build_state = new_state
+        if new_state != self._build_state:
+            self._build_state_timestamp = datetime.datetime.now()
+            self._build_state = new_state
 
     def pretty_status_age(self):
         return pretty_timestamp_age(self._build_state_timestamp)
@@ -188,7 +192,7 @@ class PR(Code):
             source_sha_failed_prio = 0 if self.source_sha_failed else 2
 
         return (HIGH_PRIORITY in self.labels,
-                STACKED_PR not in self.labels,
+                all(label not in DO_NOT_MERGE for label in self.labels),
                 source_sha_failed_prio,
                 # oldest first
                 - self.number)
@@ -436,7 +440,7 @@ mkdir -p {shq(repo_dir)}
         return (self.review_state == 'approved' and
                 self.build_state == 'success' and
                 self.is_up_to_date() and
-                STACKED_PR not in self.labels)
+                all(label not in DO_NOT_MERGE for label in self.labels))
 
     async def merge(self, gh):
         try:

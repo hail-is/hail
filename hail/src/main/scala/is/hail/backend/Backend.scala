@@ -2,11 +2,10 @@ package is.hail.backend
 
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, IRParser, MakeTuple, Pretty, TypeCheck}
 import is.hail.io.CodecSpec
 import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils._
@@ -73,6 +72,7 @@ abstract class Backend {
   }
 
   def execute(ir: IR, optimize: Boolean): (Any, Timings) = {
+    TypeCheck(ir)
     try {
       if (HailContext.get.flags.get("cpp") == null) {
         if (HailContext.get.flags.get("lower") == null)

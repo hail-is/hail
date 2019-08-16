@@ -111,7 +111,7 @@ class AggFunc(object):
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
         return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
-                              aggregated._indices,
+                              Indices(indices.source, aggregated._indices.axes),
                               aggregations)
 
     @typecheck_method(condition=expr_bool,
@@ -126,14 +126,14 @@ class AggFunc(object):
 
         _check_agg_bindings(condition, self._agg_bindings)
         _check_agg_bindings(aggregation, self._agg_bindings)
-        unify_all(condition, aggregation)
+        indices, _ = unify_all(condition, aggregation)
 
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(condition, aggregation))
         return construct_expr(AggFilter(condition._ir, aggregation._ir, self._as_scan),
                               aggregation.dtype,
-                              aggregation._indices,
+                              Indices(indices.source, aggregation._indices.axes),
                               aggregations)
 
     def group_by(self, group, aggregation):
@@ -146,7 +146,7 @@ class AggFunc(object):
 
         _check_agg_bindings(group, self._agg_bindings)
         _check_agg_bindings(aggregation, self._agg_bindings)
-        unify_all(group, aggregation)
+        indices, _ = unify_all(group, aggregation)
 
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
@@ -154,7 +154,7 @@ class AggFunc(object):
 
         return construct_expr(AggGroupBy(group._ir, aggregation._ir, self._as_scan),
                               tdict(group.dtype, aggregation.dtype),
-                              aggregation._indices,
+                              Indices(indices.source, aggregation._indices.axes),
                               aggregations)
 
     def array_agg(self, array, f):
@@ -181,14 +181,25 @@ class AggFunc(object):
             aggregations = aggregations.push(Aggregation(array, aggregated))
         return construct_expr(AggArrayPerElement(array._ir, var, 'unused', aggregated._ir, self._as_scan),
                               tarray(aggregated.dtype),
-                              aggregated._indices,
+                              Indices(indices.source, aggregated._indices.axes),
                               aggregations)
+
+    @property
+    def context(self):
+        if self._as_scan:
+            return 'scan'
+        else:
+            return 'agg'
 
 _agg_func = AggFunc()
 
 
 def _check_agg_bindings(expr, bindings):
-    bound_references = {ref.name for ref in expr._ir.search(lambda ir: isinstance(ir, Ref) and not isinstance(ir, TopLevelReference))}
+    bound_references = {ref.name for ref in expr._ir.search(
+        lambda ir: isinstance(ir, Ref)
+                   and not isinstance(ir, TopLevelReference)
+                   and not ir.name.startswith('__uid_scan')
+                   and not ir.name.startswith('__uid_agg'))}
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
@@ -510,7 +521,7 @@ def counter(expr) -> DictExpression:
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
-    return _agg_func('Counter', [expr], tdict(expr.dtype, tint64))
+    return _agg_func.group_by(expr, count())
 
 
 @typecheck(expr=expr_any,
@@ -745,7 +756,7 @@ def stats(expr) -> StructExpression:
     - `max` (:py:data:`.tfloat64`) - Maximum value.
     - `mean` (:py:data:`.tfloat64`) - Mean value,
     - `stdev` (:py:data:`.tfloat64`) - Standard deviation.
-    - `n` (:py:data:`.tfloat64`) - Number of non-missing records.
+    - `n` (:py:data:`.tint64`) - Number of non-missing records.
     - `sum` (:py:data:`.tfloat64`) - Sum.
 
     Parameters
@@ -759,12 +770,21 @@ def stats(expr) -> StructExpression:
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
         `n`, and `sum`.
     """
-    return _agg_func('Statistics', [expr], tstruct(mean=tfloat64,
-                                                   stdev=tfloat64,
-                                                   min=tfloat64,
-                                                   max=tfloat64,
-                                                   n=tint64,
-                                                   sum=tfloat64))
+
+    return hl.bind(lambda aggs:
+                   hl.bind(lambda mean: hl.struct(
+                       mean = mean,
+                       stdev = hl.sqrt(hl.float64(aggs.sumsq - (2 * mean * aggs.sum) + (aggs.n_def * mean ** 2)) / aggs.n_def),
+                       min = hl.float64(aggs.min),
+                       max = hl.float64(aggs.max),
+                       n = aggs.n_def,
+                       sum = hl.float64(aggs.sum)
+                   ), hl.float64(aggs.sum)/aggs.n_def),
+                   hl.struct(n_def = count_where(hl.is_defined(expr)),
+                             sum = sum(expr),
+                             sumsq = sum(expr ** 2),
+                             min = min(expr),
+                             max = max(expr)))
 
 
 @typecheck(expr=expr_oneof(expr_int64, expr_float64))
@@ -831,7 +851,9 @@ def fraction(predicate) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    return _agg_func("Fraction", [predicate], tfloat64)
+    return hl.bind(lambda n: hl.cond(n == 0, hl.null(hl.tfloat64),
+                                     hl.float64(filter(predicate, count())) / n),
+                   count())
 
 
 @typecheck(expr=expr_call)
@@ -885,8 +907,15 @@ def hardy_weinberg_test(expr) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `het_freq_hwe` and `p_value`.
     """
-    t = tstruct(het_freq_hwe=tfloat64, p_value=tfloat64)
-    return _agg_func('HardyWeinberg', [expr], t)
+    return hl.rbind(
+        hl.rbind(
+            expr,
+            lambda call: filter(call.ploidy == 2, counter(call.n_alt_alleles())
+                                .map_values(lambda i: hl.case()
+                                            .when(i < 1 << 31, hl.int(i))
+                                            .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
+            _ctx=_agg_func.context),
+        lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0)))
 
 
 @typecheck(f=func_spec(1, agg_expr(expr_any)), array_agg_expr=expr_oneof(expr_array(), expr_set()))
@@ -1150,11 +1179,43 @@ def hist(expr, start, end, bins) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
-    t = tstruct(bin_edges=tarray(tfloat64),
-                bin_freq=tarray(tint64),
-                n_smaller=tint64,
-                n_larger=tint64)
-    return _agg_func('Histogram', [expr], t, constructor_args=[start, end, bins])
+
+    bin_idx_f = hl.experimental.define_function(
+        lambda s, e, nbins, binsize, v:
+        (hl.case()
+         .when(v < s, -1)
+         .when(v > e, nbins)
+         .when(v == e, nbins - 1)
+         .default(hl.int32(hl.floor((v - s) / binsize)))),
+        hl.tfloat64, hl.tfloat64, hl.tint32, hl.tfloat64, hl.tfloat64)
+
+    bin_idx = bin_idx_f(start, end, bins, hl.float64(end - start) / bins, expr)
+    freq_dict = hl.agg.filter(hl.is_defined(expr), hl.agg.group_by(bin_idx, hl.agg.count()))
+
+    def result(s, nbins, bs, freq_dict):
+        return hl.struct(
+            bin_edges=hl.range(0, nbins + 1).map(lambda i: s + i * bs),
+            bin_freq=hl.range(0, nbins).map(lambda i: freq_dict.get(i, 0)),
+            n_smaller=freq_dict.get(-1, 0),
+            n_larger=freq_dict.get(nbins, 0))
+
+    def wrap_errors(s, e, nbins, freq_dict):
+        return (hl.case()
+                .when(nbins > 0, hl.bind(lambda bs: hl.case()
+                                         .when((bs > 0) & hl.is_finite(bs),
+                                               result(s, nbins, bs, freq_dict))
+                                         .or_error("'hist': start=" + hl.str(s) +
+                                                   " end=" + hl.str(e) +
+                                                   " bins=" + hl.str(nbins) +
+                                                   " requires positive bin size."),
+                                         hl.float64(e - s) / nbins))
+                .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
+
+    result_from_agg_f = hl.experimental.define_function(
+        wrap_errors,
+        hl.tfloat64, hl.tfloat64, hl.tint32, hl.tdict(hl.tint32, hl.tint64))
+
+    return result_from_agg_f(start, end, bins, freq_dict)
 
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
@@ -1452,7 +1513,18 @@ def corr(x, y) -> Float64Expression:
     -------
     :class:`.Float64Expression`
     """
-    return _agg_func('PearsonCorrelation', [x, y], tfloat64)
+
+    return hl.bind(lambda a:
+                   (a.n * a.xy - a.x * a.y) /
+                   hl.sqrt((a.n * a.xsq - a.x ** 2) *
+                           (a.n * a.ysq - a.y ** 2)),
+                   hl.agg.filter(hl.is_defined(x) & hl.is_defined(y),
+                                 hl.struct(x=hl.agg.sum(x),
+                                           y=hl.agg.sum(y),
+                                           xsq=hl.agg.sum(x ** 2),
+                                           ysq=hl.agg.sum(y ** 2),
+                                           xy=hl.agg.sum(x * y),
+                                           n=hl.agg.count())))
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))

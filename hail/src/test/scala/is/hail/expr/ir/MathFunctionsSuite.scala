@@ -1,17 +1,16 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.types.virtual.{TArray, TFloat64}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
-import org.scalatest.testng.TestNGSuite
 
 
-class MathFunctionsSuite extends TestNGSuite {
-
+class MathFunctionsSuite extends HailSuite {
+  hc
   implicit val execStrats = ExecStrategy.values
 
   val tfloat = TFloat64()
@@ -192,7 +191,7 @@ class MathFunctionsSuite extends TestNGSuite {
     Array(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087),
     Array(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817)
   )
-  
+
   @Test(dataProvider = "contingency_table_test")
   def contingencyTableTest(a: Int, b: Int, c: Int, d: Int, minCellCount: Int, pValue: Double, oddsRatio: Double) {
     val r = eval(invoke("contingency_table_test", a, b, c, d, minCellCount)).asInstanceOf[Row]
@@ -207,7 +206,7 @@ class MathFunctionsSuite extends TestNGSuite {
     Array(0, 1, 0, 1.0, 0.5),
     Array(100, 200, 100, 0.50062578, 0.96016808)
   )
-  
+
   @Test(dataProvider = "hardy_weinberg_test")
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double) {
     val r = eval(invoke("hardy_weinberg_test", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
@@ -220,5 +219,27 @@ class MathFunctionsSuite extends TestNGSuite {
     assertFatal(invoke("%", I64(1), I64(0)), "modulo by zero")
     assertFatal(invoke("%", F32(1), F32(0)), "modulo by zero")
     assertFatal(invoke("%", F64(1), F64(0)), "modulo by zero")
+  }
+
+  @Test def testMinMax() {
+    implicit val execStrats = ExecStrategy.javaOnly
+    assertAllEvalTo(
+      (invoke("min", F32(1.0f), F32(2.0f)), 1.0f),
+      (invoke("max", F32(1.0f), F32(2.0f)), 2.0f),
+      (invoke("min", F64(1.0), F64(2.0)), 1.0),
+      (invoke("max", F64(1.0), F64(2.0)), 2.0),
+      (invoke("min", I32(1), I32(2)), 1),
+      (invoke("max", I32(1), I32(2)), 2),
+      (invoke("min", I64(1L), I64(2L)), 1L),
+      (invoke("max", I64(1L), I64(2L)), 2L),
+      (invoke("min", F32(Float.NaN), F32(1.0f)), Float.NaN),
+      (invoke("min", F64(Double.NaN), F64(1.0)), Double.NaN),
+      (invoke("max", F32(Float.NaN), F32(1.0f)), Float.NaN),
+      (invoke("max", F64(Double.NaN), F64(1.0)), Double.NaN),
+      (invoke("min", F32(1.0f), F32(Float.NaN)), Float.NaN),
+      (invoke("min", F64(1.0), F64(Double.NaN)), Double.NaN),
+      (invoke("max", F32(1.0f), F32(Float.NaN)), Float.NaN),
+      (invoke("max", F64(1.0), F64(Double.NaN)), Double.NaN)
+    )
   }
 }

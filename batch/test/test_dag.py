@@ -44,7 +44,7 @@ def test_simple(client):
     status = batch.wait()
     assert batch_status_job_counter(status, 'Success') == 2, status
     assert batch_status_exit_codes(status) == [
-        {'input': 0, 'main': 0, 'output': 0}, {'input': 0, 'main': 0, 'output': 0}], status
+        {'setup': 0, 'main': 0, 'cleanup': 0}, {'setup': 0, 'main': 0, 'cleanup': 0}], status
 
 
 def test_missing_parent_is_400(client):
@@ -186,6 +186,7 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
+    print(head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 

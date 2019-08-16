@@ -7,6 +7,8 @@ import is.hail.utils._
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
   private var ab = new MissingBooleanArrayBuilder()
 
+  override def isCommutative: Boolean = false
+
   def seqOp(region: Region, b: Boolean, missing: Boolean) {
     if (missing)
       ab.addMissing()
@@ -42,6 +44,8 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
 
 class RegionValueCollectIntAggregator extends RegionValueAggregator {
   private var ab = new MissingIntArrayBuilder()
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
     if (missing)
@@ -79,6 +83,8 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
 class RegionValueCollectLongAggregator extends RegionValueAggregator {
   private var ab = new MissingLongArrayBuilder()
 
+  override def isCommutative: Boolean = false
+
   def seqOp(region: Region, x: Long, missing: Boolean) {
     if (missing)
       ab.addMissing()
@@ -114,6 +120,8 @@ class RegionValueCollectLongAggregator extends RegionValueAggregator {
 
 class RegionValueCollectFloatAggregator extends RegionValueAggregator {
   private var ab = new MissingFloatArrayBuilder()
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
     if (missing)
@@ -151,6 +159,8 @@ class RegionValueCollectFloatAggregator extends RegionValueAggregator {
 class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
   private var ab = new MissingDoubleArrayBuilder()
 
+  override def isCommutative: Boolean = false
+
   def seqOp(region: Region, x: Double, missing: Boolean) {
     if (missing)
       ab.addMissing()
@@ -186,6 +196,8 @@ class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
 
 class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggregator {
   private var ab = new MissingAnnotationArrayBuilder()
+
+  override def isCommutative: Boolean = false
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (missing)

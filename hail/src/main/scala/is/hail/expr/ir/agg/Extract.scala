@@ -36,7 +36,6 @@ object TableMapIRNew {
         null
 
     val spec = CodecSpec.defaultUncompressed
-    val aggSlots = extracted.aggs ++ extracted.aggs
 
     // Order of operations:
     // 1. init op on all aggs and serialize to byte array.
@@ -49,30 +48,18 @@ object TableMapIRNew {
       "global", gType,
       Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
 
-    val (_, deserializeFirstF) = ir.CompileWithAggregators2[Unit](
-      aggSlots,
-      extracted.deserializeSet(0, 0, spec))
-
-    val (_, serializeFirstF) = ir.CompileWithAggregators2[Unit](
-      aggSlots,
-      extracted.serializeSet(0, 0, spec))
-
     val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](
-      aggSlots,
+      extracted.aggs,
       "global", gType,
       "row", typ.rowType.physicalType,
       extracted.eltOp())
 
-    val (_, combOpF) = ir.CompileWithAggregators2[Unit](
-      aggSlots,
-      Begin(
-        extracted.deserializeSet(0, 0, spec) +:
-        extracted.deserializeSet(1, 1, spec) +:
-          Array.tabulate(nAggs)(i => CombOp2(i, nAggs + i, extracted.aggs(i))) :+
-          extracted.serializeSet(0, 0, spec)))
+    val read = extracted.deserialize(spec)
+    val write = extracted.serialize(spec)
+    val combOpF = extracted.combOpF(spec)
 
     val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](
-      aggSlots,
+      extracted.aggs,
       "global", gType,
       "row", typ.rowType.physicalType,
       Let(scanRef, extracted.results, extracted.postAggIR))
@@ -94,57 +81,63 @@ object TableMapIRNew {
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
       Region.smallScoped { aggRegion =>
-        val init = deserializeFirstF(i, globalRegion)
         val seq = eltSeqF(i, globalRegion)
-        val write = serializeFirstF(i, globalRegion)
-        init.newAggState(aggRegion)
-        init.setSerializedAgg(0, initAgg)
-        init(globalRegion)
-        seq.setAggState(aggRegion, init.getAggOffset())
+
+        seq.setAggState(aggRegion, read(aggRegion, initAgg))
         it.foreach { rv =>
           seq(rv.region, globals, false, rv.offset, false)
           ctx.region.clear()
         }
-        write.setAggState(aggRegion, seq.getAggOffset())
-        write(globalRegion)
-        Iterator.single(write.getSerializedAgg(0))
-
+        Iterator.single(write(aggRegion, seq.getAggOffset()))
       }
     }, HailContext.get.flags.get("max_leader_scans").toInt)
 
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = Region.scoped { fRegion =>
-      val combOp = combOpF(0, fRegion)
-      var i = 0
-      scanPartitionAggs.scanLeft(initAgg) { case (prev, current) =>
-        i += 1
-        Region.scoped { agg2 =>
-          combOp.newAggState(agg2)
-          combOp.setSerializedAgg(0, prev)
-          combOp.setSerializedAgg(1, current)
-          combOp(fRegion)
-          combOp.getSerializedAgg(0)
+    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
+    val scanAggCount = tv.rvd.getNumPartitions
+    val partitionIndices = new Array[Long](scanAggCount)
+    val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
+    HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
+      partAggs.zipWithIndex.foreach { case (x, i) =>
+        if (i < scanAggCount) {
+          partitionIndices(i) = os.getPos
+          os.writeInt(x.length)
+          os.write(x, 0, x.length)
+          os.hflush()
         }
       }
     }
 
+    val bcFS = HailContext.get.bcFS
+
     // 4. load in partStarts, calculate newRow based on those results.
-    val itF = { (i: Int, ctx: RVDContext, partitionAggs: Array[Byte], it: Iterator[RegionValue]) =>
+    val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
       val globalRegion = ctx.freshRegion
       val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
         globalsBc.value.readRegionValue(globalRegion)
       else
         0
+      val partitionAggs = bcFS.value.readFileNoCompression(scanAggsPerPartitionFile) { is =>
+        is.seek(filePosition)
+        val aggSize = is.readInt()
+        val partAggs = new Array[Byte](aggSize)
+        var nread = is.read(partAggs, 0, aggSize)
+        var r = nread
+        while (r > 0 && nread < aggSize) {
+          r = is.read(partAggs, nread, aggSize - nread)
+          if (r > 0) nread += r
+        }
+        if (nread != aggSize) {
+          fatal(s"aggs read wrong number of bytes: $nread vs $aggSize")
+        }
+        partAggs
+      }
 
       val aggRegion = ctx.freshRegion
-      val read = deserializeFirstF(i, globalRegion)
       val newRow = f(i, globalRegion)
       val seq = eltSeqF(i, globalRegion)
-      read.newAggState(aggRegion)
-      read.setSerializedAgg(0, partitionAggs)
-      read(globalRegion)
-      var aggOff = read.getAggOffset()
+      var aggOff = read(aggRegion, partitionAggs)
 
       it.map { rv =>
         newRow.setAggState(aggRegion, aggOff)
@@ -158,7 +151,7 @@ object TableMapIRNew {
     }
     tv.copy(
       typ = typ.copy(rowType = rTyp.virtualType.asInstanceOf[TStruct]),
-      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partAggs.toArray, itF))
+      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
   }
 }
 
@@ -168,19 +161,67 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   val typ: PTuple = PTuple(aggs.map(Extract.getPType): _*)
   val nAggs: Int = aggs.length
 
+  def isCommutative: Boolean = {
+    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && (agg.op match {
+      case Take() | Collect() | PrevNonnull() | TakeBy() => false
+      case _ => true
+    })
+    aggs.forall(aggCommutes)
+  }
+
   def deserializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
     DeserializeAggs(i * nAggs, i2, spec, aggs)
 
   def serializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
     SerializeAggs(i * nAggs, i2, spec, aggs)
 
-  def readSet(i: Int, path: IR, spec: CodecSpec): IR =
-    ReadAggs(i * nAggs, path, spec, aggs)
-
-  def writeSet(i: Int, path: IR, spec: CodecSpec): IR =
-    WriteAggs(i * nAggs, path, spec, aggs)
-
   def eltOp(optimize: Boolean = true): IR = if (optimize) Optimize(seqPerElt) else seqPerElt
+
+  def deserialize(spec: CodecSpec): ((Region, Array[Byte]) => Long) = {
+    val (_, f) = ir.CompileWithAggregators2[Unit](
+      aggs, ir.DeserializeAggs(0, 0, spec, aggs))
+
+    { (aggRegion: Region, bytes: Array[Byte]) =>
+      val f2 = f(0, aggRegion);
+      f2.newAggState(aggRegion)
+      f2.setSerializedAgg(0, bytes)
+      f2(aggRegion)
+      f2.getAggOffset()
+    }
+  }
+
+  def serialize(spec: CodecSpec): (Region, Long) => Array[Byte] = {
+    val (_, f) = ir.CompileWithAggregators2[Unit](
+      aggs, ir.SerializeAggs(0, 0, spec, aggs))
+
+    { (aggRegion: Region, off: Long) =>
+      val f2 = f(0, aggRegion);
+      f2.setAggState(aggRegion, off)
+      f2(aggRegion)
+      f2.getSerializedAgg(0)
+    }
+  }
+
+  def combOpF(spec: CodecSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
+    val (_, f) = ir.CompileWithAggregators2[Unit](
+      aggs ++ aggs,
+      Begin(
+        deserializeSet(0, 0, spec) +:
+          deserializeSet(1, 1, spec) +:
+          Array.tabulate(nAggs)(i => CombOp2(i, nAggs + i, aggs(i))) :+
+          serializeSet(0, 0, spec)))
+
+    { (c1: Array[Byte], c2: Array[Byte]) =>
+      Region.smallScoped { aggRegion =>
+        val comb = f(0, aggRegion)
+        comb.newAggState(aggRegion)
+        comb.setSerializedAgg(0, c1)
+        comb.setSerializedAgg(1, c2)
+        comb(aggRegion)
+        comb.getSerializedAgg(0)
+      }
+    }
+  }
 
   def results: IR = ResultOp2(0, aggs)
 }
@@ -204,8 +245,15 @@ object Extract {
   def getAgg(aggSig: AggSignature2): StagedAggregator = aggSig match {
     case AggSignature2(Sum(), _, Seq(t), _) =>
       new SumAggregator(t.physicalType)
+    case AggSignature2(Product(), _, Seq(t), _) =>
+      new ProductAggregator(t.physicalType)
+    case AggSignature2(Min(), _, Seq(t), _) =>
+      new MinAggregator(t.physicalType)
+    case AggSignature2(Max(), _, Seq(t), _) =>
+      new MaxAggregator(t.physicalType)
     case AggSignature2(Count(), _, _, _) =>
       CountAggregator
+    case AggSignature2(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
     case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
       val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
@@ -231,7 +279,7 @@ object Extract {
     val rt = TTuple(aggs.map(Extract.getType): _*)
     ref._typ = rt
 
-    Aggs(postAgg, Begin(initOps), Begin(seq.result()), aggs)
+    Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), aggs)
   }
 
   private def extract(ir: IR, ab: ArrayBuilder[InitOp2], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {

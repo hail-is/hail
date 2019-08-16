@@ -12,6 +12,7 @@ Regardless of installation method, you will need:
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_ (version **8** required)
     Note: it *must* be Java **8**. Hail does not support versions 9+ due to our dependency on Spark.
 - Python 3.6 or later. We recommend `Miniconda Python 3.7 <https://docs.conda.io/en/latest/miniconda.html>`_
+- A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
 
 For all methods *other than using pip*, you will additionally need `Spark
 2.4.x
@@ -35,7 +36,7 @@ Create a `conda enviroment
 
     conda create -n hail python==3.6
     conda activate hail
-    pip install hail
+    pip3 install hail
 
 To try Hail out, open iPython or a Jupyter notebook and run:
 

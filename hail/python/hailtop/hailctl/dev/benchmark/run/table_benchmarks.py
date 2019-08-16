@@ -110,6 +110,13 @@ def table_annotate_many_nested_dependence():
         ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()
 
+
+@benchmark
+def table_aggregate_counter():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
+
+
 @benchmark
 def read_force_count_p1000():
     hl.read_table(resource('table_10M_par_1000.ht'))._force_count()
@@ -141,8 +148,11 @@ def write_range_table_p10():
         ht.write(path.join(tmpdir, 'tmp.ht'))
 
 @benchmark
-def read_with_index_p50k():
-    intervals = [hl.Interval(start=i, end=i + 200) for i in range(0, 10_000_000, 200)]
+def read_with_index_p1000():
+    rows = 10_000_000
+    bins = 1_000
+    width = rows // bins
+    intervals = [hl.Interval(start=i, end=i + width) for i in range(0, rows, width)]
     ht = hl.read_table(resource('table_10M_par_10.ht'), _intervals=intervals)
     ht._force_count()
 

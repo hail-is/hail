@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
+    def default(self, o):  # pylint: disable=E0202
         if isinstance(o, datetime):
             return o.isoformat()
 

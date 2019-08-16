@@ -65,7 +65,7 @@ def check_for_update():
                                  f'You have Hail {fmt_version(installed)} installed, '
                                  f'but a newer version {fmt_version(latest)} exists.\n'
                                  f'  To upgrade to the latest version, please run:\n\n'
-                                 f'    pip install -U hail\n\n'
+                                 f'    pip3 install -U hail\n\n'
                                  f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
     except Exception:
         pass
