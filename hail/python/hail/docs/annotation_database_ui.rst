@@ -51,7 +51,7 @@ own Hail script.
     <div class="col-xs-6">
     <div class="form-group">
     <label for="exampleFormControlTextarea1">Hail Generated Code</label>
-    <textarea readonly class="form-control" id="result" rows="3" width="450px" style="font-family:monospace; font-size: .875rem;">db = hl.experimental.DB()
+    <textarea readonly class="form-control" id="result" rows="3" width="450px">db = hl.experimental.DB()
     mt = db.annotate_rows_db(mt, </textarea>
     </div>
     </div>
@@ -60,7 +60,7 @@ own Hail script.
     </div>
     </div>
     <div class="row" style="margin-top:10px"></div>
-    <table id='table1' class="table1 table display select" >
+    <table id='table1' class="table1 table table-bordered display select" >
     <div id="header"  class="text-center"></div>
     <tr id="tableHeader">
     <th><input id="checkAll" name="addall" type="checkbox" ></th>

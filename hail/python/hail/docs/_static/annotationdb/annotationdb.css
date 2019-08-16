@@ -29,6 +29,11 @@
   margin-left: 0px;
 }
 
+#searchInput,
+#annotation-db textarea {
+  box-shadow: none;
+}
+
 #annotation-db .btn-group-sm > .btn,
 #annotation-db .btn-sm {
   font-size: 14px;
@@ -43,11 +48,10 @@
   background-color: #fff;
   border: 1px solid transparent;
   border-radius: 4px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
 #annotation-db .panel {
-  margin-bottom: 15px;
+  margin-bottom: 0.875rem;
 }
 
 #annotation-db .panel-default {
@@ -55,7 +59,7 @@
 }
 
 #annotation-db .panel-body {
-  padding: 15px;
+  padding: 0.875rem;
 }
 
 #annotation-db .panel-default > .panel-heading {
@@ -86,9 +90,16 @@
 #table1 td,
 #table1 th {
   display: table-cell;
-  border: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  border-left: 0px;
+  border-right: 0px;
+  border-top: 0px;
   padding: 8px;
   width: auto;
+}
+
+#table1 tr:last-child td {
+  border-bottom: 0px;
 }
 
 #annotation-db table {
