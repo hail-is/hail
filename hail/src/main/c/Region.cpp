@@ -336,5 +336,13 @@ REGIONMETHOD(jlong, Region, nativeGetBlockAddress)(
   return (jlong) r->region_->get_block_address();
 }
 
+REGIONMETHOD(void, Region, setNull)(
+  JNIEnv*,
+  jobject,
+  jlong addr
+) {
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
+  r->region_ = nullptr;
+}
 
 }

@@ -1,15 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual.{TArray, TInt32, TString}
-import is.hail.utils.FastIndexedSeq
+import is.hail.expr.types.virtual.{TArray, TFloat32, TFloat64, TInt32, TString}
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
-class ArrayFunctionsSuite extends TestNGSuite {
+class ArrayFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32()))
 
   implicit val execStrats = ExecStrategy.javaOnly
@@ -95,6 +95,15 @@ class ArrayFunctionsSuite extends TestNGSuite {
   def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
     assertEvalsTo(invoke("min", toIRArray(a)),
       Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
+  }
+
+  @Test def testMinMaxNans() {
+    assertAllEvalTo(
+      (invoke("min", MakeArray(FastSeq(F32(Float.NaN), F32(1.0f), F32(Float.NaN), F32(111.0f)), TArray(TFloat32()))), Float.NaN),
+      (invoke("max", MakeArray(FastSeq(F32(Float.NaN), F32(1.0f), F32(Float.NaN), F32(111.0f)), TArray(TFloat32()))), Float.NaN),
+      (invoke("min", MakeArray(FastSeq(F64(Double.NaN), F64(1.0), F64(Double.NaN), F64(111.0)), TArray(TFloat64()))), Double.NaN),
+      (invoke("max", MakeArray(FastSeq(F64(Double.NaN), F64(1.0), F64(Double.NaN), F64(111.0)), TArray(TFloat64()))), Double.NaN)
+    )
   }
 
   @Test(dataProvider = "sort")

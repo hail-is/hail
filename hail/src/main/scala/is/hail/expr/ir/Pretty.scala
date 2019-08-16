@@ -181,24 +181,6 @@ object Pretty {
           sb.append(i)
           sb += '\n'
           prettyAggSeq(aggSigs, depth + 2)
-        case ReadAggs(i, path, spec, aggSigs) =>
-          sb += ' '
-          sb.append(i)
-          sb += ' '
-          sb.append(prettyStringLiteral(spec.toString))
-          sb += '\n'
-          prettyAggSeq(aggSigs, depth + 2)
-          sb += '\n'
-          pretty(path, depth + 2)
-        case WriteAggs(i, path, spec, aggSigs) =>
-          sb += ' '
-          sb.append(i)
-          sb += ' '
-          sb.append(prettyStringLiteral(spec.toString))
-          sb += '\n'
-          prettyAggSeq(aggSigs, depth + 2)
-          sb += '\n'
-          pretty(path, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -376,6 +358,7 @@ object Pretty {
             case TableToTableApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case TableToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case MatrixToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case BlockMatrixToTableApply(_, _, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray

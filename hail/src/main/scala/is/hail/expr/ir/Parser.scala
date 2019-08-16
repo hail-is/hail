@@ -849,20 +849,6 @@ object IRParser {
         val i = int32_literal(it)
         val aggSigs = agg_signatures(it)
         ResultOp2(i, aggSigs)
-      case "ReadAggs" =>
-        val i = int32_literal(it)
-        implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
-        val aggSigs = agg_signatures(it)
-        val path = ir_value_expr(env)(it)
-        ReadAggs(i, path, spec, aggSigs)
-      case "WriteAggs" =>
-        val i = int32_literal(it)
-        implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
-        val aggSigs = agg_signatures(it)
-        val path = ir_value_expr(env)(it)
-        WriteAggs(i, path, spec, aggSigs)
       case "SerializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
@@ -1159,6 +1145,11 @@ object IRParser {
         val config = string_literal(it)
         val child = table_ir(env)(it)
         TableToTableApply(child, RelationalFunctions.lookupTableToTable(config))
+      case "BlockMatrixToTableApply" =>
+        val config = string_literal(it)
+        val bm = blockmatrix_ir(env)(it)
+        val aux = ir_value_expr(env)(it)
+        BlockMatrixToTableApply(bm, aux, RelationalFunctions.lookupBlockMatrixToTable(config))
       case "BlockMatrixToTable" =>
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToTable(child)

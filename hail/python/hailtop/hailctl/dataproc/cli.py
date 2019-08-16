@@ -16,6 +16,12 @@ def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl dataproc',
         description='Manage and monitor Hail deployments.')
+
+    main_parser.add_argument(
+        '--beta',
+        action='store_true',
+        help='Force use of `beta` in gcloud commands')
+
     subparsers = main_parser.add_subparsers()
 
     start_parser = subparsers.add_parser(
@@ -38,17 +44,14 @@ def parser():
         'stop',
         help='Shut down a Dataproc cluster.',
         description='Shut down a Dataproc cluster.')
-
     list_parser = subparsers.add_parser(
         'list',
         help='List active Dataproc clusters.',
         description='List active Dataproc clusters.')
-
     modify_parser = subparsers.add_parser(
         'modify',
         help='Modify active Dataproc clusters.',
         description='Modify active Dataproc clusters.')
-
     describe_parser = subparsers.add_parser(
         'describe',
         help='Gather information about a hail file (including the schema)',
@@ -81,8 +84,9 @@ def parser():
 
 
 def main(args):
+    p = parser()
     if not args:
-        parser().print_help()
+        p.print_help()
         sys.exit(0)
     jmp = {
         'start': start,
@@ -95,5 +99,8 @@ def main(args):
         'describe': describe,
     }
 
-    args, pass_through_args = parser().parse_known_args(args=args)
+    args, pass_through_args = p.parse_known_args(args=args)
+    if "module" not in args:
+        p.error('positional argument required')
+
     jmp[args.module].main(args, pass_through_args)

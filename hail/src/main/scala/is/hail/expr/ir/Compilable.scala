@@ -15,6 +15,7 @@ object Compilable {
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false
       case _: BlockMatrixToValueApply => false
+      case _: BlockMatrixToTableApply => false
       case _: RelationalRef => false
       case _: RelationalLet => false
       case _ => true

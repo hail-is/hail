@@ -23,9 +23,13 @@ class Env:
     _seed_generator = None
 
     @staticmethod
-    def get_uid():
+    def get_uid(base=None):
+        if base:
+            str_base = base
+        else:
+            str_base = ''
         Env._counter += 1
-        return "__uid_{}".format(Env._counter)
+        return f"__uid_{str_base}{Env._counter}"
 
     @staticmethod
     def jvm():

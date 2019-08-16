@@ -12,6 +12,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
   }
 
+  def storeBoolean(off: Code[Long], v: Code[Boolean]): Code[Unit] = {
+    region.invoke[Long, Boolean, Unit]("storeBoolean", off, v)
+  }
+
   def storeInt(off: Code[Long], v: Code[Int]): Code[Unit] = {
     region.invoke[Long,Int,Unit]("storeInt", off, v)
   }

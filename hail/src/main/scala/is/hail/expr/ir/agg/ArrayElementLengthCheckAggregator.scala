@@ -1,17 +1,16 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-import is.hail.asm4s.coerce
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState]) extends PointerBasedRVAState {
+class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[AggregatorState]) extends PointerBasedRVAState {
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
@@ -19,9 +18,9 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 
   val typ: PTuple = PTuple(container.typ, arrayType)
 
-  val lenRef: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_lenref")
-  val idx: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_idx")
-  private val aoff: ClassFieldRef[Long] = mb.newField[Long]("arrayrva_aoff")
+  val lenRef: ClassFieldRef[Int] = fb.newField[Int]("arrayrva_lenref")
+  val idx: ClassFieldRef[Int] = fb.newField[Int]("arrayrva_idx")
+  private val aoff: ClassFieldRef[Long] = fb.newField[Long]("arrayrva_aoff")
 
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
 
@@ -46,7 +45,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
       region.setNumParents((lenRef + 1) * nStates),
       aoff := region.allocate(arrayType.contentsAlignment, arrayType.contentsByteSize(lenRef)),
       region.storeAddress(typ.fieldOffset(off, 1), aoff),
-      arrayType.initialize(aoff, lenRef, idx),
+      arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(region, off, 1))
 
   def seq(init: Code[Unit], initPerElt: Code[Unit], seqOp: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
@@ -118,7 +117,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
   }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] = {
-    val srcOff = mb.newField[Long]
+    val srcOff = fb.newField[Long]
     val initOffset = typ.loadField(srcOff, 0)
     val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
 
@@ -140,7 +139,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PArray(resultEltType)
 
-  def createState(mb: EmitMethodBuilder): State = ArrayElementState(mb, nestedAggs.map(_.createState(mb)))
+  def createState(fb: EmitFunctionBuilder[_]): State = new ArrayElementState(fb, nestedAggs.map(_.createState(fb)))
 
   // inits all things
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
@@ -205,7 +204,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
 
   def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType): _*))
 
-  def createState(mb: EmitMethodBuilder): State =
+  def createState(fb: EmitFunctionBuilder[_]): State =
     throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] =
@@ -213,7 +212,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(eltIdx, seqOps) = seq
-    val eltIdxV = state.mb.newField[Int]
+    val eltIdxV = state.fb.newField[Int]
     Code(
       eltIdx.setup,
       eltIdx.m.mux(

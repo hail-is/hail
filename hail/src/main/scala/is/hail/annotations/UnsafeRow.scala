@@ -60,6 +60,8 @@ object UnsafeRow {
       region.loadInt(ft.loadField(region, offset, 1)))
   }
 
+  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
+
   def read(t: PType, region: Region, offset: Long): Any = {
     t match {
       case _: PBoolean =>

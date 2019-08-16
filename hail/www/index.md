@@ -6,16 +6,16 @@ Hail is built to scale and has first-class support for multi-dimensional structu
 
 Hail is exposed as a Python library, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++.
 
-See the [documentation](https://hail.is/docs/0.2/) for more info on using
+See the [documentation](docs/0.2/) for more info on using
 Hail. Post to the [Discussion Forum](http://discuss.hail.is) for user support
 and feature requests. Chat with the Hail team and user community in Hail's
 [Zulip chatroom](https://hail.zulipchat.com).
 
-Hail is actively developed with new features and performance improvements integrated weekly. See the [changelog](https://hail.is/docs/0.2/change_log.html) for more information.
+Hail is actively developed with new features and performance improvements integrated weekly. See the [changelog](docs/0.2/change_log.html) for more information.
 
 ### Community
 
-Hail has been widely adopted in academia and industry, including as the analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank rapid GWAS](https://www.nealelab.is/uk-biobank). Learn more about [Hail-powered science](references.md).
+Hail has been widely adopted in academia and industry, including as the analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank rapid GWAS](https://www.nealelab.is/uk-biobank). Learn more about [Hail-powered science](references.html).
 
 ### Maintainer
 

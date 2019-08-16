@@ -174,7 +174,7 @@ abstract class RegistryFunctions {
         r.region, coerce[Long](c))
   }
 
-  def boxArg(r: EmitRegion, t: PType): Code[_] => Code[Any] = t match {
+  def boxArg(r: EmitRegion, t: PType): Code[_] => Code[AnyRef] = t match {
     case _: PBoolean => c => Code.boxBoolean(coerce[Boolean](c))
     case _: PInt32 => c => Code.boxInt(coerce[Int](c))
     case _: PInt64 => c => Code.boxLong(coerce[Long](c))
@@ -186,8 +186,8 @@ abstract class RegistryFunctions {
         PString.getClass, "loadString",
         r.region, coerce[Long](c))
     case _ => c =>
-      Code.invokeScalaObject[PType, Region, Long, Any](
-        UnsafeRow.getClass, "read",
+      Code.invokeScalaObject[PType, Region, Long, AnyRef](
+        UnsafeRow.getClass, "readAnyRef",
         r.mb.getPType(t),
         r.region, coerce[Long](c))
   }

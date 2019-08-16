@@ -564,9 +564,10 @@ class RVD(
   def combine[U: ClassTag](
     zeroValue: U,
     itF: (Int, RVDContext, Iterator[RegionValue]) => U,
-    combOp: (U, U) => U): U = {
+    combOp: (U, U) => U,
+    commutative: Boolean): U = {
     val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
-    val ac = new AssociativeCombiner(zeroValue, combOp)
+    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }
@@ -576,7 +577,8 @@ class RVD(
     zeroValue: U,
     makePC: (Int, RVDContext) => PC
   )(seqOp: (PC, U, RegionValue) => Unit,
-    combOp: (U, U) => U
+    combOp: (U, U) => U,
+    commutative: Boolean
   ): U = {
     val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
       val pc = makePC(i, ctx)
@@ -588,7 +590,7 @@ class RVD(
       Iterator.single(comb)
     }
 
-    val ac = new AssociativeCombiner(zeroValue, combOp)
+    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }

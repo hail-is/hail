@@ -2,6 +2,7 @@ import abc
 import os.path
 import json
 import logging
+from collections import defaultdict
 from shlex import quote as shq
 import yaml
 import jinja2
@@ -69,10 +70,10 @@ class BuildConfiguration:
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
-        
+
         if profile:
             log.info(f"Constructing build configuration with following profile: {profile}")
-        
+
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
 
@@ -88,22 +89,21 @@ class BuildConfiguration:
             if step.scopes is None or scope in step.scopes:
                 step.build(batch, code, scope)
 
-        parents = set()
-        for step in self.steps:
-            parents.update(step.wrapped_job())
-        parents = list(parents)
-
         if scope == 'dev':
             return
 
-        sink = batch.create_job('ubuntu:18.04',
-                                command=['/bin/true'],
-                                attributes={'name': 'sink'},
-                                parents=parents)
+        step_to_parent_steps = defaultdict(set)
+        for step in self.steps:
+            for dep in step.all_deps():
+                step_to_parent_steps[dep].add(step)
 
         for step in self.steps:
+            parent_jobs = flatten([parent_step.wrapped_job() for parent_step in  step_to_parent_steps[step]])
+
+            log.info(f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}")
+
             if step.scopes is None or scope in step.scopes:
-                step.cleanup(batch, scope, sink)
+                step.cleanup(batch, scope, parent_jobs)
 
 
 class Step(abc.ABC):
@@ -140,6 +140,19 @@ class Step(abc.ABC):
             return None
         return flatten([d.wrapped_job() for d in self.deps])
 
+    def all_deps(self):
+        visited = set([self])
+        frontier = [self]
+
+        while frontier:
+            current = frontier.pop()
+            for d in current.deps:
+                if d not in visited:
+                    visited.add(d)
+                    frontier.append(d)
+        return visited
+
+
     @staticmethod
     def from_json(params):
         kind = params.json['kind']
@@ -155,8 +168,18 @@ class Step(abc.ABC):
             return CreateDatabaseStep.from_json(params)
         raise ValueError(f'unknown build step kind: {kind}')
 
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
+
     @abc.abstractmethod
     def build(self, batch, code, scope):
+        pass
+
+    @abc.abstractmethod
+    def cleanup(self, batch, scope, parents):
         pass
 
 
@@ -314,7 +337,7 @@ date
                                     input_files=input_files,
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope == 'deploy' and self.publish_as:
             return
 
@@ -350,7 +373,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     volumes=volumes,
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
 
 
@@ -441,7 +464,7 @@ class RunImageStep(Step):
             parents=self.deps_parents(),
             always_run=self.always_run)
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         pass
 
 
@@ -603,7 +626,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev']:
             return
 
@@ -621,7 +644,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     service_account_name='ci-agent',
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
 
 
@@ -733,7 +756,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):  # pylint: disable=unused-argument
+    def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
         if self.wait:
             script = ''
             for w in self.wait:
@@ -752,7 +775,7 @@ date
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
                                         service_account_name='ci-agent',
-                                        parents=[sink],
+                                        parents=parents,
                                         always_run=True)
 
 
@@ -777,7 +800,7 @@ class CreateDatabaseStep(Step):
             self._name = params.code.namespace
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
-        
+
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
@@ -892,7 +915,7 @@ echo done.
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev']:
             return
 
@@ -915,5 +938,5 @@ true
                                     attributes={'name': f'cleanup_{self.name}'},
                                     # FIXME configuration
                                     service_account_name='ci-agent',
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)

@@ -542,8 +542,9 @@ object LowerMatrixIR {
                   }))))
 
             .explode(toExplode)
-            .mapRows('row.dropFields(toExplode).insertStruct('row (toExplode),
-              ordering = Some(x.typ.rowType.fieldNames.toFastIndexedSeq)))
+            .mapRows(makeStruct(x.typ.rowType.fieldNames.map { f =>
+              val fd = Symbol(f)
+              (fd, if (child.typ.rowKey.contains(f)) 'row (fd) else 'row (toExplode) (fd)) }: _*))
             .mapGlobals('global.dropFields(colsField, oldColIdx))
             .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
         } else {

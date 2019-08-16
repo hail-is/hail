@@ -78,26 +78,6 @@ class ForallAggregator(f: (Any) => Any)
   def copy() = new ForallAggregator(f)
 }
 
-class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] {
-  var m = new mutable.HashMap[Any, Long]
-
-  def result: Map[Annotation, Long] = m.toMap
-
-  def seqOp(x: Any) {
-    // FIXME only need to copy on the first one
-    val cx = Annotation.copy(t, x)
-    m.updateValue(cx, 0L, _ + 1)
-  }
-
-  def combOp(agg2: this.type) {
-    agg2.m.foreach { case (k, v) =>
-      m.updateValue(k, 0L, _ + v)
-    }
-  }
-
-  def copy() = new CounterAggregator(t)
-}
-
 class CollectSetAggregator(t: Type) extends TypedAggregator[Set[Any]] {
 
   var _state = new mutable.HashSet[Any]
@@ -144,24 +124,6 @@ class InfoScoreAggregator(t: PType) extends TypedAggregator[Annotation] {
   }
 
   def copy() = new InfoScoreAggregator(t)
-}
-
-class HWEAggregator() extends TypedAggregator[Annotation] {
-
-  var _state = new HWECombiner()
-
-  def result = _state.asAnnotation
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(x.asInstanceOf[Call])
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new HWEAggregator()
 }
 
 class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregator[T] {

@@ -391,6 +391,11 @@ object TestUtils {
     }
   }
 
+  def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit = {
+    assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
+  }
+
+
   def assertEvalsTo(x: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)

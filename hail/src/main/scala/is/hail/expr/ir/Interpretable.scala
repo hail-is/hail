@@ -8,8 +8,6 @@ object Interpretable {
         _: SeqOp2 |
         _: CombOp2 |
         _: ResultOp2 |
-        _: ReadAggs |
-        _: WriteAggs |
         _: SerializeAggs |
         _: DeserializeAggs |
         _: MakeNDArray |

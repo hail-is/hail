@@ -120,10 +120,7 @@ async def get_pr(request):
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
             for j in status['jobs']:
-                if 'duration' in j and j['duration'] is not None:
-                    duration = Job.duration(j)
-                    if duration is not None:
-                        j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=duration))
+                j['duration'] = humanize.naturaldelta(Job.total_duration(j))
                 j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
@@ -131,7 +128,8 @@ async def get_pr(request):
             config['batch'] = status
             config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
         else:
-            config['exception'] = traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__)
+            config['exception'] = '\n'.join(
+                traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))
 
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches(
@@ -166,8 +164,7 @@ async def get_batch(request):
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
     for j in status['jobs']:
-        if 'duration' in j and j['duration'] is not None:
-            j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=sum(j['duration'])))
+        j['duration'] = humanize.naturaldelta(Job.total_duration(j))
         j['exit_code'] = Job.exit_code(j)
     return {
         'batch': status
