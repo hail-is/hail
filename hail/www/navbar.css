@@ -138,8 +138,9 @@
 #hail-navbar .container-fluid {
   margin-right: auto;
   margin-left: auto;
-  padding-left: 0;
-  padding-right: 0;
+  /* body text won't align else */
+  padding-left: 1px;
+  padding-right: 1px;
 }
 
 #hail-navbar .dropdown {

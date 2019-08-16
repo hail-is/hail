@@ -36,11 +36,11 @@
                 </script>
             </head>
 
-            <body>
-                <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
-                <div id="body">
+                
+                <body id="body">
+                    <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
                     <xsl:apply-templates select="body"/>
-                </div>
+                </body>
             </body>
         </html>
     </xsl:template>
