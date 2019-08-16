@@ -87,7 +87,7 @@ install-editable: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(PIP) install -e .
 
 .PHONY: pytest
-pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) init-scripts
+pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
     --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
