@@ -6,7 +6,7 @@
 
 #searchInput {
   height: 40px;
-  font-size: 20px;
+  font-size: 0.875rem;
   font-weight: bold;
   margin-left: 27px;
   font-size: 0.875rem;
@@ -18,7 +18,7 @@
   font-weight: bold;
 }
 
-div.search span,
+#annotation-db div.search span,
 #searchInput {
   display: block;
   width: 350px;
@@ -29,47 +29,47 @@ div.search span,
   margin-left: 0px;
 }
 
-.btn-group-sm > .btn,
-.btn-sm {
+#annotation-db .btn-group-sm > .btn,
+#annotation-db .btn-sm {
   padding: 5px 10px;
   font-size: 14px;
   line-height: 0.7;
   border-radius: 3px;
 }
 
-.panel {
+#annotation-db .panel {
   background-color: #fff;
   border: 1px solid transparent;
   border-radius: 4px;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
-.panel {
+#annotation-db .panel {
   margin-bottom: 15px;
 }
 
-.panel-default {
+#annotation-db .panel-default {
   border-color: #ddd;
 }
 
-.panel-body {
+#annotation-db .panel-body {
   padding: 15px;
 }
 
-.panel-default > .panel-heading {
+#annotation-db .panel-default > .panel-heading {
   color: #333;
   background-color: #f5f5f5;
   border-color: #ddd;
 }
 
-div.panel-heading {
+#annotation-db div.panel-heading {
   padding: 10px 15px;
   border-bottom: 1px solid transparent;
   border-top-left-radius: 3px;
   border-top-right-radius: 3px;
 }
 
-div.panel .panel-body p:last-child {
+#annotation-db div.panel .panel-body p:last-child {
   margin-bottom: 0;
 }
 
@@ -89,24 +89,18 @@ div.panel .panel-body p:last-child {
   width: auto;
 }
 
-body {
-  font-family: "Helvetica Neue";
-  font-size: 14px;
-  line-height: 1.42857143;
-}
-
-table {
+#annotation-db table {
   border-spacing: 0;
   border-collapse: collapse;
   resize: none;
   table-layout: fixed;
   display: block;
   height: 770px;
-  width: 747px;
+  width: 100%;
   overflow-y: auto;
 }
 
-textarea {
+#annotation-db textarea {
   resize: none;
   font-size: 14px;
 }

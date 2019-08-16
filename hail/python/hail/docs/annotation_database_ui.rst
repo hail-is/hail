@@ -27,7 +27,7 @@ own Hail script.
     <h2 class="text-center" style="font-size:40px; font-weight:400;"> Hail </h2>
     </div>  
       
-    <div class="d-flex flex-column" style="height:1150px;">
+    <div class="d-flex flex-column" style="height:1150px;" id='annotation-db'>
     <div class="flex-1" >
     <div class="panel panel-default flex-fill">
     <div class="panel-heading" style="font-weight:bold">Search</div>

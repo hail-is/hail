@@ -37,7 +37,7 @@
 }
 
 #hail-navbar #hail-menu .nav-item {
-  padding: 0px 15px 0px 15px;
+  padding: 0px 0.875rem 0px 0.875rem;
   line-height: 1;
 }
 
@@ -427,6 +427,10 @@
   border-top-right-radius: 0;
   border-top-left-radius: 0;
 }
+#hail-navbar .dropdown-menu.show {
+  /*-0.875rem for padding offset, rest for line height*/
+  margin-bottom: -1.6rem;
+}
 #hail-navbar .navbar {
   position: relative;
   min-height: 50px;
@@ -577,10 +581,11 @@
     width: 100%;
     background: #fff;
     flex: auto;
+    margin-top: 1px;
   }
 
   #hail-navbar #hail-navbar-collapse .nav-item {
-    padding: 15px;
+    padding: 0.875rem;
   }
 
   #hail-navbar #hail-navbar-collapse .nav-item:first-child {
