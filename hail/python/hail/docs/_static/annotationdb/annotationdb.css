@@ -32,6 +32,12 @@
 #searchInput,
 #annotation-db textarea {
   box-shadow: none;
+  border-radius: 3px;
+}
+
+#annotation-db textarea {
+  font-family: monospace;
+  font-size: 0.875rem;
 }
 
 #annotation-db .btn-group-sm > .btn,
@@ -47,7 +53,7 @@
 #annotation-db .panel {
   background-color: #fff;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 #annotation-db .panel {
