@@ -19,9 +19,9 @@
                 <title><xsl:call-template name="page-title"/></title>
                 <link rel='shortcut icon' href='hail_logo_sq.ico' type='image/x-icon'/>
                 <xsl:call-template name="meta-description"/>
-                <script src="/jquery-3.1.1.min.js"></script>
-                <script src="/bootstrap.min.js"></script>
-                <link rel="stylesheet" href="/bootstrap.min.css" type="text/css"/>
+                <script src="/vendors/jquery-3.4.1.min.js"></script>
+                <script src="/vendors/bootstrap/js/bootstrap.min.js"></script>
+                <link rel="stylesheet" href="/vendors/bootstrap/css/bootstrap.min.css" type="text/css"/>
                 <link rel="stylesheet" href="/style.css"/>
                 <link rel="stylesheet" href="/navbar.css"/>
                 <xsl:call-template name="navbar-script"/>
