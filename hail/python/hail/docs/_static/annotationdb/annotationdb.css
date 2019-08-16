@@ -42,7 +42,7 @@
 
 #annotation-db .btn-group-sm > .btn,
 #annotation-db .btn-sm {
-  font-size: 14px;
+  font-size: 0.875rem;
   border-radius: 3px;
   line-height: 0;
   height: 24px;
@@ -118,9 +118,9 @@
   width: 100%;
   overflow-y: auto;
   font-size: 0.875rem;
+  border-radius: 5px;
 }
 
 #annotation-db textarea {
-  resize: none;
-  font-size: 14px;
+  font-size: 0.875rem;
 }

@@ -51,7 +51,7 @@ own Hail script.
     <div class="col-xs-6">
     <div class="form-group">
     <label for="exampleFormControlTextarea1">Hail Generated Code</label>
-    <textarea readonly class="form-control" id="result" rows="3" width="450px">db = hl.experimental.DB()
+    <textarea readonly class="form-control" id="result" rows="3">db = hl.experimental.DB()
     mt = db.annotate_rows_db(mt, </textarea>
     </div>
     </div>
