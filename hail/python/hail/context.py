@@ -17,115 +17,42 @@ import subprocess
 
 
 class HailContext(object):
-    @typecheck_method(sc=nullable(SparkContext),
-                      app_name=str,
-                      master=nullable(str),
-                      local=str,
-                      log=nullable(str),
-                      quiet=bool,
-                      append=bool,
-                      min_block_size=int,
-                      branching_factor=int,
-                      tmp_dir=nullable(str),
-                      default_reference=str,
-                      idempotent=bool,
-                      global_seed=nullable(int),
-                      optimizer_iterations=nullable(int),
-                      _backend=nullable(Backend))
-    def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
-                 log=None, quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmp_dir=None,
-                 default_reference="GRCh37", idempotent=False,
-                 global_seed=6348563392232659379, optimizer_iterations=None, _backend=None):
 
-        if Env._hc:
-            if idempotent:
-                return
-            else:
-                raise FatalError('Hail has already been initialized, restart session '
-                                 'or stop Hail to change configuration.')
-
-        hail_jar_path = None
-        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-            assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
-
-        # Steps:
-        # 1. Figure out what backend I'm going to use (all python)
-        #   - How do I specify this? Current way is is based on environment variable, not a fan.
-        # 2. Construct the python backend object.
-        # 3. Ask the Python backend object for a  JVM? (not true of apiserver backend though...)
-        #   - Let's be more general. Ask the Python backend to set itself up, which may include grabbing a JVM.
-        #   - HailContext getOrCreate cannot take a SparkContext. It could take an optional "JVM Backend".
-
-
-        conf = SparkConf()
-        if hail_jar_path:
-            conf.set('spark.jars', hail_jar_path)
-            conf.set('spark.driver.extraClassPath', hail_jar_path)
-            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
-
-        SparkContext._ensure_initialized(conf=conf)
-
-        self._gateway = SparkContext._gateway
-        self._jvm = SparkContext._jvm
-
-        # hail package
-        self._hail = getattr(self._jvm, 'is').hail
-
-        self._warn_cols_order = True
-        self._warn_entries_order = True
-
-        Env._jvm = self._jvm
-        Env._gateway = self._gateway
-
-        jsc = sc._jsc.sc() if sc else None
-
-        if _backend is None:
-            apiserver_url = os.environ.get('HAIL_APISERVER_URL')
-            if apiserver_url is not None:
-                _backend = ServiceBackend(apiserver_url)
-            else:
-                #sc = self.create_spark_context(hail_jar_path)
-                _backend = SparkBackend(sc)
-        self._backend = _backend
-
-        tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
-        optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+    def __init__(self, backend, jhc, global_seed, log, quiet):
+        self._backend = backend
 
         version = read_version_info()
         hail.__version__ = version
+
+        self._warn_cols_order = True
+        self._warn_entries_order = True
 
         if log is None:
             log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
                                             suffix=f'-{version}.log')
         self._log = log
 
-        # we always pass 'quiet' to the JVM because stderr output needs
-        # to be routed through Python separately.
-        # if idempotent:
-        if idempotent:
-            self._jhc = self._hail.HailContext.getOrCreate(
-                jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
-        else:
-            self._jhc = self._hail.HailContext.apply(
-                jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
+        if isinstance(backend, SparkBackend):
+            self._jvm = SparkContext._jvm
+            self._gateway = SparkContext._gateway
+            self._jhc = jhc
+            self._spark_session = None
+            self._hail = getattr(self._jvm, 'is').hail
+            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
+            if self._jsc.uiWebUrl().isDefined():
+                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
 
-        self._jsc = self._jhc.sc()
-        self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jhc.sparkSession()
-        self._spark_session = SparkSession(self.sc, self._jhc.sparkSession())
+        install_exception_handler()
+        Env.set_seed(global_seed)
 
         super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
 
-        ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
-        ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
-        ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
+        ReferenceGenome._from_config(backend.get_reference('GRCh37'), True)
+        ReferenceGenome._from_config(backend.get_reference('GRCh38'), True)
+        ReferenceGenome._from_config(backend.get_reference('GRCm38'), True)
 
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
@@ -140,9 +67,7 @@ class HailContext(object):
                                f"  Python: {version}")
 
         if not quiet:
-            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
-            if self._jsc.uiWebUrl().isDefined():
-                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
+
 
             connect_logger('localhost', 12888)
 
@@ -160,9 +85,6 @@ class HailContext(object):
                                  '  during the beta period. We recommend pulling\n'
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
-
-        install_exception_handler()
-        Env.set_seed(global_seed)
 
 
     @property
@@ -182,7 +104,100 @@ class HailContext(object):
         hail.ir.clear_session_functions()
         ReferenceGenome._references = {}
 
-def init2():
+
+@typecheck(sc=nullable(SparkContext),
+           app_name=str,
+           master=nullable(str),
+           local=str,
+           log=nullable(str),
+           quiet=bool,
+           append=bool,
+           min_block_size=int,
+           branching_factor=int,
+           tmp_dir=nullable(str),
+           default_reference=str,
+           idempotent=bool,
+           global_seed=nullable(int),
+           optimizer_iterations=nullable(int),
+           _backend=nullable(Backend))
+def init_spark_backend(self, sc=None, app_name="Hail", master=None, local='local[*]',
+                       log=None, quiet=False, append=False,
+                       min_block_size=1, branching_factor=50, tmp_dir=None,
+                       default_reference="GRCh37", idempotent=False,
+                       global_seed=6348563392232659379, optimizer_iterations=None, _backend=None):
+
+    if Env._hc:
+        if idempotent:
+            return
+        else:
+            raise FatalError('Hail has already been initialized, restart session '
+                             'or stop Hail to change configuration.')
+
+    hail_jar_path = None
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+        assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
+
+    # Steps:
+    # 1. Figure out what backend I'm going to use (all python)
+    #   - How do I specify this? Current way is is based on environment variable, not a fan.
+    # 2. Construct the python backend object.
+    # 3. Ask the Python backend object for a  JVM? (not true of apiserver backend though...)
+    #   - Let's be more general. Ask the Python backend to set itself up, which may include grabbing a JVM.
+    #   - HailContext getOrCreate cannot take a SparkContext. It could take an optional "JVM Backend".
+
+    conf = SparkConf()
+    if hail_jar_path:
+        conf.set('spark.jars', hail_jar_path)
+        conf.set('spark.driver.extraClassPath', hail_jar_path)
+        conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+
+    SparkContext._ensure_initialized(conf=conf)
+
+    self._gateway = SparkContext._gateway
+    self._jvm = SparkContext._jvm
+
+    # hail package
+    hailpkg = getattr(self._jvm, 'is').hail
+
+    Env._jvm = SparkContext._jvm
+    Env._gateway = SparkContext._gateway
+
+    jsc = sc._jsc.sc() if sc else None
+
+    if _backend is None:
+        apiserver_url = os.environ.get('HAIL_APISERVER_URL')
+        if apiserver_url is not None:
+            _backend = ServiceBackend(apiserver_url)
+        else:
+            _backend = SparkBackend(sc)
+
+    tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
+    optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+
+    # we always pass 'quiet' to the JVM because stderr output needs
+    # to be routed through Python separately.
+    # if idempotent:
+    if idempotent:
+        jhc = hailpkg.HailContext.getOrCreate(
+            jsc, app_name, joption(master), local, log, True, append,
+            min_block_size, branching_factor, tmp_dir, optimizer_iterations)
+    else:
+        jhc = hailpkg.HailContext.apply(
+            jsc, app_name, joption(master), local, log, True, append,
+            min_block_size, branching_factor, tmp_dir, optimizer_iterations)
+
+    jsc = jhc.sc()
+    self.sc = sc if sc else SparkContext(gateway=SparkContext._gateway, jsc=SparkContext._jvm.JavaSparkContext(jsc))
+    #self._jspark_session = jhc.sparkSession()
+    spark_session = SparkSession(self.sc, jhc.sparkSession())
+
+
+
+
+    HailContext(_backend, jhc, global_seed, log, quiet)
+
+def initDistributedBackend():
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = [jar for jar in os.listdir(spark_jars_path) if jar.startswith("scala") or jar.startswith("py4j")]
@@ -190,6 +205,7 @@ def init2():
     hail_jars_path_list = ["hail-all-spark.jar"]
     classpath_jars = spark_jars_path_list + hail_jars_path_list
     classpath = ":".join(classpath_jars)
+
 
     cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint"]
     print(cmd)
@@ -289,7 +305,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     global_seed : :obj:`int`, optional
         Global random seed.
     """
-    HailContext(sc, app_name, master, local, log, quiet, append,
+
+    init_spark_backend(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
                 default_reference, idempotent, global_seed,
                 _optimizer_iterations,_backend)
