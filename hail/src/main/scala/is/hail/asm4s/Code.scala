@@ -307,7 +307,7 @@ object Code {
     f.put(null, rhs)
   }
 
-  def foreach[A](it: Seq[A])(f: A => Code[_]): Code[_] = Code(it.map(f): _*)
+  def foreach[A](it: Seq[A])(f: A => Code[_]): Code[Unit] = Code(it.map(f): _*).asInstanceOf[Code[Unit]]
 }
 
 trait Code[+T] {

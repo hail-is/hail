@@ -1328,35 +1328,19 @@ private class Emit(
               srvb.addBaseStruct(repr.fieldType("shape").asInstanceOf[PBaseStruct], { srvb: StagedRegionValueBuilder =>
                 Code(
                   srvb.start(),
-                  {
-                    var index = 0
-                    var shapeCopyingCode = Code._empty[Unit]
-                    while (index < nDims) {
-                      shapeCopyingCode = Code(shapeCopyingCode,
-                        shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
-                          Code._fatal(s"shape missing at index $index"),
-                          Code(srvb.addLong(region.loadLong(shapePType.loadField(shapet.value[Long], index))), srvb.advance())
-                        ))
-                      index += 1
-                    }
-                    shapeCopyingCode
-                  }
-                )
+                  Code.foreach(0 until nDims) { index =>
+                    shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
+                      Code._fatal(s"shape missing at index $index"),
+                      Code(srvb.addLong(region.loadLong(shapePType.loadField(shapet.value[Long], index))), srvb.advance())
+                    )
+                  })
               }),
               srvb.advance(),
-
               srvb.addBaseStruct(repr.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
                 Code (
                   srvb.start(),
-                  {
-                    var index = 0
-                    var strideWritingCode = Code._empty[Unit]
-                    while (index < nDims) {
-                      strideWritingCode = Code(strideWritingCode,
-                        srvb.addLong(dataContainer.elementType.byteSize), srvb.advance())
-                      index += 1
-                    }
-                    strideWritingCode
+                  Code.foreach(0 until nDims) { index =>
+                    Code(srvb.addLong(dataContainer.elementType.byteSize), srvb.advance())
                   })
               }),
               srvb.advance(),
