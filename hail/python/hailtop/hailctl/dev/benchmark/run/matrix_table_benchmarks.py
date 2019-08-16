@@ -36,6 +36,36 @@ def matrix_table_rows_force_count():
     ht._force_count()
 
 @benchmark
+def matrix_table_show():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.show(100)
+
+@benchmark
+def matrix_table_rows_show():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.rows().show(100)
+
+@benchmark
+def matrix_table_cols_show():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.cols().show(100)
+
+@benchmark
+def matrix_table_take_entry():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.GT.take(100)
+
+@benchmark
+def matrix_table_take_row():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.info.AF.take(100)
+
+@benchmark
+def matrix_table_take_col():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.s.take(100)
+
+@benchmark
 def write_range_matrix_table_p100():
     with TemporaryDirectory() as tmpdir:
         mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
