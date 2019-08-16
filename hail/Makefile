@@ -24,10 +24,10 @@ HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
 # not perfect, not robust to simdpp changes, but probably fine
-JAR_SOURCES != git ls-files src/main
+JAR_SOURCES := $(shell git ls-files src/main)
 JAR_SOURCES += build.gradle
-JAR_TEST_SOURCES != git ls-files src/test
-PY_FILES != git ls-files python
+JAR_TEST_SOURCES := $(shell git ls-files src/test)
+PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
 PYTHON_VERSION_INFO := python/hail/hail_version python/hail/hail_pip_version python/hailtop/hailctl/hail_version
