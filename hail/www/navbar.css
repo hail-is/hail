@@ -228,12 +228,12 @@
   border: 0px;
 }
 
-#hail-navbar .dropdown-menu li {
+#hail-navbar .navbar-nav > li > .dropdown-menu li {
   margin-left: 0.875rem;
 }
 
 @media (min-width: 768px) {
-  #hail-navbar .dropdown-menu {
+  #hail-navbar .navbar-nav > li > .dropdown-menu {
     position: absolute;
     top: 100%;
     left: auto;
