@@ -143,6 +143,7 @@
 #hail-navbar .dropdown-toggler:focus {
   outline: 0;
 }
+
 #hail-navbar .dropdown-menu > li > a {
   padding: 0.75rem;
   line-height: 1;
@@ -228,7 +229,7 @@
   border: 0px;
 }
 
-#hail-navbar .navbar-nav > li > .dropdown-menu li {
+#hail-navbar #hail-navbar-collapse.show .navbar-nav > li > .dropdown-menu li {
   margin-left: 0.875rem;
 }
 
