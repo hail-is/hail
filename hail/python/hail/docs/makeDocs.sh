@@ -15,7 +15,7 @@ trap 'exit 1' INT TERM
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 
 # copy website content
-cp www/*.{css,html,png,ico} build/www 2>/dev/null 
+cp www/*.{css,html,png,ico} build/www
 cp -r www/vendors build/www/vendors
 
 for f in $(find www -name \*.md)
