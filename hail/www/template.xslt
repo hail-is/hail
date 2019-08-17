@@ -37,7 +37,7 @@
             </head>
 
             <div id="body">
-                <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
+                <nav class="navbar align-content-start justify-content-start" id="hail-navbar"></nav>
                 <body>
                     <xsl:apply-templates select="body"/>
                 </body>
