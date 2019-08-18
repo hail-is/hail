@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.virtual._
+import is.hail.io.bgen.MatrixBGENReader
 import is.hail.table.Ascending
 import is.hail.utils._
 
@@ -333,6 +334,9 @@ object Simplify {
           None,
           FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
           AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
+
+    case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
+      I64(r.fileMetadata.map(_.nVariants).sum)
 
     // TableGetGlobals should simplify very aggressively
     case TableGetGlobals(child) if child.typ.globalType == TStruct() => MakeStruct(FastSeq())
