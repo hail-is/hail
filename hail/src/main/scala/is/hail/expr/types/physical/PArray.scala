@@ -53,7 +53,7 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
         Code(
           newOffset := allocate(r, len),
           stagedInitialize(newOffset, len),
-          Region.copyFrom(otherPTA.elementsOffset(len), newOffset, len.toL * elementByteSize),
+          Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
           newOffset
         )
     } else {
