@@ -7,8 +7,6 @@ from shutil import copy2
 
 from .fs import FS
 
-# Change: We assume that if the user doesn't pass gs://, it's a local file
-
 
 class GoogleCloudStorageFS(FS):
     def __init__(self):
