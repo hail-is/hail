@@ -53,7 +53,14 @@ class GoogleCloudStorageFS(FS):
         elif dest_is_remote:
             self.client.put(src, dest)
         else:
-            copy2(src, dest)
+            dst_w_file = dest
+            if os.path.isdir(dst_w_file):
+                dst_w_file = os.path.join(dest, os.path.basename(src))
+
+            copy2(src, dst_w_file)
+            stats = os.stat(src)
+            
+            os.chown(dst_w_file, stats.st_uid, stats.st_gid)
 
     def exists(self, path: str) -> bool:
         if self._is_local(path):
