@@ -92,7 +92,8 @@ object PackEncoder {
     val cxxType = typeToCXXType(t)
     println(s"CXXTYPE : ${cxxType}")
     val rowFB = encBuilder.buildMethod("encode_row", Array(cxxType -> "row"), "void")
-    rowFB += encode(tub, t.fundamentalType, buf.ref, rowFB.getArg(0).ref)
+    val encodeType = if (t.isInstanceOf[PNDArray]) t else t.fundamentalType
+    rowFB += encode(tub, encodeType, buf.ref, rowFB.getArg(0).ref)
     rowFB += "return;"
     rowFB.end()
 
