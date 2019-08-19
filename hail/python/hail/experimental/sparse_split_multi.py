@@ -129,14 +129,6 @@ def sparse_split_multi(sparse_mt):
 
     def transform_entries(old_entry):
         def with_local_a_index(local_a_index):
-            new_pl = hl.or_missing(
-                hl.is_defined(old_entry.LPL),
-                hl.or_missing(
-                    hl.is_defined(local_a_index),
-                    hl.range(0, 3).map(lambda i: hl.min(
-                        hl.range(0, hl.triangle(hl.len(old_entry.LA)))
-                            .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index) == hl.unphased_diploid_gt_index_call(i))
-                            .map(lambda idx: old_entry.LPL[idx])))))
             fields = set(old_entry.keys())
 
             def with_pl(pl):
@@ -160,11 +152,23 @@ def sparse_split_multi(sparse_mt):
 
                     dropped_fields.append('LPL')
 
-                return hl.cond(hl.len(ds.alleles) == 1,
-                                   old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields),
-                                   old_entry.annotate(**new_exprs).drop(*dropped_fields))
+                return (hl.case()
+                        .when(hl.len(ds.alleles) == 1,
+                              old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields))
+                        .when(hl.or_else(old_entry.LGT.is_hom_ref(), False),
+                            old_entry.annotate(**{f[1:]: old_entry[f] if f in ['LGT', 'LPGT'] else new_exprs[f[1:]]
+                                                  for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields))
+                        .default(old_entry.annotate(**new_exprs).drop(*dropped_fields)))
 
             if 'LPL' in fields:
+                new_pl = hl.or_missing(
+                    hl.is_defined(old_entry.LPL),
+                    hl.or_missing(
+                        hl.is_defined(local_a_index),
+                        hl.range(0, 3).map(lambda i: hl.min(
+                            hl.range(0, hl.triangle(hl.len(old_entry.LA)))
+                                .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index) == hl.unphased_diploid_gt_index_call(i))
+                                .map(lambda idx: old_entry.LPL[idx])))))
                 return hl.bind(with_pl, new_pl)
             else:
                 return with_pl(None)
