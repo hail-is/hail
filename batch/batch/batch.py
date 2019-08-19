@@ -354,6 +354,7 @@ class Job:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
+            pod_status = pod_status.to_dict()
             return pod_status
         assert self._state in ('Error', 'Failed', 'Success')
         return await _read_pod_status_from_gcs()
