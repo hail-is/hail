@@ -337,26 +337,23 @@ class Job:
     async def _read_pod_statuses(self):
         if self._state in ('Pending', 'Cancelled'):
             return None
-
-        async def _read_pod_status_from_gcs():
-            pod_status, err = await app['log_store'].read_gs_file(self.directory,
-                                                                  LogStore.pod_status_file_name)
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read pod status for {self.id} '
-                         f'due to {err}')
-                return None
-            return json.loads(pod_status)
-
         if self._state == 'Running':
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
+            pod_status = pod_status.to_dict()
             return pod_status
         assert self._state in ('Error', 'Failed', 'Success')
-        return await _read_pod_status_from_gcs()
+        pod_status, err = await app['log_store'].read_gs_file(self.directory,
+                                                              LogStore.pod_status_file_name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring: could not read pod status for {self.id} '
+                     f'due to {err}')
+            return None
+        return json.loads(pod_status)
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
