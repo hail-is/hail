@@ -1045,11 +1045,20 @@ def inbreeding(expr, prior) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `f_stat`, `n_called`, `expected_homs`, `observed_homs`.
     """
-    t = tstruct(f_stat=tfloat64,
-                n_called=tint64,
-                expected_homs=tfloat64,
-                observed_homs=tint64)
-    return _agg_func('Inbreeding', [expr, prior], t)
+    return hl.rbind(prior, expr,
+                    lambda af, call: hl.rbind(
+                        hl.agg.filter(hl.is_defined(af) & hl.is_defined(call),
+                                      hl.struct(n_called=hl.agg.count(),
+                                                expected_homs=hl.agg.sum(1 - (2 * af * (1 - af))),
+                                                observed_homs=hl.agg.count_where(hl.case().when(
+                                                    (call.ploidy == 2) & (call.unphased_diploid_gt_index() <= 2),
+                                                    ~call.is_het())
+                                                    .or_error(
+                                                     "'inbreeding' does not support non-diploid or multiallelic genotypes")))),
+                        lambda r: hl.struct(
+                            f_stat=(r['observed_homs'] - r['expected_homs']) / (r['n_called'] - r['expected_homs']),
+                            **r)
+                    ), _ctx=_agg_func.context)
 
 
 @typecheck(call=expr_call, alleles=expr_array(expr_str))
