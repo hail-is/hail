@@ -583,6 +583,32 @@ class MatrixToTableApply(TableIR):
                 list(child_typ.row_key))
 
 
+class BlockMatrixToTableApply(TableIR):
+    def __init__(self, bm, aux, config):
+        super().__init__(bm, aux)
+        self.bm = bm
+        self.aux = aux
+        self.config = config
+
+    def head_str(self):
+        return dump_json(self.config)
+
+    def _eq(self, other):
+        return self.config == other.config
+
+    def _compute_type(self):
+        name = self.config['name']
+        assert name == 'PCRelate', name
+        self._type = hl.ttable(
+            hl.tstruct(),
+            hl.tstruct(i=hl.tint32, j=hl.tint32,
+                       kin=hl.tfloat64,
+                       ibd0=hl.tfloat64,
+                       ibd1=hl.tfloat64,
+                       ibd2=hl.tfloat64),
+            ['i', 'j'])
+
+
 class BlockMatrixToTable(TableIR):
     def __init__(self, child):
         super().__init__(child)

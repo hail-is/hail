@@ -358,6 +358,7 @@ object Pretty {
             case TableToTableApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case TableToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case MatrixToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case BlockMatrixToTableApply(_, _, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray

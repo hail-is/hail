@@ -1145,6 +1145,11 @@ object IRParser {
         val config = string_literal(it)
         val child = table_ir(env)(it)
         TableToTableApply(child, RelationalFunctions.lookupTableToTable(config))
+      case "BlockMatrixToTableApply" =>
+        val config = string_literal(it)
+        val bm = blockmatrix_ir(env)(it)
+        val aux = ir_value_expr(env)(it)
+        BlockMatrixToTableApply(bm, aux, RelationalFunctions.lookupBlockMatrixToTable(config))
       case "BlockMatrixToTable" =>
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToTable(child)

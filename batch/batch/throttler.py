@@ -19,7 +19,7 @@ class PodThrottler:
 
         async def manager(workers):
             while True:
-                failed, pending = asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
+                failed, pending = await asyncio.wait(workers, return_when=asyncio.FIRST_COMPLETED)
                 for fut in failed:
                     err = fut.exception()
                     assert err is not None
@@ -34,7 +34,6 @@ class PodThrottler:
     async def _create_pod(self):
         while True:
             await self.semaphore.acquire()
-
             try:
                 job = await self.queue.get()
                 pod_name = job._pod_name

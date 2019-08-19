@@ -50,7 +50,7 @@ class Job:
         return 0
 
     @staticmethod
-    def duration(job_status):
+    def total_duration(job_status):
         if 'duration' not in job_status or job_status['duration'] is None:
             return None
 

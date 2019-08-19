@@ -456,9 +456,6 @@ object Interpret {
       case x@SeqOp(i, seqOpArgs, aggSig) =>
         assert(i == I32(0))
         aggSig.op match {
-          case Inbreeding() =>
-            val IndexedSeq(a, af) = seqOpArgs
-            aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
           case TakeBy() =>
             val IndexedSeq(a, ordering) = seqOpArgs
             aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(ordering))
@@ -528,9 +525,6 @@ object Interpret {
             assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
-          case Inbreeding() =>
-            assert(seqOpArgTypes == FastIndexedSeq(TCall(), TFloat64()))
-            new InbreedingAggregator(null)
           case Count() => new CountAggregator()
           case Collect() =>
             val IndexedSeq(aggType) = seqOpArgTypes

@@ -1,26 +1,37 @@
 .PHONY: shadowJar jars clean
 
+include env_var.mk
+.DEFAULT_GOAL := shadowJar
+MAKEFLAGS += --no-builtin-rules
+.SUFFIXES:
+
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
-HAIL_PIP_VERSION := 0.2.19
+HAIL_PIP_VERSION := 0.2.20
 PARALLELISM := 2
+
+$(eval $(call ENV_VAR,REVISION))
+$(eval $(call ENV_VAR,SHORT_REVISION))
+# date is not important and changes often
+$(eval $(call ENV_VAR,BRANCH))
+$(eval $(call ENV_VAR,URL))
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
 # not perfect, not robust to simdpp changes, but probably fine
-JAR_SOURCES != git ls-files src/main
+JAR_SOURCES := $(shell git ls-files src/main)
 JAR_SOURCES += build.gradle
-JAR_TEST_SOURCES != git ls-files src/test
-PY_FILES != git ls-files python
+JAR_TEST_SOURCES := $(shell git ls-files src/test)
+PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
-BUILD_INFO := src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO := python/hail/hail_version python/hail/hail_pip_version python/hailtop/hailctl/hail_version
+SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
@@ -28,19 +39,20 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
 shadowJar: $(SHADOW_JAR)
 
+$(SHADOW_JAR): $(JAR_SOURCES) env/SHORT_REVISION $(SCALA_BUILD_INFO)
 ifdef HAIL_COMPILE_NATIVES
-$(SHADOW_JAR): $(JAR_SOURCES)
 	./gradlew releaseJar
 else
-$(SHADOW_JAR): $(JAR_SOURCES)
 	./gradlew shadowJar
 endif
-$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+
+$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES) env/SHORT_REVISION  $(SCALA_BUILD_INFO)
 	./gradlew shadowTestJar
 
 define properties
 endef
 
+src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
 src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
@@ -51,7 +63,7 @@ src/main/resources/build-info.properties: Makefile
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
-python/hail/hail_version: Makefile
+python/hail/hail_version: Makefile env/SHORT_REVISION
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
 
 python/hail/hail_pip_version: Makefile
@@ -60,7 +72,7 @@ python/hail/hail_pip_version: Makefile
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars: $(BUILD_INFO)
+jars:
 	./gradlew shadowJar shadowTestJar
 
 python/README.md: ../README.md
@@ -70,12 +82,12 @@ python/hail/hail-all-spark.jar: $(SHADOW_JAR)
 	cp -f $< $@
 
 .PHONY: install-editable
-install-editable: $(BUILD_INFO) $(INIT_SCRIPTS)
+install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(PIP) install -e .
 
 .PHONY: pytest
-pytest: $(BUILD_INFO) $(SHADOW_JAR) init-scripts
+pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
     --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
@@ -83,7 +95,7 @@ pytest: python/README.md python/hail/hail-all-spark.jar
 .PHONY: wheel
 wheel: $(WHEEL)
 
-$(WHEEL): $(BUILD_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
+$(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -112,6 +124,10 @@ HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
+$(eval $(call ENV_VAR,cloud_base))
+$(eval $(call ENV_VAR,wheel_cloud_path))
+
+python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
 python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
 	rm -f $@
 	echo "dataproc:" >> $@
@@ -191,7 +207,7 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-clean:
+clean: clean-env
 	./gradlew clean
 	rm -rf build/deploy
 	rm -rf python/hail/hail-all-spark.jar
