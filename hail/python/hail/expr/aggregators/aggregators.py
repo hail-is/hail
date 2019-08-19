@@ -599,8 +599,12 @@ def min(expr) -> NumericExpression:
 
     Notes
     -----
-    This method returns the minimum non-missing value. If there are no
+    This function returns the minimum non-missing value. If there are no
     non-missing values, then the result is missing.
+
+    For back-compatibility reasons, this function also ignores NaN, in contrast
+    with :func:`.functions.min`. The behavior is similar to
+    :func:`.functions.nanmin`.
 
     Parameters
     ----------
@@ -628,8 +632,12 @@ def max(expr) -> NumericExpression:
 
     Notes
     -----
-    This method returns the maximum non-missing value. If there are no
+    This function returns the maximum non-missing value. If there are no
     non-missing values, then the result is missing.
+
+    For back-compatibility reasons, this function also ignores NaN, in contrast
+    with :func:`.functions.max`. The behavior is similar to
+    :func:`.functions.nanmax`.
 
     Parameters
     ----------
