@@ -56,7 +56,7 @@
 #hail-navbar #hail-navbar-collapse {
   flex-direction: row;
   flex: 1;
-  border-color:inherit;
+  border-color: inherit;
 }
 
 #hail-navbar #hail-navbar-collapse a {
@@ -178,9 +178,9 @@
 }
 
 #hail-navbar .dropdown-menu.show {
-  /*-0.875rem for padding offset, rest for line height*/
-  margin: -0.875rem 0;
+  padding: 0px;
 }
+
 #hail-navbar .navbar {
   position: relative;
   min-height: 50px;
