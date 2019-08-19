@@ -1730,6 +1730,7 @@ class IRSuite extends HailSuite {
     val aa = Ref("aa", TArray(TArray(TInt32())))
     val da = Ref("da", TArray(TTuple(TInt32(), TString())))
     val v = Ref("v", TInt32())
+    val vr = Ref("vr", TInt32Required)
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
     val l = Ref("l", TInt32())
@@ -1786,7 +1787,7 @@ class IRSuite extends HailSuite {
       nd,
       NDArrayReshape(nd, MakeTuple.ordered(Seq(I64(4)))),
       NDArrayRef(nd, FastSeq(I64(1), I64(2))),
-      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
+      NDArrayMap(nd, "vr", ApplyUnaryPrimOp(Negate(), vr)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
       NDArrayAgg(nd, FastIndexedSeq(0)),
@@ -2054,6 +2055,7 @@ class IRSuite extends HailSuite {
 
     val s = Pretty(x)
     val x2 = IRParser.parse_value_ir(s, env)
+
     assert(x2 == x)
   }
 
