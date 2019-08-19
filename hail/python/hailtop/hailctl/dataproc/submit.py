@@ -9,6 +9,7 @@ def init_parser(parser):
     parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
     parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
+    parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
 def main(args, pass_through_args):
@@ -69,4 +70,5 @@ def main(args, pass_through_args):
     print(' '.join(cmd[:6]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
 
     # submit job
-    check_call(cmd)
+    if not args.dry_run:
+        check_call(cmd)
