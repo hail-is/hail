@@ -61,14 +61,18 @@ def main(args, pass_through_args):
             print("Updating cluster '{}'...".format(args.name))
             check_call(cmd)
 
+    wheel = None
     if args.update_hail_version:
         if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
             raise RuntimeError(f"package has no 'deploy.yaml' file")
         updated_wheel = yaml.safe_load(
             pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']['wheel']
         args.wheel = updated_wheel
+    else:
+        wheel = args.wheel
 
-    if args.wheel is not None:
+
+    if wheel is not None:
         wheel = args.wheel
         wheelfile = os.path.basename(wheel)
         cmds = []
