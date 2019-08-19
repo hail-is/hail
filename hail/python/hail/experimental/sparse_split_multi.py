@@ -156,7 +156,7 @@ def sparse_split_multi(sparse_mt):
                         .when(hl.len(ds.alleles) == 1,
                               old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields))
                         .when(hl.or_else(old_entry.LGT.is_hom_ref(), False),
-                              old_entry.annotate(**{f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs}).drop(*dropped_fields))
+                              old_entry.annotate(**{f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs.items()}).drop(*dropped_fields))
                         .default(old_entry.annotate(**new_exprs).drop(*dropped_fields)))
 
             if 'LPL' in fields:
