@@ -40,16 +40,14 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
     CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], value: Code[_], otherPT: PType, msg: String): Code[Long] = {
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], value: Code[Long], otherPT: PType, msg: String): Code[Long] = {
     val otherPTA = otherPT.asInstanceOf[PArray]
     assert(otherPTA.elementType.isPrimitive)
-    val oldOffset = coerce[Long](value)
+    val oldOffset = value
     val len = otherPTA.loadLength(oldOffset)
     if (otherPTA.elementType.required == elementType.required) {
-      coerce[Long](value)
-    }
-    else {
-      if (otherPTA.elementType.required) {
+      value
+    } else if (otherPTA.elementType.required) {
         // convert from required to non-required
         val newOffset = mb.newField[Long]
         Code(
@@ -58,23 +56,22 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
           Region.copyFrom(otherPTA.elementsOffset(len), newOffset, len.toL * elementByteSize),
           newOffset
         )
-      } else {
-        //  convert from non-required to required
-        val newOffset = mb.newField[Long]
-        val i = mb.newField[Int]
-        Code(
-          newOffset := allocate(r, len),
-          stagedInitialize(newOffset, len),
-          i := 0,
-          Code.whileLoop(i < len,
-            otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
-            i := i + 1
-          ),
-          Region.storeInt(newOffset.load(), len),
-          Region.copyFrom(oldOffset + otherPTA.elementsOffset(len), newOffset + 4L, len.toL * elementByteSize),
-          newOffset
-        )
-      }
+    } else {
+      //  convert from non-required to required
+      val newOffset = mb.newField[Long]
+      val i = mb.newField[Int]
+      Code(
+        newOffset := allocate(r, len),
+        stagedInitialize(newOffset, len),
+        i := 0,
+        Code.whileLoop(i < len,
+          otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
+          i := i + 1
+        ),
+        Region.storeInt(newOffset.load(), len),
+        Region.copyFrom(oldOffset + otherPTA.elementsOffset(len), newOffset + 4L, len.toL * elementByteSize),
+        newOffset
+      )
     }
   }
 }

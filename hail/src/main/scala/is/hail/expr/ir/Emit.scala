@@ -1365,7 +1365,7 @@ private class Emit(
               }),
               srvb.advance(),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
-                repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.v, dataContainer, "NDArray cannot have missing data")),
+                repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")),
               srvb.end()
             )
           )
