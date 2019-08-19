@@ -4,7 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
-import is.hail.asm4s._
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -1301,6 +1301,7 @@ private class Emit(
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
+        val repr = x.pType.asInstanceOf[PNDArray].representation
         val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
         val nDims = shapePType.size
@@ -1309,8 +1310,10 @@ private class Emit(
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val repr = x.pType.asInstanceOf[PNDArray].representation
+        val targetShapePType = repr.fieldType("strides").asInstanceOf[PBaseStruct]
         val srvb = new StagedRegionValueBuilder(mb, repr)
+
+        def getShapeAtIdx(index: Int) = region.loadLong(shapePType.loadField(shapet.value[Long], index))
 
         val setup = Code(
           shapet.setup,
@@ -1325,23 +1328,40 @@ private class Emit(
           shapet.m.mux(
             Code._fatal("Missing shape"),
             Code(
-              srvb.addBaseStruct(repr.fieldType("shape").asInstanceOf[PBaseStruct], { srvb: StagedRegionValueBuilder =>
+              srvb.addBaseStruct(targetShapePType, { srvb: StagedRegionValueBuilder =>
                 Code(
                   srvb.start(),
                   Code.foreach(0 until nDims) { index =>
                     shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
                       Code._fatal(s"shape missing at index $index"),
-                      Code(srvb.addLong(region.loadLong(shapePType.loadField(shapet.value[Long], index))), srvb.advance())
+                      Code(srvb.addLong(getShapeAtIdx(index)), srvb.advance())
                     )
                   })
               }),
               srvb.advance(),
               srvb.addBaseStruct(repr.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
+                val tupleStartAddress = mb.newField[Long]
                 Code (
                   srvb.start(),
+                  tupleStartAddress := srvb.offset,
+                  // Fill with 0s, then backfill with actual data
                   Code.foreach(0 until nDims) { index =>
-                    Code(srvb.addLong(dataContainer.elementType.byteSize), srvb.advance())
-                  })
+                    Code(srvb.addLong(0L), srvb.advance())
+                  },
+                  {
+                    val runningProduct = mb.newField[Long]
+                    Code(
+                      runningProduct := dataContainer.elementType.byteSize,
+                      Code.foreach((nDims - 1) to 0 by -1) { idx =>
+                        val fieldOffset = targetShapePType.fieldOffset(tupleStartAddress, idx)
+                        Code(
+                          Region.storeLong(fieldOffset, runningProduct),
+                          runningProduct := runningProduct * getShapeAtIdx(idx)
+                        )
+                      }
+                    )
+                  }
+                )
               }),
               srvb.advance(),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
