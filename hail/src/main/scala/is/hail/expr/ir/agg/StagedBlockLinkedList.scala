@@ -179,29 +179,14 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val n = fb.newField[Long]
     val i = fb.newField[Int]
     Code(
-      foreachNode(n) {
-        // NOTE: we are only copying a portion of the missingness bytes, only as many as there are
-        // present (specifically: 'count(n)', not 'capacity(n)'). we can't use emitArray because it
-        // would mistakenly copy elements according to the capacity ...
-        val nMissingBytes = (count(n) + 7) >> 3
-        val writeMissingBytes = ob.writeBytes(r, buffer(n) + 4, nMissingBytes)
-        val eltm = bufferType.isElementMissing(r, buffer(n), i)
-        val eltOff = bufferType.elementOffsetInRegion(r, buffer(n), i)
-        val writeElt = EmitPackEncoder.emit(elemType, elemType, fb.apply_method, r, eltOff, ob)
-        Code(
-          ob.writeBoolean(true),
-          ob.writeInt(count(n)),
-          if(elemType.required) Code._empty else writeMissingBytes,
-          i := 0,
-          Code.whileLoop(i < count(n), Code(
-            if(elemType.required) writeElt else eltm.mux(Code._empty, writeElt),
-            i := i + 1)))
+      foreachNode(n) { Code(
+        ob.writeBoolean(true),
+        EmitPackEncoder.emitArray(bufferType, bufferType, fb.apply_method, r, buffer(n), ob, count(n)))
       },
       ob.writeBoolean(false))
   }
 
   def deserialize(r: Code[Region], ib: Code[InputBuffer]): Code[Unit] = {
-    // ... however, we can use EmitPackDecoder to decode an entire array and add it as a node
     val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, r), bufferType)
     val bufFType = bufferType.fundamentalType
     Code.whileLoop(ib.readBoolean(),
