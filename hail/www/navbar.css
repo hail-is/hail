@@ -1,9 +1,28 @@
+/* Original base styles generated from Bootstrap 3.3.7 and normalize.css */
+/*!
+ * Bootstrap v3.3.7 (http://getbootstrap.com)
+ * Copyright 2011-2016 Twitter, Inc.
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
+ */
+
+/*!
+ * Generated using the Bootstrap Customizer (http://getbootstrap.com/customize/?id=b1a7a9799f5a13719dc42620cfa43461)
+ * Config saved to config.json and https://gist.github.com/b1a7a9799f5a13719dc42620cfa43461
+ */
+/*!
+ * Bootstrap v3.3.7 (http://getbootstrap.com)
+ * Copyright 2011-2016 Twitter, Inc.
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
+ */
+/*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
+
 #hail-navbar {
   padding: 0px;
   margin: 0px;
   background-color: #fff;
   height: 50px;
-  border-bottom: 1px solid #e7e7e7;
+  border-bottom: 1px solid;
+  border-color: #ddd;
 }
 
 #hail-navbar * {
@@ -37,11 +56,11 @@
 #hail-navbar #hail-navbar-collapse {
   flex-direction: row;
   flex: 1;
-  border-color: #e7e7e7;
+  border-color:inherit;
 }
 
 #hail-navbar #hail-navbar-collapse a {
-  color: #555555;
+  color: #444;
   text-decoration: none;
   outline: none;
   background: inherit; /*defeat bootstrap focus background*/
@@ -60,24 +79,8 @@
   padding-right: 0px;
 }
 
-#hail-navbar #hail-navbar-collapse .active.nav-item:not(:hover) {
-  border-bottom: 2px solid #555555;
-}
-
-#hail-navbar #hail-navbar-collapse .active.nav-item:hover {
-  border-bottom: 2px solid #2a388f;
-}
-
-#hail-navbar #hail-navbar-collapse .dropdown-item.active {
-  text-decoration: underline;
-}
-
 #hail-navbar #hail-navbar-collapse .dropdown-menu {
   background-color: #ffffff;
-}
-
-#hail-navbar #hail-navbar-collapse {
-  -webkit-font-smoothing: antialiased;
 }
 
 @media (max-width: 767px) {
@@ -85,13 +88,13 @@
     flex-direction: column;
     padding-right: 0px;
     padding-left: 0px;
-    -webkit-box-shadow: 0px 3px 4px 1px #e7e7e7;
-    -moz-box-shadow: 0px 3px 4px 1px #e7e7e7;
-    box-shadow: 0px 3px 4px 1px #e7e7e7;
+    -webkit-box-shadow: 0 6px 12px #ddd;
+    box-shadow: 0 6px 12px #ddd;
     width: 100%;
     background: #fff;
     flex: auto;
     margin-top: 1px;
+    border-radius: 4px;
   }
 
   #hail-navbar #hail-navbar-collapse .nav-item {
@@ -122,23 +125,6 @@
   height: 35px;
   border: 0;
 }
-
-/*!
- * Bootstrap v3.3.7 (http://getbootstrap.com)
- * Copyright 2011-2016 Twitter, Inc.
- * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
- */
-
-/*!
- * Generated using the Bootstrap Customizer (http://getbootstrap.com/customize/?id=b1a7a9799f5a13719dc42620cfa43461)
- * Config saved to config.json and https://gist.github.com/b1a7a9799f5a13719dc42620cfa43461
- */
-/*!
- * Bootstrap v3.3.7 (http://getbootstrap.com)
- * Copyright 2011-2016 Twitter, Inc.
- * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
- */
-/*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
 
 #hail-navbar .dropdown-toggler:focus {
   outline: 0;
@@ -244,12 +230,10 @@
     margin: 2px 0 0;
     list-style: none;
     text-align: left;
-    background-color: #ffffff;
-    border: 1px solid #cccccc;
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    background-color: inherit;
     border-radius: 4px;
-    -webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    -webkit-box-shadow: 0 6px 12px #ddd;
+    box-shadow: 0 6px 12px #ddd;
     -webkit-background-clip: padding-box;
     background-clip: padding-box;
   }

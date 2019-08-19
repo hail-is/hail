@@ -1,5 +1,5 @@
-/* color on hail.is: #555 */
-/* border-color on hail.is: #e7e7e7 */
+/* color on hail.is: #444 */
+/* border-color on hail.is: #ddd */
 /* background-color on hail.is: #fff */
 .wy-nav-content {
   max-width: 1140px !important;
@@ -23,6 +23,7 @@
 
 .wy-body-for-nav {
   background-color: #fff;
+  border-color: #ddd;
   background-image: none;
 }
 
@@ -31,7 +32,7 @@ table.docutils col {
 }
 
 .code.noexec {
-  border: 1px solid #e7e7e7;
+  border: 1px solid #ddd;
   border-radius: 2px;
   background: #fff;
   padding: 0.4em;
@@ -46,7 +47,7 @@ table.docutils col {
   line-height: 1.5;
   display: block;
   overflow: auto;
-  color: #555555;
+  color: #444;
 }
 
 div.nboutput div.output_area.stderr {
@@ -67,7 +68,7 @@ div.nboutput div.output_area.stderr {
 
 .container.annotation {
   background-color: #ffff;
-  border: 1px solid #e7e7e7;
+  border: 1px solid #ddd;
   margin-top: 10px;
   margin-bottom: 10px;
   padding: 10px;
@@ -78,7 +79,7 @@ div.nboutput div.output_area.stderr {
 }
 
 hr {
-  border-color: #e7e7e7;
+  border-color: #ddd;
 }
 
 #hail-navbar.documentation-view {
