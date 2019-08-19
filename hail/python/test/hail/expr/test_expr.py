@@ -41,6 +41,24 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
+    def test_range(self):
+        def same_as_python(*args):
+            self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
+
+        same_as_python(10)
+        same_as_python(3, 10)
+        same_as_python(3, 10, 2)
+        same_as_python(3, 10, 3)
+        same_as_python(-5)
+        same_as_python(10, -5)
+        same_as_python(10, -5, -1)
+        same_as_python(10, -5, -4)
+
+        self.assertRaisesRegex(
+            hl.utils.HailException,
+            'Array range cannot have step size 0',
+            hl.eval(hl.range(0,1,0)
+
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))

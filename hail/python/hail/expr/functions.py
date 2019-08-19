@@ -1880,15 +1880,18 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     return _func("qpois", tint32, p, lamb, lower_tail, log_p)
 
 
-@typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
-def range(start, stop, step=1) -> ArrayNumericExpression:
+@typecheck(start=expr_int32, stop=nullable(expr_int32), step=expr_int32)
+def range(start, stop=None, step=1) -> ArrayNumericExpression:
     """Returns an array of integers from `start` to `stop` by `step`.
 
     Examples
     --------
 
-    >>> hl.eval(hl.range(0, 10))
+    >>> hl.eval(hl.range(10))
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    >>> hl.eval(hl.range(3, 10))
+    [3, 4, 5, 6, 7, 8, 9]
 
     >>> hl.eval(hl.range(0, 10, step=3))
     [0, 3, 6, 9]
@@ -1896,6 +1899,9 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     Notes
     -----
     The range includes `start`, but excludes `stop`.
+
+    If provided exactly one argument, the argument is interpreted as `stop` and
+    `start` is set to zero. This matches the behavior Python's :func:`range`.
 
     Parameters
     ----------
@@ -1910,6 +1916,9 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     -------
     :class:`.ArrayInt32Expression`
     """
+    if stop is None:
+        stop = start
+        start = 0
     return apply_expr(lambda sta, sto, ste: ArrayRange(sta, sto, ste), tarray(tint32), start, stop, step)
 
 
