@@ -89,7 +89,9 @@ object PackEncoder {
 
     encBuilder += s"${ encBuilder.name }(std::shared_ptr<OutputStream> os) : $buf(std::make_shared<$bufType>(os)) { }"
 
-    val rowFB = encBuilder.buildMethod("encode_row", Array(typeToCXXType(t) -> "row"), "void")
+    val cxxType = typeToCXXType(t)
+    println(s"CXXTYPE : ${cxxType}")
+    val rowFB = encBuilder.buildMethod("encode_row", Array(cxxType -> "row"), "void")
     rowFB += encode(tub, t.fundamentalType, buf.ref, rowFB.getArg(0).ref)
     rowFB += "return;"
     rowFB.end()
