@@ -1,10 +1,10 @@
 import os
 import sys
-import string
 import timeit
 from urllib.request import urlretrieve
 
 import numpy as np
+import re
 
 import hail as hl
 
@@ -139,8 +139,9 @@ def run_all(config: RunConfig):
 def run_pattern(pattern, config: RunConfig):
     _ensure_initialized()
     to_run = []
+    regex = re.compile(pattern)
     for name in _registry:
-        if pattern in name:
+        if regex.search(name):
             to_run.append(name)
     if not to_run:
         raise ValueError(f'pattern {pattern!r} matched no benchmarks')
