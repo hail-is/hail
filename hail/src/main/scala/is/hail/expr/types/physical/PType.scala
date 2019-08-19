@@ -115,7 +115,7 @@ object PType {
       case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case t: TTuple => PTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), t.required)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
+      case t: TNDArray => PNDArray(canonical(t.elementType.setRequired(true)), t.nDims, t.required)
       case TVoid => PVoid
     }
   }
