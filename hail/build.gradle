@@ -38,7 +38,7 @@ buildScan {
 //  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
 String MAJOR = 0
 String MINOR = 2
-String PATCH = 19
+String PATCH = 20
 String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
 // By default pip hides versions ending in ".devN". Use these for testing.
 String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")

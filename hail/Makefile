@@ -11,7 +11,7 @@ DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
-HAIL_PIP_VERSION := 0.2.19
+HAIL_PIP_VERSION := 0.2.20
 PARALLELISM := 2
 
 $(eval $(call ENV_VAR,REVISION))
