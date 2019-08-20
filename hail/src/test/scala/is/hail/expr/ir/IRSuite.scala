@@ -84,24 +84,6 @@ class IRSuite extends HailSuite {
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
     InferPType(node, env)
     assert(node.pType2 == expected)
-
-    //    node.pType2 match {
-//      case p: PArray => assert(p.elementType == expected.asInstanceOf[PArray].elementType)
-//      case p: PStruct => {
-//        val pf = p.fields
-//        val ef = expected.asInstanceOf[PStruct].fields
-//
-//        assert(pf.length == ef.length)
-//
-//        val pit = pf.iterator
-//        val eit = ef.iterator
-//
-//        while (pit.hasNext) {
-//          assert(pit.next == eit.next)
-//        }
-//      }
-//      case _ =>
-//    }
   }
 
   @Test def testI32() {
