@@ -6,33 +6,26 @@ import is.hail.expr.types.virtual._
 package object cxx {
 
   def typeToCXXType(pType: PType): Type = {
-    // FIXME This sucks, but we do not encode NDArrays based on their fundamentalType
-    if (pType.isInstanceOf[PNDArray])
-      "NDArray"
-    else
-      pType.virtualType.fundamentalType match {
-        case _: TBinary | _: TArray | _: TBaseStruct => "const char *"
-        case _ => typeToNonConstCXXType(pType)
-      }
+    pType.virtualType.fundamentalType match {
+      case _: TBinary | _: TArray | _: TBaseStruct => "const char *"
+      case _ => typeToNonConstCXXType(pType)
+    }
   }
 
   def typeToNonConstCXXType(pType: PType): Type = {
-    if (pType.isInstanceOf[PNDArray])
-      "NDArray"
-    else
-      pType.virtualType.fundamentalType match {
-        case _: TInt32 => "int"
-        case _: TInt64 => "long"
-        case _: TFloat32 => "float"
-        case _: TFloat64 => "double"
-        case _: TBoolean => "bool"
-        case _: TBinary => "char *"
-        case _: TArray => "char *"
-        case _: TBaseStruct => "char *"
-        case _: TNDArray => "NDArray"
-        case TVoid => "void"
-        case _ => throw new RuntimeException(s"unsupported type found, $pType")
-      }
+    pType.virtualType.fundamentalType match {
+      case _: TInt32 => "int"
+      case _: TInt64 => "long"
+      case _: TFloat32 => "float"
+      case _: TFloat64 => "double"
+      case _: TBoolean => "bool"
+      case _: TBinary => "char *"
+      case _: TArray => "char *"
+      case _: TBaseStruct => "char *"
+      case _: TNDArray => "NDArray"
+      case TVoid => "void"
+      case _ => throw new RuntimeException(s"unsupported type found, $pType")
+    }
   }
 
   def typeDefaultValue(pType: PType): Type = {

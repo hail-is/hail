@@ -5,13 +5,13 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TNDArray
 
-final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends ComplexPType {
+final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
   assert(elementType.required, "elementType must be required")
 
-  def _toPretty = s"NDArray[$elementType,$nDims]"
+  override def _toPretty = s"NDArray[$elementType,$nDims]"
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
   val representation: PStruct = {
     PStruct(required,

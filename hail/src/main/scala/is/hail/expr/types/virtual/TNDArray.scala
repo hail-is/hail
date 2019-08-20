@@ -18,7 +18,7 @@ object TNDArray {
   }
 }
 
-final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends ComplexType {
+final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
   lazy val nDims: Int = {
     assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions. nDimsBase was $nDimsBase")
     nDimsBase.asInstanceOf[Nat].n
@@ -63,7 +63,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
 
   val ordering: ExtendedOrdering = null
 
-  override lazy val representation = TStruct(required = true,
+  lazy val representation = TStruct(required = true,
     ("flags", TInt32Required),
     ("offset", TInt32Required),
     ("shape", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
