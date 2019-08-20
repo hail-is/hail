@@ -65,8 +65,6 @@ abstract class PBaseStruct extends PType {
 
   def fieldRequired: Array[Boolean]
 
-  override val inferredRequired: Boolean = fieldRequired.forall( isRequired => isRequired )
-
   def size: Int
 
   def _toPretty: String = {

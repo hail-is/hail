@@ -222,8 +222,6 @@ abstract class PType extends BaseType with Serializable {
 
   def required: Boolean
 
-  val inferredRequired: Boolean = required
-
   final def unary_+(): PType = setRequired(true)
 
   final def unary_-(): PType = setRequired(false)
@@ -295,19 +293,6 @@ abstract class PType extends BaseType with Serializable {
       case t: PArray => PArray(t.elementType.deepOptional())
       case t: PSet => PSet(t.elementType.deepOptional())
       case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
-      case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
-      case t: PTuple =>
-        PTuple(t.types.map(_.deepOptional()): _*)
-      case t =>
-        t.setRequired(false)
-    }
-
-  def copyWithRequiredeness(required: Boolean): PType =
-    this match {
-      case t: PArray => PArray(t.elementType, required)
-      case t: PSet => PSet(t.elementType, required)
-      case t: PDict => PDict(t.keyType, t.valueType.deepOptional())
       case t: PStruct =>
         PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
       case t: PTuple =>

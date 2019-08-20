@@ -14,7 +14,12 @@ object InferPType {
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
+      // TODO: Do we want this to be required? We allow coerce from NA wrapped Literal
+      // in conversation with Patrick this coercion was done only for convenience, a literal means value present
+      // and as below, the semantics seem to mean, "value is not falsy"
+      // although what specifically falsy is doesn't seem well defined (maybe null only? NA?)
       case Literal(t, _) => PType.canonical(t, true)
+        // TODO: Not quite sure why a True() node wouldn't be required
       case True() | False() => PBoolean(false)
       case Void() => PVoid
       // TODO: What to do if cast on missing data?
@@ -27,7 +32,9 @@ object InferPType {
         ir.pType2
       }
       case NA(t) => PType.canonical(t, false)
-      case IsNA(_) => PBoolean(true)
+        // TODO: What is requiredeness here? It has to have a value
+        // but that value can be NA
+      case IsNA(_) => PBoolean()
       case Coalesce(values) => {
         val vit = values.iterator
         val head = vit.next()
@@ -42,6 +49,9 @@ object InferPType {
         head.pType2
       }
       case Ref(name, _) => env.lookup(name)
+        // TODO: What does an In node do?
+        // If the semantics of requiredeness is "This node has a value"
+        // then this has an Int, else if it
       case In(_, t) => PType.canonical(t)
       case MakeArray(irs, _) => {
         val allRequired = irs.forall(ir => {
@@ -67,7 +77,7 @@ object InferPType {
 
         val nElem = shape.pType2.asInstanceOf[PTuple].size
 
-        PNDArray(coerce[PArray](data.pType2).elementType, nElem)
+        PNDArray(coerce[PArray](data.pType2).elementType, nElem, data.pType2.required)
       }
         // TODO: are these required, or do we allow their definition on missing data
       case _: ArrayLen => PInt32(true)
@@ -101,7 +111,7 @@ object InferPType {
           val required = l.pType2.required && r.pType2.required
           val vType = BinaryOp.getReturnType(op, l.pType2.virtualType, r.pType2.virtualType).setRequired(required)
 
-          PType.canonical(vType)
+          PType.canonical(vType, vType.required)
       }
       case ApplyUnaryPrimOp(op, v) => {
         InferPType(v, env)
@@ -189,7 +199,7 @@ object InferPType {
       case ArrayFlatMap(a, name, body) => {
         InferPType(a, env)
         InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
-        coerce[PStreamable](a.pType2).copyStreamable(coerce[PIterable](body.pType2).elementType)
+        coerce[PStreamable](a.pType2).copyStreamable(coerce[PIterable](body.pType2).elementType, body.pType2.required)
       }
       case ArrayFold(a, zero, accumName, valueName, body) => {
         InferPType(zero, env)
@@ -207,7 +217,7 @@ object InferPType {
         InferPType(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
         assert(body.pType2 == zero.pType2)
 
-        coerce[PStreamable](a.pType2).copyStreamable(zero.pType2)
+        coerce[PStreamable](a.pType2).copyStreamable(zero.pType2, zero.pType2.required)
       }
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) => {
         InferPType(lIR, env)
@@ -215,7 +225,7 @@ object InferPType {
 
         InferPType(join, env.bind(lName -> lIR.pType2.asInstanceOf[PArray].elementType, rName -> rIR.pType2.asInstanceOf[PArray].elementType))
 
-        PArray(join.pType2)
+        PArray(join.pType2, lIR.pType2.required)
       }
       case NDArrayShape(nd) => {
         InferPType(nd, env)
@@ -247,26 +257,25 @@ object InferPType {
       case NDArrayRef(nd, idxs) => {
         InferPType(nd, env)
 
-        var allRequired = true
-        idxs.foreach( idxIR => {
+        val it = idxs.iterator
+        while(it.hasNext) {
+          val idxIR = it.next()
+
           InferPType(idxIR, env)
 
-          if(allRequired && !idxIR.pType2.required) {
-            allRequired = false
-          }
+          assert(idxIR.pType2 == PInt64Required || idxIR.pType2 == PInt32Required)
+        }
 
-          assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
-        })
-
-        coerce[PNDArray](nd.pType2).elementType.setRequired(nd.pType2.required && allRequired)
+        coerce[PNDArray](nd.pType2).elementType.setRequired(nd.pType2.required)
       }
       case NDArraySlice(nd, slices) => {
         InferPType(nd, env)
-        val childTyp = coerce[PNDArray](nd.pType2)
-
         InferPType(slices, env)
+
+        val childTyp = coerce[PNDArray](nd.pType2)
         val remainingDims = coerce[PTuple](slices.pType2).types.filter(_.isInstanceOf[PTuple])
-        PNDArray(childTyp.elementType, remainingDims.length)
+
+        PNDArray(childTyp.elementType, remainingDims.length, remainingDims.forall(_.required))
       }
       case NDArrayMatMul(l, r) => {
         InferPType(l, env)
@@ -277,12 +286,20 @@ object InferPType {
       }
       case NDArrayWrite(_, _) => PVoid
       case MakeStruct(fields) => {
-        PStruct(fields.map {
+        var allRequired = true
+        val inferredFields = fields.map {
           case (name, a) => {
             InferPType(a, env)
+
+            if(allRequired == true && !a.pType2.required) {
+              allRequired = false
+            }
+
             (name, a.pType2)
           }
-        }: _*)
+        }
+
+        PStruct(allRequired, inferredFields: _*)
       }
       case SelectFields(old, fields) => {
         InferPType(old, env)
@@ -298,6 +315,7 @@ object InferPType {
           InferPType(f._2, env)
           (f._1, f._2.pType2)
         }))
+
         fieldOrder.map { fds =>
           assert(fds.length == s.size)
           PStruct(fds.map(f => f -> s.fieldType(f)): _*)
@@ -312,10 +330,18 @@ object InferPType {
         fd.setRequired(t.required && fd.required)
       }
       case MakeTuple(values) => {
-        PTuple(values.map(v => {
+        var allRequired = false
+        val inferredVals = values.map(v => {
           InferPType(v._2, env)
+
+          if(allRequired == true && v._2.pType2.required == false) {
+            allRequired = false
+          }
+
           v._2.pType2
-        }): _*)
+        })
+
+        PTuple(allRequired, inferredVals: _*)
       }
       case GetTupleElement(o, idx) => {
         InferPType(o, env)
@@ -331,6 +357,7 @@ object InferPType {
         InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
         PArray(body.pType2)
       }
+        // TODO: should we read metadata here to get requiredeness for the row?
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
     }
     assert(ir.pType2.virtualType == ir.typ)
