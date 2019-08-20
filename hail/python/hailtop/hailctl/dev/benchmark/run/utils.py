@@ -3,11 +3,10 @@ import sys
 import timeit
 import re
 from urllib.request import urlretrieve
-
+import logging
 import numpy as np
 
 import hail as hl
-
 
 def resource(filename):
     assert _initialized
@@ -48,7 +47,7 @@ _initialized = False
 def download_data():
     global _data_dir, _mt
     _data_dir = os.environ.get('HAIL_BENCHMARK_DIR', '/tmp/hail_benchmark_data')
-    print(f'using benchmark data directory {_data_dir}')
+    logging.info(f'using benchmark data directory {_data_dir}')
     os.makedirs(_data_dir, exist_ok=True)
 
     files = map(lambda f: os.path.join(_data_dir, f), ['profile.vcf.bgz',
@@ -62,30 +61,38 @@ def download_data():
         hl.init()  # use all cores
 
         vcf = os.path.join(_data_dir, 'profile.vcf.bgz')
-        print('files not found - downloading...', end='', flush=True)
+        logging.info('downloading profile.vcf.bgz...')
         urlretrieve('https://storage.googleapis.com/hail-common/benchmark/profile.vcf.bgz', vcf)
-        print('done', flush=True)
-        print('importing...', end='', flush=True)
+        logging.info('done downloading profile.vcf.bgz.')
+        logging.info('importing profile.vcf.bgz...')
         hl.import_vcf(vcf, min_partitions=16).write(os.path.join(_data_dir, 'profile.mt'), overwrite=True)
+        logging.info('done importing profile.vcf.bgz.')
+
+        logging.info('writing 10M row partitioned tables...')
 
         ht = hl.utils.range_table(10_000_000, 1000).annotate(**{f'f_{i}': hl.rand_unif(0, 1) for i in range(5)})
         ht = ht.checkpoint(os.path.join(_data_dir, 'table_10M_par_1000.ht'), overwrite=True)
         ht = ht.naive_coalesce(100).checkpoint(os.path.join(_data_dir, 'table_10M_par_100.ht'), overwrite=True)
         ht.naive_coalesce(10).write(os.path.join(_data_dir, 'table_10M_par_10.ht'), overwrite=True)
+        logging.info('done writing 10M row partitioned tables.')
 
+        logging.info('creating gnomad_dp_simulation matrix table...')
         mt = hl.utils.range_matrix_table(n_rows=250_000, n_cols=1_000, n_partitions=32)
         mt = mt.annotate_entries(x=hl.int(hl.rand_unif(0, 4.5) ** 3))
         mt.write(os.path.join(_data_dir, 'gnomad_dp_simulation.mt'), overwrite=True)
+        logging.info('done creating gnomad_dp_simulation matrix table.')
 
-        print('downloading many strings table...')
+        logging.info('downloading many_strings_table.tsv.bgz...')
         mst_tsv = os.path.join(_data_dir, 'many_strings_table.tsv.bgz')
         mst_ht = os.path.join(_data_dir, 'many_strings_table.ht')
         urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_strings_table.tsv.bgz', mst_tsv)
-        print('importing...')
+        logging.info('done downloading many_strings_table.tsv.bgz...')
+        logging.info('importing many_strings_table.tsv.bgz...')
         hl.import_table(mst_tsv).write(mst_ht, overwrite=True)
+        logging.info('done importing many_strings_table.tsv.bgz.')
         hl.stop()
     else:
-        print('all files found.', flush=True)
+        logging.info('all files found.')
 
 
 def _ensure_initialized():
@@ -97,6 +104,8 @@ def _ensure_initialized():
 def initialize(args):
     global _initialized, _mt
     assert not _initialized
+    logging.basicConfig(format="%(asctime)-15s: %(levelname)s: %(message)s",
+                        level=logging.INFO)
 
     download_data()
     hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
@@ -109,17 +118,17 @@ def initialize(args):
 
 def _run(benchmark: Benchmark, config: RunConfig, context):
     if config.verbose:
-        print(f'{context}Running {benchmark.name}...', file=sys.stderr)
+        logging.info(f'{context}Running {benchmark.name}...')
     times = []
     for i in range(config.n_iter):
         try:
             time = timeit.Timer(lambda: benchmark.run()).timeit(1)  # pylint: disable=unnecessary-lambda
             times.append(time)
             if config.verbose:
-                print(f'    run {i + 1}: {time:.2f}', file=sys.stderr)
+                logging.info(f'    run {i + 1}: {time:.2f}')
         except Exception as e:  # pylint: disable=broad-except
             if config.verbose:
-                print(f'    run ${i + 1}: Caught exception: {e}')
+                logging.error(f'    run ${i + 1}: Caught exception: {e}')
             config.handler({'name': benchmark.name,
                             'failed': True})
             return

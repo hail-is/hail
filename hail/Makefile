@@ -256,6 +256,24 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
+BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
+PROJECT = $(shell gcloud config get-value project)
+BENCHMARK_LATEST = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG):latest
+build-benchmark-image: wheel
+	cp $(WHEEL) benchmark
+	cp python/requirements.txt benchmark
+	cd benchmark && docker build -t $(BENCHMARK_DOCKER_TAG) . --build-arg WHEEL=$(notdir $(WHEEL))
+	rm benchmark/$(notdir $(WHEEL))
+	rm benchmark/requirements.txt
+
+push-benchmark-image: build-benchmark-image
+	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
+	docker push $(BENCHMARK_LATEST)
+
+.PHONY: benchmark
+benchmark: push-benchmark-image
+	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmark/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) 10 5
+
 clean: clean-env clean-docs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
