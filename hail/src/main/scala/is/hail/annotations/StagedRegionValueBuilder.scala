@@ -79,7 +79,7 @@ object StagedRegionValueBuilder {
       case t =>
         Code(
           offset := region.allocate(t.alignment, t.byteSize),
-          deepCopy(fb, region, t, Region.loadIRIntermediate(t)(value), offset))
+          deepCopy(fb, region, t, Region.getIRIntermediate(t)(value), offset))
     }
     Code(copy, offset)
   }
