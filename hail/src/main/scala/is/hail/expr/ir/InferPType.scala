@@ -237,7 +237,6 @@ object InferPType {
       case ArrayMap(a, name, body) => {
         InferPType(a, env)
         InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
-        // TODO: Any reason to copy here, besides setting setRequired(false), which we've done away with?
         coerce[PStreamable](a.pType2).copyStreamable(body.pType2, body.pType2.required)
       }
       case ArrayFilter(a, name, cond) => {
