@@ -1,79 +1,91 @@
-#rowDiv{
-    margin: auto;
-    text-align: center;
-    width: 50%;
-    
+#rowDiv {
+  margin: auto;
+  text-align: center;
+  width: 50%;
 }
 
-input[type="text"]{
-    height: 40px;
-    font-size: 20px;
-    font-weight: bold;
-    margin-left: 27px;
+#searchInput {
+  height: 40px;
+  font-size: 0.875rem;
+  font-weight: bold;
+  margin-left: 27px;
+  font-size: 0.875rem;
 }
 
-#searchDatabase{
-    height: 40px;
-    font-size: 15px;
-    font-weight: bold;
+#searchDatabase {
+  height: 40px;
+  font-size: 0.875rem;
+  font-weight: bold;
 }
 
-div.search span,
-div.search input[name="keyword"] {
+#annotation-db div.search span,
+#searchInput {
   display: block;
   width: 350px;
 }
 
-div.search input[name="keyword"] {
+#searchInput {
   margin-top: 4px;
   margin-left: 0px;
 }
 
-.btn-group-sm>.btn, .btn-sm {
-    padding: 5px 10px;
-    font-size: 14px;
-    line-height: 0.7;
-    border-radius: 3px;
+#searchInput,
+#annotation-db textarea {
+  box-shadow: none;
+  border-radius: 3px;
 }
 
-.panel{
-    background-color: #fff;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    box-shadow: 0 1px 1px rgba(0,0,0,.05);
+#annotation-db textarea {
+  font-family: monospace;
+  font-size: 0.875rem;
 }
 
-div.panel {
-  margin-bottom: 15px;
+#annotation-db .btn-group-sm > .btn,
+#annotation-db .btn-sm {
+  font-size: 0.875rem;
+  border-radius: 3px;
+  line-height: 0;
+  height: 24px;
+  padding: 12px 10px;
+  box-shadow: none;
 }
 
-.panel-default {
-    border-color: #ddd;
+#annotation-db .panel {
+  background-color: #fff;
+  border: 1px solid transparent;
+  border-radius: 5px;
 }
 
-.panel-body {
-    padding: 15px;
+#annotation-db .panel {
+  margin-bottom: 0.875rem;
 }
 
-.panel-default>.panel-heading {
-    color: #333;
-    background-color: #f5f5f5;
-    border-color: #ddd;
+#annotation-db .panel-default {
+  border-color: #ddd;
 }
 
-div.panel-heading{
-    padding: 10px 15px;
-    border-bottom: 1px solid transparent;
-    border-top-left-radius: 3px;
-    border-top-right-radius: 3px;
+#annotation-db .panel-body {
+  padding: 0.875rem;
 }
 
-div.panel .panel-body p:last-child {
+#annotation-db .panel-default > .panel-heading {
+  color: #333;
+  background-color: #f5f5f5;
+  border-color: #ddd;
+}
+
+#annotation-db div.panel-heading {
+  padding: 10px 15px;
+  border-bottom: 1px solid transparent;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+#annotation-db div.panel .panel-body p:last-child {
   margin-bottom: 0;
 }
 
-
-#table1 th{
+#table1 th {
   padding-top: 12px;
   padding-bottom: 12px;
   text-align: left;
@@ -81,33 +93,34 @@ div.panel .panel-body p:last-child {
   color: black;
 }
 
-
-#table1 td, #table1 th{
+#table1 td,
+#table1 th {
   display: table-cell;
-  border: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  border-left: 0px;
+  border-right: 0px;
+  border-top: 0px;
   padding: 8px;
   width: auto;
 }
 
-body {
-    font-family: "Helvetica Neue";
-    font-size: 14px;
-    line-height: 1.42857143;
+#table1 tr:last-child td {
+  border-bottom: 0px;
 }
 
-table{
-    border-spacing: 0;
-    border-collapse: collapse;
-    resize: none;
-    table-layout:fixed;
-    display: block;
-    height: 770px;
-    width: 747px;
-    overflow-y: auto;
-
-}
-
-textarea {
+#annotation-db table {
+  border-spacing: 0;
+  border-collapse: collapse;
   resize: none;
-  font-size: 14px;
+  table-layout: fixed;
+  display: block;
+  height: 770px;
+  width: 100%;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  border-radius: 5px;
+}
+
+#annotation-db textarea {
+  font-size: 0.875rem;
 }
