@@ -303,17 +303,22 @@ object InferPType {
       }
       case NDArrayRef(nd, idxs) => {
         InferPType(nd, env)
-
+        
+        var allRequired = nd.pType2.required
         val it = idxs.iterator
         while(it.hasNext) {
           val idxIR = it.next()
 
           InferPType(idxIR, env)
 
-          assert(idxIR.pType2 == PInt64Required || idxIR.pType2 == PInt32Required)
+          assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
+          
+          if(allRequired == true && idxIR.pType2.required == false) {
+            allRequired = false
+          }
         }
 
-        coerce[PNDArray](nd.pType2).elementType.setRequired(nd.pType2.required)
+        coerce[PNDArray](nd.pType2).elementType.setRequired(allRequired)
       }
       case NDArraySlice(nd, slices) => {
         InferPType(nd, env)
