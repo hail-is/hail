@@ -16,11 +16,17 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
   def _toPretty = s"""Interval[$pointType]"""
 
   override def pyString(sb: StringBuilder): Unit = {
+    if(required)
+      sb.append("+")
+
     sb.append("interval<")
     pointType.pyString(sb)
     sb.append('>')
   }
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    if(required)
+      sb.append("+")
+
     sb.append("Interval[")
     pointType.pretty(sb, indent, compact)
     sb.append("]")

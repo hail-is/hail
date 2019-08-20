@@ -19,6 +19,9 @@ class PFloat64(override val required: Boolean) extends PType {
   override def _toPretty = "Float64"
 
   override def pyString(sb: StringBuilder): Unit = {
+    if(required)
+      sb.append("+")
+
     sb.append("float64")
   }
 

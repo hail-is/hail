@@ -19,6 +19,8 @@ class PInt64(override val required: Boolean) extends PIntegral {
   def _toPretty = "Int64"
 
   override def pyString(sb: StringBuilder): Unit = {
+    if(required)
+      sb.append("+")
     sb.append("int64")
   }
 

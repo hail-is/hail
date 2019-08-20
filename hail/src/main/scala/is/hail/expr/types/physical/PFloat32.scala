@@ -19,6 +19,9 @@ class PFloat32(override val required: Boolean) extends PType {
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit = {
+    if(required)
+      sb.append("+")
+
     sb.append("float32")
   }
 

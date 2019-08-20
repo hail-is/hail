@@ -23,18 +23,23 @@ object InferPType {
       case True() | False() => PBoolean(false)
       case Void() => PVoid
       // TODO: What to do if cast on missing data?
-      case Cast(ir, _) => {
+      case Cast(ir, t) => {
         InferPType(ir, env)
-        ir.pType2
+        PType.canonical(t, ir.pType2.required)
       }
-      case CastRename(ir, _) => {
+      case CastRename(ir, t) => {
         InferPType(ir, env)
-        ir.pType2
+        PType.canonical(t, ir.pType2.required)
       }
       case NA(t) => PType.canonical(t, false)
-        // TODO: What is requiredeness here? It has to have a value
-        // but that value can be NA
-      case IsNA(_) => PBoolean()
+        // TODO: What is requiredeness here? It has to return a value
+        // regardless of the inner node...it feels more appropriate to make it always required
+        // unless we wish to use the NA node to identify whether descendents are ever missing
+        // which does seem potentially useful
+      case IsNA(ir) => {
+        InferPType(ir, env)
+        PBoolean(ir.pType2.required)
+      }
       case Coalesce(values) => {
         val vit = values.iterator
         val head = vit.next()
@@ -43,24 +48,33 @@ object InferPType {
         while(vit.hasNext) {
           val value = vit.next()
           InferPType(value, env)
-          assert(head.pType2 == value.pType2)
+          assert(head.pType2 isOfType value.pType2)
         }
 
         head.pType2
       }
       case Ref(name, _) => env.lookup(name)
-        // TODO: What does an In node do?
-        // If the semantics of requiredeness is "This node has a value"
-        // then this has an Int, else if it
       case In(_, t) => PType.canonical(t)
+        // TODO: not sure if preference is to continue using canonical here
+        // I could imagine a collection of non-canonical ptypes
       case MakeArray(irs, _) => {
-        val allRequired = irs.forall(ir => {
-          InferPType(ir, env)
+        val it = irs.iterator
+        val head = it.next()
+        InferPType(head, env)
+        var allRequired = head.pType2.required
 
-          ir.pType2.required
-        })
+        while(it.hasNext) {
+          val irElem = it.next()
 
-        irs(0).pType2.setRequired(allRequired)
+          InferPType(irElem, env)
+          assert(head.pType2 isOfType irElem.pType2)
+
+          if(allRequired == true && irElem.pType2.required == false) {
+            allRequired = false
+          }
+        }
+
+        PArray(head.pType2, allRequired)
       }
       case MakeStream(irs, _) => {
         val allRequired = irs.forall(ir => {
@@ -79,11 +93,44 @@ object InferPType {
 
         PNDArray(coerce[PArray](data.pType2).elementType, nElem, data.pType2.required)
       }
-        // TODO: are these required, or do we allow their definition on missing data
-      case _: ArrayLen => PInt32(true)
-      case _: ArrayRange => PArray(PInt32(true), true)
-      case _: StreamRange => PStream(PInt32(true), true)
-      case _: LowerBoundOnOrderedCollection => PInt32(true)
+      case ArrayRange(start: IR, stop: IR, step: IR) => {
+        InferPType(start, env)
+        InferPType(stop, env)
+        InferPType(step, env)
+
+        assert(start.pType2 isOfType stop.pType2)
+        assert(start.pType2 isOfType step.pType2)
+
+        val allRequired = start.pType2.required &&
+          stop.pType2.required &&
+          step.pType2.required
+
+        PArray(start.pType2, allRequired)
+      }
+      case StreamRange(start: IR, stop: IR, step: IR) => {
+        InferPType(start, env)
+        InferPType(stop, env)
+        InferPType(step, env)
+
+        assert(start.pType2 isOfType stop.pType2)
+        assert(start.pType2 isOfType step.pType2)
+
+        val allRequired = start.pType2.required &&
+          stop.pType2.required &&
+          step.pType2.required
+
+        PArray(start.pType2, allRequired)
+      }
+      case ArrayLen(a: IR) => {
+        InferPType(a, env)
+
+        a.pType2
+      }
+      // TODO: Infer orderedCollection/first arg?
+      case LowerBoundOnOrderedCollection(_, bound: IR, _) => {
+        InferPType(bound, env)
+        bound.pType2
+      }
       case _: ArrayFor => PVoid
       case _: InitOp => PVoid
       case _: SeqOp => PVoid
@@ -189,8 +236,9 @@ object InferPType {
       }
       case ArrayMap(a, name, body) => {
         InferPType(a, env)
-        InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType.setRequired(false)))
-        coerce[PStreamable](a.pType2).copyStreamable(body.pType2.setRequired(false))
+        InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
+        // TODO: Any reason to copy here, besides setting setRequired(false), which we've done away with?
+        coerce[PStreamable](a.pType2).copyStreamable(body.pType2, body.pType2.required)
       }
       case ArrayFilter(a, name, cond) => {
         InferPType(a, env)
@@ -360,7 +408,9 @@ object InferPType {
         // TODO: should we read metadata here to get requiredeness for the row?
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
     }
-    assert(ir.pType2.virtualType == ir.typ)
+
+    // Allow only requiredeness to diverge
+    assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }
 

@@ -20,6 +20,9 @@ class PString(override val required: Boolean) extends PType {
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {
+    if(required)
+      sb.append("+")
+
     sb.append("str")
   }
 

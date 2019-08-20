@@ -99,14 +99,14 @@ object PType {
 
   def canonical(t: Type, required: Boolean): PType = {
     t match {
-      case t: TInt32 => PInt32(required)
-      case t: TInt64 => PInt64(required)
-      case t: TFloat32 => PFloat32(required)
-      case t: TFloat64 => PFloat64(required)
-      case t: TBoolean => PBoolean(required)
-      case t: TBinary => PBinary(required)
-      case t: TString => PString(required)
-      case t: TCall => PCall(required)
+      case _: TInt32 => PInt32(required)
+      case _: TInt64 => PInt64(required)
+      case _: TFloat32 => PFloat32(required)
+      case _: TFloat64 => PFloat64(required)
+      case _: TBoolean => PBoolean(required)
+      case _: TBinary => PBinary(required)
+      case _: TString => PString(required)
+      case _: TCall => PCall(required)
       case t: TLocus => PLocus(t.rg, required)
       case t: TInterval => PInterval(canonical(t.pointType), required)
       case t: TStream => PStream(canonical(t.elementType), required)
