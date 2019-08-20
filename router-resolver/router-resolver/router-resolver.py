@@ -8,7 +8,7 @@ from kubernetes_asyncio import client, config
 import logging
 
 from hailtop import gear
-from hailtop.gear.auth import authenticated_developers_only
+from hailtop.gear.auth import web_authenticated_developers_only
 
 uvloop.install()
 
@@ -20,7 +20,7 @@ routes = web.RouteTableDef()
 
 
 @routes.get('/auth/{namespace}')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def auth(request):
     app = request.app
     k8s_client = app['k8s_client']

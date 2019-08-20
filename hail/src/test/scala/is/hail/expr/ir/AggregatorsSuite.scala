@@ -134,20 +134,6 @@ class AggregatorsSuite extends HailSuite {
       initOpArgs = Some(FastIndexedSeq(I32(3))))
   }
 
-
-  @Test def inbreeding() {
-    runAggregator(
-      Inbreeding(),
-      TStruct("x" -> TCall(), "y" -> TFloat64()),
-      FastIndexedSeq(Row(Call2(0, 0), 0d), Row(Call2(0, 1), 0.1),
-        Row(Call2(0, 1), 0.2), Row(null, 0.3),
-        Row(Call2(1, 1), 0.4), Row(Call2(0, 0), null)),
-      Row(-1.040816, 4L, 3.02, 2L),
-      FastIndexedSeq(),
-      None,
-      seqOpArgs = FastIndexedSeq(Ref("x", TCall()), Ref("y", TFloat64())))
-  }
-
   @Test def infoScore() {
     runAggregator(InfoScore(), TArray(TFloat64()),
       FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3), null),
@@ -713,18 +699,6 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(I32(2)),
       None,
       FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TInt32())))
-  }
-
-  @Test
-  def keyedInbreeding() {
-    runKeyedAggregator(Inbreeding(),
-      Ref("k", TString()),
-      TStruct("k" -> TString(), "x" -> TCall(), "y" -> TFloat64()),
-      FastIndexedSeq(Row("case", Call2(0, 0), 0d), Row("case", Call2(0, 1), 0.1), Row("case", Call2(0, 1), 0.2), Row("case", null, 0.3), Row("case", Call2(1, 1), 0.4), Row("case", Call2(0, 0), null)),
-      Map("case" -> Row(-1.040816, 4L, 3.02, 2L)),
-      constrArgs = FastIndexedSeq(),
-      None,
-      seqOpArgs = FastIndexedSeq(Ref("x", TCall()), Ref("y", TFloat64())))
   }
 
   @Test

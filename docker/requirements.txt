@@ -1,3 +1,4 @@
+aiodocker==0.14.0
 aiodns==2.0.0
 aiohttp==3.5.4
 aiohttp-jinja2==1.1.1
@@ -11,6 +12,7 @@ Flask==1.0.3
 Flask-Cors==3.0.8
 Flask-Sockets==0.2.1
 gcsfs==0.2.1
+google-api-python-client==1.7.10
 google-cloud-storage==1.16.1
 humanize==0.5.1
 hurry.filesize==0.9

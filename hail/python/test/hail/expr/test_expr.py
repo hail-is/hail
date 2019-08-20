@@ -316,6 +316,10 @@ class Tests(unittest.TestCase):
         table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
         table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
 
+    def test_approx_cdf_all_missing(self):
+        table = hl.utils.range_table(10).annotate(foo=hl.null(tint))
+        table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
+
     def test_approx_cdf_col_aggregate(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
@@ -1198,6 +1202,21 @@ class Tests(unittest.TestCase):
                                      .when(t.idx < 2, hl.null(hl.tint32))
                                      .when(((t.idx - 1) % 3) == 0, t.idx - 2)
                                      .default(t.idx - 1))))
+
+    def test_agg_table_take(self):
+        ht = hl.utils.range_table(10).annotate(x = 'a')
+        self.assertEqual(ht.aggregate(agg.take(ht.x, 2)), ['a', 'a'])
+
+    def test_agg_minmax(self):
+        nan = float('nan')
+        na = hl.null(hl.tfloat32)
+        size = 200
+        for aggfunc in (agg.min, agg.max):
+            array_with_nan = hl.array([0. if i == 1 else nan for i in range(size)])
+            array_with_na = hl.array([0. if i == 1 else na for i in range(size)])
+            t = hl.utils.range_table(size)
+            self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
+            self.assertEqual(t.aggregate(aggfunc(array_with_na[t.idx])), 0.)
 
     def test_str_ops(self):
         s = hl.literal("123")
@@ -2697,6 +2716,29 @@ class Tests(unittest.TestCase):
 
         self.assertAlmostEqual(last['p_value'], 0.65714285)
         self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
+
+    def test_inbreeding_aggregator(self):
+        data = [
+            (0.25, hl.Call([0, 0])),
+            (0.5, hl.Call([1, 1])),
+            (0.5, hl.Call([1, 1])),
+            (0.5, hl.Call([1, 1])),
+            (0.0, hl.Call([0, 0])),
+            (0.5, hl.Call([0, 1])),
+            (0.99, hl.Call([0, 1])),
+            (0.99, None),
+            (None, hl.Call([0, 1])),
+            (None, None),
+        ]
+        lit = hl.literal(data, dtype='array<tuple(float, call)>')
+        ht = hl.utils.range_table(len(data))
+        r = ht.aggregate(hl.agg.inbreeding(lit[ht.idx][1], lit[ht.idx][0]))
+
+        expected_homs = sum(1 - (2 * af * (1 - af)) for af, x in data if af is not None and x is not None)
+        self.assertAlmostEqual(r['expected_homs'], expected_homs)
+        assert r['observed_homs'] == 5
+        assert r['n_called'] == 7
+        self.assertAlmostEqual(r['f_stat'], (5 - expected_homs) / (7 - expected_homs))
 
     def test_pl_to_gp(self):
         res = hl.eval(hl.pl_to_gp([0, 10, 100]))

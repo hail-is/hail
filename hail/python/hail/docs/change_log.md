@@ -1,5 +1,26 @@
 # Change Log
 
+## 0.2.20
+
+Released 2019-08-19
+
+### Critical memory management fix
+
+- (hail#6824) Fixed memory management inside `annotate_cols` with
+  aggregations. This was causing memory leaks and segfaults.
+
+### Bug fixes
+- (hail#6769) Fix non-functional `hl.lambda_gc` method.
+- (hail#6847) Fix bug in handling of NaN in `hl.agg.min` and `hl.agg.max`.
+  These will now properly ignore NaN (the intended semantics). Note that
+  `hl.min` and `hl.max` propagate NaN; use `hl.nanmin` and  `hl.nanmax`
+  to ignore NaN.
+
+### New features
+- (hail#6847) Added `hl.nanmin` and `hl.nanmax` functions. 
+
+-----
+
 ## 0.2.19
 
 Released 2019-08-01

@@ -9,12 +9,9 @@ Requirements
 
 Regardless of installation method, you will need:
 
-- `Java 8 JDK
-  <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
-  Note: it *must* be version eight. Hail does not support Java versions nine,
-  ten, or eleven due to our dependency on Spark.
-- Python 3.6 or later, we recommend `Anaconda's Python 3
-  <https://www.anaconda.com/download/>`_
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_ (version **8** required)
+    Note: it *must* be Java **8**. Hail does not support versions 9+ due to our dependency on Spark.
+- Python 3.6 or later. We recommend `Miniconda Python 3.7 <https://docs.conda.io/en/latest/miniconda.html>`_
 - A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
 
 For all methods *other than using pip*, you will additionally need `Spark
@@ -33,7 +30,7 @@ Hail locally (i.e. not on a cluster).
 
 Create a `conda enviroment
 <https://conda.io/docs/user-guide/concepts.html#conda-environments>`__ named
-``hail`` and install the Hail python library in that environment:
+``hail`` and install the Hail python library in that environment. If ``conda activate`` doesn't work, `please read these instructions <https://conda.io/projects/conda/en/latest/user-guide/install/macos.html#install-macos-silent>`_
 
 .. code-block:: sh
 

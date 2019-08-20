@@ -10,6 +10,7 @@ from shlex import quote as shq
 
 import jinja2
 import aiohttp_jinja2
+import aiohttp
 from aiohttp import web
 import cerberus
 import kubernetes as kube
@@ -41,7 +42,6 @@ async def scale_queue_consumers(queue, f, n=1):
         asyncio.ensure_future(f(queue))
 
 
-gear.configure_logging()
 log = logging.getLogger('batch')
 
 REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
@@ -104,11 +104,14 @@ def jsonify(data):
     return web.json_response(data)
 
 
+def resiliently_authenticate(key_file):
+    gcloud_auth = f'gcloud -q auth activate-service-account --key-file={key_file}'
+    return f"""({gcloud_auth} || (sleep $(( 5 + (RANDOM % 5) )); {gcloud_auth}))"""
+
+
 def copy(files):
     if files is None:
         return 'true'
-
-    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
 
     def copy_command(src, dst):
         if not dst.startswith('gs://'):
@@ -118,7 +121,7 @@ def copy(files):
         return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
     copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
-    return f'{authenticate} && {copies}'
+    return f'set -ex; {resiliently_authenticate("/gsa-key/privateKeyData")} && {copies}'
 
 
 class JobStateWriteFailure(Exception):
@@ -148,24 +151,24 @@ class Job:
             log.info(f'pvc cannot be created for job {self.id} with the following error: {err}')
             PVC_CREATION_FAILURES.inc()
             if err.status == 403:
-                await self.mark_complete(None, failed=True, failure_reason=str(err))
+                await self.mark_failed(failure_reason=str(err))
             return False
 
         log.info(f'created pvc name: {self._pvc_name} for job {self.id}')
         return True
 
     def _setup_container(self):
-        success_file = f'{self.directory}{LogStore.results_file_name}'
+        success_file = f'{self.directory}{LogStore.log_file_name}'
 
         sh_expression = f"""
         set -ex
-        gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData
+        {resiliently_authenticate("/batch-gsa-key/privateKeyData")}
         gsutil -q stat {success_file} && exit 1
         rm -rf /io/*
         {copy(self.input_files)}
          """
 
-        setup_container = kube.client.V1Container(
+        return kube.client.V1Container(
             image='google/cloud-sdk:237.0.0-alpine',
             name='setup',
             command=['/bin/sh', '-c', sh_expression],
@@ -175,32 +178,16 @@ class Job:
                 mount_path='/batch-gsa-key',
                 name='batch-gsa-key')])
 
-        return setup_container
-
     def _cleanup_container(self):
         sh_expression = f"""
         set -ex
-        python3 -m batch.sidecar
+        python3 -m batch.cleanup_sidecar
         """
 
-        env = {'INSTANCE_ID': INSTANCE_ID,
-               'BATCH_ID': str(self.batch_id),
-               'JOB_ID': str(self.job_id),
-               'TOKEN': str(self.token),
-               'BATCH_BUCKET_NAME': app['log_store'].batch_bucket_name,
-               'COPY_OUTPUT_CMD': copy(self.output_files),
-               'HAIL_POD_NAMESPACE': HAIL_POD_NAMESPACE,
-               'KUBERNETES_TIMEOUT_IN_SECONDS': str(KUBERNETES_TIMEOUT_IN_SECONDS),
-               'REFRESH_INTERVAL_IN_SECONDS': str(REFRESH_INTERVAL_IN_SECONDS)}
-        if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-            env['BATCH_USE_KUBE_CONFIG'] = True
-        env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env.items()]
-        env.append(kube.client.V1EnvVar(name='POD_NAME',
-                                        value_from=kube.client.V1EnvVarSource(
-                                            field_ref=kube.client.V1ObjectFieldSelector(
-                                                field_path='metadata.name'))))
+        env = [kube.client.V1EnvVar(name='COPY_OUTPUT_CMD',
+                                    value=copy(self.output_files))]
 
-        cleanup_container = kube.client.V1Container(
+        return kube.client.V1Container(
             image=BATCH_IMAGE,
             name='cleanup',
             command=['/bin/sh', '-c', sh_expression],
@@ -210,9 +197,22 @@ class Job:
             volume_mounts=[
                 kube.client.V1VolumeMount(
                     mount_path='/batch-gsa-key',
-                    name='batch-gsa-key')])
+                    name='batch-gsa-key')],
+            ports=[kube.client.V1ContainerPort(container_port=5000)])
 
-        return cleanup_container
+    def _keep_alive_container(self):  # pylint: disable=R0201
+        sh_expression = f"""
+        set -ex
+        python3 -m batch.keep_alive_sidecar
+        """
+
+        return kube.client.V1Container(
+            image=BATCH_IMAGE,
+            name='keep-alive',
+            command=['/bin/sh', '-c', sh_expression],
+            resources=kube.client.V1ResourceRequirements(
+                requests={'cpu': '1m'}),
+            ports=[kube.client.V1ContainerPort(container_port=5001)])
 
     async def _create_pod(self):
         assert self.userdata is not None
@@ -221,6 +221,7 @@ class Job:
 
         setup_container = self._setup_container()
         cleanup_container = self._cleanup_container()
+        keep_alive_container = self._keep_alive_container()
 
         volumes = [
             kube.client.V1Volume(
@@ -251,7 +252,7 @@ class Job:
                 name=self._pvc_name))
 
         pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
-        pod_spec.containers.append(cleanup_container)
+        pod_spec.containers.extend([cleanup_container, keep_alive_container])
         pod_spec.init_containers = [setup_container]
 
         if pod_spec.volumes is None:
@@ -336,26 +337,23 @@ class Job:
     async def _read_pod_statuses(self):
         if self._state in ('Pending', 'Cancelled'):
             return None
-
-        async def _read_pod_status_from_gcs():
-            pod_status, err = await app['log_store'].read_gs_file(self.directory,
-                                                                  LogStore.pod_status_file_name)
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read pod status for {self.id} '
-                         f'due to {err}')
-                return None
-            return json.loads(pod_status)
-
         if self._state == 'Running':
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
+            pod_status = pod_status.to_dict()
             return pod_status
         assert self._state in ('Error', 'Failed', 'Success')
-        return await _read_pod_status_from_gcs()
+        pod_status, err = await app['log_store'].read_gs_file(self.directory,
+                                                              LogStore.pod_status_file_name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring: could not read pod status for {self.id} '
+                     f'due to {err}')
+            return None
+        return json.loads(pod_status)
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
@@ -551,104 +549,87 @@ class Job:
         if self._state == 'Running' and (not self._cancelled or self.always_run):
             app['pod_throttler'].create_pod(self)
 
-    async def mark_complete(self, pod, failed=False, failure_reason=None):  # pylint: disable=R0915
-        new_state = None
-        exit_codes = [None for _ in tasks]
-        durations = [None for _ in tasks]
-        container_logs = {t: None for t in tasks}
+    async def _store_status(self, pod):
+        pod_status = JSON_ENCODER.encode(pod.status.to_dict())
+        err = await app['log_store'].write_gs_file(self.directory,
+                                                   LogStore.pod_status_file_name,
+                                                   pod_status)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'job {self.id} will have a missing pod status due to {err}')
 
-        if failed:
-            if failure_reason is not None:
-                container_logs['setup'] = failure_reason
-                err = await app['log_store'].write_gs_file(self.directory,
-                                                           LogStore.log_file_name,
-                                                           json.dumps(container_logs))
-                if err is not None:
-                    traceback.print_tb(err.__traceback__)
-                    log.info(f'job {self.id} will have a missing log due to {err}')
+    async def _upload_logs(self, container_logs):
+        err = await app['log_store'].write_gs_file(self.directory,
+                                                   LogStore.log_file_name,
+                                                   json.dumps(container_logs))
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'job {self.id} will have a missing log due to {err}')
 
-            if pod is not None:
-                pod_status = JSON_ENCODER.encode(pod.status.to_dict())
-                err = await app['log_store'].write_gs_file(self.directory,
-                                                           LogStore.pod_status_file_name,
-                                                           pod_status)
-                if err is not None:
-                    traceback.print_tb(err.__traceback__)
-                    log.info(f'job {self.id} will have a missing pod status due to {err}')
+    async def _terminate_keep_alive_pod(self, pod):
+        try:
+            async with app['client_session'].post(f'http://{pod.status.pod_ip}:5001/') as resp:
+                assert resp.status == 200
+        except Exception as e:  # pylint: disable=W0703
+            log.info(f'could not connect to keep-alive pod, but '
+                     f'pod will be deleted shortly anyway {e}')
 
-            new_state = 'Error'
-        else:
-            pod_results, _ = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
+    async def _terminate_cleanup_pod(self, pod):
+        try:
+            async with app['client_session'].post(f'http://{pod.status.pod_ip}:5000/') as resp:
+                assert resp.status == 200
+            return None
+        except Exception as err:  # pylint: disable=W0703
+            return err
 
-            if pod_results is None:
-                if pod.status.init_container_statuses is None:
-                    log.error(f'no init container statuses, will reschedule {self.id}, {pod}')
-                    await self.mark_unscheduled()
-                    return
+    async def mark_failed(self, failure_reason):
+        await self._upload_logs({'setup': failure_reason})
+        await self._reap_job('Error')
 
-                setup_container = pod.status.init_container_statuses[0]
-                assert setup_container.name == 'setup'
-                setup_terminated = setup_container.state.terminated
+    async def mark_successful(self, pod):
+        container_logs, errs = gear.unzip(
+            await asyncio.gather(*(
+                app['k8s'].read_pod_log(pod.metadata.name, container=container)
+                for container in tasks)))
+        if any(err is not None for err in errs):
+            log.info(f'failed to read log for {self.id}, pod '
+                     f'{pod.metadata.name}, {errs} rescheduling ')
+            await self.mark_unscheduled()
+            return
+        container_logs = {k: v for k, v in zip(tasks, container_logs)}
+        await self._upload_logs(container_logs)
+        await self._terminate_keep_alive_pod(pod)
+        await self._store_status(pod)
+        assert len(pod.status.init_container_statuses) == 1
+        startup_status = pod.status.init_container_statuses[0]
+        main_status = None
+        cleanup_status = None
+        for x in pod.status.container_statuses:
+            if x.name == 'main':
+                assert main_status is None
+                main_status = x
+            elif x.name == 'cleanup':
+                assert cleanup_status is None
+                cleanup_status = x
+        container_statuses = [startup_status, main_status, cleanup_status]
+        exit_codes = [
+            status.state.terminated.exit_code
+            for status in container_statuses]
+        durations = [
+            status.state.terminated.finished_at and status.state.terminated.started_at and (
+                (status.state.terminated.finished_at - status.state.terminated.started_at).total_seconds())
+            for status in container_statuses]
 
-                if setup_terminated.exit_code != 0:
-                    if setup_terminated.finished_at is not None and setup_terminated.started_at is not None:
-                        durations[0] = (setup_terminated.finished_at - setup_terminated.started_at).total_seconds()
-                    else:
-                        log.warning(f'setup container terminated but has no timing information. {setup_container.to_str()}')
+        await self._reap_job(
+            'Success' if all(ec == 0 for ec in exit_codes) else 'Failed',
+            exit_codes=exit_codes,
+            durations=durations)
 
-                    container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='setup')
-                    if err:
-                        await self.mark_unscheduled()
-
-                    container_logs['setup'] = container_log
-                    exit_codes[0] = setup_terminated.exit_code
-
-                    await app['log_store'].write_gs_file(self.directory,
-                                                         LogStore.log_file_name,
-                                                         json.dumps(container_logs))
-
-                    pod_status, err = await app['k8s'].read_pod_status(pod.metadata.name)
-                    if err:
-                        await self.mark_unscheduled()
-                    else:
-                        assert pod_status is not None
-                        await app['log_store'].write_gs_file(self.directory,
-                                                             LogStore.pod_status_file_name,
-                                                             JSON_ENCODER.encode(pod_status.to_dict()))
-
-                    new_state = 'Failed'
-                else:
-                    # cleanup sidecar container must have failed (error in copying outputs doesn't cause a non-zero exit code)
-                    cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
-                    container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='cleanup')
-                    if err:
-                        container_log = f'no log due to {err}'
-                    log.error(f'cleanup container failed: {cleanup_container}, log: {container_log}')
-                    assert cleanup_container.state.terminated.exit_code == 0, container_log
-                    # log.info(f'rescheduling job {self.id} -- cleanup container failed')
-                    # await self.mark_unscheduled()
-                    return
-            else:
-                pod_results = json.loads(pod_results)
-
-                exit_codes = pod_results['exit_codes']
-                durations = pod_results['durations']
-
-                if pod is not None:
-                    pod_status = JSON_ENCODER.encode(pod.status.to_dict())
-                    err = await app['log_store'].write_gs_file(self.directory,
-                                                               LogStore.pod_status_file_name,
-                                                               pod_status)
-                    if err is not None:
-                        traceback.print_tb(err.__traceback__)
-                        log.info(f'job {self.id} will have a missing pod status due to {err}')
-
-                if all([ec == 0 for ec in exit_codes]):
-                    new_state = 'Success'
-                else:
-                    new_state = 'Failed'
-
-        assert new_state is not None
+    async def _reap_job(self, new_state, exit_codes=None, durations=None):
+        if exit_codes is None:
+            exit_codes = [None for _ in tasks]
+        if durations is None:
+            durations = [None for _ in tasks]
         n_updated = await db.jobs.update_record(*self.id,
                                                 compare_items={'state': self._state},
                                                 durations=json.dumps(durations),
@@ -692,8 +673,6 @@ class Job:
             if batch is not None:
                 await batch.mark_job_complete(self)
 
-        await app['log_store'].delete_gs_file(self.directory, LogStore.results_file_name)
-
     def to_dict(self):
         result = {
             'batch_id': self.batch_id,
@@ -702,8 +681,9 @@ class Job:
         }
         if self.is_complete():
             result['exit_code'] = {
-                k: v for k, v in zip(['input', 'main', 'output'], self.exit_codes)}
-            result['duration'] = self.durations
+                k: v for k, v in zip(['setup', 'main', 'cleanup'], self.exit_codes)}
+            result['duration'] = {
+                k: v for k, v in zip(['setup', 'main', 'cleanup'], self.durations)}
 
         if self.attributes:
             result['attributes'] = self.attributes
@@ -1096,7 +1076,6 @@ async def get_batch(request, userdata):
     return jsonify(await _get_batch(batch_id, user, limit=limit, offset=offset))
 
 
-
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
 @rest_authenticated_users_only
@@ -1208,7 +1187,7 @@ async def batch_id(request, userdata):
     raise web.HTTPFound(location=location)
 
 
-async def update_job_with_pod(job, pod):  # pylint: disable=R0911
+async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
     log.info(f'update job {job.id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
     if job and job._state == 'Pending':
         if pod:
@@ -1242,7 +1221,8 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
                         container_status.state.waiting.message)
             return None
 
-        all_container_statuses = pod.status.init_container_statuses or []
+        all_container_statuses = []
+        all_container_statuses.extend(pod.status.init_container_statuses or [])
         all_container_statuses.extend(pod.status.container_statuses or [])
 
         image_pull_back_off_reasons = []
@@ -1251,9 +1231,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
         if image_pull_back_off_reasons:
-            await job.mark_complete(pod=pod,
-                                    failed=True,
-                                    failure_reason="\n".join(image_pull_back_off_reasons))
+            await job.mark_failed("\n".join(image_pull_back_off_reasons))
             return
 
     if not pod and not app['pod_throttler'].is_queued(job):
@@ -1267,10 +1245,34 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         await job.mark_unscheduled()
         return
 
-    if pod and pod.status and pod.status.phase in ('Succeeded', 'Failed'):
-        log.info(f'job {job.id} mark complete')
-        await job.mark_complete(pod)
-        return
+    if pod and pod.status:  # pylint: disable=R1702
+        if pod.status.init_container_statuses:
+            assert len(pod.status.init_container_statuses) == 1, pod
+            init_status = pod.status.init_container_statuses[0]
+            if init_status.state and init_status.state.terminated and init_status.state.terminated.exit_code != 0:
+                log.info(f'job {job.id} failed -- setup container exited {init_status.state.terminated.exit_code}')
+                await job.mark_failed(f'setup container exited {init_status.state.terminated.exit_code}')
+                return
+        if pod.status.container_statuses:
+            main_status = [x for x in pod.status.container_statuses
+                           if x.name == 'main']
+            if len(main_status) != 0:
+                main_status = main_status[0]
+                if main_status.state and main_status.state.terminated:
+                    cleanup_status = [x for x in pod.status.container_statuses
+                                      if x.name == 'cleanup']
+                    if len(cleanup_status) != 0:
+                        cleanup_status = cleanup_status[0]
+                        if cleanup_status.state and cleanup_status.state.terminated:
+                            log.info(f'job {job.id} mark complete')
+                            await job.mark_successful(pod=pod)
+                            return
+                        err = await job._terminate_cleanup_pod(pod)
+                        if err:
+                            log.info(f'could not connect to cleanup pod, we will '
+                                     f'try again in next refresh loop {job} {pod} {err}')
+                            return
+                        return
 
     if pod and pod.status and pod.status.phase == 'Unknown':
         log.info(f'job {job.id} mark unscheduled -- pod phase is unknown')
@@ -1416,6 +1418,7 @@ async def on_startup(app):
     app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
     app['log_store'] = LogStore(pool, INSTANCE_ID)
     app['pod_throttler'] = PodThrottler(QUEUE_SIZE, MAX_PODS, parallelism=16)
+    app['client_session'] = aiohttp.ClientSession()
 
     asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(kube_event_loop())
@@ -1426,8 +1429,8 @@ app.on_startup.append(on_startup)
 
 
 async def on_cleanup(app):
-    blocking_pool = app['blocking_pool']
-    blocking_pool.shutdown()
+    app['blocking_pool'].shutdown()
+    app['client_session'].close()
 
 
 app.on_cleanup.append(on_cleanup)

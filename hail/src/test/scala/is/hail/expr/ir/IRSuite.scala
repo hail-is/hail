@@ -2362,6 +2362,7 @@ class IRSuite extends HailSuite {
     Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100)),
     Array(LocalLDPrune("x", 0.95, 123, 456)),
     Array(PCA("x", 1, false)),
+    Array(PCRelate(0.00, 4096, Some(0.1), PCRelate.PhiK2K0K1)),
     Array(WindowByLocus(1)),
     Array(MatrixFilterPartitions(Array(1, 2, 3), keep = true)),
     Array(ForceCountTable()),
@@ -2388,6 +2389,7 @@ class IRSuite extends HailSuite {
       case x: MatrixToValueFunction => assert(RelationalFunctions.lookupMatrixToValue(Serialization.write(x)) == x)
       case x: TableToTableFunction => assert(RelationalFunctions.lookupTableToTable(Serialization.write(x)) == x)
       case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(Serialization.write(x)) == x)
+      case x: BlockMatrixToTableFunction => assert(RelationalFunctions.lookupBlockMatrixToTable(Serialization.write(x)) == x)
       case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(Serialization.write(x)) == x)
     }
   }
