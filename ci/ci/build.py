@@ -76,11 +76,22 @@ class BuildConfiguration:
 
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
+            step = Step.from_json(step_params)
+            self.steps.append(step)
+            name_step[step.name] = step
 
-            if requested_steps is None or step_params.json['name'] in requested_steps:
-                step = Step.from_json(step_params)
-                self.steps.append(step)
-                name_step[step.name] = step
+        # transitively close requested_steps over dependenies
+        if requested_steps:
+            visited = set()
+            def request(step):
+                if step not in visited:
+                    visited.add(step)
+                    for s2 in step.deps:
+                        request(s2)
+            for s in requested_steps:
+                request(s)
+            self.steps = [s for s in self.steps if s in visited]
+            self.name_step = {s.name: s for s in self.steps}
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
