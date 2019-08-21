@@ -12,7 +12,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   override def _toPretty = s"NDArray[$elementType,$nDims]"
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
-  
+
   val representation: PStruct = {
     PStruct(required,
       ("flags", PInt32Required),

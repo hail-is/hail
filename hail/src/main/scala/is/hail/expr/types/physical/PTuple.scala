@@ -39,7 +39,6 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  log.info(s"BYTE OFFSETS: ${byteOffsets.toIndexedSeq}")
   override val alignment: Long = PBaseStruct.alignment(types)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
