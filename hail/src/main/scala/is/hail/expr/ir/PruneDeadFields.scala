@@ -390,12 +390,12 @@ object PruneDeadFields {
         memoizeTableIR(child, unify(child.typ, requestedType, irDep), memo)
       case TableKeyBy(child, key, isSorted) =>
         val reqKey = requestedType.key
+        val isPrefix = reqKey.zip(child.typ.key).forall { case (l, r) => l == r }
         val childReqKey = if (isSorted)
           child.typ.key
-        else {
-          val nPreserved = reqKey.zip(child.typ.key).takeWhile { case (l, r) => l == r }.length
-          child.typ.key.take(nPreserved)
-        }
+        else if (isPrefix)
+          reqKey
+        else FastIndexedSeq()
 
         memoizeTableIR(child, TableType(
           key = childReqKey,
