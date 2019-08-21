@@ -1,7 +1,7 @@
 import abc
 import json
 import math
-from collections import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 import hail as hl
 from hail import genetics
