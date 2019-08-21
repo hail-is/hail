@@ -391,10 +391,10 @@ object PruneDeadFields {
       case TableKeyBy(child, key, isSorted) =>
         val reqKey = requestedType.key
         val childReqKey = if (isSorted)
-          child.typ.key.take(reqKey.length)
+          child.typ.key
         else {
-          val nSame = key.zip(child.typ.key).takeWhile { case (l, r) => l == r }.length
-          key.take(nSame)
+          val nPreserved = reqKey.zip(child.typ.key).takeWhile { case (l, r) => l == r }.length
+          child.typ.key.take(nPreserved)
         }
 
         memoizeTableIR(child, TableType(
