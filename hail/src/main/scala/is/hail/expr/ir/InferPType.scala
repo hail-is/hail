@@ -124,10 +124,10 @@ object InferPType {
 
         PInt32(a.pType2.required)
       }
-      // TODO: Infer orderedCollection/first arg?
-      case LowerBoundOnOrderedCollection(_, bound: IR, _) => {
+      case LowerBoundOnOrderedCollection(orderedCollection: IR, bound: IR, _) => {
+        InferPType(orderedCollection, env)
         InferPType(bound, env)
-        bound.pType2
+        bound.pType2.setRequired(orderedCollection.pType2.required && bound.pType2.required)
       }
       case _: ArrayFor => PVoid
       case _: InitOp => PVoid
