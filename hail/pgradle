@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+
+import os
+import re
+import subprocess as sp
+import sys
+
+MAX_PARALLELISM = 4
+make_flags = os.environ.get('MAKEFLAGS')
+
+job_slots = b''
+try:
+    if make_flags is not None:
+        match = re.search(' --jobserver-fds=([^,]+),([^ ])+', make_flags)
+        if match is not None:
+            read_fd = int(match[1])
+            write_fd = int(match[2])
+            job_slots = os.read(read_fd, MAX_PARALLELISM - 1)
+    parallelism = len(job_slots) + 1
+    print(f'PARALLELISM={parallelism} ./gradlew {" ".join(sys.argv[1:])}')
+    os.environ['PARALLELISM'] = str(parallelism)
+    cp = sp.run(["./gradlew", *sys.argv[1:]])
+    sys.exit(cp.returncode)
+finally:
+    os.write(write_fd, job_slots)

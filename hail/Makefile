@@ -85,8 +85,7 @@ install-editable: python/README.md python/hail/hail-all-spark.jar
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-     --addopts '-v -n $(PARALLELISM) \
-     --dist=loadscope \
+     --addopts '-v \
      --color=no \
      --instafail \
      -r A \
@@ -99,26 +98,24 @@ pytest: python/README.md python/hail/hail-all-spark.jar
 doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 doctest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-	  --addopts "-v -n $(PARALLELISM) \
-     --dist=loadscope \
-     --color=no \
-     --instafail \
-     -r A \
-     --self-contained-html \
-     --html=build/reports/pytest-doctest.html \
-     --dist=loadscope \
-     --doctest-modules \
-     --doctest-glob='*.rst' \
-     --ignore=setup.py \
-     --ignore=setup-hailtop.py \
-     --ignore=hail/docs/conf.py \
-     --ignore=cluster-tests \
-     --ignore=hailtop \
-     --ignore=test \
-     --ignore=hail/docs/doctest_write_data.py \
-     --ignore=hail/docs/getting_started_developing.rst \
-     --ignore=hail/docs/getting_started.rst \
-     $(PYTEST_ARGS)"
+	  --addopts '-v \
+    --color=no \
+    --instafail \
+    -r A \
+    --self-contained-html \
+    --html=build/reports/pytest-doctest.html \
+    --doctest-modules \
+    --doctest-glob='*.rst' \
+    --ignore=setup.py \
+    --ignore=setup-hailtop.py \
+    --ignore=hail/docs/conf.py \
+    --ignore=cluster-tests \
+    --ignore=hailtop \
+    --ignore=test \
+    --ignore=hail/docs/doctest_write_data.py \
+    --ignore=hail/docs/getting_started_developing.rst \
+    --ignore=hail/docs/getting_started.rst \
+    $(PYTEST_ARGS)'
 
 .PHONY: compile-jvm
 compile-jvm: $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
@@ -130,9 +127,7 @@ compile-jvm-test: compile-jvm $(JAR_TEST_SOURCES)
 
 .PHONY: jvm-test
 jvm-test: compile-jvm compile-jvm-test
-# Hail compiles user-code using make. The build sytem's jobserver
-# should not be used by this child make, so we clear the makeflags
-	+./pgradle test
+	+./pgradle test $(GRADLE_TEST_ARGS)
 
 .PHONY: wheel
 wheel: $(WHEEL)
