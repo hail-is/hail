@@ -1,8 +1,9 @@
 import os
 
 import itertools
-import numpy as np
+import math
 import re
+import numpy as np
 import scipy.linalg as spla
 
 import hail as hl
@@ -1390,7 +1391,7 @@ class BlockMatrix(object):
         return self._apply_map2(BlockMatrix._binary_op('/'), b, reverse=True)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
-    def __matmul__(self, b):
+    def __matmul__(self, b, _split_on_inner=1):
         """Matrix multiplication: a @ b.
 
         Parameters
@@ -1406,6 +1407,12 @@ class BlockMatrix(object):
 
         if self.n_cols != b.n_rows:
             raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        inner_range_size = int(math.ceil(self.n_cols / _split_on_inner))
+        split_points = range(0, self.n_cols, inner_range_size) + [self.n_cols]
+        inner_ranges = zip(split_points[:-1], split_points[1:])
+        blocks_to_multiply = [(self[:, start:stop], self[start:stop, :]) for start, stop in inner_ranges]
+
 
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
