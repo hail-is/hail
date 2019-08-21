@@ -120,9 +120,17 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
     if config.verbose:
         logging.info(f'{context}Running {benchmark.name}...')
     times = []
-    burn_in_time = timeit.Timer(lambda: benchmark.run()).timeit(1)
-    if config.verbose:
-        logging.info(f'    burn in: {burn_in_time:.2f}s')
+
+    try:
+        burn_in_time = timeit.Timer(lambda: benchmark.run()).timeit(1)
+        if config.verbose:
+            logging.info(f'    burn in: {burn_in_time:.2f}s')
+    except Exception as e:
+        if config.verbose:
+            logging.error(f'    burn in: Caught exception: {e}')
+        config.handler({'name': benchmark.name,
+                        'failed': True})
+        return
 
     for i in range(config.n_iter):
         try:
