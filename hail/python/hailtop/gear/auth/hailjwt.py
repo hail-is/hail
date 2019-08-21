@@ -93,7 +93,7 @@ def authenticated_developers_only(token_getter):
         @wraps(fun)
         def wrapped(request, userdata, *args, **kwargs):
             if ('developer' in userdata) and userdata['developer'] is 1:
-                return fun(request, *args, **kwargs)
+                return fun(request, userdata, *args, **kwargs)
             raise web.HTTPNotFound()
         return wrapped
     return wrap

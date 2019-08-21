@@ -778,11 +778,10 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, namespace):
+    def __init__(self, branch, sha, userdata):
         self.branch = branch
-        self.userdata = userdata
         self.user = userdata['username']
-        self.namespace = namespace
+        self.namespace = userdata['namespace_name']
         self.sha = sha
 
         self.deploy_batch = None
@@ -803,7 +802,7 @@ class UnwatchedBranch(Code):
             'user': self.user
         }
 
-    async def deploy(self, batch_client, profile_steps=None):
+    async def deploy(self, batch_client, steps):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -813,9 +812,9 @@ class UnwatchedBranch(Code):
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
-            log.info(f'User {self.user} requested these steps for dev deploy: {profile_steps}')
+            log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps)
+                config = BuildConfiguration(self, f.read(), scope='dev', requested_steps=steps)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 

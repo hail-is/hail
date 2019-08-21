@@ -66,18 +66,18 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, profile=None):
+    def __init__(self, code, config_str, scope, requested_steps=None):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
 
-        if profile:
-            log.info(f"Constructing build configuration with following profile: {profile}")
+        if requested_steps:
+            log.info(f"Constructing build configuration with steps: {requested_steps}")
 
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
 
-            if profile is None or step_params.json['name'] in profile:
+            if requested_steps is None or step_params.json['name'] in requested_steps:
                 step = Step.from_json(step_params)
                 self.steps.append(step)
                 name_step[step.name] = step

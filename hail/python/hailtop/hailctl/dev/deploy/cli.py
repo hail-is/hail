@@ -1,55 +1,52 @@
 import asyncio
 import aiohttp
+from asyncinit import asyncinit
 
 from hailtop.gear.auth.hailjwt import find_token
 
-profiles = {
-    "batch_test": [
-        'default_ns',
-        'deploy_batch_sa',
-        'batch_pods_ns',
-        'deploy_batch_output_sa',
-        'base_image',
-        'create_accounts',
-        'batch_image',
-        'batch_database',
-        'create_batch_tables_image',
-        'create_batch_tables',
-        'create_batch_tables2',
-        'deploy_batch',
-        'deploy_batch_pods',
-        'test_batch_image',
-        'test_batch'
-    ]
-}
-
 def init_parser(parser):
-    parser.add_argument('github_username', type=str)
-    parser.add_argument('repo', type=str)
-    parser.add_argument('branch', type=str)
-    parser.add_argument('namespace', type=str)
-    parser.add_argument('profile', type=str, choices=list(profiles.keys()))
+    parser.add_argument("--branch", "-b", type=str,
+                        help="Fully-qualified branch, e.g., hail-is/hail:feature.")
+    parser.add_argument("--steps", "-s", type=str,
+                        help="Comma-separated list of steps to run.")
+
+@asyncinit
+class CIClient:
+    async def __init__(self):
+        token = find_token()
+        self._session = aiohttp.ClientSession(
+            headers={"Authorization": f"Bearer {token}"})
+
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self):
+        await self.close()
+
+    async def close(self):
+        if self._session:
+            await self._session.close()
+            self._session = None
+
+    async def dev_deploy_branch(self, branch, steps):
+        data = {
+            'branch': branch,
+            'steps': steps
+        }
+        async with self._session.post(
+                'https://ci.hail.is/api/v1alpha/dev_test_branch/', json=data) as resp:
+            resp_data = resp.json()
+            return resp_data['batch_id']
+
+    
+async def submit(args):
+    steps = args.steps.split(',')
+    steps = [s.strip() for s in steps]
+    steps = [s for s in steps if s]
+    async with CIClient() as ci_client:
+        batch_id = ci_client.dev_deploy_branch(args.branch, steps)
+        print(f'Created deploy batch, see https://ci.hail.is/batches/{batch_id}')
+
 
 def main(args):
     asyncio.run(submit(args))
-
-async def submit(args):
-    token = find_token()
-    headers = {"Authorization": f"Bearer {token}"}
-    async with aiohttp.ClientSession(headers=headers) as session:
-        data = {
-            'userdata': {
-                'username': args.github_username
-            },
-            'repo': args.repo,
-            'branch': args.branch,
-            'profile': profiles[args.profile],
-            'namespace': args.namespace
-        }
-        print(f"Submitting: {data}")
-        async with session.post('https://ci.hail.is/api/v1alpha/dev_test_branch/', json=data) as resp:
-            if (resp.status == 200):
-                text = await resp.text()
-                print(f"Created batch {text}")
-            else:
-                print(f"Error: Returned status code {resp.status}")
