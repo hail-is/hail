@@ -236,33 +236,31 @@ abstract class PContainer extends PIterable {
     val len = otherPTA.loadLength(oldOffset)
     if (otherPTA.elementType.required == elementType.required) {
       value
-    } else if (otherPTA.elementType.required) {
-      // convert from required to non-required
-      val newOffset = mb.newField[Long]
-      Code(
-        newOffset := allocate(r, len),
-        stagedInitialize(newOffset, len),
-        Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
-        newOffset
-      )
     } else {
-      //  convert from non-required to required
       val newOffset = mb.newField[Long]
-      val i = mb.newField[Int]
       Code(
         newOffset := allocate(r, len),
         stagedInitialize(newOffset, len),
-        i := 0,
-        Code.whileLoop(i < len,
-          otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
-          i := i + 1
-        ),
-        Region.storeInt(newOffset.load(), len),
-        Region.copyFrom(oldOffset + otherPTA.elementsOffset(len), newOffset + 4L, len.toL * elementByteSize),
+        if (otherPTA.elementType.required) {
+          // convert from required to non-required
+          Code._empty
+        } else {
+          //  convert from non-required to required
+          val i = mb.newField[Int]
+          Code(
+            i := 0,
+            Code.whileLoop(i < len,
+              otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
+              i := i + 1
+            )
+          )
+        },
+        Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
         newOffset
       )
     }
   }
+
 
   def cxxImpl: String = {
     elementType match {
