@@ -270,9 +270,11 @@ push-benchmark-image: build-benchmark-image
 	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
 	docker push $(BENCHMARK_LATEST)
 
+BENCHMARK_ITERS ?= 5
+BENCHMARK_REPLICATES ?= 10
 .PHONY: benchmark
 benchmark: push-benchmark-image
-	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmark/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) 10 5
+	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
 clean: clean-env clean-docs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
