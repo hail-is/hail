@@ -67,13 +67,11 @@ def main(args, pass_through_args):
             raise RuntimeError(f"package has no 'deploy.yaml' file")
         updated_wheel = yaml.safe_load(
             pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']['wheel']
-        args.wheel = updated_wheel
+        wheel = updated_wheel
     else:
         wheel = args.wheel
 
-
     if wheel is not None:
-        wheel = args.wheel
         wheelfile = os.path.basename(wheel)
         cmds = []
         if wheel.startswith("gs://"):
