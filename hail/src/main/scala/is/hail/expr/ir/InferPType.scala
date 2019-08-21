@@ -14,8 +14,7 @@ object InferPType {
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
       case Literal(t, v) => PType.canonical(t, v != null)
-        // TODO: Not quite sure why a True() node wouldn't be required
-      case True() | False() => PBoolean(false)
+      case True() | False() => PBoolean(true)
       case Void() => PVoid
       case Cast(ir, t) => {
         InferPType(ir, env)
