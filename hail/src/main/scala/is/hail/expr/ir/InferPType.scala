@@ -8,21 +8,15 @@ object InferPType {
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
     ir._pType2 = ir match {
-        // TODO: can these all be given null as a value, like Literals?
       case I32(_) => PInt32(true)
       case I64(_) => PInt64(true)
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
-      // TODO: Do we want this to be required? We allow coerce from NA wrapped Literal
-      // in conversation with Patrick this coercion was done only for convenience, a literal means value present
-      // and as below, the semantics seem to mean, "value is not falsy"
-      // although what specifically falsy is doesn't seem well defined (maybe null only? NA?)
-      case Literal(t, _) => PType.canonical(t, true)
+      case Literal(t, v) => PType.canonical(t, v != null)
         // TODO: Not quite sure why a True() node wouldn't be required
       case True() | False() => PBoolean(false)
       case Void() => PVoid
-      // TODO: What to do if cast on missing data?
       case Cast(ir, t) => {
         InferPType(ir, env)
         PType.canonical(t, ir.pType2.required)
@@ -32,37 +26,36 @@ object InferPType {
         PType.canonical(t, ir.pType2.required)
       }
       case NA(t) => PType.canonical(t, false)
-        // TODO: What is requiredeness here? It has to return a value
-        // regardless of the inner node...it feels more appropriate to make it always required
-        // unless we wish to use the NA node to identify whether descendents are ever missing
-        // which does seem potentially useful
       case IsNA(ir) => {
         InferPType(ir, env)
-        PBoolean(ir.pType2.required)
+        PBoolean(true)
       }
       case Coalesce(values) => {
         val vit = values.iterator
         val head = vit.next()
         InferPType(head, env)
 
+        var allRequired = head.pType2.required
         while(vit.hasNext) {
           val value = vit.next()
           InferPType(value, env)
           assert(head.pType2 isOfType value.pType2)
-        }
 
-        head.pType2
+          if(allRequired == true && value.pType2.required == false) {
+            allRequired = false
+          }
+         }
+
+        head.pType2.setRequired(allRequired)
       }
       case Ref(name, _) => env.lookup(name)
       case In(_, t) => PType.canonical(t)
-        // TODO: not sure if preference is to continue using canonical here
-        // I could imagine a collection of non-canonical ptypes
       case MakeArray(irs, _) => {
         val it = irs.iterator
         val head = it.next()
         InferPType(head, env)
-        var allRequired = head.pType2.required
 
+        var allRequired = head.pType2.required
         while(it.hasNext) {
           val irElem = it.next()
 
@@ -74,24 +67,36 @@ object InferPType {
           }
         }
 
-        PArray(head.pType2, allRequired)
+        PArray(head.pType2.setRequired(allRequired), true)
       }
       case MakeStream(irs, _) => {
-        val allRequired = irs.forall(ir => {
-          InferPType(ir, env)
+        val it = irs.iterator
+        val head = it.next()
+        InferPType(head, env)
 
-          ir.pType2.required
-        })
+        var allRequired = head.pType2.required
+        while(it.hasNext) {
+          val irElem = it.next()
 
-        irs(0).pType2.setRequired(allRequired)
+          InferPType(irElem, env)
+          assert(head.pType2 isOfType irElem.pType2)
+
+          if(allRequired == true && irElem.pType2.required == false) {
+            allRequired = false
+          }
+        }
+
+        PStream(head.pType2.setRequired(allRequired), true)
       }
       case MakeNDArray(data, shape, _) => {
         InferPType(data, env)
         InferPType(shape, env)
 
         val nElem = shape.pType2.asInstanceOf[PTuple].size
+        val etype = coerce[PArray](data.pType2).elementType
 
-        PNDArray(coerce[PArray](data.pType2).elementType, nElem, data.pType2.required)
+        assert(etype.required == true)
+        PNDArray(etype, nElem, data.pType2.required)
       }
       case ArrayRange(start: IR, stop: IR, step: IR) => {
         InferPType(start, env)
@@ -101,11 +106,8 @@ object InferPType {
         assert(start.pType2 isOfType stop.pType2)
         assert(start.pType2 isOfType step.pType2)
 
-        val allRequired = start.pType2.required &&
-          stop.pType2.required &&
-          step.pType2.required
-
-        PArray(start.pType2, allRequired)
+        val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
+        PArray(start.pType2.setRequired(true), allRequired)
       }
       case StreamRange(start: IR, stop: IR, step: IR) => {
         InferPType(start, env)
@@ -115,16 +117,13 @@ object InferPType {
         assert(start.pType2 isOfType stop.pType2)
         assert(start.pType2 isOfType step.pType2)
 
-        val allRequired = start.pType2.required &&
-          stop.pType2.required &&
-          step.pType2.required
-
-        PArray(start.pType2, allRequired)
+        val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
+        PArray(start.pType2.setRequired(true), allRequired)
       }
       case ArrayLen(a: IR) => {
         InferPType(a, env)
 
-        a.pType2
+        PInt32(a.pType2.required)
       }
       // TODO: Infer orderedCollection/first arg?
       case LowerBoundOnOrderedCollection(_, bound: IR, _) => {
@@ -143,7 +142,7 @@ object InferPType {
 
         assert((cnsq.pType2 isOfType altr.pType2) && (cond.pType2 isOfType PBoolean()))
 
-        cnsq.pType2.setRequired(cnsq.pType2.required && altr.pType2.required)
+        cnsq.pType2.setRequired(cond.pType2.required && cnsq.pType2.required && altr.pType2.required)
       }
       case Let(name, value, body) => {
         InferPType(value, env)
@@ -351,7 +350,7 @@ object InferPType {
           }
         }
 
-        PStruct(allRequired, inferredFields: _*)
+        PStruct(true, inferredFields: _*)
       }
       case SelectFields(old, fields) => {
         InferPType(old, env)
@@ -361,7 +360,6 @@ object InferPType {
       case InsertFields(old, fields, fieldOrder) => {
         InferPType(old, env)
         val tbs = coerce[PStruct](old.pType2)
-
 
         val s = tbs.insertFields(fields.map(f =>  {
           InferPType(f._2, env)
@@ -381,20 +379,10 @@ object InferPType {
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       }
-      case MakeTuple(values) => {
-        var allRequired = false
-        val inferredVals = values.map(v => {
+      case MakeTuple(values) => PTuple(true, values.map(v => {
           InferPType(v._2, env)
-
-          if(allRequired == true && v._2.pType2.required == false) {
-            allRequired = false
-          }
-
           v._2.pType2
-        })
-
-        PTuple(allRequired, inferredVals: _*)
-      }
+      }):_*)
       case GetTupleElement(o, idx) => {
         InferPType(o, env)
         val t = coerce[PTuple](o.pType2)
@@ -409,7 +397,6 @@ object InferPType {
         InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
         PArray(body.pType2)
       }
-        // TODO: should we read metadata here to get requiredeness for the row?
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
     }
 
