@@ -39,7 +39,7 @@ steps:
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
-   contextPath: docker
+   contextPath: .
    publishAs: base
  - kind: runImage
    name: create_accounts
@@ -143,6 +143,16 @@ steps:
    publishAs: batch
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_batch
+   image:
+     valueFrom: batch_image.image
+   script: |
+     set -ex
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
+   dependsOn:
+     - batch_image
  - kind: buildImage
    name: batch2_image
    dockerFile: batch2/Dockerfile
@@ -150,13 +160,6 @@ steps:
    publishAs: batch2
    dependsOn:
      - base_image
- - kind: buildImage
-   name: check_batch_image
-   dockerFile: batch/Dockerfile.check
-   contextPath: .
-   publishAs: check-batch
-   dependsOn:
-     - batch_image
  - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
@@ -183,6 +186,18 @@ steps:
    publishAs: ci
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_ci
+   image:
+     valueFrom: ci_image.image
+   script: |
+     set -ex
+     python3 -m flake8 ci
+     python3 -m pylint --rcfile pylintrc ci
+     python3 -m flake8 hailtop
+     python3 -m pylint --rcfile pylintrc hailtop
+   dependsOn:
+     - ci_image
  - kind: buildImage
    name: ci_utils_image
    dockerFile: ci/Dockerfile.ci-utils
@@ -575,16 +590,6 @@ steps:
    dependsOn:
     - default_ns
     - image_fetcher_image
- - kind: runImage
-   name: check_batch
-   image:
-     valueFrom: check_batch_image.image
-   script: |
-     set -ex
-     python3 -m flake8 batch
-     python3 -m pylint --rcfile pylintrc batch
-   dependsOn:
-     - check_batch_image
  - kind: deploy
    name: test_batch
    namespace:
