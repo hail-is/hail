@@ -9,7 +9,7 @@ import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PType, PTuple}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -850,11 +850,31 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
   }
 
+  @Test def testMakeArrayInferPType() {
+    var ir = MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32()))
+
+    assertPType(ir, PArray(PInt32(false), true))
+
+    ir = MakeArray(FastSeq(I32(5), I32(-3)), TArray(TInt32()))
+    assertPType(ir, PArray(PInt32(true), true))
+  }
+
   @Test def testMakeStruct() {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
     //making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
+  }
+
+  @Test def testMakeStructInferPType() {
+    var ir = MakeStruct(FastSeq())
+    assertPType(ir, PStruct(true))
+
+    ir = MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5))
+    assertPType(ir, PStruct(true, "a" -> PInt32(false), "b" -> PInt32(true), "c" -> PFloat64(true)))
+
+    val ir2 = GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1")
+    assertPType(ir2, PStruct(true, "foo1" -> PInt32(true)))
   }
 
   @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
@@ -874,6 +894,18 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
     //making sure wide structs get emitted without failure
     assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
+  }
+
+  @Test def testMakeTupleInferPType() {
+    var ir = MakeTuple.ordered(FastSeq())
+    assertPType(ir, PTuple(true))
+
+    ir = MakeTuple.ordered(FastSeq(NA(TInt32()), 4, 0.5))
+    assertPType(ir, PTuple(true, Seq(PInt32(false), PInt32(true), PFloat64(true)):_*))
+
+    //making sure wide structs get emitted without failure
+    val ir2 = GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1)
+    assertPType(ir2, PInt32(true))
   }
 
   @Test def testGetTupleElement() {
