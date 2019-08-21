@@ -44,7 +44,7 @@ To submit a Python job to that cluster, use:
 
 .. code-block:: text
 
-    hailctl dataproc submit CLUSTER_NAME SCRIPT [optional args...]
+    hailctl dataproc submit CLUSTER_NAME SCRIPT [optional args...] -- [args to your python script...]
 
 To connect to a Jupyter notebook running on that cluster, use:
 
