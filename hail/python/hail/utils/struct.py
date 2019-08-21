@@ -5,7 +5,6 @@ from hail.utils.misc import get_nice_attr_error, get_nice_field_error
 from hail.typecheck import *
 
 
-
 class Struct(Mapping):
     """
     Nested annotation structure.
