@@ -35,7 +35,7 @@ object RelationalSpec {
     new TableTypeSerializer +
     new MatrixTypeSerializer
 
-  def read(hc: HailContext, path: String): RelationalSpec = {
+  def readMetadata(hc: HailContext, path: String): JValue = {
     if (!hc.sFS.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
@@ -52,7 +52,11 @@ object RelationalSpec {
 
     if (!FileFormat.version.supports(fileVersion))
       fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
+    jv
+  }
 
+  def read(hc: HailContext, path: String): RelationalSpec = {
+    val jv = readMetadata(hc, path)
     // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
@@ -62,29 +66,13 @@ object RelationalSpec {
     jv.extract[RelationalSpec]
   }
 
-  def referencePath(hc: HailContext, path: String): String = {
-    if (!hc.sFS.isDir(path))
-      fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
-    val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.sFS.readFile(metadataFile) { in => parse(in) }
-
-    val fileVersion = jv \ "file_version" match {
-      case JInt(rep) => SemanticVersion(rep.toInt)
-      case _ =>
-        fatal(
-          s"""cannot read file: metadata does not contain file version: $metadataFile
-             |  Common causes:
-             |    - File is an 0.1 VariantDataset or KeyTable (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
-    }
-
-    if (!FileFormat.version.supports(fileVersion))
-      fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
-
+  def readReferences(hc: HailContext, path: String): Array[ReferenceGenome] = {
+    val jv = readMetadata(hc, path)
     // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    path + "/" + referencesRelPath
+    ReferenceGenome.readReferences(hc.sFS, path + "/" + referencesRelPath)
   }
 }
 

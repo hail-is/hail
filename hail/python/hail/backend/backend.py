@@ -49,12 +49,8 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def load_references_from_table(self, path):
-        return {}
-
-    @abc.abstractmethod
-    def load_references_from_matrix_table(self, path):
-        return {}
+    def load_references_from_dataset(self, path):
+        return []
 
     @abc.abstractmethod
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
@@ -165,13 +161,8 @@ class SparkBackend(Backend):
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
 
-    @abc.abstractmethod
-    def load_references_from_table(self, path):
-        return json.loads(Env.hail().variant.ReferenceGenome.fromTable(path).toJSONString())
-
-    @abc.abstractmethod
-    def load_references_from_matrix_table(self, path):
-        return json.loads(Env.hail().variant.ReferenceGenome.fromMatrixTable(path).toJSONString())
+    def load_references_from_dataset(self, path):
+        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         Env.hail().variant.ReferenceGenome.fromFASTAFile(

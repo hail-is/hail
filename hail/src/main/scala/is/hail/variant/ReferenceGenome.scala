@@ -520,13 +520,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       Serialization.write(jrg, out)
     }
 
+  def toJSON: JSONExtractReferenceGenome = JSONExtractReferenceGenome(name,
+    contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
+    xContigs, yContigs, mtContigs,
+    par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
+
   def toJSONString: String = {
-    val jrg = JSONExtractReferenceGenome(name,
-      contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
-      xContigs, yContigs, mtContigs,
-      par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(jrg)
+    Serialization.write(toJSON)
   }
 
   def codeSetup(fb: EmitFunctionBuilder[_]): Code[ReferenceGenome] = {
@@ -643,13 +644,10 @@ object ReferenceGenome {
     rg
   }
 
-  def fromTable(path: String): String = {
-
-  }
-
-  def fromMatrixTable(path: String): String = {
-    val path = RelationalSpec.referencePath(HailContext.get, path)
-
+  def fromHailDataset(path: String): String = {
+    val references = RelationalSpec.readReferences(HailContext.get, path)
+    implicit val formats: Formats = defaultJSONFormats
+    Serialization.write(references.toFastIndexedSeq)
   }
 
   def fromJSON(config: String): ReferenceGenome = {
@@ -707,37 +705,27 @@ object ReferenceGenome {
     references(name).removeLiftover(destRGName)
   }
 
-  def readReferences(fs: FS, path: String) {
+  def readReferences(fs: FS, path: String): Array[ReferenceGenome] = {
     if (fs.exists(path)) {
       val refs = fs.listStatus(path)
+      val rgs = mutable.Set[ReferenceGenome]()
       refs.foreach { fileSystem =>
         val rgPath = fileSystem.getPath.toString
         val rg = fs.readFile(rgPath)(read)
         val name = rg.name
-        if (!ReferenceGenome.hasReference(name))
-          addReference(rg)
-        else {
-          if (ReferenceGenome.getReference(name) != rg)
-            fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
-        }
+        if (ReferenceGenome.hasReference(name) && ReferenceGenome.getReference(name) != rg)
+          fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
+        if (!rgs.contains(rg) && !hailReferences.contains(name))
+          rgs += rg
       }
-    }
+      rgs.toArray
+    } else Array()
   }
 
   def importReferences(fs: FS, path: String) {
-    if (fs.exists(path)) {
-      val refs = fs.listStatus(path)
-      refs.foreach { fileSystem =>
-        val rgPath = fileSystem.getPath.toString
-        val rg = fs.readFile(rgPath)(read)
-        val name = rg.name
-        if (!ReferenceGenome.hasReference(name))
-          addReference(rg)
-        else {
-          if (ReferenceGenome.getReference(name) != rg)
-            fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
-        }
-      }
+    readReferences(fs, path).foreach { rg =>
+      if (!ReferenceGenome.hasReference(rg.name))
+        addReference(rg)
     }
   }
 

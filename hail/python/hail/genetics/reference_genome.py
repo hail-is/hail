@@ -80,6 +80,21 @@ class ReferenceGenome(object):
                                [par_tuple(p) for p in config['par']],
                                _builtin)
 
+
+    @classmethod
+    def _from_backend_config(cls, config, _builtin=False):
+        def par_tuple(p):
+            assert p['start']['contig'] == p['end']['contig']
+            return (p['start']['contig'], p['start']['position'], p['end']['position'])
+        return ReferenceGenome(config['name'],
+                               config['contigs'],
+                               config['lengths'],
+                               config['xContigs'],
+                               config['yContigs'],
+                               config['mtContigs'],
+                               [par_tuple(p) for p in config['parInput']],
+                               _builtin)
+
     @typecheck_method(name=str,
                       contigs=sequenceof(str),
                       lengths=dictof(str, int),
