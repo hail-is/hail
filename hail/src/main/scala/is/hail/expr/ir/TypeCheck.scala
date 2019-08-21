@@ -161,7 +161,7 @@ object TypeCheck {
           t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
         })
       case x@NDArrayMap(_, _, body) =>
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
