@@ -263,9 +263,9 @@ async def batch_callback_handler(request):
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     await wb.notify_batch_changed()
 
-@routes.post('/api/v1alpha/dev_test_branch/')
+@routes.post('/api/v1alpha/dev_deploy_branch/')
 @rest_authenticated_developers_only
-async def dev_test_branch(request, userdata):
+async def dev_deploy_branch(request, userdata):
     params = await request.json()
     fq_branch = FQBranch.from_short_str(params['branch'])
     steps = params['steps']
