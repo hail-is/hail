@@ -394,7 +394,7 @@ object PruneDeadFields {
         val childReqKey = if (isSorted)
           child.typ.key
         else if (isPrefix)
-          reqKey
+          if  (reqKey.length <= child.typ.key.length) reqKey else child.typ.key
         else FastIndexedSeq()
 
         memoizeTableIR(child, TableType(
