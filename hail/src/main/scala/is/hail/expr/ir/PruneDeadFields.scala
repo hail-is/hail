@@ -388,9 +388,15 @@ object PruneDeadFields {
       case TableFilter(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, requestedType, irDep), memo)
-      case TableKeyBy(child, _, isSorted) =>
+      case TableKeyBy(child, key, isSorted) =>
         val reqKey = requestedType.key
-        val childReqKey = if (isSorted) child.typ.key.take(reqKey.length) else FastIndexedSeq()
+        val childReqKey = if (isSorted)
+          child.typ.key.take(reqKey.length)
+        else {
+          val nSame = key.zip(child.typ.key).takeWhile { case (l, r) => l == r }.length
+          key.take(nSame)
+        }
+
         memoizeTableIR(child, TableType(
           key = childReqKey,
           rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, childReqKey), requestedType.rowType),
