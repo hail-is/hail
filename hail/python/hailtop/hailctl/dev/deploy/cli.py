@@ -15,6 +15,8 @@ class CIClient:
     async def __init__(self):
         token = find_token()
         self._session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60),
             headers={"Authorization": f"Bearer {token}"})
 
     async def __aenter__(self):

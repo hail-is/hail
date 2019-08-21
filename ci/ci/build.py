@@ -91,7 +91,6 @@ class BuildConfiguration:
             for s in requested_steps:
                 request(s)
             self.steps = [s for s in self.steps if s in visited]
-            self.name_step = {s.name: s for s in self.steps}
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
