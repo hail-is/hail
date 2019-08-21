@@ -643,6 +643,15 @@ object ReferenceGenome {
     rg
   }
 
+  def fromTable(path: String): String = {
+
+  }
+
+  def fromMatrixTable(path: String): String = {
+    val path = RelationalSpec.referencePath(HailContext.get, path)
+
+  }
+
   def fromJSON(config: String): ReferenceGenome = {
     val rg = parse(config)
     addReference(rg)
@@ -696,6 +705,23 @@ object ReferenceGenome {
 
   def referenceRemoveLiftover(name: String, destRGName: String): Unit = {
     references(name).removeLiftover(destRGName)
+  }
+
+  def readReferences(fs: FS, path: String) {
+    if (fs.exists(path)) {
+      val refs = fs.listStatus(path)
+      refs.foreach { fileSystem =>
+        val rgPath = fileSystem.getPath.toString
+        val rg = fs.readFile(rgPath)(read)
+        val name = rg.name
+        if (!ReferenceGenome.hasReference(name))
+          addReference(rg)
+        else {
+          if (ReferenceGenome.getReference(name) != rg)
+            fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
+        }
+      }
+    }
   }
 
   def importReferences(fs: FS, path: String) {
