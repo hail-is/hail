@@ -1,5 +1,6 @@
 .PHONY: shadowJar jars clean
 
+include parallelism.mk
 include env_var.mk
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
@@ -12,7 +13,6 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_PIP_VERSION := 0.2.20
-PARALLELISM := 2
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -39,14 +39,10 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
 shadowJar: $(SHADOW_JAR)
 
-$(SHADOW_JAR): $(JAR_SOURCES) env/SHORT_REVISION $(SCALA_BUILD_INFO)
-ifdef HAIL_COMPILE_NATIVES
-	./gradlew releaseJar
-else
+$(SHADOW_JAR): compile-jvm $(SCALA_BUILD_INFO)
 	./gradlew shadowJar
-endif
 
-$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES) env/SHORT_REVISION  $(SCALA_BUILD_INFO)
+$(SHADOW_TEST_JAR): compile-jvm-test $(SCALA_BUILD_INFO)
 	./gradlew shadowTestJar
 
 define properties
@@ -72,8 +68,7 @@ python/hail/hail_pip_version: Makefile
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars:
-	./gradlew shadowJar shadowTestJar
+jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
 
 python/README.md: ../README.md
 	cp ../README.md python/
@@ -90,7 +85,54 @@ install-editable: python/README.md python/hail/hail-all-spark.jar
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-    --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
+     --addopts '-v -n $(PARALLELISM) \
+     --dist=loadscope \
+     --color=no \
+     --instafail \
+     -r A \
+     --self-contained-html \
+     --html=build/reports/pytest.html \
+     --noconftest \
+     $(PYTEST_ARGS)'
+
+.PHONY: doctest
+doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+doctest: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(HAIL_PYTHON3) setup.py pytest \
+	  --addopts "-v -n $(PARALLELISM) \
+     --dist=loadscope \
+     --color=no \
+     --instafail \
+     -r A \
+     --self-contained-html \
+     --html=build/reports/pytest-doctest.html \
+     --dist=loadscope \
+     --doctest-modules \
+     --doctest-glob='*.rst' \
+     --ignore=setup.py \
+     --ignore=setup-hailtop.py \
+     --ignore=hail/docs/conf.py \
+     --ignore=cluster-tests \
+     --ignore=hailtop \
+     --ignore=test \
+     --ignore=hail/docs/doctest_write_data.py \
+     --ignore=hail/docs/getting_started_developing.rst \
+     --ignore=hail/docs/getting_started.rst \
+     $(PYTEST_ARGS)"
+
+.PHONY: compile-jvm
+compile-jvm: $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
+	./gradlew compileJava compileScala
+
+.PHONY: compile-jvm-test
+compile-jvm-test: compile-jvm $(JAR_TEST_SOURCES)
+	./gradlew compileTestJava compileTestScala
+
+.PHONY: jvm-test
+jvm-test: compile-jvm compile-jvm-test
+# Hail compiles user-code using make. The build sytem's jobserver
+# should not be used by this child make, so we clear the makeflags
+	+./pgradle test
 
 .PHONY: wheel
 wheel: $(WHEEL)
@@ -230,9 +272,8 @@ benchmark:
 	python -m benchmark
 	??? spark shit?
 
-.PHONY: doctest
-doctest:
-	???
+.PHONY: test
+test: pytest jvm-test doctest
 
 .PHONY: release-jar
 release-jar:
@@ -240,12 +281,16 @@ release-jar:
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
-	make -C src/main/c
+ifdef HAIL_COMPILE_NATIVES
+	$(MAKE) -C src/main/c prebuilt
+else
+	$(MAKE) -C src/main/c
+endif
 native-lib-test:
-	make -C src/main/c test
+	$(MAKE) -C src/main/c test
 native-lib-clean:
-	make -C src/main/c clean
+	$(MAKE) -C src/main/c clean
 native-lib-prebuilt:
-	make -C src/main/c prebuilt
+	$(MAKE) -C src/main/c prebuilt
 native-lib-reset-prebuilt:
-	make -C src/main/c reset-prebuilt
+	$(MAKE) -C src/main/c reset-prebuilt
