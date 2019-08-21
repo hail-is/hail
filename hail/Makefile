@@ -212,3 +212,40 @@ clean: clean-env
 	rm -rf build/deploy
 	rm -rf python/hail/hail-all-spark.jar
 	rm -rf python/README.md
+
+.PHONY: clean-docs
+clean-docs:
+	???
+
+.PHONY: docs
+docs:
+	???
+
+.PHONY: docs-no-test
+docs-no-test:
+	???
+
+.PHONY: benchmark
+benchmark:
+	python -m benchmark
+	??? spark shit?
+
+.PHONY: doctest
+doctest:
+	???
+
+.PHONY: release-jar
+release-jar:
+	???
+
+.PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
+native-lib:
+	make -C src/main/c
+native-lib-test:
+	make -C src/main/c test
+native-lib-clean:
+	make -C src/main/c clean
+native-lib-prebuilt:
+	make -C src/main/c prebuilt
+native-lib-reset-prebuilt:
+	make -C src/main/c reset-prebuilt
