@@ -99,8 +99,7 @@ final case class Void() extends IR
 final case class Cast(v: IR, _typ: Type) extends IR
 final case class CastRename(v: IR, _typ: Type) extends IR
 
-// Do we need this?
-final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
+final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
 object Coalesce {
