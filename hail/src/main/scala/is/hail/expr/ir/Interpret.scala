@@ -714,7 +714,6 @@ object Interpret {
           null
         else
           stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
-
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)

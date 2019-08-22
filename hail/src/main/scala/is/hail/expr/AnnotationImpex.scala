@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
@@ -125,6 +125,10 @@ object JSONAnnotationImpex {
         case TTuple(types, _) =>
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
+        case t@TNDArray(elementType, nDims, required)  =>
+          val row = a.asInstanceOf[UnsafeRow]
+          log.info(s"UNSAFE ROW NDARRAY: ${row.toString()}")
+          exportAnnotation(a, t.representation)
       }
     }
 
