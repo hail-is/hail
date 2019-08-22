@@ -81,9 +81,8 @@ class BuildConfiguration:
             self.steps.append(step)
             name_step[step.name] = step
 
-        requested_steps = [name_step[s] for s in requested_step_names]
-        # transitively close requested_steps over dependenies
-        if requested_steps:
+        # transitively close requested_step_names over dependenies
+        if requested_step_names:
             visited = set()
 
             def request(step):
@@ -92,9 +91,9 @@ class BuildConfiguration:
                     for s2 in step.deps:
                         request(s2)
 
-            for s in requested_steps:
-                request(s)
-            self.steps = [s for s in self.steps if s.name in visited]
+            for step_name in requested_step_names:
+                request(name_step[step_name])
+            self.steps = [s for s in self.steps if s in visited]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
