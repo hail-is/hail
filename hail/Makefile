@@ -234,7 +234,7 @@ install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
 clean: clean-env clean-docs
-	+./pgradle clean
+	./gradlew clean
 	rm -rf build/
 	rm -rf python/hail/hail-all-spark.jar
 	rm -rf python/README.md
