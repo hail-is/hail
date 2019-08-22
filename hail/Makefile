@@ -1,4 +1,4 @@
-.PHONY: shadowJar jars clean
+.PHONY: jars clean
 
 include parallelism.mk
 include env_var.mk
@@ -37,6 +37,7 @@ SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
+.PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
 $(SHADOW_JAR): compile-jvm $(SCALA_BUILD_INFO)
@@ -244,48 +245,59 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-clean: clean-env
+clean: clean-env clean-docs
 	./gradlew clean
-	rm -rf build/deploy
+	rm -rf build/
 	rm -rf python/hail/hail-all-spark.jar
 	rm -rf python/README.md
 
 .PHONY: clean-docs
 clean-docs:
-	???
+	+$(MAKE) -C www clean
 
 .PHONY: docs
-docs:
-	???
-
-.PHONY: docs-no-test
-docs-no-test:
-	???
-
-.PHONY: benchmark
-benchmark:
-	python -m benchmark
-	??? spark shit?
+docs: www install $(PYTHON_VERSION_INFO)
+	mkdir -p build
+	cp www build/www
+	mkdir -p build/docs
+	cp -R python/hail/docs build/docs
+	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+    < build/docs/change_log.md \
+    | pandoc -o build/docs/change_log.rst
+	+$(MAKE) -C www
+	+$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
+	mkdir -p build/www/docs
+	mv build/docs/_build/html build/www/docs/0.2
 
 .PHONY: test
-test: pytest jvm-test doctest
+test: pytest jvm-test doctest tutorial-test
 
-.PHONY: release-jar
-release-jar:
-	???
+.PHONY: tutorial-test
+docs-no-test: install $(PYTHON_VERSION_INFO)
+	mkdir -p build
+	cp www build/www
+	mkdir -p build/docs
+	cp -R python/hail/docs build/docs
+	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+    < build/docs/change_log.md \
+    | pandoc -o build/docs/change_log.rst
+	+$(MAKE) -C www
+	+$(MAKE) -C build/docs BUILDDIR=_build clean html
+	mkdir -p build/www/docs
+	mv build/docs/_build/html build/www/docs/0.2
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
 ifdef HAIL_COMPILE_NATIVES
-	$(MAKE) -C src/main/c prebuilt
+	+$(MAKE) -C src/main/c prebuilt
 else
-	$(MAKE) -C src/main/c
+	+$(MAKE) -C src/main/c
 endif
 native-lib-test:
-	$(MAKE) -C src/main/c test
+	+$(MAKE) -C src/main/c test
 native-lib-clean:
-	$(MAKE) -C src/main/c clean
+	+$(MAKE) -C src/main/c clean
 native-lib-prebuilt:
-	$(MAKE) -C src/main/c prebuilt
+	+$(MAKE) -C src/main/c prebuilt
 native-lib-reset-prebuilt:
-	$(MAKE) -C src/main/c reset-prebuilt
+	+$(MAKE) -C src/main/c reset-prebuilt

@@ -94,6 +94,10 @@ tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work
 }
 
+task releaseJar(type: Exec) {
+    commandLine 'sh', '-c', 'echo "use HAIL_COMPILE_NATIVES=1 make shadowJar; gradle is being phased out"; exit 1'
+}
+
 compileScala {
     scalaCompileOptions.additionalParameters = [
         "-feature",
