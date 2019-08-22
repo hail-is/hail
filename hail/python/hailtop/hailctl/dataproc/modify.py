@@ -63,8 +63,7 @@ def main(args, pass_through_args):
 
     wheel = None
     if args.update_hail_version:
-        if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
-            raise RuntimeError(f"package has no 'deploy.yaml' file")
+        assert(pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"))
         updated_wheel = yaml.safe_load(
             pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']['wheel']
         wheel = updated_wheel
