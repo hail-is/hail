@@ -1158,9 +1158,53 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(Let("a", I32(5), ArrayFlatMap(a, "a", Ref("a", ta))), FastIndexedSeq(7, null, 2))
 
+    val b = MakeArray(FastIndexedSeq(
+      MakeArray(FastIndexedSeq(I32(7), I32(0)), ta),
+      NA(ta),
+      MakeArray(FastIndexedSeq(I32(2)), ta)),
+      taa)
+    assertEvalsTo(Let("a", I32(5), ArrayFlatMap(b, "b", Ref("b", ta))), FastIndexedSeq(7, 0, 2))
+
     val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
     val expected = FastIndexedSeq(-1, 0, -1, 0, 1, 2, 3, 4, -1, 0, 1)
     assertEvalsTo(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))), expected)
+  }
+
+  @Test def testArrayFlatMapInferPType() {
+    val ta = TArray(TInt32())
+    val taa = TArray(ta)
+    val naa = NA(taa)
+    val naaa = MakeArray(FastIndexedSeq(NA(ta), NA(ta)), taa)
+
+    assertPType(ArrayFlatMap(naa, "a", MakeArray(FastIndexedSeq(I32(5)), ta)), PArray(PInt32(true), false))
+    assertPType(ArrayFlatMap(naaa, "a", Ref("a", ta)), PArray(PInt32(false), true))
+
+    var a = MakeArray(FastIndexedSeq(
+      MakeArray(FastIndexedSeq(I32(7), NA(TInt32())), ta),
+      NA(ta),
+      MakeArray(FastIndexedSeq(I32(2)), ta)),
+      taa)
+
+    assertPType(ArrayFlatMap(a, "a", Ref("a", ta)), PArray(PInt32(false), true))
+
+    a = MakeArray(FastIndexedSeq(
+      MakeArray(FastIndexedSeq(I32(7), NA(TInt32())), ta),
+      NA(ta),
+      MakeArray(FastIndexedSeq(I32(2)), ta)),
+      taa)
+
+    assertPType(ArrayFlatMap(ArrayRange(I32(0), I32(3), I32(1)), "i", ArrayRef(a, Ref("i", TInt32()))), PArray(PInt32(false), true))
+
+    a = MakeArray(FastIndexedSeq(
+      MakeArray(FastIndexedSeq(I32(7), NA(TInt32())), ta),
+      NA(ta),
+      MakeArray(FastIndexedSeq(I32(2)), ta)),
+      taa)
+
+    assertPType(Let("a", I32(5), ArrayFlatMap(a, "a", Ref("a", ta))), PArray(PInt32(false), true))
+
+    val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
+    assertPType(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))), PArray(PInt32(true), true))
   }
 
   @Test def testArrayFold() {
@@ -1174,6 +1218,18 @@ class IRSuite extends HailSuite {
     assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), null)
   }
 
+  @Test def testArrayFoldInferPType() {
+    def fold(array: IR, zero: IR, f: (IR, IR) => IR): IR =
+      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
+
+    assertPType(fold(ArrayRange(1, 2, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), PBoolean(true))
+    assertPType(fold(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), PInt32(true))
+    assertPType(fold(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), PInt32(false))
+    assertPType(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), PInt32(false))
+    assertPType(fold(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), PInt32(false))
+    assertPType(fold(TestUtils.IRArray(1, null, 3), 0, (_, _) => I32(5) + I32(5)), PInt32(true))
+  }
+
   @Test def testArrayScan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1184,7 +1240,19 @@ class IRSuite extends HailSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, 3, 6))
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
-    assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
+    assertEvalsTo(scan(NA(TArray(TInt32())), 0, (accum, elt) => accum + elt), null)
+  }
+
+  @Test def testArrayScanInferPType() {
+    def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
+      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
+
+    assertPType(scan(ArrayRange(1, 4, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), PArray(PBoolean(false), true))
+    assertPType(scan(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt),  PArray(PInt32(true), true))
+    assertPType(scan(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), PArray(PInt32(false), true))
+    assertPType(scan(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), PArray(PInt32(false), true))
+    assertPType(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), PArray(PInt32(false), true))
+    assertPType(scan(NA(TArray(TInt32())), 0, (accum, elt) => accum + elt), PArray(PInt32(false), false))
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
