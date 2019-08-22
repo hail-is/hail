@@ -493,7 +493,7 @@ class ReferenceGenome(object):
 
         Env.backend().add_liftover(self.name, chain_file, dest_reference_genome.name)
         if dest_reference_genome.name in self._liftovers:
-            raise hl.FatalError(f"Liftover already exists from {self.name} to {dest_reference_genome.name}.")
+            raise KeyError(f"Liftover already exists from {self.name} to {dest_reference_genome.name}.")
         self._liftovers[dest_reference_genome.name] = chain_file
         hl.ir.register_liftover_functions(self.name, dest_reference_genome.name)
 
