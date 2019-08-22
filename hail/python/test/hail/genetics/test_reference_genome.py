@@ -151,7 +151,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(rg.x_contigs, ["X"])
             self.assertEqual(rg.y_contigs, ["Y"])
             self.assertEqual(rg.mt_contigs, ["MT"])
-            self.assertEqual(rg.par, [("X", 2, 4)])
+            self.assertEqual(rg.par, [hl.Interval(start=hl.Locus("X", 2, name), end=hl.Locus("X", 4, name))])
 
 
         self.assertEqual(hl.read_table(resource('custom_references.t')).count(), 14)

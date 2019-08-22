@@ -1803,7 +1803,7 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     :class:`.MatrixTable`
     """
     for rg_config in Env.backend().load_references_from_dataset(path):
-        hl.ReferenceGenome._from_backend_config(rg_config)
+        hl.ReferenceGenome._from_config(rg_config)
 
     return MatrixTable(MatrixRead(MatrixNativeReader(path, _intervals, _filter_intervals),
                        _drop_cols, _drop_rows))
@@ -2196,7 +2196,7 @@ def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
     :class:`.Table`
     """
     for rg_config in Env.backend().load_references_from_dataset(path):
-        hl.ReferenceGenome._from_backend_config(rg_config)
+        hl.ReferenceGenome._from_config(rg_config)
 
     tr = TableNativeReader(path, _intervals, _filter_intervals)
     return Table(TableRead(tr, False))

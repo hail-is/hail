@@ -647,7 +647,7 @@ object ReferenceGenome {
   def fromHailDataset(path: String): String = {
     val references = RelationalSpec.readReferences(HailContext.get, path)
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(references.toFastIndexedSeq)
+    Serialization.write(references.map(_.toJSON).toFastIndexedSeq)
   }
 
   def fromJSON(config: String): ReferenceGenome = {
