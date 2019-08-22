@@ -99,8 +99,8 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('pr.html')
+@web_authenticated_developers_only
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
@@ -144,8 +144,8 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('batches.html')
+@web_authenticated_developers_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
@@ -156,8 +156,8 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches/{batch_id}')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('batch.html')
+@web_authenticated_developers_only
 async def get_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
@@ -172,8 +172,8 @@ async def get_batch(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('job_log.html')
+@web_authenticated_developers_only
 async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
