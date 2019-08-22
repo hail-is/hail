@@ -54,7 +54,7 @@ def main(args, pass_through_args):
             print("Updating cluster '{}'...".format(args.name))
             check_call(cmd)
 
-    if (args.wheel is not None):
+    if args.wheel is not None:
         wheel = args.wheel
         wheelfile = os.path.basename(wheel)
         cmds = []

@@ -4,11 +4,13 @@ from asyncinit import asyncinit
 
 from hailtop.gear.auth.hailjwt import find_token
 
+
 def init_parser(parser):
     parser.add_argument("--branch", "-b", type=str,
                         help="Fully-qualified branch, e.g., hail-is/hail:feature.")
     parser.add_argument("--steps", "-s", type=str,
                         help="Comma-separated list of steps to run.")
+
 
 @asyncinit
 class CIClient:
@@ -22,7 +24,7 @@ class CIClient:
     async def __aenter__(self):
         pass
 
-    async def __aexit__(self):
+    async def __aexit__(self, exc_type, exc, tb):
         await self.close()
 
     async def close(self):
@@ -40,7 +42,7 @@ class CIClient:
             resp_data = resp.json()
             return resp_data['batch_id']
 
-    
+
 async def submit(args):
     steps = args.steps.split(',')
     steps = [s.strip() for s in steps]

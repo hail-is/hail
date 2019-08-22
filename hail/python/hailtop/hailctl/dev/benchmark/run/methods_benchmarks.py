@@ -1,6 +1,6 @@
-from .utils import benchmark, resource, get_mt
-
 import hail as hl
+
+from .utils import benchmark, resource, get_mt
 
 
 @benchmark
@@ -32,6 +32,7 @@ def sample_qc():
 def variant_qc():
     hl.variant_qc(get_mt()).rows()._force_count()
 
+
 @benchmark
 def variant_and_sample_qc():
     mt = get_mt()
@@ -44,15 +45,17 @@ def hwe_normalized_pca():
     mt = mt.filter_rows(mt.info.AF[0] > 0.01)
     hl.hwe_normalized_pca(mt.GT)
 
+
 @benchmark
 def split_multi_hts():
     mt = hl.read_matrix_table(resource('profile.mt'))
     hl.split_multi_hts(mt)._force_count_rows()
 
+
 @benchmark
 def concordance():
     mt = get_mt()
     mt = mt.filter_rows(mt.alleles.length() == 2)
-    g, r, c = hl.methods.qc.concordance(mt, mt, _localize_global_statistics=False)
+    _, r, c = hl.methods.qc.concordance(mt, mt, _localize_global_statistics=False)
     r._force_count()
     c._force_count()
