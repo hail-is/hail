@@ -35,27 +35,19 @@ SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
-.PHONY: compile-jvm
-compile-jvm: $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
-	./gradlew compileJava compileScala
-
-.PHONY: compile-jvm-test
-compile-jvm-test: compile-jvm $(JAR_TEST_SOURCES)
-	./gradlew compileTestJava compileTestScala
-
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-$(SHADOW_JAR): compile-jvm $(SCALA_BUILD_INFO)
-	./gradlew shadowJar
+$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
+	+./pgradle shadowJar
 
-$(SHADOW_TEST_JAR): compile-jvm-test $(SCALA_BUILD_INFO)
-	./gradlew shadowTestJar
+$(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
+	+./pgradle shadowTestJar
 
 jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
 
 .PHONY: jvm-test
-jvm-test: compile-jvm compile-jvm-test
+jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
 	+./pgradle test $(GRADLE_TEST_ARGS)
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
@@ -242,7 +234,7 @@ install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
 clean: clean-env clean-docs
-	./gradlew clean
+	+./pgradle clean
 	rm -rf build/
 	rm -rf python/hail/hail-all-spark.jar
 	rm -rf python/README.md
