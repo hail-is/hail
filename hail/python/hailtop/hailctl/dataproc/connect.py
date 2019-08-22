@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 
+
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('service', type=str,
@@ -15,7 +16,8 @@ def init_parser(parser):
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
 
-def main(args, pass_through_args):
+
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Connecting to cluster '{}'...".format(args.name))
 
     # shortcut mapping
@@ -26,8 +28,7 @@ def main(args, pass_through_args):
     }
 
     service = args.service
-    if service in shortcut:
-        service = shortcut[service]
+    service = shortcut.get(service, service)
 
     # Dataproc port mapping
     dataproc_port_and_path = {
@@ -75,6 +76,6 @@ def main(args, pass_through_args):
             'http://localhost:{}'.format(connect_port_and_path),
             '--proxy-server=socks5://localhost:{}'.format(args.port),
             '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
-            '--proxy-bypass-list=<-loopback>', # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
+            '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
             '--user-data-dir={}'.format(tempfile.gettempdir())
         ], stdout=f, stderr=f)
