@@ -1216,6 +1216,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(fold(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), null)
     assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), null)
     assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), null)
+    assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => I32(5) + I32(5)), 10)
   }
 
   @Test def testArrayFoldInferPType() {
@@ -1228,6 +1229,7 @@ class IRSuite extends HailSuite {
     assertPType(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), PInt32(false))
     assertPType(fold(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), PInt32(false))
     assertPType(fold(TestUtils.IRArray(1, null, 3), 0, (_, _) => I32(5) + I32(5)), PInt32(true))
+    assertPType(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (_, _) => I32(5) + I32(5)), PInt32(true))
   }
 
   @Test def testArrayScan() {
