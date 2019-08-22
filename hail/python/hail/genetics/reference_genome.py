@@ -121,7 +121,6 @@ class ReferenceGenome(object):
         self._sequence_files = None
         self._liftovers = dict()
 
-
     def __str__(self):
         return self._config['name']
 
