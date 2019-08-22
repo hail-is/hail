@@ -63,6 +63,9 @@ case class AggContainer(aggs: Array[AggSignature2], container: agg.StateContaine
         case AggElements() | AggElementsLengthCheck() =>
           val state = container(i).asInstanceOf[agg.ArrayElementState]
           AggContainer(n.toArray, state.container, state.off)
+        case Group() =>
+          val state = container(i).asInstanceOf[agg.DictState]
+          AggContainer(n.toArray, state.container, state.off)
       }
     }
   }
@@ -1009,8 +1012,9 @@ private class Emit(
         void(rvAgg.combOp(sc(i1), sc(i2)))
 
       case x@ResultOp2(start, aggSigs) =>
+        val newRegion = mb.newField[Region]
         val AggContainer(aggs, sc, aggOff) = container.get
-        val srvb = new StagedRegionValueBuilder(er, x.pType)
+        val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)
         val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
           val idx = start + j
           assert(aggSigs(j) == aggs(idx))
@@ -1021,6 +1025,7 @@ private class Emit(
         }: _*))
 
         present(Code(
+          newRegion := region,
           srvb.start(),
           addFields,
           sc.store(0, aggOff),

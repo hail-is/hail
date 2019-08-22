@@ -7,9 +7,6 @@ import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-object TakeRVAS {
-}
-
 class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   private val r: ClassFieldRef[Region] = fb.newField[Region]
   val region: Code[Region] = r.load()

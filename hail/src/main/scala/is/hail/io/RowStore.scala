@@ -1365,7 +1365,7 @@ object EmitPackDecoder {
 
   def decode(t: PType, rt: PType, mb: MethodBuilder): Code[_] = {
     val in = mb.getArg[InputBuffer](2)
-    t match {
+    t.fundamentalType match {
       case _: PBoolean => in.load().readBoolean()
       case _: PInt32 => in.load().readInt()
       case _: PInt64 => in.load().readLong()
@@ -1694,7 +1694,8 @@ object EmitPackEncoder { self =>
 
   def writeBinary(mb: MethodBuilder, region: Code[Region], boff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
     val length = region.loadInt(boff)
-    Code(out.writeInt(length),
+    Code(
+      out.writeInt(length),
       out.writeBytes(region, boff + const(4), length))
   }
 

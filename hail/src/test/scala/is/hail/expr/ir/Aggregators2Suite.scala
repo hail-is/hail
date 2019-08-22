@@ -40,28 +40,41 @@ class Aggregators2Suite extends HailSuite {
     assert(rt.types(0) == rt.types(1))
 
     val resultType = rt.types(0)
-    assert(resultType.virtualType.typeCheck(expected))
+    assert(resultType.virtualType.typeCheck(expected), s"expected type $resultType")
 
     Region.scoped { region =>
       val argOff = ScalaToRegionValue(region, argT, argVs)
       val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
-        val partitionOp = Begin(
-          initOp +: seqs :+ SerializeAggs(0, 0, spec, Array(aggSig)))
+        val serialize = SerializeAggs(0, 0, spec, Array(aggSig))
 
-        val (_, f) = CompileWithAggregators2[Long, Unit](
-          Array(aggSig),
-          argRef.name, argRef.pType,
-          args.map(_._1).foldLeft[IR](partitionOp) { case (op, name) =>
-            Let(name, GetField(argRef, name), op)
-          })
-
-        val initAndSeq = f(0, region)
-        Region.smallScoped { aggRegion =>
-          initAndSeq.newAggState(aggRegion)
-          initAndSeq(region, argOff, false)
-          initAndSeq.getSerializedAgg(0)
+        def withArgs(foo: IR) = {
+          CompileWithAggregators2[Long, Unit](
+            Array(aggSig),
+            argRef.name, argRef.pType,
+            args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
+              Let(name, GetField(argRef, name), op)
+            })._2(0, region)
         }
-      }
+
+        val (_, writeF) = CompileWithAggregators2[Unit](
+          Array(aggSig),
+          serialize)
+
+        val init = withArgs(initOp)
+        val seq = withArgs(Begin(seqs))
+        val write = writeF(0, region)
+        Region.smallScoped { aggRegion =>
+          init.newAggState(aggRegion)
+          init(region, argOff, false)
+          val ioff = init.getAggOffset()
+          seq.setAggState(aggRegion, ioff)
+          seq(region, argOff, false)
+          val soff = seq.getAggOffset()
+          write.setAggState(aggRegion, soff)
+          write(region)
+          write.getSerializedAgg(0)
+        }
+      }.toArray
 
       Region.smallScoped { aggRegion =>
         val combOp = combAndDuplicate(0, region)
@@ -311,8 +324,8 @@ class Aggregators2Suite extends HailSuite {
       Some(FastIndexedSeq(take)))
 
     val init = InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
-        InitOp2(0, FastIndexedSeq(I32(3)), take)
-      ))), lcAggSig)
+      InitOp2(0, FastIndexedSeq(I32(3)), take)
+    ))), lcAggSig)
 
     val stream = Ref("stream", TArray(arrayType))
     val seq = Array.tabulate(value.length) { i =>
@@ -323,5 +336,73 @@ class Aggregators2Suite extends HailSuite {
 
     val expected = Array.tabulate(value(0).length)(i => Row(Array.tabulate(3)(j => value(j)(i)).toFastIndexedSeq)).toFastIndexedSeq
     assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2)
+  }
+
+  @Test def testGroup() {
+    val pnn = AggSignature2(PrevNonnull(), FastSeq(), FastSeq(t), None)
+    val count = AggSignature2(Count(), FastSeq(), FastSeq(), None)
+    val sum = AggSignature2(Sum(), FastSeq(), FastSeq(TInt64()), None)
+
+    val kt = TString()
+    val grouped = AggSignature2(Group(), FastSeq(TVoid), FastSeq(kt, TVoid), Some(FastSeq(pnn, count, sum)))
+
+    val initOpArgs = FastIndexedSeq(Begin(FastIndexedSeq(
+      InitOp2(0, FastIndexedSeq(), pnn),
+      InitOp2(1, FastIndexedSeq(), count),
+      InitOp2(2, FastIndexedSeq(), sum))))
+
+    val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
+    val rref = Ref("rows", TArray(t))
+
+    val seqOpArgs = Array.tabulate(rows.length)(i =>
+      FastIndexedSeq[IR](GetField(ArrayRef(rref, i), "a"),
+        Begin(FastIndexedSeq(
+          SeqOp2(0, FastIndexedSeq(ArrayRef(rref, i)), pnn),
+          SeqOp2(1, FastIndexedSeq(), count),
+          SeqOp2(2, FastIndexedSeq(GetField(ArrayRef(rref, i), "b")), sum)))))
+
+    val expected = Map(
+      "abcd" -> Row(Row("abcd", 7L), 2L, 12L),
+      "foo" -> Row(Row("foo", null), 1L, 0L),
+      (null, Row(Row(null, -2L), 3L, -2L)))
+
+    assertAggEquals(grouped, initOpArgs, seqOpArgs, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
+  @Test def testNestedGroup() {
+    val pnn = AggSignature2(PrevNonnull(), FastSeq(), FastSeq(t), None)
+    val count = AggSignature2(Count(), FastSeq(), FastSeq(), None)
+    val sum = AggSignature2(Sum(), FastSeq(), FastSeq(TInt64()), None)
+
+    val kt = TString()
+    val grouped1 = AggSignature2(Group(), FastSeq(TVoid), FastSeq(kt, TVoid), Some(FastSeq(pnn, count, sum)))
+    val grouped2 = AggSignature2(Group(), FastSeq(TVoid), FastSeq(kt, TVoid), Some(FastSeq(grouped1)))
+
+    val initOpArgs = FastIndexedSeq(
+      InitOp2(0, FastIndexedSeq(
+        Begin(FastIndexedSeq(
+          InitOp2(0, FastIndexedSeq(), pnn),
+          InitOp2(1, FastIndexedSeq(), count),
+          InitOp2(2, FastIndexedSeq(), sum)))
+      ), grouped1))
+
+    val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
+    val rref = Ref("rows", TArray(t))
+
+    val seqOpArgs = Array.tabulate(rows.length)(i =>
+      FastIndexedSeq[IR](GetField(ArrayRef(rref, i), "a"),
+        SeqOp2(0, FastIndexedSeq[IR](GetField(ArrayRef(rref, i), "a"),
+          Begin(FastIndexedSeq(
+            SeqOp2(0, FastIndexedSeq(ArrayRef(rref, i)), pnn),
+            SeqOp2(1, FastIndexedSeq(), count),
+            SeqOp2(2, FastIndexedSeq(GetField(ArrayRef(rref, i), "b")), sum)))
+        ), grouped1)))
+
+    val expected = Map(
+      "abcd" -> Row(Map("abcd" -> Row(Row("abcd", 7L), 2L, 12L))),
+      "foo" -> Row(Map("foo" -> Row(Row("foo", null), 1L, 0L))),
+      (null, Row(Map((null, Row(Row(null, -2L), 3L, -2L))))))
+
+    assertAggEquals(grouped2, initOpArgs, seqOpArgs, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 }
