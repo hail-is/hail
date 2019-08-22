@@ -62,9 +62,9 @@ On Mac OS X, you might try::
     xcode-select --install
     brew install lz4
 
-To build the Hail JAR compatible with Spark 2.3.0, execute this::
+To build the Hail JAR compatible with Spark 2.4.0, execute this::
 
-    ./gradlew -Dspark.version=2.3.0 releaseJar
+    ./gradlew -Dspark.version=2.4.0 releaseJar
 
 The Spark version in this command should match whichever version of Spark you
 would like to build against.

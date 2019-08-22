@@ -2,7 +2,6 @@ import math
 import pytest
 import random
 from scipy.stats import pearsonr
-import unittest
 import numpy as np
 import tempfile
 
@@ -3032,8 +3031,19 @@ class Tests(unittest.TestCase):
             (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]))
 
     @skip_unless_spark_backend()
+    def test_ndarray_eval(self):
+        data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        nd_expr = hl._ndarray(data_list)
+        evaled = hl.eval(nd_expr)
+        np_equiv = np.array(data_list, dtype=np.int32)
+        assert(evaled.tolist() == np_equiv.tolist())
+        assert(evaled.strides == np_equiv.strides)
+
+
+
+    @skip_unless_spark_backend()
     @run_with_cxx_compile()
-    def test_ndarray_shape(self):
+    def test_ndarray_shape_cxx(self):
         np_e = np.array(3)
         np_row = np.array([1, 2, 3])
         np_col = np.array([[1], [2], [3]])
@@ -3053,6 +3063,26 @@ class Tests(unittest.TestCase):
             (nd.shape, np_nd.shape),
             ((row + nd).shape, (np_row + np_nd).shape),
             ((row + col).shape, (np_row + np_col).shape))
+
+    @skip_unless_spark_backend()
+    def test_ndarray_shape_jvm(self):
+        np_e = np.array(3)
+        np_row = np.array([1, 2, 3])
+        np_col = np.array([[1], [2], [3]])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_nd = np.arange(30).reshape((2, 5, 3))
+
+        e = hl._ndarray(np_e)
+        row = hl._ndarray(np_row)
+        col = hl._ndarray(np_col)
+        m = hl._ndarray(np_m)
+        nd = hl._ndarray(np_nd)
+
+        self.batch_assert_evals_to(
+            (e.shape, np_e.shape),
+            (row.shape, np_row.shape),
+            (m.shape, np_m.shape),
+            (nd.shape, np_nd.shape))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

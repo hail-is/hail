@@ -1,7 +1,7 @@
 import hail as hl
 
 
-def sparse_split_multi(sparse_mt):
+def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
     """Splits multiallelic variants on a sparse MatrixTable.
 
     Takes a dataset formatted like the output of :func:`.vcf_combiner`. The
@@ -78,6 +78,9 @@ def sparse_split_multi(sparse_mt):
     ----------
     sparse_mt : :class:`.MatrixTable`
         Sparse MatrixTable to split.
+    filter_changed_loci : :obj:`.bool`
+        Rather than erroring if any REF/ALT pair changes locus under :func:`.min_rep`
+        filter that variant instead.
 
     Returns
     -------
@@ -102,6 +105,9 @@ def sparse_split_multi(sparse_mt):
                                   alleles=[mr.alleles[0], mr.alleles[1]],
                                   a_index=i,
                                   was_split=True))
+                        .when(filter_changed_loci,
+                              hl.null(hl.tstruct(locus=ds.locus.dtype, alleles=hl.tarray(hl.tstr),
+                                                 a_index=hl.tint, was_split=hl.tbool)))
                         .or_error(
                             "Found non-left-aligned variant in sparse_split_multi\n"
                             + "old locus: " + hl.str(ds.locus) + "\n"
@@ -120,8 +126,9 @@ def sparse_split_multi(sparse_mt):
                                   a_index=1,
                                   was_split=False)],
                               hl._sort_by(
-                                  hl.range(1, hl.len(ds.alleles))
-                                      .map(struct_from_min_rep),
+                                  hl.cond(filter_changed_loci,
+                                          hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
+                                          hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep)),
                                   lambda l, r: hl._compare(l.alleles, r.alleles) < 0
                               ))
 

@@ -35,7 +35,7 @@ def main(args):
         elif module == 'compare':
             from .compare import cli
             cli.main(args)
-        elif module == '-h' or module == '--help' or module == 'help':
+        elif module in ('-h', '--help', 'help'):
             print_help()
         else:
             sys.stderr.write(f"ERROR: no such module: {module!r}")

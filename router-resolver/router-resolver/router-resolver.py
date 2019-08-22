@@ -21,7 +21,7 @@ routes = web.RouteTableDef()
 
 @routes.get('/auth/{namespace}')
 @web_authenticated_developers_only
-async def auth(request):
+async def auth(request, userdata):
     app = request.app
     k8s_client = app['k8s_client']
     namespace = request.match_info['namespace']

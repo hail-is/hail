@@ -35,27 +35,32 @@ def matrix_table_rows_force_count():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()
     ht._force_count()
 
+
 @benchmark
 def write_range_matrix_table_p100():
     with TemporaryDirectory() as tmpdir:
         mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-        mt = mt.annotate_entries(x = mt.col_idx + mt.row_idx)
+        mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
         mt.write(path.join(tmpdir, 'tmp.mt'))
+
 
 @benchmark
 def matrix_table_rows_is_transition():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()
     ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
 
+
 @benchmark
 def matrix_table_filter_entries():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2))._force_count_rows()
 
+
 @benchmark
 def matrix_table_filter_entries_unfilter():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2)).unfilter_entries()._force_count_rows()
+
 
 def many_aggs(mt):
     aggs = [
@@ -115,20 +120,23 @@ def matrix_table_aggregate_entries():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.aggregate_entries(hl.agg.stats(mt.GQ))
 
+
 @benchmark
 def matrix_table_call_stats_star_star():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.annotate_rows(**hl.agg.call_stats(mt.GT, mt.alleles))._force_count_rows()
 
+
 # @benchmark never finishes
 def gnomad_coverage_stats():
     mt = hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))
+
     def get_coverage_expr(mt):
         cov_arrays = hl.literal({
             x:
                 [1, 1, 1, 1, 1, 1, 1, 1, 0] if x >= 50
                 else [1, 1, 1, 1, 1, 1, 1, 0, 0] if x >= 30
-                else ([1]*(i+2)) + ([0]*(7-i))
+                else ([1] * (i + 2)) + ([0] * (7 - i))
             for i, x in enumerate(range(5, 100, 5))
         })
 
@@ -138,14 +146,11 @@ def gnomad_coverage_stats():
                     f'over_{x}': hl.int32(array_expr[i]) for i, x in enumerate([1, 5, 10, 15, 20, 25, 30, 50, 100])
                 }
             ),
-            hl.agg.array_sum(
-                hl.case()
-                    .when(mt.x >= 100, [1, 1, 1, 1, 1, 1, 1, 1, 1])
-                    .when(mt.x >= 5, cov_arrays[mt.x - (mt.x % 5)])
-                    .when(mt.x >= 1, [1, 0, 0, 0, 0, 0, 0, 0, 0])
-                    .default([0, 0, 0, 0, 0, 0, 0, 0, 0])
-            )
-        )
+            hl.agg.array_sum(hl.case()
+                             .when(mt.x >= 100, [1, 1, 1, 1, 1, 1, 1, 1, 1])
+                             .when(mt.x >= 5, cov_arrays[mt.x - (mt.x % 5)])
+                             .when(mt.x >= 1, [1, 0, 0, 0, 0, 0, 0, 0, 0])
+                             .default([0, 0, 0, 0, 0, 0, 0, 0, 0])))
 
     mt = mt.annotate_rows(mean=hl.agg.mean(mt.x),
                           median=hl.median(hl.agg.collect(mt.x)),
@@ -168,10 +173,12 @@ def gnomad_coverage_stats_optimized():
                           )
     mt.rows()._force_count()
 
+
 @benchmark
 def per_row_stats_star_star():
     mt = hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))
     mt.annotate_rows(**hl.agg.stats(mt.x))._force_count_rows()
+
 
 @benchmark
 def read_decode_gnomad_coverage():

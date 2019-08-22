@@ -1,10 +1,10 @@
 import os
 import sys
 import timeit
+import re
 from urllib.request import urlretrieve
 
 import numpy as np
-import re
 
 import hail as hl
 
@@ -23,7 +23,7 @@ def benchmark(f):
     return f
 
 
-class Benchmark(object):
+class Benchmark:
     def __init__(self, f, name):
         self.name = name
         self.f = f
@@ -32,7 +32,7 @@ class Benchmark(object):
         self.f()
 
 
-class RunConfig(object):
+class RunConfig:
     def __init__(self, n_iter, handler, verbose):
         self.n_iter = n_iter
         self.handler = handler
@@ -113,11 +113,11 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
     times = []
     for i in range(config.n_iter):
         try:
-            time = timeit.Timer(lambda: benchmark.run()).timeit(1)
+            time = timeit.Timer(lambda: benchmark.run()).timeit(1)  # pylint: disable=unnecessary-lambda
             times.append(time)
             if config.verbose:
                 print(f'    run {i + 1}: {time:.2f}', file=sys.stderr)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             if config.verbose:
                 print(f'    run ${i + 1}: Caught exception: {e}')
             config.handler({'name': benchmark.name,
@@ -155,5 +155,4 @@ def run_list(tests, config: RunConfig):
     for i, name in enumerate(tests):
         if name not in _registry:
             raise ValueError(f'test {name!r} not found')
-        else:
-            _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')
+        _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')

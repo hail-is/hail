@@ -28,7 +28,7 @@ object InferType {
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
       case MakeNDArray(data, shape, _) =>
-        TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
+        TNDArray(coerce[TArray](data.typ).elementType.setRequired(true), Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())
@@ -118,7 +118,7 @@ object InferType {
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayMap(nd, _, body) =>
-        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
+        TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>

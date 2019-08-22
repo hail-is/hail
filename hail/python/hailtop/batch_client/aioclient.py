@@ -1,7 +1,7 @@
 import math
 import random
-import aiohttp
 import asyncio
+import aiohttp
 
 import hailtop.gear.auth as hj
 
@@ -66,7 +66,6 @@ class Job:
             duration += d
             i += 1
         return duration
-
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
@@ -293,7 +292,7 @@ class BatchBuilder:
         error_msg = []
         if len(foreign_batches) != 0:
             error_msg.append('Found {} parents from another batch:\n{}'.format(str(len(foreign_batches)),
-                                                                           "\n".join([str(j) for j in foreign_batches])))
+                                                                               "\n".join([str(j) for j in foreign_batches])))
         if len(invalid_job_ids) != 0:
             error_msg.append('Found {} parents with invalid job ids:\n{}'.format(str(len(invalid_job_ids)),
                                                                                  "\n".join([str(j) for j in invalid_job_ids])))
