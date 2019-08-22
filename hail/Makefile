@@ -10,7 +10,8 @@ SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
-HAIL_PIP_VERSION := 0.2.20
+HAIL_MAJOR_MINOR_VERSION := 0.2
+HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).20
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -279,7 +280,7 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
 	+$(MAKE) -C www
 	+$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
-	mv build/docs/_build/html build/www/docs/0.2
+	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
