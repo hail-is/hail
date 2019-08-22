@@ -815,7 +815,7 @@ mkdir -p {shq(repo_dir)}
 ''')
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev', requested_steps=steps)
+                config = BuildConfiguration(self, f.read(), scope='dev', requested_step_names=steps)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
