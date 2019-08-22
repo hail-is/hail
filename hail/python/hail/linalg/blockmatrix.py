@@ -538,6 +538,14 @@ class BlockMatrix(object):
         return self.shape[1]
 
     @property
+    def _n_block_rows(self): 
+        return (self.n_rows + self.block_size - 1) // self.block_size
+
+    @property
+    def _n_block_cols(self):
+        return (self.n_cols + self.block_size - 1) // self.block_size
+
+    @property
     def shape(self):
         """Shape of matrix.
 
@@ -557,6 +565,14 @@ class BlockMatrix(object):
         :obj:`int`
         """
         return self._bmir.typ.block_size
+
+    @property
+    def _last_col_block_width(self):
+        return self.n_cols % self.block_size
+
+    @property
+    def _last_row_block_height(self):
+        return self.n_rows % self.block_size
 
     @typecheck_method(path=str,
                       overwrite=bool,
@@ -1390,7 +1406,22 @@ class BlockMatrix(object):
     def __rtruediv__(self, b):
         return self._apply_map2(BlockMatrix._binary_op('/'), b, reverse=True)
 
-    @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
+    @typecheck_method(block_row_range=sized_tupleof(int, int), block_col_range=sized_tupleof(int, int))
+    def _select_blocks(self, block_row_range, block_col_range):
+        start_brow, stop_brow = block_row_range
+        start_bcol, stop_bcol = block_col_range
+
+        start_row = start_brow * self.block_size
+        stop_row = (stop_brow - 1) * self.block_size + (self._last_row_block_height if start_brow == self._n_block_rows - 1 else self.block_size)
+
+        start_col = start_bcol * self.block_size
+        stop_col = (stop_bcol - 1) * self.block_size + (self._last_col_block_width if start_bcol == self._n_block_cols - 1 else self.block_size)
+
+        print(f"{block_row_range}, {block_col_range} -> {(start_row, stop_row)}, {(start_col, stop_col)}")
+
+        return self[start_row:stop_row, start_col:stop_col]
+
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), _split_on_inner=int)
     def __matmul__(self, b, _split_on_inner=1):
         """Matrix multiplication: a @ b.
 
@@ -1408,12 +1439,24 @@ class BlockMatrix(object):
         if self.n_cols != b.n_rows:
             raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
 
-        inner_range_size = int(math.ceil(self.n_cols / _split_on_inner))
-        split_points = range(0, self.n_cols, inner_range_size) + [self.n_cols]
-        inner_ranges = zip(split_points[:-1], split_points[1:])
-        blocks_to_multiply = [(self[:, start:stop], self[start:stop, :]) for start, stop in inner_ranges]
+        if _split_on_inner != 1:
+            inner_brange_size = int(math.ceil(self._n_block_cols / _split_on_inner))
+            split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
+            inner_ranges = list(zip(split_points[:-1], split_points[1:]))
+            print(inner_ranges)
+            blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
+                                self._select_blocks((start, stop), (0, self._n_block_cols))) for start, stop in inner_ranges]
 
 
+            intermediates = []
+            for b1, b2 in blocks_to_multiply:
+                temp_path = hl.utils.new_temp_file()
+                (b1 @ b2).write(temp_path)
+
+
+            
+            return sum(intermediates)
+        
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(x=numeric)
@@ -2061,12 +2104,12 @@ class BlockMatrix(object):
             If true, export elements as raw bytes in row major order.
         """
         def rows_in_block(block_row):
-            if block_row == n_block_rows - 1:
+            if block_row == self._n_block_rows - 1:
                 return self.n_rows - block_row * self.block_size
             return self.block_size
 
         def cols_in_block(block_col):
-            if block_col == n_block_cols - 1:
+            if block_col == self._n_block_cols - 1:
                 return self.n_cols - block_col * self.block_size
             return self.block_size
 
@@ -2078,9 +2121,9 @@ class BlockMatrix(object):
 
             return [start_row, end_row, start_col, end_col]
 
-        n_block_rows = (self.n_rows + self.block_size - 1) // self.block_size
-        n_block_cols = (self.n_cols + self.block_size - 1) // self.block_size
-        block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
+        #n_block_rows = (self.n_rows + self.block_size - 1) // self.block_size
+        #n_block_cols = (self.n_cols + self.block_size - 1) // self.block_size
+        block_indices = itertools.product(range(self._n_block_rows), range(self._n_block_cols))
         rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
 
         self.export_rectangles(path_out, rectangles, delimiter, binary)
