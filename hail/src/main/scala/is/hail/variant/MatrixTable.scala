@@ -57,17 +57,20 @@ object RelationalSpec {
 
   def read(hc: HailContext, path: String): RelationalSpec = {
     val jv = readMetadata(hc, path)
-    // FIXME this violates the abstraction of the serialization boundary
-    val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
-      case JString(p) => p
+    val references = readReferences(hc, path, jv)
+
+    references.foreach { rg =>
+      if (!ReferenceGenome.hasReference(rg.name))
+        ReferenceGenome.addReference(rg)
     }
-    ReferenceGenome.importReferences(hc.sFS, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
 
-  def readReferences(hc: HailContext, path: String): Array[ReferenceGenome] = {
-    val jv = readMetadata(hc, path)
+  def readReferences(hc: HailContext, path: String): Array[ReferenceGenome] =
+    readReferences(hc, path, readMetadata(hc, path))
+
+  def readReferences(hc: HailContext, path: String, jv: JValue): Array[ReferenceGenome] = {
     // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p

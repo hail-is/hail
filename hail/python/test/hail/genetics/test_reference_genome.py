@@ -158,6 +158,8 @@ class Tests(unittest.TestCase):
         assert_rg_loaded_correctly('test_rg_0')
         assert_rg_loaded_correctly('test_rg_1')
 
+        # loading different reference genome with same name should fail
+        # (different `test_rg_o` definition)
         with self.assertRaises(FatalError):
             hl.read_matrix_table(resource('custom_references_2.t')).count()
 
