@@ -1,6 +1,5 @@
 .PHONY: jars clean
 
-include parallelism.mk
 include env_var.mk
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
