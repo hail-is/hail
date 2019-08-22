@@ -8,9 +8,8 @@ import is.hail.io._
 import is.hail.utils._
 
 class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region], container: StateContainer) extends BTreeKey {
-  private val keyInline = kt.isPrimitive
   val storageType: PStruct = PStruct(required = true,
-    "kt" -> (if (keyInline) kt else PInt64(kt.required)),
+    "kt" -> kt,
     "regionIdx" -> PInt32(true),
     "container" -> PInt64(true))
 
@@ -19,20 +18,11 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
-  def loadKey(off: Code[Long]): Code[_] =
-    if (keyInline)
-      Region.loadIRIntermediate(kt)(storageType.fieldOffset(off, 0))
-    else
-      Region.loadAddress(storageType.fieldOffset(off, 0))
+  def loadKey(off: Code[Long]): Code[_] = Region.loadIRIntermediate(kt)(storageType.fieldOffset(off, 0))
 
   def initValue(dest: Code[Long], km: Code[Boolean], kv: Code[_], rIdx: Code[Int]): Code[Unit] = {
     val koff = storageType.fieldOffset(dest, 0)
-    var storeK = {
-      if (keyInline)
-        Region.storeIRIntermediate(kt)(koff, kv)
-      else
-        Region.storeAddress(koff, StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv)))
-    }
+    var storeK = Region.storeIRIntermediate(kt)(koff, kv)
     if (!kt.required)
       storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
 
@@ -55,23 +45,17 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     Region.loadAddress(containerOffset(off))
 
   def isEmpty(off: Code[Long]): Code[Boolean] =
-    Region.loadAddress(storageType.fieldOffset(off, 2)).ceq(0L)
+    Region.loadAddress(containerOffset(off)).ceq(0L)
   def initializeEmpty(off: Code[Long]): Code[Unit] =
-    Region.storeAddress(storageType.fieldOffset(off, 2), 0L)
+    Region.storeAddress(containerOffset(off), 0L)
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
 
-  def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] = {
-    var c = StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
-    if (!keyInline)
-      c = Code(c, Region.storeAddress(storageType.fieldOffset(dest, 0),
-        StagedRegionValueBuilder.deepCopy(er, kt,
-          Region.loadAddress(storageType.fieldOffset(src, 0)))))
-    Code(c,
+  def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
+    Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
       container.toCode((i, s) => s.copyFrom(container.getStateOffset(containerAddress(src), i))),
       container.store(regionIdx(dest), containerAddress(dest)))
-  }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     kcomp(k1, k2)
