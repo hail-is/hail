@@ -61,6 +61,8 @@ src/main/resources/build-info.properties: Makefile
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
+python-version-info: $(PYTHON_VERSION_INFO)
+
 python/hail/hail_version: Makefile env/SHORT_REVISION
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
 

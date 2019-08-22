@@ -206,7 +206,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars
+     make jars python-version-info
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
