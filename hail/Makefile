@@ -39,10 +39,10 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 shadowJar: $(SHADOW_JAR)
 
 $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
-	+./pgradle shadowJar
+	./gradlew shadowJar
 
 $(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
-	+./pgradle shadowTestJar
+	./gradlew shadowTestJar
 
 jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
 

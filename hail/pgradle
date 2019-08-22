@@ -8,6 +8,7 @@ import sys
 MAX_PARALLELISM = 16
 make_flags = os.environ.get('MAKEFLAGS')
 
+write_fd = None
 job_slots = b''
 try:
     if make_flags is not None:
@@ -16,14 +17,15 @@ try:
             read_fd = int(match[1])
             write_fd = int(match[2])
             job_slots = os.read(read_fd, MAX_PARALLELISM - 1)
-    available_cores = len(job_slots) + 1
-    if available_cores % 2 == 1:
+    additional_available_cores = len(job_slots)
+    if additional_available_cores > 0 and additional_available_cores % 2 == 0:
         os.write(write_fd, job_slots[-1:])
         job_slots = job_slots[:-1]
-    parallelism = available_cores // 2
+    parallelism = 1 + additional_available_cores // 2
     print(f'PARALLELISM={parallelism} ./gradlew {" ".join(sys.argv[1:])}')
     os.environ['PARALLELISM'] = str(parallelism)
     cp = sp.run(["./gradlew", *sys.argv[1:]])
     sys.exit(cp.returncode)
 finally:
-    os.write(write_fd, job_slots)
+    if write_fd:
+        os.write(write_fd, job_slots)
