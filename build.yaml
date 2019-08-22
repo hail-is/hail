@@ -116,23 +116,6 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
-   name: hailtop_check_image
-   dockerFile: hail/python/Dockerfile.hailtop-check
-   contextPath: .
-   publishAs: hailtop-check
-   dependsOn:
-     - hail_run_image
- - kind: runImage
-   name: check_hailtop
-   image:
-     valueFrom: hailtop_check_image.image
-   script: |
-     set -ex
-     python3 -m flake8 hailtop
-     python3 -m pylint --rcfile pylintrc hailtop
-   dependsOn:
-     - hailtop_check_image
- - kind: buildImage
    name: scorecard_image
    dockerFile: scorecard/Dockerfile
    contextPath: scorecard
@@ -350,6 +333,23 @@ steps:
       to: /hail-test.jar
     - from: /hail.zip
       to: /hail.zip
+ - kind: buildImage
+   name: hailtop_check_image
+   dockerFile: hail/python/Dockerfile.hailtop-check
+   contextPath: .
+   publishAs: hailtop-check
+   dependsOn:
+     - hail_base_image
+ - kind: runImage
+   name: check_hailtop
+   image:
+     valueFrom: hailtop_check_image.image
+   script: |
+     set -ex
+     python3 -m flake8 hailtop
+     python3 -m pylint --rcfile pylintrc hailtop
+   dependsOn:
+     - hailtop_check_image
  - kind: buildImage
    name: scheduler_image
    dockerFile: scheduler/Dockerfile

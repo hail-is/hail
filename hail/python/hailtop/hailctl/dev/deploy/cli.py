@@ -53,4 +53,6 @@ async def submit(args):
 
 
 def main(args):
-    asyncio.run(submit(args))
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(submit(args))
+    loop.shutdown_asyncgens()

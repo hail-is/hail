@@ -1,4 +1,4 @@
-FROM {{ hail_run_image.image }}
+FROM {{ hail_base_image.image }}
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
