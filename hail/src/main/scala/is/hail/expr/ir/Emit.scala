@@ -1948,7 +1948,9 @@ abstract class NDArrayEmitter(
   }
 
   private def emitLoops(): Code[_] = {
-    val idxVars
+    val idxVars = Seq.tabulate(nDims) {i => mb.newField[Int]}
+
+    ???
   }
 
 }
