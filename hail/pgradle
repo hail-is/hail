@@ -5,7 +5,7 @@ import re
 import subprocess as sp
 import sys
 
-MAX_PARALLELISM = 4
+MAX_PARALLELISM = 16
 make_flags = os.environ.get('MAKEFLAGS')
 
 job_slots = b''
@@ -16,7 +16,11 @@ try:
             read_fd = int(match[1])
             write_fd = int(match[2])
             job_slots = os.read(read_fd, MAX_PARALLELISM - 1)
-    parallelism = len(job_slots) + 1
+    available_cores = len(job_slots) + 1
+    if available_cores % 2 == 1:
+        os.write(write_fd, job_slots[-1:])
+        job_slots = job_slots[:-1]
+    parallelism = available_cores // 2
     print(f'PARALLELISM={parallelism} ./gradlew {" ".join(sys.argv[1:])}')
     os.environ['PARALLELISM'] = str(parallelism)
     cp = sp.run(["./gradlew", *sys.argv[1:]])
