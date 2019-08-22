@@ -1389,6 +1389,10 @@ private class Emit(
         val shape = t.loadField(region, ndt.value[Long], "shape")
 
         EmitTriplet(ndt.setup, false, shape)
+      case x@NDArrayMap(nd, valueName, body) =>
+        val emitter = emitDeforestedNDArray(resultRegion, x, env)
+
+        ???
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
@@ -1927,4 +1931,26 @@ private class Emit(
   private def normalArgumentPosition(idx: Int): Int = {
     1 + nSpecialArguments + idx * 2
   }
+
+  def emitDeforestedNDArray(region: EmitRegion, map: NDArrayMap, env: Emit.E): NDArrayEmitter = {
+    ???
+  }
 }
+abstract class NDArrayEmitter(
+ val mb: MethodBuilder,
+ val nDims: Int,
+ val setup: Code[_]) {
+
+
+
+  def emit(elemType: PType): Code[_] = {
+    setup
+  }
+
+  private def emitLoops(): Code[_] = {
+    val idxVars
+  }
+
+}
+
+
