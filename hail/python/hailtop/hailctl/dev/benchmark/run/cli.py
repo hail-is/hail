@@ -47,10 +47,12 @@ def main(args_):
     finalizers = []
     if args.output:
         out_file = open(args.output, 'w')
-        finalizers.append(lambda: out_file.close())
+        finalizers.append(lambda: out_file.close())  # pylint: disable=unnecessary-lambda
     else:
         out_file = None
-    writer = lambda s: print(s, end='', file=out_file)
+
+    def writer(s):
+        print(s, end='', file=out_file)
 
     run_data = {'cores': args.cores,
                 'version': hl.__version__,

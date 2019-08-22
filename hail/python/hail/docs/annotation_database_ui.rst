@@ -27,31 +27,31 @@ own Hail script.
     <h2 class="text-center" style="font-size:40px; font-weight:400;"> Hail </h2>
     </div>  
       
-    <div class="container" style="height:1150px;">
-    <div class="row" >
-    <div class="panel panel-default">
+    <div class="d-flex flex-column" style="height:1150px;" id='annotation-db'>
+    <div class="flex-1" >
+    <div class="panel panel-default flex-fill">
     <div class="panel-heading" style="font-weight:bold">Search</div>
     <div class="panel-body">
-    <div class="search row">
+    <div class="search">
     <div class="col-xs-6">
     <span>Type in annotation:</span>
     <input type="text" id='searchInput' onkeyup="filterTable()" name="keyword" class="form-control input-sm" placeholder="Enter Annotation....">
     </div>
     </div>
     </div>
-    </div> 
-    <div class="panel panel-default">
+    </div>
+    <div class="panel panel-default" >
     <div class="panel-heading" style="font-weight:bold">Database Query
-    <div class="btn-group pull-right">
-    <button class="btn btn-default btn-sm" onclick="copy()" style="height: 25px; font-weight:24">Copy to Clipboard</button>
+    <div class="btn-group pull-right" id="copy-button-container">
+    <button class="btn btn-default btn-sm" onclick="copy()">Copy to Clipboard</button>
     </div>
     </div>
     <div class="panel-body">
-    <div class="search row">
+    <div class="search ">
     <div class="col-xs-6">
     <div class="form-group">
     <label for="exampleFormControlTextarea1">Hail Generated Code</label>
-    <textarea readonly class="form-control" id="result" rows="3" width="450px" style="font-family:monospace">db = hl.experimental.DB()      
+    <textarea readonly class="form-control" id="result" rows="3">db = hl.experimental.DB()
     mt = db.annotate_rows_db(mt, </textarea>
     </div>
     </div>

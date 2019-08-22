@@ -28,7 +28,7 @@ class JWTClient:
 
     @staticmethod
     def find_userdata(token_file=None):
-        return JWTClient.unsafe_decode(find_token(token_file)) 
+        return JWTClient.unsafe_decode(find_token(token_file))
 
     def __init__(self, secret_key):
         assert isinstance(secret_key, bytes)
@@ -40,14 +40,15 @@ class JWTClient:
             token, self.secret_key, algorithms=[JWTClient.__ALGORITHM])
 
     def encode(self, payload):
-        return (jwt.encode(
-            payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
+        return (jwt
+                .encode(payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
                 .decode('ascii'))
 
 
 def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
+
 
 def find_token(token_file=None):
     token_file = (token_file or
@@ -92,8 +93,8 @@ def authenticated_developers_only(token_getter):
         @authenticated_users_only(token_getter)
         @wraps(fun)
         def wrapped(request, userdata, *args, **kwargs):
-            if ('developer' in userdata) and userdata['developer'] is 1:
-                return fun(request, *args, **kwargs)
+            if ('developer' in userdata) and userdata['developer'] == 1:
+                return fun(request, userdata, *args, **kwargs)
             raise web.HTTPNotFound()
         return wrapped
     return wrap
@@ -107,20 +108,20 @@ def parse_header(request):
 
 
 def rest_authenticated_users_only(fun):
-    token_getter = lambda request: parse_header(request)
-    return authenticated_users_only(token_getter)(fun)
+    return authenticated_users_only(parse_header)(fun)
 
 
 def rest_authenticated_developers_only(fun):
-    token_getter = lambda request: parse_header(request)
-    return authenticated_developers_only(token_getter)(fun)
+    return authenticated_developers_only(parse_header)(fun)
+
+
+def _get_user_cookie(request):
+    return request.cookies.get('user')
 
 
 def web_authenticated_users_only(fun):
-    token_getter = lambda request: request.cookies.get('user')
-    return authenticated_users_only(token_getter)(fun)
+    return authenticated_users_only(_get_user_cookie)(fun)
 
 
 def web_authenticated_developers_only(fun):
-    token_getter = lambda request: request.cookies.get('user')
-    return authenticated_developers_only(token_getter)(fun)
+    return authenticated_developers_only(_get_user_cookie)(fun)

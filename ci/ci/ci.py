@@ -42,7 +42,7 @@ start_time = datetime.datetime.now()
 
 @routes.get('/')
 @web_authenticated_developers_only
-async def index(request):  # pylint: disable=unused-argument
+async def index(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
     wb_configs = []
@@ -99,9 +99,9 @@ async def index(request):  # pylint: disable=unused-argument
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('pr.html')
-async def get_pr(request):
+@web_authenticated_developers_only
+async def get_pr(request, userdata):  # pylint: disable=unused-argument
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
 
@@ -144,9 +144,9 @@ async def get_pr(request):
 
 
 @routes.get('/batches')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('batches.html')
-async def get_batches(request):
+@web_authenticated_developers_only
+async def get_batches(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
     statuses = [await b.status() for b in batches]
@@ -156,9 +156,9 @@ async def get_batches(request):
 
 
 @routes.get('/batches/{batch_id}')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('batch.html')
-async def get_batch(request):
+@web_authenticated_developers_only
+async def get_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
@@ -172,9 +172,9 @@ async def get_batch(request):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-@web_authenticated_developers_only
 @aiohttp_jinja2.template('job_log.html')
-async def get_job_log(request):
+@web_authenticated_developers_only
+async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
@@ -189,7 +189,7 @@ async def get_job_log(request):
 @routes.post('/authorize_source_sha')
 @check_csrf_token
 @web_authenticated_developers_only
-async def post_authorized_source_sha(request):
+async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
     post = await request.post()
@@ -263,31 +263,26 @@ async def batch_callback_handler(request):
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     await wb.notify_batch_changed()
 
-@routes.post('/api/v1alpha/dev_test_branch/')
+
+@routes.post('/api/v1alpha/dev_deploy_branch/')
 @rest_authenticated_developers_only
-async def dev_test_branch(request):
+async def dev_deploy_branch(request, userdata):
     params = await request.json()
-    userdata = params['userdata']
-    repo = Repo.from_short_str(params['repo'])
-    fq_branch = FQBranch(repo, params.get('branch'))
-    namespace = params['namespace']
-    profile = params['profile']
+    branch = FQBranch.from_short_str(params['branch'])
+    steps = params['steps']
 
     gh = app['github_client']
-    request_string = f'/repos/{repo.owner}/{repo.name}/git/refs/heads/{fq_branch.name}'
+    request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
     branch_gh_json = await gh.getitem(request_string)
     sha = branch_gh_json['object']['sha']
 
-    unwatched_branch = UnwatchedBranch(fq_branch, sha, userdata, namespace)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata)
 
     batch_client = app['batch_client']
 
-    batch_id = await unwatched_branch.deploy(batch_client, profile)
+    batch_id = await unwatched_branch.deploy(batch_client, steps)
+    return web.json_response({'batch_id': batch_id})
 
-    if batch_id is not None:
-        return web.Response(status=200, text=str(batch_id))
-    else:
-        return web.Response(status=503)
 
 @routes.post('/api/v1alpha/batch_callback')
 async def batch_callback(request):
@@ -332,7 +327,6 @@ async def on_startup(app):
     asyncio.ensure_future(update_loop(app))
 
 
-
 async def on_cleanup(app):
     session = app['client_session']
     await session.close()
@@ -340,7 +334,6 @@ async def on_cleanup(app):
     dbpool = app['dbpool']
     dbpool.close()
     await dbpool.wait_closed()
-
 
 
 def run():

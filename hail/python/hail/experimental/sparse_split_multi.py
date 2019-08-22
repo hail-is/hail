@@ -1,7 +1,7 @@
 import hail as hl
 
 
-def sparse_split_multi(sparse_mt):
+def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
     """Splits multiallelic variants on a sparse MatrixTable.
 
     Takes a dataset formatted like the output of :func:`.vcf_combiner`. The
@@ -11,7 +11,8 @@ def sparse_split_multi(sparse_mt):
 
     Variants are split thus:
 
-    - A row with only one (reference) or two (reference and alternate) alleles.
+    - A row with only one (reference) or two (reference and alternate) alleles
+      is unchanged, as local and global alleles are the same.
 
     - A row with multiple alternate alleles  will be split, with one row for
       each alternate allele, and each row will contain two alleles: ref and alt.
@@ -38,16 +39,15 @@ def sparse_split_multi(sparse_mt):
 
     - `LA` is used to find the corresponding local allele index for the desired
       global `a_index`, and then dropped from the resulting dataset. If `LA`
-      does not contain the global `a_index`, the index for the `<NON_REF>`
-      allele is used to process the entry fields.
+      does not contain the global `a_index`, calls will be downcoded to hom ref
+      and `PL` will be set to missing.
 
     - `LGT` and `LPGT` are downcoded using the corresponding local `a_index`.
       They are renamed to `GT` and `PGT` respectively, as the resulting call is
       no longer local.
 
     - `LAD` is used to create an `AD` field consisting of the allele depths
-      corresponding to the reference, global `a_index` allele, and `<NON_REF>`
-      allele.
+      corresponding to the reference and global `a_index` alleles.
 
     - `DP` is preserved unchanged.
 
@@ -56,11 +56,11 @@ def sparse_split_multi(sparse_mt):
 
     - `PL` array elements are calculated from the minimum `LPL` value for all
       allele pairs that downcode to the desired one. (This logic is identical to
-      the `PL` logic in :func:`.split_mult_hts`; if a row has an alternate
+      the `PL` logic in :func:`.split_mult_hts`.) If a row has an alternate
       allele but it is not present in `LA`, the `PL` field is set to missing.
       The `PL` for `ref/<NON_REF>` in that case can be drawn from `RGQ`.
 
-    - `RGQ` (the ref genotype quality) is preserved unchanged.
+    - `RGQ` (the reference genotype quality) is preserved unchanged.
 
     - `END` is untouched.
 
@@ -78,6 +78,9 @@ def sparse_split_multi(sparse_mt):
     ----------
     sparse_mt : :class:`.MatrixTable`
         Sparse MatrixTable to split.
+    filter_changed_loci : :obj:`.bool`
+        Rather than erroring if any REF/ALT pair changes locus under :func:`.min_rep`
+        filter that variant instead.
 
     Returns
     -------
@@ -102,6 +105,9 @@ def sparse_split_multi(sparse_mt):
                                   alleles=[mr.alleles[0], mr.alleles[1]],
                                   a_index=i,
                                   was_split=True))
+                        .when(filter_changed_loci,
+                              hl.null(hl.tstruct(locus=ds.locus.dtype, alleles=hl.tarray(hl.tstr),
+                                                 a_index=hl.tint, was_split=hl.tbool)))
                         .or_error(
                             "Found non-left-aligned variant in sparse_split_multi\n"
                             + "old locus: " + hl.str(ds.locus) + "\n"
@@ -120,8 +126,9 @@ def sparse_split_multi(sparse_mt):
                                   a_index=1,
                                   was_split=False)],
                               hl._sort_by(
-                                  hl.range(1, hl.len(ds.alleles))
-                                      .map(struct_from_min_rep),
+                                  hl.cond(filter_changed_loci,
+                                          hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
+                                          hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep)),
                                   lambda l, r: hl._compare(l.alleles, r.alleles) < 0
                               ))
 
@@ -156,8 +163,7 @@ def sparse_split_multi(sparse_mt):
                         .when(hl.len(ds.alleles) == 1,
                               old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields))
                         .when(hl.or_else(old_entry.LGT.is_hom_ref(), False),
-                            old_entry.annotate(**{f[1:]: old_entry[f] if f in ['LGT', 'LPGT'] else new_exprs[f[1:]]
-                                                  for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields))
+                              old_entry.annotate(**{f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs.items()}).drop(*dropped_fields))
                         .default(old_entry.annotate(**new_exprs).drop(*dropped_fields)))
 
             if 'LPL' in fields:

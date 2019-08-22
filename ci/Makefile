@@ -5,7 +5,7 @@ DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../gear python3
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hail/python python3
 
 PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
 

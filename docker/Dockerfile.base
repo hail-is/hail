@@ -29,13 +29,15 @@ RUN wget -nv -O spark-2.4.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/sp
   rm spark-2.4.0-bin-hadoop2.7.tgz
 
 RUN wget -nv -O /spark-2.4.0-bin-hadoop2.7/jars/gcs-connector-hadoop2-latest.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-latest.jar
-COPY core-site.xml /spark-2.4.0-bin-hadoop2.7/conf/core-site.xml
+COPY docker/core-site.xml /spark-2.4.0-bin-hadoop2.7/conf/core-site.xml
 
 ENV SPARK_HOME /spark-2.4.0-bin-hadoop2.7
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 
-COPY requirements.txt .
+COPY docker/requirements.txt .
 RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
 
 ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip"
 ENV PYSPARK_PYTHON python3
+
+COPY pylintrc setup.cfg /

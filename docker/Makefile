@@ -9,7 +9,7 @@ BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:lat
 build-stmp: Dockerfile.base core-site.xml requirements.txt
 	-docker pull ubuntu:18.04
 	-docker pull $(BASE_LATEST)
-	docker build -t base -f Dockerfile.base --cache-from base,$(BASE_LATEST),ubuntu:18.04 .
+	docker build -t base -f Dockerfile.base --cache-from base,$(BASE_LATEST),ubuntu:18.04 ..
 	touch build-stmp
 
 push: build

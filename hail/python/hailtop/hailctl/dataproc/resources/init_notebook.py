@@ -55,7 +55,7 @@ if role == 'Master':
     # add user-requested packages
     try:
         user_pkgs = get_metadata('PKGS')
-    except:
+    except Exception:
         pass
     else:
         pip_pkgs.extend(user_pkgs.split('|'))
