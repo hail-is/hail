@@ -22,7 +22,11 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
   def initValue(dest: Code[Long], km: Code[Boolean], kv: Code[_], rIdx: Code[Int]): Code[Unit] = {
     val koff = storageType.fieldOffset(dest, 0)
-    var storeK = Region.storeIRIntermediate(kt)(koff, kv)
+    var storeK =
+      if (kt.isPrimitive)
+        Region.storeIRIntermediate(kt)(koff, kv)
+      else
+        StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
     if (!kt.required)
       storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
 
