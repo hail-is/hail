@@ -84,11 +84,13 @@ class BuildConfiguration:
         # transitively close requested_steps over dependenies
         if requested_steps:
             visited = set()
+
             def request(step):
                 if step not in visited:
                     visited.add(step)
                     for s2 in step.deps:
                         request(s2)
+
             for s in requested_steps:
                 request(s)
             self.steps = [s for s in self.steps if s in visited]
