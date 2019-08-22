@@ -244,7 +244,7 @@ object InferPType {
       case ArrayFlatMap(a, name, body) => {
         InferPType(a, env)
         InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
-        coerce[PStreamable](a.pType2).copyStreamable(coerce[PIterable](body.pType2).elementType, body.pType2.required)
+        coerce[PStreamable](a.pType2).copyStreamable(coerce[PIterable](body.pType2).elementType, a.pType2.required)
       }
       case ArrayFold(a, zero, accumName, valueName, body) => {
         InferPType(zero, env)
@@ -262,7 +262,7 @@ object InferPType {
         InferPType(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
         assert(body.pType2 == zero.pType2)
 
-        coerce[PStreamable](a.pType2).copyStreamable(zero.pType2, zero.pType2.required)
+        coerce[PStreamable](a.pType2).copyStreamable(zero.pType2, a.pType2.required)
       }
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) => {
         InferPType(lIR, env)
