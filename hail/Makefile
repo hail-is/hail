@@ -7,7 +7,6 @@ MAKEFLAGS += --no-builtin-rules
 
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
-DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
@@ -15,7 +14,6 @@ HAIL_PIP_VERSION := 0.2.20
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
-# date is not important and changes often
 $(eval $(call ENV_VAR,BRANCH))
 $(eval $(call ENV_VAR,URL))
 
@@ -36,6 +34,14 @@ SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
+.PHONY: compile-jvm
+compile-jvm: $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
+	./gradlew compileJava compileScala
+
+.PHONY: compile-jvm-test
+compile-jvm-test: compile-jvm $(JAR_TEST_SOURCES)
+	./gradlew compileTestJava compileTestScala
+
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
@@ -45,8 +51,11 @@ $(SHADOW_JAR): compile-jvm $(SCALA_BUILD_INFO)
 $(SHADOW_TEST_JAR): compile-jvm-test $(SCALA_BUILD_INFO)
 	./gradlew shadowTestJar
 
-define properties
-endef
+jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
+
+.PHONY: jvm-test
+jvm-test: compile-jvm compile-jvm-test
+	+./pgradle test $(GRADLE_TEST_ARGS)
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
 src/main/resources/build-info.properties: Makefile
@@ -54,7 +63,7 @@ src/main/resources/build-info.properties: Makefile
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
 	echo 'branch=$(BRANCH)' >> $@
-	echo 'date=$(DATE)' >> $@
+	echo 'date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)' >> $@
 	echo 'url=$(URL)' >> $@
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
@@ -68,18 +77,11 @@ python/hail/hail_pip_version: Makefile
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
-
 python/README.md: ../README.md
 	cp ../README.md python/
 
 python/hail/hail-all-spark.jar: $(SHADOW_JAR)
 	cp -f $< $@
-
-.PHONY: install-editable
-install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-install-editable: python/README.md python/hail/hail-all-spark.jar
-	cd python && $(PIP) install -e .
 
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
@@ -116,18 +118,6 @@ doctest: python/README.md python/hail/hail-all-spark.jar
     --ignore=hail/docs/getting_started_developing.rst \
     --ignore=hail/docs/getting_started.rst \
     $(PYTEST_ARGS)'
-
-.PHONY: compile-jvm
-compile-jvm: $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
-	./gradlew compileJava compileScala
-
-.PHONY: compile-jvm-test
-compile-jvm-test: compile-jvm $(JAR_TEST_SOURCES)
-	./gradlew compileTestJava compileTestScala
-
-.PHONY: jvm-test
-jvm-test: compile-jvm compile-jvm-test
-	+./pgradle test $(GRADLE_TEST_ARGS)
 
 .PHONY: wheel
 wheel: $(WHEEL)
@@ -178,6 +168,12 @@ upload-artifacts: $(WHEEL)
 	gsutil -m cp -r $(resources) $(WHEEL) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
 	$(UPLOAD_RETENTION)
+
+.PHONY: install-editable
+install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+install-editable: python/README.md python/hail/hail-all-spark.jar
+	-$(PIP) uninstall -y hail
+	cd python && $(PIP) install -e .
 
 .PHONY: install
 install: $(WHEEL)
