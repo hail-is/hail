@@ -263,19 +263,20 @@ async def batch_callback_handler(request):
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     await wb.notify_batch_changed()
 
+
 @routes.post('/api/v1alpha/dev_deploy_branch/')
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     params = await request.json()
-    fq_branch = FQBranch.from_short_str(params['branch'])
+    branch = FQBranch.from_short_str(params['branch'])
     steps = params['steps']
 
     gh = app['github_client']
-    request_string = f'/repos/{repo.owner}/{repo.name}/git/refs/heads/{fq_branch.name}'
+    request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
     branch_gh_json = await gh.getitem(request_string)
     sha = branch_gh_json['object']['sha']
 
-    unwatched_branch = UnwatchedBranch(fq_branch, sha, userdata)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata)
 
     batch_client = app['batch_client']
 
@@ -326,7 +327,6 @@ async def on_startup(app):
     asyncio.ensure_future(update_loop(app))
 
 
-
 async def on_cleanup(app):
     session = app['client_session']
     await session.close()
@@ -334,7 +334,6 @@ async def on_cleanup(app):
     dbpool = app['dbpool']
     dbpool.close()
     await dbpool.wait_closed()
-
 
 
 def run():

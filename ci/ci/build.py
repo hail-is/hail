@@ -12,6 +12,7 @@ from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
 
 log = logging.getLogger('ci')
 
+
 def expand_value_from(value, config):
     if isinstance(value, str):
         return value
@@ -108,7 +109,7 @@ class BuildConfiguration:
                 step_to_parent_steps[dep].add(step)
 
         for step in self.steps:
-            parent_jobs = flatten([parent_step.wrapped_job() for parent_step in  step_to_parent_steps[step]])
+            parent_jobs = flatten([parent_step.wrapped_job() for parent_step in step_to_parent_steps[step]])
 
             log.info(f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}")
 
@@ -161,7 +162,6 @@ class Step(abc.ABC):
                     visited.add(d)
                     frontier.append(d)
         return visited
-
 
     @staticmethod
     def from_json(params):

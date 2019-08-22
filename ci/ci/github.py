@@ -17,6 +17,7 @@ repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
+
 def timestamp_age(t):
     if t is None:
         return None
