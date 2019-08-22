@@ -20,7 +20,7 @@ object TNDArray {
 
 final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
   lazy val nDims: Int = {
-    assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions. nDimsBase was $nDimsBase")
+    assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions.")
     nDimsBase.asInstanceOf[Nat].n
   }
   lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
