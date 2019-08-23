@@ -160,7 +160,7 @@ object LowerMatrixIR {
             .apply('rows)
             .arrayStructToDict(table.typ.key)) {
             'global.insertFields(colsField ->
-              'global (colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", colKey))))
+              'global (colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", table.typ.valueType, colKey))))
           })
 
       case MatrixMapGlobals(child, newGlobals) =>
@@ -366,8 +366,8 @@ object LowerMatrixIR {
       case MatrixRowsHead(child, n) => TableHead(lower(child, ab), n)
 
       case MatrixColsHead(child, n) => lower(child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", n)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", n)))
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", TArray(child.typ.colType), n)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", TArray(child.typ.entryType), n)))
 
       case MatrixExplodeCols(child, path) =>
         val loweredChild = lower(child, ab)

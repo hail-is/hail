@@ -230,7 +230,7 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testMatrixFiltersWorkWithRandomness() {
     val range = MatrixTable.range(hc, 20, 20, Some(4)).ast
-    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0)
+    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0, TBoolean())
 
     val cols = Interpret(MatrixFilterCols(range, rand), ctx, optimize = true).toMatrixValue(range.typ.colKey).nCols
     val rows = Interpret(MatrixFilterRows(range, rand), ctx, optimize = true).rvd.count()

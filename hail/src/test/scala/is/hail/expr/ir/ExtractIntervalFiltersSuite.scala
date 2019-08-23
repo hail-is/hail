@@ -73,7 +73,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       Literal(TSet(TInt32()), Set(1, 10)),
       Literal(TArray(TInt32()), FastIndexedSeq(1, 10)),
       Literal(TDict(TInt32(), TString()), Map(1 -> "foo", 10 -> "bar")))) {
-      val ir = invoke("contains", lit, k1)
+      val ir = invoke("contains", TBoolean(), lit, k1)
 
       val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
       assert(rw == True())
@@ -91,7 +91,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       Literal(TDict(structT1, TString()), Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar")))) {
       for (k <- fullKeyRefs) {
 
-        val ir = invoke("contains", lit, k)
+        val ir = invoke("contains", TBoolean(), lit, k)
 
         val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
         assert(rw == True())
@@ -106,7 +106,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       Literal(TDict(structT2, TString()), Map(Row(1) -> "foo", Row(3) -> "bar")))) {
       for (k <- prefixKeyRefs) {
 
-        val ir = invoke("contains", lit, k)
+        val ir = invoke("contains", TBoolean(), lit, k)
 
         val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
         assert(rw == True())
@@ -119,7 +119,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
 
   @Test def testIntervalContains() {
     val interval = Interval(IntervalEndpoint(1, 1), IntervalEndpoint(5, 1))
-    val ir = invoke("contains", Literal(TInterval(TInt32()), interval), k1)
+    val ir = invoke("contains", TBoolean(), Literal(TInterval(TInt32()), interval), k1)
     val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
     assert(i.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(1, 1), wrappedIntervalEndpoint(5, 1))))
@@ -130,14 +130,14 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     val prefixInterval = Interval(IntervalEndpoint(Row(1), 1), IntervalEndpoint(Row(2), 1))
 
     for (k <- fullKeyRefs) {
-      val ir = invoke("contains", Literal(TInterval(structT1), fullInterval), k)
+      val ir = invoke("contains", TBoolean(), Literal(TInterval(structT1), fullInterval), k)
       val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
       assert(rw == True())
       assert(i.toSeq == FastSeq(fullInterval))
     }
 
     for (k <- prefixKeyRefs) {
-      val ir = invoke("contains", Literal(TInterval(structT2), prefixInterval), k)
+      val ir = invoke("contains", TBoolean(), Literal(TInterval(structT2), prefixInterval), k)
       val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
       assert(rw == True())
       assert(i.toSeq == FastSeq(prefixInterval))
@@ -149,8 +149,8 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
-    val ir1 = ApplyComparisonOp(EQ(TString()), Str("chr2"), invoke("contig", k))
-    val ir2 = ApplyComparisonOp(EQ(TString()), invoke("contig", k), Str("chr2"))
+    val ir1 = ApplyComparisonOp(EQ(TString()), Str("chr2"), invoke("contig", TString(), k))
+    val ir2 = ApplyComparisonOp(EQ(TString()), invoke("contig", TString(), k), Str("chr2"))
 
     val (rw1, i1) = ExtractIntervalFilters.extractPartitionFilters(ir1, ref, ref1Key).get
     assert(rw1 == True())
@@ -167,7 +167,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     hc // force initialization
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
-    val pos = invoke("position", k)
+    val pos = invoke("position", TInt32(), k)
 
     def check(node: ApplyComparisonOp, expectedInterval: (String, Int) => Interval) {
       val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(node, ref, ref1Key).get
@@ -241,14 +241,14 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     hc // force initialization
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
-    val contig = invoke("contig", k)
+    val contig = invoke("contig", TString(), k)
 
     for (lit <- Array(
       Literal(TSet(TString()), Set("chr1", "chr10")),
       Literal(TArray(TString()), FastIndexedSeq("chr1", "chr10")),
       Literal(TDict(TString(), TString()), Map("chr1" -> "foo", "chr10" -> "bar")))) {
 
-      val ir = invoke("contains", lit, contig)
+      val ir = invoke("contains", TBoolean(), lit, contig)
 
       val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ir, ref, ref1Key).get
       assert(rw == True())
@@ -275,7 +275,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       False(),
       "acc",
       "elt",
-      invoke("||", Ref("acc", TBoolean()), invoke("contains", Ref("elt", TInterval(TInt32())), k1))
+      invoke("||", TBoolean(), Ref("acc", TBoolean()), invoke("contains", TBoolean(), Ref("elt", TInterval(TInt32())), k1))
     )
     val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
@@ -288,13 +288,13 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     val ir1 = ApplyComparisonOp(GT(TInt32()), k1, I32(0))
     val ir2 = ApplyComparisonOp(GT(TInt32()), k1, I32(10))
 
-    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(invoke("||", ir1, ir2), ref1, ref1Key).get
+    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(invoke("||", TBoolean(), ir1, ir2), ref1, ref1Key).get
     assert(rw == True())
     assert(intervals.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(0, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
-    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("||", ir1, Ref("foo", TBoolean())), ref1, ref1Key).isEmpty)
+    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("||", TBoolean(), ir1, Ref("foo", TBoolean())), ref1, ref1Key).isEmpty)
 
-    val ir3 = invoke("||", ir1, invoke("&&", ir2, Ref("foo", TBoolean())))
+    val ir3 = invoke("||", TBoolean(), ir1, invoke("&&", TBoolean(), ir2, Ref("foo", TBoolean())))
     assert(ExtractIntervalFilters.extractPartitionFilters(ir3, ref1, ref1Key).isEmpty)
   }
 
@@ -303,15 +303,15 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     val ir2 = ApplyComparisonOp(GT(TInt32()), k1, I32(10))
     val ir3 = In(0, TBoolean())
 
-    val (rw1, intervals1) = ExtractIntervalFilters.extractPartitionFilters(invoke("&&", ir1, ir2), ref1, ref1Key).get
-    assert(rw1 == invoke("&&", True(), True()))
+    val (rw1, intervals1) = ExtractIntervalFilters.extractPartitionFilters(invoke("&&", TBoolean(), ir1, ir2), ref1, ref1Key).get
+    assert(rw1 == invoke("&&", TBoolean(), True(), True()))
     assert(intervals1.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(10, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
-    val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(invoke("&&", ir3, ir2), ref1, ref1Key).get
-    assert(rw2 == invoke("&&", ir3, True()))
+    val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(invoke("&&", TBoolean(), ir3, ir2), ref1, ref1Key).get
+    assert(rw2 == invoke("&&", TBoolean(), ir3, True()))
     assert(intervals2.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(10, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
-    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("&&", ir3, ir3), ref1, ref1Key).isEmpty)
+    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("&&", TBoolean(), ir3, ir3), ref1, ref1Key).isEmpty)
   }
 
   @Test def testIntegration() {
@@ -321,7 +321,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     def k = GetField(Ref("row", tab1.typ.rowType), "idx")
 
     val tf = TableFilter(tab1,
-      Coalesce(FastSeq(invoke("&&",
+      Coalesce(FastSeq(invoke("&&", TBoolean(),
         ApplyComparisonOp(GT(TInt32()), k, I32(3)),
         ApplyComparisonOp(LTEQ(TInt32()), k, I32(9))
       ), False())))

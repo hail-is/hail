@@ -265,10 +265,10 @@ object Pretty {
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
             case NDArrayAgg(_, axes) => prettyInts(axes)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
-            case ApplyIR(function, _) => prettyIdentifier(function)
-            case Apply(function, _) => prettyIdentifier(function)
-            case ApplySeeded(function, _, seed) => prettyIdentifier(function) + " " + seed.toString
-            case ApplySpecial(function, _) => prettyIdentifier(function)
+            case ApplyIR(function, _) => prettyIdentifier(function) + " " + ir.typ.parsableString()
+            case Apply(function, _, t) => prettyIdentifier(function) + " " + t.parsableString()
+            case ApplySeeded(function, _, seed, t) => prettyIdentifier(function) + " " + seed.toString + " " + t.parsableString()
+            case ApplySpecial(function, _, t) => prettyIdentifier(function) + " " + t.parsableString()
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
             case In(i, typ) => s"${ typ.parsableString() } $i"

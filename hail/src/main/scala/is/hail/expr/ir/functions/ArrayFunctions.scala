@@ -18,8 +18,8 @@ object ArrayFunctions extends RegistryFunctions {
       ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
       ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
       ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2))),
-      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2))))
+      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2), TFloat64())),
+      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2), ir2.typ)))
 
   def mean(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
@@ -68,7 +68,7 @@ object ArrayFunctions extends RegistryFunctions {
       False(),
       "acc",
       "elt",
-      invoke("||",
+      invoke("||",TBoolean(),
         Ref("acc", TBoolean()),
         ApplyComparisonOp(
           EQWithNA(t, value.typ),
@@ -146,7 +146,7 @@ object ArrayFunctions extends RegistryFunctions {
         val aRef = Ref(aUID, a.typ)
         val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
 
-        val body = invoke(op, Ref(value, t), Ref(accum, t))
+        val body = invoke(op, t, Ref(value, t), Ref(accum, t))
         Let(aUID, a, ArrayFold(aRef, zVal, accum, value, body))
       }
     }
@@ -175,7 +175,7 @@ object ArrayFunctions extends RegistryFunctions {
             ArrayLen(a),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", size, 2).cne(0),
+              If(invoke("%", TInt32(), size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }

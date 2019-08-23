@@ -374,17 +374,18 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
 sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
+  def returnType: Type
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes)
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, argTypes)
     .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
       .asInstanceOf[F]
 }
 
-final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
+final case class Apply(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode[SeededIRFunction]
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction]
 
-final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithMissingness]
+final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR
 
@@ -427,8 +428,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)
   def floorDiv(other: IR): IR = ApplyBinaryPrimOp(RoundToNegInfDivide(), self, other)
 
-  def &&(other: IR): IR = invoke("&&", self, other)
-  def ||(other: IR): IR = invoke("||", self, other)
+  def &&(other: IR): IR = invoke("&&", TBoolean(), self, other)
+  def ||(other: IR): IR = invoke("||", TBoolean(), self, other)
 
   def toI: IR = Cast(self, TInt32())
   def toL: IR = Cast(self, TInt64())
