@@ -1,4 +1,4 @@
-.PHONY: shadowJar jars clean
+.PHONY: jars clean
 
 include env_var.mk
 .DEFAULT_GOAL := shadowJar
@@ -7,16 +7,14 @@ MAKEFLAGS += --no-builtin-rules
 
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
-DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
-HAIL_PIP_VERSION := 0.2.20
-PARALLELISM := 2
+HAIL_MAJOR_MINOR_VERSION := 0.2
+HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).20
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
-# date is not important and changes often
 $(eval $(call ENV_VAR,BRANCH))
 $(eval $(call ENV_VAR,URL))
 
@@ -37,20 +35,20 @@ SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
+.PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-$(SHADOW_JAR): $(JAR_SOURCES) env/SHORT_REVISION $(SCALA_BUILD_INFO)
-ifdef HAIL_COMPILE_NATIVES
-	./gradlew releaseJar
-else
+$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) native-lib
 	./gradlew shadowJar
-endif
 
-$(SHADOW_TEST_JAR): $(JAR_SOURCES) $(JAR_TEST_SOURCES) env/SHORT_REVISION  $(SCALA_BUILD_INFO)
+$(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
 	./gradlew shadowTestJar
 
-define properties
-endef
+jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
+
+.PHONY: jvm-test
+jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
+	+./pgradle test $(GRADLE_TEST_ARGS)
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
 src/main/resources/build-info.properties: Makefile
@@ -58,10 +56,13 @@ src/main/resources/build-info.properties: Makefile
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
 	echo 'branch=$(BRANCH)' >> $@
-	echo 'date=$(DATE)' >> $@
+	echo 'date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)' >> $@
 	echo 'url=$(URL)' >> $@
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
+
+.PHONY: python-version-info
+python-version-info: $(PYTHON_VERSION_INFO)
 
 python/hail/hail_version: Makefile env/SHORT_REVISION
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
@@ -72,25 +73,47 @@ python/hail/hail_pip_version: Makefile
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
 
-jars:
-	./gradlew shadowJar shadowTestJar
-
 python/README.md: ../README.md
 	cp ../README.md python/
 
 python/hail/hail-all-spark.jar: $(SHADOW_JAR)
 	cp -f $< $@
 
-.PHONY: install-editable
-install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-install-editable: python/README.md python/hail/hail-all-spark.jar
-	cd python && $(PIP) install -e .
-
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-    --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
+     --addopts '-v \
+     --color=no \
+     --instafail \
+     -r A \
+     --self-contained-html \
+     --html=build/reports/pytest.html \
+     --noconftest \
+     $(PYTEST_ARGS)'
+
+.PHONY: doctest
+doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
+doctest: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(HAIL_PYTHON3) setup.py pytest \
+	  --addopts '-v \
+    --color=no \
+    --instafail \
+    -r A \
+    --self-contained-html \
+    --html=build/reports/pytest-doctest.html \
+    --doctest-modules \
+    --doctest-glob='*.rst' \
+    --ignore=setup.py \
+    --ignore=setup-hailtop.py \
+    --ignore=hail/docs/conf.py \
+    --ignore=cluster-tests \
+    --ignore=hailtop \
+    --ignore=test \
+    --ignore=hail/docs/doctest_write_data.py \
+    --ignore=hail/docs/getting_started_developing.rst \
+    --ignore=hail/docs/getting_started.rst \
+    $(PYTEST_ARGS)'
 
 .PHONY: wheel
 wheel: $(WHEEL)
@@ -141,6 +164,12 @@ upload-artifacts: $(WHEEL)
 	gsutil -m cp -r $(resources) $(WHEEL) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
 	$(UPLOAD_RETENTION)
+
+.PHONY: install-editable
+install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+install-editable: python/README.md python/hail/hail-all-spark.jar
+	-$(PIP) uninstall -y hail
+	cd python && $(PIP) install -e .
 
 .PHONY: install
 install: $(WHEEL)
@@ -207,8 +236,59 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-clean: clean-env
+clean: clean-env clean-docs
 	./gradlew clean
-	rm -rf build/deploy
+	rm -rf build/
 	rm -rf python/hail/hail-all-spark.jar
 	rm -rf python/README.md
+
+.PHONY: clean-docs
+clean-docs:
+	$(MAKE) -C www clean
+
+.PHONY: docs
+docs: www install $(PYTHON_VERSION_INFO)
+	mkdir -p build
+	cp www build/www
+	mkdir -p build/docs
+	cp -R python/hail/docs build/docs
+	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+    < build/docs/change_log.md \
+    | pandoc -o build/docs/change_log.rst
+	$(MAKE) -C www
+	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
+	mkdir -p build/www/docs
+	mv build/docs/_build/html build/www/docs/0.2
+
+.PHONY: test
+test: pytest jvm-test doctest tutorial-test
+
+.PHONY: tutorial-test
+docs-no-test: install $(PYTHON_VERSION_INFO)
+	mkdir -p build
+	cp www build/www
+	mkdir -p build/docs
+	cp -R python/hail/docs build/docs
+	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+    < build/docs/change_log.md \
+    | pandoc -o build/docs/change_log.rst
+	$(MAKE) -C www
+	$(MAKE) -C build/docs BUILDDIR=_build clean html
+	mkdir -p build/www/docs
+	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+
+.PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
+native-lib:
+ifdef HAIL_COMPILE_NATIVES
+	$(MAKE) -C src/main/c prebuilt
+else
+	$(MAKE) -C src/main/c
+endif
+native-lib-test:
+	$(MAKE) -C src/main/c test
+native-lib-clean:
+	$(MAKE) -C src/main/c clean
+native-lib-prebuilt:
+	$(MAKE) -C src/main/c prebuilt
+native-lib-reset-prebuilt:
+	$(MAKE) -C src/main/c reset-prebuilt

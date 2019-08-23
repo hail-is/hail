@@ -30,8 +30,17 @@ def init(doctest_namespace):
     print("setting up doctest...")
 
     olddir = os.getcwd()
-    os.chdir("docs/")
+    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                          "docs"))
+    try:
+        generate_datasets(doctest_namespace)
+        print("finished setting up doctest...")
+        yield
+    finally:
+        os.chdir(olddir)
 
+
+def generate_datasets(doctest_namespace):
     doctest_namespace['hl'] = hl
 
     if not os.path.isdir("output/"):
@@ -125,5 +134,3 @@ def init(doctest_namespace):
     doctest_namespace['variants_table'] = bgen.rows()
 
     print("finished setting up doctest...")
-    yield
-    os.chdir(olddir)

@@ -1,6 +1,6 @@
 .PHONY: all
 
-GENERATED_HTML = 404.html index.html
+GENERATED_HTML = $(patsubst %.md,%.html,$(wildcard *.md))
 
 all: $(GENERATED_HTML)
 
