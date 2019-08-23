@@ -30,6 +30,34 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch2
+  labels:
+    app: batch2
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch2
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: ci
   labels:
     app: ci
