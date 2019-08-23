@@ -92,10 +92,7 @@ object InferPType {
         InferPType(shape, env)
 
         val nElem = shape.pType2.asInstanceOf[PTuple].size
-        val etype = coerce[PArray](data.pType2).elementType
-
-        assert(etype.required == true)
-        PNDArray(etype, nElem, data.pType2.required)
+        PNDArray(coerce[PArray](data.pType2).elementType.setRequired(true), nElem, data.pType2.required)
       }
       case ArrayRange(start: IR, stop: IR, step: IR) => {
         InferPType(start, env)
@@ -277,7 +274,7 @@ object InferPType {
       }
       case NDArrayShape(nd) => {
         InferPType(nd, env)
-        PTuple(nd.pType2.required, IndexedSeq.tabulate(nd.pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64()):_*)
+        PTuple(nd.pType2.required, IndexedSeq.tabulate(nd.pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64(true)):_*)
       }
       case NDArrayReshape(nd, shape) => {
         InferPType(nd, env)
@@ -325,10 +322,9 @@ object InferPType {
         InferPType(nd, env)
         InferPType(slices, env)
 
-        val childTyp = coerce[PNDArray](nd.pType2)
         val remainingDims = coerce[PTuple](slices.pType2).types.filter(_.isInstanceOf[PTuple])
 
-        PNDArray(childTyp.elementType, remainingDims.length, remainingDims.forall(_.required))
+        PNDArray(coerce[PNDArray](nd.pType2).elementType, remainingDims.length, remainingDims.forall(_.required))
       }
       case NDArrayMatMul(l, r) => {
         InferPType(l, env)
