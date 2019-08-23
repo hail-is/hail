@@ -234,7 +234,7 @@ server {
 }
 
 server {
-    server_name auth.@domain@;
+    server_name auth.*;
 
     location / {
         proxy_pass http://auth/;
