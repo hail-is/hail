@@ -12,6 +12,7 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <atomic>
 #include <condition_variable>
@@ -24,6 +25,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <iterator>
 
 namespace hail {
 
@@ -85,19 +87,6 @@ bool file_exists(const std::string& name) {
   return (rc == 0);
 }
 
-std::string read_file_as_string(const std::string& name) {
-  FILE* f = fopen(name.c_str(), "r");
-  if (!f) return std::string("");
-  std::stringstream ss;
-  for (;;) {
-    int c = fgetc(f);
-    if (c == EOF) break;
-    ss << (char)c;
-  }
-  fclose(f);
-  return ss.str();
-}
-
 std::string get_module_dir() {
   // This gives us a distinct temp directory for each process, so that
   // we can manage synchronization of threads accessing files in
@@ -110,25 +99,57 @@ std::string get_module_dir() {
 
 class ModuleConfig {
  public:
-  bool is_darwin_;
-  std::string java_md_;
-  std::string ext_cpp_;
-  std::string ext_lib_;
-  std::string ext_mak_;
+  constexpr static bool is_darwin_{
+#if defined(__APPLE__) && defined(__MACH__)
+    true
+#else
+    false
+#endif
+  };
+  const char *const cxx_{"c++"};
   std::string module_dir_;
+  std::string java_home_{""};
+
+  const char* java_md_{is_darwin_ ? "darwin" : "linux"};
+  const char* ext_lib_{is_darwin_ ? ".dylib" : ".so"};
+  std::array<const char*, 8> cxx_flags_ {
+    "-x",
+    "c++",
+    "-std=c++11",
+    "-pipe",
+    "-march=native",
+    "-fPIC",
+    "-fno-strict-aliasing",
+    "-Wall",
+  };
+  std::array<const char*, 3> ld_flags_ {
+      "-fvisibility=default",
+      is_darwin_ ? "-dynamiclib" : "-rdynamic",
+      is_darwin_ ? "-Wl,-undefined,dynamic_lookup" : "-shared",
+  };
+  std::array<const char*, 1> lib_flags_{"-llz4"};
 
  public:
   ModuleConfig() :
-#if defined(__APPLE__) && defined(__MACH__)
-    is_darwin_(true),
-#else
-    is_darwin_(false),
-#endif
-    java_md_(is_darwin_ ? "darwin" : "linux"),
-    ext_cpp_(".cpp"),
-    ext_lib_(is_darwin_ ? ".dylib" : ".so"),
-    ext_mak_(".mak"),
     module_dir_(get_module_dir()) {
+    const char* tmp = getenv("JAVA_HOME");
+    if (tmp != nullptr) {
+      java_home_ = tmp;
+    } else {
+      auto cmd = "java -XshowSettings:properties -version 2>&1 "
+          "| sed -n 's:\\s\\+java.home =\\s\\+\\(/.*\\)$:\\1:gp' "
+          "| xargs dirname | tr -d '\\n'";
+      auto p = popen(cmd, "r");
+      if (!p) { perror("popen"); return; }
+      int c;
+      while ((c = fgetc(p)) != EOF) {
+        java_home_.push_back(static_cast<char>(c));
+      }
+      int e = pclose(p);
+      if (e != 0) {
+        perror("get java home");
+      }
+    }
   }
 
   std::string get_lib_name(const std::string& key) {
@@ -192,14 +213,12 @@ NativeModulePtr module_find_or_make(
 
 class ModuleBuilder {
  private:
-  std::string options_;
   std::string source_;
   std::string include_;
   std::string key_;
   std::string hm_base_;
-  std::string hm_mak_;
-  std::string hm_cpp_;
   std::string hm_lib_;
+  std::vector<std::string> options_;
 
 public:
   ModuleBuilder(
@@ -208,75 +227,128 @@ public:
     const std::string& include,
     const std::string& key
   ) :
-    options_(options),
     source_(source),
     include_(include),
     key_(key) {
     // To start with, put dynamic code in $HOME/hail_modules
+    std::istringstream iss{options};
+    options_ = std::vector<std::string>{std::istream_iterator<std::string>(iss),
+                                        std::istream_iterator<std::string>()};
     auto base = (config.module_dir_ + "/hm_") + key_;
     hm_base_ = base;
-    hm_mak_ = (base + config.ext_mak_);
-    hm_cpp_ = (base + config.ext_cpp_);
     hm_lib_ = (base + config.ext_lib_);
   }
 
   virtual ~ModuleBuilder() { }
 
-private:
-  void write_cpp() {
-    FILE* f = fopen(hm_cpp_.c_str(), "w");
-    if (!f) { perror("fopen"); return; }
-    fwrite(source_.data(), 1, source_.length(), f);
-    fclose(f);
-  }
-
-  void write_mak() {
-    FILE* f = fopen(hm_mak_.c_str(), "w");
-    if (!f) { perror("fopen"); return; }
-    fprintf(f, ".PHONY: FORCE\n");
-    fprintf(f, "\n");
-    fprintf(f, "MODULE    := hm_%s\n", key_.c_str());
-    fprintf(f, "MODULE_SO := $(MODULE)%s\n", config.ext_lib_.c_str());
-    fprintf(f, "ifndef JAVA_HOME\n");
-    fprintf(f, "  TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)\n");
-    fprintf(f, "  JAVA_HOME :=$(shell dirname $(filter-out java.home =,$(TMP)))\n");
-    fprintf(f, "endif\n");
-    fprintf(f, "JAVA_INCLUDE :=$(JAVA_HOME)/include\n");
-    fprintf(f, "CXXFLAGS  := \\\n");
-    fprintf(f, "  -std=c++11 -fPIC -march=native -fno-strict-aliasing -Wall \\\n");
-    fprintf(f, "  -I$(JAVA_INCLUDE) \\\n");
-    fprintf(f, "  -I$(JAVA_INCLUDE)/%s \\\n", config.java_md_.c_str());
-    fprintf(f, "  -I%s \\\n", include_.c_str());
-    bool have_oflag = (strstr(options_.c_str(), "-O") != nullptr);
-    fprintf(f, "  %s%s \\\n", have_oflag ? "" : "-O3", options_.c_str());
-    fprintf(f, "  -DHAIL_MODULE=$(MODULE)\n");
-    fprintf(f, "LDFLAGS := -fvisibility=default %s\n",
-      config.is_darwin_ ? "-dynamiclib -Wl,-undefined,dynamic_lookup"
-                         : "-rdynamic -shared");
-    fprintf(f, "LIBS = -llz4\n");
-    fprintf(f, "\n");
-    // build .so from .cpp
-    fprintf(f, "$(MODULE_SO): FORCE\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $(MODULE).o -c $(MODULE).cpp 2> $(MODULE).err\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(MODULE).o $(LIBS) 2>> $(MODULE).err\n");
-    fprintf(f, "\n");
-    fclose(f);
-  }
-
 public:
   bool try_to_build() {
-    write_mak();
-    write_cpp();
-    std::stringstream ss;
-    ss << "make -B -C " << config.module_dir_ << " -f " << hm_mak_ << " 1>/dev/null";
-    // run the command synchronously, while holding the big_mutex
-    int rc = system(ss.str().c_str());
-    if (rc != 0) {
-      std::string base(config.module_dir_ + "/hm_" + key_);
-      fprintf(stderr, "makefile:\n%s", read_file_as_string(base+".mak").c_str());
-      fprintf(stderr, "errors:\n%s",   read_file_as_string(base+".err").c_str());
+    // create the command invocation
+    std::array<const char*, 2> file_params{"-", "-o"};
+    std::vector<const char*> cmd{config.cxx_};
+    std::vector<std::string> include_args;
+    std::string module_define{"-DHAIL_MODULE=hm_" + key_};
+    include_args.push_back("-I" + include_);
+    include_args.push_back("-I" + config.java_home_ + "/include");
+    include_args.push_back(include_args.back() + "/" + config.java_md_);
+
+    cmd.insert(cmd.end(), config.cxx_flags_.begin(), config.cxx_flags_.end());
+    for (auto& s : include_args) cmd.push_back(s.c_str());
+    for (auto& s : options_) cmd.push_back(s.c_str());
+    cmd.push_back(module_define.c_str());
+    cmd.insert(cmd.end(), config.ld_flags_.begin(), config.ld_flags_.end());
+    cmd.insert(cmd.end(), file_params.begin(), file_params.end());
+    cmd.push_back(hm_lib_.c_str());
+    cmd.insert(cmd.end(), config.lib_flags_.begin(), config.lib_flags_.end());
+    cmd.push_back(nullptr);
+
+    int pipefd[2];
+    if (pipe(pipefd) < 0) return perror("c++ compile, pipe"), false;
+    int read_src_fd = pipefd[0];
+    int write_src_fd = pipefd[1];
+    if (pipe(pipefd) < 0) return perror("c++ compile, pipe"), false;
+    int read_err_fd = pipefd[0];
+    int write_err_fd = pipefd[1];
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+      perror("c++ compile, fork");
+      close(write_src_fd);
+      close(read_src_fd);
+      close(write_err_fd);
+      close(read_err_fd);
+
+      return false;
     }
-    return (rc == 0);
+
+    if (pid == 0) { // child
+      close(write_src_fd);
+      close(read_err_fd);
+      if (dup2(read_src_fd, STDIN_FILENO) < 0) {
+        perror("c++ compile, child, dup2");
+        exit(EXIT_FAILURE);
+      }
+
+      if (dup2(write_err_fd, STDERR_FILENO) < 0) {
+        perror("c++ compile, child, dup2");
+        exit(EXIT_FAILURE);
+      }
+
+      execvp(cmd[0], const_cast<char* const*>(cmd.data()));
+      perror("c++ compile, child, execve");
+      exit(EXIT_FAILURE);
+    }
+
+    // parent
+    bool st = true;
+    int compile_st = 0;
+    close(read_src_fd);
+    close(write_err_fd);
+    size_t nread = 0;
+    ssize_t r;
+    while ((r = write(write_src_fd, source_.data() + nread, source_.length() - nread)) > 0
+            && nread < source_.length()) {
+      nread += r;
+    }
+
+    if (r < 0 && errno != EPIPE) {
+      st = false;
+      perror("c++ compile, parent, write");
+    }
+    close(write_src_fd);
+
+    std::string err;
+    std::array<char, BUFSIZ> buf;
+    while ((r = read(read_err_fd, buf.data(), sizeof(buf))) > 0)
+      err.insert(err.end(), buf.begin(), buf.begin() + r);
+    close(read_err_fd);
+
+    waitpid(pid, &compile_st, 0);
+    if ((WIFEXITED(compile_st) && WEXITSTATUS(compile_st) != EXIT_SUCCESS) || WIFSIGNALED(compile_st)) {
+      fprintf(stderr, "c++ compile, compiler exited with errors:\n");
+      fprintf(stderr, "command:\n");
+      auto first = true;
+      for (auto& s : cmd) {
+        fprintf(stderr, "%s%s \\\n", first ? "" : "\t", s);
+        first = false;
+      }
+      fprintf(stderr, "errors:\n%s\n", err.c_str());
+
+      auto cpp_name = hm_base_ + ".cpp";
+      FILE* f = fopen(cpp_name.c_str(), "w");
+      if (!f) {
+        fprintf(stderr, "could not open c++ file for dumping invalid code, printing to stdout instead:\n");
+        fprintf(stderr, "%s\n", source_.c_str());
+      } else {
+        fwrite(source_.data(), 1, source_.length(), f);
+        fclose(f);
+        fprintf(stderr, "invalid c++ code at: %s\n", cpp_name.c_str());
+      }
+      return false;
+    }
+
+    return st;
   }
 };
 

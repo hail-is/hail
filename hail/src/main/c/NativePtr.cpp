@@ -92,6 +92,7 @@ void catch_signals() {
   signal(SIGFPE,  on_signal);
   signal(SIGILL,  on_signal);
   //signal(SIGSEGV, on_signal);
+  signal(SIGPIPE, SIG_IGN);
 }
 
 class NativePtrInfo {
