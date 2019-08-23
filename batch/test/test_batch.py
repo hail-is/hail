@@ -271,11 +271,14 @@ class Test(unittest.TestCase):
 
         @app.route('/test', methods=['POST'])
         def test():
-            d['status'] = request.get_json()
+            body = request.get_json()
+            print(f'body {body}')
+            d['status'] = body
             return Response(status=200)
 
         server = ServerThread(app)
         try:
+            print('1starting...')
             server.start()
             b = self.client.create_batch()
             j = b.create_job(
@@ -284,6 +287,7 @@ class Test(unittest.TestCase):
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
             b = b.submit()
+            print(f'1ids {j.job_id}')
             j.wait()
 
             poll_until(lambda: 'status' in d)
@@ -291,8 +295,10 @@ class Test(unittest.TestCase):
             self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
         finally:
+            print(f'1shutting down...')
             server.shutdown()
             server.join()
+            print(f'1shut down, joined')
 
     def test_log_after_failing_job(self):
         b = self.client.create_batch()
