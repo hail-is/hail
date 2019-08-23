@@ -355,6 +355,11 @@ class Tests(unittest.TestCase):
         expected = {'rabbit': 0, 'cat': 2, 'dog': 3, None: 3}
         assert actual == expected
 
+        c = hl.literal([0.0, 0.0, 3.0, 2.0, 3.0, 0.0], dtype='array<float>')
+        actual = ht.aggregate(hl.agg.counter(a[ht.idx], c[ht.idx]))
+        expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
+        assert actual == expected
+
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
