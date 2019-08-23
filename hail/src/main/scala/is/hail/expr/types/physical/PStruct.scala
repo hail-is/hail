@@ -214,9 +214,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    if (required)
-      sb.append("+")
-
     if (compact) {
       sb.append("Struct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

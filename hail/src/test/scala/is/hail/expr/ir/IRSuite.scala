@@ -874,8 +874,18 @@ class IRSuite extends HailSuite {
     ir = MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5))
     assertPType(ir, PStruct(true, "a" -> PInt32(false), "b" -> PInt32(true), "c" -> PFloat64(true)))
 
+    ir = MakeStruct(FastSeq("a" -> MakeArray(FastSeq(I32(5), I32(4)), TArray(TInt32())), "b" -> 4, "c" -> 0.5))
+    assertPType(ir, PStruct(true, "a" -> PArray(PInt32(true), true), "b" -> PInt32(true), "c" -> PFloat64(true)))
+
     val ir2 = GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1")
     assertPType(ir2, PInt32(true))
+  }
+
+  @Test def testInferPTypePrettyString() {
+    val ir = MakeStruct(FastSeq("a" -> MakeArray(FastSeq(I32(5), I32(4)), TArray(TInt32())), "b" -> 4, "c" -> 0.5))
+    InferPType(ir, Env.empty)
+    assert(ir.pType2.toPrettyString(1, true) == "+Struct{a:+Array[+Int32],b:+Int32,c:+Float64}")
+    assert(ir.pType2.toString() == "+struct{a: +array<+int32>, b: +int32, c: +float64}")
   }
 
   @Test def testMakeArrayWithDifferentRequiredness(): Unit = {

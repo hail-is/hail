@@ -43,9 +43,6 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
   def _toPretty = s"Stream[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    if(required)
-      sb.append("+")
-
     sb.append("Stream[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

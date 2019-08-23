@@ -33,9 +33,6 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
   def _toPretty = s"Array[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    if (required)
-      sb.append("+")
-
     sb.append("Array[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

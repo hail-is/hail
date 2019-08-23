@@ -29,9 +29,6 @@ final case class PSet(elementType: PType, override val required: Boolean = false
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    if(required)
-      sb.append("+")
-
     sb.append("Set[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
