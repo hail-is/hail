@@ -27,6 +27,7 @@ try:
     parallelism = max(1, available_cores // 2)
     print(f'PARALLELISM={parallelism} ./gradlew {" ".join(sys.argv[1:])}')
     os.environ['PARALLELISM'] = str(parallelism)
+    del os.environ['MAKEFLAGS']
     cp = sp.run(["./gradlew", *sys.argv[1:]])
     sys.exit(cp.returncode)
 finally:
