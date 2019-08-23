@@ -211,7 +211,7 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     }
     if reference_genome is None:
         reference_genome = hl.default_reference().name
-    if isinstance(reference_genome, hl.ReferenceGenome):
+    else:
         reference_genome = reference_genome.name
     if gtf_file is None:
         gtf_file = GTFS.get(reference_genome)
