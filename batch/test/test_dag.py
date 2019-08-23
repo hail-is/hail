@@ -141,8 +141,8 @@ def test_callback(client):
         left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
-        print(f'ids {head.job_id} {left.job_id} {right.job_id} {tail.job_id}')
         batch = batch.submit()
+        print(f'ids {head.job_id} {left.job_id} {right.job_id} {tail.job_id}')
         batch_status = batch.wait()
 
         i = 0
