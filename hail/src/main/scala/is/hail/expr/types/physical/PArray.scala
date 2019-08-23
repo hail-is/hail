@@ -18,7 +18,6 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
   override def pyString(sb: StringBuilder): Unit = {
     if (required)
       sb.append("+")
-
     sb.append("array<")
     elementType.pyString(sb)
     sb.append('>')

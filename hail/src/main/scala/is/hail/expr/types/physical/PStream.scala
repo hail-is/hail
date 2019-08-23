@@ -28,7 +28,6 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
   override def pyString(sb: StringBuilder): Unit = {
     if(required)
       sb.append("+")
-
     sb.append("stream<")
     elementType.pyString(sb)
     sb.append('>')

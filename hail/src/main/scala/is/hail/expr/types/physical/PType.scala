@@ -178,7 +178,6 @@ abstract class PType extends BaseType with Serializable {
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
       sb.append("+")
-
     _pretty(sb, indent, compact)
   }
 

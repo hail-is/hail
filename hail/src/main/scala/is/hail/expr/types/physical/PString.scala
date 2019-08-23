@@ -22,7 +22,6 @@ class PString(override val required: Boolean) extends PType {
   override def pyString(sb: StringBuilder): Unit = {
     if(required)
       sb.append("+")
-
     sb.append("str")
   }
 

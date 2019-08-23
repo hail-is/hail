@@ -18,7 +18,6 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
   override def pyString(sb: StringBuilder): Unit = {
     if(required)
       sb.append("+")
-
     sb.append("interval<")
     pointType.pyString(sb)
     sb.append('>')

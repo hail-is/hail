@@ -49,7 +49,6 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
   override def pyString(sb: StringBuilder): Unit = {
     if(required)
       sb.append("+")
-
     sb.append("tuple(")
     fields.foreachBetween({ field =>
       field.typ.pyString(sb)
