@@ -2,6 +2,7 @@
 
 import os
 import re
+import signal
 import subprocess as sp
 import sys
 
@@ -12,6 +13,20 @@ print(make_flags)
 
 write_fd = None
 job_slots = b''
+
+
+def handle(signum, frame):
+    del signum
+    del frame
+    sys.exit(0)
+
+
+signal.signal(signal.SIGHUP, handle)
+signal.signal(signal.SIGINT, handle)
+signal.signal(signal.SIGQUIT, handle)
+signal.signal(signal.SIGABRT, handle)
+signal.signal(signal.SIGTERM, handle)
+
 try:
     if make_flags is not None:
         if re.search('^[^ ]*n', make_flags) is not None:
