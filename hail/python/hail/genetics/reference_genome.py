@@ -118,8 +118,8 @@ class ReferenceGenome(object):
 
         hl.ir.register_reference_genome_functions(name)
 
-        self._has_sequence = False
-        self._liftovers = set()
+        self._sequence_files = None
+        self._liftovers = dict()
 
 
     def __str__(self):
@@ -359,7 +359,7 @@ class ReferenceGenome(object):
         if index_file is None:
             index_file = re.sub(r'\.[^.]*$', '.fai', fasta_file)
         Env.backend().add_sequence(self.name, fasta_file, index_file)
-        self._has_sequence = True
+        self._sequence_files = (fasta_file, index_file)
 
     def has_sequence(self):
         """True if the reference sequence has been loaded.
@@ -368,7 +368,7 @@ class ReferenceGenome(object):
         -------
         :obj:`bool`
         """
-        return self._has_sequence
+        return self._sequence_files is not None
 
     def remove_sequence(self):
         """Remove the reference sequence.
@@ -377,7 +377,7 @@ class ReferenceGenome(object):
         -------
         :obj:`bool`
         """
-        self._has_sequence = False
+        self._sequence_files = None
         Env.backend().remove_sequence(self.name)
 
     @classmethod
@@ -417,7 +417,7 @@ class ReferenceGenome(object):
         Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
 
         rg = ReferenceGenome._from_config(Env.backend().get_reference(name), _builtin=True)
-        rg._has_sequence = True
+        rg._sequence_files = (fasta_file, index_file)
         return rg
 
     @typecheck_method(dest_reference_genome=reference_genome_type)
@@ -444,7 +444,7 @@ class ReferenceGenome(object):
         dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         """
         if dest_reference_genome.name in self._liftovers:
-            self._liftovers.remove(dest_reference_genome.name)
+            del self._liftovers[dest_reference_genome.name]
             Env.backend().remove_liftover(self.name, dest_reference_genome.name)
 
     @typecheck_method(chain_file=str,
@@ -492,7 +492,9 @@ class ReferenceGenome(object):
         """
 
         Env.backend().add_liftover(self.name, chain_file, dest_reference_genome.name)
-        self._liftovers.add(dest_reference_genome.name)
+        if dest_reference_genome.name in self._liftovers:
+            raise KeyError(f"Liftover already exists from {self.name} to {dest_reference_genome.name}.")
+        self._liftovers[dest_reference_genome.name] = chain_file
         hl.ir.register_liftover_functions(self.name, dest_reference_genome.name)
 
 
