@@ -67,13 +67,13 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, requested_steps=None):
+    def __init__(self, code, config_str, scope, requested_step_names=None):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
 
-        if requested_steps:
-            log.info(f"Constructing build configuration with steps: {requested_steps}")
+        if requested_step_names:
+            log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
@@ -81,8 +81,8 @@ class BuildConfiguration:
             self.steps.append(step)
             name_step[step.name] = step
 
-        # transitively close requested_steps over dependenies
-        if requested_steps:
+        # transitively close requested_step_names over dependenies
+        if requested_step_names:
             visited = set()
 
             def request(step):
@@ -91,8 +91,8 @@ class BuildConfiguration:
                     for s2 in step.deps:
                         request(s2)
 
-            for s in requested_steps:
-                request(s)
+            for step_name in requested_step_names:
+                request(name_step[step_name])
             self.steps = [s for s in self.steps if s in visited]
 
     def build(self, batch, code, scope):

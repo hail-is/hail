@@ -127,10 +127,13 @@ def test_callback(client):
 
     @app.route('/test', methods=['POST'])
     def test():
-        output.append(request.get_json())
+        body = request.get_json()
+        print(f'body {body}')
+        output.append(body)
         return Response(status=200)
 
     try:
+        print('starting...')
         server = ServerThread(app)
         server.start()
         batch = client.create_batch(callback=server.url_for('/test'))
@@ -139,6 +142,7 @@ def test_callback(client):
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
         batch = batch.submit()
+        print(f'ids {head.job_id} {left.job_id} {right.job_id} {tail.job_id}')
         batch_status = batch.wait()
 
         i = 0
@@ -157,8 +161,10 @@ def test_callback(client):
         assert output[3]['job_id'] == tail.job_id, (output, batch_status)
     finally:
         if server:
+            print('shutting down...')
             server.shutdown()
             server.join()
+            print('shut down, joined')
 
 
 def test_no_parents_allowed_in_other_batches(client):
