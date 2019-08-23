@@ -1932,25 +1932,45 @@ private class Emit(
     1 + nSpecialArguments + idx * 2
   }
 
-  def emitDeforestedNDArray(region: EmitRegion, map: NDArrayMap, env: Emit.E): NDArrayEmitter = {
-    ???
+  def emitDeforestedNDArray(region: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
+    def deforest(nd: IR): NDArrayEmitter = emitDeforestedNDArray(region, nd, env)
+
+    val xType = x.pType.asInstanceOf[PNDArray]
+    val nDims = xType.nDims
+//    val elemType = xType.elementType.virtualType
+     //No way this is right
+
+    x match {
+      case NDArrayMap(child, elemName, body) =>
+        val elemPType = child.pType.asInstanceOf[PNDArray].elementType
+        val vti = typeToTypeInfo(elemPType.virtualType)
+        val elemRef = coerce[Any](mb.newField(elemName)(vti))
+        val bodyEnv = env.bind(elemName, (vti, false, elemRef.load()))
+        val bodyt = this.emit(body, bodyEnv)
+    }
   }
 }
 abstract class NDArrayEmitter(
- val mb: MethodBuilder,
- val nDims: Int,
- val setup: Code[_]) {
+  val mb: MethodBuilder,
+  val nDims: Int,
+  val setup: Code[_]) {
 
-
+  // Need to make a SRVB to fill with array elements
+  // Then call emit on MakeNDArray of
 
   def emit(elemType: PType): Code[_] = {
-    setup
+    Code(
+      setup,
+      emitLoops()
+    )
   }
 
   private def emitLoops(): Code[_] = {
     val idxVars = Seq.tabulate(nDims) {i => mb.newField[Int]}
-
-    ???
+    val body = Code._empty
+    idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
+      innerLoops
+    }
   }
 
 }
