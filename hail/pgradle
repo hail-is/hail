@@ -14,7 +14,7 @@ write_fd = None
 job_slots = b''
 try:
     if make_flags is not None:
-        if re.search('(^| )-n( |$)', make_flags) is not None:
+        if re.search('^[^ ]*n', make_flags) is not None:
             sys.exit(0)
         match = re.search('--jobserver-(fds|auth)=([^,]+),([^ ])+', make_flags)
         if match is not None:
