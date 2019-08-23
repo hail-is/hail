@@ -8,8 +8,8 @@ import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PType, PTuple}
+import is.hail.expr.types.{TableType, virtual}
+import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -121,8 +121,8 @@ class IRSuite extends HailSuite {
     assertPType(F32(3.1415f), PFloat32(true))
     assertPType(F64(3.1415926589793238462643383), PFloat64(true))
     assertPType(Str("HELLO WORLD"), PString(true))
-    assertPType(True(), PBoolean(false))
-    assertPType(False(), PBoolean(false))
+    assertPType(True(), PBoolean(true))
+    assertPType(False(), PBoolean(true))
   }
 
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
@@ -196,9 +196,9 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNAIsNAInferPType() {
-    assertPType(NA(TInt32()), PInt32())
+    assertPType(NA(TInt32()), PInt32(false))
 
-    assertPType(IsNA(NA(TInt32())), PBoolean(false))
+    assertPType(IsNA(NA(TInt32())), PBoolean(true))
     assertPType(IsNA(I32(5)), PBoolean(true))
   }
 
@@ -289,6 +289,7 @@ class IRSuite extends HailSuite {
     node = ApplyUnaryPrimOp(Negate(), i32na)
     assertPType(node, PInt32(false))
 
+    // should not be able to infer physical type twice on one IR (i32na)
     node = ApplyUnaryPrimOp(Negate(), i32na)
     intercept[AssertionError](InferPType(node, Env.empty))
 
@@ -311,10 +312,10 @@ class IRSuite extends HailSuite {
     assertPType(node, PFloat64(false))
 
     node = ApplyUnaryPrimOp(Bang(), False())
-    assertPType(node, PBoolean(false))
+    assertPType(node, PBoolean(true))
 
     node = ApplyUnaryPrimOp(Bang(), True())
-    assertPType(node, PBoolean(false))
+    assertPType(node, PBoolean(true))
 
     node = ApplyUnaryPrimOp(Bang(), bna)
     assertPType(node, PBoolean(false))
@@ -333,7 +334,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testComplexInferPType() {
-    val ir = ArrayMap(
+    var ir = ArrayMap(
       Let(
         "q",
         I32(2),
@@ -874,7 +875,7 @@ class IRSuite extends HailSuite {
     assertPType(ir, PStruct(true, "a" -> PInt32(false), "b" -> PInt32(true), "c" -> PFloat64(true)))
 
     val ir2 = GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1")
-    assertPType(ir2, PStruct(true, "foo1" -> PInt32(true)))
+    assertPType(ir2, PInt32(true))
   }
 
   @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
