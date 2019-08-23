@@ -61,6 +61,7 @@ src/main/resources/build-info.properties: Makefile
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
+.PHONY: python-version-info
 python-version-info: $(PYTHON_VERSION_INFO)
 
 python/hail/hail_version: Makefile env/SHORT_REVISION
@@ -243,7 +244,7 @@ clean: clean-env clean-docs
 
 .PHONY: clean-docs
 clean-docs:
-	+$(MAKE) -C www clean
+	$(MAKE) -C www clean
 
 .PHONY: docs
 docs: www install $(PYTHON_VERSION_INFO)
@@ -254,8 +255,8 @@ docs: www install $(PYTHON_VERSION_INFO)
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	+$(MAKE) -C www
-	+$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
+	$(MAKE) -C www
+	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	mv build/docs/_build/html build/www/docs/0.2
 
@@ -271,23 +272,23 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	+$(MAKE) -C www
-	+$(MAKE) -C build/docs BUILDDIR=_build clean html
+	$(MAKE) -C www
+	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
 ifdef HAIL_COMPILE_NATIVES
-	+$(MAKE) -C src/main/c prebuilt
+	$(MAKE) -C src/main/c prebuilt
 else
-	+$(MAKE) -C src/main/c
+	$(MAKE) -C src/main/c
 endif
 native-lib-test:
-	+$(MAKE) -C src/main/c test
+	$(MAKE) -C src/main/c test
 native-lib-clean:
-	+$(MAKE) -C src/main/c clean
+	$(MAKE) -C src/main/c clean
 native-lib-prebuilt:
-	+$(MAKE) -C src/main/c prebuilt
+	$(MAKE) -C src/main/c prebuilt
 native-lib-reset-prebuilt:
-	+$(MAKE) -C src/main/c reset-prebuilt
+	$(MAKE) -C src/main/c reset-prebuilt

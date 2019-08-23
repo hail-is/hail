@@ -8,15 +8,18 @@ import sys
 MAX_PARALLELISM = 16
 make_flags = os.environ.get('MAKEFLAGS')
 
+print(make_flags)
+
 write_fd = None
 job_slots = b''
 try:
     if make_flags is not None:
-        match = re.search(' --jobserver-fds=([^,]+),([^ ])+', make_flags)
-        if match is not None:
-            read_fd = int(match[1])
-            write_fd = int(match[2])
-            job_slots = os.read(read_fd, MAX_PARALLELISM - 1)
+        if re.search('(^| )-n( |$)', make_flags) is None:
+            match = re.search('--jobserver-(fds|auth)=([^,]+),([^ ])+', make_flags)
+            if match is not None:
+                read_fd = int(match[2])
+                write_fd = int(match[3])
+                job_slots = os.read(read_fd, MAX_PARALLELISM - 1)
     available_cores = len(job_slots) + 1
     if available_cores > 1 and available_cores % 2 == 1:
         os.write(write_fd, job_slots[-1:])
