@@ -813,8 +813,8 @@ def linear_mixed_model(y,
     Initialize a model using three fixed effects (including intercept) and
     genetic marker random effects:
 
-    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker) # doctest: +SKIP
-    >>> model, _ = hl.linear_mixed_model( # doctest: +SKIP
+    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker) # doctest: +SKIP_OUTPUT_CHECK
+    >>> model, _ = hl.linear_mixed_model( # doctest: +SKIP_OUTPUT_CHECK
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
     ...     z_t=marker_ds.GT.n_alt_alleles(),
@@ -822,18 +822,18 @@ def linear_mixed_model(y,
 
     Fit the model and examine :math:`h^2`:
 
-    >>> model.fit()  # doctest: +SKIP
-    >>> model.h_sq  # doctest: +SKIP
+    >>> model.fit()  # doctest: +SKIP_OUTPUT_CHECK
+    >>> model.h_sq  # doctest: +SKIP_OUTPUT_CHECK
 
     Sanity-check the normalized likelihood of :math:`h^2` over the percentile
     grid:
 
-    >>> import matplotlib.pyplot as plt                     # doctest: +SKIP
-    >>> plt.plot(range(101), model.h_sq_normalized_lkhd())  # doctest: +SKIP
+    >>> import matplotlib.pyplot as plt                     # doctest: +SKIP_OUTPUT_CHECK
+    >>> plt.plot(range(101), model.h_sq_normalized_lkhd())  # doctest: +SKIP_OUTPUT_CHECK
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)  # doctest: +SKIP
+    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)  # doctest: +SKIP_OUTPUT_CHECK
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -841,8 +841,8 @@ def linear_mixed_model(y,
     as above with :math:`P` written as a block matrix but returned as an
     ndarray:
 
-    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()  # doctest: +SKIP
-    >>> model, p = hl.linear_mixed_model(  # doctest: +SKIP
+    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
+    >>> model, p = hl.linear_mixed_model(  # doctest: +SKIP_OUTPUT_CHECK
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,

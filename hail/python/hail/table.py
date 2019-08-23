@@ -1867,7 +1867,7 @@ class Table(ExprContainer):
         --------
 
         >>> table_result = table1.add_index()
-        >>> table_result.show()  # doctest: +SKIP
+        >>> table_result.show()  # doctest: +SKIP_OUTPUT_CHECK
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
         |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
@@ -2652,7 +2652,7 @@ class Table(ExprContainer):
         element in the `Children` field:
 
         >>> exploded = people_table.explode('Children')
-        >>> exploded.show() # doctest: +SKIP
+        >>> exploded.show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+-------+----------+
         | Name    |   Age | Children |
         +---------+-------+----------+
@@ -2669,7 +2669,7 @@ class Table(ExprContainer):
         names:
 
         >>> exploded = people_table.explode('Children', name='Child')
-        >>> exploded.show() # doctest: +SKIP
+        >>> exploded.show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+-------+---------+
         | Name    |   Age | Child   |
         +---------+-------+---------+

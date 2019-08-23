@@ -851,7 +851,7 @@ class BlockMatrix(object):
         Filter to a band from one below the diagonal to
         two above the diagonal and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()  # doctest: +SKIP
+        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  0.],
                [ 5.,  6.,  7.,  8.],
                [ 0., 10., 11., 12.],
@@ -860,7 +860,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the diagonal to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()  # doctest: +SKIP
+        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -925,7 +925,7 @@ class BlockMatrix(object):
 
         Filter to the upper triangle and collect to NumPy:
 
-        >>> bm.sparsify_triangle().to_numpy()  # doctest: +SKIP
+        >>> bm.sparsify_triangle().to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  4.],
                [ 0.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -934,7 +934,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()  # doctest: +SKIP
+        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -993,7 +993,7 @@ class BlockMatrix(object):
 
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4])
-        ...    .to_numpy())  # doctest: +SKIP
+        ...    .to_numpy())  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 0.,  2.,  0.,  0.],
                [ 0.,  0.,  0.,  0.],
                [ 0.,  0., 11.,  0.],
@@ -1005,7 +1005,7 @@ class BlockMatrix(object):
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4],
         ...                            blocks_only=True)
-        ...    .to_numpy())  # doctest: +SKIP
+        ...    .to_numpy())  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -1805,7 +1805,7 @@ class BlockMatrix(object):
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
-        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()  # doctest: +SKIP
+        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 9., 10.,  0.,  0.],

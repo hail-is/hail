@@ -6,6 +6,8 @@ import tempfile
 
 import hail as hl
 
+SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
+
 
 @pytest.fixture(autouse=True)
 def patch_doctest_check_output(monkeypatch):
@@ -15,7 +17,7 @@ def patch_doctest_check_output(monkeypatch):
     def patched_check_output(self, want, got, optionflags):
         return ((not want)
                 or (want.strip() == 'None')
-                or optionflags
+                or (SKIP_OUTPUT_CHECK & optionflags)
                 or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
 
     monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)

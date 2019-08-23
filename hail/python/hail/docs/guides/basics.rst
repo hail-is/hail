@@ -92,7 +92,7 @@ Matrix Table
 
     .. code-block:: python
 
-        >>> mt.describe()  # doctest: +SKIP
+        >>> mt.describe()  # doctest: +SKIP_OUTPUT_CHECK
         ----------------------------------------
         Global fields:
             'populations': array<str>
@@ -138,7 +138,7 @@ Table
 
     .. code-block:: python
 
-        >>> ht.describe()  # doctest: +SKIP
+        >>> ht.describe()  # doctest: +SKIP_OUTPUT_CHECK
         ----------------------------------------
         Global fields:
             None
@@ -161,7 +161,7 @@ Expression
 
     .. code-block:: python
 
-        >>> mt.s.describe()  # doctest: +SKIP
+        >>> mt.s.describe()  # doctest: +SKIP_OUTPUT_CHECK
         --------------------------------------------------------
         Type:
             str
