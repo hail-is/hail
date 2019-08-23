@@ -75,8 +75,7 @@ object TableMapIRNew {
       }
     }
 
-    // 2. load in init op on each partition, seq op over partition, write out.
-    val scanPartitionAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+    val runscan = tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val globalRegion = ctx.freshRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
@@ -90,7 +89,10 @@ object TableMapIRNew {
         }
         Iterator.single(write(aggRegion, seq.getAggOffset()))
       }
-    }, HailContext.get.flags.get("max_leader_scans").toInt)
+    }
+
+    // 2. load in init op on each partition, seq op over partition, write out.
+    val scanPartitionAggs = SpillingCollectIterator(runscan, HailContext.get.flags.get("max_leader_scans").toInt)
 
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
