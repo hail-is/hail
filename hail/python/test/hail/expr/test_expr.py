@@ -57,7 +57,7 @@ class Tests(unittest.TestCase):
         self.assertRaisesRegex(
             hl.utils.HailException,
             'Array range cannot have step size 0',
-            hl.eval(hl.range(0,1,0)
+            hl.eval(hl.range(0,1,0)))
 
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))

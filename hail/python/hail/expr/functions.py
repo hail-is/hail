@@ -1901,7 +1901,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
     The range includes `start`, but excludes `stop`.
 
     If provided exactly one argument, the argument is interpreted as `stop` and
-    `start` is set to zero. This matches the behavior Python's :func:`range`.
+    `start` is set to zero. This matches the behavior Python's ``range``.
 
     Parameters
     ----------
@@ -1918,7 +1918,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
     """
     if stop is None:
         stop = start
-        start = 0
+        start = hl.literal(0)
     return apply_expr(lambda sta, sto, ste: ArrayRange(sta, sto, ste), tarray(tint32), start, stop, step)
 
 
