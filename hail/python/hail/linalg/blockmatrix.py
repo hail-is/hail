@@ -579,6 +579,16 @@ class BlockMatrix(object):
         writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
+    @typecheck_method(path=str,
+                      overwrite=bool,
+                      force_row_major=bool,
+                      stage_locally=bool)
+    def checkpoint(self, path, overwrite=False, force_row_major=False, stage_locally=False):
+        """Checkpoint the block matrix. See :func:`.write` for explanation of arguments.
+        """
+        self.write(path, overwrite, force_row_major, stage_locally)
+        return BlockMatrix.read(path)
+
     @staticmethod
     @typecheck(entry_expr=expr_float64,
                path=str,
