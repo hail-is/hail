@@ -525,7 +525,9 @@ def counter(expr, *, weight=None) -> DictExpression:
     ----------
     expr : :class:`.Expression`
         Expression to count by key.
-    weight : :class:`.NumericExpression`
+    weight : :class:`.NumericExpression`, optional
+        Expression by which to weight each occurence (when unspecified,
+        it is effectively ``1``)
 
     Returns
     -------
