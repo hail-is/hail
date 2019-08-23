@@ -20,7 +20,7 @@ push: build
 
 deploy: push
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"global":{"internal_ip":"$(INTERNAL_IP)"}}' internal-service.yaml internal-service.yaml.out
-        kubectl -n default apply -f internal-service.yaml.out
+	kubectl -n default apply -f internal-service.yaml.out
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"global":{"ip":"$(IP)"}}' external-service.yaml external-service.yaml.out
 	kubectl -n default apply -f external-service.yaml.out
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"gateway_image":{"image":"$(GATEWAY_IMAGE)"}}' deployment.yaml deployment.yaml.out
