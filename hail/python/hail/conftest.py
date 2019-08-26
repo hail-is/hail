@@ -31,36 +31,21 @@ def init(doctest_namespace):
     print("setting up doctest...")
 
     olddir = os.getcwd()
-<<<<<<< HEAD
-    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                          "docs"))
-    try:
-        generate_datasets(doctest_namespace)
-=======
-    output_dir = None
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
     output_dir = tempfile.TemporaryDirectory()
     try:
         doctest_namespace['output_dir'] = output_dir.name
-        generate_datasets(doctest_namespace, output_dir)
         print(f'output_dir: {output_dir.name}')
->>>>>>> fix
+        generate_datasets(doctest_namespace, output_dir)
         print("finished setting up doctest...")
         yield
     finally:
         os.chdir(olddir)
-<<<<<<< HEAD
-
-
-def generate_datasets(doctest_namespace):
-=======
-        if output_dir:
-            output_dir.cleanup()
+        output_dir.cleanup()
 
 
 def generate_datasets(doctest_namespace, output_dir):
->>>>>>> fix
     doctest_namespace['hl'] = hl
 
     files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
