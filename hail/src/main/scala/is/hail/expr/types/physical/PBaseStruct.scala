@@ -58,7 +58,6 @@ object PBaseStruct {
 }
 
 abstract class PBaseStruct extends PType {
-  // TODO: why are types, fields, fieldRequired defs here
   def types: Array[PType]
 
   def fields: IndexedSeq[PField]
