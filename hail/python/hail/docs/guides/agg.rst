@@ -129,7 +129,7 @@ One aggregation
 :**code**:
 
     >>> mt.aggregate_rows(hl.agg.mean(mt.qual))
-    625857.870909091
+    544323.8915384616
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_rows`, :func:`.aggregators.mean`
 

@@ -335,6 +335,7 @@ Using Variants (SNPs) as Covariates
 
     Run the GWAS with :func:`.linear_regression_rows` using variant dosages as covariates:
 
+    >>> mt.row_key.show(n=100)
     >>> gwas = hl.linear_regression_rows(
     ...     x=mt_annot.GT.n_alt_alleles(),
     ...     y=mt_annot.pheno.blood_pressure,
