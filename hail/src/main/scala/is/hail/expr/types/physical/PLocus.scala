@@ -2,18 +2,16 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.check._
+import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TLocus
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.reflect.{ClassTag, classTag}
-
 object PLocus {
-  def apply(rg: RGBase): PLocus = PLocus(rg.broadcastRGBase)
+  def apply(rg: ReferenceGenome): PLocus = PLocus(rg.broadcastRG)
 
-  def apply(rg: RGBase, required: Boolean): PLocus = PLocus(rg.broadcastRGBase, required)
+  def apply(rg: ReferenceGenome, required: Boolean): PLocus = PLocus(rg.broadcastRG, required)
 
   def representation(required: Boolean = false): PStruct = PStruct(
       required,
@@ -26,8 +24,8 @@ object PLocus {
   }
 }
 
-case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false) extends ComplexPType {
-  def rg: RGBase = rgBc.value
+case class PLocus(rgBc: BroadcastValue[ReferenceGenome], override val required: Boolean = false) extends ComplexPType {
+  def rg: ReferenceGenome = rgBc.value
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
 

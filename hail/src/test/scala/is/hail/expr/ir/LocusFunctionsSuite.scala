@@ -5,10 +5,9 @@ import is.hail.HailSuite
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.types.virtual.{TArray, TString}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
-import is.hail.variant.{Locus, RGBase, ReferenceGenome}
+import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-import org.scalatest.testng.TestNGSuite
 
 class LocusFunctionsSuite extends HailSuite {
 

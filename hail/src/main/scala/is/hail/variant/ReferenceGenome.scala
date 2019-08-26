@@ -25,79 +25,11 @@ import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 
-abstract class RGBase extends Serializable {
-  def locusType: TLocus
-
-  def name: String
-
-  def locusOrdering: Ordering[Locus]
-
-  def contigParser: Parser[String]
-
-  def isValidContig(contig: String): Boolean
-
-  def checkLocus(l: Locus): Unit
-
-  def checkLocus(contig: String, pos: Int): Unit
-
-  def contigLength(contig: String): Int
-
-  def contigLength(contigIdx: Int): Int
-
-  def inX(contigIdx: Int): Boolean
-
-  def inX(contig: String): Boolean
-
-  def inY(contigIdx: Int): Boolean
-
-  def inY(contig: String): Boolean
-
-  def isMitochondrial(contigIdx: Int): Boolean
-
-  def isMitochondrial(contig: String): Boolean
-
-  def inXPar(locus: Locus): Boolean
-
-  def inYPar(locus: Locus): Boolean
-
-  def compare(c1: String, c2: String): Int
-
-  def unify(concrete: RGBase): Boolean
-
-  def isBound: Boolean
-
-  def clear(): Unit
-
-  def subst(): RGBase
-
-  @transient lazy val broadcastRGBase: BroadcastRGBase = new BroadcastRGBase(this)
-}
-
-class BroadcastRGBase(rgParam: RGBase) extends Serializable {
-  @transient private[this] val rg: RGBase = rgParam
-
-  private[this] val rgBc: BroadcastValue[ReferenceGenome] = {
-    if (TaskContext.get != null)
-      null
-    else
-      rgParam match {
-        case rg: ReferenceGenome => rg.broadcast
-        case _ => null
-      }
-  }
-
-  def value: RGBase = {
-    val t = if (rg != null)
-      rg
-    else
-      rgBc.value
-    t
-  }
-}
-
 case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[String, Int],
   xContigs: Set[String] = Set.empty[String], yContigs: Set[String] = Set.empty[String],
-  mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends RGBase {
+  mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
+
+  @transient lazy val broadcastRG: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
 
   val nContigs = contigs.length
 
@@ -500,13 +432,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: RGBase): Boolean = this == concrete
-
   def isBound: Boolean = true
-
-  def clear() {}
-
-  def subst(): ReferenceGenome = this
 
   override def toString: String = name
 
@@ -715,7 +641,7 @@ object ReferenceGenome {
     }
   }
 
-  private def writeReference(fs: is.hail.io.fs.FS, path: String, rg: RGBase) {
+  private def writeReference(fs: is.hail.io.fs.FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
@@ -793,66 +719,3 @@ object ReferenceGenome {
     ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 }
-
-case class RGVariable(var rg: RGBase = null) extends RGBase {
-  val locusType: TLocus = TLocus(this)
-
-  override def toString = "?RG"
-
-  def unify(concrete: RGBase): Boolean = {
-    if (rg == null) {
-      rg = concrete
-      true
-    } else
-      rg == concrete
-  }
-
-  def isBound: Boolean = rg != null
-
-  def clear() {
-    rg = null
-  }
-
-  def subst(): RGBase = {
-    assert(rg != null)
-    rg
-  }
-
-  def name: String = ???
-
-  def locusOrdering: Ordering[Locus] =
-    new Ordering[Locus] {
-      def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("RGVariable.locusOrdering unimplemented")
-    }
-
-  def contigParser: Parser[String] = ???
-
-  def isValidContig(contig: String): Boolean = ???
-
-  def checkLocus(l: Locus): Unit = ???
-
-  def checkLocus(contig: String, pos: Int): Unit = ???
-
-  def contigLength(contig: String): Int = ???
-
-  def contigLength(contigIdx: Int): Int = ???
-
-  def inX(contigIdx: Int): Boolean = ???
-
-  def inX(contig: String): Boolean = ???
-
-  def inY(contigIdx: Int): Boolean = ???
-
-  def inY(contig: String): Boolean = ???
-
-  def isMitochondrial(contigIdx: Int): Boolean = ???
-
-  def isMitochondrial(contig: String): Boolean = ???
-
-  def inXPar(locus: Locus): Boolean = ???
-
-  def inYPar(locus: Locus): Boolean = ???
-
-  def compare(c1: String, c2: String): Int = ???
-}
-
