@@ -24,7 +24,7 @@ object PLocus {
   }
 }
 
-case class PLocus(rgBc: BroadcastValue[ReferenceGenome], override val required: Boolean = false) extends ComplexPType {
+case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) extends ComplexPType {
   def rg: ReferenceGenome = rgBc.value
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)

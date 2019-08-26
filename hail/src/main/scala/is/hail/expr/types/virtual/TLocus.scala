@@ -26,7 +26,7 @@ object TLocus {
   }
 }
 
-case class TLocus(rgBc: BroadcastValue[ReferenceGenome], override val required: Boolean = false) extends ComplexType {
+case class TLocus(rgBc: BroadcastRG, override val required: Boolean = false) extends ComplexType {
   def rg: ReferenceGenome = rgBc.value
 
   lazy val physicalType: PLocus = PLocus(rgBc, required)

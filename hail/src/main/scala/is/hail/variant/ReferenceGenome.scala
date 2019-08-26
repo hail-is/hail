@@ -25,11 +25,31 @@ import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 
+
+class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
+  @transient private[this] val rg: ReferenceGenome = rgParam
+
+  private[this] val rgBc: BroadcastValue[ReferenceGenome] = {
+    if (TaskContext.get != null)
+      null
+    else
+      rg.broadcast
+  }
+
+  def value: ReferenceGenome = {
+    val t = if (rg != null)
+      rg
+    else
+      rgBc.value
+    t
+  }
+}
+
 case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[String, Int],
   xContigs: Set[String] = Set.empty[String], yContigs: Set[String] = Set.empty[String],
   mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
 
-  @transient lazy val broadcastRG: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
+  @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
 
   val nContigs = contigs.length
 
