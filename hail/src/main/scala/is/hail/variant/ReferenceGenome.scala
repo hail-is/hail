@@ -19,7 +19,7 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
@@ -367,8 +367,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
 
-  private[this] var liftoverFunctions: Map[String, Set[String]] = Map.empty[String, Set[String]]
-
   def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
 
   def addLiftover(hc: HailContext, chainFile: String, destRGName: String): Unit = {
@@ -387,9 +385,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.checkChainFile(this, destRG)
 
     liftoverMaps += destRGName -> lo
-    val irFunctions = new LiftoverFunctions(this, destRG)
-    irFunctions.registerAll()
-    liftoverFunctions += destRGName -> irFunctions.registered
   }
 
   def addLiftoverFromFS(fs: FS, chainFilePath: String, destRGName: String): ReferenceGenome = {
@@ -408,8 +403,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!hasLiftover(destRGName))
       fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
     liftoverMaps -= destRGName
-    liftoverFunctions(destRGName).foreach(IRFunctionRegistry.removeIRFunction)
-    liftoverFunctions -= destRGName
   }
 
   def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) = {
@@ -515,7 +508,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
   def removeIRFunctions(): Unit = {
     registeredFunctions.foreach(IRFunctionRegistry.removeIRFunction)
-    liftoverFunctions.foreach(_._2.foreach(IRFunctionRegistry.removeIRFunction))
     registeredFunctions = Set.empty[String]
   }
 }
