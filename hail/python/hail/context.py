@@ -154,7 +154,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
     Env._gateway = SparkContext._gateway
 
     jsc = sc._jsc.sc() if sc else None
-    jspark_backend = hailpkg.backend.spark.SparkBackend(jsc)
+    jspark_backend = hailpkg.backend.spark.SparkBackend(jsc, app_name, joption(master), local, min_block_size)
 
     tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
     optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
@@ -164,11 +164,11 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
     # if idempotent:
     if idempotent:
         jhc = hailpkg.HailContext.getOrCreate(
-            jsc, app_name, joption(master), local, log, True, append,
+            jspark_backend, app_name, joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir, optimizer_iterations)
     else:
         jhc = hailpkg.HailContext.apply(
-            jsc, app_name, joption(master), local, log, True, append,
+            jspark_backend, app_name, joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir, optimizer_iterations)
 
     jsc = jhc.sc()

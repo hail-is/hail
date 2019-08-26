@@ -131,33 +131,6 @@ object HailContext {
     conf
   }
 
-  def configureAndCreateSparkContext(appName: String, master: Option[String],
-    local: String, blockSize: Long): SparkContext = {
-    val sc = new SparkContext(createSparkConf(appName, master, local, blockSize))
-    sc
-  }
-
-  def checkSparkConfiguration(sc: SparkContext) {
-    val conf = sc.getConf
-
-    val problems = new ArrayBuffer[String]
-
-    val serializer = conf.getOption("spark.serializer")
-    val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
-    if (!serializer.contains(kryoSerializer))
-      problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  " +
-        s"Found: ${ serializer.getOrElse("empty parameter") }."
-
-    if (!conf.getOption("spark.kryo.registrator").exists(_.split(",").contains("is.hail.kryo.HailKryoRegistrator")))
-      problems += s"Invalid config parameter: spark.kryo.registrator must include is.hail.kryo.HailKryoRegistrator." +
-        s"Found ${ conf.getOption("spark.kryo.registrator").getOrElse("empty parameter.") }"
-
-    if (problems.nonEmpty)
-      fatal(
-        s"""Found problems with SparkContext configuration:
-           |  ${ problems.mkString("\n  ") }""".stripMargin)
-  }
-
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
     val logProps = new Properties()
 
@@ -206,7 +179,7 @@ object HailContext {
     *
     * Otherwise, it initializes and returns a new HailContext.
     */
-  def getOrCreate(sc: SparkContext = null,
+  def getOrCreate(backend: Backend = null,
     appName: String = "Hail",
     master: Option[String] = None,
     local: String = "local[*]",
@@ -220,10 +193,10 @@ object HailContext {
 
     if (theContext != null) {
       val hc = theContext
-      if (sc == null) {
-        warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
-          "has already been initialized. Different configuration settings will be ignored.")
-      }
+//      if (sc == null) {
+//        warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
+//          "has already been initialized. Different configuration settings will be ignored.")
+//      }
       val paramsDiff = (Map(
         "tmpDir" -> Seq(tmpDir, hc.tmpDir),
         "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
@@ -239,12 +212,12 @@ object HailContext {
 
       hc
     } else {
-      apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
+      apply(backend, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
         tmpDir, optimizerIterations)
     }
   }
 
-  def apply(sc: SparkContext = null,
+  def apply(backend: Backend = null,
     appName: String = "Hail",
     master: Option[String] = None,
     local: String = "local[*]",
@@ -268,19 +241,12 @@ object HailContext {
 
     configureLogging(logFile, quiet, append)
 
-    val sparkContext = if (sc == null)
-      configureAndCreateSparkContext(appName, master, local, minBlockSize)
-    else {
-      checkSparkConfiguration(sc)
-      sc
-    }
-
-    sparkContext.hadoopConfiguration.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
+    val sparkContext = backend.asSpark().sc
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
-    val sparkBackend = SparkBackend(sparkContext)
+    val sparkBackend = backend.asSpark() //new SparkBackend(sparkContext, appName, master, local, minBlockSize)
     val hc = new HailContext(sparkBackend, sparkBackend.getHadoopFS(), logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
