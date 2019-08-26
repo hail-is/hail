@@ -207,29 +207,31 @@ class AggregatorsSuite extends HailSuite {
       110.0)
   }
 
-  private[this] def assertArraySumEvalsTo[T: HailRep](
+  private[this] def assertArraySumEvalsTo[T](
+    eltType: Type,
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(hailType[T]))
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(eltType))
     val aggregable = a.map(Row(_))
 
     val tp = TableParallelize(MakeStruct(FastSeq(
-      ("rows", Literal(TArray(TStruct("foo" -> TArray(hailType[T]))), a.map(Row(_)))),
+      ("rows", Literal(TArray(TStruct("foo" -> TArray(eltType))), a.map(Row(_)))),
       ("global", MakeStruct(FastSeq())))))
 
     assertEvalsTo(
       TableAggregate(
         tp,
         AggArrayPerElement(GetField(Ref("row", tp.typ.rowType), "foo"), "elt", "_",
-          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", hailType[T])), aggSig), None, isScan = false)),
-      (aggregable, TStruct("a" -> TArray(hailType[T]))),
+          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", eltType)), aggSig), None, isScan = false)),
+      (aggregable, TStruct("a" -> TArray(eltType))),
       expected)(ExecStrategy.interpretOnly)
   }
 
   @Test
   def arraySumFloat64OnEmpty(): Unit =
     assertArraySumEvalsTo[Double](
+      TFloat64(),
       FastIndexedSeq(),
       null
     )
@@ -237,6 +239,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumFloat64OnSingletonMissing(): Unit =
     assertArraySumEvalsTo[Double](
+      TFloat64(),
       FastIndexedSeq(null),
       null
     )
@@ -244,6 +247,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumFloat64OnAllMissing(): Unit =
     assertArraySumEvalsTo[Double](
+      TFloat64(),
       FastIndexedSeq(null, null, null),
       null
     )
@@ -251,6 +255,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumInt64OnEmpty(): Unit =
     assertArraySumEvalsTo[Long](
+      TInt64(),
       FastIndexedSeq(),
       null
     )
@@ -258,6 +263,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumInt64OnSingletonMissing(): Unit =
     assertArraySumEvalsTo[Long](
+      TInt64(),
       FastIndexedSeq(null),
       null
     )
@@ -265,6 +271,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumInt64OnAllMissing(): Unit =
     assertArraySumEvalsTo[Long](
+      TInt64(),
       FastIndexedSeq(null, null, null),
       null
     )
@@ -272,6 +279,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumFloat64OnSmallArray(): Unit =
     assertArraySumEvalsTo(
+      TFloat64(),
       FastIndexedSeq(
         FastSeq(1.0, 2.0),
         FastSeq(10.0, 20.0),
@@ -282,6 +290,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumInt64OnSmallArray(): Unit =
     assertArraySumEvalsTo(
+      TInt64(),
       FastIndexedSeq(
         FastSeq(1L, 2L),
         FastSeq(10L, 20L),
@@ -292,6 +301,7 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def arraySumInt64FirstElementMissing(): Unit =
     assertArraySumEvalsTo(
+      TInt64(),
       FastIndexedSeq(
         null,
         FastSeq(1L, 33L),
