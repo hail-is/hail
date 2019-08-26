@@ -2235,7 +2235,7 @@ class StringExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Length of the string.
         """
-        return apply_expr(lambda x: Apply("length", x), tint32, self)
+        return apply_expr(lambda x: Apply("length", tint32, x), tint32, self)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
