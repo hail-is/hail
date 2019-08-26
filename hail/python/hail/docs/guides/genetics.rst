@@ -330,12 +330,11 @@ Using Variants (SNPs) as Covariates
     >>> mt_annot = mt.annotate_cols(
     ...     snp1 = hl.agg.filter(hl.parse_variant('20:13714384:A:C') == mt.row_key,
     ...                          hl.agg.collect(mt.GT.n_alt_alleles()))[0],
-    ...     snp2 = hl.agg.filter(hl.parse_variant('20:17597331:C:T') == mt.row_key,
+    ...     snp2 = hl.agg.filter(hl.parse_variant('20:17479730:T:C') == mt.row_key,
     ...                          hl.agg.collect(mt.GT.n_alt_alleles()))[0])
 
     Run the GWAS with :func:`.linear_regression_rows` using variant dosages as covariates:
 
-    >>> mt.row_key.show(n=100)
     >>> gwas = hl.linear_regression_rows(
     ...     x=mt_annot.GT.n_alt_alleles(),
     ...     y=mt_annot.pheno.blood_pressure,

@@ -195,7 +195,7 @@ We can annotate the left table with this expression to perform a left join:
 we add the field 'B' from `ht2` to `ht`:
 
     >>> ht1 = ht.annotate(B = ht2[ht.ID].B)
-    >>> ht1.show()
+    >>> ht1.show(width=120)
     +-------+-------+-----+-------+-------+-------+-------+-------+----------+
     |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | B        |
     +-------+-------+-----+-------+-------+-------+-------+-------+----------+
