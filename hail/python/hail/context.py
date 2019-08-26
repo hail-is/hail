@@ -115,8 +115,7 @@ class HailContext(object):
            default_reference=str,
            idempotent=bool,
            global_seed=nullable(int),
-           optimizer_iterations=nullable(int),
-           _backend=nullable(Backend))
+           optimizer_iterations=nullable(int))
 def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
                        log=None, quiet=False, append=False,
                        min_block_size=1, branching_factor=50, tmp_dir=None,
@@ -169,7 +168,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
             jspark_backend, app_name, joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir, optimizer_iterations)
 
-    jsc = jhc.sc()
+    jsc = jspark_backend.sc()
     sc = sc if sc else SparkContext(gateway=SparkContext._gateway, jsc=SparkContext._jvm.JavaSparkContext(jsc))
     spark_session = SparkSession(sc, jhc.sparkSession())
 
