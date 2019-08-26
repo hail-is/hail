@@ -261,11 +261,11 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     Examples
     --------
     Estimate the median of the `HT` field.
-    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +SKIP_OUTPUT_CHECK
     64
 
     Estimate the quartiles of the `HT` field.
-    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +SKIP_OUTPUT_CHECK
     [50, 60, 64, 71, 86]
 
     Warning
@@ -486,19 +486,29 @@ def all(condition) -> BooleanExpression:
     return count_where(~condition) == 0
 
 
-@typecheck(expr=expr_any)
-def counter(expr) -> DictExpression:
+@typecheck(expr=expr_any, weight=nullable(expr_numeric))
+def counter(expr, *, weight=None) -> DictExpression:
     """Count the occurrences of each unique record and return a dictionary.
 
     Examples
     --------
     Count the number of individuals for each unique `SEX` value:
 
-    >>> table1.aggregate(hl.agg.counter(table1.SEX))  # doctest: +NOTEST
-    {'M': 2L, 'F': 2L}
+    >>> table1.aggregate(hl.agg.counter(table1.SEX))
+    {'F': 2, 'M': 2}
+    <BLANKLINE>
+
+    Compute the total height for each unique `SEX` value:
+
+    >>> table1.aggregate(hl.agg.counter(table1.SEX, weight=table1.HT))
+    {'F': 130, 'M': 137}
+    <BLANKLINE>
 
     Notes
     -----
+    If you need a more complex grouped aggregation than :func:`counter`
+    supports, try using :func:`group_by`.
+
     This aggregator method returns a dict expression whose key type is the
     same type as `expr` and whose value type is :class:`.Expression` of type :py:data:`.tint64`.
     This dict contains a key for each unique value of `expr`, and the value
@@ -515,13 +525,18 @@ def counter(expr) -> DictExpression:
     ----------
     expr : :class:`.Expression`
         Expression to count by key.
+    weight : :class:`.NumericExpression`, optional
+        Expression by which to weight each occurence (when unspecified,
+        it is effectively ``1``)
 
     Returns
     -------
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
-    return _agg_func.group_by(expr, count())
+    if weight is None:
+        return _agg_func.group_by(expr, count())
+    return _agg_func.group_by(expr, hl.agg.sum(weight))
 
 
 @typecheck(expr=expr_any,
@@ -1021,6 +1036,7 @@ def inbreeding(expr, prior) -> StructExpression:
     | "C1049::HG00731" | -1.41e+00 |          13 |         1.13e+01 |                9 |
     +------------------+-----------+-------------+------------------+------------------+
     showing top 10 rows
+    <BLANKLINE>
 
     Notes
     -----
@@ -1078,40 +1094,23 @@ def call_stats(call, alleles) -> StructExpression:
     Compute call statistics per row:
 
     >>> dataset_result = dataset.annotate_rows(gt_stats = hl.agg.call_stats(dataset.GT, dataset.alleles))
-    >>> dataset_result.rows().key_by('locus').select('gt_stats').show()
-    +---------------+--------------+---------------------+-------------+
-    | locus         | gt_stats.AC  | gt_stats.AF         | gt_stats.AN |
-    +---------------+--------------+---------------------+-------------+
-    | locus<GRCh37> | array<int32> | array<float64>      |       int32 |
-    +---------------+--------------+---------------------+-------------+
-    | 20:12990057   | [148,52]     | [7.40e-01,2.60e-01] |         200 |
-    | 20:13029862   | [0,198]      | [0.00e+00,1.00e+00] |         198 |
-    | 20:13074235   | [13,187]     | [6.50e-02,9.35e-01] |         200 |
-    | 20:13140720   | [194,6]      | [9.70e-01,3.00e-02] |         200 |
-    | 20:13695498   | [175,25]     | [8.75e-01,1.25e-01] |         200 |
-    | 20:13714384   | [199,1]      | [9.95e-01,5.00e-03] |         200 |
-    | 20:13765944   | [132,2]      | [9.85e-01,1.49e-02] |         134 |
-    | 20:13765954   | [180,2]      | [9.89e-01,1.10e-02] |         182 |
-    | 20:13845987   | [2,198]      | [1.00e-02,9.90e-01] |         200 |
-    | 20:16223957   | [145,45]     | [7.63e-01,2.37e-01] |         190 |
-    +---------------+--------------+---------------------+-------------+
-    <BLANKLINE>
-    +---------------------------+
-    | gt_stats.homozygote_count |
-    +---------------------------+
-    | array<int32>              |
-    +---------------------------+
-    | [57,9]                    |
-    | [0,99]                    |
-    | [1,88]                    |
-    | [95,1]                    |
-    | [75,0]                    |
-    | [99,0]                    |
-    | [65,0]                    |
-    | [89,0]                    |
-    | [0,98]                    |
-    | [64,14]                   |
-    +---------------------------+
+    >>> dataset_result.rows().key_by('locus').select('gt_stats').show(width=120)
+    +---------------+--------------+---------------------+-------------+---------------------------+
+    | locus         | gt_stats.AC  | gt_stats.AF         | gt_stats.AN | gt_stats.homozygote_count |
+    +---------------+--------------+---------------------+-------------+---------------------------+
+    | locus<GRCh37> | array<int32> | array<float64>      |       int32 | array<int32>              |
+    +---------------+--------------+---------------------+-------------+---------------------------+
+    | 20:12990057   | [148,52]     | [7.40e-01,2.60e-01] |         200 | [57,9]                    |
+    | 20:13029862   | [0,198]      | [0.00e+00,1.00e+00] |         198 | [0,99]                    |
+    | 20:13074235   | [13,187]     | [6.50e-02,9.35e-01] |         200 | [1,88]                    |
+    | 20:13140720   | [194,6]      | [9.70e-01,3.00e-02] |         200 | [95,1]                    |
+    | 20:13695498   | [175,25]     | [8.75e-01,1.25e-01] |         200 | [75,0]                    |
+    | 20:13714384   | [199,1]      | [9.95e-01,5.00e-03] |         200 | [99,0]                    |
+    | 20:13765944   | [132,2]      | [9.85e-01,1.49e-02] |         134 | [65,0]                    |
+    | 20:13765954   | [180,2]      | [9.89e-01,1.10e-02] |         182 | [89,0]                    |
+    | 20:13845987   | [2,198]      | [1.00e-02,9.90e-01] |         200 | [0,98]                    |
+    | 20:16223957   | [145,45]     | [7.63e-01,2.37e-01] |         190 | [64,14]                   |
+    +---------------+--------------+---------------------+-------------+---------------------------+
     showing top 10 rows
     <BLANKLINE>
 
@@ -1160,7 +1159,7 @@ def hist(expr, start, end, bins) -> StructExpression:
     --------
     Compute a histogram of field `GQ`:
 
-    >>> dataset.aggregate_entries(hl.agg.hist(dataset.GQ, 0, 100, 10))  # doctest: +NOTEST
+    >>> dataset.aggregate_entries(hl.agg.hist(dataset.GQ, 0, 100, 10))  # doctest: +SKIP_OUTPUT_CHECK
     Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
            bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
            n_smaller=0,
@@ -1367,7 +1366,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     --------
     Regress HT against an intercept (1), SEX, and C1:
 
-    >>> table1.aggregate(hl.agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))  # doctest: +NOTEST
+    >>> table1.aggregate(hl.agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))  # doctest: +SKIP_OUTPUT_CHECK
     Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
            standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
            t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
@@ -1507,7 +1506,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> ds.aggregate_cols(hl.agg.corr(ds.pheno.age, ds.pheno.blood_pressure))  # doctest: +NOTEST
+    >>> ds.aggregate_cols(hl.agg.corr(ds.pheno.age, ds.pheno.blood_pressure))  # doctest: +SKIP_OUTPUT_CHECK
     0.16592876044845484
 
     Notes
@@ -1555,7 +1554,7 @@ def group_by(group, agg_expr) -> DictExpression:
     Compute linear regression statistics stratified by SEX:
 
     >>> table1.aggregate(hl.agg.group_by(table1.SEX,
-    ...                                  hl.agg.linreg(table1.HT, table1.C1, nested_dim=0)))  # doctest: +NOTEST
+    ...                                  hl.agg.linreg(table1.HT, table1.C1, nested_dim=0)))  # doctest: +SKIP_OUTPUT_CHECK
     {
     'F': Struct(beta=[6.153846153846154],
                 standard_error=[0.7692307692307685],
@@ -1624,7 +1623,7 @@ def array_agg(f, array):
 
     Aggregate to compute the fraction ``True`` per element:
 
-    >>> ht.aggregate(hl.agg.array_agg(lambda element: hl.agg.fraction(element), ht.arr))  # doctest: +NOTEST
+    >>> ht.aggregate(hl.agg.array_agg(lambda element: hl.agg.fraction(element), ht.arr))  # doctest: +SKIP_OUTPUT_CHECK
     [0.54, 0.55, 0.46, 0.52, 0.48]
 
     Notes

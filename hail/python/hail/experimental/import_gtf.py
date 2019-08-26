@@ -57,7 +57,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        ...                                 reference_genome='GRCh37',
        ...                                 skip_invalid_contigs=True)
 
-       >>> ht.describe()  # doctest: +NOTEST
+       >>> ht.describe()  # doctest: +SKIP_OUTPUT_CHECK
        ----------------------------------------
        Global fields:
        None

@@ -537,7 +537,7 @@ def dict(collection) -> DictExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +NOTEST
+    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +SKIP_OUTPUT_CHECK
     {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
@@ -1483,7 +1483,7 @@ def json(x) -> StringExpression:
     >>> hl.eval(hl.json([1,2,3,4,5]))
     '[1,2,3,4,5]'
 
-    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +NOTEST
+    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +SKIP_OUTPUT_CHECK
     '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -1920,10 +1920,10 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +SKIP_OUTPUT_CHECK
     True
 
-    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +SKIP_OUTPUT_CHECK
     False
 
     Parameters
@@ -1948,10 +1948,10 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm())  # doctest: +SKIP_OUTPUT_CHECK
     1.5388475315213386
 
-    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm())  # doctest: +SKIP_OUTPUT_CHECK
     -0.3006188509144124
 
     Parameters
@@ -1977,10 +1977,10 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +SKIP_OUTPUT_CHECK
     [0.5515477294463427, -1.1782691532205807]
 
-    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +SKIP_OUTPUT_CHECK
     [-1.127240906867922, 1.4495317887283203]
 
     Notes
@@ -2037,10 +2037,10 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +SKIP_OUTPUT_CHECK
     2.0
 
-    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +SKIP_OUTPUT_CHECK
     3.0
 
     Parameters
@@ -2065,10 +2065,10 @@ def rand_unif(lower, upper, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.7983073825816226
 
-    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.5161799497741769
 
     Parameters
@@ -2108,10 +2108,10 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.6696807666871818
 
-    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.8512985039011525
 
     Parameters
@@ -2150,10 +2150,10 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +SKIP_OUTPUT_CHECK
     2.3915947710237537
 
-    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.1339939936379711
 
     Parameters
@@ -2189,10 +2189,10 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +SKIP_OUTPUT_CHECK
     2
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +SKIP_OUTPUT_CHECK
     1
 
     Parameters
@@ -2217,10 +2217,10 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     [0.4630197581640282,0.18207753442497876,0.3549027074109931]
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     [0.20851948405364765,0.7873859423649898,0.004094573581362475]
 
     Parameters
@@ -2274,7 +2274,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     -0.6546536707079772
 
     Notes
@@ -2998,7 +2998,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +NOTEST
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +SKIP_OUTPUT_CHECK
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters
@@ -3755,7 +3755,7 @@ def set(collection) -> SetExpression:
     --------
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
-    >>> hl.eval(s)  # doctest: +NOTEST
+    >>> hl.eval(s)  # doctest: +SKIP_OUTPUT_CHECK
     {'Alice', 'Bob', 'Charlie'}
 
     Returns
@@ -4168,13 +4168,13 @@ def float64(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float64('1.1'))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
     1.1
 
-    >>> hl.eval(hl.float64(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64(1))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
-    >>> hl.eval(hl.float64(True))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64(True))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
     Parameters
@@ -4197,13 +4197,13 @@ def float32(x) -> Float32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float32('1.1'))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
     1.1
 
-    >>> hl.eval(hl.float32(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32(1))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
-    >>> hl.eval(hl.float32(True))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32(True))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
     Parameters

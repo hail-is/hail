@@ -132,7 +132,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     Export all mendel errors to a text file:
 
-    >>> all_errors.export('output/all_mendel_errors.tsv')
+    >>> all_errors.export(f'{output_dir}/all_mendel_errors.tsv')
 
     Annotate columns with the number of Mendel errors:
 
@@ -352,7 +352,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
 
     >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
     >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
-    >>> tdt_table.show(2)  # doctest: +NOTEST
+    >>> tdt_table.show(2)  # doctest: +SKIP_OUTPUT_CHECK
     +---------------+------------+-------+-------+----------+----------+
     | locus         | alleles    |     t |     u |   chi_sq |  p_value |
     +---------------+------------+-------+-------+----------+----------+
@@ -365,7 +365,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     Export variants with p-values below 0.001:
 
     >>> tdt_table = tdt_table.filter(tdt_table.p_value < 0.001)
-    >>> tdt_table.export("output/tdt_results.tsv")
+    >>> tdt_table.export(f"{output_dir}/tdt_results.tsv")
 
     Notes
     -----

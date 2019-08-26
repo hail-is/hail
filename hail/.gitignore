@@ -1,3 +1,4 @@
+python/.eggs
 python/**/*.pyc
 python/README.md
 python/dist
