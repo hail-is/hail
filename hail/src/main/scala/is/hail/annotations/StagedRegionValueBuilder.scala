@@ -63,6 +63,36 @@ object StagedRegionValueBuilder {
     }
   }
 
+  def deepCopyIRIntermediatePreAllocated(fb: EmitFunctionBuilder[_],
+    region: Code[Region],
+    typ: PType,
+    destination: Code[Long],
+    value: Code[_]): Code[Unit] = {
+    typ.fundamentalType match {
+      case _: PBoolean => Region.storeBoolean(destination, value.asInstanceOf[Code[Boolean]])
+      case _: PInt32 => Region.storeInt(destination, value.asInstanceOf[Code[Int]])
+      case _: PInt64 => Region.storeLong(destination, value.asInstanceOf[Code[Long]])
+      case _: PFloat32 => Region.storeFloat(destination, value.asInstanceOf[Code[Float]])
+      case _: PFloat64 => Region.storeDouble(destination, value.asInstanceOf[Code[Double]])
+      case t: PBaseStruct =>
+        Code(
+          Region.copyFrom(value.asInstanceOf[Code[Long]], destination, typ.byteSize),
+          fixupStruct(fb, region, t, destination))
+      case t: PArray =>
+        Code(
+          Region.storeAddress(destination, value.asInstanceOf[Code[Long]]),
+          fixupArray(fb, region, t, destination))
+      case t: PBinary =>
+        val offset = fb.newField[Long]
+        val v = value.asInstanceOf[Code[Long]]
+        Code(
+          offset := PBinary.allocate(region, PBinary.loadLength(region, v)),
+          Region.storeAddress(destination, offset),
+          region.copyFrom(region, v, offset, PBinary.contentByteSize(PBinary.loadLength(region, v))))
+      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+    }
+  }
+
   def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
     val offset = fb.newField[Long]
 
@@ -91,7 +121,7 @@ object StagedRegionValueBuilder {
     deepCopy(er.mb.fb, er.region, typ, value, dest)
 }
 
-class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
+class StagedRegionValueBuilder (val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
 
   private def this(mb: MethodBuilder, typ: PType, parent: StagedRegionValueBuilder) = {
     this(mb, typ, parent.region, parent.currentOffset)
@@ -99,6 +129,10 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def this(fb: FunctionBuilder[_], rowType: PType) = {
     this(fb.apply_method, rowType, fb.apply_method.getArg[Region](1), null)
+  }
+
+  def this(fb: FunctionBuilder[_], rowType: PType, pOffset: Code[Long]) = {
+    this(fb.apply_method, rowType, fb.apply_method.getArg[Region](1), pOffset)
   }
 
   def this(mb: MethodBuilder, rowType: PType) = {

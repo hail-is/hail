@@ -12,11 +12,11 @@ object StagedArrayBuilder {
 }
 
 class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], initialCapacity: Int = 8) {
-  val eltArray = PArray(eltType, required = true)
+  val eltArray = PArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PTuple(true, PInt32Required, PInt32Required, eltArray)
-  val size: ClassFieldRef[Int] = fb.newField[Int]
-  private val capacity = fb.newField[Int]
-  private val data = fb.newField[Long]
+  val size: ClassFieldRef[Int] = fb.newField[Int]("size")
+  private val capacity = fb.newField[Int]("capacity")
+  val data = fb.newField[Long]("data")
 
   private val currentSizeOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 0)
   private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
@@ -36,6 +36,10 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
       size := Region.loadInt(currentSizeOffset(src)),
       capacity := Region.loadInt(capacityOffset(src)),
       data := StagedRegionValueBuilder.deepCopy(fb, region, eltArray, Region.loadAddress(dataOffset(src))))
+  }
+
+  def reallocateData(): Code[Unit] = {
+    data := StagedRegionValueBuilder.deepCopy(fb, region, eltArray, data)
   }
 
   def storeFields(dest: Code[Long]): Code[Unit] = {
@@ -111,7 +115,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
   }
 
   private def resize(): Code[Unit] = {
-    val newDataOffset = fb.newField[Long]
+    val newDataOffset = fb.newField[Long]("new_data_offset")
     size.ceq(capacity)
       .orEmpty(
         Code(

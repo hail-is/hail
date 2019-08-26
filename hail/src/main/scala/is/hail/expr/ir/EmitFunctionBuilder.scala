@@ -248,10 +248,10 @@ class EmitFunctionBuilder[F >: Null](
     }
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithAggRegion].iname)
     _aggSigs = aggSigs
-    _aggRegion = newField[Region]
-    _aggOff = newField[Long]
+    _aggRegion = newField[Region]("agg_top_region")
+    _aggOff = newField[Long]("agg_off")
     _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray, _aggRegion)
-    _aggSerialized = newField[Array[Array[Byte]]]
+    _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
     val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
