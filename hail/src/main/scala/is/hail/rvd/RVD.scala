@@ -1449,7 +1449,7 @@ object RVD {
         val sc = first.sparkContext
         RVD.unkeyed(first.rowPType, ContextRDD.union(sc, rvds.map(_.crdd)))
       } else
-        rvds.reduce(_.orderedMerge(_, joinKey))
+        rvds.toArray.treeReduce(_.orderedMerge(_, joinKey))
   }
 
   def union(rvds: Seq[RVD]): RVD =
