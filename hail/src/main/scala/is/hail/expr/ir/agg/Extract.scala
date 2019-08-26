@@ -91,29 +91,40 @@ object TableMapIRNew {
       }
     }
 
-    // 2. load in init op on each partition, seq op over partition, write out.
-    val scanPartitionAggs = SpillingCollectIterator(runscan, HailContext.get.flags.get("max_leader_scans").toInt)
-
-
-    // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
+    // 2. load in init op on each partition, seq op over partition, comb op if possible, write.
+    var nextIdx = 0
     val scanAggCount = tv.rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
+    val aggs: Array[Array[Byte]] = new Array(1 + scanAggCount)
     val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
+    aggs(0) = initAgg
+
     HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
-      partAggs.zipWithIndex.foreach { case (x, i) =>
-        if (i < scanAggCount) {
-          partitionIndices(i) = os.getPos
-          os.writeInt(x.length)
-          os.write(x, 0, x.length)
-          os.hflush()
+      HailContext.get.sc.runJob(
+        runscan,
+        (it: Iterator[Array[Byte]]) => it.next,
+        (i: Int, row: Array[Byte]) => synchronized {
+          assert(aggs(i+1) == null)
+          aggs(i+1) = row
+          while (nextIdx < aggs.length - 1 && aggs(nextIdx) != null && aggs(nextIdx+1) != null) {
+            if (nextIdx < scanAggCount) {
+              partitionIndices(i) = os.getPos
+              os.writeInt(aggs(nextIdx).length)
+              os.write(aggs(nextIdx), 0, aggs(nextIdx).length)
+              os.hflush()
+            }
+            val buf = combOpF(aggs(nextIdx), aggs(nextIdx+1))
+            aggs(nextIdx) = null
+            aggs(nextIdx+1) = buf
+            nextIdx += 1
+          }
         }
-      }
+      )
     }
 
     val bcFS = HailContext.get.bcFS
 
-    // 4. load in partStarts, calculate newRow based on those results.
+    // 3. load in partStarts, calculate newRow based on those results.
     val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
       val globalRegion = ctx.freshRegion
       val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
