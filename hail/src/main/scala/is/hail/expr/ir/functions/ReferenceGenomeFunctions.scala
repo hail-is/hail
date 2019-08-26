@@ -8,7 +8,7 @@ import is.hail.expr.types
 import is.hail.expr.types.physical.{PArray, PBaseStruct, PInterval, PLocus, PString, PStruct, PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Locus, RGBase, ReferenceGenome, VariantMethods}
+import is.hail.variant.{Locus, ReferenceGenome, VariantMethods}
 
 class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 
@@ -233,7 +233,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
         val slocus = asm4s.coerce[String](wrapArg(r, strT)(locusoff))
         val locus = Code
-          .invokeScalaObject[String, RGBase, Locus](
+          .invokeScalaObject[String, ReferenceGenome, Locus](
           locusClass, "parse", slocus, rgCode(r.mb))
         emitLocus(r, locus, rt)
     }
@@ -255,7 +255,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r, rt: PStruct, (strT, variantoff: Code[Long])) =>
         val svar = asm4s.coerce[String](wrapArg(r, strT)(variantoff))
         val variant = Code
-          .invokeScalaObject[String, RGBase, (Locus, IndexedSeq[String])](
+          .invokeScalaObject[String, ReferenceGenome, (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "parse", svar, rgCode(r.mb))
         emitVariant(r, variant, rt)
     }
@@ -264,7 +264,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r: EmitRegion, rt: PInterval, (strT, ioff: EmitTriplet), (missingT, invalidMissing: EmitTriplet)) =>
         val sinterval = asm4s.coerce[String](wrapArg(r, strT)(ioff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval](name="intervalObject")
-        val interval = Code.invokeScalaObject[String, RGBase, Boolean, Interval](
+        val interval = Code.invokeScalaObject[String, ReferenceGenome, Boolean, Interval](
           locusClass, "parseInterval", sinterval, rgCode(r.mb), invalidMissing.value[Boolean])
 
         EmitTriplet(
@@ -284,7 +284,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       (invalidMissingT, invalidMissing: EmitTriplet)) =>
         val sloc = asm4s.coerce[String](wrapArg(r, locoffT)(locoff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval]("intervalObject")
-        val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
+        val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
           locusClass, "makeInterval", sloc, pos1.value[Int], pos2.value[Int], include1.value[Boolean], include2.value[Boolean], rgCode(r.mb), invalidMissing.value[Boolean])
 
         EmitTriplet(

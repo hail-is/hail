@@ -25,7 +25,7 @@ object Variant {
     start: Int,
     ref: String,
     alts: Array[String],
-    rg: RGBase): Variant = {
+    rg: ReferenceGenome): Variant = {
     rg.checkLocus(contig, start)
     Variant(contig, start, ref, alts)
   }
@@ -34,7 +34,7 @@ object Variant {
     start: Int,
     ref: String,
     alts: java.util.ArrayList[String],
-    rg: RGBase): Variant = Variant(contig, start, ref, alts.asScala.toArray, rg)
+    rg: ReferenceGenome): Variant = Variant(contig, start, ref, alts.asScala.toArray, rg)
 
   def fromLocusAlleles(a: Annotation): Variant = {
     val r = a.asInstanceOf[Row]
