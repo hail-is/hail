@@ -1401,6 +1401,9 @@ class ApplyAggOp(BaseApplyAggOp):
     def uses_agg_context(self, i: int):
         return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
 
+    def renderable_uses_agg_context(self, i: int):
+        return i == 2
+
 
 class ApplyScanOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
@@ -1412,6 +1415,9 @@ class ApplyScanOp(BaseApplyAggOp):
 
     def uses_scan_context(self, i: int):
         return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
+
+    def renderable_uses_agg_context(self, i: int):
+        return i == 2
 
 
 class Begin(IR):

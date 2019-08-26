@@ -89,6 +89,9 @@ class BaseIR(Renderable):
     def new_block(self, i: int) -> bool:
         ...
 
+    def renderable_new_block(self, i: int) -> bool:
+        return self.new_block(i)
+
     @staticmethod
     def is_effectful() -> bool:
         return False
@@ -116,8 +119,14 @@ class BaseIR(Renderable):
     def uses_agg_context(self, i: int) -> bool:
         return False
 
+    def renderable_uses_agg_context(self, i: int) -> bool:
+        return self.uses_agg_context(i)
+
     def uses_scan_context(self, i: int) -> bool:
         return False
+
+    def renderable_uses_scan_context(self, i: int) -> bool:
+        return self.uses_scan_context(i)
 
     def child_context_without_bindings(self, i: int, parent_context):
         (eval_c, agg_c, scan_c) = parent_context
@@ -188,6 +197,9 @@ class IR(BaseIR):
 
     def new_block(self, i: int) -> bool:
         return self.uses_agg_context(i) or self.uses_scan_context(i)
+
+    def renderable_new_block(self, i: int) -> bool:
+        return self.renderable_uses_agg_context(i) or self.renderable_uses_scan_context(i)
 
     @abc.abstractmethod
     def _compute_type(self, env, agg_env):

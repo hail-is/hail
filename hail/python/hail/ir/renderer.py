@@ -238,7 +238,6 @@ class PrintStackFrame:
         self.builder = builder
         self.local_builder = local_builder
         self.child_idx = 0
-        self.ir_child_num = 0
 
     def add_lets(self, let_bodies):
         for let_body in let_bodies:
@@ -249,17 +248,19 @@ class PrintStackFrame:
             self.builder.append(')')
 
     def make_child_frame(self, renderer, builder, context, outermost_scope, depth, local_builder=None):
-        child = self.children[self.i]
+        child = self.children[self.child_idx]
+        return self.make(child, renderer, builder, context, outermost_scope, depth, local_builder)
+
+    @staticmethod
+    def make(node, renderer, builder, context, outermost_scope, depth, local_builder=None):
         if local_builder is None:
             local_builder = builder
-        insert_lets = id(child) in renderer.binding_sites and len(renderer.binding_sites[id(child)].lifted_lets) > 0
-        state = PrintStackFrame(child, child.render_children(renderer), local_builder, outermost_scope, depth, builder, insert_lets)
-        if not isinstance(child, ir.BaseIR):
-            state.ir_child_num = state.ir_child_num
+        insert_lets = id(node) in renderer.binding_sites and len(renderer.binding_sites[id(node)].lifted_lets) > 0
+        state = PrintStackFrame(node, node.render_children(renderer), local_builder, outermost_scope, depth, builder, insert_lets)
         if insert_lets:
             state.local_builder = []
-            context.append(BindingsStackFrame(renderer.binding_sites[id(child)]))
-        head = child.render_head(renderer)
+            context.append(BindingsStackFrame(renderer.binding_sites[id(node)]))
+        head = node.render_head(renderer)
         if head != '':
             state.local_builder.append(head)
         return state
@@ -325,11 +326,6 @@ class CSERenderer(Renderer):
             frame.child_idx += 1
 
             if child_idx >= len(node.children):
-                if len(stack) <= 1:
-                    break
-
-                parent_frame = stack[-2]
-
                 # mark node as visited at potential let insertion site
                 if not node.is_effectful():
                     stack[frame.bind_depth()].visited[id(node)] = node
@@ -340,9 +336,10 @@ class CSERenderer(Renderer):
                     binding_sites[id(node)] = \
                         BindingSite(frame.lifted_lets, len(stack), node)
 
-                parent_frame.update_free_vars(frame)
-
                 stack.pop()
+                if not stack:
+                    break
+                stack[-1].update_free_vars(frame)
                 continue
 
             child = node.children[child_idx]
@@ -403,8 +400,6 @@ class CSERenderer(Renderer):
             local_builder = builder
         insert_lets = id(node) in self.binding_sites and len(self.binding_sites[id(node)].lifted_lets) > 0
         state = PrintStackFrame(node, node.render_children(self), local_builder, outermost_scope, depth, builder, insert_lets)
-        if not isinstance(node, ir.BaseIR):
-            state.ir_child_num = state.ir_child_num
         if insert_lets:
             state.local_builder = []
             context.append(BindingsStackFrame(self.binding_sites[id(node)]))
@@ -432,14 +427,15 @@ class CSERenderer(Renderer):
     #   node has both 'lift_to_frame' not None and 'insert_lets' True.
     #
     # Each stack frame also holds the following mutable state:
-    # * 'builder' and 'local_builder': If 'insert_lets', then 'builder' is the
-    #   buffer building the parent's rendered IR, and 'local_builder' is the
-    #   buffer building 'node's rendered IR. After traversing the subtree rooted
-    #   at 'node', all lets will be added to 'builder' before copying
-    #   'local_builder' to 'builder'.
-    #   If
-    # * 'child_idx':
-    # * 'ir_child_num':
+    # * 'child_idx': The index of the 'Renderable' child currently being
+    #   visited.
+    # * 'builder': The buffer building the parent's rendered IR.
+    # * 'local_builder': The builder building 'node's IR.
+    # If 'insert_lets', all lets will be added to 'builder' before copying
+    # 'local_builder' to 'builder. If 'lift_to_frame', 'local_builder' will be
+    # added to 'lift_to_frame's list of lifted lets, while only "(Ref ...)" will
+    # be added to 'builder'. If neither, then it is safe for 'local_builder' to
+    # be 'builder', to save copying.
 
     def build_string(self, root):
         root_builder = []
@@ -448,7 +444,7 @@ class CSERenderer(Renderer):
         if id(root) in self.memo:
             return ''.join(self.memo[id(root)])
 
-        stack = [self.make_post_children(root, root_builder, context, 0, 1)]
+        stack = [PrintStackFrame.make(root, self, root_builder, context, 0, 1)]
 
         while True:
             frame = stack[-1]
@@ -482,8 +478,6 @@ class CSERenderer(Renderer):
                     if not stack:
                         return ''.join(frame.builder)
                     frame = stack[-1]
-                    if not isinstance(node, ir.BaseIR):
-                        frame.ir_child_num += 1
                     frame.child_idx += 1
                     continue
 
@@ -493,7 +487,7 @@ class CSERenderer(Renderer):
             child_outermost_scope = frame.min_binding_depth
             child_depth = frame.depth
 
-            if isinstance(frame.node, ir.BaseIR) and frame.node.new_block(frame.ir_child_num):
+            if isinstance(frame.node, ir.BaseIR) and frame.node.renderable_new_block(frame.child_idx):
                 child_outermost_scope = frame.depth
             lift_to_frame = None
             if isinstance(child, ir.BaseIR):
@@ -503,7 +497,6 @@ class CSERenderer(Renderer):
             if lift_to_frame and lift_to_frame.depth >= frame.min_binding_depth:
                 insert_lets = id(child) in self.binding_sites and len(self.binding_sites[id(child)].lifted_lets) > 0
                 assert not insert_lets
-                frame.ir_child_num += 1
                 (name, _) = lift_to_frame.lifted_lets[id(child)]
 
                 if id(child) in lift_to_frame.visited:
@@ -517,7 +510,7 @@ class CSERenderer(Renderer):
                 if id(child) in self.memo:
                     new_state = PrintStackFrame(child, [], child_builder, child_outermost_scope, child_depth, frame.local_builder, insert_lets, lift_to_frame)
                 else:
-                    new_state = self.make_post_children(child, frame.local_builder, context, child_outermost_scope, child_depth, child_builder)
+                    new_state = frame.make_child_frame(self, frame.local_builder, context, child_outermost_scope, child_depth, child_builder)
                     new_state.lift_to_frame = lift_to_frame
                 stack.append(new_state)
                 continue
@@ -527,7 +520,7 @@ class CSERenderer(Renderer):
                 frame.child_idx += 1
                 continue
 
-            new_state = self.make_post_children(child, frame.local_builder, context, child_outermost_scope, child_depth)
+            new_state = frame.make_child_frame(self, frame.local_builder, context, child_outermost_scope, child_depth)
             stack.append(new_state)
             continue
 
