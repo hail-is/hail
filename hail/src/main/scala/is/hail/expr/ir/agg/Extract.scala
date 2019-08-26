@@ -102,13 +102,13 @@ object TableMapIRNew {
     HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
       HailContext.get.sc.runJob(
         runscan,
-        (it: Iterator[Array[Byte]]) => it.next,
+        (_, it: Iterator[Array[Byte]]) => it.next,
         (i: Int, row: Array[Byte]) => synchronized {
           assert(aggs(i+1) == null)
           aggs(i+1) = row
           while (nextIdx < aggs.length - 1 && aggs(nextIdx) != null && aggs(nextIdx+1) != null) {
             if (nextIdx < scanAggCount) {
-              partitionIndices(i) = os.getPos
+              partitionIndices(nextIdx) = os.getPos
               os.writeInt(aggs(nextIdx).length)
               os.write(aggs(nextIdx), 0, aggs(nextIdx).length)
               os.hflush()
