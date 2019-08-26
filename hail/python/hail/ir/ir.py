@@ -1594,7 +1594,8 @@ class Apply(IR):
             arg._compute_type(env, agg_env)
 
         self._type = self.return_type
-        assert self._type == lookup_function_return_type(self.function, [a.typ for a in self.args])
+        if self._type != lookup_function_return_type(self.function, [a.typ for a in self.args]):
+            raise KeyError(f'{self._type} != \n{lookup_function_return_type(self.function, [a.typ for a in self.args])}')
 
 
 class ApplySeeded(IR):
