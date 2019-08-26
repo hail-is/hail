@@ -973,6 +973,11 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
         self.assertTrue(t1._same(t2))
 
+    def test_expand_types_ordering(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.key_by(x = 9 - ht.idx)
+        assert ht.expand_types().x.collect() == list(range(10))
+
     def test_expand_types_on_all_types(self):
         t = create_all_values_table()
         t.expand_types()

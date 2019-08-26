@@ -2457,6 +2457,11 @@ class Table(ExprContainer):
         :class:`.Table`
             Expanded table.
         """
+
+        t = self
+        if len(t.key) > 0:
+            t = t.order_by(*t.key)
+
         def _expand(e):
             if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
                 return hl.map(lambda x: _expand(x), hl.array(e))
@@ -2479,7 +2484,6 @@ class Table(ExprContainer):
                 assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
                 return e
 
-        t = self.key_by()
         t = t.select(**_expand(t.row))
         t = t.select_globals(**_expand(t.globals))
         return t
