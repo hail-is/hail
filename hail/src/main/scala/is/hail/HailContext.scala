@@ -241,14 +241,18 @@ object HailContext {
 
     configureLogging(logFile, quiet, append)
 
-    val sparkContext = backend.asSpark().sc
 
-    if (!quiet)
-      ProgressBarBuilder.build(sparkContext)
+    if (backend.isInstanceOf[SparkBackend]) {
+      val sparkContext = backend.asSpark().sc
+      sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
+      if (!quiet) {
+        ProgressBarBuilder.build(sparkContext)
+      }
+    }
 
     val sparkBackend = backend.asSpark() //new SparkBackend(sparkContext, appName, master, local, minBlockSize)
     val hc = new HailContext(sparkBackend, sparkBackend.getHadoopFS(), logFile, tmpDir, branchingFactor, optimizerIterations)
-    sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
+
 
     info(s"Running Hail version ${ hc.version }")
     theContext = hc

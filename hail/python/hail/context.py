@@ -135,8 +135,6 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
         hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
         assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
 
-    #   - HailContext getOrCreate cannot take a SparkContext. It could take an optional "JVM Backend".
-
     conf = SparkConf()
     if hail_jar_path:
         conf.set('spark.jars', hail_jar_path)
@@ -297,8 +295,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     hail.__version__ = version    
 
     if log is None:
-            log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
-                                            suffix=f'-{version}.log')
+        log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+                                        suffix=f'-{version}.log')
 
     init_spark_backend(sc, app_name, master, local, log, quiet, append,
                        min_block_size, branching_factor, tmp_dir,
