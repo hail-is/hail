@@ -138,5 +138,4 @@ class Tests(unittest.TestCase):
 
         for types, rgs in types_and_rgs:
             for t in types:
-                print(f"type: {t} refs: {t.get_context().references} expected: {rgs}")
                 self.assertEqual(t.get_context().references, rgs)
