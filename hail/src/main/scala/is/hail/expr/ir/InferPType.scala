@@ -13,7 +13,7 @@ object InferPType {
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
-      case Literal(t, v) => PType.canonical(t, v != null)
+      case Literal(t, _) => PType.canonical(t, true)
       case True() | False() => PBoolean(true)
       case Void() => PVoid
       case Cast(ir, t) => {
