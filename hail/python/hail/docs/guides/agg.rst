@@ -148,7 +148,7 @@ Multiple aggregations
     >>> mt.aggregate_rows(
     ...             hl.struct(n_high_quality=hl.agg.count_where(mt.qual > 40),
     ...                       mean_qual=hl.agg.mean(mt.qual)))
-    Struct(n_high_quality=11, mean_qual=625857.870909091)
+    Struct(n_high_quality=13, mean_qual=544323.8915384616)
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_rows`, :func:`.aggregators.count_where`, :func:`.aggregators.mean`, :class:`.StructExpression`
 

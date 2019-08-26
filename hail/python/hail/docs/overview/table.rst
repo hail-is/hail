@@ -172,7 +172,7 @@ appended with a unique identifier "_N".
     >>> ht2 = hl.import_table("data/kt_example2.tsv", impute=True).key_by('ID')
 
     >>> ht_join = ht.join(ht2)
-    >>> ht_join.show()
+    >>> ht_join.show(width=120)
     +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
     |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     A | B        |
     +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
