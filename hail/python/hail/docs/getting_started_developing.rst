@@ -49,7 +49,8 @@ Serve the built website on http://localhost:8000/ ::
 Running the tests
 ~~~~~~~~~~~~~~~~~
 
-A couple Hail tests compare to PLINK 1.9 (not PLINK 2):
+A couple Hail tests compare to PLINK 1.9 (not PLINK 2.0 [ignore the confusing
+URL]):
 
  - `PLINK 1.9 <http://www.cog-genomics.org/plink2>`_
 
