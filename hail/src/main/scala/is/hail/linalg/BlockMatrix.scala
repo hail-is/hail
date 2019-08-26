@@ -1355,6 +1355,8 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockColRanges(keepCols, originalGP, tempDenseGP)
 
+  private val originalMaybeBlocksSet = originalGP.maybeBlocks.map(_.toSet)
+
   private val blockParentMap = (0 until tempDenseGP.numPartitions).map {blockId =>
     val (newBlockRow, newBlockCol) = tempDenseGP.blockCoordinates(blockId)
 
@@ -1364,9 +1366,9 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
     } yield originalGP.coordinatesBlock(blockRow, blockCol)
     (blockId, parents)
   }.map{case (blockId, parents) =>
-    val filteredParents = originalGP.maybeBlocks match {
+    val filteredParents = originalMaybeBlocksSet match {
       case None => parents
-      case Some(bis) => parents.filter(id => bis.contains(id))
+      case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
     }
     (blockId, filteredParents)
   }.filter{case (_, parents) => !parents.isEmpty}.toMap
@@ -1375,7 +1377,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   private val newGPMaybeBlocks: Option[Array[Int]] = if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(maybeBlocks = newGPMaybeBlocks)
 
-  log.info(s"Finished constructing block matrix filter RDD. Total time ${System.nanoTime() - t0}")
+  log.info(s"Finished constructing block matrix filter RDD. Total time ${(System.nanoTime() - t0).toDouble / 1000000000}")
 
   protected def getPartitions: Array[Partition] =
     Array.tabulate(newGP.numPartitions) { partitionIndex =>
@@ -1469,6 +1471,8 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
   private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockColRanges(keep, originalGP, tempDenseGP)
 
+  private val originalMaybeBlocksSet = originalGP.maybeBlocks.map(_.toSet)
+
   //Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are all there.
   //Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
   //without parents at all.
@@ -1478,9 +1482,9 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       originalGP.coordinatesBlock(blockRow, blockCol)
     }
   }.map{case (blockId, parents) =>
-      val filteredParents = originalGP.maybeBlocks match {
+      val filteredParents = originalMaybeBlocksSet match {
         case None => parents
-        case Some(bis) => parents.filter(id => bis.contains(id))
+        case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
       }
       (blockId, filteredParents)
   }.filter{case (_, parents) => !parents.isEmpty}.toMap
