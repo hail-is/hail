@@ -813,6 +813,13 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    def test_nested_union(self):
+        N = 100
+        M = 200
+        t = hl.utils.range_table(N, n_partitions=16)
+
+        assert hl.Table.union(*[t for _ in range(M)])._force_count() == N * M
+
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
         t2 = t1.annotate(x=hl.int32(1), y='A')
