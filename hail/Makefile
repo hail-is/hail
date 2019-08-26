@@ -44,13 +44,19 @@ endif
 $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES)
 	./gradlew shadowJar
 
-$(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
+ifdef HAIL_COMPILE_NATIVES
+$(SHADOW_TEST_JAR): native-lib-prebuilt
+endif
+$(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	./gradlew shadowTestJar
 
 jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
 
 .PHONY: jvm-test
-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) native-lib
+ifdef HAIL_COMPILE_NATIVES
+jvm-test: native-lib-prebuilt
+endif
+jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	+./pgradle test $(GRADLE_TEST_ARGS)
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
