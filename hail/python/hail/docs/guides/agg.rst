@@ -167,7 +167,7 @@ Aggregate Entry Values Into A Local Value
     >>> mt.aggregate_entries(
     ...     hl.struct(global_gq_mean=hl.agg.mean(mt.GQ),
     ...               call_rate=hl.agg.fraction(hl.is_defined(mt.GT))))
-    Struct(global_gq_mean=72.4484389782403, call_rate=0.9609090909090909)
+    Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
 
 :**dependencies**: :meth:`.MatrixTable.aggregate_entries`, :func:`.aggregators.mean`, :func:`.aggregators.fraction`, :class:`.StructExpression`
 
