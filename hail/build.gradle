@@ -37,7 +37,7 @@ if (!(sparkVersion ==~ /^2\.[2-4].*/))
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
 
-if (py4jVersion == null) {
+if (py4jVersion == null || py4jVersion == '') {
   if (sparkVersion == '2.2.0')
     py4jVersion = '0.10.4'
   else if (sparkVersion == '2.3.0')
@@ -46,7 +46,7 @@ if (py4jVersion == null) {
     py4jVersion = '0.10.7'
 }
 
-if (breezeVersion == null) {
+if (breezeVersion == null || breezeVersion == '') {
   if (sparkVersion == '2.2.0')
     breezeVersion = '0.13.1'
   else

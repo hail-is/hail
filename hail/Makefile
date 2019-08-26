@@ -17,6 +17,8 @@ $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
 $(eval $(call ENV_VAR,BRANCH))
 $(eval $(call ENV_VAR,URL))
+$(eval $(call ENV_VAR,SPARK_VERSION))
+$(eval $(call ENV_VAR,HAIL_PIP_VERSION))
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
@@ -38,17 +40,19 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
+GRADLE_ARGS += -Dspark.version=$(SPARK_VERSION) -Dpy4j.version$(PY4J_VERSION)
+
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
 $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES)
-	./gradlew shadowJar
+	./gradlew shadowJar $(GRADLE_ARGS)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	./gradlew shadowTestJar
+	./gradlew shadowTestJar $(GRADLE_ARGS)
 
 jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
 
@@ -57,9 +61,10 @@ ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	+./pgradle test $(GRADLE_TEST_ARGS)
+	+./pgradle test $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
+src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
 src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
@@ -73,10 +78,10 @@ src/main/resources/build-info.properties: Makefile
 .PHONY: python-version-info
 python-version-info: $(PYTHON_VERSION_INFO)
 
-python/hail/hail_version: Makefile env/SHORT_REVISION
+python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
 
-python/hail/hail_pip_version: Makefile
+python/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	echo $(HAIL_PIP_VERSION) > $@
 
 python/hailtop/hailctl/hail_version: python/hail/hail_version
@@ -185,6 +190,12 @@ install: $(WHEEL)
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL)
 
+.PHONY: install-on-cluster
+install-on-cluster: $(WHEEL)
+	sed '/^pyspark/d' python/requirements.txt | xargs $(PIP) install -U
+	-$(PIP) uninstall -y hail
+	$(PIP) install $(WHEEL) --no-deps
+
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
@@ -245,8 +256,8 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-clean: clean-env clean-docs
-	./gradlew clean
+clean: clean-env clean-docs native-lib-clean
+	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
 	rm -rf python/hail/hail-all-spark.jar
 	rm -rf python/README.md
@@ -256,32 +267,34 @@ clean-docs:
 	$(MAKE) -C www clean
 
 .PHONY: docs
-docs: www install $(PYTHON_VERSION_INFO)
+docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
-	cp www build/www
+	cp -R www build/www
 	mkdir -p build/docs
-	cp -R python/hail/docs build/docs
+	cp -R python/hail/docs build/
+	cp python/hail/hail_version build/
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	$(MAKE) -C www
+	$(MAKE) -C build/www
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
-	mv build/docs/_build/html build/www/docs/0.2
+	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 
 .PHONY: test
 test: pytest jvm-test doctest tutorial-test
 
 .PHONY: tutorial-test
-docs-no-test: install $(PYTHON_VERSION_INFO)
+docs-no-test: $(PYTHON_VERSION_INFO)
 	mkdir -p build
-	cp www build/www
+	cp -R www build/www
 	mkdir -p build/docs
-	cp -R python/hail/docs build/docs
+	cp -R python/hail/docs build/
+	cp python/hail/hail_version build/
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	$(MAKE) -C www
+	$(MAKE) -C build/www
 	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
