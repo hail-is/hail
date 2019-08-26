@@ -121,7 +121,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
                        log=None, quiet=False, append=False,
                        min_block_size=1, branching_factor=50, tmp_dir=None,
                        default_reference="GRCh37", idempotent=False,
-                       global_seed=6348563392232659379, optimizer_iterations=None, _backend=None):
+                       global_seed=6348563392232659379, optimizer_iterations=None):
 
     if Env._hc:
         if idempotent:
@@ -173,14 +173,9 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
     sc = sc if sc else SparkContext(gateway=SparkContext._gateway, jsc=SparkContext._jvm.JavaSparkContext(jsc))
     spark_session = SparkSession(sc, jhc.sparkSession())
 
-    if _backend is None:
-        apiserver_url = os.environ.get('HAIL_APISERVER_URL')
-        if apiserver_url is not None:
-            _backend = ServiceBackend(apiserver_url)
-        else:
-            _backend = SparkBackend(sc, spark_session)
+    backend = SparkBackend(sc, spark_session)
 
-    HailContext(_backend, jhc, default_reference, global_seed, log, quiet)
+    HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
 def initDistributedBackend():
     spark_home = _find_spark_home()
@@ -292,16 +287,24 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     """
 
     version = read_version_info()
-    hail.__version__ = version    
+    hail.__version__ = version 
 
     if log is None:
         log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
                                         suffix=f'-{version}.log')
 
-    init_spark_backend(sc, app_name, master, local, log, quiet, append,
-                       min_block_size, branching_factor, tmp_dir,
-                       default_reference, idempotent, global_seed,
-                       _optimizer_iterations, _backend)
+    if _backend:
+        HailContext(_backend, None, default_reference, global_seed, log, quiet)
+    else:
+        apiserver_url = os.environ.get('HAIL_APISERVER_URL')
+        if apiserver_url is not None:
+            service_backend = ServiceBackend(apiserver_url)
+            HailContext(service_backend, None, default_reference, global_seed, log, quiet)
+        else:
+            init_spark_backend(sc, app_name, master, local, log, quiet, append,
+                               min_block_size, branching_factor, tmp_dir,
+                               default_reference, idempotent, global_seed,
+                               _optimizer_iterations)
 
 
 def _hail_cite_url():
