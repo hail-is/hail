@@ -18,7 +18,7 @@ The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
     cd hail/hail
 
 By default, Hail uses pre-compiled native libraries that are compatible with
-recent Mac OS X and Debian releases. If you're not using on of these OSes, set
+recent Mac OS X and Debian releases. If you're not using one of these OSes, set
 the environment (or Make) variable `HAIL_COMPILE_NATIVES` to any value. This
 variable tells GNU Make to build the native libraries from source.
 
