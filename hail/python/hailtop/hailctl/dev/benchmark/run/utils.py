@@ -125,7 +125,7 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
         burn_in_time = timeit.Timer(lambda: benchmark.run()).timeit(1)
         if config.verbose:
             logging.info(f'    burn in: {burn_in_time:.2f}s')
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         if config.verbose:
             logging.error(f'    burn in: Caught exception: {e}')
         config.handler({'name': benchmark.name,
