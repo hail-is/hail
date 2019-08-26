@@ -1503,6 +1503,7 @@ _seeded_function_registry = defaultdict(list)
 _session_functions = set()
 _udf_registry = dict()
 
+
 def clear_session_functions():
     global _session_functions, _udf_registry
     for name, param_types, ret_type in _session_functions:
@@ -1514,6 +1515,7 @@ def clear_session_functions():
     _session_functions = set()
     _udf_registry = dict()
 
+
 def remove_function(name, param_types, ret_type):
     f = (param_types, ret_type)
     bindings = _function_registry[name]
@@ -1523,9 +1525,11 @@ def remove_function(name, param_types, ret_type):
     else:
         _function_registry[name] = bindings
 
+
 def register_session_function(name, param_types, ret_type):
     _session_functions.add((name, param_types, ret_type))
     register_function(name, param_types, ret_type)
+
 
 def register_function(name, param_types, ret_type):
     _register(_function_registry, name, (param_types, ret_type))
@@ -1533,25 +1537,6 @@ def register_function(name, param_types, ret_type):
 
 def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
-
-
-def _lookup_function_return_type(registry, fkind, name, arg_types):
-    for f in registry[name]:
-        (param_types, ret_type) = f
-        for p in param_types:
-            p.clear()
-        ret_type.clear()
-        if all(p.unify(a) for p, a in zip(param_types, arg_types)):
-            return ret_type.subst()
-    raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
-
-
-def lookup_function_return_type(name, arg_types):
-    return _lookup_function_return_type(_function_registry, 'function', name, arg_types)
-
-
-def lookup_seeded_function_return_type(name, arg_types):
-    return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
 
 
 def udf(*param_types):
@@ -1594,8 +1579,6 @@ class Apply(IR):
             arg._compute_type(env, agg_env)
 
         self._type = self.return_type
-        if self._type != lookup_function_return_type(self.function, [a.typ for a in self.args]):
-            raise KeyError(f'{self._type} != \n{lookup_function_return_type(self.function, [a.typ for a in self.args])}')
 
 
 class ApplySeeded(IR):
@@ -1623,7 +1606,6 @@ class ApplySeeded(IR):
             arg._compute_type(env, agg_env)
 
         self._type = self.return_type
-        assert self._type == lookup_seeded_function_return_type(self.function, [a.typ for a in self.args])
 
 
 class Uniroot(IR):
