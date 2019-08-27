@@ -271,7 +271,7 @@ push-benchmark-image: build-benchmark-image
 	docker push $(BENCHMARK_LATEST)
 
 BENCHMARK_ITERS ?= 5
-BENCHMARK_REPLICATES ?= 10
+BENCHMARK_REPLICATES ?= 5
 .PHONY: benchmark
 benchmark: push-benchmark-image
 	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)

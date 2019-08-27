@@ -1,6 +1,7 @@
 import argparse
 
 from ..run.utils import download_data
+from .. import init_logging
 
 
 def main(args_):
@@ -11,4 +12,6 @@ def main(args_):
                         help="Data directory.")
 
     args = parser.parse_args(args_)
+
+    init_logging()
     download_data(args.data_dir)
