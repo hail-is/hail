@@ -64,7 +64,6 @@ async def index(request, userdata):  # pylint: disable=unused-argument
                     'review_state': pr.review_state,
                     'author': pr.author,
                     'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
-                    'status_age': pr.pretty_status_age(),
                 }
                 pr_configs.append(pr_config)
         else:
@@ -79,7 +78,6 @@ async def index(request, userdata):  # pylint: disable=unused-argument
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
             'prs': pr_configs,
-            'status_age': wb.pretty_status_age(),
         }
         wb_configs.append(wb_config)
 
