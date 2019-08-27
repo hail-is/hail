@@ -7,6 +7,7 @@ import numpy as np
 import re
 
 import hail as hl
+from .. import init_logging
 
 
 def resource(filename):
@@ -45,9 +46,9 @@ _mt = None
 _initialized = False
 
 
-def download_data():
+def download_data(data_dir):
     global _data_dir, _mt
-    _data_dir = os.environ.get('HAIL_BENCHMARK_DIR', '/tmp/hail_benchmark_data')
+    _data_dir = data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
     logging.info(f'using benchmark data directory {_data_dir}')
     os.makedirs(_data_dir, exist_ok=True)
 
@@ -105,10 +106,8 @@ def _ensure_initialized():
 def initialize(args):
     global _initialized, _mt
     assert not _initialized
-    logging.basicConfig(format="%(asctime)-15s: %(levelname)s: %(message)s",
-                        level=logging.INFO)
-
-    download_data()
+    init_logging()
+    download_data(args.data_dir)
     hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
     _initialized = True
     _mt = hl.read_matrix_table(resource('profile.mt'))
@@ -178,3 +177,7 @@ def run_list(tests, config: RunConfig):
         if name not in _registry:
             raise ValueError(f'test {name!r} not found')
         _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')
+
+
+def list_benchmarks():
+    return list(_registry)

@@ -34,6 +34,9 @@ def main(args_):
     parser.add_argument("--output", "-o",
                         type=str,
                         help="Output file path.")
+    parser.add_argument("--data-dir", "-d",
+                        type=str,
+                        help="Data directory.")
 
     args = parser.parse_args(args_)
 
