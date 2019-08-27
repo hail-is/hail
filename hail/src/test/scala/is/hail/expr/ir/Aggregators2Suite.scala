@@ -7,6 +7,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.utils._
+import is.hail.variant.{Call, Call0, Call1, Call2}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -87,8 +88,10 @@ class Aggregators2Suite extends HailSuite {
         val res = resF(0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, region, res(region))
-        assert(double.get(0) == double.get(1)) // state does not change through serialization
-        assert(double.get(0) == expected)
+        assert(resultType.virtualType.valuesSimilar(double.get(0), double.get(1)), // state does not change through serialization
+          s"\nbefore: ${ double.get(0) }\nafter:  ${ double.get(1) }")
+        assert(resultType.virtualType.valuesSimilar(double.get(0), expected),
+          s"\nresult: ${ double.get(0) }\nexpect: $expected")
       }
     }
   }
@@ -146,6 +149,51 @@ class Aggregators2Suite extends HailSuite {
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
 
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = -70L, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
+  @Test def testCallStats() {
+    val t = TStruct("x" -> TCall())
+
+    val calls = FastIndexedSeq(
+      Row(Call0()),
+      Row(Call1(0)),
+      Row(Call1(1)),
+      Row(Call1(2)),
+      Row(Call1(0)),
+      null,
+      null,
+      Row(Call2(0, 0)),
+      Row(Call2(0, 0, phased = true)),
+      Row(Call2(0, 0)),
+      Row(Call2(0, 1)),
+      Row(Call2(1, 0, phased = true)),
+      Row(Call2(1, 1)),
+      Row(Call2(1, 3)),
+      null,
+      null,
+      Row(null))
+
+    val aggSig = AggSignature2(CallStats(), FastSeq(TInt32()), FastSeq(TCall()), None)
+
+    def seqOpArgs(calls: IndexedSeq[Any]) = Array.tabulate(calls.length)(i =>
+      FastIndexedSeq[IR](GetField(ArrayRef(Ref("calls", TArray(t)), i), "x")))
+
+    val an = 18
+    val ac = FastIndexedSeq(10, 6, 1, 1, 0)
+    val af = ac.map(_.toDouble / an).toFastIndexedSeq
+    val homCount = FastIndexedSeq(3, 1, 0, 0, 0)
+    assertAggEquals(aggSig,
+      FastIndexedSeq(I32(5)),
+      seqOpArgs(calls),
+      expected = Row(ac, af, an, homCount),
+      args = FastIndexedSeq(("calls", (TArray(t), calls))))
+
+    val allMissing = calls.filter(_ == null)
+    assertAggEquals(aggSig,
+      FastIndexedSeq(I32(5)),
+      seqOpArgs(allMissing),
+      expected = Row(FastIndexedSeq(0, 0, 0, 0, 0), null, 0, FastIndexedSeq(0, 0, 0, 0, 0)),
+      args = FastIndexedSeq(("calls", (TArray(t), allMissing))))
   }
 
   @Test def testTake() {
