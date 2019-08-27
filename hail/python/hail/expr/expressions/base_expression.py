@@ -460,7 +460,7 @@ class Expression(object):
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
             op = ApplyComparisonOp(name, self._ir, other._ir)
         else:
-            op = Apply(name, self._ir, other._ir)
+            op = Apply(name, ret_type, self._ir, other._ir)
         return expressions.construct_expr(op, ret_type, indices, aggregations)
 
     def _bin_op_reverse(self, name, other, ret_type):
@@ -469,7 +469,7 @@ class Expression(object):
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
         indices, aggregations = unify_all(self, *args)
-        ir = Apply(name, self._ir, *(a._ir for a in args))
+        ir = Apply(name, ret_type, self._ir, *(a._ir for a in args))
         return expressions.construct_expr(ir, ret_type, indices, aggregations)
 
     def _index(self, ret_type, key):

@@ -316,9 +316,11 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       (contig, pos, before, after) =>
         val getRef = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("getReferenceSequenceFromValidLocus"),
+          TString(),
           Seq(TString(), TInt32(), TInt32(), TInt32())).get
         val isValid = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("isValidLocus"),
+          TBoolean(),
           Seq(TString(), TInt32())).get
         If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString()))
     }

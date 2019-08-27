@@ -64,29 +64,29 @@ object StringFunctions extends RegistryFunctions {
       val len = Ref(genUID(), TInt32())
       val s = Ref(genUID(), TInt32())
       val e = Ref(genUID(), TInt32())
-      Let(len.name, invoke("length", str),
+      Let(len.name, invoke("length", TInt32(), str),
         Let(s.name, softBounds(start, len),
           Let(e.name, softBounds(end, len),
-            invoke("slice", str, s, If(e < s, s, e)))))
+            invoke("slice", TString(), str, s, If(e < s, s, e)))))
     }
 
     registerIR("[]", TString(), TInt32(), TString()) { (s, i) =>
       val len = Ref(genUID(), TInt32())
       val idx = Ref(genUID(), TInt32())
-      Let(len.name, invoke("length", s),
+      Let(len.name, invoke("length", TInt32(), s),
         Let(idx.name,
           If((i < -len) || (i >= len),
-            Die(invoke("+",
+            Die(invoke("+", TString(),
               Str("string index out of bounds: "),
-              invoke("+",
-                invoke("str", i),
-                invoke("+", Str(" / "), invoke("str", len)))), TInt32()),
+              invoke("+", TString(),
+                invoke("str", TString(), i),
+                invoke("+", TString(), Str(" / "), invoke("str", TString(), len)))), TInt32()),
             If(i < 0, i + len, i)),
-        invoke("slice", s, idx, idx + 1)))
+        invoke("slice", TString(), s, idx, idx + 1)))
     }
     registerIR("[:]", TString(), TString())(x => x)
-    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => invoke("[*:*]", s, start, invoke("length", s)) }
-    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => invoke("[*:*]", s, I32(0), end) }
+    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => invoke("[*:*]", TString(), s, start, invoke("length", TInt32(), s)) }
+    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => invoke("[*:*]", TString(), s, I32(0), end) }
 
     registerCode("str", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)

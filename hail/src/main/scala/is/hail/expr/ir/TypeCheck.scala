@@ -316,7 +316,7 @@ object TypeCheck {
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
-        assert(x.implementation.unify(x.args.map(_.typ)))
+        assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
       case Uniroot(name, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
         assert(min.typ.isInstanceOf[TFloat64])

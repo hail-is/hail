@@ -82,7 +82,7 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
             mt.row.dtype)
         _transform_rows_function_map[mt.row.dtype] = f
     transform_row = _transform_rows_function_map[mt.row.dtype]
-    return Table(TableMapRows(mt._tir, Apply(transform_row._name, TopLevelReference('row'))))
+    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
 
 def combine(ts):
     def merge_alleles(alleles):
@@ -147,6 +147,7 @@ def combine(ts):
         _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
     merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
+                                           merge_function._ret_type,
                                            TopLevelReference('row'),
                                            TopLevelReference('global'))))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))

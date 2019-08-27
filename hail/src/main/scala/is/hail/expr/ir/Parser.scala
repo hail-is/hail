@@ -911,12 +911,14 @@ object IRParser {
       case "ApplySeeded" =>
         val function = identifier(it)
         val seed = int64_literal(it)
+        val rt = type_expr(it)
         val args = ir_value_children(env)(it)
-        ApplySeeded(function, args, seed)
+        ApplySeeded(function, args, seed, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val function = identifier(it)
+        val rt = type_expr(it)
         val args = ir_value_children(env)(it)
-        invoke(function, args: _*)
+        invoke(function, rt, args: _*)
       case "Uniroot" =>
         val name = identifier(it)
         val function = ir_value_expr(env + (name -> TFloat64()))(it)

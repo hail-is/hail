@@ -1247,9 +1247,9 @@ private class Emit(
           wrapToMethod(FastSeq(ir.explicitNode))(addFields),
           mfield, vfield)
 
-      case ir@Apply(fn, args) =>
+      case ir@Apply(fn, args, rt) =>
         val impl = ir.implementation
-        val unified = impl.unify(args.map(_.typ))
+        val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
 
         val argPTypes = args.map(_.pType)
@@ -1258,7 +1258,7 @@ private class Emit(
             case Seq(f) =>
               f._2
             case Seq() =>
-              val methodbuilder = impl.getAsMethod(mb.fb, argPTypes: _*)
+              val methodbuilder = impl.getAsMethod(mb.fb, rt, argPTypes: _*)
               methods.update(fn, methods(fn) :+ (argPTypes -> methodbuilder))
               methodbuilder
           }
@@ -1267,18 +1267,18 @@ private class Emit(
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         strict(value, codeArgs: _*)
-      case x@ApplySeeded(fn, args, seed) =>
+      case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => (a.pType, emit(a)))
         val impl = x.implementation
-        val unified = impl.unify(args.map(_.typ))
+        val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.setSeed(seed)
         impl.apply(er, codeArgs: _*)
-      case x@ApplySpecial(_, args) =>
+      case x@ApplySpecial(_, args, rt) =>
         val codeArgs = args.map(a => (a.pType, emit(a)))
         val impl = x.implementation
         impl.argTypes.foreach(_.clear())
-        val unified = impl.unify(args.map(_.typ))
+        val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.apply(er, codeArgs: _*)
       case x@Uniroot(argname, fn, min, max) =>

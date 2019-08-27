@@ -21,13 +21,13 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
-    return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(Apply(name, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
-    return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(a=expr_array(), x=expr_any)
@@ -3224,7 +3224,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: Apply("length", x), tint32, x)
+        return apply_expr(lambda x: Apply("length", tint32, x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
@@ -3284,7 +3284,7 @@ def _comparison_func(name, exprs, filter_missing, filter_nan):
             func_name += '_ignore_missing'
         if filter_nan and unified_typ in (tfloat32, tfloat64):
             func_name = 'nan' + func_name
-        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, l, r), [ec.coerce(e)._ir for e in exprs]),
+        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, unified_typ, l, r), [ec.coerce(e)._ir for e in exprs]),
                               unified_typ,
                               indices,
                               aggs)

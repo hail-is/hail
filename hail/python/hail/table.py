@@ -1649,7 +1649,7 @@ class Table(ExprContainer):
                                 MatrixAnnotateRowsTable(left._mir, join_table._tir, uid),
                                 InsertFields(
                                     Ref('va'),
-                                    [(uid, Apply('get',
+                                    [(uid, Apply('get', join_table._row_type[uid].value_type,
                                                  GetField(GetField(Ref('va'), uid), uid),
                                                  MakeTuple([e._ir for e in exprs])))],
                                     None

@@ -215,12 +215,12 @@ object Copy {
         val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion
         r
-      case Apply(fn, args) =>
-        Apply(fn, newChildren.map(_.asInstanceOf[IR]))
-      case ApplySeeded(fn, args, seed) =>
-        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed)
-      case ApplySpecial(fn, args) =>
-        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
+      case Apply(fn, args, t) =>
+        Apply(fn, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySeeded(fn, args, seed, t) =>
+        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
+      case ApplySpecial(fn, args, t) =>
+        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
       case Uniroot(argname, _, _, _) =>
         val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
         Uniroot(argname, fn, min, max)

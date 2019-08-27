@@ -63,7 +63,7 @@ object LowerTableIR {
 
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
-      invoke("sum", stage.toIR(node => Cast(ArrayLen(node), TInt64())))
+      invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(node), TInt64())))
 
     case TableGetGlobals(child) =>
       val stage = lower(child)
