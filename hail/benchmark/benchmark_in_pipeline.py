@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     make_resources = p.new_task('create_resources')
     make_resources.command('hailctl dev benchmark create-resources --data-dir benchmark-resources')
-    make_resources.command('time tar -czvf benchmark-resources.tar.gz benchmark-resources')
+    make_resources.command("time tar -czvf benchmark-resources.tar.gz benchmark-resources --exclude='*.crc'")
     make_resources.command('ls -lh benchmark-resources.tar.gz')
     make_resources.command(f'mv benchmark-resources.tar.gz {make_resources.ofile}')
 
