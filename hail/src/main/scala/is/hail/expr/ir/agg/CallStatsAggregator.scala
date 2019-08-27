@@ -83,7 +83,7 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
 
   def copyFromAddress(src: Code[Long]): Code[Unit] = {
     Code(
-      StagedRegionValueBuilder.deepCopy(fb, region, CallStatsState.stateType, src, off),
+      off := StagedRegionValueBuilder.deepCopy(fb, region, CallStatsState.stateType, src),
       loadNAlleles
     )
   }
