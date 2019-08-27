@@ -1,12 +1,13 @@
-import os
-import sys
-import timeit
-import re
-from urllib.request import urlretrieve
 import logging
+import os
+import timeit
+from urllib.request import urlretrieve
+
 import numpy as np
+import re
 
 import hail as hl
+
 
 def resource(filename):
     assert _initialized
@@ -122,7 +123,7 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
     times = []
 
     try:
-        burn_in_time = timeit.Timer(lambda: benchmark.run()).timeit(1)
+        burn_in_time = timeit.Timer(benchmark.run).timeit(1)
         if config.verbose:
             logging.info(f'    burn in: {burn_in_time:.2f}s')
     except Exception as e:  # pylint: disable=broad-except
