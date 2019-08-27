@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 
@@ -25,17 +25,11 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(elt: EmitTriplet) = seq
 
-    val copyValue = typ match {
-      case _: PBoolean => state.region.storeByte(stateType.fieldOffset(state.off, 0), elt.value[Boolean].toI.toB)
-      case _: PInt32 => state.region.storeInt(stateType.fieldOffset(state.off, 0), elt.value[Int])
-      case _: PInt64 => state.region.storeLong(stateType.fieldOffset(state.off, 0), elt.value[Long])
-      case _: PFloat32 => state.region.storeFloat(stateType.fieldOffset(state.off, 0), elt.value[Float])
-      case _: PFloat64 => state.region.storeDouble(stateType.fieldOffset(state.off, 0), elt.value[Double])
-      case _ =>
-        val v = state.fb.newField[Long]
-        Code(v := elt.value[Long],
-          StagedRegionValueBuilder.deepCopy(state.fb, state.region, typ, v, stateType.fieldOffset(state.off, 0)))
-    }
+    val v = state.fb.newField(typeToTypeInfo(typ))
+    val copyValue =
+      Code(
+        v := elt.value,
+        StagedRegionValueBuilder.deepCopy(state.fb, state.region, typ, v, stateType.fieldOffset(state.off, 0)))
 
     Code(
       elt.setup,
