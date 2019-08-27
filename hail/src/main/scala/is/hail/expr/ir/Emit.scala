@@ -1937,8 +1937,6 @@ private class Emit(
 
     val xType = x.pType.asInstanceOf[PNDArray]
     val nDims = xType.nDims
-//    val elemType = xType.elementType.virtualType
-     //No way this is right
 
     x match {
       case NDArrayMap(child, elemName, body) =>
@@ -1946,10 +1944,20 @@ private class Emit(
         val vti = typeToTypeInfo(elemPType.virtualType)
         val elemRef = coerce[Any](mb.newField(elemName)(vti))
         val bodyEnv = env.bind(elemName, (vti, false, elemRef.load()))
-        val bodyt = this.emit(body, bodyEnv)
+        val bodyt = this.emit(body, bodyEnv, region, None)
+        val childEmitter = deforest(child)
+        val setup = Code(childEmitter.setup)
+
+        new NDArrayEmitter(mb, nDims, setup) {
+          override def outputElement(idxVars: ClassFieldRef[Int]): Code[_] = {
+
+          }
+        }
     }
+    ???
   }
 }
+// TODO: Next step, what about shapes?
 abstract class NDArrayEmitter(
   val mb: MethodBuilder,
   val nDims: Int,
@@ -1957,6 +1965,8 @@ abstract class NDArrayEmitter(
 
   // Need to make a SRVB to fill with array elements
   // Then call emit on MakeNDArray of
+
+  def outputElement(idxVars: ClassFieldRef[Int]): Code[_]
 
   def emit(elemType: PType): Code[_] = {
     Code(
@@ -1969,7 +1979,12 @@ abstract class NDArrayEmitter(
     val idxVars = Seq.tabulate(nDims) {i => mb.newField[Int]}
     val body = Code._empty
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
-      innerLoops
+      Code(
+        dimVar := 0,
+        Code.whileLoop(dimVar < ???,
+          innerLoops
+        )
+      )
     }
   }
 
