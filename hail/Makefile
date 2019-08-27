@@ -93,41 +93,43 @@ python/README.md: ../README.md
 python/hail/hail-all-spark.jar: $(SHADOW_JAR)
 	cp -f $< $@
 
+pytest_args := -v \
+	--color=no \
+	--instafail \
+	-r A \
+	--self-contained-html \
+	--html=../build/reports/pytest.html \
+	--noconftest \
+	$(PYTEST_ARGS)
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-     --addopts '-v \
-     --color=no \
-     --instafail \
-     -r A \
-     --self-contained-html \
-     --html=build/reports/pytest.html \
-     --noconftest \
-     $(PYTEST_ARGS)'
+     --addopts '$(pytest_args)'
 
+doctest_args := -v \
+	--color=no \
+	--instafail \
+	-r A \
+	--self-contained-html \
+	--html=../build/reports/pytest-doctest.html \
+	--doctest-modules \
+	--doctest-glob='*.rst' \
+	--ignore=setup.py \
+	--ignore=setup-hailtop.py \
+	--ignore=hail/docs/conf.py \
+	--ignore=cluster-tests \
+	--ignore=hailtop \
+	--ignore=test \
+	--ignore=hail/docs/doctest_write_data.py \
+	--ignore=hail/docs/getting_started_developing.rst \
+	--ignore=hail/docs/getting_started.rst \
+	$(PYTEST_ARGS)
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 doctest: python/README.md python/hail/hail-all-spark.jar
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
-	  --addopts '-v \
-    --color=no \
-    --instafail \
-    -r A \
-    --self-contained-html \
-    --html=build/reports/pytest-doctest.html \
-    --doctest-modules \
-    --doctest-glob='*.rst' \
-    --ignore=setup.py \
-    --ignore=setup-hailtop.py \
-    --ignore=hail/docs/conf.py \
-    --ignore=cluster-tests \
-    --ignore=hailtop \
-    --ignore=test \
-    --ignore=hail/docs/doctest_write_data.py \
-    --ignore=hail/docs/getting_started_developing.rst \
-    --ignore=hail/docs/getting_started.rst \
-    $(PYTEST_ARGS)'
+	  --addopts '$(doctest_args)'
 
 .PHONY: wheel
 wheel: $(WHEEL)
