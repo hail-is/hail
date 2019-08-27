@@ -36,10 +36,9 @@ object InferPType {
         InferPType(shape, env)
         InferPType(rowMajor, env)
 
-        assert(shape.pType2.required == true)
         val nElem = shape.pType2.asInstanceOf[PTuple].size
 
-        PNDArray(coerce[PArray](data.pType2).elementType.setRequired(true), nElem, true)
+        PNDArray(coerce[PArray](data.pType2).elementType.setRequired(true), nElem, data.pType2.required && shape.pType2.required)
       }
       case ArrayRange(start: IR, stop: IR, step: IR) => {
         InferPType(start, env)
