@@ -1940,17 +1940,28 @@ private class Emit(
 
     x match {
       case NDArrayMap(child, elemName, body) =>
-        val elemPType = child.pType.asInstanceOf[PNDArray].elementType
+        val childP = child.pType.asInstanceOf[PNDArray]
+        val elemPType = childP.elementType
         val vti = typeToTypeInfo(elemPType.virtualType)
         val elemRef = coerce[Any](mb.newField(elemName)(vti))
         val bodyEnv = env.bind(elemName, (vti, false, elemRef.load()))
         val bodyt = this.emit(body, bodyEnv, region, None)
+
         val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup)
 
-        new NDArrayEmitter(mb, nDims, setup) {
-          override def outputElement(idxVars: ClassFieldRef[Int]): Code[_] = {
+//        val shape = childP.representation.field("shape").typ.asInstanceOf[PStruct].loadField(region, childEmitter.shape,)
 
+        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.shape,
+          childP.representation.field("shape").typ.asInstanceOf[PStruct],
+          childP.elementType, setup) {
+          override def outputElement(idxVars: ClassFieldRef[Int]): Code[_] = {
+            Code(
+              elemRef := childEmitter.outputElement(idxVars),
+              bodyt.setup,
+              bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
+              bodyt.v
+            )
           }
         }
     }
@@ -1961,28 +1972,32 @@ private class Emit(
 abstract class NDArrayEmitter(
   val mb: MethodBuilder,
   val nDims: Int,
+  val shape: Code[Long],
+  val shapePType: PBaseStruct,
+  val elementPType: PType,
   val setup: Code[_]) {
 
   // Need to make a SRVB to fill with array elements
   // Then call emit on MakeNDArray of
 
-  def outputElement(idxVars: ClassFieldRef[Int]): Code[_]
+  def outputElement(idxVars: Seq[ClassFieldRef[Int]]): Code[_]
 
   def emit(elemType: PType): Code[_] = {
     Code(
       setup,
-      emitLoops()
+      emitLoops(???)
     )
   }
 
-  private def emitLoops(): Code[_] = {
-    val idxVars = Seq.tabulate(nDims) {i => mb.newField[Int]}
-    val body = Code._empty
+  private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
+    val idxVars = Seq.tabulate(nDims) {i => mb.newField[Long]}
+    val body = Code(srvb.addWithDeepCopy(elementPType, outputElement(idxVars)))
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
-        dimVar := 0,
-        Code.whileLoop(dimVar < ???,
-          innerLoops
+        dimVar := 0L,
+        Code.whileLoop(dimVar < shapePType.loadField(shape, dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
         )
       )
     }
