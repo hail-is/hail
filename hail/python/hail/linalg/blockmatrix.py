@@ -584,7 +584,21 @@ class BlockMatrix(object):
                       force_row_major=bool,
                       stage_locally=bool)
     def checkpoint(self, path, overwrite=False, force_row_major=False, stage_locally=False):
-        """Checkpoint the block matrix. See :func:`.write` for explanation of arguments.
+        """Checkpoint the block matrix.
+
+        Parameters
+        ----------
+        path: :obj:`str`
+            Path for output file.
+        overwrite : :obj:`bool`
+            If ``True``, overwrite an existing file at the destination.
+        force_row_major: :obj:`bool`
+            If ``True``, transform blocks in column-major format
+            to row-major format before checkpointing.
+            If ``False``, checkpoint blocks in their current format.
+        stage_locally: :obj:`bool`
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``.
         """
         self.write(path, overwrite, force_row_major, stage_locally)
         return BlockMatrix.read(path)
