@@ -30,7 +30,6 @@ object InferPType {
         PBoolean(true)
       }
       case Ref(name, _) => env.lookup(name)
-      case In(_, t) => PType.canonical(t)
       case MakeNDArray(data, shape, rowMajor) => {
         InferPType(data, env)
         InferPType(shape, env)
