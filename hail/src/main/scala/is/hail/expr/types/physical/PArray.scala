@@ -16,8 +16,6 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
   val contentsAlignment: Long = elementType.alignment.max(4)
 
   override def pyString(sb: StringBuilder): Unit = {
-    if (required)
-      sb.append("+")
     sb.append("array<")
     elementType.pyString(sb)
     sb.append('>')

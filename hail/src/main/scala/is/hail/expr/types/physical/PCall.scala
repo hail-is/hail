@@ -17,8 +17,6 @@ class PCall(override val required: Boolean) extends ComplexPType {
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {
-    if(required)
-      sb.append("+")
     sb.append("call")
   }
   val representation: PType = PCall.representation(required)

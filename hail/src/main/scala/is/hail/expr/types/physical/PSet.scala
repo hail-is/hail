@@ -20,8 +20,6 @@ final case class PSet(elementType: PType, override val required: Boolean = false
   def _toPretty = s"Set[$elementType]"
 
   override def pyString(sb: StringBuilder): Unit = {
-    if(required)
-      sb.append("+")
     sb.append("set<")
     elementType.pyString(sb)
     sb.append('>')

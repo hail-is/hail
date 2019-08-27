@@ -16,8 +16,6 @@ class PBoolean(override val required: Boolean) extends PType {
   def _toPretty = "Boolean"
 
   override def pyString(sb: StringBuilder): Unit = {
-    if(required)
-      sb.append("+")
     sb.append(s"bool")
   }
 

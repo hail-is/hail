@@ -26,8 +26,6 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
   lazy val virtualType: TStream = TStream(elementType.virtualType, required)
 
   override def pyString(sb: StringBuilder): Unit = {
-    if(required)
-      sb.append("+")
     sb.append("stream<")
     elementType.pyString(sb)
     sb.append('>')

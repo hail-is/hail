@@ -34,8 +34,6 @@ case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
   def _toPretty = s"Locus($rg)"
 
   override def pyString(sb: StringBuilder): Unit = {
-    if(required)
-      sb.append("+")
     sb.append("locus<")
     sb.append(prettyIdentifier(rg.name))
     sb.append('>')
