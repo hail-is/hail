@@ -79,15 +79,6 @@ object InferPType {
       case _: SeqOp => PVoid
       case _: Begin => PVoid
       case Die(_, t) => PType.canonical(t, true)
-      case If(cond, cnsq, altr) => {
-        InferPType(cond, env)
-        InferPType(cnsq, env)
-        InferPType(altr, env)
-
-        assert((cnsq.pType2 isOfType altr.pType2) && (cond.pType2 isOfType PBoolean()))
-
-        cnsq.pType2.setRequired(cond.pType2.required && cnsq.pType2.required && altr.pType2.required)
-      }
       case Let(name, value, body) => {
         InferPType(value, env)
         InferPType(body, env.bind(name, value.pType2))
@@ -335,7 +326,7 @@ object InferPType {
         PArray(body.pType2)
       }
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
-      case _: Coalesce | _: MakeArray | _: MakeStream => throw new Exception("Node not supported")
+      case _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge
