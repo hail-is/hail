@@ -341,28 +341,6 @@ class IRSuite extends HailSuite {
     assertSumsTo(TFloat64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpAddInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32(false))
-    assertToPType(TInt64(true), PInt64(true))
-    assertToPType(TFloat32(true), PFloat32(true))
-    assertToPType(TFloat64(), PFloat64(false))
-  }
-
-  @Test def testApplyBinaryPrimOpSubtractInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32(false))
-    assertToPType(TInt64(true), PInt64(true))
-    assertToPType(TFloat32(true), PFloat32(true))
-    assertToPType(TFloat64(), PFloat64(false))
-  }
-
   @Test def testApplyBinaryPrimOpSubtract() {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -415,17 +393,6 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpMultiplyInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(true), PInt32(true))
-    assertToPType(TInt64(true), PInt64(true))
-    assertToPType(TFloat32(), PFloat32())
-    assertToPType(TFloat64(), PFloat64())
-  }
-
   @Test def testApplyBinaryPrimOpFloatingPointDivide() {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -450,17 +417,6 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), 5d, null, null)
     assertExpected(TFloat64(), null, 2d, null)
     assertExpected(TFloat64(), null, null, null)
-  }
-
-  @Test def testApplyBinaryPrimOpFloatingPointDivideInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(true), PFloat32(true))
-    assertToPType(TInt64(true), PFloat32(true))
-    assertToPType(TFloat32(true), PFloat32(true))
-    assertToPType(TFloat64(true), PFloat64(true))
   }
 
   @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
@@ -489,17 +445,6 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRoundToNegInfDivideInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32())
-    assertToPType(TInt64(), PInt64())
-    assertToPType(TFloat32(), PFloat32())
-    assertToPType(TFloat64(), PFloat64())
-  }
-
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -522,15 +467,6 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitAndInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(true), PInt32(true))
-    assertToPType(TInt64(), PInt64())
-  }
-
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -551,15 +487,6 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64(), 5L, null, null)
     assertExpected(TInt64(), null, 2L, null)
     assertExpected(TInt64(), null, null, null)
-  }
-
-  @Test def testApplyBinaryPrimOpBitOrInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32())
-    assertToPType(TInt64(true), PInt64(true))
   }
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
@@ -1138,7 +1065,7 @@ class IRSuite extends HailSuite {
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())),  .ordered(shape.map(I64)), rowMajor)
+    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple.ordered(shape.map(I64)), rowMajor)
   }
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
