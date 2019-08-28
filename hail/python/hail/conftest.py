@@ -33,19 +33,15 @@ def init(doctest_namespace):
     olddir = os.getcwd()
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
-    output_dir = tempfile.TemporaryDirectory()
     try:
-        doctest_namespace['output_dir'] = output_dir.name
-        print(f'output_dir: {output_dir.name}')
-        generate_datasets(doctest_namespace, output_dir)
+        generate_datasets(doctest_namespace)
         print("finished setting up doctest...")
         yield
     finally:
         os.chdir(olddir)
-        output_dir.cleanup()
 
 
-def generate_datasets(doctest_namespace, output_dir):
+def generate_datasets(doctest_namespace):
     doctest_namespace['hl'] = hl
 
     ds = hl.import_vcf('data/sample.vcf.bgz')
@@ -76,7 +72,7 @@ def generate_datasets(doctest_namespace, output_dir):
                              populations=['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
     ds = ds.annotate_rows(gene=['TTN'])
     ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')
-    ds = ds.checkpoint(f'{output_dir.name}/example.vds', overwrite=True)
+    ds = ds.checkpoint(f'output/example.vds', overwrite=True)
 
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
@@ -165,7 +161,7 @@ def generate_datasets(doctest_namespace, output_dir):
     burden_ds = hl.variant_qc(burden_ds)
     genekt = hl.import_locus_intervals('data/gene.interval_list')
     burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
-    burden_ds = burden_ds.checkpoint(f'{output_dir.name}/example_burden.vds', overwrite=True)
+    burden_ds = burden_ds.checkpoint(f'output/example_burden.vds', overwrite=True)
     doctest_namespace['burden_ds'] = burden_ds
 
     print("finished setting up doctest...")

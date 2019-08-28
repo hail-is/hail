@@ -2463,7 +2463,7 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> dataset = dataset.checkpoint(f'{output_dir}/dataset_checkpoint.mt')
+        >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
 
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -2482,7 +2482,7 @@ class MatrixTable(ExprContainer):
         Examples
         --------
 
-        >>> dataset.write(f'{output_dir}/dataset.mt')
+        >>> dataset.write('output/dataset.mt')
 
         Warning
         -------

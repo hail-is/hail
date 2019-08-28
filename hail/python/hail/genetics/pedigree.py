@@ -288,7 +288,7 @@ class Pedigree(object):
         **Examples**
 
         >>> ped = hl.Pedigree.read('data/test.fam')
-        >>> ped.write(f'{output_dir}/out.fam')
+        >>> ped.write('output/out.fam')
 
         **Notes**
 

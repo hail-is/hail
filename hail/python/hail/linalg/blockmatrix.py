@@ -620,7 +620,7 @@ class BlockMatrix(object):
         --------
         >>> mt = hl.balding_nichols_model(3, 25, 50)
         >>> BlockMatrix.write_from_entry_expr(mt.GT.n_alt_alleles(),
-        ...                                   f'{output_dir}/model.bm')
+        ...                                   'output/model.bm')
 
         Notes
         -----
@@ -1661,17 +1661,17 @@ class BlockMatrix(object):
         >>> nd = np.array([[1.0, 0.8, 0.7],
         ...                [0.8, 1.0 ,0.3],
         ...                [0.7, 0.3, 1.0]])
-        >>> BlockMatrix.from_numpy(nd).write(f'{output_dir}/example.bm', overwrite=True, force_row_major=True)
+        >>> BlockMatrix.from_numpy(nd).write('output/example.bm', overwrite=True, force_row_major=True)
 
         Export the full matrix as a file with tab-separated values:
 
-        >>> BlockMatrix.export(f'{output_dir}/example.bm', f'{output_dir}/example.tsv')
+        >>> BlockMatrix.export('output/example.bm', 'output/example.tsv')
 
         Export the upper-triangle of the matrix as a block gzipped file of
         comma-separated values.
 
-        >>> BlockMatrix.export(path_in=f'{output_dir}/example.bm',
-        ...                    path_out=f'{output_dir}/example.csv.bgz',
+        >>> BlockMatrix.export(path_in='output/example.bm',
+        ...                    path_out='output/example.csv.bgz',
         ...                    delimiter=',',
         ...                    entries='upper')
 
@@ -1679,8 +1679,8 @@ class BlockMatrix(object):
         gzipped files, each with a header line for columns ``idx``, ``A``,
         ``B``, and ``C``.
 
-        >>> BlockMatrix.export(path_in=f'{output_dir}/example.bm',
-        ...                    path_out=f'{output_dir}/example.gz',
+        >>> BlockMatrix.export(path_in='output/example.bm',
+        ...                    path_out='output/example.gz',
         ...                    header='\t'.join(['idx', 'A', 'B', 'C']),
         ...                    add_index=True,
         ...                    parallel='header_per_shard',
@@ -1902,7 +1902,7 @@ class BlockMatrix(object):
         >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
         >>>
         >>> (BlockMatrix.from_numpy(nd)
-        ...     .export_rectangles(f'{output_dir}/example.bm', rectangles))
+        ...     .export_rectangles('output/example.bm', rectangles))
 
         This produces three files in the example folder.
 
@@ -2001,7 +2001,7 @@ class BlockMatrix(object):
         ...                [ 4.0, 5.0, 6.0],
         ...                [ 7.0, 8.0, 9.0]])
 
-        >>> BlockMatrix.from_numpy(nd, block_size=2).export_blocks(f'{output_dir}/example')
+        >>> BlockMatrix.from_numpy(nd, block_size=2).export_blocks('output/example')
 
         This produces four files in the example folder.
 
@@ -2093,8 +2093,8 @@ class BlockMatrix(object):
         ...                [ 4.0, 5.0, 6.0],
         ...                [ 7.0, 8.0, 9.0]])
 
-        >>> BlockMatrix.from_numpy(nd).export_rectangles(f'{output_dir}/example', [[0, 3, 0, 1], [1, 2, 0, 2]])
-        >>> BlockMatrix.rectangles_to_numpy(f'{output_dir}/example')
+        >>> BlockMatrix.from_numpy(nd).export_rectangles('output/example', [[0, 3, 0, 1], [1, 2, 0, 2]])
+        >>> BlockMatrix.rectangles_to_numpy('output/example')
 
         This would produce the following NumPy ndarray:
 

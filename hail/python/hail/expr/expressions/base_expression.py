@@ -731,8 +731,8 @@ class Expression(object):
         Examples
         --------
 
-        >>> mt.GT.export(f'{output_dir}/gt.tsv')
-        >>> with open(f'{output_dir}/gt.tsv', 'r') as f:
+        >>> mt.GT.export('output/gt.tsv')
+        >>> with open('output/gt.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         locus	alleles	0	1	2	3
@@ -741,8 +741,8 @@ class Expression(object):
         1:3	["A","C"]	0/1	0/0	0/0	0/0
         1:4	["A","C"]	1/1	1/1	0/0	1/1
         <BLANKLINE>
-        >>> mt.GT.export(f'{output_dir}/gt-no-header.tsv', header=False)
-        >>> with open(f'{output_dir}/gt-no-header.tsv', 'r') as f:
+        >>> mt.GT.export('output/gt-no-header.tsv', header=False)
+        >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         1:1	["A","C"]	0/1	1/1	0/1	0/1
@@ -750,8 +750,8 @@ class Expression(object):
         1:3	["A","C"]	0/1	0/0	0/0	0/0
         1:4	["A","C"]	1/1	1/1	0/0	1/1
         <BLANKLINE>
-        >>> mt.pop.export(f'{output_dir}/pops.tsv')
-        >>> with open(f'{output_dir}/pops.tsv', 'r') as f:
+        >>> mt.pop.export('output/pops.tsv')
+        >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         sample_idx	pop
@@ -760,8 +760,8 @@ class Expression(object):
         2	0
         3	0
         <BLANKLINE>
-        >>> mt.ancestral_af.export(f'{output_dir}/ancestral_af.tsv')
-        >>> with open(f'{output_dir}/ancestral_af.tsv', 'r') as f:
+        >>> mt.ancestral_af.export('output/ancestral_af.tsv')
+        >>> with open('output/ancestral_af.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         locus	alleles	ancestral_af
@@ -771,8 +771,8 @@ class Expression(object):
         1:4	["A","C"]	7.6300e-01
         <BLANKLINE>
         >>> mt = small_mt
-        >>> mt.bn.export(f'{output_dir}/bn.tsv')
-        >>> with open(f'{output_dir}/bn.tsv', 'r') as f:
+        >>> mt.bn.export('output/bn.tsv')
+        >>> with open('output/bn.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         bn
@@ -789,8 +789,8 @@ class Expression(object):
         used as a column header. For example:
 
         >>> mt = mt.key_cols_by(s=mt.sample_idx, family='fam1')
-        >>> mt.GT.export(f'{output_dir}/gt-no-header.tsv')
-        >>> with open(f'{output_dir}/gt-no-header.tsv', 'r') as f:
+        >>> mt.GT.export('output/gt-no-header.tsv')
+        >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         locus	alleles	{"s":0,"family":"fam1"}	{"s":1,"family":"fam1"}	{"s":2,"family":"fam1"}	{"s":3,"family":"fam1"}

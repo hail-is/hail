@@ -818,7 +818,7 @@ def linear_mixed_model(y,
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
     ...     z_t=marker_ds.GT.n_alt_alleles(),
-    ...     p_path=f'{output_dir}/p.bm')
+    ...     p_path='output/p.bm')
 
     Fit the model and examine :math:`h^2`:
 
@@ -846,7 +846,7 @@ def linear_mixed_model(y,
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,
-    ...     p_path=f'{output_dir}/p.bm',
+    ...     p_path='output/p.bm',
     ...     overwrite=True)
 
     Notes
@@ -2057,7 +2057,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     Examples
     --------
 
-    >>> hl.split_multi_hts(dataset).write(f'{output_dir}/split.vds')
+    >>> hl.split_multi_hts(dataset).write('output/split.vds')
 
     Notes
     -----
@@ -2141,7 +2141,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     >>> split_ds = hl.split_multi_hts(dataset)
     >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.a_index - 1],
     ...                                   **split_ds.info)) # doctest: +SKIP
-    >>> hl.export_vcf(split_ds, f'{output_dir}/export.vcf') # doctest: +SKIP
+    >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 

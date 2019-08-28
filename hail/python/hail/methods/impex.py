@@ -65,7 +65,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
     >>> example_ds = hl.import_gen('data/example.gen', sample_file='data/example.sample')
     >>> example_ds = example_ds.filter_rows(agg.info_score(example_ds.GP).score >= 0.9) # doctest: +SKIP
-    >>> hl.export_gen(example_ds, f'{output_dir}/infoscore_filtered')
+    >>> hl.export_gen(example_ds, 'output/infoscore_filtered')
 
     Notes
     -----
@@ -265,7 +265,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     PLINK files with the FAM file individual ID set to the sample ID:
 
     >>> ds = hl.split_multi_hts(dataset)
-    >>> hl.export_plink(ds, f'{output_dir}/example', ind_id = ds.s)
+    >>> hl.export_plink(ds, 'output/example', ind_id = ds.s)
 
     Notes
     -----
@@ -391,7 +391,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     --------
     Export to VCF as a block-compressed file:
 
-    >>> hl.export_vcf(dataset, f'{output_dir}/example.vcf.bgz')
+    >>> hl.export_vcf(dataset, 'output/example.vcf.bgz')
 
     Notes
     -----
@@ -463,7 +463,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     >>> ds = dataset.filter_entries(dataset.GQ >= 20)
     >>> ds = hl.variant_qc(ds)
     >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
-    >>> hl.export_vcf(ds, f'{output_dir}/example.vcf.bgz')
+    >>> hl.export_vcf(ds, 'output/example.vcf.bgz')
 
     Warning
     -------

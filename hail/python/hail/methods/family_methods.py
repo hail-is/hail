@@ -132,7 +132,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     Export all mendel errors to a text file:
 
-    >>> all_errors.export(f'{output_dir}/all_mendel_errors.tsv')
+    >>> all_errors.export('output/all_mendel_errors.tsv')
 
     Annotate columns with the number of Mendel errors:
 
