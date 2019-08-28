@@ -318,7 +318,7 @@ object Simplify {
     case TableCount(TableMapRows(child, _)) => TableCount(child)
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
     case TableCount(TableUnion(children)) =>
-      children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
+      children.map(TableCount(_): IR).treeReduce(ApplyBinaryPrimOp(Add(), _, _))
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
