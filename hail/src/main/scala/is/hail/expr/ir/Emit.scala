@@ -1953,7 +1953,7 @@ private class Emit(
 
 //        val shape = childP.representation.field("shape").typ.asInstanceOf[PStruct].loadField(region, childEmitter.shape,)
 
-        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.shape,
+        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
           childP.representation.field("shape").typ.asInstanceOf[PStruct],
           childP.elementType, setup) {
           override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
@@ -1971,12 +1971,12 @@ private class Emit(
 }
 // TODO: Next step, what about shapes?
 abstract class NDArrayEmitter(
-  val mb: MethodBuilder,
-  val nDims: Int,
-  val shape: Code[Long],
-  val shapePType: PBaseStruct,
-  val elementPType: PType,
-  val setup: Code[_]) {
+                               val mb: MethodBuilder,
+                               val nDims: Int,
+                               val outputShape: Code[Long],
+                               val outputShapePType: PBaseStruct,
+                               val outputElementPType: PType,
+                               val setup: Code[_]) {
 
   // Need to make a SRVB to fill with array elements
   // Then call emit on MakeNDArray of
@@ -1984,7 +1984,6 @@ abstract class NDArrayEmitter(
   def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_]
 
   def emit(targetType: PNDArray): Code[_] = {
-    val elemType = targetType.elementType
     val srvb = new StagedRegionValueBuilder(mb, targetType)
 
     Code(
@@ -1995,7 +1994,7 @@ abstract class NDArrayEmitter(
       srvb.advance(),
       srvb.addInt(0),
       srvb.advance(),
-      srvb.addIRIntermediate(???), //shape
+      srvb.addIRIntermediate(outputShapePType)(outputShape), //shape
       srvb.advance(),
       srvb.addIRIntermediate(???), //data
       srvb.advance(),
@@ -2008,11 +2007,11 @@ abstract class NDArrayEmitter(
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
     val idxVars = Seq.tabulate(nDims) {i => mb.newField[Long]}
-    val body = Code(srvb.addWithDeepCopy(elementPType, outputElement(idxVars)))
+    val body = Code(srvb.addWithDeepCopy(outputElementPType, outputElement(idxVars)))
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
         dimVar := 0L,
-        Code.whileLoop(dimVar < shapePType.loadField(shape, dimIdx),
+        Code.whileLoop(dimVar < outputShapePType.loadField(outputShape, dimIdx),
           innerLoops,
           dimVar := dimVar + 1L
         )
