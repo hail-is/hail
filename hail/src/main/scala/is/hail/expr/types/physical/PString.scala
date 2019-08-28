@@ -33,6 +33,8 @@ class PString(override val required: Boolean) extends PType {
     assert(this isOfType other)
     PBinary(required).codeOrdering(mb, PBinary(other.required))
   }
+
+  override def containsPointers: Boolean = true
 }
 
 object PString {
