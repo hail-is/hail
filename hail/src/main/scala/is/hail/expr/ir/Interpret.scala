@@ -574,9 +574,6 @@ object Interpret {
             val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
-          case InfoScore() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
-            new InfoScoreAggregator(aggType.physicalType)
           case LinearRegression() =>
             val Seq(k, k0) = constructorArgs
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
