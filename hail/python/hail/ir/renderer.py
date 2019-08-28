@@ -224,7 +224,7 @@ class BindingsStackFrame:
 
 
 class PrintStackFrame:
-    def __init__(self, node, children, local_builder, outermost_scope, depth, builder, insert_lets, lift_to_frame=None):
+    def __init__(self, node, children, builder, outermost_scope, depth, insert_lets, lift_to_frame=None):
         # immutable
         self.node: Renderable = node
         self.children: Sequence[Renderable] = children
@@ -233,36 +233,31 @@ class PrintStackFrame:
         self.lift_to_frame: Optional[int] = lift_to_frame
         self.insert_lets: bool = insert_lets
         # mutable
-        # FIXME: Builder is always parent's local_builder. Shouldn't need to
-        # store builder. Maybe also make these plain strings.
         self.builder = builder
-        self.local_builder = local_builder
         self.child_idx = -1
 
-    def add_lets(self, let_bodies):
+    def add_lets(self, let_bodies, out_builder):
         for let_body in let_bodies:
-            self.builder.extend(let_body)
-        self.builder.extend(self.local_builder)
+            out_builder.extend(let_body)
+        out_builder.extend(self.builder)
         num_lets = len(let_bodies)
         for _ in range(num_lets):
-            self.builder.append(')')
+            out_builder.append(')')
 
-    def make_child_frame(self, renderer, binding_sites, builder, context, outermost_scope, depth, local_builder=None):
+    def make_child_frame(self, renderer, binding_sites, builder, context, outermost_scope, depth):
         child = self.children[self.child_idx]
-        return self.make(child, renderer, binding_sites, builder, context, outermost_scope, depth, local_builder)
+        return self.make(child, renderer, binding_sites, builder, context, outermost_scope, depth)
 
     @staticmethod
-    def make(node, renderer, binding_sites, builder, context, outermost_scope, depth, local_builder=None):
-        if local_builder is None:
-            local_builder = builder
+    def make(node, renderer, binding_sites, builder, context, outermost_scope, depth):
         insert_lets = id(node) in binding_sites and len(binding_sites[id(node)].lifted_lets) > 0
-        state = PrintStackFrame(node, node.render_children(renderer), local_builder, outermost_scope, depth, builder, insert_lets)
+        state = PrintStackFrame(node, node.render_children(renderer), builder, outermost_scope, depth, insert_lets)
         if insert_lets:
-            state.local_builder = []
+            state.builder = []
             context.append(BindingsStackFrame(binding_sites[id(node)]))
         head = node.render_head(renderer)
         if head != '':
-            state.local_builder.append(head)
+            state.builder.append(head)
         return state
 
 
@@ -378,7 +373,7 @@ class CSERenderer(Renderer):
                 # Since we are not traversing 'child', we don't know its free
                 # variables. To prevent a parent from being lifted too high,
                 # we must register 'child' as having the free variable 'uid',
-                # which will be true when 'child' is replaced by "Ref uid".
+                # which will be true when 'child' is replaced by "(Ref uid)".
                 frame._free_vars[uid] = seen_in_scope
                 continue
 
@@ -448,29 +443,31 @@ class CSERenderer(Renderer):
                 if frame.lift_to_frame is not None:
                     assert(not frame.insert_lets)
                     if id(node) in self.memo:
-                        frame.local_builder.extend(self.memo[id(node)])
+                        frame.builder.extend(self.memo[id(node)])
                     else:
-                        frame.local_builder.append(node.render_tail(self))
-                    frame.local_builder.append(' ')
+                        frame.builder.append(node.render_tail(self))
+                    frame.builder.append(' ')
                     # let_bodies is built post-order, which guarantees earlier
                     # lets can't refer to later lets
-                    frame.lift_to_frame.let_bodies.append(frame.local_builder)
+                    frame.lift_to_frame.let_bodies.append(frame.builder)
                     (name, _) = frame.lift_to_frame.lifted_lets[id(node)]
-                    # FIXME: can this be added on first visit?
-                    frame.builder.append(f'(Ref {name})')
                     stack.pop()
                     continue
                 else:
-                    frame.local_builder.append(node.render_tail(self))
-                    if frame.insert_lets:
-                        frame.add_lets(context[-1].let_bodies)
-                        context.pop()
+                    frame.builder.append(node.render_tail(self))
                     stack.pop()
+                    if frame.insert_lets:
+                        if not stack:
+                            out_builder = root_builder
+                        else:
+                            out_builder = stack[-1].builder
+                        frame.add_lets(context[-1].let_bodies, out_builder)
+                        context.pop()
                     if not stack:
-                        return ''.join(frame.builder)
+                        return ''.join(root_builder)
                     continue
 
-            frame.local_builder.append(' ')
+            frame.builder.append(' ')
             child = frame.children[child_idx]
 
             child_outermost_scope = frame.min_binding_depth
@@ -489,26 +486,30 @@ class CSERenderer(Renderer):
                 assert not insert_lets
                 (name, _) = lift_to_frame.lifted_lets[id(child)]
 
+                child_builder = [f'(Let {name} ']
+
+                if id(child) in self.memo:
+                    new_state = PrintStackFrame(child, [], child_builder, child_outermost_scope, child_depth, insert_lets, lift_to_frame)
+                    stack.append(new_state)
+                    continue
+
+                frame.builder.append(f'(Ref {name})')
+
                 if id(child) in lift_to_frame.visited:
-                    frame.local_builder.append(f'(Ref {name})')
                     continue
 
                 lift_to_frame.visited[id(child)] = child
 
-                child_builder = [f'(Let {name} ']
-                if id(child) in self.memo:
-                    new_state = PrintStackFrame(child, [], child_builder, child_outermost_scope, child_depth, frame.local_builder, insert_lets, lift_to_frame)
-                else:
-                    new_state = frame.make_child_frame(self, binding_sites, frame.local_builder, context, child_outermost_scope, child_depth, child_builder)
-                    new_state.lift_to_frame = lift_to_frame
+                new_state = frame.make_child_frame(self, binding_sites, child_builder, context, child_outermost_scope, child_depth)
+                new_state.lift_to_frame = lift_to_frame
                 stack.append(new_state)
                 continue
 
             if id(child) in self.memo:
-                frame.local_builder.extend(self.memo[id(child)])
+                frame.builder.extend(self.memo[id(child)])
                 continue
 
-            new_state = frame.make_child_frame(self, binding_sites, frame.local_builder, context, child_outermost_scope, child_depth)
+            new_state = frame.make_child_frame(self, binding_sites, frame.builder, context, child_outermost_scope, child_depth)
             stack.append(new_state)
             continue
 
