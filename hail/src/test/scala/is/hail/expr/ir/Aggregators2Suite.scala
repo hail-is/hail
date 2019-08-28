@@ -323,7 +323,7 @@ class Aggregators2Suite extends HailSuite {
     val tr = TableRange(10000, 5)
     val ta = TableAggregate(tr, ApplyAggOp(FastIndexedSeq(19),
       None,
-      FastIndexedSeq(invoke("str", GetField(Ref("row", tr.typ.rowType), "idx")), I32(9999) - GetField(Ref("row", tr.typ.rowType), "idx")),
+      FastIndexedSeq(invoke("str", TString(), GetField(Ref("row", tr.typ.rowType), "idx")), I32(9999) - GetField(Ref("row", tr.typ.rowType), "idx")),
       AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(TString(), TInt32()))))
 
     assertEvalsTo(ta, (0 until 19).map(i => (9999 - i).toString).toFastIndexedSeq)(ExecStrategy.interpretOnly)
