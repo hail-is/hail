@@ -117,6 +117,20 @@ def table_aggregate_counter():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
 
+@benchmark
+def table_take():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht.take(100)
+
+@benchmark
+def table_show():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht.show(100)
+
+@benchmark
+def table_expr_take():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    hl.tuple([ht.f1, ht.f2]).take(100)
 
 @benchmark
 def read_force_count_p1000():
