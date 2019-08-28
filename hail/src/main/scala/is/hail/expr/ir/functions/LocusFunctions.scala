@@ -372,7 +372,7 @@ object LocusFunctions extends RegistryFunctions {
     registerCodeWithMissingness("liftoverLocusInterval", tinterval("T"), TFloat64(), TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean()), null) {
       case (r, rt: PStruct, (iT: PInterval, i), (minMatchT, minMatch)) =>
         val srcRG = iT.pointType.asInstanceOf[PLocus].rg
-        val destRG = rt.types(0).asInstanceOf[PLocus].rg
+        val destRG = rt.types(0).asInstanceOf[PInterval].pointType.asInstanceOf[PLocus].rg
         val interval = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(r, iT)(i.value[Long])))
         val tlocal = r.mb.newLocal[(Interval, Boolean)]
         val lifted = rgCode(r.mb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)]("liftoverLocusInterval", destRG.name, interval, minMatch.value[Double])
