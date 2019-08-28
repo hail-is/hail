@@ -1331,6 +1331,7 @@ private class Emit(
           shapet.setup,
           datat.setup,
           rowMajort.setup)
+
         val value = coerce[Long](Code(
           srvb.start(),
           srvb.addInt(0),
@@ -1944,7 +1945,7 @@ private class Emit(
         val elemPType = childP.elementType
         val vti = typeToTypeInfo(elemPType.virtualType)
         val elemRef = coerce[Any](mb.newField(elemName)(vti))
-        val bodyEnv = env.bind(elemName, (vti, false, elemRef.load()))
+        val bodyEnv = env.bind(name=elemName, v=(vti, false, elemRef.load()))
         val bodyt = this.emit(body, bodyEnv, region, None)
 
         val childEmitter = deforest(child)
@@ -1955,7 +1956,7 @@ private class Emit(
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.shape,
           childP.representation.field("shape").typ.asInstanceOf[PStruct],
           childP.elementType, setup) {
-          override def outputElement(idxVars: ClassFieldRef[Int]): Code[_] = {
+          override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
             Code(
               elemRef := childEmitter.outputElement(idxVars),
               bodyt.setup,
@@ -1980,12 +1981,28 @@ abstract class NDArrayEmitter(
   // Need to make a SRVB to fill with array elements
   // Then call emit on MakeNDArray of
 
-  def outputElement(idxVars: Seq[ClassFieldRef[Int]]): Code[_]
+  def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_]
 
-  def emit(elemType: PType): Code[_] = {
+  def emit(targetType: PNDArray): Code[_] = {
+    val elemType = targetType.elementType
+    val srvb = new StagedRegionValueBuilder(mb, targetType)
+
     Code(
       setup,
-      emitLoops(???)
+      //Ugh, need to create a new NDArray
+      //makeNDArray(data)
+      srvb.addInt(0),
+      srvb.advance(),
+      srvb.addInt(0),
+      srvb.advance(),
+      srvb.addIRIntermediate(???), //shape
+      srvb.advance(),
+      srvb.addIRIntermediate(???), //data
+      srvb.advance(),
+      srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
+        coerce[Unit](emitLoops(srvb))
+      }),
+      srvb.end()
     )
   }
 
