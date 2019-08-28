@@ -16,9 +16,9 @@ if __name__ == '__main__':
     p = pl.Pipeline(name='benchmark',
                     backend=pl.BatchBackend(url='https://batch.hail.is'),
                     default_image=BENCHMARK_IMAGE,
-                    default_storage='5G',
-                    default_memory='7G',
-                    default_cpu=2)
+                    default_storage='10G',
+                    default_memory='3.5G',
+                    default_cpu=1)
 
     make_resources = p.new_task('create_resources')
     make_resources.command('hailctl dev benchmark create-resources --data-dir benchmark-resources')
