@@ -17,8 +17,8 @@ if __name__ == '__main__':
                     backend=pl.BatchBackend(url='https://batch.hail.is'),
                     default_image=BENCHMARK_IMAGE,
                     default_storage='10G',
-                    default_memory='3.5G',
-                    default_cpu=1)
+                    default_memory='7G',
+                    default_cpu=2)
 
     make_resources = p.new_task('create_resources')
     make_resources.command('hailctl dev benchmark create-resources --data-dir benchmark-resources')
@@ -31,20 +31,17 @@ if __name__ == '__main__':
 
     all_output = []
 
-    print(f'generating {len(all_benchmarks)} * {N_REPLICATES} = {len(all_benchmarks) * N_REPLICATES} individual benchmark tasks')
+    print(f'generating {len(all_benchmarks)} * {N_REPLICATES} = '
+          f'{len(all_benchmarks) * N_REPLICATES} individual benchmark tasks')
 
-
-    def make_task(name, replicate):
-        t = p.new_task(name=f'{name}_{replicate}')
-        t.command(f'mv {make_resources.ofile} benchmark-resources.tar.gz')
-        t.command('time tar -xvf benchmark-resources.tar.gz')
-        t.command(f'hailctl dev benchmark run -v -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
-        all_output.append(t.ofile)
-
-
-    for b in all_benchmarks:
-        for i in range(N_REPLICATES):
-            make_task(b, i)
+    for name in all_benchmarks:
+        for replicate in range(N_REPLICATES):
+            t = p.new_task(name=f'{name}_{replicate}')
+            t.command(f'mv {make_resources.ofile} benchmark-resources.tar.gz')
+            t.command('time tar -xvf benchmark-resources.tar.gz')
+            t.command(f'hailctl dev benchmark run '
+                      f'-v -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
+            all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')
     combine.command(f'hailctl dev benchmark combine -o {combine.ofile} ' + ' '.join(all_output))
