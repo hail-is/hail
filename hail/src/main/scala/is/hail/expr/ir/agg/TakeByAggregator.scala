@@ -120,8 +120,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private def storeFields(dest: Code[Long]): Code[Unit] = {
     maybeGCCode(
       ab.storeFields(storageType.fieldOffset(dest, 0)),
-      Region.storeLong(storageType.fieldOffset(dest, 1), staging),
-      Region.storeLong(storageType.fieldOffset(dest, 2), keyStage),
+      Region.storeAddress(storageType.fieldOffset(dest, 1), staging),
+      Region.storeAddress(storageType.fieldOffset(dest, 2), keyStage),
       Region.storeLong(storageType.fieldOffset(dest, 3), maxIndex),
       Region.storeInt(storageType.fieldOffset(dest, 4), maxSize)
     )(Array(
@@ -133,8 +133,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private def loadFields(src: Code[Long]): Code[Unit] = {
     maybeGCCode(
       ab.loadFields(storageType.fieldOffset(src, 0)),
-      staging := Region.loadLong(storageType.fieldOffset(src, 1)),
-      keyStage := Region.loadLong(storageType.fieldOffset(src, 2)),
+      staging := Region.loadAddress(storageType.fieldOffset(src, 1)),
+      keyStage := Region.loadAddress(storageType.fieldOffset(src, 2)),
       maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
       maxSize := Region.loadInt(storageType.fieldOffset(src, 4))
     )(Array(
@@ -212,13 +212,13 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   //      x := 0,
   //      Code.whileLoop(x < ab.size,
   //        Code._println(const("  at idx ").concat(x.toS).concat(", key=")
-  //          .concat(indexedKeyRep(eltTuple.loadField(loadElement(x), 0)))),
+  //          .concat(indexedKeyRep(eltTuple.loadField(elementOffset(x), 0)))),
   //        x := x + 1
   //      )
   //    )
   //  }
 
-  private def loadElement(i: Code[Int]): Code[Long] = asm4s.coerce[Long](ab.elementOffset(i)._2)
+  private def elementOffset(i: Code[Int]): Code[Long] = asm4s.coerce[Long](ab.elementOffset(i)._2)
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
@@ -264,8 +264,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       (idx > 0).orEmpty(
         Code(
           parent := (idx + 1) / 2 - 1,
-          ii := loadElement(idx),
-          jj := loadElement(parent),
+          ii := elementOffset(idx),
+          jj := elementOffset(parent),
           (compareElt(ii, jj) > 0).orEmpty(
             Code(
               swap(ii, jj),
@@ -290,9 +290,9 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       child2 := child1 + 1,
       (child1 < ab.size).orEmpty(
         Code(
-          minChild := (child2 >= ab.size || compareElt(loadElement(child1), loadElement(child2)) > 0).mux(child1, child2),
-          ii := loadElement(minChild),
-          jj := loadElement(idx),
+          minChild := (child2 >= ab.size || compareElt(elementOffset(child1), elementOffset(child2)) > 0).mux(child1, child2),
+          ii := elementOffset(minChild),
+          jj := elementOffset(idx),
           (compareElt(ii, jj) > 0).mux(
             Code(
               swap(ii, jj),
@@ -364,7 +364,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
               copyToStaging(value, valueM, keyStage),
               enqueueStaging()),
             Code(
-              tempPtr := eltTuple.loadField(loadElement(0), 0),
+              tempPtr := eltTuple.loadField(elementOffset(0), 0),
               (compareKey((keyM, key), loadKey(tempPtr)) < 0)
                 .orEmpty(Code(
                   stageAndIndexKey(keyM, key),
@@ -388,8 +388,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     mb.emit(Code(
       i := 0,
-      Code.whileLoop(i < other.ab.size,
-        offset := other.loadElement(i),
+      Code.whileLoop(i < other.ab .size,
+        offset := other.elementOffset(i),
         indexOffset := indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1),
         Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex),
         (maxSize > 0).orEmpty(
@@ -399,7 +399,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                 copyElementToStaging(offset),
                 enqueueStaging()),
               Code(
-                tempPtr := loadElement(0),
+                tempPtr := elementOffset(0),
                 (compareElt(offset, tempPtr) < 0)
                   .orEmpty(Code(
                     copyElementToStaging(offset),
@@ -463,18 +463,18 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         mb.emit(Code(
           low.ceq(high).orEmpty(Code._return(low)),
           pivotIndex := (low + high) / 2,
-          pivotOffset := loadElement(indexAt(pivotIndex)),
+          pivotOffset := elementOffset(indexAt(pivotIndex)),
           continue := true,
           Code.whileLoop(continue,
             Code.whileLoop(
               Code(
-                tmpOffset := loadElement(indexAt(low)),
+                tmpOffset := elementOffset(indexAt(low)),
                 compareElt(tmpOffset, pivotOffset) < 0),
               low := low + 1
             ),
             Code.whileLoop(
               Code(
-                tmpOffset := loadElement(indexAt(high)),
+                tmpOffset := elementOffset(indexAt(high)),
                 compareElt(tmpOffset, pivotOffset) > 0),
               high := high - 1
             ),
@@ -519,7 +519,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       srvb.start(ab.size),
       i := 0,
       Code.whileLoop(i < ab.size,
-        o := loadElement(indexAt(i)),
+        o := elementOffset(indexAt(i)),
         eltTuple.isFieldDefined(o, 1).mux(
           srvb.addWithDeepCopy(valueType, Region.loadIRIntermediate(valueType)(eltTuple.fieldOffset(o, 1))),
           srvb.setMissing()
