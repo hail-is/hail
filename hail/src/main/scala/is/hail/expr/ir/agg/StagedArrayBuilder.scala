@@ -35,11 +35,11 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     Code(
       size := Region.loadInt(currentSizeOffset(src)),
       capacity := Region.loadInt(capacityOffset(src)),
-      data := StagedRegionValueBuilder.deepCopy(fb, region, eltArray, Region.loadAddress(dataOffset(src))))
+      data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, Region.loadAddress(dataOffset(src))))
   }
 
   def reallocateData(): Code[Unit] = {
-    data := StagedRegionValueBuilder.deepCopy(fb, region, eltArray, data)
+    data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, data)
   }
 
   def storeFields(dest: Code[Long]): Code[Unit] = {
@@ -90,7 +90,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     val dest = eltArray.elementOffset(data, capacity, size)
     Code(
       eltArray.setElementPresent(region, data, size),
-      StagedRegionValueBuilder.deepCopy(fb, region, eltType, elt, dest),
+      StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltType, elt, dest),
       incrementSize())
   }
 

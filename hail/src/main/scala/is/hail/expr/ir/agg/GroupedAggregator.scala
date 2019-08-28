@@ -26,7 +26,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
       if (kt.isPrimitive)
         Region.storeIRIntermediate(kt)(koff, kv)
       else
-        StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
+        StagedRegionValueBuilder.deepCopyFromOffset(fb, region, kt, coerce[Long](kv), koff)
     if (!kt.required)
       storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
 
@@ -57,7 +57,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
-    Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
+    Code(StagedRegionValueBuilder.deepCopyFromOffset(er, storageType, src, dest),
       container.toCode((i, s) => s.copyFrom(container.getStateOffset(containerAddress(src), i))),
       container.store(regionIdx(dest), containerAddress(dest)))
 

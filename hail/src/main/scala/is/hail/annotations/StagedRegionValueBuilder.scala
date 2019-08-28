@@ -17,7 +17,7 @@ object StagedRegionValueBuilder {
         val fix = f.typ.fundamentalType match {
           case t@(_: PBinary | _: PArray) =>
             region.storeAddress(typ.fieldOffset(value, f.index),
-              deepCopy(fb, region, t, typ.loadField(region, value, f.index)))
+              deepCopyFromOffset(fb, region, t, typ.loadField(region, value, f.index)))
           case t: PBaseStruct =>
               fixupStruct(fb, region, t, typ.loadField(region, value, f.index))
         }
@@ -36,7 +36,7 @@ object StagedRegionValueBuilder {
     val perElt = typ.elementType.fundamentalType match {
       case t@(_: PBinary | _: PArray) =>
         region.storeAddress(typ.elementOffset(value, len, i),
-          deepCopy(fb, region, t, typ.loadElement(region, value, i)))
+          deepCopyFromOffset(fb, region, t, typ.loadElement(region, value, i)))
       case t: PBaseStruct =>
         val off = fb.newField[Long]
         Code(off := typ.elementOffset(value, len, i),
@@ -51,11 +51,11 @@ object StagedRegionValueBuilder {
         i := i + 1))
   }
 
-  def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
+  def deepCopyFromOffset(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
     typ.fundamentalType match {
       case t if t.isPrimitive => Region.storePrimitive(t, dest)(value)
       case t@(_: PBinary | _: PArray) =>
-        region.storeAddress(dest, deepCopy(fb, region, t, coerce[Long](value)))
+        region.storeAddress(dest, deepCopyFromOffset(fb, region, t, coerce[Long](value)))
       case t: PBaseStruct =>
         Code(region.copyFrom(region, coerce[Long](value), dest, t.byteSize),
           fixupStruct(fb, region, t, dest))
@@ -63,37 +63,23 @@ object StagedRegionValueBuilder {
     }
   }
 
-  def deepCopyIRIntermediatePreAllocated(fb: EmitFunctionBuilder[_],
-    region: Code[Region],
-    typ: PType,
-    destination: Code[Long],
-    value: Code[_]): Code[Unit] = {
+  def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, dest: Code[Long], value: Code[_]): Code[Unit] = {
     typ.fundamentalType match {
-      case _: PBoolean => Region.storeBoolean(destination, value.asInstanceOf[Code[Boolean]])
-      case _: PInt32 => Region.storeInt(destination, value.asInstanceOf[Code[Int]])
-      case _: PInt64 => Region.storeLong(destination, value.asInstanceOf[Code[Long]])
-      case _: PFloat32 => Region.storeFloat(destination, value.asInstanceOf[Code[Float]])
-      case _: PFloat64 => Region.storeDouble(destination, value.asInstanceOf[Code[Double]])
+      case _: PBoolean => Region.storeBoolean(dest, value.asInstanceOf[Code[Boolean]])
+      case _: PInt32 => Region.storeInt(dest, value.asInstanceOf[Code[Int]])
+      case _: PInt64 => Region.storeLong(dest, value.asInstanceOf[Code[Long]])
+      case _: PFloat32 => Region.storeFloat(dest, value.asInstanceOf[Code[Float]])
+      case _: PFloat64 => Region.storeDouble(dest, value.asInstanceOf[Code[Double]])
+      case t@(_: PBinary | _: PArray) =>
+        region.storeAddress(dest, deepCopyFromOffset(fb, region, t, coerce[Long](value)))
       case t: PBaseStruct =>
-        Code(
-          Region.copyFrom(value.asInstanceOf[Code[Long]], destination, typ.byteSize),
-          fixupStruct(fb, region, t, destination))
-      case t: PArray =>
-        Code(
-          Region.storeAddress(destination, value.asInstanceOf[Code[Long]]),
-          fixupArray(fb, region, t, destination))
-      case t: PBinary =>
-        val offset = fb.newField[Long]
-        val v = value.asInstanceOf[Code[Long]]
-        Code(
-          offset := PBinary.allocate(region, PBinary.loadLength(region, v)),
-          Region.storeAddress(destination, offset),
-          region.copyFrom(region, v, offset, PBinary.contentByteSize(PBinary.loadLength(region, v))))
-      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+        Code(region.copyFrom(region, coerce[Long](value), dest, t.byteSize),
+          fixupStruct(fb, region, t, dest))
+      case t => fatal(s"unknown type $t")
     }
   }
 
-  def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
+  def deepCopyFromOffset(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
     val offset = fb.newField[Long]
 
     val copy = typ.fundamentalType match {
@@ -109,21 +95,20 @@ object StagedRegionValueBuilder {
       case t =>
         Code(
           offset := region.allocate(t.alignment, t.byteSize),
-          deepCopy(fb, region, t, Region.getIRIntermediate(t)(value), offset))
+          deepCopyFromOffset(fb, region, t, Region.getIRIntermediate(t)(value), offset))
     }
     Code(copy, offset)
   }
 
-  def deepCopy(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
-    deepCopy(er.mb.fb, er.region, typ, value)
+  def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
+    deepCopyFromOffset(er.mb.fb, er.region, typ, value)
 
-  def deepCopy(er: EmitRegion, typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] =
-    deepCopy(er.mb.fb, er.region, typ, value, dest)
+  def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] =
+    deepCopyFromOffset(er.mb.fb, er.region, typ, value, dest)
 }
 
-class StagedRegionValueBuilder (val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
-
-  private def this(mb: MethodBuilder, typ: PType, parent: StagedRegionValueBuilder) = {
+class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
+  def this(mb: MethodBuilder, typ: PType, parent: StagedRegionValueBuilder) = {
     this(mb, typ, parent.region, parent.currentOffset)
   }
 
@@ -137,6 +122,10 @@ class StagedRegionValueBuilder (val mb: MethodBuilder, val typ: PType, var regio
 
   def this(mb: MethodBuilder, rowType: PType) = {
     this(mb, rowType, mb.getArg[Region](1), null)
+  }
+
+  def this(mb: MethodBuilder, rowType: PType, r: Code[Region]) = {
+    this(mb, rowType, r, null)
   }
 
   def this (er: ir.EmitRegion, rowType: PType) = {
@@ -308,7 +297,7 @@ class StagedRegionValueBuilder (val mb: MethodBuilder, val typ: PType, var regio
   }
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] =
-    StagedRegionValueBuilder.deepCopy(
+    StagedRegionValueBuilder.deepCopyFromOffset(
       EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region),
       t, v, currentOffset)
 

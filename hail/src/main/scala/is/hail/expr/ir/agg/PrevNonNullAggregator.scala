@@ -29,7 +29,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
     val copyValue =
       Code(
         v := elt.value,
-        StagedRegionValueBuilder.deepCopy(state.fb, state.region, typ, v, stateType.fieldOffset(state.off, 0)))
+        StagedRegionValueBuilder.deepCopyFromOffset(state.fb, state.region, typ, v, stateType.fieldOffset(state.off, 0)))
 
     Code(
       elt.setup,
@@ -48,7 +48,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
       Code._empty,
       Code(
         state.newState,
-        state.off := StagedRegionValueBuilder.deepCopy(state.fb, state.region, stateType, other.off)))
+        state.off := StagedRegionValueBuilder.deepCopyFromOffset(state.fb, state.region, stateType, other.off)))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {

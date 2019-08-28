@@ -308,7 +308,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       indexedKeyType.setFieldMissing(keyStage, 0),
       Code(
         indexedKeyType.setFieldPresent(keyStage, 0),
-        StagedRegionValueBuilder.deepCopyIRIntermediatePreAllocated(fb, region, keyType, indexedKeyType.fieldOffset(keyStage, 0), k)
+        StagedRegionValueBuilder.deepCopy(fb, region, keyType, indexedKeyType.fieldOffset(keyStage, 0), k)
       )),
     Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex),
     maxIndex := maxIndex + 1L
@@ -324,7 +324,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         eltTuple.setFieldMissing(staging, 1),
         Code(
           eltTuple.setFieldPresent(staging, 1),
-          StagedRegionValueBuilder.deepCopyIRIntermediatePreAllocated(fb, region, valueType, eltTuple.fieldOffset(staging, 1), value)
+          StagedRegionValueBuilder.deepCopy(fb, region, valueType, eltTuple.fieldOffset(staging, 1), value)
         ))
     )
   }
@@ -508,7 +508,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     def indexAt(idx: Code[Int]): Code[Int] = Region.loadInt(indexOffset(idx))
 
-    val srvb = (new StagedRegionValueBuilder(mb, resultType, r, null))
+    val srvb = (new StagedRegionValueBuilder(mb, resultType, r.load()))
     mb.emit(Code(
       indicesToSort := r.load().allocate(4L, ab.size.toL * 4L),
       i := 0,

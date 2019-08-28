@@ -55,7 +55,7 @@ class TypedRVAState(val valueType: PType, val fb: EmitFunctionBuilder[_]) extend
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     super.load(r => r.invalidate(), src)
 
-  def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(fb, region, valueType, src)
+  def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, valueType, src)
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val enc = PackCodecSpec2(valueType, codec).buildEmitEncoderF[Long](valueType, fb)
