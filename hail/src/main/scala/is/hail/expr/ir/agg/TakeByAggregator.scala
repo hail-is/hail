@@ -19,7 +19,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private val indexedKeyType = PTuple(true, keyType, PInt64Required)
   private val eltTuple = PTuple(true, indexedKeyType, valueType)
-  private val ab = new StagedArrayBuilder(eltTuple, fb, region)
+  val ab = new StagedArrayBuilder(eltTuple, fb, region)
 
   private val maxIndex = fb.newField[Long]("max_index")
   private val maxSize = fb.newField[Int]("max_size")
@@ -109,6 +109,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     maybeGCCode(
       maxIndex := 0L,
       maxSize := _maxSize,
+      (maxSize < 0).orEmpty(Code._fatal(const("'take': 'n' cannot be negative, found '").concat(maxSize.toS))),
       initStaging(),
       ab.initialize()
     )(Array(
@@ -304,12 +305,15 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   private def stageAndIndexKey(km: Code[Boolean], k: Code[_]): Code[Unit] = Code(
-    km.mux(
-      indexedKeyType.setFieldMissing(keyStage, 0),
-      Code(
-        indexedKeyType.setFieldPresent(keyStage, 0),
-        Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
-      )),
+    if (keyType.required)
+      Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
+    else
+      km.mux(
+        indexedKeyType.setFieldMissing(keyStage, 0),
+        Code(
+          indexedKeyType.setFieldPresent(keyStage, 0),
+          Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
+        )),
     Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex),
     maxIndex := maxIndex + 1L
   )
@@ -320,12 +324,15 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     Code(
       staging.ceq(0L).orEmpty(Code._fatal("staging is 0")),
       Region.copyFrom(indexedKey, eltTuple.fieldOffset(staging, 0), indexedKeyType.byteSize),
-      valueM.mux(
-        eltTuple.setFieldMissing(staging, 1),
-        Code(
-          eltTuple.setFieldPresent(staging, 1),
-          Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
-        ))
+      if (valueType.required)
+        Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
+      else
+        valueM.mux(
+          eltTuple.setFieldMissing(staging, 1),
+          Code(
+            eltTuple.setFieldPresent(staging, 1),
+            Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
+          ))
     )
   }
 
@@ -388,7 +395,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     mb.emit(Code(
       i := 0,
-      Code.whileLoop(i < other.ab .size,
+      Code.whileLoop(i < other.ab.size,
         offset := other.elementOffset(i),
         indexOffset := indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1),
         Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex),
