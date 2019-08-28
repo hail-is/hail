@@ -1,8 +1,8 @@
 import os.path
 import sys
+from subprocess import check_call
 import yaml
 import pkg_resources
-from subprocess import check_call
 
 
 def init_parser(parser):
@@ -63,7 +63,7 @@ def main(args, pass_through_args):
 
     wheel = None
     if args.update_hail_version:
-        assert(pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"))
+        assert pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml")
         updated_wheel = yaml.safe_load(
             pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']['wheel']
         wheel = updated_wheel
