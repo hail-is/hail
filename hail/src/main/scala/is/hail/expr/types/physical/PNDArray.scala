@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{ClassFieldRef, Code, MethodBuilder, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TNDArray
@@ -55,5 +55,22 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
         )
       }
     )).asInstanceOf[Code[Long]]
+  }
+
+  def getElementPosition(indices: Seq[ClassFieldRef[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+    val rep = this.representation
+    val strides = rep.loadField(region, nd, "strides")
+    def getStrideAtIdx(idx: Int): Code[Long] = rep.fieldType("strides").asInstanceOf[PTuple].loadField(strides, idx)
+    val bytesAway = mb.newField[Long]
+    Code(
+      bytesAway := 0L,
+      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (elementIndex: ClassFieldRef[Long], strideIndex: Int)) =>
+        Code(
+          codeSoFar,
+          bytesAway := bytesAway + elementIndex * getStrideAtIdx(strideIndex)
+        )
+      },
+      bytesAway + strides + rep.fieldType("strides").asInstanceOf[PTuple].fieldOffset(strides, 0)
+    )
   }
 }

@@ -1934,8 +1934,8 @@ private class Emit(
     1 + nSpecialArguments + idx * 2
   }
 
-  def emitDeforestedNDArray(region: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
-    def deforest(nd: IR): NDArrayEmitter = emitDeforestedNDArray(region, nd, env)
+  def emitDeforestedNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
+    def deforest(nd: IR): NDArrayEmitter = emitDeforestedNDArray(er, nd, env)
 
     val xType = x.pType.asInstanceOf[PNDArray]
     val nDims = xType.nDims
@@ -1947,7 +1947,7 @@ private class Emit(
         val vti = typeToTypeInfo(elemPType.virtualType)
         val elemRef = coerce[Any](mb.newField(elemName)(vti))
         val bodyEnv = env.bind(name=elemName, v=(vti, false, elemRef.load()))
-        val bodyt = this.emit(body, bodyEnv, region, None)
+        val bodyt = this.emit(body, bodyEnv, er, None)
 
         val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup)
@@ -1955,10 +1955,12 @@ private class Emit(
 //        val shape = childP.representation.field("shape").typ.asInstanceOf[PStruct].loadField(region, childEmitter.shape,)
 
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
-          childP.representation.field("shape").typ.asInstanceOf[PStruct],
+          childP.representation.field("shape").typ.asInstanceOf[PTuple],
           childP.elementType, setup) {
           override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
             Code(
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+                "println", "Reached outputElement in NDArrayMap"),
               elemRef := childEmitter.outputElement(idxVars),
               bodyt.setup,
               bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
@@ -1966,17 +1968,28 @@ private class Emit(
             )
           }
         }
+      case _ =>
+        val ndt = emit(x, env, er, None)
+        val setup = Code(ndt.setup)
+        val xP = x.pType.asInstanceOf[PNDArray]
+
+        new NDArrayEmitter(mb, nDims, xP.representation.loadField(er.region, ndt.value[Long], "shape"),
+          xP.representation.fieldType("shape").asInstanceOf[PTuple], xP.elementType, setup) {
+          override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
+            val elementLocation = xP.getElementPosition(idxVars, ndt.value[Long], er.region, mb)
+            region.loadIRIntermediate(outputElementPType)(elementLocation)
+          }
+        }
     }
-    ???
   }
 }
 abstract class NDArrayEmitter(
-                               val mb: MethodBuilder,
-                               val nDims: Int,
-                               val outputShape: Code[Long],
-                               val outputShapePType: PBaseStruct,
-                               val outputElementPType: PType,
-                               val setup: Code[_]) {
+   val mb: MethodBuilder,
+   val nDims: Int,
+   val outputShape: Code[Long],
+   val outputShapePType: PBaseStruct,
+   val outputElementPType: PType,
+   val setup: Code[_]) {
 
   // Need to make a SRVB to fill with array elements
   // Then call emit on MakeNDArray of
@@ -1984,21 +1997,30 @@ abstract class NDArrayEmitter(
   def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_]
 
   def emit(targetType: PNDArray): Code[_] = {
-    val srvb = new StagedRegionValueBuilder(mb, targetType)
+    val srvb = new StagedRegionValueBuilder(mb, targetType.representation)
     def getShapeAtIdx(index: Int) = srvb.region.loadLong(outputShapePType.loadField(outputShape, index))
 
     Code(
       setup,
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Set up emitter!"),
       //Ugh, need to create a new NDArray
+      srvb.start(),
       srvb.addInt(0),
       srvb.advance(),
       srvb.addInt(0),
       srvb.advance(),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Added first two ints"),
       srvb.addIRIntermediate(outputShapePType)(outputShape), //shape
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Added shape"),
       srvb.advance(),
       srvb.addBaseStruct(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct], {srvb =>
         coerce[Unit](targetType.makeDefaultStrides(getShapeAtIdx, srvb, mb))
       }),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Added stride"),
       srvb.advance(),
       srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
         coerce[Unit](emitLoops(srvb))
@@ -2012,8 +2034,14 @@ abstract class NDArrayEmitter(
     val body = Code(srvb.addWithDeepCopy(outputElementPType, outputElement(idxVars)))
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
+        Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+          "println", "Reached emit loops"),
         dimVar := 0L,
         Code.whileLoop(dimVar < outputShapePType.loadField(outputShape, dimIdx),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+            "println", "The value of dimVar is:"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+            "println", dimVar),
           innerLoops,
           dimVar := dimVar + 1L
         )
