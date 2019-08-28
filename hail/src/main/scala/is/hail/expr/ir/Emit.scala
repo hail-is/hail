@@ -1313,7 +1313,8 @@ private class Emit(
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
-        val repr = x.pType.asInstanceOf[PNDArray].representation
+        val xP = x.pType.asInstanceOf[PNDArray]
+        val repr = xP.representation
         val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
         val nDims = shapePType.size
@@ -1354,27 +1355,28 @@ private class Emit(
               srvb.advance(),
               srvb.addBaseStruct(repr.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
                 val tupleStartAddress = mb.newField[Long]
-                Code (
-                  srvb.start(),
-                  tupleStartAddress := srvb.offset,
-                  // Fill with 0s, then backfill with actual data
-                  Code.foreach(0 until nDims) { index =>
-                    Code(srvb.addLong(0L), srvb.advance())
-                  },
-                  {
-                    val runningProduct = mb.newField[Long]
-                    Code(
-                      runningProduct := dataContainer.elementType.byteSize,
-                      Code.foreach((nDims - 1) to 0 by -1) { idx =>
-                        val fieldOffset = targetShapePType.fieldOffset(tupleStartAddress, idx)
-                        Code(
-                          Region.storeLong(fieldOffset, runningProduct),
-                          runningProduct := runningProduct * getShapeAtIdx(idx)
-                        )
-                      }
-                    )
-                  }
-                )
+                coerce[Unit](xP.makeDefaultStrides(getShapeAtIdx, srvb, mb))
+//                Code (
+//                  srvb.start(),
+//                  tupleStartAddress := srvb.offset,
+//                  // Fill with 0s, then backfill with actual data
+//                  Code.foreach(0 until nDims) { index =>
+//                    Code(srvb.addLong(0L), srvb.advance())
+//                  },
+//                  {
+//                    val runningProduct = mb.newField[Long]
+//                    Code(
+//                      runningProduct := dataContainer.elementType.byteSize,
+//                      Code.foreach((nDims - 1) to 0 by -1) { idx =>
+//                        val fieldOffset = targetShapePType.fieldOffset(tupleStartAddress, idx)
+//                        Code(
+//                          Region.storeLong(fieldOffset, runningProduct),
+//                          runningProduct := runningProduct * getShapeAtIdx(idx)
+//                        )
+//                      }
+//                    )
+//                  }
+//                )
               }),
               srvb.advance(),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
@@ -1392,8 +1394,7 @@ private class Emit(
         EmitTriplet(ndt.setup, false, shape)
       case x@NDArrayMap(nd, valueName, body) =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
-
-        ???
+        present(emitter.emit(x.pType.asInstanceOf[PNDArray]))
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
@@ -1969,7 +1970,6 @@ private class Emit(
     ???
   }
 }
-// TODO: Next step, what about shapes?
 abstract class NDArrayEmitter(
                                val mb: MethodBuilder,
                                val nDims: Int,
@@ -1985,18 +1985,20 @@ abstract class NDArrayEmitter(
 
   def emit(targetType: PNDArray): Code[_] = {
     val srvb = new StagedRegionValueBuilder(mb, targetType)
+    def getShapeAtIdx(index: Int) = srvb.region.loadLong(outputShapePType.loadField(outputShape, index))
 
     Code(
       setup,
       //Ugh, need to create a new NDArray
-      //makeNDArray(data)
       srvb.addInt(0),
       srvb.advance(),
       srvb.addInt(0),
       srvb.advance(),
       srvb.addIRIntermediate(outputShapePType)(outputShape), //shape
       srvb.advance(),
-      srvb.addIRIntermediate(???), //data
+      srvb.addBaseStruct(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct], {srvb =>
+        coerce[Unit](targetType.makeDefaultStrides(getShapeAtIdx, srvb, mb))
+      }),
       srvb.advance(),
       srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
         coerce[Unit](emitLoops(srvb))
