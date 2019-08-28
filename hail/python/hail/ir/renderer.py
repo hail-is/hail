@@ -1,6 +1,7 @@
 from hail import ir
 import abc
 from typing import Sequence, List, Set, Dict, Callable, Tuple, Optional
+from collections import namedtuple
 
 
 class Renderable(object):
@@ -88,60 +89,14 @@ class RQStack(object):
         return self._idx < 0
 
 
-class Renderer(object):
-    def __init__(self, stop_at_jir=False):
-        self.stop_at_jir = stop_at_jir
-        self.count = 0
-        self.jirs = {}
-
-    def add_jir(self, jir):
-        jir_id = f'm{self.count}'
-        self.count += 1
-        self.jirs[jir_id] = jir
-        return jir_id
-
-    def __call__(self, x: 'Renderable'):
-        stack = RQStack()
-        builder = []
-
-        while x is not None or stack.non_empty():
-            if x is not None:
-                # TODO: it would be nice to put the JavaIR logic in BaseIR somewhere but this isn't trivial
-                if self.stop_at_jir and hasattr(x, '_jir'):
-                    jir_id = self.add_jir(x._jir)
-                    if isinstance(x, ir.MatrixIR):
-                        builder.append(f'(JavaMatrix {jir_id})')
-                    elif isinstance(x, ir.TableIR):
-                        builder.append(f'(JavaTable {jir_id})')
-                    elif isinstance(x, ir.BlockMatrixIR):
-                        builder.append(f'(JavaBlockMatrix {jir_id})')
-                    else:
-                        assert isinstance(x, ir.IR)
-                        builder.append(f'(JavaIR {jir_id})')
-                else:
-                    head = x.render_head(self)
-                    if head != '':
-                        builder.append(x.render_head(self))
-                    stack.push(RenderableQueue(x.render_children(self), x.render_tail(self)))
-                x = None
-            else:
-                top = stack.peek()
-                if top.exhausted():
-                    stack.pop()
-                    builder.append(top.tail)
-                else:
-                    builder.append(' ')
-                    x = top.pop()
-
-        return ''.join(builder)
-
-
 Vars = Dict[str, int]
 Context = (Vars, Vars, Vars)
 
 
 # FIXME: replace these by NamedTuples, or use slots
 class AnalysisStackFrame:
+    __slots__ = ['min_binding_depth', 'context', 'node', '_free_vars', 'visited',
+                 'lifted_lets', 'child_idx', '_child_bindings']
     def __init__(self, min_binding_depth: int, context: Context, x: 'ir.BaseIR'):
         # immutable
         self.min_binding_depth = min_binding_depth
@@ -209,21 +164,18 @@ class AnalysisStackFrame:
         parent_frame._free_vars.update(self._free_vars)
 
 
-class BindingSite:
-    def __init__(self, lifted_lets: Dict[int, str], depth: int):
-        self.depth = depth
-        self.lifted_lets = lifted_lets
+BindingSite = namedtuple('BindingSite', 'depth lifted_lets')
+BindingsStackFrame = namedtuple('BindingsStackFrame', 'depth lifted_lets visited let_bodies')
 
-
-class BindingsStackFrame:
-    def __init__(self, binding_site: BindingSite):
-        self.depth = binding_site.depth
-        self.lifted_lets = binding_site.lifted_lets
-        self.visited = {}
-        self.let_bodies = []
+def make_bindings_stack_frame(site: BindingSite):
+    return BindingsStackFrame(depth=site.depth,
+                              lifted_lets=site.lifted_lets,
+                              visited={},
+                              let_bodies=[])
 
 
 class PrintStackFrame:
+    __slots__ = ['node', 'children', 'min_binding_depth', 'depth', 'lift_to_frame', 'insert_lets', 'builder', 'child_idx']
     def __init__(self, node, children, builder, outermost_scope, depth, insert_lets, lift_to_frame=None):
         # immutable
         self.node: Renderable = node
@@ -254,14 +206,14 @@ class PrintStackFrame:
         state = PrintStackFrame(node, node.render_children(renderer), builder, outermost_scope, depth, insert_lets)
         if insert_lets:
             state.builder = []
-            context.append(BindingsStackFrame(binding_sites[id(node)]))
+            context.append(make_bindings_stack_frame(binding_sites[id(node)]))
         head = node.render_head(renderer)
         if head != '':
             state.builder.append(head)
         return state
 
 
-class CSERenderer(Renderer):
+class Renderer:
     def __init__(self, stop_at_jir=False):
         self.stop_at_jir = stop_at_jir
         self.jir_count = 0
@@ -334,7 +286,7 @@ class CSERenderer(Renderer):
                 # binding sites
                 if frame.lifted_lets:
                     binding_sites[id(node)] = \
-                        BindingSite(frame.lifted_lets, len(stack))
+                        BindingSite(lifted_lets=frame.lifted_lets, depth=len(stack))
 
                 stack.pop()
                 if not stack:
@@ -392,7 +344,7 @@ class CSERenderer(Renderer):
         root_free_vars = root_frame.free_vars()
         assert(len(root_free_vars) == 0)
 
-        binding_sites[id(root)] = BindingSite(frame.lifted_lets, 0)
+        binding_sites[id(root)] = BindingSite(lifted_lets=frame.lifted_lets, depth=0)
         return binding_sites
 
     # At top of main loop, we are considering the 'Renderable' 'node' and its

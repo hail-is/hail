@@ -1,7 +1,7 @@
 import unittest
 import hail as hl
 import hail.ir as ir
-from hail.ir.renderer import CSERenderer
+from hail.ir.renderer import Renderer
 from hail.expr import construct_expr
 from hail.expr.types import tint32
 from hail.utils.java import Env
@@ -364,7 +364,7 @@ class CSETests(unittest.TestCase):
             ' (ApplyBinaryPrimOp `+`'
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
-        self.assertEqual(expected, CSERenderer()(x))
+        self.assertEqual(expected, Renderer()(x))
 
     def test_cse2(self):
         x = ir.I32(5)
@@ -380,7 +380,7 @@ class CSETests(unittest.TestCase):
                     ' (Ref __cse_2)'
                     ' (I32 4))'
                 ' (Ref __cse_2))))')
-        self.assertEqual(expected, CSERenderer()(div))
+        self.assertEqual(expected, Renderer()(div))
 
     def test_cse_ifs(self):
         outer_repeated = ir.I32(5)
@@ -396,7 +396,7 @@ class CSETests(unittest.TestCase):
                     ' (I32 5)))'
                 ' (I32 5))'
         )
-        self.assertEqual(expected, CSERenderer()(cond))
+        self.assertEqual(expected, Renderer()(cond))
     #
     # def test_foo(self):
     #     array = ir.MakeArray([ir.I32(5)], tint32)

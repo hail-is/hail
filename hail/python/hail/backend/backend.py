@@ -6,7 +6,7 @@ from hail.expr.types import dtype
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.expr.blockmatrix_type import *
-from hail.ir.renderer import Renderer, CSERenderer
+from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -99,16 +99,9 @@ class SparkBackend(Backend):
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
-            r_old = Renderer(stop_at_jir=True)
+            r = Renderer(stop_at_jir=True)
             # FIXME parse should be static
-            no_cse = r_old(ir)
-            print('without cse:')
-            print(no_cse)
-            cse = r(ir)
-            print('with cse:')
-            print(cse)
-            ir._jir = ir.parse(cse, ir_map=r.jirs)
+            ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
 
     def execute(self, ir, timed=False):
