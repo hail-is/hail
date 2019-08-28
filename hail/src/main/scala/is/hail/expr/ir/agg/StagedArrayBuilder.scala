@@ -90,7 +90,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     val dest = eltArray.elementOffset(data, capacity, size)
     Code(
       eltArray.setElementPresent(region, data, size),
-      StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltType, elt, dest),
+      StagedRegionValueBuilder.deepCopy(fb, region, eltType, elt, dest),
       incrementSize())
   }
 

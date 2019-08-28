@@ -308,7 +308,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       indexedKeyType.setFieldMissing(keyStage, 0),
       Code(
         indexedKeyType.setFieldPresent(keyStage, 0),
-        StagedRegionValueBuilder.deepCopy(fb, region, keyType, indexedKeyType.fieldOffset(keyStage, 0), k)
+        Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
       )),
     Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex),
     maxIndex := maxIndex + 1L
@@ -324,14 +324,14 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         eltTuple.setFieldMissing(staging, 1),
         Code(
           eltTuple.setFieldPresent(staging, 1),
-          StagedRegionValueBuilder.deepCopy(fb, region, valueType, eltTuple.fieldOffset(staging, 1), value)
+          Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
         ))
     )
   }
 
   private def swapStaging(): Code[Unit] = {
     Code(
-      Region.copyFrom(staging, ab.elementOffset(0)._2, eltTuple.byteSize),
+      StagedRegionValueBuilder.deepCopy(fb, region, eltTuple, staging, ab.elementOffset(0)._2),
       rebalanceDown(0)
     )
   }
