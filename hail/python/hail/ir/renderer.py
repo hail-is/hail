@@ -140,6 +140,7 @@ Vars = Dict[str, int]
 Context = (Vars, Vars, Vars)
 
 
+# FIXME: replace these by NamedTuples, or use slots
 class AnalysisStackFrame:
     def __init__(self, min_binding_depth: int, context: Context, x: 'ir.BaseIR'):
         # immutable
@@ -209,10 +210,9 @@ class AnalysisStackFrame:
 
 
 class BindingSite:
-    def __init__(self, lifted_lets: Dict[int, Tuple[str, 'ir.BaseIR']], depth: int, node: 'ir.BaseIR'):
+    def __init__(self, lifted_lets: Dict[int, str], depth: int):
         self.depth = depth
         self.lifted_lets = lifted_lets
-        self.node = node
 
 
 class BindingsStackFrame:
@@ -237,7 +237,7 @@ class PrintStackFrame:
         # store builder. Maybe also make these plain strings.
         self.builder = builder
         self.local_builder = local_builder
-        self.child_idx = 0
+        self.child_idx = -1
 
     def add_lets(self, let_bodies):
         for let_body in let_bodies:
@@ -247,19 +247,19 @@ class PrintStackFrame:
         for _ in range(num_lets):
             self.builder.append(')')
 
-    def make_child_frame(self, renderer, builder, context, outermost_scope, depth, local_builder=None):
+    def make_child_frame(self, renderer, binding_sites, builder, context, outermost_scope, depth, local_builder=None):
         child = self.children[self.child_idx]
-        return self.make(child, renderer, builder, context, outermost_scope, depth, local_builder)
+        return self.make(child, renderer, binding_sites, builder, context, outermost_scope, depth, local_builder)
 
     @staticmethod
-    def make(node, renderer, builder, context, outermost_scope, depth, local_builder=None):
+    def make(node, renderer, binding_sites, builder, context, outermost_scope, depth, local_builder=None):
         if local_builder is None:
             local_builder = builder
-        insert_lets = id(node) in renderer.binding_sites and len(renderer.binding_sites[id(node)].lifted_lets) > 0
+        insert_lets = id(node) in binding_sites and len(binding_sites[id(node)].lifted_lets) > 0
         state = PrintStackFrame(node, node.render_children(renderer), local_builder, outermost_scope, depth, builder, insert_lets)
         if insert_lets:
             state.local_builder = []
-            context.append(BindingsStackFrame(renderer.binding_sites[id(node)]))
+            context.append(BindingsStackFrame(binding_sites[id(node)]))
         head = node.render_head(renderer)
         if head != '':
             state.local_builder.append(head)
@@ -273,7 +273,6 @@ class CSERenderer(Renderer):
         self.jirs = {}
         self.memo: Dict[int, Sequence[str]] = {}
         self.uid_count = 0
-        self.binding_sites: Dict[int, BindingSite] = {}
 
     def uid(self) -> str:
         self.uid_count += 1
@@ -289,7 +288,7 @@ class CSERenderer(Renderer):
     # 'child_idx'th child, or if 'child_idx' = 'len(node.children)', we are
     # about to do post-processing on 'node' before moving back up to its parent.
     #
-    # 'stack' is a stack of `AnalysisStackFrame`s, one for each node on the path
+    # 'stack' is a stack of 'AnalysisStackFrame's, one for each node on the path
     # from 'root' to 'node. Each stack frame tracks the following immutable
     # information:
     # * 'node': The node corresponding to this stack frame.
@@ -313,8 +312,14 @@ class CSERenderer(Renderer):
     #   in a let immediately above 'node', then 'lifted_lets' contains 'id(x)',
     #   along with the unique id to bind 'x' to.
     # * 'child_idx': the child currently being visited (satisfies the invariant
-    #   'stack[i].node.children[stack[i].child_idx] is stack[i+1].node`).
-    def compute_new_bindings(self, root: 'ir.BaseIR'):
+    #   'stack[i].node.children[stack[i].child_idx] is stack[i+1].node').
+    #
+    # Returns a Dict summarizing of all lets to be inserted. For each 'node'
+    # which will have lets inserted immediately above it, maps 'id(node)' to a
+    # 'BindingSite' recording the depth of 'node' and a Dict 'lifted_lets',
+    # where for each descendant 'x' which will be bound above 'node',
+    # 'lifted_lets' maps 'id(x)' to the unique id 'x' will be bound to.
+    def compute_new_bindings(self, root: 'ir.BaseIR') -> Dict[int, BindingSite]:
         root_frame = AnalysisStackFrame(0, ({}, {}, {}), root)
         stack = [root_frame]
         binding_sites = {}
@@ -334,7 +339,7 @@ class CSERenderer(Renderer):
                 # binding sites
                 if frame.lifted_lets:
                     binding_sites[id(node)] = \
-                        BindingSite(frame.lifted_lets, len(stack), node)
+                        BindingSite(frame.lifted_lets, len(stack))
 
                 stack.pop()
                 if not stack:
@@ -392,27 +397,14 @@ class CSERenderer(Renderer):
         root_free_vars = root_frame.free_vars()
         assert(len(root_free_vars) == 0)
 
-        binding_sites[id(root)] = BindingSite(frame.lifted_lets, 0, root)
+        binding_sites[id(root)] = BindingSite(frame.lifted_lets, 0)
         return binding_sites
-
-    def make_post_children(self, node, builder, context, outermost_scope, depth, local_builder=None):
-        if local_builder is None:
-            local_builder = builder
-        insert_lets = id(node) in self.binding_sites and len(self.binding_sites[id(node)].lifted_lets) > 0
-        state = PrintStackFrame(node, node.render_children(self), local_builder, outermost_scope, depth, builder, insert_lets)
-        if insert_lets:
-            state.local_builder = []
-            context.append(BindingsStackFrame(self.binding_sites[id(node)]))
-        head = node.render_head(self)
-        if head != '':
-            state.local_builder.append(head)
-        return state
 
     # At top of main loop, we are considering the 'Renderable' 'node' and its
     # 'child_idx'th child, or if 'child_idx' = 'len(node.children)', we are
     # about to do post-processing on 'node' before moving back up to its parent.
     #
-    # 'stack' is a stack of `PrintStackFrame`s, one for each node on the path
+    # 'stack' is a stack of 'PrintStackFrame's, one for each node on the path
     # from 'root' to 'node. Each stack frame tracks the following immutable
     # information:
     # * 'node': The 'Renderable' node corresponding to this stack frame.
@@ -437,22 +429,22 @@ class CSERenderer(Renderer):
     # be added to 'builder'. If neither, then it is safe for 'local_builder' to
     # be 'builder', to save copying.
 
-    def build_string(self, root):
+    def build_string(self, root, binding_sites):
         root_builder = []
-        context = []
+        context: List[BindingsStackFrame] = []
 
         if id(root) in self.memo:
             return ''.join(self.memo[id(root)])
 
-        stack = [PrintStackFrame.make(root, self, root_builder, context, 0, 1)]
+        stack = [PrintStackFrame.make(root, self, binding_sites, root_builder, context, 0, 1)]
 
         while True:
             frame = stack[-1]
             node = frame.node
-            # child_idx = frame.child_idx
-            # frame.child_idx += 1
+            frame.child_idx += 1
+            child_idx = frame.child_idx
 
-            if frame.child_idx >= len(frame.children):
+            if child_idx >= len(frame.children):
                 if frame.lift_to_frame is not None:
                     assert(not frame.insert_lets)
                     if id(node) in self.memo:
@@ -467,7 +459,6 @@ class CSERenderer(Renderer):
                     # FIXME: can this be added on first visit?
                     frame.builder.append(f'(Ref {name})')
                     stack.pop()
-                    stack[-1].child_idx += 1
                     continue
                 else:
                     frame.local_builder.append(node.render_tail(self))
@@ -477,31 +468,29 @@ class CSERenderer(Renderer):
                     stack.pop()
                     if not stack:
                         return ''.join(frame.builder)
-                    frame = stack[-1]
-                    frame.child_idx += 1
                     continue
 
             frame.local_builder.append(' ')
-            child = frame.children[frame.child_idx]
+            child = frame.children[child_idx]
 
             child_outermost_scope = frame.min_binding_depth
             child_depth = frame.depth
 
             if isinstance(frame.node, ir.BaseIR) and frame.node.renderable_new_block(frame.child_idx):
                 child_outermost_scope = frame.depth
-            lift_to_frame = None
             if isinstance(child, ir.BaseIR):
                 child_depth += 1
                 lift_to_frame = next((frame for frame in context if id(child) in frame.lifted_lets), None)
+            else:
+                lift_to_frame = None
 
             if lift_to_frame and lift_to_frame.depth >= frame.min_binding_depth:
-                insert_lets = id(child) in self.binding_sites and len(self.binding_sites[id(child)].lifted_lets) > 0
+                insert_lets = id(child) in binding_sites and len(binding_sites[id(child)].lifted_lets) > 0
                 assert not insert_lets
                 (name, _) = lift_to_frame.lifted_lets[id(child)]
 
                 if id(child) in lift_to_frame.visited:
                     frame.local_builder.append(f'(Ref {name})')
-                    frame.child_idx += 1
                     continue
 
                 lift_to_frame.visited[id(child)] = child
@@ -510,21 +499,19 @@ class CSERenderer(Renderer):
                 if id(child) in self.memo:
                     new_state = PrintStackFrame(child, [], child_builder, child_outermost_scope, child_depth, frame.local_builder, insert_lets, lift_to_frame)
                 else:
-                    new_state = frame.make_child_frame(self, frame.local_builder, context, child_outermost_scope, child_depth, child_builder)
+                    new_state = frame.make_child_frame(self, binding_sites, frame.local_builder, context, child_outermost_scope, child_depth, child_builder)
                     new_state.lift_to_frame = lift_to_frame
                 stack.append(new_state)
                 continue
 
             if id(child) in self.memo:
                 frame.local_builder.extend(self.memo[id(child)])
-                frame.child_idx += 1
                 continue
 
-            new_state = frame.make_child_frame(self, frame.local_builder, context, child_outermost_scope, child_depth)
+            new_state = frame.make_child_frame(self, binding_sites, frame.local_builder, context, child_outermost_scope, child_depth)
             stack.append(new_state)
             continue
 
     def __call__(self, root: 'ir.BaseIR') -> str:
-        self.binding_sites = self.compute_new_bindings(root)
-
-        return self.build_string(root)
+        binding_sites = self.compute_new_bindings(root)
+        return self.build_string(root, binding_sites)
