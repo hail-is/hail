@@ -1,7 +1,9 @@
 import abc
 import json
 import math
-from collections import Mapping, Sequence
+from collections.abc import Mapping, Sequence
+
+import numpy as np
 
 import hail as hl
 from hail import genetics
@@ -305,6 +307,9 @@ class _tint32(HailType):
     def clear(self):
         pass
 
+    def to_numpy(self):
+        return np.int32
+
 
 class _tint64(HailType):
     """Hail type for signed 64-bit integers.
@@ -351,6 +356,9 @@ class _tint64(HailType):
     def clear(self):
         pass
 
+    def to_numpy(self):
+        return np.int64
+
 
 class _tfloat32(HailType):
     """Hail type for 32-bit floating point numbers.
@@ -392,6 +400,9 @@ class _tfloat32(HailType):
     def clear(self):
         pass
 
+    def to_numpy(self):
+        return np.float32
+
 
 class _tfloat64(HailType):
     """Hail type for 64-bit floating point numbers.
@@ -431,6 +442,9 @@ class _tfloat64(HailType):
 
     def clear(self):
         pass
+
+    def to_numpy(self):
+        return np.float64
 
 
 class _tstr(HailType):
@@ -495,6 +509,9 @@ class _tbool(HailType):
 
     def clear(self):
         pass
+
+    def to_numpy(self):
+        return np.bool
 
 
 class tndarray(HailType):
@@ -576,7 +593,8 @@ class tndarray(HailType):
         return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
-        raise NotImplementedError
+        np_type = self.element_type.to_numpy()
+        return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
 
     def _convert_to_json(self, x):
         raise NotImplementedError

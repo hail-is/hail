@@ -3,6 +3,7 @@ import os
 import tempfile
 import zipfile
 
+
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('script', type=str)
@@ -12,7 +13,7 @@ def init_parser(parser):
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
-def main(args, pass_through_args):
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Submitting to cluster '{}'...".format(args.name))
 
     # create files argument

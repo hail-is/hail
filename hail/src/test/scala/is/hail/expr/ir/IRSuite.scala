@@ -1166,7 +1166,7 @@ class IRSuite extends HailSuite {
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
   @Test def testNDArrayShape() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
     assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
@@ -2054,6 +2054,7 @@ class IRSuite extends HailSuite {
 
     val s = Pretty(x)
     val x2 = IRParser.parse_value_ir(s, env)
+
     assert(x2 == x)
   }
 

@@ -17,6 +17,17 @@ object FoldConstants {
              _: Begin |
              _: InitOp |
              _: ArrayRange |
+             _: MakeNDArray |
+             _: NDArrayShape |
+             _: NDArrayReshape |
+             _: NDArraySlice |
+             _: NDArraySlice |
+             _: NDArrayMap |
+             _: NDArrayMap2 |
+             _: NDArrayReindex |
+             _: NDArrayAgg |
+             _: NDArrayWrite |
+             _: NDArrayMatMul |
              _: Die => None
         case ir: IR if !IsConstant(ir) &&
           Interpretable(ir) &&

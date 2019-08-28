@@ -43,7 +43,7 @@ object InferPType {
 
         val nElem = shape.pType2.asInstanceOf[PTuple].size
 
-        PNDArray(coerce[PArray](data.pType2).elementType, nElem)
+        PNDArray(coerce[PArray](data.pType2).elementType.setRequired(true), nElem)
       }
       case _: ArrayLen => PInt32()
       case _: ArrayRange => PArray(PInt32())

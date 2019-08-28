@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.cxx
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
 object PContainer {
@@ -227,6 +228,39 @@ abstract class PContainer extends PIterable {
       }
     }
   }
+
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], value: Code[Long], otherPT: PType, msg: String): Code[Long] = {
+    val otherPTA = otherPT.asInstanceOf[PArray]
+    assert(otherPTA.elementType.isPrimitive)
+    val oldOffset = value
+    val len = otherPTA.loadLength(oldOffset)
+    if (otherPTA.elementType.required == elementType.required) {
+      value
+    } else {
+      val newOffset = mb.newField[Long]
+      Code(
+        newOffset := allocate(r, len),
+        stagedInitialize(newOffset, len),
+        if (otherPTA.elementType.required) {
+          // convert from required to non-required
+          Code._empty
+        } else {
+          //  convert from non-required to required
+          val i = mb.newField[Int]
+          Code(
+            i := 0,
+            Code.whileLoop(i < len,
+              otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
+              i := i + 1
+            )
+          )
+        },
+        Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
+        newOffset
+      )
+    }
+  }
+
 
   def cxxImpl: String = {
     elementType match {
