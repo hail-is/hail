@@ -97,28 +97,30 @@ object PType {
 
   implicit def arbType = Arbitrary(genArb)
 
-  def canonical(t: Type): PType = {
+  def canonical(t: Type, required: Boolean): PType = {
     t match {
-      case t: TInt32 => PInt32(t.required)
-      case t: TInt64 => PInt64(t.required)
-      case t: TFloat32 => PFloat32(t.required)
-      case t: TFloat64 => PFloat64(t.required)
-      case t: TBoolean => PBoolean(t.required)
-      case t: TBinary => PBinary(t.required)
-      case t: TString => PString(t.required)
-      case t: TCall => PCall(t.required)
-      case t: TLocus => PLocus(t.rg, t.required)
-      case t: TInterval => PInterval(canonical(t.pointType), t.required)
-      case t: TStream => PStream(canonical(t.elementType), t.required)
-      case t: TArray => PArray(canonical(t.elementType), t.required)
-      case t: TSet => PSet(canonical(t.elementType), t.required)
-      case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
-      case t: TTuple => PTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), t.required)
-      case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: TNDArray => PNDArray(canonical(t.elementType.setRequired(true)), t.nDims, t.required)
+      case _: TInt32 => PInt32(required)
+      case _: TInt64 => PInt64(required)
+      case _: TFloat32 => PFloat32(required)
+      case _: TFloat64 => PFloat64(required)
+      case _: TBoolean => PBoolean(required)
+      case _: TBinary => PBinary(required)
+      case _: TString => PString(required)
+      case _: TCall => PCall(required)
+      case t: TLocus => PLocus(t.rg, required)
+      case t: TInterval => PInterval(canonical(t.pointType), required)
+      case t: TStream => PStream(canonical(t.elementType), required)
+      case t: TArray => PArray(canonical(t.elementType), required)
+      case t: TSet => PSet(canonical(t.elementType), required)
+      case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), required)
+      case t: TTuple => PTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), required)
+      case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), required)
+      case t: TNDArray => PNDArray(canonical(t.elementType.setRequired(true)), t.nDims, required)
       case TVoid => PVoid
     }
   }
+
+  def canonical(t: Type): PType = canonical(t, t.required)
 
   // currently identity
   def canonical(t: PType): PType = {
