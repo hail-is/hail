@@ -814,11 +814,15 @@ class Tests(unittest.TestCase):
                         ._same(hl.utils.range_table(15).key_by()))
 
     def test_nested_union(self):
-        N = 100
+        N = 10
         M = 200
-        t = hl.utils.range_table(N, n_partitions=16)
+        t = hl.utils.range_table(N, n_partitions=1)
+        t = t.filter(hl.rand_bool(1)) # prevent count optimization
 
-        assert hl.Table.union(*[t for _ in range(M)])._force_count() == N * M
+        union = hl.Table.union(*[t for _ in range(M)])
+
+        assert union._force_count() == N * M
+        assert union.count() == N * M
 
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
