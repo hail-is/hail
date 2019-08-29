@@ -259,6 +259,8 @@ install-deps:
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 PROJECT = $(shell gcloud config get-value project)
 BENCHMARK_LATEST = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG):latest
+
+.PHONY: build-benchmark-image
 build-benchmark-image: wheel
 	cp $(WHEEL) benchmark
 	cp python/requirements.txt benchmark
@@ -266,6 +268,7 @@ build-benchmark-image: wheel
 	rm benchmark/$(notdir $(WHEEL))
 	rm benchmark/requirements.txt
 
+.PHONY: push-benchmark-image
 push-benchmark-image: build-benchmark-image
 	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
 	docker push $(BENCHMARK_LATEST)
