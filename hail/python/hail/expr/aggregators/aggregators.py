@@ -757,7 +757,7 @@ def mean(expr) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
-    return sum(expr)/count_where(hl.is_defined(expr))
+    return hl.bind(lambda expr: sum(expr) / count_where(hl.is_defined(expr)), expr, _ctx=_agg_func.context)
 
 
 @typecheck(expr=expr_float64)
@@ -794,20 +794,24 @@ def stats(expr) -> StructExpression:
         `n`, and `sum`.
     """
 
-    return hl.bind(lambda aggs:
-                   hl.bind(lambda mean: hl.struct(
-                       mean = mean,
-                       stdev = hl.sqrt(hl.float64(aggs.sumsq - (2 * mean * aggs.sum) + (aggs.n_def * mean ** 2)) / aggs.n_def),
-                       min = hl.float64(aggs.min),
-                       max = hl.float64(aggs.max),
-                       n = aggs.n_def,
-                       sum = hl.float64(aggs.sum)
-                   ), hl.float64(aggs.sum)/aggs.n_def),
-                   hl.struct(n_def = count_where(hl.is_defined(expr)),
-                             sum = sum(expr),
-                             sumsq = sum(expr ** 2),
-                             min = min(expr),
-                             max = max(expr)))
+    return hl.bind(
+        lambda expr: hl.bind(
+            lambda aggs: hl.bind(
+                lambda mean: hl.struct(
+                    mean=mean,
+                    stdev=hl.sqrt(hl.float64(
+                        aggs.sumsq - (2 * mean * aggs.sum) + (aggs.n_def * mean ** 2)) / aggs.n_def),
+                    min=hl.float64(aggs.min),
+                    max=hl.float64(aggs.max),
+                    n=aggs.n_def,
+                    sum=hl.float64(aggs.sum)
+                ), hl.float64(aggs.sum) / aggs.n_def),
+            hl.struct(n_def=count_where(hl.is_defined(expr)),
+                      sum=sum(expr),
+                      sumsq=sum(expr ** 2),
+                      min=min(expr),
+                      max=max(expr))),
+        expr, _ctx=_agg_func.context)
 
 
 @typecheck(expr=expr_oneof(expr_int64, expr_float64))
@@ -1150,6 +1154,8 @@ def call_stats(call, alleles) -> StructExpression:
 
     return _agg_func('CallStats', [call], t, [], init_op_args=[n_alleles])
 
+_bin_idx_f = None
+_result_from_agg_f = None
 
 @typecheck(expr=expr_float64, start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:
@@ -1195,18 +1201,23 @@ def hist(expr, start, end, bins) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
+    global _bin_idx_f, _result_from_agg_f
+    if _bin_idx_f is None:
+        _bin_idx_f = hl.experimental.define_function(
+            lambda s, e, nbins, binsize, v:
+            (hl.case()
+             .when(v < s, -1)
+             .when(v > e, nbins)
+             .when(v == e, nbins - 1)
+             .default(hl.int32(hl.floor((v - s) / binsize)))),
+            hl.tfloat64, hl.tfloat64, hl.tint32, hl.tfloat64, hl.tfloat64)
 
-    bin_idx_f = hl.experimental.define_function(
-        lambda s, e, nbins, binsize, v:
-        (hl.case()
-         .when(v < s, -1)
-         .when(v > e, nbins)
-         .when(v == e, nbins - 1)
-         .default(hl.int32(hl.floor((v - s) / binsize)))),
-        hl.tfloat64, hl.tfloat64, hl.tint32, hl.tfloat64, hl.tfloat64)
-
-    bin_idx = bin_idx_f(start, end, bins, hl.float64(end - start) / bins, expr)
-    freq_dict = hl.agg.filter(hl.is_defined(expr), hl.agg.group_by(bin_idx, hl.agg.count()))
+    freq_dict = hl.bind(
+        lambda expr: hl.agg.filter(hl.is_defined(expr),
+                                   hl.agg.group_by(
+                                       _bin_idx_f(start, end, bins, hl.float64(end - start) / bins, expr),
+                                       hl.agg.count())),
+        expr, _ctx=_agg_func.context)
 
     def result(s, nbins, bs, freq_dict):
         return hl.struct(
@@ -1227,11 +1238,12 @@ def hist(expr, start, end, bins) -> StructExpression:
                                          hl.float64(e - s) / nbins))
                 .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
 
-    result_from_agg_f = hl.experimental.define_function(
-        wrap_errors,
-        hl.tfloat64, hl.tfloat64, hl.tint32, hl.tdict(hl.tint32, hl.tint64))
+    if _result_from_agg_f is None:
+        _result_from_agg_f = hl.experimental.define_function(
+            wrap_errors,
+            hl.tfloat64, hl.tfloat64, hl.tint32, hl.tdict(hl.tint32, hl.tint64))
 
-    return result_from_agg_f(start, end, bins, freq_dict)
+    return _result_from_agg_f(start, end, bins, freq_dict)
 
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
@@ -1529,18 +1541,20 @@ def corr(x, y) -> Float64Expression:
     -------
     :class:`.Float64Expression`
     """
-
-    return hl.bind(lambda a:
-                   (a.n * a.xy - a.x * a.y) /
-                   hl.sqrt((a.n * a.xsq - a.x ** 2) *
-                           (a.n * a.ysq - a.y ** 2)),
-                   hl.agg.filter(hl.is_defined(x) & hl.is_defined(y),
-                                 hl.struct(x=hl.agg.sum(x),
-                                           y=hl.agg.sum(y),
-                                           xsq=hl.agg.sum(x ** 2),
-                                           ysq=hl.agg.sum(y ** 2),
-                                           xy=hl.agg.sum(x * y),
-                                           n=hl.agg.count())))
+    return hl.bind(
+        lambda x, y: hl.bind(
+            lambda a:
+            (a.n * a.xy - a.x * a.y) /
+            hl.sqrt((a.n * a.xsq - a.x ** 2) *
+                    (a.n * a.ysq - a.y ** 2)),
+            hl.agg.filter(hl.is_defined(x) & hl.is_defined(y),
+                          hl.struct(x=hl.agg.sum(x),
+                                    y=hl.agg.sum(y),
+                                    xsq=hl.agg.sum(x ** 2),
+                                    ysq=hl.agg.sum(y ** 2),
+                                    xy=hl.agg.sum(x * y),
+                                    n=hl.agg.count()))),
+        x, y, _ctx=_agg_func.context)
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))
