@@ -60,9 +60,14 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   def getElementPosition(indices: Seq[ClassFieldRef[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val rep = this.representation
     val strides = rep.loadField(region, nd, "strides")
+    val data = rep.loadField(region, nd, "data")
+    val dataLength = rep.fieldType("data").asInstanceOf[PArray].loadLength(data)
     def getStrideAtIdx(idx: Int): Code[Long] = rep.fieldType("strides").asInstanceOf[PTuple].loadField(strides, idx)
     val bytesAway = mb.newField[Long]
-    Code(
+    val temp = mb.newField[Long]
+    coerce[Long](Code(
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Reached getElementPosition"),
       bytesAway := 0L,
       indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (elementIndex: ClassFieldRef[Long], strideIndex: Int)) =>
         Code(
@@ -70,7 +75,24 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
           bytesAway := bytesAway + elementIndex * getStrideAtIdx(strideIndex)
         )
       },
-      bytesAway + strides + rep.fieldType("strides").asInstanceOf[PTuple].fieldOffset(strides, 0)
-    )
+
+      temp := rep.fieldType("data").asInstanceOf[PArray].elementOffset(data, dataLength, 0),
+
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Computed bytesAway"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Data is at:"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+        "println", data),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "BytesAway is:"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+        "println", bytesAway),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Temp is:"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+        "println", temp),
+      bytesAway + temp
+    ))
   }
 }

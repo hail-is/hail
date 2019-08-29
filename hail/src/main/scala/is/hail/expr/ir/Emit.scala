@@ -1334,6 +1334,8 @@ private class Emit(
           rowMajort.setup)
 
         val value = coerce[Long](Code(
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+            "println", "MAKING ND ARRAY"),
           srvb.start(),
           srvb.addInt(0),
           srvb.advance(),
@@ -1381,6 +1383,8 @@ private class Emit(
               srvb.advance(),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
                 repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")),
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+                "println", "FINISHED MAKING ND ARRAY"),
               srvb.end()
             )
           )
@@ -2005,26 +2009,42 @@ abstract class NDArrayEmitter(
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
         "println", "Set up emitter!"),
       //Ugh, need to create a new NDArray
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "About to start SRVB!"),
       srvb.start(),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Started SRVB!"),
       srvb.addInt(0),
-      srvb.advance(),
-      srvb.addInt(0),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Added first int!"),
       srvb.advance(),
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Added first two ints"),
+        "println", "Advanced!"),
+      srvb.addInt(0),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Added second int!"),
+      srvb.advance(),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Advanced!"),
       srvb.addIRIntermediate(outputShapePType)(outputShape), //shape
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Added shape"),
+        "println", "Added shape!"),
       srvb.advance(),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Advanced!"),
       srvb.addBaseStruct(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct], {srvb =>
         coerce[Unit](targetType.makeDefaultStrides(getShapeAtIdx, srvb, mb))
       }),
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
         "println", "Added stride"),
       srvb.advance(),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Advanced!"),
       srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
         coerce[Unit](emitLoops(srvb))
       }),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Added data"),
       srvb.end()
     )
   }
