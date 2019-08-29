@@ -58,7 +58,8 @@ def download_data(data_dir):
                                                        'table_10M_par_100.ht',
                                                        'table_10M_par_10.ht',
                                                        'gnomad_dp_simulation.mt',
-                                                       'many_strings_table.ht'])
+                                                       'many_strings_table.ht',
+                                                       'many_ints_table.ht'])
     if not all(os.path.exists(file) for file in files):
         hl.init()  # use all cores
 
@@ -92,6 +93,20 @@ def download_data(data_dir):
         logging.info('importing many_strings_table.tsv.bgz...')
         hl.import_table(mst_tsv).write(mst_ht, overwrite=True)
         logging.info('done importing many_strings_table.tsv.bgz.')
+
+        logging.info('downloading many_ints_table.tsv.bgz...')
+        mit_tsv = os.path.join(_data_dir, 'many_ints_table.tsv.bgz')
+        mit_ht = os.path.join(_data_dir, 'many_ints_table.ht')
+        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_ints_table.tsv.bgz', mit_tsv)
+        logging.info('done downloading many_ints_table.tsv.bgz...')
+        logging.info('importing many_ints_table.tsv.bgz...')
+        hl.import_table(mit_tsv,
+                        types={'idx': 'int',
+                               **{f'i{i}': 'int' for i in range(5)},
+                               **{f'array{i}': 'array<int>' for i in range(2)}}
+                        ).write(mit_ht, overwrite=True)
+        logging.info('done importing many_ints_table.tsv.bgz.')
+
         hl.stop()
     else:
         logging.info('all files found.')

@@ -113,24 +113,62 @@ def table_annotate_many_nested_dependence():
 
 
 @benchmark
+def table_read_force_count_ints():
+    ht = hl.read_table(resource('many_ints_table.ht'))
+    ht._force_count()
+
+
+@benchmark
+def table_read_force_count_strings():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht._force_count()
+
+
+@benchmark
+def table_import_ints():
+    hl.import_table(resource('many_ints_table.tsv.bgz'),
+                    types={'idx': 'int',
+                           **{f'i{i}': 'int' for i in range(5)},
+                           **{f'array{i}': 'array<int>' for i in range(2)}}
+                    )._force_count()
+
+
+@benchmark
+def table_import_strings():
+    hl.import_table(resource('many_strings_table.tsv.bgz'))._force_count()
+
+
+@benchmark
+def table_aggregate_int_stats():
+    ht = hl.read_table(resource('many_ints_table.ht'))
+    ht.aggregate(tuple([*(hl.agg.stats(ht[f'i{i}']) for i in range(5)),
+                        *(hl.agg.stats(hl.sum(ht[f'array{i}'])) for i in range(2)),
+                        *(hl.agg.explode(lambda elt: hl.agg.stats(elt), ht[f'array{i}']) for i in range(2))]))
+
+
+@benchmark
 def table_aggregate_counter():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
+
 
 @benchmark
 def table_take():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.take(100)
 
+
 @benchmark
 def table_show():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.show(100)
 
+
 @benchmark
 def table_expr_take():
     ht = hl.read_table(resource('many_strings_table.ht'))
     hl.tuple([ht.f1, ht.f2]).take(100)
+
 
 @benchmark
 def read_force_count_p1000():
