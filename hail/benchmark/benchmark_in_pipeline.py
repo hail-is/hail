@@ -20,7 +20,7 @@ if __name__ == '__main__':
                     default_memory='7G',
                     default_cpu=2)
 
-    make_resources = p.new_task('create_resources')
+    make_resources = p.new_task('create_resources').cpu(4)
     make_resources.command('hailctl dev benchmark create-resources --data-dir benchmark-resources')
     make_resources.command("time tar -czvf benchmark-resources.tar.gz benchmark-resources --exclude='*.crc'")
     make_resources.command('ls -lh benchmark-resources.tar.gz')
