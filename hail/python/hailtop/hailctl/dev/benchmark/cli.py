@@ -19,6 +19,16 @@ def print_help():
         help='Compare Hail benchmarks.',
         description='Run Hail benchmarks.')
 
+    subparsers.add_parser(
+        'create-resources',
+        help='Create benchmark input resources.',
+        description='Create benchmark input resources.')
+
+    subparsers.add_parser(
+        'combine',
+        help='Combine parallelized benchmark metrics.',
+        description='Combine parallelized benchmark metrics.')
+
     main_parser.print_help()
 
 
@@ -35,6 +45,12 @@ def main(args):
         elif module == 'compare':
             from .compare import cli
             cli.main(args)
+        elif module == 'create-resources':
+            from .create_resources import create_resources
+            create_resources.main(args)
+        elif module == 'combine':
+            from .combine import combine
+            combine.main(args)
         elif module in ('-h', '--help', 'help'):
             print_help()
         else:

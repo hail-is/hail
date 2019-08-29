@@ -259,6 +259,8 @@ install-deps:
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 PROJECT = $(shell gcloud config get-value project)
 BENCHMARK_LATEST = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG):latest
+
+.PHONY: build-benchmark-image
 build-benchmark-image: wheel
 	cp $(WHEEL) benchmark
 	cp python/requirements.txt benchmark
@@ -266,14 +268,15 @@ build-benchmark-image: wheel
 	rm benchmark/$(notdir $(WHEEL))
 	rm benchmark/requirements.txt
 
+.PHONY: push-benchmark-image
 push-benchmark-image: build-benchmark-image
 	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
 	docker push $(BENCHMARK_LATEST)
 
 BENCHMARK_ITERS ?= 5
-BENCHMARK_REPLICATES ?= 10
+BENCHMARK_REPLICATES ?= 5
 .PHONY: benchmark
-benchmark: push-benchmark-image
+benchmark: push-benchmark-image install
 	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
 clean: clean-env clean-docs native-lib-clean
