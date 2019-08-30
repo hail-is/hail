@@ -1379,16 +1379,8 @@ private class Emit(
 //                )
               }),
               srvb.advance(),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-                "println", "About to write data, srvb is at:"),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-                "println", srvb.currentOffset),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
                 repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-                "println", "Trying to print address to data:"),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-                "println", region.loadAddress(srvb.currentOffset)),
               Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
                 "println", "FINISHED MAKING ND ARRAY. It's at:"),
               Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
@@ -2003,9 +1995,6 @@ abstract class NDArrayEmitter(
    val outputElementPType: PType,
    val setup: Code[_]) {
 
-  // Need to make a SRVB to fill with array elements
-  // Then call emit on MakeNDArray of
-
   def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_]
 
   def emit(targetType: PNDArray): Code[_] = {
@@ -2014,8 +2003,6 @@ abstract class NDArrayEmitter(
 
     Code(
       setup,
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Set up emitter!"),
       srvb.start(),
       srvb.addInt(0),
       srvb.advance(),
@@ -2032,8 +2019,7 @@ abstract class NDArrayEmitter(
           srvb.start(targetType.numElements(outputShape, mb).toI),
           coerce[Unit](emitLoops(srvb)))
       }),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Added data"),
+
       srvb.end()
     )
   }
