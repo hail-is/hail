@@ -142,7 +142,7 @@ class Job:
         self._log(log.warning, message, *args, **kwargs)
 
     def log_error(self, message, *args, **kwargs):
-        self._(log.error, message, *args, **kwargs)
+        self._log(log.error, message, *args, **kwargs)
 
     async def _create_pvc(self):
         _, err = await app['k8s'].create_pvc(
