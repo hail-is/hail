@@ -141,6 +141,9 @@ class Job:
     def log_warning(self, message, *args, **kwargs):
         self._log(log.warning, message, *args, **kwargs)
 
+    def log_error(self, message, *args, **kwargs):
+        self._(log.error, message, *args, **kwargs)
+
     async def _create_pvc(self):
         _, err = await app['k8s'].create_pvc(
             body=kube.client.V1PersistentVolumeClaim(
@@ -294,8 +297,7 @@ class Job:
                 self.log_info(f'pod already exists')
                 return
             traceback.print_tb(err.__traceback__)
-            self.log_info(
-                f'pod creation failed with the following error: {err}')
+            self.log_info(f'pod creation failed with the following error: {err}')
             return
 
     async def _delete_pvc(self):
@@ -353,8 +355,7 @@ class Job:
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                self.log_info(
-                    f'ignoring: could not get pod status due to {err}')
+                self.log_info(f'ignoring: could not get pod status due to {err}')
             pod_status = pod_status.to_dict()
             return pod_status
         assert self._state in ('Error', 'Failed', 'Success')
@@ -505,7 +506,7 @@ class Job:
                     f'failed due to the expected state not in db')
                 raise JobStateWriteFailure()
 
-            self.log_info(f'changed state: {self._state} -> {self.new_state}')
+            self.log_info(f'changed state: {self._state} -> {new_state}')
             self._state = new_state
             if durations is not None:
                 self.durations = durations
@@ -665,8 +666,8 @@ class Job:
             exit_codes = [None for _ in tasks]
         if durations is None:
             durations = [None for _ in tasks]
-        await self._delete_k8s_resources()
         await self.set_state(new_state, durations, exit_codes)
+        await self._delete_k8s_resources()
         self.log_info(f'complete with state {self._state}, exit_codes {self.exit_codes}')
         if self.callback:
             def handler(job, callback, json):
