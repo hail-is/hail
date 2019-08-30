@@ -1,5 +1,35 @@
 # Change Log
 
+## 0.2.21
+
+Release 2019-08-30
+
+### Correctness
+- (hail#6945) Fix `expand_types` to preserve the order of the data in a table
+- (hail#6958) Fix stack overflow errors when counting the result of a `Table.union`
+
+### Functionality
+- (hail#6913) Teach `sparse_split_multi` how to filter changed loci
+- (hail#6856) Teach `hl.agg.counter` to weigh each value differently
+- (hail#6903) Teach `hl.range` to treat a single argument as `0..N`
+- (hail#6903) Teach `BlockMatrix` how to `checkpoint`
+
+### Performance
+- (hail#6896) Improve performance of `sparse_split_multi`
+- (hail#6895) Improve performance of `hl.import_bgen(...).count()`
+- (hail#6948) Fix performance bug in `BlockMatrix` filtering functions
+- (hail#6943) Improve scaling of `Table.union`
+
+### Documentation
+- (hail#6904) Fix documentation of `sparse_split_multi`
+- (hail#6789) Fix visual bugs on website and docs
+- (hail#6914) Fix the "edit this page" link
+
+### `hailctl dataproc`
+- (hail#6904) Add `--dry-run` option to `submit`.
+- (hail#6951) Fix `--max-idle` and `--max-age` arguments to `start`
+- (hail#6919) Add `--update-hail-version` to `modify`
+
 ## 0.2.20
 
 Released 2019-08-19
