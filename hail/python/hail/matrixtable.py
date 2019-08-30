@@ -1952,7 +1952,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_rows(hl.struct(n_high_quality=hl.agg.count_where(dataset.qual > 40),
         ...                                  mean_qual=hl.agg.mean(dataset.qual)))
-        Struct(n_high_quality=11, mean_qual=625857.870909091)
+        Struct(n_high_quality=13, mean_qual=544323.8915384616)
 
         Notes
         -----
@@ -2050,7 +2050,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_entries(hl.struct(global_gq_mean=hl.agg.mean(dataset.GQ),
         ...                                     call_rate=hl.agg.fraction(hl.is_defined(dataset.GT))))
-        Struct(global_gq_mean=72.4484389782403, call_rate=0.9609090909090909)
+        Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
 
         Notes
         -----
