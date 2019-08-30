@@ -63,7 +63,7 @@ def ld_score_regression(weight_expr,
     Run the method on a matrix table of summary statistics, where the rows
     are variants and the columns are different phenotypes:
 
-    >>> mt_gwas = hl.read_matrix_table('data/ld_score_regression.sumstats.mt')
+    >>> mt_gwas = ld_score_all_phenos_sumstats
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=mt_gwas['ld_score'],
     ...     ld_score_expr=mt_gwas['ld_score'],
@@ -74,7 +74,7 @@ def ld_score_regression(weight_expr,
     Run the method on a table with summary statistics for a single
     phenotype:
 
-    >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
+    >>> ht_gwas = ld_score_one_pheno_sumstats
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
@@ -84,7 +84,7 @@ def ld_score_regression(weight_expr,
     Run the method on a table with summary statistics for multiple
     phenotypes:
 
-    >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
+    >>> ht_gwas = ld_score_one_pheno_sumstats
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
