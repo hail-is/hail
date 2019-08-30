@@ -22,29 +22,41 @@
           <th align="right">exit_code</th>
           <th align="right">duration</th>
           <th align="left">log</th>
+          <th align="left">pod status</th>
         </tr>
       </thead>
       <tbody>
-	{% for job in batch['jobs'] %}
+        {% for job in batch['jobs'] %}
         <tr>
           <td align="right">{{ job['job_id'] }}</td>
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
-	    {% if 'exit_code' in job and job['exit_code'] is not none %}
-	    {{ job['exit_code'] }}
-	    {% endif %}
-	  </td>
+            {% if 'exit_code' in job and job['exit_code'] is not none %}
+            {% if job['exit_code'] == 0 %}
+            <span style="color: #55aa33;">
+              Success 🎉
+              {% else %}
+              <span style="color: #a93333;">
+                Failure 🤷‍♀️
+                {% endif %}
+                ({{ job['exit_code'] }})
+              </span>
+              {% endif %}
+          </td>
           <td align="right">
             {% if 'duration' in job and job['duration'] %}
             {{ job['duration'] }}
             {% endif %}
           </td>
           <td align="left">
-	    <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
-	  </td>
+            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
+          </td>
+          <td align="left">
+            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
+          </td>
         </tr>
-	{% endfor %}
+        {% endfor %}
       </tbody>
     </table>
   </body>
