@@ -2,8 +2,10 @@ package is.hail.io
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.expr.ir.{ExecuteContext, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PArray
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
@@ -13,180 +15,6 @@ import org.apache.spark.sql.Row
 
 import scala.io.Source
 import scala.language.{existentials, implicitConversions}
-
-class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String, sep: Char) {
-
-  assert(entryType.size == 1)
-
-  val nFields: Int = fieldTypes.length
-  val cellf: (String, Long, Int, Int) => Int = addType(entryType.types(0))
-
-  def parseLine(line: String, rowNum: Long): Unit = {
-    var ii = 0
-    var off = 0
-    while (ii < fieldTypes.length) {
-      if (off > line.length) {
-        fatal(
-          s"""Error parsing row fields in row $rowNum:
-             |    expected $nFields fields but only $ii found.
-             |    File: $file
-             |    Line:
-             |        ${ line.truncate }""".stripMargin
-        )
-      }
-      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
-      ii += 1
-    }
-
-    ii = 0
-    rvb.startArray(nCols)
-    while (ii < nCols) {
-      if (off > line.length) {
-        fatal(
-          s"""Incorrect number of entries in row $rowNum:
-             |    expected $nCols entries but only $ii entries found.
-             |    File: $file
-             |    Line:
-             |        ${ line.truncate }""".stripMargin
-        )
-      }
-      rvb.startStruct()
-      off = cellf(line, rowNum, ii, off)
-      rvb.endStruct()
-      ii += 1
-    }
-    if (off < line.length) {
-      fatal(
-        s"""Incorrect number of entries in row $rowNum:
-           |    expected $nCols entries but more data found.
-           |    in file $file""".stripMargin
-      )
-    }
-    rvb.endArray()
-  }
-
-  def addType(t: Type): (String, Long, Int, Int) => Int = t match {
-    case TInt32(_) => addInt
-    case TInt64(_) => addLong
-    case TFloat32(_) => addFloat
-    case TFloat64(_) => addDouble
-    case TString(_) => addString
-  }
-
-  def addString(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
-    var newoff = line.indexOf(sep, off)
-    if (newoff == -1) {
-      newoff = line.length
-    }
-    val v = line.substring(off, newoff)
-    if (v == missingValue) {
-      rvb.setMissing()
-    } else rvb.addString(v)
-    newoff + 1
-  }
-
-  def addInt(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
-    var newoff = off
-    var v = 0
-    var isNegative = false
-    if (line(off) == sep) {
-      fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
-    }
-    if (line(off) == '-' || line(off) == '+') {
-      isNegative = line(off) == '-'
-      newoff += 1
-    }
-    while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
-      v *= 10
-      v += (line(newoff) - '0')
-      newoff += 1
-    }
-    if (newoff == off) {
-      while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
-        newoff += 1
-      }
-
-      if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
-        rvb.setMissing()
-      } else {
-        fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
-      }
-    } else if (line.length == newoff || line(newoff) == sep) {
-      if (isNegative) rvb.addInt(-v) else rvb.addInt(v)
-    } else {
-      fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowNum in file: $file")
-    }
-    newoff + 1
-  }
-
-  def addLong(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
-    var newoff = off
-    var v = 0L
-    var isNegative = false
-    if (line(off) == sep) {
-      fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowNum in file: $file")
-    }
-    if (line(off) == '-' || line(off) == '+') {
-      isNegative = line(off) == '-'
-      newoff += 1
-    }
-    while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
-      v *= 10
-      v += line(newoff) - '0'
-      newoff += 1
-    }
-    if (newoff == off) {
-      while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
-        newoff += 1
-      }
-
-      if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
-        rvb.setMissing()
-      } else {
-        fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowNum in file: $file")
-      }
-    } else if (line.length == newoff || line(newoff) == sep) {
-      if (isNegative) rvb.addLong(-v) else rvb.addLong(v)
-    } else {
-      fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowNum in file: $file")
-    }
-    newoff + 1
-  }
-
-  def addFloat(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
-    var newoff = line.indexOf(sep, off)
-    if (newoff == -1)
-      newoff = line.length
-    val v = line.substring(off, newoff)
-    if (v == missingValue) {
-      rvb.setMissing()
-    } else {
-      try {
-        rvb.addFloat(v.toFloat)
-      } catch {
-        case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: $rowNum in file: $file")
-      }
-    }
-    newoff + 1
-  }
-
-  def addDouble(line: String, rowNum: Long, colNum: Int, off: Int): Int = {
-    var newoff = line.indexOf(sep, off)
-    if (newoff == -1)
-      newoff = line.length
-    val v = line.substring(off, newoff)
-    if (v == missingValue) {
-      rvb.setMissing()
-    } else {
-      try {
-        rvb.addDouble(v.toDouble)
-      } catch {
-        case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: $rowNum in file: $file")
-      }
-    }
-    newoff + 1
-  }
-}
 
 object LoadMatrix {
 
@@ -362,32 +190,21 @@ object LoadMatrix {
     val tt = matrixType.canonicalTableType
     val rvdType = tt.canonicalRVDType
 
+    val compiledLineParser = new CompiledLineParser(
+      matrixType,
+      useIndex,
+      rowFieldType,
+      cellType,
+      nCols,
+      missingValue,
+      sep,
+      partitionCounts,
+      fileByPartition,
+      firstPartitions,
+      noHeader)
+
     val rdd = ContextRDD.weaken[RVDContext](lines.filter(l => l.value.nonEmpty))
-      .cmapPartitionsWithIndex { (i, ctx, it) =>
-        val region = ctx.region
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
-
-        if (firstPartitions(i) == i && !noHeader) { it.next() }
-
-        val partitionStartInFile = partitionCounts(i) - partitionCounts(firstPartitions(i))
-        val parser = new LoadMatrixParser(rvb, rowFieldType.types, cellType, nCols, missingValue, fileByPartition(i), sep)
-
-        it.zipWithIndex.map { case (v, row) =>
-          val fileRowNum = partitionStartInFile + row
-          v.wrap { line =>
-            rvb.start(rvdType.rowType)
-            rvb.startStruct()
-            if (useIndex) {
-              rvb.addLong(partitionCounts(i) + row)
-            }
-            parser.parseLine(line, fileRowNum)
-            rvb.endStruct()
-            rv.setOffset(rvb.end())
-            rv
-          }
-        }
-      }
+      .cmapPartitionsWithIndex(compiledLineParser)
 
     val rvd = if (useIndex) {
       val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, rvdType.kType.virtualType)
@@ -396,5 +213,146 @@ object LoadMatrix {
       RVD.coerce(rvdType, rdd)
 
     MatrixLiteral(matrixType, rvd, Row(), colIDs.map(x => Row(x)))
+  }
+}
+
+class CompiledLineParser(
+  matrixType: MatrixType,
+  rowIdx: Boolean,
+  parsableRowFields: TStruct,
+  entryType: Type,
+  nCols: Int,
+  missingValue: String,
+  sep: Char,
+  partitionCounts: Array[Long],
+  fileByPartition: Array[String],
+  firstPartitions: Array[Int],
+  noHeader: Boolean
+) extends ((Int, RVDContext, Iterator[WithContext[String]]) => Iterator[RegionValue]) with Serializable {
+
+  @transient private[this] val fb = new Function4Builder[Region, String, Long, Array[String], Long]
+  @transient private[this] val mb = fb.apply_method
+  @transient private[this] val fragment = mb.newLocal[String]("currentFragment")
+  @transient private[this] val line = fb.arg4
+  @transient private[this] val i = mb.newLocal[Int]("i")
+  @transient private[this] val j = mb.newLocal[Int]("j")
+  @transient private[this] val rvdType = matrixType.canonicalTableType.canonicalRVDType
+  private[this] val fieldsPerLine = parsableRowFields.size + nCols
+  println(matrixType)
+  println(parsableRowFields)
+  println(entryType)
+  println(rvdType)
+  @transient private[this] val srvb = new StagedRegionValueBuilder(mb, rvdType.rowType)
+  mb.emit(Code(
+    srvb.start(),
+    if (rowIdx) Code(srvb.addLong(fb.arg3), srvb.advance()) else Code._empty,
+    parseRowFields(),
+    parseEntries(),
+    srvb.end()))
+
+  private[this] val loadParserOnWorker = fb.result()
+
+  private[this] def missingOr(parse: Code[Unit]): Code[Unit] = {
+    fragment.invoke[java.lang.Object, Boolean]("equals", missingValue).mux(
+      srvb.setMissing(),
+      parse)
+
+  }
+
+  private[this] def parseType(srvb: StagedRegionValueBuilder, t: Type): Code[Unit] = {
+    t match {
+      case _: TInt32 => missingOr(
+        srvb.addInt(
+          Code.invokeStatic[java.lang.Integer, String, Int]("parseInt", fragment)))
+      case _: TInt64 => missingOr(
+        srvb.addLong(
+          Code.invokeStatic[java.lang.Long, String, Long]("parseLong", fragment)))
+      case _: TFloat32 => missingOr(
+        srvb.addFloat(
+         Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", fragment)))
+      case _: TFloat64 => missingOr(
+        srvb.addDouble(
+         Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", fragment)))
+      case _: TString => missingOr(
+        srvb.addString(fragment))
+    }
+  }
+
+  private[this] def parseRowFields(): Code[_] = {
+    val fields = parsableRowFields.fields
+    var i = 0
+    val ab = new ArrayBuilder[Code[_]]()
+    while (i < fields.size) {
+      ab += Code(
+        fragment := line(i),
+        parseType(srvb, fields(i).typ),
+        srvb.advance())
+      i += 1
+    }
+    Code.apply(ab.result():_*)
+  }
+
+  private[this] def parseEntries(): Code[Unit] = {
+    val entryPType = matrixType.entryType.physicalType
+    assert(entryPType.fields.size == 1)
+    srvb.addArray(PArray(entryPType), { srvb =>
+      Code(
+        srvb.start(nCols),
+        i := 0,
+        j := parsableRowFields.fields.size,
+        Code.whileLoop(i < nCols,
+          fragment := line(j),
+          srvb.addBaseStruct(entryPType, { srvb =>
+            Code(
+              srvb.start(),
+              parseType(srvb, matrixType.entryType.fields(0).typ),
+              srvb.advance())
+          }),
+          srvb.advance(),
+          i := i + 1,
+          j := j + 1))
+    })
+  }
+
+  def apply(
+    partition: Int,
+    ctx: RVDContext,
+    it: Iterator[WithContext[String]]
+  ): Iterator[RegionValue] = {
+    val filename = fileByPartition(partition)
+    if (firstPartitions(partition) == partition && !noHeader) { it.next() }
+
+    val rv = RegionValue(ctx.region)
+    val parse = loadParserOnWorker()
+    var index = partitionCounts(partition) - partitionCounts(firstPartitions(partition))
+    it.map { x =>
+      val line = x.value.split(sep)
+      if (line.length != fieldsPerLine) {
+        fatal(
+          s"""Error parse line $index:
+             |    expected $fieldsPerLine row fields and entries but only ${line.length} found.
+             |    File: $filename
+             |    Line:
+             |        ${ line.truncate }""".stripMargin
+        )
+      }
+      try {
+        rv.setOffset(
+          parse(
+            ctx.region,
+            filename,
+            index,
+            line))
+      } catch {
+        case e: Exception => fatal(
+          s"""""Error parse line $index:
+               |    File: $filename
+               |    Line:
+               |        ${ line.truncate }""".stripMargin,
+          e)
+      }
+      index += 1
+      rv
+    }
   }
 }
