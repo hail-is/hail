@@ -132,6 +132,15 @@ class JobStateWriteFailure(Exception):
 
 
 class Job:
+    def _log(self, fun, message, *args, **kwargs):
+        fun(f'{self.id} {self._state} {self._pod_name}: ' + message, *args, **kwargs)
+
+    def log_info(self, message, *args, **kwargs):
+        self._log(log.info, message, *args, **kwargs)
+
+    def log_warning(self, message, *args, **kwargs):
+        self._log(log.warning, message, *args, **kwargs)
+
     async def _create_pvc(self):
         _, err = await app['k8s'].create_pvc(
             body=kube.client.V1PersistentVolumeClaim(
@@ -151,13 +160,13 @@ class Job:
         if err is not None:
             if err.status == 409:
                 return True
-            log.info(f'pvc cannot be created for job {self.id} with the following error: {err}')
+            self.log_info(f'pvc cannot be created for job with the following error: {err}')
             PVC_CREATION_FAILURES.inc()
             if err.status == 403:
                 await self.mark_creation_failed(failure_reason=str(err))
             return False
 
-        log.info(f'created pvc name: {self._pvc_name} for job {self.id}')
+        self.log_info(f'created pvc name: {self._pvc_name}')
         return True
 
     def _setup_container(self):
@@ -244,7 +253,7 @@ class Job:
         if self._pvc_name is not None:
             pvc_created = await self._create_pvc()
             if not pvc_created:
-                log.info(f'could not create pod for job {self.id} due to pvc creation failure')
+                self.log_info(f'could not create pod due to pvc creation failure')
                 return
             volumes.append(kube.client.V1Volume(
                 persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
@@ -282,28 +291,28 @@ class Job:
         _, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             if err.status == 409:
-                log.info(f'pod already exists for job {self.id}')
+                self.log_info(f'pod already exists')
                 return
             traceback.print_tb(err.__traceback__)
-            log.info(f'pod creation failed for job {self.id} '
-                     f'with the following error: {err}')
+            self.log_info(
+                f'pod creation failed with the following error: {err}')
             return
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
             return
 
-        log.info(f'deleting persistent volume claim {self._pvc_name}')
+        self.log_info(f'deleting persistent volume claim {self._pvc_name}')
         err = await app['k8s'].delete_pvc(self._pvc_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring: could not delete {self._pvc_name} due to {err}')
+            self.log_info(f'ignoring: could not delete {self._pvc_name} due to {err}')
 
     async def _delete_pod(self):
         err = await app['k8s'].delete_pod(name=self._pod_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
+            self.log_info(f'ignoring pod deletion failure due to {err}')
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
@@ -318,8 +327,7 @@ class Job:
                                                                 LogStore.log_file_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id} '
-                         f'due to {err}')
+                self.log_info(f'ignoring: could not read log due to {err}')
                 return None
             return json.loads(pod_logs)
 
@@ -327,8 +335,9 @@ class Job:
             pod_log, err = await app['k8s'].read_pod_log(self._pod_name, container=task_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id} '
-                         f'due to {err}; will still try to load other tasks')
+                self.log_info(
+                    f'ignoring: could not read log due to {err}; will still '
+                    f'try to load other tasks')
             return task_name, pod_log
 
         if self._state == 'Running':
@@ -344,8 +353,8 @@ class Job:
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not get pod status for {self.id} '
-                         f'due to {err}')
+                self.log_info(
+                    f'ignoring: could not get pod status due to {err}')
             pod_status = pod_status.to_dict()
             return pod_status
         assert self._state in ('Error', 'Failed', 'Success')
@@ -353,8 +362,7 @@ class Job:
                                                               LogStore.pod_status_file_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring: could not read pod status for {self.id} '
-                     f'due to {err}')
+            self.log_info(f'ignoring: could not read pod status due to {err}')
             return None
         return json.loads(pod_status)
 
@@ -363,7 +371,7 @@ class Job:
         for file, err in errs:
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'could not delete {self.directory}/{file} for job {self.id} due to {err}')
+                self.log_info(f'could not delete {self.directory}/{file} due to {err}')
 
     @staticmethod
     def from_record(record):
@@ -485,20 +493,33 @@ class Job:
             assert parent_job.batch_id == self.batch_id
             await self.parent_new_state(parent_job._state, *parent_job.id)
 
-    async def set_state(self, new_state):
+    async def set_state(self, new_state, durations=None, exit_codes=None):
         assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
         if self._state != new_state:
-            n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
+            column_updates = {'state': new_state}
+            if durations is not None:
+                column_updates['durations'] = durations
+            if exit_codes is not None:
+                column_updates['exit_codes'] = exit_codes
+            n_updated = await db.jobs.update_record(
+                *self.id,
+                compare_items={'state': self._state},
+                **column_updates)
             if n_updated == 0:
-                log.warning(f'changing the state from {self._state} -> {new_state} '
-                            f'for job {self.id} failed due to the expected state not in db')
+                self.log_warning(
+                    f'changing the state from {self._state} -> {new_state} '
+                    f'failed due to the expected state not in db')
                 raise JobStateWriteFailure()
 
-            log.info('job {} changed state: {} -> {}'.format(
+            self.log_info('changed state: {} -> {}'.format(
                 self.id,
                 self._state,
                 new_state))
             self._state = new_state
+            if durations is not None:
+                self.durations = durations
+            if exit_codes is not None:
+                self.exit_codes = exit_codes
             await self.notify_children(new_state)
 
     async def notify_children(self, new_state):
@@ -522,11 +543,10 @@ class Job:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if (self.always_run or
                     (not self._cancelled and all(p.is_successful() for p in parents))):
-                log.info(f'all parents complete for {self.id},'
-                         f' creating pod')
+                self.log_info(f'all parents complete creating pod')
                 app['pod_throttler'].create_pod(self)
             else:
-                log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
+                self.log_info(f'parents deleted, cancelled, or failed: cancelling')
                 await self.set_state('Cancelled')
 
     async def cancel(self):
@@ -545,7 +565,7 @@ class Job:
     async def mark_unscheduled(self):
         updated_job = await Job.from_db(*self.id, self.user)
         if updated_job.is_complete():
-            log.info(f'job is already completed in db, not rescheduling pod')
+            self.log_info(f'job is already completed in db, not rescheduling pod')
             return
 
         await app['pod_throttler'].delete_pod(self)
@@ -559,7 +579,7 @@ class Job:
                                                    pod_status)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'job {self.id} will have a missing pod status due to {err}')
+            self.log_info(f'will have a missing pod status due to {err}')
 
     async def _upload_logs(self, container_logs):
         err = await app['log_store'].write_gs_file(self.directory,
@@ -567,15 +587,15 @@ class Job:
                                                    json.dumps(container_logs))
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'job {self.id} will have a missing log due to {err}')
+            self.log_info(f'will have a missing log due to {err}')
 
     async def _terminate_keep_alive_pod(self, pod):
         try:
             async with app['client_session'].post(f'http://{pod.status.pod_ip}:5001/') as resp:
                 assert resp.status == 200
         except Exception as e:  # pylint: disable=W0703
-            log.info(f'could not connect to keep-alive pod, but '
-                     f'pod will be deleted shortly anyway {e}')
+            self.log_info(f'could not connect to keep-alive pod, but '
+                          f'pod will be deleted shortly anyway {e}')
 
     async def _terminate_cleanup_pod(self, pod):
         try:
@@ -620,8 +640,8 @@ class Job:
                 app['k8s'].read_pod_log(pod.metadata.name, container=container)
                 for container in tasks)))
         if any(err is not None for err in errs):
-            log.info(f'failed to read log for {self.id}, pod '
-                     f'{pod.metadata.name}, {errs} rescheduling ')
+            self.log_info(
+                f'failed to read log {pod.metadata.name} due to {errs} rescheduling')
             await self.mark_unscheduled()
             return
         container_logs = {k: v for k, v in zip(tasks, container_logs)}
@@ -658,40 +678,16 @@ class Job:
             exit_codes = [None for _ in tasks]
         if durations is None:
             durations = [None for _ in tasks]
-        n_updated = await db.jobs.update_record(*self.id,
-                                                compare_items={'state': self._state},
-                                                durations=json.dumps(durations),
-                                                exit_codes=json.dumps(exit_codes),
-                                                state=new_state)
-
-        if n_updated == 0:
-            log.info(f'could not update job {self.id} due to db not matching expected state')
-            raise JobStateWriteFailure()
-
-        self.exit_codes = exit_codes
-        self.durations = durations
-
-        if self._state != new_state:
-            log.info('job {} changed state: {} -> {}'.format(
-                self.id,
-                self._state,
-                new_state))
-
-        self._state = new_state
-
-        await app['pod_throttler'].delete_pod(self)
-        await self._delete_pvc()
-        await self.notify_children(new_state)
-
-        log.info('job {} complete with state {}, exit_codes {}'.format(self.id, self._state, self.exit_codes))
-
+        await self._delete_k8s_resources()
+        await self.set_state(new_state, durations, exit_codes)
+        self.log_info(f'complete with state {self._state}, exit_codes {self.exit_codes}')
         if self.callback:
             def handler(id, callback, json):
                 try:
                     requests.post(callback, json=json, timeout=120)
                 except requests.exceptions.RequestException as exc:
-                    log.warning(
-                        f'callback for job {id} failed due to an error, I will not retry. '
+                    self.log_warning(
+                        f'callback failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
             threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
