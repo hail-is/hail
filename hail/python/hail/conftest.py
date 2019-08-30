@@ -72,7 +72,7 @@ def generate_datasets(doctest_namespace):
                              populations=['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
     ds = ds.annotate_rows(gene=['TTN'])
     ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')
-    ds = ds.checkpoint(f'output/example.vds', overwrite=True)
+    ds = ds.checkpoint(f'output/example.mt', overwrite=True)
 
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
@@ -90,7 +90,8 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['rows_to_keep'] = v_metadata
     doctest_namespace['rows_to_remove'] = v_metadata
 
-    doctest_namespace['small_mt'] = hl.balding_nichols_model(3, 4, 4).checkpoint('data/small.mt')
+    small_mt = hl.balding_nichols_model(3, 4, 4)
+    doctest_namespace['small_mt'] = small_mt.checkpoint('output/small.mt', overwrite=True)
 
     # Table
     table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')

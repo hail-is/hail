@@ -731,36 +731,36 @@ class Expression(object):
         Examples
         --------
 
-        >>> mt.GT.export('output/gt.tsv')
+        >>> small_mt.GT.export('output/gt.tsv')
         >>> with open('output/gt.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         locus	alleles	0	1	2	3
-        1:1	["A","C"]	0/1	1/1	0/1	0/1
+        1:1	["A","C"]	0/1	0/1	0/0	0/0
         1:2	["A","C"]	1/1	0/1	1/1	1/1
-        1:3	["A","C"]	0/1	0/0	0/0	0/0
-        1:4	["A","C"]	1/1	1/1	0/0	1/1
+        1:3	["A","C"]	1/1	0/1	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
-        >>> mt.GT.export('output/gt-no-header.tsv', header=False)
+        >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        1:1	["A","C"]	0/1	1/1	0/1	0/1
+        1:1	["A","C"]	0/1	0/1	0/0	0/0
         1:2	["A","C"]	1/1	0/1	1/1	1/1
-        1:3	["A","C"]	0/1	0/0	0/0	0/0
-        1:4	["A","C"]	1/1	1/1	0/0	1/1
+        1:3	["A","C"]	1/1	0/1	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
-        >>> mt.pop.export('output/pops.tsv')
+        >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         sample_idx	pop
-        0	1
-        1	1
+        0	2
+        1	2
         2	0
-        3	0
+        3	2
         <BLANKLINE>
-        >>> mt.ancestral_af.export('output/ancestral_af.tsv')
+        >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
@@ -771,7 +771,7 @@ class Expression(object):
         1:4	["A","C"]	7.6300e-01
         <BLANKLINE>
         >>> mt = small_mt
-        >>> mt.bn.export('output/bn.tsv')
+        >>> small_mt.bn.export('output/bn.tsv')
         >>> with open('output/bn.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
@@ -788,16 +788,16 @@ class Expression(object):
         header. Otherwise, each compound column key is converted to JSON and
         used as a column header. For example:
 
-        >>> mt = mt.key_cols_by(s=mt.sample_idx, family='fam1')
-        >>> mt.GT.export('output/gt-no-header.tsv')
+        >>> mt = small_mt.key_cols_by(s=small_mt.sample_idx, family='fam1')
+        >>> small_mt.GT.export('output/gt-no-header.tsv')
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
         locus	alleles	{"s":0,"family":"fam1"}	{"s":1,"family":"fam1"}	{"s":2,"family":"fam1"}	{"s":3,"family":"fam1"}
-        1:1	["A","C"]	0/1	1/1	0/1	0/1
+        1:1	["A","C"]	0/1	0/1	0/0	0/0
         1:2	["A","C"]	1/1	0/1	1/1	1/1
-        1:3	["A","C"]	0/1	0/0	0/0	0/0
-        1:4	["A","C"]	1/1	1/1	0/0	1/1
+        1:3	["A","C"]	1/1	0/1	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
 
 
