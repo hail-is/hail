@@ -628,8 +628,7 @@ class Job:
                 app['k8s'].read_pod_log(pod.metadata.name, container=container)
                 for container in tasks)))
         if any(err is not None for err in errs):
-            self.log_info(
-                f'failed to read log {pod.metadata.name} due to {errs} rescheduling')
+            self.log_info(f'failed to read log {pod.metadata.name} due to {errs} rescheduling')
             await self.mark_unscheduled()
             return
         container_logs = {k: v for k, v in zip(tasks, container_logs)}
