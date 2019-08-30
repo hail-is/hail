@@ -2887,8 +2887,7 @@ class LocusExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint64`
             Global base position of locus along the reference genome.
         """
-        name = 'locusToGlobalPos({})'.format(self.dtype.reference_genome)
-        return self._method(name, tint64)
+        return self._method('locusToGlobalPos', tint64)
 
     def in_x_nonpar(self):
         """Returns ``True`` if the locus is in a non-pseudoautosomal

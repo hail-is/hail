@@ -803,8 +803,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     -------
     :class:`.LocusExpression`
     """
-    fname = 'Locus({})'.format(reference_genome.name)
-    return _func(fname, tlocus(reference_genome), contig, pos)
+    return _func('Locus', tlocus(reference_genome), contig, pos)
 
 
 @typecheck(global_pos=expr_int64,
@@ -836,8 +835,7 @@ def locus_from_global_position(global_pos,
     -------
     :class:`.LocusExpression`
     """
-    fname = 'globalPosToLocus({})'.format(reference_genome.name)
-    return _func(fname, tlocus(reference_genome), global_pos)
+    return _func('globalPosToLocus', tlocus(reference_genome), global_pos)
 
 
 @typecheck(s=expr_str,
@@ -867,7 +865,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     -------
     :class:`.LocusExpression`
     """
-    return _func('Locus({})'.format(reference_genome.name), tlocus(reference_genome), s)
+    return _func('Locus', tlocus(reference_genome), s)
 
 
 @typecheck(s=expr_str,
@@ -903,7 +901,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     """
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
-    return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
+    return _func('LocusAlleles', t, s)
 
 
 def variant_str(*args) -> 'StringExpression':
@@ -1146,8 +1144,7 @@ def locus_interval(contig,
     -------
     :class:`.IntervalExpression`
     """
-    fname = 'LocusInterval({})'.format(reference_genome.name)
-    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end, invalid_missing)
+    return _func('LocusInterval', tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end, invalid_missing)
 
 
 @typecheck(s=expr_str,
@@ -1223,7 +1220,7 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     -------
     :class:`.IntervalExpression`
     """
-    return _func('LocusInterval({})'.format(reference_genome.name),
+    return _func('LocusInterval',
                  tinterval(tlocus(reference_genome)), s, invalid_missing)
 
 
@@ -4700,11 +4697,11 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
 
     if isinstance(x.dtype, tlocus):
         rg = x.dtype.reference_genome
-        method_name = "liftoverLocus({})({})".format(rg.name, dest_reference_genome.name)
+        method_name = "liftoverLocus"
         rtype = tstruct(result=tlocus(dest_reference_genome), is_negative_strand=tbool)
     else:
         rg = x.dtype.point_type.reference_genome
-        method_name = "liftoverLocusInterval({})({})".format(rg.name, dest_reference_genome.name)
+        method_name = "liftoverLocusInterval"
         rtype = tstruct(result=tinterval(tlocus(dest_reference_genome)), is_negative_strand=tbool)
 
     if not rg.has_liftover(dest_reference_genome.name):
