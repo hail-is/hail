@@ -788,7 +788,7 @@ class Expression(object):
         header. Otherwise, each compound column key is converted to JSON and
         used as a column header. For example:
 
-        >>> mt = small_mt.key_cols_by(s=small_mt.sample_idx, family='fam1')
+        >>> small_mt = small_mt.key_cols_by(s=small_mt.sample_idx, family='fam1')
         >>> small_mt.GT.export('output/gt-no-header.tsv')
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
