@@ -505,10 +505,7 @@ class Job:
                     f'failed due to the expected state not in db')
                 raise JobStateWriteFailure()
 
-            self.log_info('changed state: {} -> {}'.format(
-                self.id,
-                self._state,
-                new_state))
+            self.log_info(f'changed state: {self._state} -> {self.new_state}')
             self._state = new_state
             if durations is not None:
                 self.durations = durations
@@ -672,15 +669,15 @@ class Job:
         await self.set_state(new_state, durations, exit_codes)
         self.log_info(f'complete with state {self._state}, exit_codes {self.exit_codes}')
         if self.callback:
-            def handler(id, callback, json):
+            def handler(job, callback, json):
                 try:
                     requests.post(callback, json=json, timeout=120)
                 except requests.exceptions.RequestException as exc:
-                    self.log_warning(
+                    job.log_warning(
                         f'callback failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
+            threading.Thread(target=handler, args=(self, self.callback, self.to_dict())).start()
 
         if self.batch_id:
             batch = await Batch.from_db(self.batch_id, self.user)
