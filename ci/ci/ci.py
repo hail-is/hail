@@ -4,7 +4,6 @@ import os
 import logging
 import asyncio
 import concurrent.futures
-import pprint
 import datetime
 import aiohttp
 from aiohttp import web
