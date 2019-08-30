@@ -1386,6 +1386,10 @@ private class Emit(
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
                 repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")),
               Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+                "println", "Trying to print address to data:"),
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+                "println", region.loadAddress(srvb.currentOffset)),
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
                 "println", "FINISHED MAKING ND ARRAY. It's at:"),
               Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
                 "println", srvb.end())
