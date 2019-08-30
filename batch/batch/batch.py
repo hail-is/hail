@@ -487,12 +487,6 @@ class Job:
         self._cancelled = cancelled
         self._pod_spec = pod_spec
 
-    async def refresh_parents_and_maybe_create(self):
-        for record in await db.jobs.get_parents(*self.id):
-            parent_job = Job.from_record(record)
-            assert parent_job.batch_id == self.batch_id
-            await self.parent_new_state(parent_job._state, *parent_job.id)
-
     async def set_state(self, new_state, durations=None, exit_codes=None):
         assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
         if self._state != new_state:
@@ -524,17 +518,13 @@ class Job:
 
     async def notify_children(self, new_state):
         if new_state not in complete_states:
+            self.log_info(f'{new_state} not complete, will not notify children')
             return
 
         children = [Job.from_record(record) for record in await db.jobs.get_children(*self.id)]
+        self.log_info(f'children: {j.id for j in children}')
         for child in children:
-            await child.parent_new_state(new_state, *self.id)
-
-    async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
-        del parent_job_id
-        assert parent_batch_id == self.batch_id
-        if new_state in complete_states:
-            await self.create_if_ready()
+            await child.create_if_ready()
 
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(*self.id)
