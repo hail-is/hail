@@ -1379,6 +1379,10 @@ private class Emit(
 //                )
               }),
               srvb.advance(),
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+                "println", "About to write data, srvb is at:"),
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+                "println", srvb.currentOffset),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
                 repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")),
               Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](

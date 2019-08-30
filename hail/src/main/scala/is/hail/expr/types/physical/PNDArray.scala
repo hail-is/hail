@@ -68,6 +68,18 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     coerce[Long](Code(
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
         "println", "Reached getElementPosition"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "nd is at:"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+        "println", nd),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Data is at:"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+        "println", data),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+        "println", "Data length is:"),
+      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+        "println", dataLength),
       bytesAway := 0L,
       indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (elementIndex: ClassFieldRef[Long], strideIndex: Int)) =>
         Code(
@@ -80,10 +92,6 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
         "println", "Computed bytesAway"),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Data is at:"),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-        "println", data),
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
         "println", "BytesAway is:"),
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
