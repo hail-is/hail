@@ -1967,7 +1967,7 @@ private class Emit(
 
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
           childP.representation.field("shape").typ.asInstanceOf[PTuple],
-          childP.elementType, setup) {
+          body.pType, setup) {
           override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
             Code(
               Code._println("Reached output element in NDArrayMap"),
@@ -2045,17 +2045,11 @@ abstract class NDArrayEmitter(
       Code(
         Code._println("Evaluating innermost loop body"),
         storeElement := outputElement(idxVars).asInstanceOf[Code[Double]],
-        Code._println("Output element"),
-        Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Double, Unit](
-          "println", storeElement),
         srvb.addIRIntermediate(outputElementPType)(storeElement),
-        Code._println("Executed add with deep copy"),
         srvb.advance()
       )
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
-        Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-          "println", "Reached emit loops"),
         dimVar := 0L,
         Code.whileLoop(dimVar < Region.loadLong(outputShapePType.loadField(outputShape, dimIdx)),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
