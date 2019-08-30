@@ -2012,7 +2012,7 @@ def subst(ir, env, agg_env):
                    _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, AggLet):
         return AggLet(ir.name,
-                      _subst(ir.value),
+                      _subst(ir.value, agg_env, {}),
                       _subst(ir.body, delete(env, ir.name)),
                       ir.is_scan)
     elif isinstance(ir, ArrayMap):

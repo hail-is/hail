@@ -10,6 +10,7 @@ import is.hail.io.CodecSpec
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
+import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 
 object TableMapIRNew {
@@ -227,6 +228,23 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 }
 
 object Extract {
+  def partitionDependentLets(lets: Array[AggLet], name: String): (Array[AggLet], Array[AggLet]) = {
+    val depBindings = mutable.HashSet.empty[String]
+    depBindings += name
+
+    val dep = new ArrayBuilder[AggLet]
+    val indep = new ArrayBuilder[AggLet]
+
+    lets.foreach { l =>
+      val fv = FreeVariables(l.value, supportsAgg = false, supportsScan = false)
+      if (fv.eval.m.keysIterator.exists(k => depBindings.contains(k))) {
+        dep += l
+        depBindings += l.name
+      } else
+        indep += l
+    }
+    (dep.result(), indep.result())
+  }
 
   def addLets(ir: IR, lets: Array[AggLet]): IR = {
     assert(lets.areDistinct())
@@ -318,7 +336,7 @@ object Extract {
         val newLet = new ArrayBuilder[AggLet]()
         val transformed = this.extract(aggBody, ab, newSeq, newLet, result)
 
-        val (dependent, independent) = newLet.result().partition(l => Mentions(l.value, name))
+        val (dependent, independent) = partitionDependentLets(newLet.result(), name)
         letBuilder ++= independent
         seqBuilder += ArrayFor(array, name, addLets(Begin(newSeq.result()), dependent))
         transformed
@@ -350,7 +368,7 @@ object Extract {
         val newRef = Ref(genUID(), null)
         val transformed = this.extract(aggBody, newAggs, newSeq, newLet, newRef)
 
-        val (dependent, independent) = newLet.result().partition(l => Mentions(l.value, elementName))
+        val (dependent, independent) = partitionDependentLets(newLet.result(), elementName)
         letBuilder ++= independent
 
         val i = ab.length
