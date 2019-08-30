@@ -1332,8 +1332,6 @@ private class Emit(
           shapet.setup,
           datat.setup,
           rowMajort.setup,
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-            "println", "MAKING ND ARRAY"),
           srvb.start(),
           srvb.addInt(0),
           srvb.advance(),
@@ -1353,38 +1351,12 @@ private class Emit(
                   })
               }),
               srvb.advance(),
-              srvb.addBaseStruct(repr.fieldType("strides").asInstanceOf[PBaseStruct], { srvb =>
-                val tupleStartAddress = mb.newField[Long]
-                coerce[Unit](xP.makeDefaultStrides(getShapeAtIdx, srvb, mb))
-//                Code (
-//                  srvb.start(),
-//                  tupleStartAddress := srvb.offset,
-//                  // Fill with 0s, then backfill with actual data
-//                  Code.foreach(0 until nDims) { index =>
-//                    Code(srvb.addLong(0L), srvb.advance())
-//                  },
-//                  {
-//                    val runningProduct = mb.newField[Long]
-//                    Code(
-//                      runningProduct := dataContainer.elementType.byteSize,
-//                      Code.foreach((nDims - 1) to 0 by -1) { idx =>
-//                        val fieldOffset = targetShapePType.fieldOffset(tupleStartAddress, idx)
-//                        Code(
-//                          Region.storeLong(fieldOffset, runningProduct),
-//                          runningProduct := runningProduct * getShapeAtIdx(idx)
-//                        )
-//                      }
-//                    )
-//                  }
-//                )
-              }),
+              {
+                srvb.addIRIntermediate(repr.fieldType("strides").asInstanceOf[PBaseStruct])(xP.makeDefaultStrides(getShapeAtIdx, mb))
+              },
               srvb.advance(),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
-                repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-                "println", "FINISHED MAKING ND ARRAY. It's at:"),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-                "println", srvb.end())
+                repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data"))
             )
           )
         ))
@@ -2010,9 +1982,7 @@ abstract class NDArrayEmitter(
       srvb.advance(),
       srvb.addIRIntermediate(outputShapePType)(outputShape),
       srvb.advance(),
-      srvb.addBaseStruct(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct], {srvb =>
-        coerce[Unit](targetType.makeDefaultStrides(getShapeAtIdx, srvb, mb))
-      }),
+      srvb.addIRIntermediate(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct])(targetType.makeDefaultStrides(getShapeAtIdx, mb)),
       srvb.advance(),
       srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
         Code(

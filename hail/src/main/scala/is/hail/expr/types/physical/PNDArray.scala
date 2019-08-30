@@ -50,8 +50,9 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     }
   }
 
-  def makeDefaultStrides(getShapeAtIdx: (Int) => Code[Long], srvb: StagedRegionValueBuilder, mb: MethodBuilder): Code[Long] = {
+  def makeDefaultStrides(getShapeAtIdx: (Int) => Code[Long], mb: MethodBuilder): Code[Long] = {
     val stridesPType = this.representation.fieldType("strides").asInstanceOf[PTuple]
+    val srvb = new StagedRegionValueBuilder(mb, stridesPType)
     val tupleStartAddress = mb.newField[Long]
     (Code (
       srvb.start(),
@@ -70,7 +71,8 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
               Region.storeLong(fieldOffset, runningProduct),
               runningProduct := runningProduct * getShapeAtIdx(idx)
             )
-          }
+          },
+          srvb.end()
         )
       }
     )).asInstanceOf[Code[Long]]
