@@ -4,6 +4,7 @@ import os
 import logging
 import asyncio
 import concurrent.futures
+import pprint
 import datetime
 import aiohttp
 from aiohttp import web
@@ -112,6 +113,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     pr = wb.prs[pr_number]
 
     config = {}
+    config['repo'] = wb.branch.repo.short_str()
     config['number'] = pr.number
     # FIXME
     if pr.batch:
@@ -195,7 +197,8 @@ async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argum
     return {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_pod_status': await job.pod_status()
+        'job_pod_status': json.dumps(json.loads(await job.pod_status()),
+                                     indent=2)
     }
 
 

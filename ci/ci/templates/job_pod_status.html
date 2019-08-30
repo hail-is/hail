@@ -3,7 +3,7 @@
     <title>Job {{ job_id }} Pod Status</title>
   </head>
   <body>
-    <p><a href="/">ci</a> : job {{ job_id }} pod status</p>
+    <p><a href="/">ci</a> : <a href="/batches/{{ batch_id }}">Batch {{ batch_id }}</a> : job {{ job_id }} pod status</p>
 
     <h1>Job {{ job_id }} Pod Status</h1>
     <pre>{{ job_pod_status }}</pre>
