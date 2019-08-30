@@ -1970,11 +1970,12 @@ private class Emit(
           childP.elementType, setup) {
           override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
             Code(
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-                "println", "Reached outputElement in NDArrayMap"),
+              Code._println("Reached output element in NDArrayMap"),
               elemRef := childEmitter.outputElement(idxVars),
               bodyt.setup,
+              Code._println("Set up body"),
               bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
+              Code._println("Body wasn't empty"),
               bodyt.v
             )
           }
@@ -2025,11 +2026,11 @@ abstract class NDArrayEmitter(
       srvb.addBaseStruct(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct], {srvb =>
         coerce[Unit](targetType.makeDefaultStrides(getShapeAtIdx, srvb, mb))
       }),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Added stride"),
       srvb.advance(),
       srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
-        coerce[Unit](emitLoops(srvb))
+        Code(
+          srvb.start(targetType.numElements(outputShape, mb).toI),
+          coerce[Unit](emitLoops(srvb)))
       }),
       Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
         "println", "Added data"),
@@ -2039,13 +2040,24 @@ abstract class NDArrayEmitter(
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
     val idxVars = Seq.tabulate(nDims) {i => mb.newField[Long]}
-    val body = Code(srvb.addWithDeepCopy(outputElementPType, outputElement(idxVars)))
+    val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
+    val body =
+      Code(
+        Code._println("Evaluating innermost loop body"),
+        storeElement := outputElement(idxVars).asInstanceOf[Code[Double]],
+        Code._println("Output element"),
+        Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Double, Unit](
+          "println", storeElement),
+        srvb.addIRIntermediate(outputElementPType)(storeElement),
+        Code._println("Executed add with deep copy"),
+        srvb.advance()
+      )
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
         Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
           "println", "Reached emit loops"),
         dimVar := 0L,
-        Code.whileLoop(dimVar < outputShapePType.loadField(outputShape, dimIdx),
+        Code.whileLoop(dimVar < Region.loadLong(outputShapePType.loadField(outputShape, dimIdx)),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
             "println", "The value of dimVar is:"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](

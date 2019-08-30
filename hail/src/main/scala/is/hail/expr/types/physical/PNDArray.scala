@@ -31,6 +31,25 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   override def fundamentalType: PType = representation.fundamentalType
 
+  def numElements(shape: Code[Long], mb: MethodBuilder): Code[Long] = {
+    def getShapeAtIdx(idx: Int): Code[Long] = Region.loadLong(this.representation.fieldType("shape").asInstanceOf[PTuple]
+      .loadField(shape, idx))
+
+    if (nDims == 0) {
+      0L
+    }
+    else {
+      val totalElements = mb.newField[Long]
+      Code(
+        totalElements := 1L,
+        Code.foreach(0 until nDims) { index =>
+          totalElements := totalElements * getShapeAtIdx(index)
+        },
+        totalElements
+      )
+    }
+  }
+
   def makeDefaultStrides(getShapeAtIdx: (Int) => Code[Long], srvb: StagedRegionValueBuilder, mb: MethodBuilder): Code[Long] = {
     val stridesPType = this.representation.fieldType("strides").asInstanceOf[PTuple]
     val tupleStartAddress = mb.newField[Long]
@@ -62,29 +81,26 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val strides = rep.loadField(region, nd, "strides")
     val data = rep.loadField(region, nd, "data")
     val dataLength = rep.fieldType("data").asInstanceOf[PArray].loadLength(data)
-    def getStrideAtIdx(idx: Int): Code[Long] = rep.fieldType("strides").asInstanceOf[PTuple].loadField(strides, idx)
+    def getStrideAtIdx(idx: Int): Code[Long] = Region.loadLong(rep.fieldType("strides").asInstanceOf[PTuple].loadField(strides, idx))
     val bytesAway = mb.newField[Long]
     val temp = mb.newField[Long]
+    val currentStride = mb.newField[Long]
     coerce[Long](Code(
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Reached getElementPosition"),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "nd is at:"),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-        "println", nd),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Data is at:"),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-        "println", data),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-        "println", "Data length is:"),
-      Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-        "println", dataLength),
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (elementIndex: ClassFieldRef[Long], strideIndex: Int)) =>
+      currentStride := 0L,
+      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: ClassFieldRef[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
-          bytesAway := bytesAway + elementIndex * getStrideAtIdx(strideIndex)
+          //currentStride := getStrideAtIdx(strideIndex),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+            "println", "requestedIndex is:"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+            "println", requestedIndex),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
+            "println", "currentStride is:"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+            "println", currentStride),
+          bytesAway := bytesAway + requestedIndex * getStrideAtIdx(strideIndex)
         )
       },
 

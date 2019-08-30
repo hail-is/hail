@@ -143,7 +143,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   )
 
   def start(): Code[Unit] = {
-    assert(!ftype.isInstanceOf[PArray])
+    assert(!ftype.isInstanceOf[PArray]) //Need to use other start with length.
     ftype match {
       case _: PBaseStruct => start(true)
       case _: PBinary =>
