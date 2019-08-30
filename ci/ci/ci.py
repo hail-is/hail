@@ -184,6 +184,21 @@ async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     }
 
 
+@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
+@aiohttp_jinja2.template('job_pod_status.html')
+@web_authenticated_developers_only
+async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argument
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    batch_client = request.app['batch_client']
+    job = await batch_client.get_job(batch_id, job_id)
+    return {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'job_pod_status': await job.pod_status()
+    }
+
+
 @routes.post('/authorize_source_sha')
 @check_csrf_token
 @web_authenticated_developers_only
