@@ -59,6 +59,7 @@ Read data from a Hail format.
 
 .. autofunction:: export_elasticsearch
 .. autofunction:: export_gen
+.. autofunction:: export_bgen
 .. autofunction:: export_plink
 .. autofunction:: export_vcf
 .. autofunction:: get_vcf_metadata
