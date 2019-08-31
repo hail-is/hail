@@ -59,7 +59,8 @@ def download_data(data_dir):
                                                        'table_10M_par_10.ht',
                                                        'gnomad_dp_simulation.mt',
                                                        'many_strings_table.ht',
-                                                       'many_ints_table.ht'])
+                                                       'many_ints_table.ht',
+                                                       'sim_ukb.bgen'])
     if not all(os.path.exists(file) for file in files):
         hl.init()  # use all cores
 
@@ -89,7 +90,7 @@ def download_data(data_dir):
         mst_tsv = os.path.join(_data_dir, 'many_strings_table.tsv.bgz')
         mst_ht = os.path.join(_data_dir, 'many_strings_table.ht')
         urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_strings_table.tsv.bgz', mst_tsv)
-        logging.info('done downloading many_strings_table.tsv.bgz...')
+        logging.info('done downloading many_strings_table.tsv.bgz.')
         logging.info('importing many_strings_table.tsv.bgz...')
         hl.import_table(mst_tsv).write(mst_ht, overwrite=True)
         logging.info('done importing many_strings_table.tsv.bgz.')
@@ -98,7 +99,7 @@ def download_data(data_dir):
         mit_tsv = os.path.join(_data_dir, 'many_ints_table.tsv.bgz')
         mit_ht = os.path.join(_data_dir, 'many_ints_table.ht')
         urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_ints_table.tsv.bgz', mit_tsv)
-        logging.info('done downloading many_ints_table.tsv.bgz...')
+        logging.info('done downloading many_ints_table.tsv.bgz.')
         logging.info('importing many_ints_table.tsv.bgz...')
         hl.import_table(mit_tsv,
                         types={'idx': 'int',
@@ -106,6 +107,18 @@ def download_data(data_dir):
                                **{f'array{i}': 'array<int>' for i in range(2)}}
                         ).write(mit_ht, overwrite=True)
         logging.info('done importing many_ints_table.tsv.bgz.')
+
+        bgen = 'sim_ukb.bgen'
+        sample = 'sim_ukb.sample'
+        logging.info(f'downloading {bgen}...')
+        local_bgen = os.path.join(_data_dir, bgen)
+        local_sample = os.path.join(_data_dir, sample)
+        urlretrieve(f'https://storage.googleapis.com/hail-common/benchmark/{bgen}', local_bgen)
+        urlretrieve(f'https://storage.googleapis.com/hail-common/benchmark/{sample}', local_sample)
+        logging.info(f'done downloading {bgen}...')
+        logging.info(f'indexing {bgen}...')
+        hl.index_bgen(local_bgen)
+        logging.info(f'done indexing {bgen}.')
 
         hl.stop()
     else:

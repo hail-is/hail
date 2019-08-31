@@ -213,3 +213,41 @@ def per_row_stats_star_star():
 @benchmark
 def read_decode_gnomad_coverage():
     hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))._force_count_rows()
+
+
+@benchmark
+def import_bgen_force_count_just_gp():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GP'],
+                        n_partitions=8)
+    mt._force_count_rows()
+
+
+@benchmark
+def import_bgen_force_count_all():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GT', 'GP', 'dosage'],
+                        n_partitions=8)
+    mt._force_count_rows()
+
+
+@benchmark
+def import_bgen_info_score():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GP'],
+                        n_partitions=8)
+    mt = mt.annotate_rows(info_score=hl.agg.info_score(mt.GP))
+    mt.rows().select('info_score')._force_count()
+
+
+@benchmark
+def import_bgen_filter_count():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GT', 'GP'],
+                        n_partitions=8)
+    mt = mt.filter_rows(mt.alleles == ['A', 'T'])
+    mt._force_count_rows()
