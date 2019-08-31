@@ -1360,20 +1360,23 @@ def info_score(gp) -> StructExpression:
                 .or_error(f"'info_score': expected 'gp' to have length 3, "
                           f"found length " + hl.str(hl.len(unchecked_gp))),
             lambda gp: hl.rbind(
-                gp[1] + 2 * gp[2],
-                lambda mean: hl.rbind(
-                    hl.agg.sum(gp[1] + 4 * gp[2] - (mean * mean)),
-                    hl.agg.sum(mean),
-                    hl.agg.sum(hl.sum(gp)),
-                    hl.agg.count(),
-                    lambda sum_variance, expected_ac, total_dosage, n:
-                    hl.rbind(
-                        hl.cond(hl.is_defined(total_dosage), expected_ac / total_dosage, hl.null(hl.tfloat64)),
-                        lambda theta: hl.struct(score=hl.case().when(n == 0, hl.null(hl.tfloat64))
-                                                .when((theta == 0.0) | (theta == 1.0), 1.0)
-                                                .default(1.0 - ((sum_variance / n) / (2 * theta * (1 - theta)))),
-                                                n_included=hl.int32(n))
-                    )
+                gp[1], gp[2],
+                lambda gp1, gp2: hl.rbind(
+                    gp1 + 2 * gp2,
+                    lambda mean: hl.rbind(
+                        hl.agg.sum(gp1 + 4 * gp2 - (mean * mean)),
+                        hl.agg.sum(mean),
+                        hl.agg.sum(gp1 + gp2 + gp[0]),
+                        hl.agg.count(),
+                        lambda sum_variance, expected_ac, total_dosage, n:
+                        hl.rbind(
+                            hl.cond(total_dosage != 0, expected_ac / total_dosage, hl.null(hl.tfloat64)),
+                            lambda theta: hl.struct(score=hl.case().when(n == 0, hl.null(hl.tfloat64))
+                                                    .when((theta == 0.0) | (theta == 1.0), 1.0)
+                                                    .default(1.0 - ((sum_variance / n) / (2 * theta * (1 - theta)))),
+                                                    n_included=hl.int32(n))
+                        )),
+                    _ctx=_agg_func.context
                 ), _ctx=_agg_func.context
             ), _ctx=_agg_func.context
         )), _ctx=_agg_func.context)
