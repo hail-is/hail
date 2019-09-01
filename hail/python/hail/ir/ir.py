@@ -718,7 +718,7 @@ class ArraySort(IR):
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
 
-    def __eq__(self, other):
+    def _eq(self, other):
         return other.l_name == self.l_name and other.r_name == self.r_name
 
     def _compute_type(self, env, agg_env):
@@ -1374,6 +1374,9 @@ class InsertFields(IR):
                other.fields == self.fields and \
                other.field_order == self.field_order
 
+    def __hash__(self):
+        return hash((self.old, tuple(self.fields), tuple(self.field_order) if self.field_order else None))
+
     def _compute_type(self, env, agg_env):
         self.old._compute_type(env, agg_env)
         for f, x in self.fields:
@@ -1710,11 +1713,6 @@ class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
     def copy(self, child, query):
         return MatrixAggregate(child, query)
-
-    def __eq__(self, other):
-        return isinstance(other, MatrixAggregate) and \
-               other.child == self.child and \
-               other.query == self.query
 
     def _compute_type(self, env, agg_env):
         self.query._compute_type(self.child.typ.global_env(), self.child.typ.entry_env())
