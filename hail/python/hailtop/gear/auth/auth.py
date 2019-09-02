@@ -74,6 +74,6 @@ def set_credentials(session, service):
     tokens = get_tokens()
     if service:
         ns = deploy_config.service_ns(service)
-        session.headers['Authorization'] = tokens[ns]
+        session.headers['Authorization'] = f'Bearer {tokens[ns]}'
     if location == 'external' and ns != 'default':
         session.headers['X-Hail-Internal-Authorization'] = tokens['default']
