@@ -9,7 +9,7 @@ log = logging.getLogger('gear')
 class DeployConfig:
     def __init__(self):
         config_file = os.environ.get(
-            'HAIL_DEPLOY_CONFIG_FILE', path.expanduser('~/.hail/deploy-config.json'))
+            'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
         if os.path.isfile(config_file):
             with open(config_file, 'r') as f:
                 config = json.loads(f.read())
