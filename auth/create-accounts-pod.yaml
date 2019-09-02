@@ -42,7 +42,7 @@ spec:
            await create_user(dbpool, user_spec)
            deploy_config = get_deploy_config()
            auth_ns = deploy_config.service_ns('auth')
-           tokens[auth_ns] = create_session_token(await create_session(dbpool, user_spec['user_id']))
+           tokens[auth_ns] = create_session_token(await create_session(dbpool, user_spec['id']))
            tokens.write('./tokens.json')
        loop = asyncio.get_event_loop()
        loop.run_until_complete(main())
