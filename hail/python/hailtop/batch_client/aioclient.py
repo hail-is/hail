@@ -430,7 +430,7 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, session=None, headers=None):
+    async def __init__(self, session=None, headers=None, _token=None):
         deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('batch')
 
@@ -445,7 +445,10 @@ class BatchClient:
         h = {}
         if headers:
             h.update(headers)
-        h.update(auth_headers('batch'))
+        if _token:
+            headers['Authorization'] = f'Bearer {_token}'
+        else:
+            h.update(auth_headers('batch'))
         self._headers = h
 
     async def _get(self, path, params=None):

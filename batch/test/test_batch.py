@@ -334,25 +334,22 @@ class Test(unittest.TestCase):
             assert r.status_code == 401, r
 
     def test_bad_jwt_key(self):
-        fname = pkg_resources.resource_filename(
-            __name__,
-            'jwt-test-user.json')
-        with open(fname) as f:
-            userdata = json.loads(f.read())
-        token = JWTClient(JWTClient.generate_key()).encode(userdata)
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        bc = BatchClient(session, token=token)
-        try:
-            b = bc.create_batch()
-            j = b.create_job('alpine', ['false'])
-            b.submit()
-            assert False, j
-        except aiohttp.ClientResponseError as e:
-            if e.status == 401:
-                pass
-            else:
-                assert False, e
-        finally:
-            bc.close()
+        deploy_config = get_deploy_config()
+        auth_ns = deploy_config.service_ns('auth')
+        tokens = get_tokens()
+        token = tokens[auth_ns]
+        payload = JWTClient.unsafe_decode(token)
+        token2 = JWTClient(JWTClient.generate_key()).encode(payload)
+        async with aiohttp.ClientSession(
+                raise_for_status=True,
+                timeout=aiohttp.ClientTimeout(total=60)) as session:
+            bc = BatchClient(session, _token=token2)
+            try:
+                b = bc.create_batch()
+                j = b.create_job('alpine', ['false'])
+                b.submit()
+                assert False, j
+            except aiohttp.ClientResponseError as e:
+                assert e.status == 401, e
+            finally:
+                bc.close()
