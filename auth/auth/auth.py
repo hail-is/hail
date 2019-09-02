@@ -210,7 +210,7 @@ async def userinfo(request):
         auth_header = request.headers['Authorization']
         if not auth_header.startswith('Bearer '):
             raise web.HTTPUnauthorized()
-        token = auth_header[6:]
+        token = auth_header[7:]
         try:
             body = get_jwtclient().decode(token)
         except jwt.InvalidTokenError:
