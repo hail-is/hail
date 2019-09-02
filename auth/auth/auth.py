@@ -206,19 +206,22 @@ async def rest_logout(request, userdata):
 
 @routes.get(f'{BASE_PATH}/api/v1alpha/userinfo')
 async def userinfo(request):
-    auth_header = request.headers.get('Authorization')
-    if auth_header:
+    if 'Authorization' in request.headers:
+        auth_header = request.headers['Authorization']
         if not auth_header.startswith('Bearer '):
             raise web.HTTPUnauthorized()
         token = auth_header[6:]
         try:
             body = get_jwtclient().decode(token)
         except jwt.InvalidTokenError:
+            log.exception('while decoding token')
             raise web.HTTPUnauthorized()
 
-        session_id = body['session_id']
+        session_id = body['sub']
     else:
         session = await aiohttp_session.get_session(request)
+        if not session:
+            raise web.HTTPUnauthorized()
         session_id = session.get('session_id')
         if not session_id:
             raise web.HTTPUnauthorized()

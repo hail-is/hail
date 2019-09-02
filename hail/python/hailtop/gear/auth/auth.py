@@ -13,15 +13,11 @@ log = logging.getLogger('gear.auth')
 
 async def async_get_userinfo():
     deploy_config = get_deploy_config()
-    auth_ns = deploy_config.service_ns('auth')
-    auth_url = deploy_config.base_url('auth')
-    tokens = get_tokens()
-    token = tokens[auth_ns]
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        set_credentials(session, 'auth')
         async with session.get(
-                f'{auth_url}/api/v1alpha/userinfo',
-                headers={'Authorization': f'Bearer {token}'}) as resp:
+                deploy_config.url('auth', '/api/v1alpha/userinfo')) as resp:
             return await resp.json()
 
 
