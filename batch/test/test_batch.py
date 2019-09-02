@@ -35,7 +35,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
+        self.client = BatchClient(session)
 
     def tearDown(self):
         self.client.close()
@@ -341,7 +341,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        bc = BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
+        bc = BatchClient(session, token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])

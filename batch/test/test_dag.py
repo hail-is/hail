@@ -18,7 +18,7 @@ def client():
     session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session, url=os.environ.get('BATCH_URL'))
+    client = BatchClient(session)
     yield client
     client.close()
 
