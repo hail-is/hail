@@ -21,7 +21,7 @@ from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
 from hailtop import gear
-from hailtop.gear.auth import authenticated_users_only, \
+from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token, \
     async_get_userinfo
 
@@ -778,7 +778,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @prom_async_time(REQUEST_TIME_GET_JOB)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -814,7 +814,7 @@ async def _get_pod_status(batch_id, job_id, user):
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_JOB_LOG)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -825,7 +825,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
 @prom_async_time(REQUEST_TIME_GET_POD_STATUS)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def get_pod_status(request, userdata):  # pylint: disable=R1710
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -1018,7 +1018,7 @@ async def _get_batches_list(params, user):
 
 @routes.get('/api/v1alpha/batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['username']
@@ -1027,7 +1027,7 @@ async def get_batches_list(request, userdata):
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def create_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1061,7 +1061,7 @@ async def create_jobs(request, userdata):
 
 @routes.post('/api/v1alpha/batches/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_BATCH)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def create_batch(request, userdata):
     parameters = await request.json()
 
@@ -1095,7 +1095,7 @@ async def _cancel_batch(batch_id, user):
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_POST_GET_BATCH)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1107,7 +1107,7 @@ async def get_batch(request, userdata):
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1117,7 +1117,7 @@ async def cancel_batch(request, userdata):
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @prom_async_time(REQUEST_TIME_PATCH_CLOSE_BATCH)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1130,7 +1130,7 @@ async def close_batch(request, userdata):
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_DELETE_BATCH)
-@authenticated_users_only
+@rest_authenticated_users_only
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1144,7 +1144,7 @@ async def delete_batch(request, userdata):
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @aiohttp_jinja2.template('batch.html')
-@authenticated_users_only
+@web_authenticated_users_only
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1159,7 +1159,7 @@ async def ui_batch(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @aiohttp_jinja2.template('batches.html')
 @check_csrf_token
-@authenticated_users_only
+@web_authenticated_users_only
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1170,7 +1170,7 @@ async def ui_cancel_batch(request, userdata):
 
 @routes.get('/batches', name='batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
-@authenticated_users_only
+@web_authenticated_users_only
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
@@ -1188,7 +1188,7 @@ async def ui_batches(request, userdata):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
 @aiohttp_jinja2.template('job_log.html')
-@authenticated_users_only
+@web_authenticated_users_only
 async def ui_get_job_log(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -1200,7 +1200,7 @@ async def ui_get_job_log(request, userdata):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
 @prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
 @aiohttp_jinja2.template('pod_status.html')
-@authenticated_users_only
+@web_authenticated_users_only
 async def ui_get_pod_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -1210,7 +1210,7 @@ async def ui_get_pod_status(request, userdata):
 
 
 @routes.get('/')
-@authenticated_users_only
+@web_authenticated_users_only
 async def batch_id(request, userdata):
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)

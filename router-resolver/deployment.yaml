@@ -62,8 +62,8 @@ spec:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
 	 env:
-          - name: HAIL_LOCATION
-            value: k8s
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
          resources:
            requests:
              memory: "250M"

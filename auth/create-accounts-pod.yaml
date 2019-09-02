@@ -8,8 +8,8 @@ spec:
   - name: create-accounts
     image: "{{ hailtop_image.image }}"
     env:
-     - name: HAIL_LOCATION
-       value: k8s
+     - name: HAIL_DEPLOY_CONFIG_FILE
+       value: /deploy-config/deploy-config.json
     command:
      - /bin/bash
      - -c

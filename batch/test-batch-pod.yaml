@@ -11,8 +11,8 @@ spec:
        valueFrom:
          fieldRef:
            fieldPath: status.podIP
-     - name: HAIL_LOCATION
-       value: k8s
+     - name: HAIL_DEPLOY_CONFIG_FILE
+       value: /deploy-config/deploy-config.json
     volumeMounts:
       - mountPath: /deploy-config
         readOnly: true

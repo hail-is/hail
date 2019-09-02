@@ -15,7 +15,7 @@ import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_jwtclient, authenticated_users_only, create_session_token
+from hailtop.gear.auth import get_jwtclient, rest_authenticated_users_only, web_authenticated_users_only, create_session_token
 
 log = logging.getLogger('auth')
 
@@ -112,7 +112,7 @@ async def callback(request):
 
 
 @routes.post('/logout')
-@authenticated_users_only
+@web_authenticated_users_only
 async def logout(request, userdata):
     dbpool = request.app['dbpool']
     session_id = userdata['session_id']
@@ -185,7 +185,7 @@ async def rest_callback(request):
 
 
 @routes.post('/api/v1alpha/logout')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def rest_logout(request, userdata):
     session_id = userdata['session_id']
     dbpool = request.app['dbpool']

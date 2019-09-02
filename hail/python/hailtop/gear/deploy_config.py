@@ -3,18 +3,13 @@ import json
 import logging
 from aiohttp import web
 
-from .location import get_location
-
 log = logging.getLogger('gear')
 
 
 class DeployConfig:
     def __init__(self):
-        self.location = get_location()
-        if self.location == 'external':
-            config_file = '~/.hail/deploy-config.json'
-        else:
-            config_file = '/deploy-config/deploy-config.json'
+        config_file = os.environ.get(
+            'HAIL_DEPLOY_CONFIG_FILE', path.expanduser('~/.hail/deploy-config.json'))
         if os.path.isfile(config_file):
             with open(config_file, 'r') as f:
                 config = json.loads(f.read())
@@ -24,22 +19,26 @@ class DeployConfig:
                 'default_namespace': 'default',
                 'service_namespace': {}
             }
+        self._location = config['location']
         self._default_ns = config['default_namespace']
         self._service_namespace = config['service_namespace']
+
+    def location(self):
+        return self._location
 
     def service_ns(self, service):
         return self._service_namespace.get(service, self._default_ns)
 
     def scheme(self):
-        return 'https' if self.location == 'external' else 'http'
+        return 'https' if self._location == 'external' else 'http'
 
     def domain(self, service):
         ns = self.service_ns(service)
-        if self.location == 'k8s':
+        if self._location == 'k8s':
             return f'{service}.{ns}'
-        if self.location == 'gcp':
+        if self._location == 'gce':
             return 'hail.internal'
-        assert self.location == 'external'
+        assert self._location == 'external'
         if ns == 'default':
             return 'hail.is'
         return 'internal.hail.is'

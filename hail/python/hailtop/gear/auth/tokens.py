@@ -3,7 +3,7 @@ import os
 import json
 import logging
 
-from ..location import get_location
+from ..deploy_config import get_deploy_config
 
 log = logging.getLogger('gear')
 
@@ -11,7 +11,8 @@ log = logging.getLogger('gear')
 class Tokens(collections.abc.MutableMapping):
     @staticmethod
     def get_tokens_file():
-        location = get_location()
+        deploy_config = get_deploy_config()
+        location = deploy_config.location()
         if location == 'external':
             return os.path.expanduser('~/.hail/tokens.json')
         return '/user-tokens/tokens.json'

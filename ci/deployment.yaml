@@ -27,8 +27,8 @@ spec:
               memory: "1G"
               cpu: "1"
           env:
-           - name: HAIL_LOCATION
-             value: k8s
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
            - name: HAIL_CI_OAUTH_TOKEN
              value: /secrets/oauth-token/oauth-token
 {% if deploy %}

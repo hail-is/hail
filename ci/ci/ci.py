@@ -16,7 +16,7 @@ from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh
 
 from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import authenticated_developers_only, new_csrf_token, check_csrf_token
+from hailtop.gear.auth import rest_authenticated_developers_only, web_authenticated_developers_only, new_csrf_token, check_csrf_token
 from hailtop import gear
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
@@ -42,7 +42,7 @@ start_time = datetime.datetime.now()
 
 
 @routes.get('/')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def index(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -99,7 +99,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
 @aiohttp_jinja2.template('pr.html')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
@@ -145,7 +145,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/batches')
 @aiohttp_jinja2.template('batches.html')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
@@ -157,7 +157,7 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/batches/{batch_id}')
 @aiohttp_jinja2.template('batch.html')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def get_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
@@ -173,7 +173,7 @@ async def get_batch(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @aiohttp_jinja2.template('job_log.html')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -188,7 +188,7 @@ async def get_job_log(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
 @aiohttp_jinja2.template('job_pod_status.html')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -204,7 +204,7 @@ async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/authorize_source_sha')
 @check_csrf_token
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -280,8 +280,8 @@ async def batch_callback_handler(request):
                     await wb.notify_batch_changed()
 
 
-@routes.post('/api/v1alpha/dev_deploy_branch/')
-@authenticated_developers_only
+@routes.post('/api/v1alpha/dev_deploy_branch')
+@rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     params = await request.json()
     branch = FQBranch.from_short_str(params['branch'])

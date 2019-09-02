@@ -13,7 +13,7 @@ spec:
      - |
        set -ex
        cat > deploy-config.json <<EOF
-       {"default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+       {"location":"k8s","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
        EOF
        kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
        kubectl -n {{ batch_pods_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
