@@ -14,12 +14,15 @@ class JWTClient:
     def unsafe_decode(token):
         return jwt.decode(token, verify=False)
 
-    def __init__(self):
-        with open('/session-secret-keys/jwt-secret-key', 'rb') as f:
-            secret_key = f.read()
-        assert isinstance(secret_key, bytes)
-        assert len(secret_key) == self.SECRET_KEY_LEN
-        self.secret_key = secret_key
+    def __init__(self, secret_key=None):
+        if not secret_key:
+            with open('/session-secret-keys/jwt-secret-key', 'rb') as f:
+                secret_key = f.read()
+            assert isinstance(secret_key, bytes)
+            assert len(secret_key) == self.SECRET_KEY_LEN
+            self.secret_key = secret_key
+        else:
+            self.secret_key = secret_key
 
     def decode(self, token):
         return jwt.decode(

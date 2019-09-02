@@ -12,7 +12,8 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-import hailtop.gear.auth as hj
+from hailtop.gear import get_deploy_config
+from hailtop.gear.auth import JWTClient
 
 from .serverthread import ServerThread
 
@@ -314,6 +315,7 @@ class Test(unittest.TestCase):
         self.assertTrue(j.is_complete())
 
     def test_authorized_users_only(self):
+        deploy_config = get_deploy_config()
         endpoints = [
             (requests.get, '/api/v1alpha/batches/0/jobs/0'),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
@@ -328,7 +330,7 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0'),
             (requests.get, '/batches/0/jobs/0/log')]
         for f, url in endpoints:
-            r = f(os.environ.get('BATCH_URL')+url)
+            r = f(deploy_config.url('batch'), url)
             assert r.status_code == 401, r
 
     def test_bad_jwt_key(self):
@@ -337,7 +339,7 @@ class Test(unittest.TestCase):
             'jwt-test-user.json')
         with open(fname) as f:
             userdata = json.loads(f.read())
-        token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata)
+        token = JWTClient(JWTClient.generate_key()).encode(userdata)
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
