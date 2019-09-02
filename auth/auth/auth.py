@@ -241,7 +241,7 @@ async def userinfo(request):
             await cursor.execute('''
 SELECT user_data.* FROM user_data
 INNER JOIN sessions ON user_data.id = sessions.user_id
-WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created) < NOW()));
+WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''', session_id)
             users = await cursor.fetchall()
 
