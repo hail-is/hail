@@ -13,7 +13,7 @@ from flask import Flask, Response, request
 import requests
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import JWTClient
+from hailtop.gear.auth import JWTClient, get_tokens
 
 from .serverthread import ServerThread
 
