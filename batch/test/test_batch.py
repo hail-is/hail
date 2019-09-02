@@ -353,4 +353,3 @@ class Test(unittest.TestCase):
             assert e.status == 401, e
         finally:
             bc.close()
-            session.close()
