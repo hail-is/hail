@@ -216,6 +216,14 @@ object LoadMatrix {
   }
 }
 
+class MatrixParseError(
+  val msg: String,
+  val filename: String,
+  val line: Long,
+  val posStart: Int,
+  val posEnd: Int
+) extends RuntimeException(s"${filename}:${posStart}-${posEnd}, ${msg}")
+
 class CompiledLineParser(
   matrixType: MatrixType,
   rowIdx: Boolean,
@@ -230,12 +238,19 @@ class CompiledLineParser(
   noHeader: Boolean
 ) extends ((Int, RVDContext, Iterator[WithContext[String]]) => Iterator[RegionValue]) with Serializable {
 
-  @transient private[this] val fb = new Function4Builder[Region, String, Long, Array[String], Long]
+  @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]
   @transient private[this] val mb = fb.apply_method
-  @transient private[this] val fragment = mb.newLocal[String]("currentFragment")
+  @transient private[this] val filename = fb.arg2
+  @transient private[this] val lineNumber = fb.arg3
   @transient private[this] val line = fb.arg4
   @transient private[this] val i = mb.newLocal[Int]("i")
   @transient private[this] val j = mb.newLocal[Int]("j")
+  @transient private[this] val pos = mb.newLocal[Int]("pos")
+  @transient private[this] val mul = mb.newLocal[Int]("mul")
+  @transient private[this] val v = mb.newLocal[Int]("v")
+  @transient private[this] val mulL = mb.newLocal[Long]("mulL")
+  @transient private[this] val vL = mb.newLocal[Long]("vL")
+  @transient private[this] val start = mb.newLocal[Int]("start")
   @transient private[this] val rvdType = matrixType.canonicalTableType.canonicalRVDType
   private[this] val fieldsPerLine = parsableRowFields.size + nCols
   println(matrixType)
@@ -244,6 +259,7 @@ class CompiledLineParser(
   println(rvdType)
   @transient private[this] val srvb = new StagedRegionValueBuilder(mb, rvdType.rowType)
   mb.emit(Code(
+    pos := 0,
     srvb.start(),
     if (rowIdx) Code(srvb.addLong(fb.arg3), srvb.advance()) else Code._empty,
     parseRowFields(),
@@ -252,29 +268,96 @@ class CompiledLineParser(
 
   private[this] val loadParserOnWorker = fb.result()
 
+  private[this] def parseError[T](msg: Code[String]): Code[T] =
+    Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
+      msg, filename, lineNumber, pos, pos + 1))
+
+  private[this] def parseError[T](msg: Code[String], pos: Code[Int]): Code[T] =
+    Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
+      msg, filename, lineNumber, pos, pos + 1))
+
+  private[this] def parseError[T](msg: Code[String], posStart: Code[Int], posEnd: Code[Int]): Code[T] =
+    Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
+      msg, filename, lineNumber, posStart, posEnd))
+
+  private[this] def numericValue(c: Code[Char]): Code[Int] =
+    ((c < '0') || (c > '9')).mux(
+      parseError(const("invalid character '")
+        .concat(c.toS)
+        .concat("' in integer literal")),
+      (c - '0').toI)
+
+  private[this] def endField(p: Code[Int]): Code[Boolean] =
+    p.ceq(line.length) || line(p).ceq(sep)
+
+  private[this] def endField(): Code[Boolean] =
+    endField(pos)
+
   private[this] def missingOr(parse: Code[Unit]): Code[Unit] = {
-    fragment.invoke[java.lang.Object, Boolean]("equals", missingValue).mux(
+    assert(missingValue.size > 0)
+    var c = line(pos + 0).ceq(missingValue(0))
+    var i = 1
+    while (i < missingValue.size) {
+      c = c && (pos + i) < line.length && line(pos + i).ceq(missingValue(i))
+      i += 1
+    }
+    c = c && endField(pos + missingValue.size)
+    c.mux(
       srvb.setMissing(),
       parse)
-
   }
+
+  private[this] def parseInt(): Code[Int] =
+    endField().mux(
+      parseError("empty integer literal"),
+      Code(
+        mul := 1,
+        (line(pos).ceq('-')).mux(
+          Code(
+            mul := -1,
+            pos := pos + 1),
+          Code._empty),
+        v := numericValue(line(pos)),
+        pos := pos + 1,
+        Code.whileLoop(!endField(),
+          v := v * 10 + numericValue(line(pos)),
+          pos := pos + 1),
+        v * mul))
+
+  private[this] def parseLong(): Code[Long] =
+    endField().mux(
+      parseError(const("empty long literal at ")),
+      Code(
+        mulL := 1L,
+        (line(pos).ceq('-')).mux(
+          mulL := -1L,
+          pos := pos + 1),
+        vL := numericValue(line(pos)).toL,
+        pos := pos + 1,
+        Code.whileLoop(!endField(),
+          vL := vL * 10 + numericValue(line(pos)).toL,
+          pos := pos + 1),
+        vL * mulL))
+
+  private[this] def parseString(): Code[String] =
+    Code(
+      start := pos,
+      Code.whileLoop(!endField(),
+        pos := pos + 1),
+      line.invoke[Int, Int, String]("substring", start, pos))
 
   private[this] def parseType(srvb: StagedRegionValueBuilder, t: Type): Code[Unit] = {
     t match {
-      case _: TInt32 => missingOr(
-        srvb.addInt(
-          Code.invokeStatic[java.lang.Integer, String, Int]("parseInt", fragment)))
-      case _: TInt64 => missingOr(
-        srvb.addLong(
-          Code.invokeStatic[java.lang.Long, String, Long]("parseLong", fragment)))
+      case _: TInt32 => missingOr(srvb.addInt(parseInt()))
+      case _: TInt64 => missingOr(srvb.addLong(parseLong()))
       case _: TFloat32 => missingOr(
         srvb.addFloat(
-         Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", fragment)))
+         Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseString())))
       case _: TFloat64 => missingOr(
         srvb.addDouble(
-         Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", fragment)))
-      case _: TString => missingOr(
-        srvb.addString(fragment))
+         Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseString())))
+      case _: TString =>
+        missingOr(srvb.addString(parseString()))
     }
   }
 
@@ -284,8 +367,8 @@ class CompiledLineParser(
     val ab = new ArrayBuilder[Code[_]]()
     while (i < fields.size) {
       ab += Code(
-        fragment := line(i),
         parseType(srvb, fields(i).typ),
+        pos := pos + 1,
         srvb.advance())
       i += 1
     }
@@ -301,11 +384,11 @@ class CompiledLineParser(
         i := 0,
         j := parsableRowFields.fields.size,
         Code.whileLoop(i < nCols,
-          fragment := line(j),
           srvb.addBaseStruct(entryPType, { srvb =>
             Code(
               srvb.start(),
               parseType(srvb, matrixType.entryType.fields(0).typ),
+              pos := pos + 1,
               srvb.advance())
           }),
           srvb.advance(),
@@ -342,13 +425,21 @@ class CompiledLineParser(
             ctx.region,
             filename,
             index,
-            line))
+            x.value))
       } catch {
+        case e: MatrixParseError => fatal(
+          s"""""Error parse line $index:
+               |    File: $filename
+               |    Line:
+               |        ${ x.value.truncate }
+               |        ${ " " * e.posStart }^${ "-" * (e.posEnd - e.posStart - 1)}${ if (e.posEnd - e.posStart == 1) "" else "^" }""".stripMargin,
+          e)
+
         case e: Exception => fatal(
           s"""""Error parse line $index:
                |    File: $filename
                |    Line:
-               |        ${ line.truncate }""".stripMargin,
+               |        ${ x.value.truncate }""".stripMargin,
           e)
       }
       index += 1
