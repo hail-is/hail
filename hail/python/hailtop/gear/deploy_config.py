@@ -76,7 +76,7 @@ class DeployConfig:
         root_routes = web.RouteTableDef()
 
         @root_routes.get('/healthcheck')
-        async def get_healthcheck(request):  # pylint: disable=W0613
+        async def get_healthcheck(request):  # pylint: disable=unused-argument,unused-variable
             return web.Response()
 
         root_app = web.Application()

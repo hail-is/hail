@@ -330,7 +330,7 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0'),
             (requests.get, '/batches/0/jobs/0/log')]
         for f, url in endpoints:
-            r = f(deploy_config.url('batch'), url)
+            r = f(deploy_config.url('batch', url))
             assert r.status_code == 401, r
 
     def test_bad_jwt_key(self):
