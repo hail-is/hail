@@ -26,7 +26,7 @@ async def create_session(dbpool, user_id):
     session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
+            await cursor.execute('INSERT INTO sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
                                  # 2592000s = 30d
                                  (session_id, 'web', user_id, 2592000))
     return session_id
