@@ -14,21 +14,23 @@ spec:
        set -ex
        echo 'show tables;' | mysql --defaults-extra-file=/sql-config/sql-config.cnf
        echo 'show grants;' | mysql --defaults-extra-file=/sql-config/sql-config.cnf
+       # create session keys
+       mkdir /session-secret-keys
        cat > generate-session-keys.py <<EOF
        import secrets
        import base64
        from cryptography import fernet
        from hailtop import gear
        import hailtop.gear.auth
-       with open('jwt-secret-key', 'wb') as f:
+       with open('/session-secret-keys/jwt-secret-key', 'wb') as f:
            f.write(gear.auth.JWTClient.generate_key())
-       with open('aiohttp-session-secret-key', 'wb') as f:
+       with open('/session-secret-keys/aiohttp-session-secret-key', 'wb') as f:
            f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))
        EOF
-       # create session keys
        python3 generate-session-keys.py
-       kubectl -n {{ default_ns.name }} create secret generic session-secret-keys --from-file=./jwt-secret-key --from-file=./aiohttp-session-secret-key
+       kubectl -n {{ default_ns.name }} create secret generic session-secret-keys --from-file=/session-secret-keys/jwt-secret-key --from-file=/session-secret-keys/aiohttp-session-secret-key
        # create accounts
+       mkdir /user-tokens
        cat > create-session.py <<EOF
        import sys
        import json
@@ -43,7 +45,7 @@ spec:
            deploy_config = get_deploy_config()
            auth_ns = deploy_config.service_ns('auth')
            tokens[auth_ns] = create_session_token(await create_session(dbpool, userdata['id']))
-           tokens.write('./tokens.json')
+           tokens.write()
        loop = asyncio.get_event_loop()
        loop.run_until_complete(main())
        loop.run_until_complete(loop.shutdown_asyncgens())
@@ -54,11 +56,13 @@ spec:
        python3 create-session.py '{"username":"batch","user_id":"hail|batch","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch-gsa-key","jwt_secret_name":"batch-jwt"}'
        kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./tokens.json
        # create ci
+       rm /user-tokens/tokens.json
        kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
        python3 create-session.py '{"username":"ci","user_id":"hail|ci","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","jwt_secret_name":"ci-jwt"}'
        kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./tokens.json
        # test
        # test-gsa-key already exists
+       rm /user-tokens/tokens.json
        python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-jwt"}'
        kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./tokens.json
     volumeMounts:

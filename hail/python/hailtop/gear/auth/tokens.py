@@ -40,10 +40,8 @@ class Tokens(collections.abc.MutableMapping):
     def __len__(self):
         return len(self._tokens)
 
-    def write(self, tokens_file=None):
-        if not tokens_file:
-            tokens_file = self.get_tokens_file()
-        with open(tokens_file, 'w', mode=0o600) as f:
+    def write(self):
+        with open(self.get_tokens_file(), 'w', mode=0o600) as f:
             f.write(json.dumps(self._tokens))
 
 
