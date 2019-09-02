@@ -23,9 +23,6 @@ uvloop.install()
 
 deploy_config = get_deploy_config()
 
-BASE_PATH = deploy_config.base_path('auth')
-log.info(f'BASE_PATH {BASE_PATH}')
-
 routes = web.RouteTableDef()
 
 
@@ -46,17 +43,17 @@ async def get_unprefixed_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
-@routes.get(f'{BASE_PATH}/healthcheck')
+@routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
-@routes.get(f'{BASE_PATH}/')
+@routes.get('/')
 async def get_index(request):  # pylint: disable=unused-argument
     return aiohttp.web.HTTPFound('/login')
 
 
-@routes.get(f'{BASE_PATH}/login')
+@routes.get('/login')
 async def login(request):
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -75,7 +72,7 @@ async def login(request):
     return aiohttp.web.HTTPFound(authorization_url)
 
 
-@routes.get(f'{BASE_PATH}/oauth2callback')
+@routes.get('/oauth2callback')
 async def callback(request):
     unauth = web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
 
@@ -119,7 +116,7 @@ async def callback(request):
     return aiohttp.web.HTTPFound(next)
 
 
-@routes.post(f'{BASE_PATH}/logout')
+@routes.post('/logout')
 @authenticated_users_only
 async def logout(request, userdata):
     dbpool = request.app['dbpool']
@@ -136,7 +133,7 @@ async def logout(request, userdata):
     return web.Response(status=200)
 
 
-@routes.get(f'{BASE_PATH}/api/v1alpha/login')
+@routes.get('/api/v1alpha/login')
 async def rest_login(request):
     callback_port = request.query['callback_port']
 
@@ -151,7 +148,7 @@ async def rest_login(request):
     })
 
 
-@routes.get(f'{BASE_PATH}/api/v1alpha/oauth2callback')
+@routes.get('/api/v1alpha/oauth2callback')
 async def rest_callback(request):
     unauth = web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
 
@@ -192,7 +189,7 @@ async def rest_callback(request):
     })
 
 
-@routes.post(f'{BASE_PATH}/api/v1alpha/logout')
+@routes.post('/api/v1alpha/logout')
 @authenticated_users_only
 async def rest_logout(request, userdata):
     session_id = userdata['session_id']
@@ -204,7 +201,7 @@ async def rest_logout(request, userdata):
     return web.Response(status=200)
 
 
-@routes.get(f'{BASE_PATH}/api/v1alpha/userinfo')
+@routes.get('/api/v1alpha/userinfo')
 async def userinfo(request):
     if 'Authorization' in request.headers:
         auth_header = request.headers['Authorization']
@@ -279,4 +276,12 @@ def run():
     app.add_routes(routes)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-    web.run_app(app, host='0.0.0.0', port=5000)
+
+    base_path = deploy_config('auth')
+    if base_path:
+        root_app = web.Application()
+        root_app.add_subapp(base_path, app)
+    else:
+        root_app = app
+
+    web.run_app(root_app, host='0.0.0.0', port=5000)

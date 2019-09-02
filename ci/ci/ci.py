@@ -15,6 +15,7 @@ import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
 from hailtop.batch_client.aioclient import BatchClient, Job
+from hailtop.gear import get_deploy_config
 from hailtop.gear.auth import authenticated_developers_only, new_csrf_token, check_csrf_token
 from hailtop import gear
 from .constants import BUCKET
@@ -356,4 +357,13 @@ def run():
     app.on_cleanup.append(on_cleanup)
     app.add_routes(routes)
     routes.static('/static', 'ci/static')
+
+    deploy_config = get_deploy_config()
+    base_path = deploy_config('ci')
+    if base_path:
+        root_app = web.Application()
+        root_app.add_subapp(base_path, app)
+    else:
+        root_app = app
+
     web.run_app(app, host='0.0.0.0', port=5000)
