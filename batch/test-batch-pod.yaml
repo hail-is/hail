@@ -11,17 +11,19 @@ spec:
        valueFrom:
          fieldRef:
            fieldPath: status.podIP
-     - name: HAIL_TOKEN_FILE
-       value: '/test-jwt/jwt'
-     - name: BATCH_URL
-       value: http://batch.{{ default_ns.name }}
-     - name: HAIL_AUTH_URL
-       value: http://auth.{{ default_ns.name }}
+     - name: HAIL_LOCATION
+       value: k8s
     volumeMounts:
-      - mountPath: /test-jwt
+      - mountPath: /deploy-config
+        readOnly: true
+        name: deploy-config
+      - mountPath: /user-tokens
         readOnly: true
         name: test-jwt
   volumes:
+    - name: deploy-config
+      secret:
+        secretName: deploy-config
     - name: test-jwt
       secret:
         secretName: test-jwt
