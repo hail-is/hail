@@ -409,3 +409,17 @@ class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInf
 
   def arg4 = getArg[A4](4)
 }
+
+class Function5Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, A5 : TypeInfo, R : TypeInfo]
+  extends FunctionBuilder[AsmFunction5[A1, A2, A3, A4, A5, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4], GenericTypeInfo[A5]), GenericTypeInfo[R]) {
+
+  def arg1 = getArg[A1](1)
+
+  def arg2 = getArg[A2](2)
+
+  def arg3 = getArg[A3](3)
+
+  def arg4 = getArg[A4](4)
+
+  def arg5 = getArg[A5](5)
+}
