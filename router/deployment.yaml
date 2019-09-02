@@ -112,6 +112,20 @@ spec:
   selector:
     app: notebook2
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 5000
+  selector:
+    app: auth
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
