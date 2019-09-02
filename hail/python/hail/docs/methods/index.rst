@@ -17,6 +17,7 @@ Methods
 
     export_elasticsearch
     export_gen
+    export_bgen
     export_plink
     export_vcf
     get_vcf_metadata
