@@ -3,7 +3,7 @@ import webbrowser
 import aiohttp
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import set_credentials
+from hailtop.gear.auth import auth_headers
 
 
 def init_parser(parser):
@@ -21,9 +21,9 @@ class CIClient:
         self._session = None
 
     async def __aenter__(self):
+        headers = auth_headers('ci')
         self._session = aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60))
-        set_credentials(self._session, 'ci')
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):

@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_tokens, set_credentials
+from hailtop.gear.auth import get_tokens, auth_headers
 
 
 def init_parser(parser):  # pylint: disable=unused-argument
@@ -12,9 +12,9 @@ def init_parser(parser):  # pylint: disable=unused-argument
 async def async_main():
     deploy_config = get_deploy_config()
 
+    headers = auth_headers('auth')
     async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        set_credentials(session, 'auth')
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
             pass
     tokens = get_tokens()

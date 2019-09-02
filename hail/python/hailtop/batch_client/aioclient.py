@@ -5,7 +5,7 @@ import aiohttp
 from asyncinit import asyncinit
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import async_get_userinfo, set_credentials
+from hailtop.gear.auth import async_get_userinfo, auth_headers
 
 from .globals import complete_states
 
@@ -437,13 +437,16 @@ class BatchClient:
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
                                             timeout=aiohttp.ClientTimeout(total=60))
-            set_credentials(session, 'batch')
         self._session = session
 
         userinfo = await async_get_userinfo()
         self.bucket = userinfo['bucket_name']
 
-        self._headers = headers
+        h = {}
+        if headers:
+            h.update(headers)
+        h.update(auth_headers('batch'))
+        self._headers = h
 
     async def _get(self, path, params=None):
         response = await self._session.get(

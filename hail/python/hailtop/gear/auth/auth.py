@@ -13,11 +13,11 @@ log = logging.getLogger('gear.auth')
 
 async def async_get_userinfo():
     deploy_config = get_deploy_config()
+    headers = auth_headers('auth')
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        set_credentials(session, 'auth')
         async with session.get(
-                deploy_config.url('auth', '/api/v1alpha/userinfo')) as resp:
+                deploy_config.url('auth', '/api/v1alpha/userinfo'), headers=headers) as resp:
             return await resp.json()
 
 
@@ -64,12 +64,14 @@ def authenticated_developers_only(fun):
     return wrapped
 
 
-def set_credentials(session, service):
+def auth_headers(service):
     location = get_location()
     deploy_config = get_deploy_config()
     tokens = get_tokens()
+    headers = {}
     if service:
         ns = deploy_config.service_ns(service)
-        session.headers['Authorization'] = f'Bearer {tokens[ns]}'
+        headers['Authorization'] = f'Bearer {tokens[ns]}'
     if location == 'external' and ns != 'default':
-        session.headers['X-Hail-Internal-Authorization'] = tokens['default']
+        headers['X-Hail-Internal-Authorization'] = tokens['default']
+    return headers

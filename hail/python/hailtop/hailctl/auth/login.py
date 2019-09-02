@@ -6,7 +6,7 @@ import aiohttp
 from aiohttp import web
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_tokens, set_credentials
+from hailtop.gear.auth import get_tokens, auth_headers
 
 
 def init_parser(parser):  # pylint: disable=unused-argument
@@ -88,9 +88,9 @@ Opening in your browser.
 
 
 async def async_main():
+    headers = auth_headers(None)
     async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        set_credentials(session, None)
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         auth_flow(session)
 
 
