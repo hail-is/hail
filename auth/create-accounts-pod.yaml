@@ -12,6 +12,8 @@ spec:
      - -c
      - |
        set -ex
+       echo 'show tables;' | mysql --defaults-extra-file=/sql-config/sql-config.cnf
+       echo 'show grants;' | mysql --defaults-extra-file=/sql-config/sql-config.cnf
        cat > generate-session-keys.py <<EOF
        import secrets
        import base64
