@@ -240,12 +240,15 @@ class CompiledLineParser(
 
   @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]
   @transient private[this] val mb = fb.apply_method
-  @transient private[this] val filename = fb.arg2
-  @transient private[this] val lineNumber = fb.arg3
-  @transient private[this] val line = fb.arg4
+  @transient private[this] val _filename = fb.arg2
+  @transient private[this] val filename = mb.newField[String]("filename")
+  @transient private[this] val _lineNumber = fb.arg3
+  @transient private[this] val lineNumber = mb.newField[Long]("lineNumber")
+  @transient private[this] val _line = fb.arg4
+  @transient private[this] val line = mb.newField[String]("line")
   @transient private[this] val i = mb.newLocal[Int]("i")
   @transient private[this] val j = mb.newLocal[Int]("j")
-  @transient private[this] val pos = mb.newLocal[Int]("pos")
+  @transient private[this] val pos = mb.newField[Int]("pos")
   @transient private[this] val mul = mb.newLocal[Int]("mul")
   @transient private[this] val v = mb.newLocal[Int]("v")
   @transient private[this] val mulL = mb.newLocal[Long]("mulL")
@@ -253,13 +256,33 @@ class CompiledLineParser(
   @transient private[this] val start = mb.newLocal[Int]("start")
   @transient private[this] val rvdType = matrixType.canonicalTableType.canonicalRVDType
   private[this] val fieldsPerLine = parsableRowFields.size + nCols
-  println(matrixType)
-  println(parsableRowFields)
-  println(entryType)
-  println(rvdType)
+
+  @transient private[this] val parseIntMethod = fb.newMethod[Int]
+  @transient private[this] val vv = parseIntMethod.newLocal[Int]
+  @transient private[this] val mulmul = parseIntMethod.newLocal[Int]
+  parseIntMethod.emit(Code(
+    endField().mux(
+      parseError("empty integer literal"),
+      Code(
+        mulmul := 1,
+        (line(pos).ceq('-')).mux(
+          Code(
+            mulmul := -1,
+            pos := pos + 1),
+          Code._empty),
+        vv := numericValue(line(pos)),
+        pos := pos + 1,
+        Code.whileLoop(!endField(),
+          vv := vv * 10 + numericValue(line(pos)),
+          pos := pos + 1))),
+      vv * mulmul))
+
   @transient private[this] val srvb = new StagedRegionValueBuilder(mb, rvdType.rowType)
   mb.emit(Code(
     pos := 0,
+    line := _line,
+    filename := _filename,
+    lineNumber := _lineNumber,
     srvb.start(),
     if (rowIdx) Code(srvb.addLong(fb.arg3), srvb.advance()) else Code._empty,
     parseRowFields(),
@@ -348,7 +371,7 @@ class CompiledLineParser(
 
   private[this] def parseType(srvb: StagedRegionValueBuilder, t: Type): Code[Unit] = {
     t match {
-      case _: TInt32 => missingOr(srvb.addInt(parseInt()))
+      case _: TInt32 => missingOr(srvb.addInt(parseIntMethod.invoke()))
       case _: TInt64 => missingOr(srvb.addLong(parseLong()))
       case _: TFloat32 => missingOr(
         srvb.addFloat(
@@ -409,16 +432,6 @@ class CompiledLineParser(
     val parse = loadParserOnWorker()
     var index = partitionCounts(partition) - partitionCounts(firstPartitions(partition))
     it.map { x =>
-      val line = x.value.split(sep)
-      if (line.length != fieldsPerLine) {
-        fatal(
-          s"""Error parse line $index:
-             |    expected $fieldsPerLine row fields and entries but only ${line.length} found.
-             |    File: $filename
-             |    Line:
-             |        ${ line.truncate }""".stripMargin
-        )
-      }
       try {
         rv.setOffset(
           parse(
