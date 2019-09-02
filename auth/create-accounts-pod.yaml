@@ -7,6 +7,9 @@ spec:
   containers:
   - name: create-accounts
     image: "{{ hailtop_image.image }}"
+    env:
+     - name: HAIL_LOCATION
+       value: k8s
     command:
      - /bin/bash
      - -c
