@@ -73,5 +73,5 @@ def auth_headers(service):
         ns = deploy_config.service_ns(service)
         headers['Authorization'] = f'Bearer {tokens[ns]}'
     if location == 'external' and ns != 'default':
-        headers['X-Hail-Internal-Authorization'] = tokens['default']
+        headers['X-Hail-Internal-Authorization'] = f'Bearer {tokens["default"]}'
     return headers

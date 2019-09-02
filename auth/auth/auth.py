@@ -208,7 +208,9 @@ async def rest_logout(request, userdata):
 async def userinfo(request):
     if 'Authorization' in request.headers:
         auth_header = request.headers['Authorization']
+        log.info(f'auth_header {auth_header}')
         if not auth_header.startswith('Bearer '):
+            log.info('bad start')
             raise web.HTTPUnauthorized()
         token = auth_header[7:]
         try:
@@ -221,13 +223,16 @@ async def userinfo(request):
     else:
         session = await aiohttp_session.get_session(request)
         if not session:
+            log.info('no session')
             raise web.HTTPUnauthorized()
         session_id = session.get('session_id')
         if not session_id:
+            log.info('no session_id')
             raise web.HTTPUnauthorized()
 
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
+        log.info(f'bad session_id: {session_id}')
         raise web.HTTPUnauthorized()
 
     dbpool = request.app['dbpool']
@@ -241,6 +246,7 @@ WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (TIMESTAM
             users = await cursor.fetchall()
 
     if len(users) != 1:
+        log.info(f'{len(users)} users')
         raise web.HTTPUnauthorized()
     user = users[0]
 
