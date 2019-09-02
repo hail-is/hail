@@ -8,6 +8,7 @@ import aiohttp_session
 import aiohttp_session.cookie_storage
 import aiomysql
 import uvloop
+import jwt
 
 import google.auth.transport.requests
 import google.oauth2.id_token
@@ -209,9 +210,9 @@ async def userinfo(request):
     if auth_header:
         if not auth_header.startswith('Bearer '):
             raise web.HTTPUnauthorized()
-        jwt = auth_header[6:]
+        token = auth_header[6:]
         try:
-            body = get_jwtclient().decode(jwt)
+            body = get_jwtclient().decode(token)
         except jwt.InvalidTokenError:
             raise web.HTTPUnauthorized()
 

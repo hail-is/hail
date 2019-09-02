@@ -34,6 +34,8 @@ spec:
             memory: "1G"
             cpu: "1"
         env:
+         - name: HAIL_LOCATION
+           name: k8s
          - name: HAIL_POD_NAMESPACE
            value: "{{ batch_pods_ns.name }}"
          - name: BATCH_IMAGE
