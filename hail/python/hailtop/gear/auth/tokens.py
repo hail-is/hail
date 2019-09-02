@@ -41,7 +41,8 @@ class Tokens(collections.abc.MutableMapping):
         return len(self._tokens)
 
     def write(self):
-        with open(self.get_tokens_file(), 'w', mode=0o600) as f:
+        # restrict permissions to user
+        with os.fdopen(os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w') as f:
             f.write(json.dumps(self._tokens))
 
 
