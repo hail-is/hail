@@ -446,7 +446,7 @@ class BatchClient:
         if headers:
             h.update(headers)
         if _token:
-            headers['Authorization'] = f'Bearer {_token}'
+            h['Authorization'] = f'Bearer {_token}'
         else:
             h.update(auth_headers('batch'))
         self._headers = h
