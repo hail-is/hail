@@ -98,6 +98,7 @@ steps:
     - default_ns
     - batch_pods_ns
     - base_image
+    - deploy_default_admin_admin
  - kind: deploy
    name: create_accounts
    namespace:
@@ -114,10 +115,10 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - deploy_default_admin_admin
     - users_database
     - hailtop_image
     - create_auth_tables
-    - deploy_default_admin_admin
     - create_deploy_config
  - kind: buildImage
    name: hail_build_image
