@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from aiohttp import web
 
 from .location import get_location
 
@@ -66,6 +67,23 @@ class DeployConfig:
         if ns == 'default':
             return f'https://{service}.hail.is/{path}'
         return f'https://internal.hail.is/{ns}/{service}{path}'
+
+    def prefix_application(self, app, service):
+        base_path = self.base_path(service)
+        if not base_path:
+            return app
+
+        root_routes = web.RouteTableDef()
+
+        @root_routes.get('/healthcheck')
+        async def get_healthcheck(request):  # pylint: disable=W0613
+            return web.Response()
+
+        root_app = web.Application()
+        root_app.add_routes(root_routes)
+        root_app.add_subapp(base_path, app)
+
+        return root_app
 
 
 deploy_config = None

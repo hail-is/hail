@@ -38,11 +38,6 @@ def get_flow(redirect_uri, state=None):
     return flow
 
 
-@routes.get(f'/healthcheck')
-async def get_unprefixed_healthcheck(request):  # pylint: disable=W0613
-    return web.Response()
-
-
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
@@ -277,11 +272,4 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    base_path = deploy_config('auth')
-    if base_path:
-        root_app = web.Application()
-        root_app.add_subapp(base_path, app)
-    else:
-        root_app = app
-
-    web.run_app(root_app, host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'auth'), host='0.0.0.0', port=5000)
