@@ -57,17 +57,17 @@ spec:
        kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
        kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
        python3 create-session.py '{"username":"batch","user_id":"hail|batch","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch-gsa-key","jwt_secret_name":"batch-jwt"}'
-       kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./tokens.json
+       kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=/user-tokens/tokens.json
        # create ci
        rm /user-tokens/tokens.json
        kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
        python3 create-session.py '{"username":"ci","user_id":"hail|ci","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","jwt_secret_name":"ci-jwt"}'
-       kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./tokens.json
+       kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=/user-tokens/tokens.json
        # test
        # test-gsa-key already exists
        rm /user-tokens/tokens.json
        python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-jwt"}'
-       kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./tokens.json
+       kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=/user-tokens/tokens.json
     volumeMounts:
       - mountPath: /sql-config
         readOnly: true
