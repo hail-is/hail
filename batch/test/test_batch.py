@@ -340,16 +340,17 @@ class Test(unittest.TestCase):
         token = tokens[auth_ns]
         payload = JWTClient.unsafe_decode(token)
         token2 = JWTClient(JWTClient.generate_key()).encode(payload)
-        async with aiohttp.ClientSession(
-                raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=60)) as session:
-            bc = BatchClient(session, _token=token2)
-            try:
-                b = bc.create_batch()
-                j = b.create_job('alpine', ['false'])
-                b.submit()
-                assert False, j
-            except aiohttp.ClientResponseError as e:
-                assert e.status == 401, e
-            finally:
-                bc.close()
+        session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        bc = BatchClient(session, _token=token2)
+        try:
+            b = bc.create_batch()
+            j = b.create_job('alpine', ['false'])
+            b.submit()
+            assert False, j
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 401, e
+        finally:
+            bc.close()
+            session.close()
