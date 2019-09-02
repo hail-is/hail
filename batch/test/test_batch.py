@@ -339,7 +339,7 @@ class Test(unittest.TestCase):
         tokens = get_tokens()
         token = tokens[auth_ns]
         payload = JWTClient.unsafe_decode(token)
-        token2 = JWTClient(JWTClient.generate_key()).encode(payload)
+        token2 = JWTClient(_secret_key=JWTClient.generate_key()).encode(payload)
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
