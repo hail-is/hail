@@ -150,7 +150,7 @@ def table_aggregate_int_stats():
 @benchmark
 def table_range_means():
     ht = hl.utils.range_table(10_000_000, 16)
-    ht = ht.annotate(m = hl.mean(hl.range(0, ht.idx % 1111)))
+    ht = ht.annotate(m=hl.mean(hl.range(0, ht.idx % 1111)))
     ht._force_count()
 
 

@@ -414,7 +414,7 @@ object Interpret {
           aValue.asInstanceOf[IndexedSeq[Any]].foreach { elt =>
             e = e.bind(valueName, elt)
             accVals.indices.foreach { i =>
-              e = env.bind(accum(i)._1, interpret(seq(i), e, args, aggArgs))
+              e = e.bind(accum(i)._1, interpret(seq(i), e, args, aggArgs))
             }
           }
           interpret(res, e.delete(valueName), args, aggArgs)
