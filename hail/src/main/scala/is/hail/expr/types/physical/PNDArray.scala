@@ -54,7 +54,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val stridesPType = this.representation.fieldType("strides").asInstanceOf[PTuple]
     val srvb = new StagedRegionValueBuilder(mb, stridesPType)
     val tupleStartAddress = mb.newField[Long]
-    (Code (
+    Code (
       srvb.start(),
       tupleStartAddress := srvb.offset,
       // Fill with 0s, then backfill with actual data
@@ -75,7 +75,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
           srvb.end()
         )
       }
-    )).asInstanceOf[Code[Long]]
+    )
   }
 
   def getElementPosition(indices: Seq[ClassFieldRef[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {

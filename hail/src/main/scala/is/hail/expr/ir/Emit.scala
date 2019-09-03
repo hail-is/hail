@@ -1351,9 +1351,7 @@ private class Emit(
                   })
               }),
               srvb.advance(),
-              {
-                srvb.addIRIntermediate(repr.fieldType("strides").asInstanceOf[PBaseStruct])(xP.makeDefaultStrides(getShapeAtIdx, mb))
-              },
+              srvb.addIRIntermediate(repr.fieldType("strides").asInstanceOf[PBaseStruct])(xP.makeDefaultStrides(getShapeAtIdx, mb)),
               srvb.advance(),
               srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
                 repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data"))
@@ -1926,9 +1924,7 @@ private class Emit(
 
         val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup)
-
-//        val shape = childP.representation.field("shape").typ.asInstanceOf[PStruct].loadField(region, childEmitter.shape,)
-
+        
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
           childP.representation.field("shape").typ.asInstanceOf[PTuple],
           body.pType, setup) {
