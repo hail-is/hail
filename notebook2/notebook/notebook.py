@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 import jinja2
+import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
@@ -268,6 +269,16 @@ async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
     pod = await start_pod(k8s, userdata)
+    pod_name = pod.metadata.name
+
+    # FIXME this should go into /wait
+    while not pod.status.pod_ip:
+        await asyncio.sleep(1)
+        pod = await k8s.read_namespaced_pod(
+            name=pod_name,
+            namespace=NOTEBOOK_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
     session['notebook'] = pod_to_ui_dict(pod)
     return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
