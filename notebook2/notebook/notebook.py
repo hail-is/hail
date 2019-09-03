@@ -304,7 +304,7 @@ async def wait_websocket(request, userdata):
     notebook = session['notebook']
 
     pod_uuid = notebook['pod_uuid']
-    url = deploy_config.external_url('notebook2', '/instance-ready/{pod_uuid}')
+    url = deploy_config.external_url('notebook2', f'/instance-ready/{pod_uuid}')
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
