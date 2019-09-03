@@ -1,8 +1,8 @@
 
-<div class='nb'>
-    {% set ready =  notebook.pod_status == 'Running'
-                    and notebook.condition.status == 'True'
-                    and notebook.condition.type == 'Ready'
+<div class="nb">
+    {% set ready = notebook.pod_status == 'Running'
+                   and notebook.condition.status == 'True'
+                   and notebook.condition.type == 'Ready'
     %}
 
     {% if ready %}
@@ -14,11 +14,7 @@
     {% else %}
         <div class="spinner" ></div>
     {% endif %}
-    <a
-        target="_blank"
-        class='nb-state-container'
-        href={{ notebook['url'] }}
-    >
+    <a target="_blank" class="nb-state-container" href={{ notebook['url'] }}>
         <b>{{notebook.name}}</b>
         <span class="small">
         Condition:
@@ -40,8 +36,8 @@
         </span>
         <span class="small">Created on: {{notebook.creation_date}}</span>
     </a>
-    <form action='/notebook/delete' method='POST'>
-        <button type='submit' class="material-icons nb-close">
+    <form action="/notebook/delete" method="POST">
+        <button type="submit" class="material-icons nb-close">
             close
         </button>
     </form>

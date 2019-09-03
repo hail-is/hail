@@ -222,11 +222,20 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
+def base_config(userdata):
+    return {
+        'base_path': deploy_config.base_path('notebook2'),
+        'login_url': deploy_config.external_url('auth', '/login'),
+        'userdata': userdata
+    }
+
+
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    return {'userdata': userdata}
+    config = base_config(userdata)
+    return config
 
 
 @routes.get('/notebook')
@@ -235,11 +244,9 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 async def notebook_page(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    return {
-        'userdata': userdata,
-        'base_url': deploy_config.external_url('notebook2', ''),
-        'notebook': get_notebook(k8s, session, userdata)
-    }
+    config = base_config(userdata)
+    config['notebook'] = get_notebook(k8s, session, userdata)
+    return config
 
 
 @routes.post('/notebook/delete')
@@ -330,17 +337,17 @@ async def wait_websocket(request, userdata):
 @aiohttp_jinja2.template('error.html')
 @web_maybe_authenticated_user
 async def error_page(request, userdata):  # pylint: disable=unused-argument
-    return {
-        'userdata': userdata,
-        'error': request.args.get('err')
-    }
+    config = base_config(userdata)
+    config['error'] = request.args.get('err')
+    return config
 
 
 @routes.get('/user')
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only
 async def user_page(request, userdata):  # pylint: disable=unused-argument
-    return {'userdata': userdata}
+    config = base_config(userdata)
+    return config
 
 
 async def on_startup(app):
