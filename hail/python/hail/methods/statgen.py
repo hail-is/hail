@@ -2234,11 +2234,14 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
             (hl.range(0, 3).map(lambda i:
                                 hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
                                         .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                                                      split.a_index) == hl.unphased_diploid_gt_index_call(i)
+                                                                      split.a_index).unphased_diploid_gt_index() == i
                                                 ).map(lambda j: split.PL[j]))))))
-        update_entries_expression['PL'] = pl
         if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
+            pl_gq_struct = hl.rbind(pl, lambda pl: hl.struct(PL=pl, GQ=hl.gq_from_pl(pl)))
+            update_entries_expression['PL'] = pl_gq_struct['PL']
+            update_entries_expression['GQ'] = pl_gq_struct['GQ']
+        else:
+            update_entries_expression['PL'] = pl
     else:
         if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = split.GQ
