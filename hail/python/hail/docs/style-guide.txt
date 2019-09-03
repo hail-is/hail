@@ -74,11 +74,11 @@
     from hail.stats import *
     ```
 
- - Make sure you do not assign a result to the protected variable names `vds` in `dataset.py` and `kt1`, `kt2` in keytable.py.
+ - Make sure you do not assign a result to the protected variable names `mt` in `dataset.py` and `kt1`, `kt2` in keytable.py.
  - Variables not specified in the module-level docstring will not be available in the scope for other functions. Try not to add global variables unless absolutely necessary.
- - Example VDS files that currently exist in `python/hail/docs/data` were generated as follows:
+ - Example MT files that currently exist in `python/hail/docs/data` were generated as follows:
 
-    **example1.vds**
+    **example1.mt**
 
     ```
     >>> (hc.import("src/test/resources/sample.vcf.bgz")
@@ -103,10 +103,10 @@
                                    sa.cov2 = rnorm(0,1),
                                    sa.pheno.bloodPressure= rnorm(120,20),
                                    sa.pheno.cohortName = "cohort1"')
-    ...    .write("python/hail/docs/data/example.vds", overwrite=True))
+    ...    .write("python/hail/docs/data/example.mt", overwrite=True))
     ```
 
-    **example2.vds**
+    **example2.mt**
 
     ```
     >>> (hc.import("src/test/resources/sample.vcf.bgz")
@@ -116,10 +116,10 @@
                                     va.toKeep2 = false,
                                     va.toKeep3 = true')
     ...    .split_multi()
-    ...    .write("python/hail/docs/data/example2.vds", overwrite=True))
+    ...    .write("python/hail/docs/data/example2.mt", overwrite=True))
     ```
 
-    **example_lmmreg.vds**
+    **example_lmmreg.mt**
 
     ```
     >>> (hc.import_vcf('src/test/resources/sample.vcf')
@@ -130,10 +130,10 @@
     ...    .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
     ...    .annotate_samples_expr('sa.cov2 = rnorm(0,1)')
     ...    .linreg('sa.pheno', ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
-    ...    .write("python/hail/docs/data/example_lmmreg.vds", overwrite=True))
+    ...    .write("python/hail/docs/data/example_lmmreg.mt", overwrite=True))
 
 
-    **example_burden.vds**
+    **example_burden.mt**
 
     ```
     >>> (hc.import_vcf('python/hail/docs/data/example_burden.vcf')
@@ -143,7 +143,7 @@
     ...    .variant_qc()
     ...    .annotate_variants_intervals('python/hail/docs/data/genes.interval_list', 'va.genes', all=True)
     ...    .annotate_variants_intervals('python/hail/docs/data/gene.interval_list', 'va.gene', all=False)
-    ...    .write('python/hail/docs/data/example_burden.vds', overwrite=True))
+    ...    .write('python/hail/docs/data/example_burden.mt', overwrite=True))
     ```
 
 ## Tutorial Setup

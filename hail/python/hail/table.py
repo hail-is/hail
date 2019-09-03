@@ -979,7 +979,7 @@ class Table(ExprContainer):
         --------
         Export to a tab-separated file:
 
-        >>> table1.export(f'{output_dir}/table1.tsv.bgz')
+        >>> table1.export('output/table1.tsv.bgz')
 
         Note
         ----
@@ -1182,7 +1182,7 @@ class Table(ExprContainer):
 
         Examples
         --------
-        >>> table1 = table1.checkpoint(f'{output_dir}/table_checkpoint.ht')
+        >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -1200,7 +1200,7 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> table1.write(f'{output_dir}/table1.ht')
+        >>> table1.write('output/table1.ht')
 
         Warning
         -------
