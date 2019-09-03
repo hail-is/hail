@@ -172,7 +172,7 @@ def pod_condition_for_ui(conds):
 
 def pod_to_ui_dict(pod):
     notebook = {
-        'name': pod.metadata.labels['notebook-name'],
+        'name': 'a_notebook',
         'pod_name': pod.metadata.name,
         'pod_status': pod.status.phase,
         'pod_uuid': pod.metadata.labels['uuid'],
