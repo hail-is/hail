@@ -5,7 +5,6 @@ GATEWAY_LATEST = gcr.io/$(PROJECT)/gateway:latest
 GATEWAY_IMAGE = gcr.io/$(PROJECT)/gateway:$(shell docker images -q --no-trunc gateway | sed -e 's,[^:]*:,,')
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
-INTERNAL_IP ?= 10.128.0.57
 
 build:
 	docker pull ubuntu:18.04
@@ -19,9 +18,7 @@ push: build
 	docker push $(GATEWAY_IMAGE)
 
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"global":{"internal_ip":"$(INTERNAL_IP)"}}' internal-service.yaml internal-service.yaml.out
-	kubectl -n default apply -f internal-service.yaml.out
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"global":{"ip":"$(IP)"}}' external-service.yaml external-service.yaml.out
-	kubectl -n default apply -f external-service.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"global":{"ip":"$(IP)"}}' service.yaml service.yaml.out
+	kubectl -n default apply -f service.yaml.out
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"gateway_image":{"image":"$(GATEWAY_IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
