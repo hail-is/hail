@@ -50,7 +50,9 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     }
   }
 
-  def makeDefaultStrides(getShapeAtIdx: (Int) => Code[Long], mb: MethodBuilder): Code[Long] = {
+  def makeDefaultStrides(sourceShapePType: PTuple, sourceShape: Code[Long], mb: MethodBuilder): Code[Long] = {
+    def getShapeAtIdx(index: Int) = Region.loadLong(sourceShapePType.loadField(sourceShape, index))
+
     val stridesPType = this.representation.fieldType("strides").asInstanceOf[PTuple]
     val srvb = new StagedRegionValueBuilder(mb, stridesPType)
     val tupleStartAddress = mb.newField[Long]
@@ -102,7 +104,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   def construct(flags: Code[Int], offset: Code[Int], shape: Code[Long], strides: Code[Long], data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
-    def getShapeAtIdx(index: Int) = Region.loadLong(this.representation.fieldType("shape").asInstanceOf[PTuple].loadField(shape, index))
+    val shapeP = this.representation.fieldType("shape").asInstanceOf[PTuple]
 
     coerce[Long](Code(
       srvb.start(),
@@ -112,7 +114,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("shape").asInstanceOf[PTuple])(shape),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("strides").asInstanceOf[PBaseStruct])(this.makeDefaultStrides(getShapeAtIdx, mb)),
+      srvb.addIRIntermediate(this.representation.fieldType("strides").asInstanceOf[PBaseStruct])(this.makeDefaultStrides(shapeP, shape, mb)),
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("data").asInstanceOf[PArray])(data),
       srvb.end()

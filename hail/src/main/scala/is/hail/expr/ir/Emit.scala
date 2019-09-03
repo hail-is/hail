@@ -1346,7 +1346,7 @@ private class Emit(
                   Code(shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
                 )
               },
-              ndAddress := xP.construct(0, 0, shapeSrvb.end(), xP.makeDefaultStrides(getShapeAtIdx, mb), requiredData, mb)
+              ndAddress := xP.construct(0, 0, shapeSrvb.end(), xP.makeDefaultStrides(shapePType, shapet.value[Long], mb), requiredData, mb)
             )
           )
         )
@@ -1949,15 +1949,13 @@ abstract class NDArrayEmitter(
    val mb: MethodBuilder,
    val nDims: Int,
    val outputShape: Code[Long],
-   val outputShapePType: PBaseStruct,
+   val outputShapePType: PTuple,
    val outputElementPType: PType,
    val setup: Code[_]) {
 
   def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_]
 
   def emit(targetType: PNDArray): EmitTriplet = {
-    def getShapeAtIdx(index: Int) = Region.loadLong(outputShapePType.loadField(outputShape, index))
-
     val dataSrvb = new StagedRegionValueBuilder(mb, targetType.representation.fieldType("data").asInstanceOf[PArray])
 
     val dataAddress: Code[Long] = {
@@ -1972,7 +1970,7 @@ abstract class NDArrayEmitter(
 
     val ndSetup = Code(
       setup,
-      ndAddress := targetType.construct(0, 0, outputShape, targetType.makeDefaultStrides(getShapeAtIdx, mb), dataAddress, mb)
+      ndAddress := targetType.construct(0, 0, outputShape, targetType.makeDefaultStrides(outputShapePType, outputShape, mb), dataAddress, mb)
     )
     EmitTriplet(ndSetup, false, ndAddress)
   }
@@ -1996,7 +1994,6 @@ abstract class NDArrayEmitter(
       )
     }
   }
-
 }
 
 
