@@ -355,4 +355,5 @@ def run():
     app = web.Application()
     app.add_routes(routes)
     app.on_startup.append(on_startup)
+    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(notebook_root, 'templates')))
     web.run_app(deploy_config.prefix_application(app, 'notebook2'), host='0.0.0.0', port=5000)
