@@ -171,8 +171,10 @@ spec:
              memory: "1G"
              cpu: "1"
          env:
-          - name: DOMAIN
-            value: {{ default_ns.domain }}
+          - name: HAIL_DOMAIN
+            value: {{ global.domain }}
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: {{ default_ns.name }}
          ports:
           - containerPort: 80
          readinessProbe:

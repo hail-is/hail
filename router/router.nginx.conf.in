@@ -145,10 +145,10 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://notebook2/auth/$pod_uuid;
+        proxy_pass http://notebook2@notebook2_base_path@/auth/$pod_uuid;
     }
 
-    location ~ /instance/([^/]+)/(.*) {
+    location ~ @notebook2_base_path@/instance/([^/]+)/(.*) {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
@@ -179,16 +179,16 @@ server {
         return 307 $updated_scheme://$http_host/error$args;
     }
 
-    location ~ /instance-ready/([^/]+)/ {
+    location ~ @notebook2_base_path@/instance-ready/([^/]+) {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
-        proxy_pass http://$auth_pod_ip/instance/$1/;
+        proxy_pass http://$auth_pod_ip@notebook2_base_path@/instance/$1;
     }
 
     location / {
-        proxy_pass http://notebook2/;
+        proxy_pass http://notebook2;
 
         proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

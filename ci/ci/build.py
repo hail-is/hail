@@ -518,17 +518,11 @@ class CreateNamespaceStep(Step):
                                    json.get('secrets'))
 
     def config(self, scope):
-        conf = {
+        return {
             'token': self.token,
             'kind': 'createNamespace',
             'name': self._name
         }
-        if self.public:
-            if scope == 'deploy':
-                conf['domain'] = DOMAIN
-            else:
-                conf['domain'] = 'internal'
-        return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         config = ""

@@ -183,7 +183,8 @@ def pod_to_ui_dict(pod):
         'condition': pod_condition_for_ui(pod.status.conditions)
     }
 
-    notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
+    notebook2_base_path = deploy_config.base_path('notebook2')
+    notebook['url'] = f"{notebook2_base_path}/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
 
     return notebook
 
@@ -303,7 +304,7 @@ async def wait_websocket(request, userdata):
     notebook = session['notebook']
 
     pod_uuid = notebook['pod_uuid']
-    url = deploy_config.external_url('notebook2', '/instance-ready/{pod_uuid}/')
+    url = deploy_config.external_url('notebook2', '/instance-ready/{pod_uuid}')
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
