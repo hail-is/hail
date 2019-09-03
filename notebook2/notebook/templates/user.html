@@ -6,18 +6,20 @@
 {% block content %}
     <div class='centered'>
         <div id='profile-header'>
-            <img height="38" src={{user['picture']}} />
-            <h3>{{user['name']}}</h3>
+<!--
+            <img height="38" src={{ userdata['picture'] }} />
+-->
+            <h3>{{ userdata['username'] }}</h3>
         </div>
         <div id='profile-data'>
             <h5>Google Data</h5>
             <p>
                 <b>Bucket: </b>
-                <a href="https://console.cloud.google.com/storage/browser/{{user['bucket_name']}}" target='_blank'>
-                    {{user['bucket_name']}}
+                <a href="https://console.cloud.google.com/storage/browser/{{ userdata['bucket_name'] }}" target='_blank'>
+                    {{ userdata['bucket_name'] }}
                 </a>
             </p>
-            <p><b>Service Account: </b>{{user['gsa_email']}}</p>
+            <p><b>Service Account: </b>{{ userdata['gsa_email'] }}</p>
         </div>
     </div>
 {% endblock %}
