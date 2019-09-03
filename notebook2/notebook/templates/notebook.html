@@ -6,7 +6,7 @@
 {% endblock %}
 {% block content %}
   <div id="notebook" class="centered">
-    {% if notebook is not defined %}
+    {% if notebook is none %}
         {% include 'notebook-form.html' %}
     {% else %}
         {% include 'notebook-state.html' %}

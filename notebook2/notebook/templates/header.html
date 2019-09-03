@@ -13,13 +13,13 @@
   <a href="{{ base_path }}/user"
     ><b id="user-name">{{ userdata["namename"] }}</b></a
   >
-  <form action="/logout" method="POST">
+  <form action="{{ auth_base_url }}/logout" method="POST">
     <button class="link-button" type="submit">
       Log out
     </button>
   </form>
   {% else %}
-  <a class="link-button" href="{{ login_url }}">
+  <a class="link-button" href="{{ auth_base_url }}/login">
     Login
   </a>
   {% endif %}

@@ -36,7 +36,7 @@
         </span>
         <span class="small">Created on: {{notebook.creation_date}}</span>
     </a>
-    <form action="/notebook/delete" method="POST">
+    <form action="{{ base_path }}/notebook/delete" method="POST">
         <button type="submit" class="material-icons nb-close">
             close
         </button>

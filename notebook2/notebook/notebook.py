@@ -226,7 +226,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 def base_context(userdata):
     return {
         'base_path': deploy_config.base_path('notebook2'),
-        'login_url': deploy_config.external_url('auth', '/login'),
+        'auth_base_url': deploy_config.external_url('auth', ''),
         'userdata': userdata
     }
 
