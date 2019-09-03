@@ -21,29 +21,19 @@ object ArrayFunctions extends RegistryFunctions {
       ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2), TFloat64())),
       ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2), ir2.typ)))
 
-  def mean(a: IR): IR = {
+  def mean(args: Seq[IR]): IR = {
+    val Seq(a) = args
     val t = -coerce[TArray](a.typ).elementType
-    val tAccum = TStruct("sum" -> TFloat64(), "n" -> TInt32())
-    val accum = genUID()
-    val v = genUID()
-    val result = genUID()
-
-    def updateAccum(sum: IR, n: IR): IR =
-      MakeStruct(FastSeq("sum" -> sum, "n" -> n))
-
-    Let(
-      result,
-      ArrayFold(
-        a,
-        MakeStruct(FastSeq("sum" -> F64(0), "n" -> I32(0))),
-        accum,
-        v,
-        updateAccum(
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1)))),
-      ApplyBinaryPrimOp(FloatingPointDivide(),
-        GetField(Ref(result, tAccum), "sum"),
-        Cast(GetField(Ref(result, tAccum), "n"), TFloat64())))
+    val elt = genUID()
+    val n = genUID()
+    val sum = genUID()
+    ArrayFold2(
+      a,
+      FastIndexedSeq((n, I32(0)), (sum, zero(t))),
+      elt,
+      FastIndexedSeq(Ref(n, TInt32()) + I32(1), Ref(sum, t) + Ref(elt, t)),
+      Cast(Ref(sum, t), TFloat64()) / Cast(Ref(n, TInt32()), TFloat64())
+    )
   }
 
   def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
@@ -158,7 +148,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("max", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("max"))
     registerIR("nanmax", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("nanmax"))
 
-    registerIR("mean", TArray(tnum("T")), TFloat64())(mean)
+    registerIR("mean", Array(TArray(tnum("T"))), TFloat64(), inline = true)(mean)
 
     registerIR("median", TArray(tnum("T")), tv("T")) { array =>
       val t = -array.typ.asInstanceOf[TArray].elementType
