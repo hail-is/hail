@@ -28,7 +28,6 @@ object FoldConstants {
              _: NDArrayAgg |
              _: NDArrayWrite |
              _: NDArrayMatMul |
-             _: ArrayFold2 |
              _: Die => None
         case ir: IR if !IsConstant(ir) &&
           Interpretable(ir) &&

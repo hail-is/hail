@@ -404,7 +404,21 @@ object Interpret {
           }
           zeroValue
         }
-      case _: ArrayFold2 => throw new NotImplementedError()
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val aValue = interpret(a, env, args, aggArgs)
+        if (aValue == null)
+          null
+        else {
+          val accVals = accum.map { case (name, value) => (name, interpret(value, env, args, aggArgs)) }
+          var e = env.bindIterable(accVals)
+          aValue.asInstanceOf[IndexedSeq[Any]].foreach { elt =>
+            e = e.bind(valueName, elt)
+            accVals.indices.foreach { i =>
+              e = env.bind(accum(i)._1, interpret(seq(i), e, args, aggArgs))
+            }
+          }
+          interpret(res, e.delete(valueName), args, aggArgs)
+        }
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
