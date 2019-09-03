@@ -29,12 +29,21 @@ spec:
        - name: notebook2
          image: "{{ notebook2_image.image }}"
          env:
-          - name: HAIL_AUTH_URL
-            value: "http://auth.{{ default_ns.name }}"
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
           - name: HAIL_NOTEBOOK2_WORKER_IMAGE
             value: "{{ hail_jupyter_image.image }}"
          ports:
           - containerPort: 5000
+         volumeMounts:
+          - name: deploy-config
+            mountPath: /deploy-config
+            readOnly: true
+      volumes:
+       - name: deploy-config
+         secret:
+           optional: false
+           secretName: deploy-config
 ---
 apiVersion: v1
 kind: Service
