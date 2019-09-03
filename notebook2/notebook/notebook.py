@@ -17,8 +17,10 @@ log = logging.getLogger('notebook2')
 
 routes = web.RouteTableDef()
 
-scss_path = 'static/styles'
-css_path = 'static/css'
+notebook_root = os.path.dirname(os.path.abspath(__file__))
+
+scss_path = f'{notebook_root}/static/styles'
+css_path = f'{notebook_root}/static/css'
 os.makedirs(css_path, exist_ok=True)
 
 sass.compile(dirname=(scss_path, css_path), output_style='compressed')
@@ -350,6 +352,7 @@ async def on_startup(app):
 
 
 def run():
+    routes.static('/static', f'{notebook_root}/static')
     app = web.Application()
     app.add_routes(routes)
     app.on_startup.append(on_startup)
