@@ -5,6 +5,7 @@ import jinja2
 import aiohttp
 from aiohttp import web
 import aiohttp_session
+import aiohttp_session.cookie_storage
 import aiohttp_jinja2
 import sass
 from kubernetes_asyncio import client, config
