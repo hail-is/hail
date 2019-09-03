@@ -784,6 +784,33 @@ private class Emit(
               xresv.storeAny(codeR.v)))),
           xresm, xresv)
 
+      case ArrayFor(a, valueName, body) =>
+        val tarray = coerce[TStreamable](a.typ)
+        val eti = typeToTypeInfo(tarray.elementType)
+        val xmv = mb.newField[Boolean]()
+        val xvv = coerce[Any](mb.newField(valueName)(eti))
+        val bodyenv = env.bind(
+          (valueName, (eti, xmv.load(), xvv.load())))
+        val codeB = emit(body, env = bodyenv)
+        val aBase = emitArrayIterator(a)
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := xmv.mux(defaultValue(tarray.elementType), v),
+            codeB.setup)
+        }
+
+        val processAElts = aBase.arrayEmitter(cont)
+        val ma = processAElts.m.getOrElse(const(false))
+        EmitTriplet(
+          Code(
+            processAElts.setup,
+            ma.mux(
+              Code._empty,
+              Code(aBase.calcLength, processAElts.addElements))),
+          const(false),
+          Code._empty)
+
       case ArrayAgg(a, name, query) =>
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = ExtractAggregators.staged(mb.fb, query)
         val postAggIR = Optimize(postAggIR_, noisy = true, canGenerateLiterals = false,
