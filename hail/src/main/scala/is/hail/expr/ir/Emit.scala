@@ -1344,7 +1344,7 @@ private class Emit(
               Code.foreach(0 until nDims) { index =>
                 shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
                   Code._fatal(s"shape missing at index $index"),
-                  Code(Code._println("Shaped"), shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
+                  Code(shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
                 )
               },
               ndAddress := xP.construct(0, 0, shapeSrvb.end(), xP.makeDefaultStrides(getShapeAtIdx, mb), requiredData, mb)
