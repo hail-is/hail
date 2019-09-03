@@ -12,19 +12,24 @@ def init_parser(parser):  # pylint: disable=unused-argument
 async def async_main():
     deploy_config = get_deploy_config()
 
-    headers = auth_headers('auth')
+    auth_ns = deploy_config.service_ns('auth')
+    tokens = get_tokens()
+    if auth_ns not in tokens:
+        print('Not logged in.')
+        return
+
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
             pass
-    tokens = get_tokens()
     auth_ns = deploy_config.service_ns('auth')
+
     del tokens[auth_ns]
     tokens.write()
 
     print('Logged out.')
 
 
-def main(args):  # pylint: disable=unused-argument
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     loop = asyncio.get_event_loop()
     loop.run_until_complete(async_main())

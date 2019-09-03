@@ -77,12 +77,12 @@ web_authenticated_users_only = _authenticated_users_only(False)
 web_authenticated_developers_only = _authenticated_developers_only(False)
 
 
-def auth_headers(service):
+def auth_headers(service, authorize_target=True):
     deploy_config = get_deploy_config()
     tokens = get_tokens()
+    ns = deploy_config.service_ns(service)
     headers = {}
-    if service:
-        ns = deploy_config.service_ns(service)
+    if authorize_target:
         headers['Authorization'] = f'Bearer {tokens[ns]}'
     if deploy_config.location() == 'external' and ns != 'default':
         headers['X-Hail-Internal-Authorization'] = f'Bearer {tokens["default"]}'

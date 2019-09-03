@@ -90,7 +90,7 @@ async def callback(request):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * from users.user_data where user_id = %s;', f'google-oauth2|{id}')
+            await cursor.execute('SELECT * from user_data where user_id = %s;', f'google-oauth2|{id}')
             users = await cursor.fetchall()
 
     if len(users) != 1:
@@ -101,7 +101,7 @@ async def callback(request):
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
+            await cursor.execute('INSERT INTO sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
                                  # 2592000s = 30d
                                  (session_id, 'web', user['id'], 2592000))
 
@@ -118,7 +118,7 @@ async def logout(request, userdata):
     session_id = userdata['session_id']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('DELETE FROM user.sessions WHERE session_id = %s;', session_id)
+            await cursor.execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     session = await aiohttp_session.get_session(request)
     if session:
@@ -164,7 +164,7 @@ async def rest_callback(request):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * from users.user_data where user_id = %s;', f'google-oauth2|{id}')
+            await cursor.execute('SELECT * from user_data where user_id = %s;', f'google-oauth2|{id}')
             users = await cursor.fetchall()
 
     if len(users) != 1:
@@ -175,7 +175,7 @@ async def rest_callback(request):
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
+            await cursor.execute('INSERT INTO sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
                                  (session_id, 'rest', user['id'], 30 * 86400))
 
     return web.json_response({
@@ -191,7 +191,7 @@ async def rest_logout(request, userdata):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('DELETE FROM user.sessions WHERE session_id = %s;', session_id)
+            await cursor.execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     return web.Response(status=200)
 
@@ -226,7 +226,7 @@ async def userinfo(request):
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
-SELECT user_data.* FROM user_data
+SELECT user_data.*, sessions.session_id FROM user_data
 INNER JOIN sessions ON user_data.id = sessions.user_id
 WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''', session_id)

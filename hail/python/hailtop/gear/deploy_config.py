@@ -16,10 +16,12 @@ class DeployConfig:
         else:
             log.info(f'deploy config file not found: {config_file}')
             config = {
+                'location': 'external',
                 'default_namespace': 'default',
                 'service_namespace': {}
             }
         self._location = config['location']
+        assert self._location in ('external', 'k8s', 'gce')
         self._default_ns = config['default_namespace']
         self._service_namespace = config['service_namespace']
 
@@ -40,7 +42,7 @@ class DeployConfig:
             return 'hail.internal'
         assert self._location == 'external'
         if ns == 'default':
-            return 'hail.is'
+            return f'{service}.hail.is'
         return 'internal.hail.is'
 
     def base_path(self, service):
@@ -64,7 +66,7 @@ class DeployConfig:
     def external_url(self, service, path):
         ns = self.service_ns(service)
         if ns == 'default':
-            return f'https://{service}.hail.is/{path}'
+            return f'https://{service}.hail.is{path}'
         return f'https://internal.hail.is/{ns}/{service}{path}'
 
     def prefix_application(self, app, service):

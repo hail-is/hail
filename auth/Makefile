@@ -34,7 +34,7 @@ push: build
 
 .PHONY: deploy
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"auth_image":{"image":"$(AUTH_IMAGE)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"auth_image":{"image":"$(AUTH_IMAGE)"},"users_database":{"user_secret_name":"sql-users-users-user-config"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 
 .PHONY:

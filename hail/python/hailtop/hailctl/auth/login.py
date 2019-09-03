@@ -88,12 +88,12 @@ Opening in your browser.
 
 
 async def async_main():
-    headers = auth_headers(None)
+    headers = auth_headers('auth', authorize_target=False)
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
-        auth_flow(session)
+        await auth_flow(session)
 
 
-def main(args):  # pylint: disable=unused-argument
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     loop = asyncio.get_event_loop()
     loop.run_until_complete(async_main())
