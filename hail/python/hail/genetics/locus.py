@@ -4,14 +4,27 @@ from hail.utils.java import scala_object, Env
 import hail as hl
 
 class Locus(object):
-    """
-    An object that represents a location in the genome.
+    """An object that represents a location in the genome.
 
-    :param contig: chromosome identifier
-    :type contig: str or int
-    :param int position: chromosomal position (1-indexed)
-    :param reference_genome: Reference genome to use.
-    :type reference_genome: :obj:`str` or :class:`.ReferenceGenome`
+    Parameters
+    ----------
+    contig : :obj:`str`
+        Chromosome identifier.
+    position : :obj:`int`
+        Chromosomal position (1-indexed).
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use.
+
+    Note
+    ----
+    This object refers to the Python value returned by taking or collecting
+    Hail expressions, e.g. ``mt.locus.take(5)``. This is rare; it is much
+    more common to manipulate the :class:`.LocusExpression` object, which is
+    constructed using the following functions:
+
+     - :func:`.locus`
+     - :func:`.parse_locus`
+     - :func:`.locus_from_global_position`
     """
 
     @typecheck_method(contig=oneof(str, int),

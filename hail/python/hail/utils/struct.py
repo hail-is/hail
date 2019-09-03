@@ -33,6 +33,13 @@ class Struct(Mapping):
     ----------
     attributes
         Field names and values.
+
+    Note
+    ----
+    This object refers to the Python value returned by taking or collecting
+    Hail expressions, e.g. ``mt.info.take(5)``. This is rare; it is much
+    more common to manipulate the :class:`.StructExpression` object, which is
+    constructed using the :func:`.struct` function.
     """
 
     def __init__(self, **kwargs):
