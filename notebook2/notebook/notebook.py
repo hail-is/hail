@@ -180,8 +180,7 @@ def pod_to_ui_dict(pod):
         'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
         'jupyter_token': pod.metadata.labels['jupyter-token'],
         'container_status': container_status_for_ui(pod.status.container_statuses),
-        'condition': pod_condition_for_ui(pod.status.conditions),
-        'deletion_timestamp': pod.metadata.deletion_timestamp
+        'condition': pod_condition_for_ui(pod.status.conditions)
     }
 
     notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
