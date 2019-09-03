@@ -41,7 +41,7 @@ class CIClient:
             'steps': steps
         }
         async with self._session.post(
-                deploy_config.url('ci', '/v1alpha/dev_deploy_branch'), json=data) as resp:
+                deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
             resp_data = await resp.json()
             return resp_data['batch_id']
 
