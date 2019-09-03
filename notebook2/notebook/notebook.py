@@ -271,8 +271,7 @@ async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
     session = aiohttp_session.get_session(request)
     jupyter_token = uuid.uuid4().hex
-    name = request.form.get('name', 'a_notebook')
-    pod = await start_pod(k8s, jupyter_token, WORKER_IMAGE, name, userdata['id'], userdata['username'])
+    pod = await start_pod(k8s, jupyter_token, WORKER_IMAGE, 'a_notebook', userdata['id'], userdata['username'])
     session['notebook'] = pod_to_ui_dict(pod)
     return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
