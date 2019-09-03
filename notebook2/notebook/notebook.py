@@ -356,4 +356,4 @@ def run():
     app = web.Application()
     app.add_routes(routes)
     app.on_startup.append(on_startup)
-    web.run_app(app, host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'notebook2'), host='0.0.0.0', port=5000)
