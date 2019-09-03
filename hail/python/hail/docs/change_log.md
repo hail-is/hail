@@ -2,7 +2,7 @@
 
 ## 0.2.21
 
-Released 2019-08-30
+Released 2019-09-03
 
 ### Bug fixes
 - (hail#6945) Fix `expand_types` to preserve ordering by key, also affects
@@ -18,7 +18,7 @@ Released 2019-08-30
 - (hail#6895) Improve performance of `hl.import_bgen(...).count()`.
 - (hail#6948) Fix performance bug in `BlockMatrix` filtering functions.
 - (hail#6943) Improve scaling of `Table.union`.
-- (hail#6980) Improve performance of `split_multi_hts`
+- (hail#6980) Reduce compute time for `split_multi_hts` by as much as 40%.
 
 ### `hailctl dataproc`
 - (hail#6904) Add `--dry-run` option to `submit`.
