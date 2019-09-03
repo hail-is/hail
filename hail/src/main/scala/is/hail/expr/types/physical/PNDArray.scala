@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{ClassFieldRef, Code, MethodBuilder, _}
 import is.hail.expr.Nat
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, coerce}
 import is.hail.expr.types.virtual.TNDArray
 
 final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends PType {
@@ -97,6 +97,25 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       },
 
       bytesAway + dataP.elementOffset(data, dataP.loadLength(data), 0)
+    ))
+  }
+
+  def construct(flags: Code[Int], offset: Code[Int], shape: Code[Long], strides: Code[Long], data: Code[Long], mb: MethodBuilder): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(mb, this.representation)
+    def getShapeAtIdx(index: Int) = Region.loadLong(this.representation.fieldType("shape").asInstanceOf[PTuple].loadField(shape, index))
+
+    coerce[Long](Code(
+      srvb.start(),
+      srvb.addInt(flags),
+      srvb.advance(),
+      srvb.addInt(offset),
+      srvb.advance(),
+      srvb.addIRIntermediate(this.representation.fieldType("shape").asInstanceOf[PTuple])(shape),
+      srvb.advance(),
+      srvb.addIRIntermediate(this.representation.fieldType("strides").asInstanceOf[PBaseStruct])(this.makeDefaultStrides(getShapeAtIdx, mb)),
+      srvb.advance(),
+      srvb.addIRIntermediate(this.representation.fieldType("data").asInstanceOf[PArray])(data),
+      srvb.end()
     ))
   }
 }

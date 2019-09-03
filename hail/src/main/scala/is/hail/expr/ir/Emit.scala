@@ -1966,25 +1966,35 @@ abstract class NDArrayEmitter(
     val srvb = new StagedRegionValueBuilder(mb, targetType.representation)
     def getShapeAtIdx(index: Int) = srvb.region.loadLong(outputShapePType.loadField(outputShape, index))
 
+
+    val dataSrvb = new StagedRegionValueBuilder(mb, targetType.representation.fieldType("data").asInstanceOf[PArray])
+
+    val dataAddress: Code[Long] = {
+      Code(
+        dataSrvb.start(targetType.numElements(outputShape, mb).toI),
+        emitLoops(dataSrvb),
+        dataSrvb.end()
+      )
+    }
     Code(
       setup,
-      srvb.start(),
-      srvb.addInt(0),
-      srvb.advance(),
-      srvb.addInt(0),
-      srvb.advance(),
-      srvb.addIRIntermediate(outputShapePType)(outputShape),
-      srvb.advance(),
-      srvb.addIRIntermediate(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct])(targetType.makeDefaultStrides(getShapeAtIdx, mb)),
-      srvb.advance(),
-      srvb.addArray(targetType.representation.fieldType("data").asInstanceOf[PArray], {srvb =>
-        Code(
-          srvb.start(targetType.numElements(outputShape, mb).toI),
-          coerce[Unit](emitLoops(srvb)))
-      }),
-
-      srvb.end()
+      targetType.construct(0, 0, outputShape, targetType.makeDefaultStrides(getShapeAtIdx, mb), dataAddress, mb)
     )
+
+//    Code(
+//      setup,
+//      srvb.start(),
+//      srvb.addInt(0),
+//      srvb.advance(),
+//      srvb.addInt(0),
+//      srvb.advance(),
+//      srvb.addIRIntermediate(outputShapePType)(outputShape),
+//      srvb.advance(),
+//      srvb.addIRIntermediate(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct])(targetType.makeDefaultStrides(getShapeAtIdx, mb)),
+//      srvb.advance(),
+//      srvb.addIRIntermediate(targetType.representation.fieldType("data").asInstanceOf[PArray])(dataAddress),
+//      srvb.end()
+//    )
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
