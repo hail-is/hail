@@ -45,7 +45,7 @@ log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 
 async def start_pod(k8s, userdata):
-    notebook2_base_url = deploy_config.base_url('notebook2')
+    notebook2_base_path = deploy_config.base_path('notebook2')
 
     jupyter_token = uuid.uuid4().hex
     pod_id = uuid.uuid4().hex
@@ -64,7 +64,7 @@ async def start_pod(k8s, userdata):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url={notebook2_base_url}/instance/{pod_id}/',
+                    f'--NotebookApp.base_url={notebook2_base_path}/instance/{pod_id}/',
                     f'--GoogleStorageContentManager.default_path="{bucket}"',
                     "--ip", "0.0.0.0", "--no-browser", "--allow-root"
                 ],
@@ -78,7 +78,7 @@ async def start_pod(k8s, userdata):
                 readiness_probe=kube.client.V1Probe(
                     period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
-                        path=f'{notebook2_base_url}/instance/{pod_id}/login',
+                        path=f'{notebook2_base_path}/instance/{pod_id}/login',
                         port=POD_PORT)),
                 volume_mounts=[
                     kube.client.V1VolumeMount(
@@ -319,8 +319,7 @@ async def wait_websocket(request, userdata):
     notebook = session['notebook']
 
     pod_uuid = notebook['pod_uuid']
-    notebook2_base_url = deploy_config.base_url('notebook2')
-    url = deploy_config.external_url('notebook2', f'{notebook2_base_url}/instance-ready/{pod_uuid}')
+    url = deploy_config.external_url('notebook2', f'/instance-ready/{pod_uuid}')
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
