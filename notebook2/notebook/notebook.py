@@ -108,7 +108,7 @@ async def start_pod(k8s, userdata):
                 'app': 'notebook2-worker',
                 'hail.is/notebook2-instance': INSTANCE_ID,
                 'uuid': pod_id,
-                'jupyter_token': jupyter_token,
+                'jupyter-token': jupyter_token,
                 'user_id': str(user_id)
             }),
         spec=pod_spec)

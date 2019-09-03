@@ -57,7 +57,7 @@ spec:
           - name: HAIL_NOTEBOOK_NAMESPACE
             value: "{{ default_ns.name }}"
           - name: HAIL_NOTEBOOK2_WORKER_IMAGE
-            value: gcr.io/broad-ctsa/hail-jupyter:latest
+            value: gcr.io/hail-vdc/hail-jupyter:latest
          ports:
           - containerPort: 5000
          volumeMounts:
