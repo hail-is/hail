@@ -1924,18 +1924,15 @@ private class Emit(
 
         val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup)
-        
+
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
           childP.representation.field("shape").typ.asInstanceOf[PTuple],
           body.pType, setup) {
           override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
             Code(
-              Code._println("Reached output element in NDArrayMap"),
               elemRef := childEmitter.outputElement(idxVars),
               bodyt.setup,
-              Code._println("Set up body"),
               bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
-              Code._println("Body wasn't empty"),
               bodyt.v
             )
           }
@@ -1995,7 +1992,6 @@ abstract class NDArrayEmitter(
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
     val body =
       Code(
-        Code._println("Evaluating innermost loop body"),
         storeElement := outputElement(idxVars).asInstanceOf[Code[Double]],
         srvb.addIRIntermediate(outputElementPType)(storeElement),
         srvb.advance()
@@ -2004,10 +2000,6 @@ abstract class NDArrayEmitter(
       Code(
         dimVar := 0L,
         Code.whileLoop(dimVar < Region.loadLong(outputShapePType.loadField(outputShape, dimIdx)),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[String, Unit](
-            "println", "The value of dimVar is:"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-            "println", dimVar),
           innerLoops,
           dimVar := dimVar + 1L
         )
