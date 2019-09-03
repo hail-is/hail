@@ -171,6 +171,7 @@ def pod_condition_for_ui(conds):
 
 
 def pod_to_ui_dict(pod):
+    log.info(f'getting pod: pod_ip: {pod.status.pod_ip}')
     notebook = {
         'name': 'a_notebook',
         'pod_name': pod.metadata.name,
@@ -279,6 +280,7 @@ async def auth(request, userdata):
     session = await aiohttp_session.get_session(request)
     notebook = await get_notebook(k8s, session, userdata)
     if notebook and notebook['pod_uuid'] == request_pod_uuid:
+        log.info(f'/auth: pod_ip: {notebook["pod_ip"]}')
         return web.Response(headers={
             'pod_ip': f"{notebook['pod_ip']}:{POD_PORT}"
         })
