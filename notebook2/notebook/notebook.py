@@ -116,7 +116,7 @@ def start_pod(k8s, jupyter_token, image, name, user_id, user_data):
                 'user_id': user_id
             }),
         spec=pod_spec)
-    pod = k8s.create_namespaced_pod(
+    pod = await k8s.create_namespaced_pod(
         NOTEBOOK_NAMESPACE,
         pod_template,
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
@@ -203,7 +203,7 @@ async def get_notebook(k8s, session, userdata):
         label_selector=f"user_id={user_id}",
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
-    for pod in pods:
+    for pod in pods.items:
         if pod.metadata.deletion_timestamp is None:
             notebook = pod_to_ui_dict(pod)
             session['notebook'] = notebook
