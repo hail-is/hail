@@ -34,7 +34,7 @@ spec:
           - name: HAIL_DOMAIN
             value: "{{ global.domain }}"
           - name: HAIL_NOTEBOOK2_WORKER_IMAGE
-            value: "{{ hail_jupyter_image.image }}"
+            value: gcr.io/broad-ctsa/hail-jupyter:latest
          ports:
           - containerPort: 5000
          volumeMounts:

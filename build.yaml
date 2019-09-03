@@ -774,7 +774,6 @@ steps:
    dependsOn:
     - default_ns
     - notebook2_image
-    - hail_jupyter_image
     - deploy_router
  - kind: runImage
    name: test_scheduler
