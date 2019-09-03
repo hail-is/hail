@@ -265,7 +265,7 @@ async def notebook_delete(request, userdata):
 @web_authenticated_users_only
 async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
-    session = aiohttp_session.get_session(request)
+    session = await aiohttp_session.get_session(request)
     pod = await start_pod(k8s, userdata)
     session['notebook'] = pod_to_ui_dict(pod)
     return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
@@ -276,7 +276,7 @@ async def notebook_post(request, userdata):
 async def auth(request, userdata):
     request_pod_uuid = request.match_info['requested_pod_uuid']
     k8s = request.app['k8s_client']
-    session = aiohttp_session.get_session(request)
+    session = await aiohttp_session.get_session(request)
     notebook = await get_notebook(k8s, session, userdata)
     if notebook and notebook['pod_uuid'] == request_pod_uuid:
         return web.Response(headers={
@@ -295,7 +295,7 @@ async def worker_image():
 @web_authenticated_users_only
 async def wait_websocket(request, userdata):
     k8s = request.app['k8s_client']
-    session = aiohttp_session.get_session(request)
+    session = await aiohttp_session.get_session(request)
     notebook = await get_notebook(k8s, session, userdata)
 
     if not notebook:
