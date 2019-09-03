@@ -10,7 +10,7 @@ from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
 from hailtop import gear
-from hailtop.gear.auth import authenticated_users_only, maybe_authenticated_user
+from hailtop.gear.auth import web_authenticated_users_only, web_maybe_authenticated_user
 
 gear.configure_logging()
 log = logging.getLogger('notebook2')
@@ -220,14 +220,14 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
-@maybe_authenticated_user
+@web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
     return {'userdata': userdata}
 
 
 @routes.get('/notebook')
 @aiohttp_jinja2.template('notebook.html')
-@authenticated_users_only
+@web_authenticated_users_only
 async def notebook_page(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
@@ -240,7 +240,7 @@ async def notebook_page(request, userdata):
 
 
 @routes.post('/notebook/delete')
-@authenticated_users_only
+@web_authenticated_users_only
 async def notebook_delete(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
@@ -254,7 +254,7 @@ async def notebook_delete(request, userdata):
 
 
 @routes.post('/notebook')
-@authenticated_users_only
+@web_authenticated_users_only
 async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
     session = aiohttp_session.get_session(request)
@@ -266,7 +266,7 @@ async def notebook_post(request, userdata):
 
 
 @routes.get('/auth/{requested_pod_uuid}')
-@authenticated_users_only
+@web_authenticated_users_only
 async def auth(request, userdata):
     request_pod_uuid = request.match_info['requested_pod_uuid']
     k8s = request.app['k8s_client']
@@ -286,8 +286,7 @@ async def worker_image():
 
 
 @routes.get('/wait')
-# FIXME don't redirect here
-@authenticated_users_only
+@web_authenticated_users_only
 async def wait_websocket(request, userdata):
     k8s = request.app['k8s_client']
     session = aiohttp_session.get_session(request)
@@ -327,16 +326,17 @@ async def wait_websocket(request, userdata):
 
 @routes.get('/error')
 @aiohttp_jinja2.template('error.html')
-@maybe_authenticated_user
+@web_maybe_authenticated_user
 async def error_page(request, userdata):  # pylint: disable=unused-argument
     return {
+        'userdata': userdata,
         'error': request.args.get('err')
     }
 
 
 @routes.get('/user')
 @aiohttp_jinja2.template('user.html')
-@authenticated_users_only
+@web_authenticated_users_only
 async def user_page(request, userdata):  # pylint: disable=unused-argument
     return {'userdata': userdata}
 

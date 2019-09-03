@@ -77,6 +77,27 @@ web_authenticated_users_only = _authenticated_users_only(False)
 web_authenticated_developers_only = _authenticated_developers_only(False)
 
 
+def web_maybe_authenticated_user(fun):
+    deploy_config = get_deploy_config()
+    cookie_name = deploy_config.auth_session_cookie_name()
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        userdata = None
+        if cookie_name in request.cookies:
+            try:
+                cookies = {cookie_name: request.cookies[cookie_name]}
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
+                                           cookies=cookies) as resp:
+                        userdata = await resp.json()
+            except Exception:
+                log.exception('getting userinfo')
+                raise web.HTTPUnauthorized()
+        return await fun(request, userdata, *args, **kwargs)
+    return wrapped
+
+
 def auth_headers(service, authorize_target=True):
     deploy_config = get_deploy_config()
     tokens = get_tokens()

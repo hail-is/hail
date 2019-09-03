@@ -25,6 +25,7 @@ async def auth(request):
     app = request.app
     k8s_client = app['k8s_client']
     namespace = request.match_info['namespace']
+    cookie_name = deploy_config.auth_session_cookie_name()
 
     headers = {}
     cookies = {}
@@ -32,8 +33,8 @@ async def auth(request):
         headers['Authorization'] = request.headers['X-Hail-Internal-Authorization']
     elif 'Authorization' in request.headers:
         headers['Authorization'] = request.headers['Authorization']
-    elif 'session' in request.cookies:
-        cookies['session'] = request.cookies['session']
+    elif cookie_name in request.cookies:
+        cookies[cookie_name] = request.cookies[cookie_name]
     else:
         raise web.HTTPUnauthorized()
 

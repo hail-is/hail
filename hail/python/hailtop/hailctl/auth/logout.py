@@ -18,6 +18,7 @@ async def async_main():
         print('Not logged in.')
         return
 
+    headers = auth_headers('auth')
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):

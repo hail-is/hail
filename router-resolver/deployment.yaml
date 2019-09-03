@@ -61,7 +61,7 @@ spec:
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
-	 env:
+         env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
          resources:

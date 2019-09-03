@@ -409,6 +409,16 @@ steps:
    dependsOn:
     - base_image
  - kind: runImage
+   name: check_notebook2
+   image:
+     valueFrom: auth_image.image
+   script: |
+     set -ex
+     python3 -m flake8 notebook
+     python3 -m pylint --rcfile pylintrc notebook
+   dependsOn:
+     - notebook2_image
+ - kind: runImage
    name: test_hail_python
    image:
      valueFrom: hail_run_image.image
@@ -542,6 +552,7 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - create_deploy_config
     - deploy_router
     - users_database
     - create_auth_tables
