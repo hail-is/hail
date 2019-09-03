@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+import jinja2
 import aiohttp
 from aiohttp import web
 import aiohttp_session
