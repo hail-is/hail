@@ -1317,48 +1317,41 @@ private class Emit(
         val repr = xP.representation
         val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
+        val dataPType = repr.fieldType("data").asInstanceOf[PArray]
         val nDims = shapePType.size
 
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val targetShapePType = repr.fieldType("strides").asInstanceOf[PBaseStruct]
-        val srvb = new StagedRegionValueBuilder(mb, repr)
+        val targetShapePType = repr.fieldType("shape").asInstanceOf[PBaseStruct]
+        //val srvb = new StagedRegionValueBuilder(mb, repr)
+        val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")
+        val shapeSrvb = new StagedRegionValueBuilder(mb, targetShapePType)
+        val ndAddress = mb.newField[Long]
+
 
         def getShapeAtIdx(index: Int) = region.loadLong(shapePType.loadField(shapet.value[Long], index))
 
-        val setup = coerce[Unit](Code(
+        val setup = Code(
           shapet.setup,
           datat.setup,
           rowMajort.setup,
-          srvb.start(),
-          srvb.addInt(0),
-          srvb.advance(),
-          srvb.addInt(0),
-          srvb.advance(),
           shapet.m.mux(
             Code._fatal("Missing shape"),
             Code(
-              srvb.addBaseStruct(targetShapePType, { srvb: StagedRegionValueBuilder =>
-                Code(
-                  srvb.start(),
-                  Code.foreach(0 until nDims) { index =>
-                    shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
-                      Code._fatal(s"shape missing at index $index"),
-                      Code(srvb.addLong(getShapeAtIdx(index)), srvb.advance())
-                    )
-                  })
-              }),
-              srvb.advance(),
-              srvb.addIRIntermediate(repr.fieldType("strides").asInstanceOf[PBaseStruct])(xP.makeDefaultStrides(getShapeAtIdx, mb)),
-              srvb.advance(),
-              srvb.addIRIntermediate(repr.fieldType("data").asInstanceOf[PArray])(
-                repr.fieldType("data").asInstanceOf[PArray].checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data"))
+              shapeSrvb.start(),
+              Code.foreach(0 until nDims) { index =>
+                shapePType.isFieldMissing(shapet.value[Long], index).mux[Unit](
+                  Code._fatal(s"shape missing at index $index"),
+                  Code(Code._println("Shaped"), shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
+                )
+              },
+              ndAddress := xP.construct(0, 0, shapeSrvb.end(), xP.makeDefaultStrides(getShapeAtIdx, mb), requiredData, mb)
             )
           )
-        ))
-        EmitTriplet(setup, false, srvb.end())
+        )
+        EmitTriplet(setup, false, ndAddress)
       case x@NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val t = x.pType.asInstanceOf[PNDArray].representation
