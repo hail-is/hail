@@ -31,6 +31,8 @@ spec:
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
           - name: HAIL_NOTEBOOK2_WORKER_IMAGE
             value: "{{ hail_jupyter_image.image }}"
          ports:
@@ -39,11 +41,18 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
+          - name: session-secret-keys
+            mountPath: /session-secret-keys
+            readOnly: true
       volumes:
        - name: deploy-config
          secret:
            optional: false
            secretName: deploy-config
+       - name: session-secret-keys
+         secret:
+           optional: false
+           secretName: session-secret-keys
 ---
 apiVersion: v1
 kind: Service

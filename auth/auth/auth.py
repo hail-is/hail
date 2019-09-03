@@ -22,8 +22,6 @@ log = logging.getLogger('auth')
 
 uvloop.install()
 
-DOMAIN = os.environ['HAIL_DOMAIN']
-
 deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
@@ -268,7 +266,7 @@ def run():
         aiohttp_session.setup(app, aiohttp_session.cookie_storage.EncryptedCookieStorage(
             f.read(),
             cookie_name=deploy_config.auth_session_cookie_name(),
-            domain=DOMAIN,
+            domain=os.environ['HAIL_DOMAIN'],
             # 2592000s = 30d
             max_age=2592000))
 

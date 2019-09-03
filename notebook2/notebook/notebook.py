@@ -222,7 +222,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-def base_config(userdata):
+def base_context(userdata):
     return {
         'base_path': deploy_config.base_path('notebook2'),
         'login_url': deploy_config.external_url('auth', '/login'),
@@ -234,8 +234,8 @@ def base_config(userdata):
 @aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    config = base_config(userdata)
-    return config
+    context = base_context(userdata)
+    return context
 
 
 @routes.get('/notebook')
@@ -244,9 +244,9 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 async def notebook_page(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    config = base_config(userdata)
-    config['notebook'] = get_notebook(k8s, session, userdata)
-    return config
+    context = base_context(userdata)
+    context['notebook'] = get_notebook(k8s, session, userdata)
+    return context
 
 
 @routes.post('/notebook/delete')
@@ -337,17 +337,17 @@ async def wait_websocket(request, userdata):
 @aiohttp_jinja2.template('error.html')
 @web_maybe_authenticated_user
 async def error_page(request, userdata):  # pylint: disable=unused-argument
-    config = base_config(userdata)
-    config['error'] = request.args.get('err')
-    return config
+    context = base_context(userdata)
+    context['error'] = request.args.get('err')
+    return context
 
 
 @routes.get('/user')
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only
 async def user_page(request, userdata):  # pylint: disable=unused-argument
-    config = base_config(userdata)
-    return config
+    context = base_context(userdata)
+    return context
 
 
 async def on_startup(app):
@@ -361,6 +361,15 @@ async def on_startup(app):
 def run():
     routes.static('/static', f'{notebook_root}/static')
     app = web.Application()
+
+    with open('/session-secret-keys/aiohttp-session-secret-key', 'rb') as f:
+        aiohttp_session.setup(app, aiohttp_session.cookie_storage.EncryptedCookieStorage(
+            f.read(),
+            cookie_name=deploy_config.auth_session_cookie_name(),
+            domain=os.environ['HAIL_DOMAIN'],
+            # 2592000s = 30d
+            max_age=2592000))
+
     app.add_routes(routes)
     app.on_startup.append(on_startup)
     aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(notebook_root, 'templates')))
