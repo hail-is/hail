@@ -27,7 +27,7 @@ object GenotypeFunctions extends RegistryFunctions {
           tPL.isElementDefined(region, pl, i).mux(
             Code._empty,
             Code._fatal("PL cannot have missing elements.")),
-          pli := region.loadInt(tPL.loadElement(region, pl, i)),
+          pli := region.loadInt(tPL.loadElement(region, pl, len, i)),
           (pli < m).mux(
             Code(m2 := m, m := pli),
             (pli < m2).mux(
