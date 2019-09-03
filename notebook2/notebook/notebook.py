@@ -16,6 +16,8 @@ from hailtop.gear.auth import web_authenticated_users_only, web_maybe_authentica
 
 log = logging.getLogger('notebook2')
 
+NOTEBOOK_NAMESPACE = os.environ['HAIL_NOTEBOOK_NAMESPACE']
+
 deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
@@ -115,7 +117,7 @@ def start_pod(k8s, jupyter_token, image, name, user_id, user_data):
             }),
         spec=pod_spec)
     pod = k8s.create_namespaced_pod(
-        'default',
+        NOTEBOOK_NAMESPACE,
         pod_template,
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
@@ -197,7 +199,7 @@ async def get_notebook(k8s, session, userdata):
 
     user_id = userdata['id']
     pods = await k8s.list_namespaced_pod(
-        namespace='default',
+        namespace=NOTEBOOK_NAMESPACE,
         label_selector=f"user_id={user_id}",
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
@@ -212,7 +214,7 @@ async def delete_worker_pod(k8s, pod_name):
     try:
         await k8s.delete_namespaced_pod(
             pod_name,
-            'default',
+            NOTEBOOK_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
         log.info(f'pod {pod_name} already deleted {e}')

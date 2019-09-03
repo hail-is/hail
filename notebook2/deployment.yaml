@@ -33,6 +33,8 @@ spec:
             value: /deploy-config/deploy-config.json
           - name: HAIL_DOMAIN
             value: "{{ global.domain }}"
+          - name: HAIL_NOTEBOOK_NAMESPACE
+            value: "{{ default_ns.name }}"
           - name: HAIL_NOTEBOOK2_WORKER_IMAGE
             value: gcr.io/broad-ctsa/hail-jupyter:latest
          ports:
