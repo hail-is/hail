@@ -411,7 +411,7 @@ steps:
  - kind: runImage
    name: check_notebook2
    image:
-     valueFrom: auth_image.image
+     valueFrom: notebook2_image.image
    script: |
      set -ex
      python3 -m flake8 notebook
