@@ -724,32 +724,65 @@ private class Emit(
               processAElts.addElements))),
           xmaccum, xvaccum)
 
-      case ArrayFor(a, valueName, body) =>
+      case ArrayFold2(a, acc, valueName, seq, res) =>
+        val typ = ir.typ
         val tarray = coerce[TStreamable](a.typ)
+        val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean]()
+        val xmv = mb.newField[Boolean](valueName + "_missing")
         val xvv = coerce[Any](mb.newField(valueName)(eti))
-        val bodyenv = env.bind(
-          (valueName, (eti, xmv.load(), xvv.load())))
-        val codeB = emit(body, env = bodyenv)
+        val accVars = acc.map { case (name, value) =>
+          val ti = typeToTypeInfo(value.typ)
+          (name, (ti, mb.newField[Boolean](s"${name}_missing"), mb.newField(name)(ti)))}
+        val xmtmp = mb.newField[Boolean]("arrayfold2_missing_tmp")
+
+        val resEnv = env.bindIterable(accVars.map { case (name, (ti, xm, xv)) => (name, (ti, xm.load(), xv.load())) })
+        val seqEnv = resEnv.bind(valueName, (eti, xmv.load(), xvv.load()))
+
+        val codeZ = acc.map { case (_, value) => emit(value) }
+        val codeSeq = seq.map(emit(_, env = seqEnv))
+
         val aBase = emitArrayIterator(a)
+
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           Code(
             xmv := m,
             xvv := xmv.mux(defaultValue(tarray.elementType), v),
-            codeB.setup)
+            Code(codeSeq.map(_.setup): _*),
+            coerce[Unit](Code(codeSeq.zipWithIndex.map { case (et, i) =>
+              val (_, (_, accm, accv)) = accVars(i)
+              Code(
+                xmtmp := et.m,
+                accv.storeAny(xmtmp.mux(defaultValue(acc(i)._2.typ): Code[_], et.v)),
+                accm := xmtmp
+              )
+            }: _*)))
         }
 
         val processAElts = aBase.arrayEmitter(cont)
-        val ma = processAElts.m.getOrElse(const(false))
-        EmitTriplet(
-          Code(
-            processAElts.setup,
-            ma.mux(
-              Code._empty,
-              Code(aBase.calcLength, processAElts.addElements))),
-          const(false),
-          Code._empty)
+        val marray = processAElts.m.getOrElse(const(false))
+
+        val xresm = mb.newField[Boolean]
+        val xresv = mb.newField(typeToTypeInfo(res.typ))
+        val codeR = emit(res, env = resEnv)
+
+        EmitTriplet(Code(
+          codeZ.map(_.setup),
+          accVars.zipWithIndex.map { case ((_, (ti, xm, xv)), i) =>
+            Code(xm := codeZ(i).m, xv.storeAny(xm.mux(defaultValue(acc(i)._2.typ), codeZ(i).v)))
+          },
+          processAElts.setup,
+          marray.mux(
+            Code(
+              xresm := true,
+              xresv.storeAny(defaultValue(res.typ))),
+            Code(
+              aBase.calcLength,
+              processAElts.addElements,
+              codeR.setup,
+              xresm := codeR.m,
+              xresv.storeAny(codeR.v)))),
+          xresm, xresv)
 
       case ArrayAgg(a, name, query) =>
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = ExtractAggregators.staged(mb.fb, query)
@@ -1231,6 +1264,7 @@ private class Emit(
           false,
           defaultValue(typ))
       case ir@ApplyIR(fn, args) =>
+        assert(!ir.inline)
         val mfield = mb.newField[Boolean]
         val vfield = mb.newField()(typeToTypeInfo(ir.typ))
 

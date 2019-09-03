@@ -136,25 +136,27 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("product", TArray(tnum("T")), tv("T"))(product)
 
-    def makeMinMaxOp(op: String): IR => IR = {
-      { a =>
+    def makeMinMaxOp(op: String): Seq[IR] => IR = {
+      { case Seq(a) =>
         val t = -coerce[TArray](a.typ).elementType
-        val accum = genUID()
         val value = genUID()
-
-        val aUID = genUID()
-        val aRef = Ref(aUID, a.typ)
-        val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
-
-        val body = invoke(op, t, Ref(value, t), Ref(accum, t))
-        Let(aUID, a, ArrayFold(aRef, zVal, accum, value, body))
+        val first = genUID()
+        val acc = genUID()
+        ArrayFold2(a,
+          FastIndexedSeq((acc, NA(t)), (first, True())),
+          value,
+          FastIndexedSeq(
+            If(Ref(first, TBoolean()), Ref(value, t), invoke(op, t, Ref(acc, t), Ref(value, t))),
+            False()
+          ),
+          Ref(acc, t))
       }
     }
 
-    registerIR("min", TArray(tnum("T")), tv("T"))(makeMinMaxOp("min"))
-    registerIR("nanmin", TArray(tnum("T")), tv("T"))(makeMinMaxOp("nanmin"))
-    registerIR("max", TArray(tnum("T")), tv("T"))(makeMinMaxOp("max"))
-    registerIR("nanmax", TArray(tnum("T")), tv("T"))(makeMinMaxOp("nanmax"))
+    registerIR("min", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("min"))
+    registerIR("nanmin", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("nanmin"))
+    registerIR("max", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("max"))
+    registerIR("nanmax", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("nanmax"))
 
     registerIR("mean", TArray(tnum("T")), TFloat64())(mean)
 

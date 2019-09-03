@@ -1051,6 +1051,19 @@ class IRSuite extends HailSuite {
     assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => I32(5) + I32(5)), 10)
   }
 
+  @Test def testArrayFold2() {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+
+    val af = ArrayFold2(In(0, TArray(TInt32())),
+      FastIndexedSeq(("x", I32(0)), ("y", NA(TInt32()))),
+      "val",
+      FastIndexedSeq(Ref("val", TInt32()) + Ref("x", TInt32()), Coalesce(FastSeq(Ref("y", TInt32()), Ref("val", TInt32())))),
+      MakeStruct(FastSeq(("x", Ref("x", TInt32())), ("y", Ref("y", TInt32()))))
+    )
+
+    assertEvalsTo(af, FastIndexedSeq((FastIndexedSeq(1, 2, 3), TArray(TInt32()))), Row(6, 1))
+  }
+
   @Test def testArrayScan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1724,6 +1737,7 @@ class IRSuite extends HailSuite {
       ArrayFilter(a, "v", b),
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
+      ArrayFold2(ArrayFold(a, I32(0), "x", "v", v)),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),

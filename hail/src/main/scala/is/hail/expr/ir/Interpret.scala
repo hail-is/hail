@@ -404,6 +404,7 @@ object Interpret {
           }
           zeroValue
         }
+      case _: ArrayFold2 => throw new NotImplementedError()
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)

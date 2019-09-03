@@ -958,6 +958,24 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val aType = a.typ.asInstanceOf[TStreamable]
+        val zeroEnvs = accum.map { case (name, zval) => memoizeValueIR(zval, zval.typ, memo) }
+        val seqEnvs = seq.map { seq => memoizeValueIR(seq, seq.typ, memo) }
+        val resEnv = memoizeValueIR(res, requestedType, memo)
+        val valueType = unifySeq(
+          aType.elementType,
+          resEnv.eval.lookupOption(valueName).map(_.result()).getOrElse(Array()) ++
+          seqEnvs.flatMap(_.eval.lookupOption(valueName).map(_.result()).getOrElse(Array())))
+
+        val accumNames = accum.map(_._1)
+        val seqNames = accumNames ++ Array(valueName)
+        unifyEnvsSeq(
+          zeroEnvs
+            ++ Array(resEnv.copy(eval = resEnv.eval.delete(accumNames)))
+            ++ seqEnvs.map(e => e.copy(eval = e.eval.delete(seqNames)))
+            ++ Array(memoizeValueIR(a, aType.copyStreamable(valueType), memo))
+        )
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val zeroEnv = memoizeValueIR(zero, zero.typ, memo)

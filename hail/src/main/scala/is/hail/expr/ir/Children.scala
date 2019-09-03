@@ -81,6 +81,8 @@ object Children {
       Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
+    case ArrayFold2(a, accum, valueName, seq, result) =>
+      Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
     case ArrayScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
     case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
