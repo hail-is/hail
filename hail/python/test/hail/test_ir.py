@@ -135,10 +135,6 @@ class ValueIRTests(unittest.TestCase):
             assert x == cp
             assert hash(x) == hash(cp)
 
-    def test_hash(self):
-        for x in self.value_irs():
-            assert hash(x)
-
 
 class TableIRTests(unittest.TestCase):
 
