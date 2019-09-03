@@ -327,8 +327,7 @@ async def wait_websocket(request, userdata):
     attempts = 0
     while attempts < 10:
         try:
-            async with aiohttp.ClientSession(raise_for_status=True,
-                                             timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
                 async with session.head(url, cookies=request.cookies) as resp:
                     if resp.status == 405:
                         log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {resp}')
