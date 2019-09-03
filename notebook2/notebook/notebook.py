@@ -246,7 +246,7 @@ async def notebook_page(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
     context = base_context(userdata)
-    context['notebook'] = get_notebook(k8s, session, userdata)
+    context['notebook'] = await get_notebook(k8s, session, userdata)
     return context
 
 
@@ -255,7 +255,7 @@ async def notebook_page(request, userdata):
 async def notebook_delete(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    notebook = get_notebook(k8s, session, userdata)
+    notebook = await get_notebook(k8s, session, userdata)
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
         del session['notebook']
