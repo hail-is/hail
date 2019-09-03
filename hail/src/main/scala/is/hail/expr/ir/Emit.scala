@@ -1357,9 +1357,10 @@ private class Emit(
         val shape = t.loadField(region, ndt.value[Long], "shape")
 
         EmitTriplet(ndt.setup, false, shape)
-      case x@NDArrayMap(nd, valueName, body) =>
+      case x: NDArrayMap =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         emitter.emit(x.pType.asInstanceOf[PNDArray])
+
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
