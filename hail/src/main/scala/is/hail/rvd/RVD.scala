@@ -1278,7 +1278,6 @@ object RVD {
     crdd: ContextRDD[RVDContext, RegionValue],
     keys: ContextRDD[RVDContext, RegionValue]
   ): RVD = {
-    val keys = getKeys(typ, crdd)
     makeCoercer(typ, partitionKey, keys).coerce(typ, crdd)
   }
 
