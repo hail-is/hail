@@ -43,7 +43,8 @@ log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 
-async def start_pod(k8s, jupyter_token, image, name, userdata):
+async def start_pod(k8s, userdata):
+    jupyter_token = uuid.uuid4().hex
     pod_id = uuid.uuid4().hex
 
     user_id = userdata['id']
@@ -65,7 +66,7 @@ async def start_pod(k8s, jupyter_token, image, name, userdata):
                     "--ip", "0.0.0.0", "--no-browser", "--allow-root"
                 ],
                 name='default',
-                image=image,
+                image=WORKER_IMAGE,
                 env=[kube.client.V1EnvVar(name='HAIL_TOKEN_FILE',
                                           value='/user-jwt/jwt')],
                 ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
@@ -94,17 +95,12 @@ async def start_pod(k8s, jupyter_token, image, name, userdata):
             kube.client.V1Volume(
                 name='gsa-key',
                 secret=kube.client.V1SecretVolumeSource(
-                    secret_name=gsa_key_secret_name
-                )
-            ),
+                    secret_name=gsa_key_secret_name)),
             kube.client.V1Volume(
                 name='user-jwt',
                 secret=kube.client.V1SecretVolumeSource(
-                    secret_name=jwt_secret_name
-                )
-            )
-        ]
-    )
+                    secret_name=jwt_secret_name))
+        ])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook2-worker-',
@@ -112,9 +108,8 @@ async def start_pod(k8s, jupyter_token, image, name, userdata):
                 'app': 'notebook2-worker',
                 'hail.is/notebook2-instance': INSTANCE_ID,
                 'uuid': pod_id,
-                'name': name,
                 'jupyter_token': jupyter_token,
-                'user_id': user_id
+                'user_id': str(user_id)
             }),
         spec=pod_spec)
     pod = await k8s.create_namespaced_pod(
@@ -177,13 +172,13 @@ def pod_condition_for_ui(conds):
 
 def pod_to_ui_dict(pod):
     notebook = {
-        'name': pod.metadata.labels['name'],
+        'name': pod.metadata.labels['notebook-name'],
         'pod_name': pod.metadata.name,
         'pod_status': pod.status.phase,
         'pod_uuid': pod.metadata.labels['uuid'],
         'pod_ip': pod.status.pod_ip,
         'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
-        'jupyter_token': pod.metadata.labels['jupyter_token'],
+        'jupyter_token': pod.metadata.labels['jupyter-token'],
         'container_status': container_status_for_ui(pod.status.container_statuses),
         'condition': pod_condition_for_ui(pod.status.conditions),
         'deletion_timestamp': pod.metadata.deletion_timestamp
@@ -271,8 +266,7 @@ async def notebook_delete(request, userdata):
 async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
     session = aiohttp_session.get_session(request)
-    jupyter_token = uuid.uuid4().hex
-    pod = await start_pod(k8s, jupyter_token, WORKER_IMAGE, 'a_notebook', userdata)
+    pod = await start_pod(k8s, userdata)
     session['notebook'] = pod_to_ui_dict(pod)
     return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
