@@ -286,14 +286,6 @@ class CompiledLineParser(
     Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
       msg, filename, lineNumber, pos, pos + 1))
 
-  private[this] def parseError[T](msg: Code[String], pos: Code[Int]): Code[T] =
-    Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
-      msg, filename, lineNumber, pos, pos + 1))
-
-  private[this] def parseError[T](msg: Code[String], posStart: Code[Int], posEnd: Code[Int]): Code[T] =
-    Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
-      msg, filename, lineNumber, posStart, posEnd))
-
   private[this] def numericValue(c: Code[Char]): Code[Int] =
     ((c < '0') || (c > '9')).mux(
       parseError(const("invalid character '")
@@ -380,10 +372,10 @@ class CompiledLineParser(
       case _: TInt64 => missingOr(mb, srvb.addLong(parseLongMb.invoke(region)))
       case _: TFloat32 => missingOr(mb,
         srvb.addFloat(
-         Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invoke(region))))
+          Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invoke(region))))
       case _: TFloat64 => missingOr(mb,
         srvb.addDouble(
-         Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invoke(region))))
+          Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invoke(region))))
       case _: TString =>
         missingOr(mb, srvb.addString(parseStringMb.invoke(region)))
     }
@@ -444,14 +436,13 @@ class CompiledLineParser(
             index,
             x.value))
       } catch {
-        case e: MatrixParseError => fatal(
-          s"""""Error parse line $index:
+        case e: MatrixParseError =>
+          fatal(
+          s"""""Error parse line $index:${e.posStart}-${e.posEnd}:
                |    File: $filename
                |    Line:
-               |        ${ x.value.truncate }
-               |        ${ " " * e.posStart }^${ "-" * (e.posEnd - e.posStart - 1)}${ if (e.posEnd - e.posStart == 1) "" else "^" }""".stripMargin,
+               |        ${ x.value.truncate }""".stripMargin,
           e)
-
         case e: Exception => fatal(
           s"""""Error parse line $index:
                |    File: $filename
