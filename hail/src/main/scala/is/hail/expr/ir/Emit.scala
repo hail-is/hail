@@ -1325,7 +1325,6 @@ private class Emit(
         val rowMajort = emit(rowMajorIR)
 
         val targetShapePType = repr.fieldType("shape").asInstanceOf[PBaseStruct]
-        //val srvb = new StagedRegionValueBuilder(mb, repr)
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")
         val shapeSrvb = new StagedRegionValueBuilder(mb, targetShapePType)
         val ndAddress = mb.newField[Long]
@@ -1360,7 +1359,7 @@ private class Emit(
         EmitTriplet(ndt.setup, false, shape)
       case x@NDArrayMap(nd, valueName, body) =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
-        present(emitter.emit(x.pType.asInstanceOf[PNDArray]))
+        emitter.emit(x.pType.asInstanceOf[PNDArray])
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
@@ -1955,10 +1954,8 @@ abstract class NDArrayEmitter(
 
   def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_]
 
-  def emit(targetType: PNDArray): Code[_] = {
-    val srvb = new StagedRegionValueBuilder(mb, targetType.representation)
-    def getShapeAtIdx(index: Int) = srvb.region.loadLong(outputShapePType.loadField(outputShape, index))
-
+  def emit(targetType: PNDArray): EmitTriplet = {
+    def getShapeAtIdx(index: Int) = Region.loadLong(outputShapePType.loadField(outputShape, index))
 
     val dataSrvb = new StagedRegionValueBuilder(mb, targetType.representation.fieldType("data").asInstanceOf[PArray])
 
@@ -1969,25 +1966,14 @@ abstract class NDArrayEmitter(
         dataSrvb.end()
       )
     }
-    Code(
-      setup,
-      targetType.construct(0, 0, outputShape, targetType.makeDefaultStrides(getShapeAtIdx, mb), dataAddress, mb)
-    )
 
-//    Code(
-//      setup,
-//      srvb.start(),
-//      srvb.addInt(0),
-//      srvb.advance(),
-//      srvb.addInt(0),
-//      srvb.advance(),
-//      srvb.addIRIntermediate(outputShapePType)(outputShape),
-//      srvb.advance(),
-//      srvb.addIRIntermediate(targetType.representation.fieldType("strides").asInstanceOf[PBaseStruct])(targetType.makeDefaultStrides(getShapeAtIdx, mb)),
-//      srvb.advance(),
-//      srvb.addIRIntermediate(targetType.representation.fieldType("data").asInstanceOf[PArray])(dataAddress),
-//      srvb.end()
-//    )
+    val ndAddress = mb.newField[Long]
+
+    val ndSetup = Code(
+      setup,
+      ndAddress := targetType.construct(0, 0, outputShape, targetType.makeDefaultStrides(getShapeAtIdx, mb), dataAddress, mb)
+    )
+    EmitTriplet(ndSetup, false, ndAddress)
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
