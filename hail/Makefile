@@ -292,6 +292,7 @@ clean-docs:
 .PHONY: docs
 docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
+	rm -rf build/www
 	cp -R www build/www
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
@@ -302,7 +303,9 @@ docs: install $(PYTHON_VERSION_INFO)
 	$(MAKE) -C build/www
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
+	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: test
 test: pytest jvm-test doctest tutorial-test
@@ -310,6 +313,7 @@ test: pytest jvm-test doctest tutorial-test
 .PHONY: tutorial-test
 docs-no-test: $(PYTHON_VERSION_INFO)
 	mkdir -p build
+	rm -rf build/www
 	cp -R www build/www
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
@@ -320,7 +324,9 @@ docs-no-test: $(PYTHON_VERSION_INFO)
 	$(MAKE) -C build/www
 	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
+	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
