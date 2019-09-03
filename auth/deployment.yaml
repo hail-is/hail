@@ -36,6 +36,8 @@ spec:
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
          resources:
            requests:
              memory: "250M"
