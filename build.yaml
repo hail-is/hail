@@ -111,7 +111,6 @@ steps:
       timeout: 120
    scopes:
     - test
-    - dev
    dependsOn:
     - default_ns
     - batch_pods_ns
