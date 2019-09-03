@@ -1,3 +1,4 @@
+
 from os import path
 from tempfile import TemporaryDirectory
 import hail as hl
@@ -144,6 +145,13 @@ def table_aggregate_int_stats():
     ht.aggregate(tuple([*(hl.agg.stats(ht[f'i{i}']) for i in range(5)),
                         *(hl.agg.stats(hl.sum(ht[f'array{i}'])) for i in range(2)),
                         *(hl.agg.explode(lambda elt: hl.agg.stats(elt), ht[f'array{i}']) for i in range(2))]))
+
+
+@benchmark
+def table_range_means():
+    ht = hl.utils.range_table(10_000_000, 16)
+    ht = ht.annotate(m = hl.mean(hl.range(0, ht.idx % 1111)))
+    ht._force_count()
 
 
 @benchmark
