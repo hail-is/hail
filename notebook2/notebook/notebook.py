@@ -43,13 +43,14 @@ log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 
-async def start_pod(k8s, jupyter_token, image, name, user_id, user_data):
+async def start_pod(k8s, jupyter_token, image, name, userdata):
     pod_id = uuid.uuid4().hex
 
-    ksa_name = user_data['ksa_name']
-    bucket = user_data['bucket_name']
-    gsa_key_secret_name = user_data['gsa_key_secret_name']
-    jwt_secret_name = user_data['jwt_secret_name']
+    user_id = userdata['id']
+    ksa_name = userdata['ksa_name']
+    bucket = userdata['bucket_name']
+    gsa_key_secret_name = userdata['gsa_key_secret_name']
+    jwt_secret_name = userdata['jwt_secret_name']
 
     pod_spec = kube.client.V1PodSpec(
         service_account_name=ksa_name,
@@ -271,7 +272,7 @@ async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
     session = aiohttp_session.get_session(request)
     jupyter_token = uuid.uuid4().hex
-    pod = await start_pod(k8s, jupyter_token, WORKER_IMAGE, 'a_notebook', userdata['id'], userdata['username'])
+    pod = await start_pod(k8s, jupyter_token, WORKER_IMAGE, 'a_notebook', userdata)
     session['notebook'] = pod_to_ui_dict(pod)
     return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
