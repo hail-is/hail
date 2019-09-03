@@ -9,11 +9,12 @@ import sass
 from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
-from hailtop import gear
+from hailtop.gear import get_deploy_config
 from hailtop.gear.auth import web_authenticated_users_only, web_maybe_authenticated_user
 
-gear.configure_logging()
 log = logging.getLogger('notebook2')
+
+deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
 
@@ -235,8 +236,7 @@ async def notebook_page(request, userdata):
     session = await aiohttp_session.get_session(request)
     return {
         'userdata': userdata,
-        # FIXME don't hardcode notebook2.hail.is
-        'base_url': 'https://notebook2.hail.is',
+        'base_url': deploy_config.external_url('notebook2', ''),
         'notebook': get_notebook(k8s, session, userdata)
     }
 
@@ -251,8 +251,7 @@ async def notebook_delete(request, userdata):
         await delete_worker_pod(k8s, notebook['pod_name'])
         del session['notebook']
 
-    # FIXME don't hardcode notebook2.hail.is
-    return web.HTTPFound(location='https://notebook2.hail.is/notebook')
+    return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
 
 @routes.post('/notebook')
@@ -264,7 +263,7 @@ async def notebook_post(request, userdata):
     name = request.form.get('name', 'a_notebook')
     pod = start_pod(k8s, jupyter_token, WORKER_IMAGE, name, userdata['id'], userdata['username'])
     session['notebook'] = pod_to_ui_dict(pod)
-    return web.HTTPFound(location='https://notebook2.hail.is/notebook')
+    return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
 
 @routes.get('/auth/{requested_pod_uuid}')
@@ -300,7 +299,7 @@ async def wait_websocket(request, userdata):
     notebook = session['notebook']
 
     pod_uuid = notebook['pod_uuid']
-    url = 'https://notebook2.hail.is/instance-ready/{pod_uuid}/'
+    url = deploy_config.external_url('notebook2', '/instance-ready/{pod_uuid}/')
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
