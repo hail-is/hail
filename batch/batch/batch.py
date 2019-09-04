@@ -20,7 +20,7 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop import gear
+from hailtop.gear import unzip, setup_aiohttp_session
 from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token, \
     async_get_userinfo
@@ -86,6 +86,7 @@ else:
 v1 = kube.client.CoreV1Api()
 
 app = web.Application(client_max_size=None)
+setup_aiohttp_session(app)
 
 routes = web.RouteTableDef()
 

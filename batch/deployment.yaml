@@ -50,6 +50,9 @@ spec:
          - name: deploy-config
            mountPath: /deploy-config
            readOnly: true
+         - name: session-secret-key
+           mountPath: /session-secret-key
+           readOnly: true
          - name: batch-user-secret
            mountPath: /batch-user-secret
            readOnly: true
@@ -70,6 +73,10 @@ spec:
          secret:
            optional: false
            secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
        - name: batch-user-secret
          secret:
            optional: false

@@ -15,7 +15,7 @@ import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
 from hailtop.batch_client.aioclient import BatchClient, Job
-from hailtop.gear import get_deploy_config
+from hailtop.gear import get_deploy_config, setup_aiohttp_session
 from hailtop.gear.auth import rest_authenticated_developers_only, web_authenticated_developers_only, new_csrf_token, check_csrf_token
 from hailtop import gear
 from .constants import BUCKET
@@ -35,6 +35,7 @@ watched_branches = [
 ]
 
 app = web.Application()
+setup_aiohttp_session(app)
 
 routes = web.RouteTableDef()
 

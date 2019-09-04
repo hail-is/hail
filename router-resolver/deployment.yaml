@@ -73,6 +73,15 @@ spec:
              cpu: "1"
          ports:
           - containerPort: 5000
+         volumeMounts:
+          - name: session-secret-key
+            mountPath: /session-secret-key
+            readOnly: true
+      volumes:
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
 ---
 apiVersion: v1
 kind: Service

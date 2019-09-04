@@ -4,6 +4,7 @@ import asyncio
 import aiodns
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 from kubernetes_asyncio import client, config
 import logging
 
@@ -25,24 +26,24 @@ async def auth(request):
     app = request.app
     k8s_client = app['k8s_client']
     namespace = request.match_info['namespace']
-    cookie_name = deploy_config.auth_session_cookie_name()
 
     headers = {}
-    cookies = {}
     if 'X-Hail-Internal-Authorization' in request.headers:
         headers['Authorization'] = request.headers['X-Hail-Internal-Authorization']
     elif 'Authorization' in request.headers:
         headers['Authorization'] = request.headers['Authorization']
-    elif cookie_name in request.cookies:
-        cookies[cookie_name] = request.cookies[cookie_name]
     else:
-        raise web.HTTPUnauthorized()
+        session = aiohttp_session.get_session(request)
+        session_id = session.get('session_id')
+        if not session_id:
+            raise web.HTTPUnauthorized()
+        headers['Authorization'] = f'Bearer {session_id}'
 
     try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
-                                   headers=headers, cookies=cookies) as resp:
+                                   headers=headers) as resp:
                 userdata = await resp.json()
     except Exception:
         log.exception('getting userinfo')

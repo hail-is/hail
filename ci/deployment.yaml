@@ -54,6 +54,9 @@ spec:
            - mountPath: /deploy-config
              name: deploy-config
              readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
            - mountPath: /ci-user-secret
              name: ci-user-secret
              readOnly: true
@@ -79,6 +82,10 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
        - name: ci-user-secret
          secret:
            optional: false
