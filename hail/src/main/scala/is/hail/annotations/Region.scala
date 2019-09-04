@@ -259,8 +259,6 @@ final class Region private (var blockSize: Region.Size) extends NativeBase() {
     update(clearButKeepMem(this.addrA, _block_offset.toInt), blockSize)
   }
 
-  final def align(a: Long) = nativeAlign(this.addrA, a)
-
   final def allocate(a: Long, n: Long): Long = {
     val aligned_off = (_block_offset + a - 1) & ~(a - 1)
     if (aligned_off + n <= blockSize) {
