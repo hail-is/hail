@@ -183,18 +183,13 @@ async def rest_logout(request, userdata):
 
 @routes.get('/api/v1alpha/userinfo')
 async def userinfo(request):
-    if 'Authorization' in request.headers:
-        auth_header = request.headers['Authorization']
-        if not auth_header.startswith('Bearer '):
-            raise web.HTTPUnauthorized()
-        session_id = auth_header[7:]
-    else:
-        session = await aiohttp_session.get_session(request)
-        if not session:
-            raise web.HTTPUnauthorized()
-        session_id = session.get('session_id')
-        if not session_id:
-            raise web.HTTPUnauthorized()
+    if 'Authorization' not in request.headers:
+        raise web.HTTPUnauthorized()
+
+    auth_header = request.headers['Authorization']
+    if not auth_header.startswith('Bearer '):
+        raise web.HTTPUnauthorized()
+    session_id = auth_header[7:]
 
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:

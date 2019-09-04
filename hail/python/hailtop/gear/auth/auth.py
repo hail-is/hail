@@ -38,25 +38,25 @@ def _authenticated_users_only(rest, redirect):
                 else:
                     raise web.HTTPUnauthorized()
 
-            headers = {}
-            cookies = {}
             if rest:
-                if 'Authorization' in request.headers:
-                    headers['Authorization'] = request.headers['Authorization']
-                else:
+                if 'Authorization' not in request.headers:
                     unauth()
+                auth_header = request.headers['Authorization']
+                if not auth_header.startswith('Bearer '):
+                    unauth()
+                session_id = auth_header[7:]                    
             else:
-                # web
-                if cookie_name in request.cookies:
-                    cookies[cookie_name] = request.cookies[cookie_name]
-                else:
+                session = aiohttp_session.get_session(request)
+                if 'session_id' not in session:
                     unauth()
-
+                session_id = session['session_id']
+            
+            headers = {'Authorization': f'Bearer {session_id}'}
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
-                                           headers=headers, cookies=cookies) as resp:
+                                           headers=headers) as resp:
                         userdata = await resp.json()
             except Exception:  # pylint: disable=broad-except
                 log.exception('getting userinfo')
@@ -96,17 +96,18 @@ def web_maybe_authenticated_user(fun):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         userdata = None
-        if cookie_name in request.cookies:
+        session = aiohttp_session.get_session(request)
+        if 'session_id' in session:
+            session_id = session['session_id']
+            headers = {'Authorization': f'Bearer {session_id}'}
             try:
-                cookies = {cookie_name: request.cookies[cookie_name]}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
-                                           cookies=cookies) as resp:
+                                           headers=headers) as resp:
                         userdata = await resp.json()
             except Exception:
                 log.exception('getting userinfo')
-                return None
         return await fun(request, userdata, *args, **kwargs)
     return wrapped
 
