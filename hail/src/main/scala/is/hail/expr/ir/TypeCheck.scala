@@ -340,7 +340,7 @@ object TypeCheck {
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TArray])
-      case x@ReadPartition(path, _, _, rowType) =>
+      case x@ReadPartition(path, _, rowType) =>
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
     }

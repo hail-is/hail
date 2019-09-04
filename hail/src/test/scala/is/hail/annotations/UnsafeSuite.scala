@@ -7,9 +7,11 @@ import is.hail.check._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
+import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.json4s.jackson.Serialization
+import org.testng.annotations.{DataProvider, Test}
 
 import scala.util.Random
 
@@ -46,6 +48,18 @@ class UnsafeSuite extends HailSuite {
     }
   }
 
+  @DataProvider(name = "codecs")
+  def codecs(): Array[Array[Any]] = {
+    (CodecSpec.codecSpecs ++ Array(PackCodecSpec2(PStruct("x" -> PInt64()), CodecSpec.defaultUncompressedBuffer)))
+      .map(x => Array[Any](x))
+  }
+
+  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec) {
+    implicit val formats = AbstractRVDSpec.formats
+    assert(Serialization.read[Spec](codec.toString) == codec)
+
+  }
+
   @Test def testCodec() {
     val region = Region()
     val region2 = Region()
@@ -60,49 +74,53 @@ class UnsafeSuite extends HailSuite {
       .filter { case (t, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))
+      val pt = PType.canonical(t).asInstanceOf[PStruct]
 
       val requestedType = subsetType(t).asInstanceOf[TStruct]
+      val prt = PType.canonical(requestedType).asInstanceOf[PStruct]
+
       val a2 = subset(t, requestedType, a)
       assert(requestedType.typeCheck(a2))
 
       CodecSpec.codecSpecs.foreach { codecSpec =>
+        val codec = codecSpec.makeCodecSpec2(pt)
         region.clear()
-        rvb.start(t.physicalType)
+        rvb.start(pt)
         rvb.addRow(t, a.asInstanceOf[Row])
         val offset = rvb.end()
-        val ur = new UnsafeRow(t.physicalType, region, offset)
 
         val aos = new ByteArrayOutputStream()
-        val en = codecSpec.buildEncoder(t.physicalType)(aos)
+        val en = codec.buildEncoder(pt)(aos)
         en.writeRegionValue(region, offset)
         en.flush()
 
         region2.clear()
-        val ais = new ByteArrayInputStream(aos.toByteArray)
-        val dec = codecSpec.buildDecoder(t.physicalType, t.physicalType)(ais)
-        val offset2 = dec.readRegionValue(region2)
-        val ur2 = new UnsafeRow(t.physicalType, region2, offset2)
+        val ais2 = new ByteArrayInputStream(aos.toByteArray)
+        val (retPType2: PStruct, dec2) = codec.buildDecoder(t)
+        val offset2 = dec2(ais2).readRegionValue(region2)
+        val ur2 = new UnsafeRow(retPType2, region2, offset2)
         assert(t.typeCheck(ur2))
         assert(t.valuesSimilar(a, ur2))
 
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
-        val dec3 = codecSpec.buildDecoder(t.physicalType, requestedType.physicalType)(ais3)
-        val offset3 = dec3.readRegionValue(region3)
-        val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
+        val (retPType3: PStruct, dec3) = codec.buildDecoder(requestedType)
+        val offset3 = dec3(ais3).readRegionValue(region3)
+        val ur3 = new UnsafeRow(retPType3, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
+        val codec2 = codecSpec.makeCodecSpec2(PType.canonical(requestedType))
         val aos2 = new ByteArrayOutputStream()
-        val en2 = codecSpec.buildEncoder(t.physicalType, requestedType.physicalType)(aos2)
+        val en2 = codec.buildEncoder(pt, prt)(aos2)
         en2.writeRegionValue(region, offset)
         en2.flush()
 
         region4.clear()
         val ais4 = new ByteArrayInputStream(aos2.toByteArray)
-        val dec4 = codecSpec.buildDecoder(requestedType.physicalType, requestedType.physicalType)(ais4)
-        val offset4 = dec4.readRegionValue(region4)
-        val ur4 = new UnsafeRow(requestedType.physicalType, region4, offset4)
+        val (retPType4: PStruct, dec4) = codec2.buildDecoder(requestedType)
+        val offset4 = dec4(ais4).readRegionValue(region4)
+        val ur4 = new UnsafeRow(retPType4, region4, offset4)
         assert(requestedType.typeCheck(ur4))
         if (!requestedType.valuesSimilar(a2, ur4)) {
           println(t)
@@ -132,14 +150,16 @@ class UnsafeSuite extends HailSuite {
       Region.scoped { region =>
         val off = ScalaToRegionValue(region, t, v)
         CodecSpec.codecSpecs.foreach { spec =>
+          val cs2 = spec.makeCodecSpec2(t)
           val baos = new ByteArrayOutputStream()
-          val enc = spec.buildEncoder(t)(baos)
+          val enc = cs2.buildEncoder(t)(baos)
           enc.writeRegionValue(region, off)
           enc.flush()
 
           val serialized = baos.toByteArray
-          val dec = spec.buildDecoder(t, t)(new ByteArrayInputStream(serialized))
-          val res = dec.readRegionValue(region)
+          val (decT, dec) = cs2.buildDecoder(t.virtualType)
+          assert(decT == t)
+          val res = dec((new ByteArrayInputStream(serialized))).readRegionValue(region)
 
           assert(t.unsafeOrdering().equiv(RegionValue(region, res), RegionValue(region, off)))
         }

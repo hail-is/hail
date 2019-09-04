@@ -255,7 +255,7 @@ class MatrixIRSuite extends HailSuite {
     params.foreach { case (n, strat) =>
       val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false).rvd
       assert(rvd.getNumPartitions == n, n -> strat)
-      val values = rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
+      val values = rvd.collect().map(r => r.getAs[Int](0))
       assert(values.isSorted && values.length == 11, n -> strat)
     }
   }

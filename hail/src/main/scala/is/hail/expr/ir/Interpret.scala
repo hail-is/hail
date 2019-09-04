@@ -719,7 +719,7 @@ object Interpret {
         child.execute(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = child.execute(ctx)
-        Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.safeJavaValue)
+        Row(tv.rvd.collect().toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(_.execute(ctx))
         writer(tvs)
@@ -754,7 +754,7 @@ object Interpret {
                 SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
               }
             } else {
-              val spec = CodecSpec.defaultUncompressed
+              val spec = CodecSpec.defaultUncompressedBuffer
 
               val (_, initOp) = CompileWithAggregators2[Long, Unit](
                 extracted.aggs,

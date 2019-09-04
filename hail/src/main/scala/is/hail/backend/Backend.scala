@@ -107,7 +107,8 @@ abstract class Backend {
 
     Region.scoped { region =>
       val (pt: PTuple, f) = Compile[Long](MakeTuple.ordered(FastSeq(ir)))
-      (pt.parsableString(), codec.encode(pt, region, f(0, region)(region)))
+      val enc = codec.makeCodecSpec2(pt)
+      (pt.parsableString(), enc.encode(pt, region, f(0, region)(region)))
     }
   }
 
@@ -118,12 +119,14 @@ abstract class Backend {
   ): String = Region.scoped { region =>
     val codec = CodecSpec.fromShortString(codecString)
     val pt = IRParser.parsePType(ptypeString).asInstanceOf[PTuple]
+    val enc = codec.makeCodecSpec2(pt)
+    val (ptResult: PTuple, dec) = enc.decode(pt.virtualType, bytes, region)
     JsonMethods.compact(
       JSONAnnotationImpex.exportAnnotation(
         SafeRow(
-          pt,
+          ptResult,
           region,
-          codec.decode(pt, bytes, region)).get(0),
+          dec).get(0),
         pt.fields(0).typ.virtualType))
   }
 
