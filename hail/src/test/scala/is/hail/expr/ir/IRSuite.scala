@@ -827,6 +827,25 @@ class IRSuite extends HailSuite {
     )
 
     assertPType(ir, PArray(PArray(PArray(PInt32(true), false), true), true))
+
+    ir = MakeArray(
+      FastSeq(
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          NA(TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        NA(TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32())))
+      ),
+      TArray(TArray(TArray(TInt32())))
+    )
+
+    assertPType(ir, PArray(PArray(PArray(PInt32(true), true), false), true))
   }
 
   @Test def testMakeStruct() {
@@ -871,7 +890,6 @@ class IRSuite extends HailSuite {
 
     val t = MakeTuple.ordered(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
-    println(t)
     assertEvalsTo(GetTupleElement(t, 0), 5)
     assertEvalsTo(GetTupleElement(t, 1), "abc")
     assertEvalsTo(GetTupleElement(t, 2), null)

@@ -278,7 +278,7 @@ abstract class PType extends BaseType with Serializable {
 
   def deepInnerRequired(required: Boolean): PType =
     this match {
-      case t: PArray => PArray(t.elementType.deepInnerRequired(true), required)
+      case t: PArray =>  PArray(t.elementType.deepInnerRequired(true), required)
       case t: PSet => PSet(t.elementType.deepInnerRequired(true), required)
       case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
