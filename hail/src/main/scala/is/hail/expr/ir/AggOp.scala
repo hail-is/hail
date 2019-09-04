@@ -27,7 +27,6 @@ final case class Collect() extends AggOp
 final case class CollectAsSet() extends AggOp
 final case class Count() extends AggOp
 final case class Downsample() extends AggOp
-final case class InfoScore() extends AggOp
 final case class LinearRegression() extends AggOp
 final case class Max() extends AggOp
 final case class Min() extends AggOp
@@ -73,9 +72,6 @@ object AggOp {
       case _: TFloat64 => CodeAggregator[RegionValueCollectDoubleAggregator](TArray(in), seqOpArgTypes = Array(classOf[Double]))
       case _ => CodeAggregator[RegionValueCollectAnnotationAggregator](TArray(in), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
     }
-
-    case (InfoScore(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
-      CodeAggregator[RegionValueInfoScoreAggregator](RegionValueInfoScoreAggregator.typ, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
 
     case (Sum(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueSumLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
     case (Sum(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueSumDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
@@ -202,7 +198,6 @@ object AggOp {
     case "count" | "Count" => Count()
     case "take" | "Take" => Take()
     case "takeBy" | "TakeBy" => TakeBy()
-    case "infoScore" | "InfoScore" => InfoScore()
     case "callStats" | "CallStats" => CallStats()
     case "linreg" | "LinearRegression" => LinearRegression()
     case "downsample" | "Downsample" => Downsample()

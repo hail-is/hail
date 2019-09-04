@@ -108,24 +108,6 @@ class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
   def copy() = new CollectAggregator(t)
 }
 
-class InfoScoreAggregator(t: PType) extends TypedAggregator[Annotation] {
-
-  var _state = new InfoScoreCombiner(t)
-
-  def result = _state.asAnnotation
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(x.asInstanceOf[IndexedSeq[java.lang.Double]])
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new InfoScoreAggregator(t)
-}
-
 class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregator[T] {
 
   import scala.math.Numeric.Implicits._
