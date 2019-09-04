@@ -13,7 +13,6 @@ from flask import Flask, Response, request
 import requests
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import JWTClient, get_tokens
 
 from .serverthread import ServerThread
 
@@ -317,33 +316,29 @@ class Test(unittest.TestCase):
     def test_authorized_users_only(self):
         deploy_config = get_deploy_config()
         endpoints = [
-            (requests.get, '/api/v1alpha/batches/0/jobs/0'),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status'),
-            (requests.get, '/api/v1alpha/batches'),
-            (requests.post, '/api/v1alpha/batches/create'),
-            (requests.post, '/api/v1alpha/batches/0/jobs/create'),
-            (requests.get, '/api/v1alpha/batches/0'),
-            (requests.delete, '/api/v1alpha/batches/0'),
-            (requests.patch, '/api/v1alpha/batches/0/close'),
-            (requests.get, '/batches'),
-            (requests.get, '/batches/0'),
-            (requests.get, '/batches/0/jobs/0/log')]
-        for f, url in endpoints:
+            (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status', 401),
+            (requests.get, '/api/v1alpha/batches', 401),
+            (requests.post, '/api/v1alpha/batches/create', 401),
+            (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),
+            (requests.get, '/api/v1alpha/batches/0', 401),
+            (requests.delete, '/api/v1alpha/batches/0', 401),
+            (requests.patch, '/api/v1alpha/batches/0/close', 401),
+            # redirect to auth/login
+            (requests.get, '/batches', 302),
+            (requests.get, '/batches/0', 302),
+            (requests.get, '/batches/0/jobs/0/log', 302)]
+        for f, url, expected in endpoints:
             r = f(deploy_config.url('batch', url))
             assert r.status_code == 401, r
 
-    def test_bad_jwt_key(self):
-        deploy_config = get_deploy_config()
-        auth_ns = deploy_config.service_ns('auth')
-        tokens = get_tokens()
-        token = tokens[auth_ns]
-        payload = JWTClient.unsafe_decode(token)
-        token2 = JWTClient(_secret_key=JWTClient.generate_key()).encode(payload)
+    def test_bad_token(self):
+        token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        bc = BatchClient(session, _token=token2)
+        bc = BatchClient(session, _token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
