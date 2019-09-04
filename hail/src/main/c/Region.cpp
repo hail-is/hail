@@ -84,7 +84,7 @@ void Region::clear_parent_reference(int i) {
 std::unique_ptr<char[]> RegionPool::get_block(size_t size) {
   auto free_blocks = get_block_pool(size);
   if (free_blocks->empty()) {
-    return std::make_unique<char[]>(size);
+    return std::unique_ptr<char[]>(new char[size]);
   }
   std::unique_ptr<char[]> block = std::move(free_blocks->back());
   free_blocks->pop_back();
