@@ -326,6 +326,14 @@ object BlockMatrix {
 
     using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
+
+  def writeBlockMatrices(
+    bms: IndexedSeq[BlockMatrix],
+    prefix: String,
+    overwrite: Boolean
+  ): Unit = {
+    println("Round tripped")
+  }
 }
 
 // must be top-level for Jackson to serialize correctly

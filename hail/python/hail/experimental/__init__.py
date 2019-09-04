@@ -8,7 +8,7 @@ from .phase_by_transmission import phase_by_transmission, \
     phase_trio_matrix_by_transmission, explode_trio_matrix
 from .datasets import load_dataset
 from .import_gtf import import_gtf, get_gene_intervals
-from .write_multiple import write_matrix_tables, block_matrices_tofiles, export_block_matrices
+from .write_multiple import write_matrix_tables, block_matrices_tofiles, export_block_matrices, write_block_matrices
 from .export_entries_by_col import export_entries_by_col
 from .vcf_combiner import sparse_split_multi, run_combiner, lgt_to_gt, densify
 from .function import define_function
@@ -40,6 +40,7 @@ __all__ = ['ld_score',
            'write_matrix_tables',
            'block_matrices_tofiles',
            'export_block_matrices',
+           'write_block_matrices',
            'export_entries_by_col',
            'define_function',
            'simulate_phenotypes',

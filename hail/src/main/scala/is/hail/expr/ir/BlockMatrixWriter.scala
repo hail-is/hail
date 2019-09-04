@@ -11,7 +11,7 @@ object BlockMatrixWriter {
     override val typeHints = ShortTypeHints(
       List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
         classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter],
-        classOf[BlockMatrixPersistWriter]))
+        classOf[BlockMatrixPersistWriter], classOf[BlockMatrixNativeMultiWriter]))
     override val typeHintFieldName: String = "name"
   }
 }
@@ -81,4 +81,13 @@ case class BlockMatrixTextMultiWriter(
 
   def apply(fs: FS, bms: IndexedSeq[BlockMatrix]): Unit =
     BlockMatrix.exportBlockMatrices(fs, bms, prefix, overwrite, delimiter, header, addIndex, compression, customFilenames)
+}
+
+case class BlockMatrixNativeMultiWriter(
+  prefix: String,
+  overwrite: Boolean) extends BlockMatrixMultiWriter {
+
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit = {
+    BlockMatrix.writeBlockMatrices(bms, prefix, overwrite)
+  }
 }
