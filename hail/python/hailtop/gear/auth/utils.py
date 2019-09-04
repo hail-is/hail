@@ -26,17 +26,7 @@ async def create_session(dbpool, user_id):
     session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
+            await cursor.execute('INSERT INTO sessions (session_id, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
                                  # 2592000s = 30d
-                                 (session_id, 'web', user_id, 2592000))
+                                 (session_id, user_id, 2592000))
     return session_id
-
-
-def create_session_token(session_id):
-    jwtclient = get_jwtclient()
-    now = time.time()
-    return jwtclient.encode({
-        'iat': now,
-        'exp': now + 30 * 86400,
-        'sub': session_id
-    })

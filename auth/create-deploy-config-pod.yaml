@@ -17,6 +17,8 @@ spec:
        EOF
        kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
        kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
-       kubectl -n {{ batch_pods_ns.name }} delete --ignore-not-found secret deploy-config
-       kubectl -n {{ batch_pods_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+       if [ {{ default_ns.name }} != {{ batch_pods_ns.name }} ]; then
+           kubectl -n {{ batch_pods_ns.name }} delete --ignore-not-found secret deploy-config
+           kubectl -n {{ batch_pods_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+       fi
   restartPolicy: Never

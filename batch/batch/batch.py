@@ -1144,7 +1144,7 @@ async def delete_batch(request, userdata):
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @aiohttp_jinja2.template('batch.html')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1159,7 +1159,7 @@ async def ui_batch(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @aiohttp_jinja2.template('batches.html')
 @check_csrf_token
-@web_authenticated_users_only
+@web_authenticated_users_only(redirect=False)
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1170,7 +1170,7 @@ async def ui_cancel_batch(request, userdata):
 
 @routes.get('/batches', name='batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
@@ -1188,7 +1188,7 @@ async def ui_batches(request, userdata):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
 @aiohttp_jinja2.template('job_log.html')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -1200,7 +1200,7 @@ async def ui_get_job_log(request, userdata):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
 @prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
 @aiohttp_jinja2.template('pod_status.html')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -1210,7 +1210,7 @@ async def ui_get_pod_status(request, userdata):
 
 
 @routes.get('/')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def batch_id(request, userdata):
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)

@@ -24,9 +24,15 @@ def get_userinfo():
     loop = asyncio.get_event_loop()
     return loop.run_until_complete(async_get_userinfo())
 
-def _authenticated_users_only(rest):
+def _authenticated_users_only(rest, redirect):
     deploy_config = get_deploy_config()
     cookie_name = deploy_config.auth_session_cookie_name()
+    def unauth():
+        if redirect:
+            login_url = deploy_config.external_url('auth', '/login')
+            raise web.HTTPFound(f'{login_url}?next={request.url}')
+        else:
+            raise web.HTTPUnauthorized()
     def wrap(fun):
         @wraps(fun)
         async def wrapped(request, *args, **kwargs):
@@ -36,13 +42,13 @@ def _authenticated_users_only(rest):
                 if 'Authorization' in request.headers:
                     headers['Authorization'] = request.headers['Authorization']
                 else:
-                    raise web.HTTPUnauthorized()
+                    unauth()
             else:
                 # web
                 if cookie_name in request.cookies:
                     cookies[cookie_name] = request.cookies[cookie_name]
                 else:
-                    raise web.HTTPUnauthorized()
+                    unauth()
 
             try:
                 async with aiohttp.ClientSession(
@@ -52,15 +58,15 @@ def _authenticated_users_only(rest):
                         userdata = await resp.json()
             except Exception:
                 log.exception('getting userinfo')
-                raise web.HTTPUnauthorized()
+                unauth()
             return await fun(request, userdata, *args, **kwargs)
         return wrapped
     return wrap
 
 
-def _authenticated_developers_only(rest):
+def _authenticated_developers_only(rest, redirect):
     def wrap(fun):
-        @_authenticated_users_only(rest)
+        @_authenticated_users_only(rest, redirect)
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
             if ('developer' in userdata) and userdata['developer'] == 1:
@@ -70,11 +76,16 @@ def _authenticated_developers_only(rest):
     return wrap
 
 
-rest_authenticated_users_only = _authenticated_users_only(True)
-rest_authenticated_developers_only = _authenticated_developers_only(True)
+rest_authenticated_users_only = _authenticated_users_only(rest=True, redirect=False)
+rest_authenticated_developers_only = _authenticated_developers_only(rest=True, redirect=False)
 
-web_authenticated_users_only = _authenticated_users_only(False)
-web_authenticated_developers_only = _authenticated_developers_only(False)
+
+def web_authenticated_users_only(redirect=True):
+    return _authenticated_users_only(False, redirect)
+
+
+def web_authenticated_developers_only(redirect=True):
+    return _authenticated_developers_only(False, redirect)
 
 
 def web_maybe_authenticated_user(fun):

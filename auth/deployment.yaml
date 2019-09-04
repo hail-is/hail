@@ -52,11 +52,11 @@ spec:
           - name: auth-oauth2-client-secret
             mountPath: /auth-oauth2-client-secret
             readOnly: true
-          - name: session-secret-keys
-            mountPath: /session-secret-keys
+          - name: session-secret-key
+            mountPath: /session-secret-key
             readOnly: true
-          - name: sql-users-users-user-config
-            mountPath: /sql-users-users-user-config
+          - name: sql-config
+            mountPath: /sql-config
             readOnly: true
          ports:
           - containerPort: 5000
@@ -69,11 +69,11 @@ spec:
          secret:
            optional: false
            secretName: auth-oauth2-client-secret
-       - name: session-secret-keys
+       - name: session-secret-key
          secret:
            optional: false
-           secretName: session-secret-keys
-       - name: sql-users-users-user-config
+           secretName: session-secret-key
+       - name: sql-config
          secret:
            optional: false
            secretName: "{{ users_database.user_secret_name }}"

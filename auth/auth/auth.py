@@ -1,22 +1,17 @@
-import os
-import json
 import logging
-import base64
-import secrets
 import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
-import aiomysql
 import uvloop
-import jwt
 
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_jwtclient, rest_authenticated_users_only, web_authenticated_users_only, create_session_token
+from hailtop.gear import get_deploy_config, setup_aiohttp_session, create_database_pool
+from hailtop.gear.auth import rest_authenticated_users_only, \
+    web_maybe_authenticated_user, create_session
 
 log = logging.getLogger('auth')
 
@@ -44,13 +39,19 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
+@routes.get('')
 @routes.get('/')
 async def get_index(request):  # pylint: disable=unused-argument
     return aiohttp.web.HTTPFound('/login')
 
 
 @routes.get('/login')
-async def login(request):
+@web_maybe_authenticated_user
+async def login(request, userdata):
+    next = request.query.get('next', deploy_config.external_url('notebook2', ''))
+    if userdata:
+        return aiohttp.web.HTTPFound(next)
+
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     authorization_url, state = flow.authorization_url(
@@ -59,22 +60,16 @@ async def login(request):
 
     session = await aiohttp_session.get_session(request)
     session['state'] = state
-    next = request.query.get('next')
-    if next:
-        session['next'] = next
-    elif 'next' in session:
-        del session['next']
+    session['next'] = next
 
     return aiohttp.web.HTTPFound(authorization_url)
 
 
 @routes.get('/oauth2callback')
 async def callback(request):
-    unauth = web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-
     session = await aiohttp_session.get_session(request)
     if 'state' not in session:
-        raise unauth
+        raise web.HTTPUnauthorized()
     state = session['state']
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'), state=state)
@@ -86,7 +81,7 @@ async def callback(request):
         id = token['sub']
     except Exception:
         log.exception('oauth2 callback: could not fetch and verify token')
-        raise unauth
+        raise web.HTTPUnauthorized()
 
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
@@ -95,26 +90,23 @@ async def callback(request):
             users = await cursor.fetchall()
 
     if len(users) != 1:
-        raise unauth
+        raise web.HTTPUnauthorized()
     user = users[0]
 
-    session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
-                                 # 2592000s = 30d
-                                 (session_id, 'web', user['id'], 2592000))
+    session_id = await create_session(dbpool, user['id'])
 
     del session['state']
-    next = session.pop('next', deploy_config.external_url('notebook2', ''))
     session['session_id'] = session_id
+    next = session.pop('next')
     return aiohttp.web.HTTPFound(next)
 
 
 @routes.post('/logout')
-@web_authenticated_users_only
+@web_maybe_authenticated_user
 async def logout(request, userdata):
+    if not userdata:
+        return web.HTTPFound(deploy_config.external_url('notebook2', ''))
+
     dbpool = request.app['dbpool']
     session_id = userdata['session_id']
     async with dbpool.acquire() as conn:
@@ -122,11 +114,10 @@ async def logout(request, userdata):
             await cursor.execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     session = await aiohttp_session.get_session(request)
-    if session:
-        session.invalidate()
+    if 'session_id' in session:
+        del session['session_id']
 
-    # FIXME redirect to a nice place
-    return web.Response(status=200)
+    return web.HTTPFound(deploy_config.external_url('notebook2', ''))
 
 
 @routes.get('/api/v1alpha/login')
@@ -146,8 +137,6 @@ async def rest_login(request):
 
 @routes.get('/api/v1alpha/oauth2callback')
 async def rest_callback(request):
-    unauth = web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-
     state = request.query['state']
     code = request.query['code']
     callback_port = request.query['callback_port']
@@ -160,7 +149,7 @@ async def rest_callback(request):
         id = token['sub']
     except Exception:
         log.exception('fetching and decoding token')
-        raise unauth
+        raise web.HTTPUnauthorized()
 
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
@@ -169,18 +158,13 @@ async def rest_callback(request):
             users = await cursor.fetchall()
 
     if len(users) != 1:
-        raise unauth
+        raise web.HTTPUnauthorized()
     user = users[0]
 
-    session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
-                                 (session_id, 'rest', user['id'], 30 * 86400))
+    session_id = await create_session(dbpool, user['id'])
 
     return web.json_response({
-        'token': create_session_token(session_id),
+        'token': session_id,
         'username': user['username']
     })
 
@@ -203,14 +187,7 @@ async def userinfo(request):
         auth_header = request.headers['Authorization']
         if not auth_header.startswith('Bearer '):
             raise web.HTTPUnauthorized()
-        token = auth_header[7:]
-        try:
-            body = get_jwtclient().decode(token)
-        except jwt.InvalidTokenError:
-            log.exception('while decoding token')
-            raise web.HTTPUnauthorized()
-
-        session_id = body['sub']
+        session_id = auth_header[7:]
     else:
         session = await aiohttp_session.get_session(request)
         if not session:
@@ -241,16 +218,7 @@ WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < 
 
 
 async def on_startup(app):
-    with open('/sql-users-users-user-config/sql-config.json', 'r') as f:
-        config = json.loads(f.read().strip())
-        app['dbpool'] = await aiomysql.create_pool(host=config['host'],
-                                                   port=config['port'],
-                                                   db=config['db'],
-                                                   user=config['user'],
-                                                   password=config['password'],
-                                                   charset='utf8',
-                                                   cursorclass=aiomysql.cursors.DictCursor,
-                                                   autocommit=True)
+    app['dbpool'] = await create_database_pool()
 
 
 async def on_cleanup(app):
@@ -262,13 +230,7 @@ async def on_cleanup(app):
 def run():
     app = web.Application()
 
-    with open('/session-secret-keys/aiohttp-session-secret-key', 'rb') as f:
-        aiohttp_session.setup(app, aiohttp_session.cookie_storage.EncryptedCookieStorage(
-            f.read(),
-            cookie_name=deploy_config.auth_session_cookie_name(),
-            domain=os.environ['HAIL_DOMAIN'],
-            # 2592000s = 30d
-            max_age=2592000))
+    setup_aiohttp_session(app)
 
     app.add_routes(routes)
     app.on_startup.append(on_startup)

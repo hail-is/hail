@@ -21,7 +21,6 @@ CREATE TABLE `user_data` (
 
 CREATE TABLE `sessions` (
   `session_id` VARCHAR(255) NOT NULL,
-  `kind` VARCHAR(255) NOT NULL,
   `user_id` INT(11) NOT NULL,
   `max_age_secs` INT(11) UNSIGNED DEFAULT NULL,
   `created` TIMESTAMP DEFAULT NOW(),

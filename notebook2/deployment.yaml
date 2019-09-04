@@ -64,18 +64,18 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
-          - name: session-secret-keys
-            mountPath: /session-secret-keys
+          - name: session-secret-key
+            mountPath: /session-secret-key
             readOnly: true
       volumes:
        - name: deploy-config
          secret:
            optional: false
            secretName: deploy-config
-       - name: session-secret-keys
+       - name: session-secret-key
          secret:
            optional: false
-           secretName: session-secret-keys
+           secretName: session-secret-key
 ---
 apiVersion: v1
 kind: Service

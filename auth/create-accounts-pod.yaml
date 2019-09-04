@@ -15,23 +15,6 @@ spec:
      - -c
      - |
        set -ex
-       echo 'show tables;' | mysql --defaults-extra-file=/sql-config/sql-config.cnf
-       echo 'show grants;' | mysql --defaults-extra-file=/sql-config/sql-config.cnf
-       # create session keys
-       mkdir /session-secret-keys
-       cat > generate-session-keys.py <<EOF
-       import secrets
-       import base64
-       from cryptography import fernet
-       from hailtop import gear
-       import hailtop.gear.auth
-       with open('/session-secret-keys/jwt-secret-key', 'wb') as f:
-           f.write(gear.auth.JWTClient.generate_key())
-       with open('/session-secret-keys/aiohttp-session-secret-key', 'wb') as f:
-           f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))
-       EOF
-       python3 generate-session-keys.py
-       kubectl -n {{ default_ns.name }} create secret generic session-secret-keys --from-file=/session-secret-keys/jwt-secret-key --from-file=/session-secret-keys/aiohttp-session-secret-key
        # create accounts
        mkdir /user-tokens
        cat > create-session.py <<EOF
@@ -39,7 +22,7 @@ spec:
        import json
        import asyncio
        from hailtop.gear import create_database_pool, get_deploy_config
-       from hailtop.gear.auth import get_tokens, create_user, create_session, create_session_token
+       from hailtop.gear.auth import get_tokens, create_user, create_session
        async def main():
            dbpool = await create_database_pool()
            tokens = get_tokens()
@@ -47,7 +30,7 @@ spec:
            userdata = await create_user(dbpool, user_spec)
            deploy_config = get_deploy_config()
            auth_ns = deploy_config.service_ns('auth')
-           tokens[auth_ns] = create_session_token(await create_session(dbpool, userdata['id']))
+           tokens[auth_ns] = await create_session(dbpool, userdata['id'])
            tokens.write()
        loop = asyncio.get_event_loop()
        loop.run_until_complete(main())
