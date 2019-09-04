@@ -5,8 +5,8 @@ map $http_x_forwarded_proto $updated_scheme {
      '' $scheme;
 }
 
-map $host_x_forwarded_host $updated_host {
-     default $host_x_forwarded_host;
+map $http_x_forwarded_host $updated_host {
+     default $http_x_forwarded_host;
      '' $http_host;
 }
 
