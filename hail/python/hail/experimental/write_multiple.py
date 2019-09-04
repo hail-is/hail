@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from hail import MatrixTable
 from hail.linalg import BlockMatrix
-from hail.ir import MatrixMultiWrite, MatrixNativeMultiWriter, BlockMatrixMultiWrite, BlockMatrixBinaryMultiWriter, BlockMatrixTextMultiWriter
+from hail.ir import MatrixMultiWrite, MatrixNativeMultiWriter, BlockMatrixMultiWrite, BlockMatrixBinaryMultiWriter, BlockMatrixTextMultiWriter, BlockMatrixNativeMultiWriter
 from hail.typecheck import nullable, sequenceof, typecheck, enumeration
 from hail.utils.java import Env
 
@@ -41,4 +41,8 @@ def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool =
         assert len(custom_filenames) == len(bms), "Number of block matrices and number of custom filenames must be equal"
 
     writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression, custom_filenames)
+    Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
+
+def write_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False):
+    writer = BlockMatrixNativeMultiWriter
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
