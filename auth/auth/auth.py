@@ -2,7 +2,6 @@ import logging
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import aiohttp_session.cookie_storage
 import uvloop
 
 import google.auth.transport.requests

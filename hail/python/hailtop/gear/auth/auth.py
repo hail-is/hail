@@ -4,6 +4,7 @@ import urllib.parse
 import asyncio
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 
 from ..deploy_config import get_deploy_config
 from .tokens import get_tokens
@@ -27,7 +28,6 @@ def get_userinfo():
 
 def _authenticated_users_only(rest, redirect):
     deploy_config = get_deploy_config()
-    cookie_name = deploy_config.auth_session_cookie_name()
     def wrap(fun):
         @wraps(fun)
         async def wrapped(request, *args, **kwargs):
@@ -35,8 +35,7 @@ def _authenticated_users_only(rest, redirect):
                 if redirect:
                     login_url = deploy_config.external_url('auth', '/login')
                     raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(request.url)}')
-                else:
-                    raise web.HTTPUnauthorized()
+                raise web.HTTPUnauthorized()
 
             if rest:
                 if 'Authorization' not in request.headers:
@@ -44,13 +43,13 @@ def _authenticated_users_only(rest, redirect):
                 auth_header = request.headers['Authorization']
                 if not auth_header.startswith('Bearer '):
                     unauth()
-                session_id = auth_header[7:]                    
+                session_id = auth_header[7:]
             else:
                 session = aiohttp_session.get_session(request)
                 if 'session_id' not in session:
                     unauth()
                 session_id = session['session_id']
-            
+
             headers = {'Authorization': f'Bearer {session_id}'}
             try:
                 async with aiohttp.ClientSession(
@@ -92,7 +91,6 @@ def web_authenticated_developers_only(redirect=True):
 
 def web_maybe_authenticated_user(fun):
     deploy_config = get_deploy_config()
-    cookie_name = deploy_config.auth_session_cookie_name()
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         userdata = None
@@ -106,7 +104,7 @@ def web_maybe_authenticated_user(fun):
                     async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
                                            headers=headers) as resp:
                         userdata = await resp.json()
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 log.exception('getting userinfo')
         return await fun(request, userdata, *args, **kwargs)
     return wrapped
