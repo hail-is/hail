@@ -314,8 +314,8 @@ async def update_loop(app):
                 await wb.update(app)
         except concurrent.futures.CancelledError:
             raise
-        except Exception as e:  # pylint: disable=broad-except
-            log.error(f'{wb.branch.short_str()} update failed due to exception: {traceback.format_exc()}{e}')
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'{wb.branch.short_str()} update failed due to exception')
         await asyncio.sleep(300)
 
 

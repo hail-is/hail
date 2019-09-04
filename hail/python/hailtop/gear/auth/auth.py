@@ -28,15 +28,16 @@ def get_userinfo():
 def _authenticated_users_only(rest, redirect):
     deploy_config = get_deploy_config()
     cookie_name = deploy_config.auth_session_cookie_name()
-    def unauth():
-        if redirect:
-            login_url = deploy_config.external_url('auth', '/login')
-            raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(request.url)}')
-        else:
-            raise web.HTTPUnauthorized()
     def wrap(fun):
         @wraps(fun)
         async def wrapped(request, *args, **kwargs):
+            def unauth():
+                if redirect:
+                    login_url = deploy_config.external_url('auth', '/login')
+                    raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(request.url)}')
+                else:
+                    raise web.HTTPUnauthorized()
+
             headers = {}
             cookies = {}
             if rest:
@@ -57,7 +58,7 @@ def _authenticated_users_only(rest, redirect):
                     async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
                                            headers=headers, cookies=cookies) as resp:
                         userdata = await resp.json()
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 log.exception('getting userinfo')
                 unauth()
             return await fun(request, userdata, *args, **kwargs)
