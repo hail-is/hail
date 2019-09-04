@@ -89,6 +89,7 @@ server {
         resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$1.default.svc.cluster.local$request_uri;
 
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -116,6 +117,7 @@ server {
     location / {
         proxy_pass http://notebook/;
 
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -147,6 +149,7 @@ server {
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -178,6 +181,7 @@ server {
     location / {
         proxy_pass http://notebook2;
 
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -223,6 +227,7 @@ server {
     location / {
         proxy_pass http://auth/;
 
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
