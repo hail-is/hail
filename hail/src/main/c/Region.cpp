@@ -36,7 +36,7 @@ char * Region::allocate_new_block(size_t n) {
 }
 
 char * Region::allocate_big_chunk(size_t n) {
-  big_chunks_.push_back(std::make_unique<char[]>(n));
+  big_chunks_.push_back(std::unique_ptr<char[]>(new char[n]));
   return big_chunks_.back().get();
 }
 
