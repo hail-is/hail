@@ -615,7 +615,7 @@ class Job:
             durations=durations)
 
     async def mark_terminated(self, pod):
-        container_logs, errs = gear.unzip(
+        container_logs, errs = unzip(
             await asyncio.gather(*(
                 app['k8s'].read_pod_log(pod.metadata.name, container=container)
                 for container in tasks)))
