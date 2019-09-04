@@ -177,15 +177,15 @@ object Region {
 //    those operations have to know the RegionValue's Type to convert
 //    within-Region references to/from absolute addresses.
 
-final class Region private (blockSize: Region.Size) extends NativeBase() {
+final class Region private (var blockSize: Region.Size) extends NativeBase() {
   def this() { this(Region.REGULAR) }
-  @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
+  @native def nativeCtor(p: RegionPool, blockSize: Int): Long
   nativeCtor(RegionPool.get, blockSize)
 
-  @native def nativeGetNewRegion(addr: Long, poolAddr: Long, blockSize: Int): Unit
+  @native def nativeGetNewRegion(addr: Long, poolAddr: Long, blockSize: Int): Long
 
-  @native def clearButKeepMem(addr: Long): Unit
-  @native def setNull(addr: Long): Unit
+  @native def clearButKeepMem(addr: Long, off: Int): Long
+  @native def setNull(addr: Long, off: Int): Unit
   @native def nativeAlign(addr: Long, alignment: Long): Unit
   @native def nativeAlignAllocate(addr: Long, alignment: Long, n: Long): Long
   @native def nativeAllocate(addr: Long, n: Long): Long
@@ -193,22 +193,44 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
 
   @native def nativeGetNumParents(addr: Long): Int
   @native def nativeSetNumParents(addr: Long, n: Int): Unit
-  @native def nativeSetParentReference(thisAddr: Long, refAddr: Long, i: Int): Unit
-  @native def nativeGetParentReferenceInto(srcAddr: Long, destAddr: Long, i: Int, blockSize: Int): Unit
+  @native def nativeSetParentReference(thisAddr: Long, refAddr: Long, i: Int, off: Int): Unit
+  @native def nativeGetParentReferenceInto(srcAddr: Long, destAddr: Long, i: Int, blockSize: Int): Long
   @native def nativeClearParentReference(addr: Long, i: Int): Unit
 
   @native def nativeGetBlockSize(): Int
   @native def nativeGetNumChunks(): Int
   @native def nativeGetNumUsedBlocks(): Int
-  @native def nativeGetCurrentOffset(): Int
+  @native def nativeGetCurrentOffset(addr: Long): Int
+  @native def nativeSetCurrentOffset(addr: Long, off: Int): Unit
   @native def nativeGetBlockAddress(): Long
 
+  def getCurrentOffset(): Int = nativeGetCurrentOffset(this.addrA)
+
+  @native def nativeGetNewBlock(thisAddr: Long): Long
+  @native def nativeGetBigChunk(thisAddr: Long, size: Int): Long
+
+  private var _block_offset: Long = 0
+  private var _block_addr: Long = nativeGetBlockAddress()
+  private var _block_threshold: Long = blockSize
 
   private var _isValid: Boolean = true
   private var _numParents: Int = 0
 
+  final override def close(): Unit = {
+    nativeSetCurrentOffset(this.addrA, _block_offset.toInt)
+    super.close()
+  }
+
+  def update(addr: Long, blockSize: Int): Unit = {
+    this.blockSize = blockSize
+    _block_offset = nativeGetCurrentOffset(this.addrA)
+    _block_addr = addr
+    _block_threshold = if (blockSize < 4 * 1024) blockSize else 4 * 1024
+  }
+
   def getNewRegion(blockSize: Int): Unit = {
-    nativeGetNewRegion(this.addrA, RegionPool.get.getAddr, blockSize)
+    val addr = nativeGetNewRegion(this.addrA, RegionPool.get.getAddr, blockSize)
+    update(addr, blockSize)
     _isValid = true
     _numParents = 0
   }
@@ -217,7 +239,7 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   def invalidate(): Unit = {
     if (_isValid) {
       _isValid = false
-      setNull(this.addrA)
+      setNull(this.addrA, _block_offset.toInt)
     }
   }
   
@@ -233,11 +255,43 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   final def moveAssign(b: Region) = super.moveAssign(b)
   
 
-  final def clear(): Unit = clearButKeepMem(this.addrA)
+  final def clear(): Unit = {
+    update(clearButKeepMem(this.addrA, _block_offset.toInt), blockSize)
+  }
 
   final def align(a: Long) = nativeAlign(this.addrA, a)
-  final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(this.addrA, a, n)
-  final def allocate(n: Long): Long = nativeAllocate(this.addrA, n)
+
+  final def allocate(a: Long, n: Long): Long = {
+    val aligned_off = (_block_offset + a - 1) & ~(a - 1)
+    if (aligned_off + n <= blockSize) {
+      val p = _block_addr + aligned_off
+      _block_offset = aligned_off + n
+      p
+    } else {
+      if (n <= _block_threshold) {
+        _block_addr = nativeGetNewBlock(this.addrA)
+        _block_offset = n
+        _block_addr
+      } else nativeGetBigChunk(this.addrA, n.toInt)
+    }
+//      nativeAlignAllocate(this.addrA, a, n)
+  }
+
+  final def allocate(n: Long): Long = {
+    if (_block_offset + n <= blockSize) {
+      val p = _block_addr + _block_offset
+      _block_offset += n
+      p
+    } else {
+      if (n <= _block_threshold) {
+        _block_addr = nativeGetNewBlock(this.addrA)
+        _block_offset = n
+        _block_addr
+      }
+      else nativeGetBigChunk(this.addrA, n.toInt)
+    }
+//      nativeAllocate(this.addrA, n)
+  }
 
   // FIXME: `reference` can't be used with explicitly setting number of parents
   final def reference(other: Region): Unit = {
@@ -256,12 +310,13 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
 
   def setParentReference(r: Region, i: Int): Unit = {
     assert(i < _numParents)
-    nativeSetParentReference(this.addrA, r.addrA, i)
+    nativeSetParentReference(this.addrA, r.addrA, i, r._block_offset.toInt)
   }
 
   def setFromParentReference(src: Region, i: Int, blockSize: Int): Unit = {
     src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize)
     _isValid = true
+    update(src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize), blockSize)
     _numParents = nativeGetNumParents(this.addrA)
   }
 
@@ -269,6 +324,7 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
     assert(i < _numParents)
     val r = new Region(blockSize)
     nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize)
+    r.update(nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize), blockSize)
     r
   }
 
@@ -471,7 +527,7 @@ object RegionUtils {
   def logRegionStats(header: String, region: Region): Unit = {
     val size = region.nativeGetBlockSize()
     val nUsed = region.nativeGetNumUsedBlocks()
-    val off = region.nativeGetCurrentOffset()
+    val off = region.getCurrentOffset()
     val numChunks = region.nativeGetNumChunks()
     val addr = "%016x".format(region.nativeGetBlockAddress())
 

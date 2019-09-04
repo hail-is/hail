@@ -37,7 +37,7 @@ class NativeBase() extends AutoCloseable {
     nativeCopyCtor(b.addrA, b.addrB)
   }
 
-  final def close() {
+  def close() {
     if (addrA != 0) {
       val tmpA = addrA
       val tmpB = addrB

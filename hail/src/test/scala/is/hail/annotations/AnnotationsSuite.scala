@@ -92,4 +92,28 @@ class AnnotationsSuite extends HailSuite {
     assert(rord.lt(5, null))
     assert(rord.gt(null, 7))
   }
+
+  @Test def testAllocate() {
+    var i = 1
+    val n = 1000 * 1000 * 1000
+    Region.scoped { region =>
+      while (i < 10000) {
+        region.allocate(8, 64)
+        i += 1
+      }
+
+      i = 0
+      val start = System.nanoTime()
+      while (i < n) {
+        region.allocate(8, 64)
+        i += 1
+      }
+      val end = System.nanoTime()
+      val ns = (end - start).toDouble
+      val s = ns / 1000000000.0
+
+      println(s"time: $s s")
+    }
+
+  }
 }

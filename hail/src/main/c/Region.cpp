@@ -170,13 +170,16 @@ REGIONMETHOD(void, Region, nativeCtor)(
   init_NativePtr(env, thisJ, &ptr);
 }
 
-REGIONMETHOD(void, Region, clearButKeepMem)(
+REGIONMETHOD(jlong, Region, clearButKeepMem)(
   JNIEnv*,
   jobject,
-  jlong addr
+  jlong addr,
+  jint off
 ) {
   auto r = reinterpret_cast<ScalaRegion*>(addr);
+  r->region_->set_current_offset((int) off);
   r->region_ = r->region_->get_region(r->region_->get_block_size());
+  return reinterpret_cast<jlong>(r->region_->get_block_address());
 }
 
 REGIONMETHOD(void, Region, nativeAlign)(
@@ -221,7 +224,7 @@ REGIONMETHOD(void, Region, nativeReference)(
   r->region_->add_reference_to(r2->region_);
 }
 
-REGIONMETHOD(void, Region, nativeGetNewRegion)(
+REGIONMETHOD(jlong, Region, nativeGetNewRegion)(
   JNIEnv*,
   jobject,
   jlong addr,
@@ -231,6 +234,7 @@ REGIONMETHOD(void, Region, nativeGetNewRegion)(
   auto r = reinterpret_cast<ScalaRegion*>(addr);
   auto pool = reinterpret_cast<ScalaRegionPool*>(addrPool);
   r->region_ = pool->pool_.get_region((size_t) blockSizeJ);
+  return reinterpret_cast<jlong>(r->region_->get_block_address());
 }
 
 REGIONMETHOD(jint, Region, nativeGetNumParents)(
@@ -257,14 +261,16 @@ REGIONMETHOD(void, Region, nativeSetParentReference)(
   jobject,
   jlong addr1,
   jlong addr2,
-  jint i
+  jint i,
+  jint off
 ) {
   auto r = reinterpret_cast<ScalaRegion*>(addr1);
   auto r2 = reinterpret_cast<ScalaRegion*>(addr2);
   r->region_->set_parent_reference(r2->region_, (int) i);
+  r2->region_->set_current_offset((int) off);
 }
 
-REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
+REGIONMETHOD(jlong, Region, nativeGetParentReferenceInto)(
   JNIEnv*,
   jobject,
   jlong addr1,
@@ -283,6 +289,7 @@ REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
       throw new FatalError("blocksizes are wrong!");
     }
   }
+  return reinterpret_cast<jlong>(r2->region_->get_block_address());
 }
 
 REGIONMETHOD(void, Region, nativeClearParentReference)(
@@ -322,9 +329,10 @@ REGIONMETHOD(jint, Region, nativeGetNumUsedBlocks)(
 
 REGIONMETHOD(jint, Region, nativeGetCurrentOffset)(
   JNIEnv* env,
-  jobject thisJ
+  jobject thisJ,
+  jlong addr
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   return (jint) r->region_->get_current_offset();
 }
 
@@ -336,12 +344,43 @@ REGIONMETHOD(jlong, Region, nativeGetBlockAddress)(
   return (jlong) r->region_->get_block_address();
 }
 
-REGIONMETHOD(void, Region, setNull)(
-  JNIEnv*,
-  jobject,
+REGIONMETHOD(void, Region, nativeSetCurrentOffset)(
+  JNIEnv* env,
+  jobject thisJ,
+  jlong addr,
+  jint off
+) {
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
+  r->region_->set_current_offset((int) off);
+}
+
+REGIONMETHOD(jlong, Region, nativeGetNewBlock)(
+  JNIEnv* env,
+  jobject thisJ,
   jlong addr
 ) {
   auto r = reinterpret_cast<ScalaRegion*>(addr);
+  return reinterpret_cast<jlong>(r->region_->allocate_new_block(0));
+}
+
+REGIONMETHOD(jlong, Region, nativeGetBigChunk)(
+  JNIEnv* env,
+  jobject thisJ,
+  jlong addr,
+  jint size
+) {
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
+  return reinterpret_cast<jlong>(r->region_->allocate_big_chunk((int) size));
+}
+
+REGIONMETHOD(void, Region, setNull)(
+  JNIEnv*,
+  jobject,
+  jlong addr,
+  jint off
+) {
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
+  r->region_->set_current_offset((int) off);
   r->region_ = nullptr;
 }
 
