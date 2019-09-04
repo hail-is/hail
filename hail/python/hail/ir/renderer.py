@@ -89,6 +89,54 @@ class RQStack(object):
         return self._idx < 0
 
 
+class Renderer(object):
+    def __init__(self, stop_at_jir=False):
+        self.stop_at_jir = stop_at_jir
+        self.count = 0
+        self.jirs = {}
+
+    def add_jir(self, jir):
+        jir_id = f'm{self.count}'
+        self.count += 1
+        self.jirs[jir_id] = jir
+        return jir_id
+
+    def __call__(self, x: 'Renderable'):
+        stack = RQStack()
+        builder = []
+
+        while x is not None or stack.non_empty():
+            if x is not None:
+                # TODO: it would be nice to put the JavaIR logic in BaseIR somewhere but this isn't trivial
+                if self.stop_at_jir and hasattr(x, '_jir'):
+                    jir_id = self.add_jir(x._jir)
+                    if isinstance(x, ir.MatrixIR):
+                        builder.append(f'(JavaMatrix {jir_id})')
+                    elif isinstance(x, ir.TableIR):
+                        builder.append(f'(JavaTable {jir_id})')
+                    elif isinstance(x, ir.BlockMatrixIR):
+                        builder.append(f'(JavaBlockMatrix {jir_id})')
+                    else:
+                        assert isinstance(x, ir.IR)
+                        builder.append(f'(JavaIR {jir_id})')
+                else:
+                    head = x.render_head(self)
+                    if head != '':
+                        builder.append(x.render_head(self))
+                    stack.push(RenderableQueue(x.render_children(self), x.render_tail(self)))
+                x = None
+            else:
+                top = stack.peek()
+                if top.exhausted():
+                    stack.pop()
+                    builder.append(top.tail)
+                else:
+                    builder.append(' ')
+                    x = top.pop()
+
+        return ''.join(builder)
+
+
 Vars = Dict[str, int]
 Context = (Vars, Vars, Vars)
 
@@ -133,7 +181,7 @@ class AnalysisStackFrame:
         child = x.children[i]
         child_min_binding_depth = self.min_binding_depth
         child_min_value_binding_depth = self.min_value_binding_depth
-        child_scan_scope = False
+        child_scan_scope = self.scan_scope
         if x.new_block(i):
             child_min_binding_depth = depth
             child_min_value_binding_depth = depth
@@ -259,7 +307,7 @@ class PrintStackFrame:
         return state
 
 
-class Renderer:
+class CSERenderer:
     def __init__(self, stop_at_jir=False):
         self.stop_at_jir = stop_at_jir
         self.jir_count = 0
@@ -478,12 +526,14 @@ class Renderer:
             node = frame.node
             frame.child_idx += 1
             child_idx = frame.child_idx
+            if isinstance(node, ir.ApplyAggOp) and node.agg_op == 'Count':
+                print('...')
 
             if child_idx >= len(frame.children):
                 if frame.lift_to_frame is not None:
                     assert(not frame.insert_lets)
                     if id(node) in self.memo:
-                        frame.builder.extend(self.memo[id(node)])
+                        frame.builder.append(self.memo[id(node)])
                     else:
                         frame.builder.append(node.render_tail(self))
                     frame.builder.append(' ')
@@ -576,7 +626,7 @@ class Renderer:
                 frame.builder.append(f'(Ref {name})')
 
                 if id(child) in self.memo:
-                    child_builder.extend(self.memo[id(child)])
+                    child_builder.append(self.memo[id(child)])
                     child_builder.append(' ')
                     lift_to_frame.let_bodies.append(child_builder)
                     continue
@@ -599,7 +649,7 @@ class Renderer:
                 continue
 
             if id(child) in self.memo:
-                frame.builder.extend(self.memo[id(child)])
+                frame.builder.append(self.memo[id(child)])
                 continue
 
             new_state = frame.make_child_frame(self, binding_sites,

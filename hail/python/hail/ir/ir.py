@@ -1349,6 +1349,10 @@ class BaseApplyAggOp(IR):
     def head_str(self):
         return f'{self.agg_op}'
 
+    # Overloaded to add space after 'agg_op' even if there are no children.
+    def render_head(self, r):
+        return f'({self._ir_name()} {self.agg_op} '
+
     def render_children(self, r):
         return [
             ParensRenderer(self.constructor_args),

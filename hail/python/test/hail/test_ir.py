@@ -1,7 +1,7 @@
 import unittest
 import hail as hl
 import hail.ir as ir
-from hail.ir.renderer import Renderer
+from hail.ir.renderer import CSERenderer
 from hail.expr import construct_expr
 from hail.expr.types import tint32
 from hail.utils.java import Env
@@ -364,7 +364,7 @@ class CSETests(unittest.TestCase):
             ' (ApplyBinaryPrimOp `+`'
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
-        self.assertEqual(expected, Renderer()(x))
+        self.assertEqual(expected, CSERenderer()(x))
 
     def test_cse2(self):
         x = ir.I32(5)
@@ -380,7 +380,7 @@ class CSETests(unittest.TestCase):
                     ' (Ref __cse_2)'
                     ' (I32 4))'
                 ' (Ref __cse_2))))')
-        self.assertEqual(expected, Renderer()(div))
+        self.assertEqual(expected, CSERenderer()(div))
 
     def test_cse_ifs(self):
         outer_repeated = ir.I32(5)
@@ -396,7 +396,7 @@ class CSETests(unittest.TestCase):
                     ' (I32 5)))'
                 ' (I32 5))'
         )
-        self.assertEqual(expected, Renderer()(cond))
+        self.assertEqual(expected, CSERenderer()(cond))
 
     def test_agg_cse(self):
         x = ir.GetField(ir.Ref('row'), 'idx')
@@ -410,4 +410,4 @@ class CSETests(unittest.TestCase):
                 ' (Let __cse_2 (ApplyAggOp AggOp () None'
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
                 ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
-        self.assertEqual(expected, Renderer()(table_agg))
+        self.assertEqual(expected, CSERenderer()(table_agg))
