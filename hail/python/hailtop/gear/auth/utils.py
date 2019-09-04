@@ -1,8 +1,5 @@
-import time
 import secrets
 import base64
-
-from .hailjwt import get_jwtclient
 
 
 async def create_user(dbpool, spec):
