@@ -83,6 +83,10 @@ class IRSuite extends HailSuite {
 
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
     InferPType(node, env)
+    println("GOT")
+    println(node.pType2.parsableString())
+    println("EXPECTED")
+    println(expected.parsableString())
     assert(node.pType2 == expected)
   }
 
@@ -813,6 +817,95 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
   }
 
+  @Test def testMakeArrayInferPType() {
+    var ir = MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32()))
+
+    assertPType(ir, PArray(PInt32(false), true))
+
+    ir = MakeArray(FastSeq(I32(5), I32(-3)), TArray(TInt32()))
+    assertPType(ir, PArray(PInt32(true), true))
+
+    ir = MakeArray(
+          FastSeq(
+            MakeArray(FastSeq(I32(5), I32(5), I32(-3)), TArray(TInt32())),
+            MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())),
+            MakeArray(FastSeq(I32(5)), TArray(TInt32()))
+          ),
+          TArray(TArray(TInt32()))
+        )
+
+    assertPType(ir, PArray(PArray(PInt32(), true), true))
+
+    ir = MakeArray(
+      FastSeq(
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32())))
+      ),
+      TArray(TArray(TArray(TInt32())))
+    )
+
+    assertPType(ir, PArray(PArray(PArray(PInt32(), true), true), true))
+
+    ir = MakeArray(
+      FastSeq(
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32())))
+      ),
+      TArray(TArray(TArray(TInt32())))
+    )
+
+    assertPType(ir, PArray(PArray(PArray(PInt32(true), true), true), true))
+
+    ir = MakeArray(
+      FastSeq(
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          NA(TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32())))
+      ),
+      TArray(TArray(TArray(TInt32())))
+    )
+
+    assertPType(ir, PArray(PArray(PArray(PInt32(true), false), true), true))
+  }
+
   @Test def testMakeStruct() {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
@@ -855,7 +948,7 @@ class IRSuite extends HailSuite {
 
     val t = MakeTuple.ordered(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
-
+    println(t)
     assertEvalsTo(GetTupleElement(t, 0), 5)
     assertEvalsTo(GetTupleElement(t, 1), "abc")
     assertEvalsTo(GetTupleElement(t, 2), null)
@@ -1138,7 +1231,7 @@ class IRSuite extends HailSuite {
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())),  .ordered(shape.map(I64)), rowMajor)
+    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple.ordered(shape.map(I64)), rowMajor)
   }
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))

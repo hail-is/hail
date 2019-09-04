@@ -5,8 +5,19 @@ import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
 
 object InferPType {
+  private def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
+    ptypes.head match {
+      case _: PStreamable => {
+        val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStreamable].elementType))
+        ptypes.head.asInstanceOf[PStreamable].copyStreamable(elementType, ptypes.forall(_.required))
+      }
+      case _ => ptypes.head.setRequired(ptypes.forall(_.required))
+    }
+  }
+
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
+
     ir._pType2 = ir match {
       case I32(_) => PInt32(true)
       case I64(_) => PInt64(true)
@@ -24,7 +35,10 @@ object InferPType {
         InferPType(ir, env)
         PType.canonical(t, ir.pType2.required)
       }
-      case NA(t) => PType.canonical(t, false)
+      case NA(t) => {
+        val ptype = PType.canonical(t, false)
+        ptype.deepInnerRequired(false)
+      }
       case IsNA(ir) => {
         InferPType(ir, env)
         PBoolean(true)
@@ -309,6 +323,28 @@ object InferPType {
           InferPType(v._2, env)
           v._2.pType2
       }):_*)
+      case MakeArray(irs, _) => {
+        val it = irs.iterator
+        val head = it.next()
+        InferPType(head, env)
+
+        var allRequired = head.pType2.required
+
+        while(it.hasNext) {
+          val irElem = it.next()
+
+          InferPType(irElem, env)
+          assert(head.pType2 isOfType irElem.pType2)
+
+          if(allRequired == true && irElem.pType2.required == false) {
+            allRequired = false
+          }
+        }
+
+        val inferredElementType = getNestedElementPTypes(irs.map(_.pType2))
+
+        PArray(inferredElementType, true)
+      }
       case GetTupleElement(o, idx) => {
         InferPType(o, env)
         val t = coerce[PTuple](o.pType2)
