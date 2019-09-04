@@ -33,7 +33,10 @@ class BaseIR(Renderable):
         head_str = self.head_str()
         if head_str != '':
             head_str = f' {head_str}'
-        return f'({self._ir_name()}{head_str}'
+        trailing_space = ''
+        if len(self.children) > 0:
+            trailing_space = ' '
+        return f'({self._ir_name()}{head_str}{trailing_space}'
 
     def render_tail(self, r):
         return ')'
@@ -182,8 +185,6 @@ class IR(BaseIR):
 
         return self.copy(*new_children)
 
-    # FIXME: This is only used to compute the free variables in a subtree,
-    # in an incorrect way. Should just define a free variables method directly.
     @property
     def bound_variables(self):
         return {v for child in self.children for v in child.bound_variables}
@@ -196,23 +197,17 @@ class IR(BaseIR):
         return self._type
 
     def new_block(self, i: int) -> bool:
-        return self.uses_agg_context(i) or self.uses_scan_context(i)
-
-    def renderable_new_block(self, i: int) -> bool:
-        return self.renderable_uses_agg_context(i) or self.renderable_uses_scan_context(i)
+        return False
 
     @abc.abstractmethod
     def _compute_type(self, env, agg_env):
         raise NotImplementedError(self)
 
     def parse(self, code, ref_map={}, ir_map={}):
-        try:
-            return Env.hail().expr.ir.IRParser.parse_value_ir(
-                code,
-                {k: t._parsable_string() for k, t in ref_map.items()},
-                ir_map)
-        except:
-            raise
+        return Env.hail().expr.ir.IRParser.parse_value_ir(
+            code,
+            {k: t._parsable_string() for k, t in ref_map.items()},
+            ir_map)
 
 
 class TableIR(BaseIR):

@@ -93,19 +93,28 @@ Vars = Dict[str, int]
 Context = (Vars, Vars, Vars)
 
 
-# FIXME: replace these by NamedTuples, or use slots
 class AnalysisStackFrame:
-    __slots__ = ['min_binding_depth', 'context', 'node', '_free_vars', 'visited',
-                 'lifted_lets', 'child_idx', '_child_bindings']
-    def __init__(self, min_binding_depth: int, context: Context, x: 'ir.BaseIR'):
+    __slots__ = ['min_binding_depth', 'min_value_binding_depth', 'scan_scope',
+                 'context', 'node', '_free_vars', 'visited', 'agg_visited',
+                 'scan_visited', 'lifted_lets', 'agg_lifted_lets',
+                 'scan_lifted_lets', 'child_idx', '_child_bindings']
+
+    def __init__(self, min_binding_depth: int, min_value_binding_depth: int,
+                 scan_scope: bool, context: Context, x: 'ir.BaseIR'):
         # immutable
         self.min_binding_depth = min_binding_depth
+        self.min_value_binding_depth = min_value_binding_depth
+        self.scan_scope = scan_scope
         self.context = context
         self.node = x
         # mutable
         self._free_vars = {}
-        self.visited: Dict[int, 'ir.BaseIR'] = {}
-        self.lifted_lets: Dict[int, (str, 'ir.BaseIR')] = {}
+        self.visited: Set[int] = set()
+        self.agg_visited: Set[int] = set()
+        self.scan_visited: Set[int] = set()
+        self.lifted_lets: Dict[int, str] = {}
+        self.agg_lifted_lets: Dict[int, str] = {}
+        self.scan_lifted_lets: Dict[int, str] = {}
         self.child_idx = 0
         self._child_bindings = None
 
@@ -122,10 +131,18 @@ class AnalysisStackFrame:
         x = self.node
         i = self.child_idx - 1
         child = x.children[i]
+        child_min_binding_depth = self.min_binding_depth
+        child_min_value_binding_depth = self.min_value_binding_depth
+        child_scan_scope = False
         if x.new_block(i):
-            child_outermost_scope = depth
-        else:
-            child_outermost_scope = self.min_binding_depth
+            child_min_binding_depth = depth
+            child_min_value_binding_depth = depth
+        elif x.uses_agg_context(i):
+            child_min_value_binding_depth = depth
+            child_scan_scope = False
+        elif x.uses_scan_context(i):
+            child_min_value_binding_depth = depth
+            child_scan_scope = True
 
         # compute vars bound in 'child' by 'node'
         eval_bindings = x.bindings(i, 0).keys()
@@ -135,11 +152,15 @@ class AnalysisStackFrame:
         self._child_bindings = new_bindings
         child_context = x.child_context(i, self.context, depth)
 
-        return AnalysisStackFrame(child_outermost_scope, child_context, child,)
+        return AnalysisStackFrame(child_min_binding_depth, child_min_value_binding_depth, child_scan_scope, child_context, child,)
 
     def free_vars(self):
         # subtract vars that will be bound by inserted lets
-        for (var, _) in self.lifted_lets.values():
+        def bound_vars():
+            yield from self.lifted_lets.values()
+            yield from self.agg_lifted_lets.values()
+            yield from self.scan_lifted_lets.values()
+        for var in bound_vars():
             self._free_vars.pop(var, 0)
         return self._free_vars
 
@@ -164,25 +185,41 @@ class AnalysisStackFrame:
         parent_frame._free_vars.update(self._free_vars)
 
 
-BindingSite = namedtuple('BindingSite', 'depth lifted_lets')
-BindingsStackFrame = namedtuple('BindingsStackFrame', 'depth lifted_lets visited let_bodies')
+BindingSite = namedtuple(
+    'BindingSite',
+    'depth lifted_lets agg_lifted_lets scan_lifted_lets')
+BindingsStackFrame = namedtuple(
+    'BindingsStackFrame',
+    'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited'
+    ' scan_visited let_bodies')
 
 def make_bindings_stack_frame(site: BindingSite):
     return BindingsStackFrame(depth=site.depth,
                               lifted_lets=site.lifted_lets,
+                              agg_lifted_lets=site.agg_lifted_lets,
+                              scan_lifted_lets=site.scan_lifted_lets,
                               visited={},
+                              agg_visited={},
+                              scan_visited={},
                               let_bodies=[])
 
 
 class PrintStackFrame:
-    __slots__ = ['node', 'children', 'min_binding_depth', 'depth', 'lift_to_frame', 'insert_lets', 'builder', 'child_idx']
-    def __init__(self, node, children, builder, outermost_scope, depth, insert_lets, lift_to_frame=None):
+    __slots__ = ['node', 'children', 'min_binding_depth',
+                 'min_value_binding_depth', 'scan_scope', 'depth',
+                 'lift_to_frame', 'insert_lets', 'builder', 'child_idx']
+
+    def __init__(self, node, children, builder, min_binding_depth,
+                 min_value_binding_depth, scan_scope, depth, insert_lets,
+                 lift_to_frame=None):
         # immutable
         self.node: Renderable = node
         self.children: Sequence[Renderable] = children
-        self.min_binding_depth: int = outermost_scope
+        self.min_binding_depth: int = min_binding_depth
+        self.min_value_binding_depth: int = min_value_binding_depth
+        self.scan_scope: bool = scan_scope
         self.depth: int = depth
-        self.lift_to_frame: Optional[int] = lift_to_frame
+        self.lift_to_frame: Optional[BindingsStackFrame] = lift_to_frame
         self.insert_lets: bool = insert_lets
         # mutable
         self.builder = builder
@@ -196,14 +233,23 @@ class PrintStackFrame:
         for _ in range(num_lets):
             out_builder.append(')')
 
-    def make_child_frame(self, renderer, binding_sites, builder, context, outermost_scope, depth):
+    def make_child_frame(self, renderer, binding_sites, builder, context,
+                         min_binding_depth, min_value_binding_depth, scan_scope,
+                         depth):
         child = self.children[self.child_idx]
-        return self.make(child, renderer, binding_sites, builder, context, outermost_scope, depth)
+        return self.make(child, renderer, binding_sites, builder, context,
+                         min_binding_depth, min_value_binding_depth, scan_scope,
+                         depth)
 
     @staticmethod
-    def make(node, renderer, binding_sites, builder, context, outermost_scope, depth):
-        insert_lets = id(node) in binding_sites and len(binding_sites[id(node)].lifted_lets) > 0
-        state = PrintStackFrame(node, node.render_children(renderer), builder, outermost_scope, depth, insert_lets)
+    def make(node, renderer, binding_sites, builder, context, min_binding_depth,
+             min_value_binding_depth, scan_scope, depth):
+        insert_lets = (id(node) in binding_sites
+                       and (len(binding_sites[id(node)].lifted_lets) > 0
+                            or len(binding_sites[id(node)].agg_lifted_lets) > 0))
+        state = PrintStackFrame(node, node.render_children(renderer), builder,
+                                min_binding_depth, min_value_binding_depth,
+                                scan_scope, depth, insert_lets)
         if insert_lets:
             state.builder = []
             context.append(make_bindings_stack_frame(binding_sites[id(node)]))
@@ -267,7 +313,7 @@ class Renderer:
     # where for each descendant 'x' which will be bound above 'node',
     # 'lifted_lets' maps 'id(x)' to the unique id 'x' will be bound to.
     def compute_new_bindings(self, root: 'ir.BaseIR') -> Dict[int, BindingSite]:
-        root_frame = AnalysisStackFrame(0, ({}, {}, {}), root)
+        root_frame = AnalysisStackFrame(0, 0, False, ({}, {}, {}), root)
         stack = [root_frame]
         binding_sites = {}
 
@@ -279,14 +325,25 @@ class Renderer:
 
             if child_idx >= len(node.children):
                 # mark node as visited at potential let insertion site
+                # FIXME: factor out to AnalysisStackFrame method
                 if not node.is_effectful():
-                    stack[frame.bind_depth()].visited[id(node)] = node
+                    bind_depth = frame.bind_depth()
+                    if bind_depth < frame.min_value_binding_depth:
+                        if frame.scan_scope:
+                            stack[bind_depth].scan_visited.add(id(node))
+                        else:
+                            stack[bind_depth].agg_visited.add(id(node))
+                    else:
+                        stack[bind_depth].visited.add(id(node))
 
                 # if any lets being inserted here, add node to registry of
                 # binding sites
-                if frame.lifted_lets:
-                    binding_sites[id(node)] = \
-                        BindingSite(lifted_lets=frame.lifted_lets, depth=len(stack))
+                if frame.lifted_lets or frame.agg_lifted_lets or frame.scan_lifted_lets:
+                    binding_sites[id(node)] = BindingSite(
+                        lifted_lets=frame.lifted_lets,
+                        agg_lifted_lets=frame.agg_lifted_lets,
+                        scan_lifted_lets=frame.scan_lifted_lets,
+                        depth=len(stack))
 
                 stack.pop()
                 if not stack:
@@ -311,23 +368,47 @@ class Renderer:
                 self.memo[id(child)] = jref
                 continue
 
-            seen_in_scope = next((i for i in reversed(range(len(stack))) if id(child) in stack[i].visited), None)
-
-            if seen_in_scope is not None and isinstance(child, ir.IR):
-                # we've seen 'child' before, should not traverse (or we will
-                # find too many lifts)
-                if id(child) in stack[seen_in_scope].lifted_lets:
-                    (uid, _) = stack[seen_in_scope].lifted_lets[id(child)]
+            if isinstance(child, ir.IR):
+                seen_in_scope = next((i for i in reversed(range(frame.min_value_binding_depth,
+                                                                len(stack)))
+                                      if id(child) in stack[i].visited),
+                                     None)
+                lets = None
+                if seen_in_scope is not None:
+                    lets = stack[seen_in_scope].lifted_lets
                 else:
-                    # second time we've seen 'child', lift to a let
-                    uid = self.uid()
-                    stack[seen_in_scope].lifted_lets[id(child)] = (uid, child)
-                # Since we are not traversing 'child', we don't know its free
-                # variables. To prevent a parent from being lifted too high,
-                # we must register 'child' as having the free variable 'uid',
-                # which will be true when 'child' is replaced by "(Ref uid)".
-                frame._free_vars[uid] = seen_in_scope
-                continue
+                    if frame.scan_scope:
+                        seen_in_scope = next(
+                            (i for i in reversed(range(frame.min_binding_depth,
+                                                       frame.min_value_binding_depth))
+                             if id(child) in stack[i].scan_visited),
+                            None)
+                        if seen_in_scope is not None:
+                            lets = stack[seen_in_scope].scan_lifted_lets
+                    else:
+                        seen_in_scope = next(
+                            (i for i in reversed(range(frame.min_binding_depth,
+                                                       frame.min_value_binding_depth))
+                             if id(child) in stack[i].agg_visited),
+                            None)
+                        if seen_in_scope is not None:
+                            lets = stack[seen_in_scope].agg_lifted_lets
+
+                if lets is not None:
+                    # we've seen 'child' before, should not traverse (or we will
+                    # find too many lifts)
+                    if id(child) in lets:
+                        uid = lets[id(child)]
+                    else:
+                        # second time we've seen 'child', lift to a let
+                        uid = self.uid()
+                        lets[id(child)] = uid
+                    # Since we are not traversing 'child', we don't know its free
+                    # variables. To prevent a parent from being lifted too high,
+                    # we must register 'child' as having the free variable 'uid',
+                    # which will be true when 'child' is replaced by "(Ref uid)".
+                    frame._free_vars[uid] = seen_in_scope
+                    continue
 
             # first time visiting 'child'
 
@@ -335,7 +416,10 @@ class Renderer:
                 if child.name not in node.bindings(child_idx, default_value=0).keys():
                     (eval_c, _, _) = node.child_context_without_bindings(
                         child_idx, frame.context)
-                    frame._free_vars[child.name] = eval_c[child.name]
+                    try:
+                        frame._free_vars[child.name] = eval_c[child.name]
+                    except:
+                        raise
                 continue
 
             stack.append(frame.make_child_frame(len(stack)))
@@ -344,7 +428,11 @@ class Renderer:
         root_free_vars = root_frame.free_vars()
         assert(len(root_free_vars) == 0)
 
-        binding_sites[id(root)] = BindingSite(lifted_lets=frame.lifted_lets, depth=0)
+        binding_sites[id(root)] = BindingSite(
+            lifted_lets=frame.lifted_lets,
+            agg_lifted_lets=frame.agg_lifted_lets,
+            scan_lifted_lets=frame.scan_lifted_lets,
+            depth=0)
         return binding_sites
 
     # At top of main loop, we are considering the 'Renderable' 'node' and its
@@ -383,7 +471,7 @@ class Renderer:
         if id(root) in self.memo:
             return ''.join(self.memo[id(root)])
 
-        stack = [PrintStackFrame.make(root, self, binding_sites, root_builder, context, 0, 1)]
+        stack = [PrintStackFrame.make(root, self, binding_sites, root_builder, context, 0, 0, False, 1)]
 
         while True:
             frame = stack[-1]
@@ -402,7 +490,6 @@ class Renderer:
                     # let_bodies is built post-order, which guarantees earlier
                     # lets can't refer to later lets
                     frame.lift_to_frame.let_bodies.append(frame.builder)
-                    (name, _) = frame.lift_to_frame.lifted_lets[id(node)]
                     stack.pop()
                     continue
                 else:
@@ -419,40 +506,94 @@ class Renderer:
                         return ''.join(root_builder)
                     continue
 
-            frame.builder.append(' ')
+            if child_idx > 0:
+                frame.builder.append(' ')
             child = frame.children[child_idx]
 
-            child_outermost_scope = frame.min_binding_depth
+            child_min_binding_depth = frame.min_binding_depth
+            child_min_value_binding_depth = frame.min_value_binding_depth
+            child_scan_scope = False
             child_depth = frame.depth
 
-            if isinstance(frame.node, ir.BaseIR) and frame.node.renderable_new_block(frame.child_idx):
-                child_outermost_scope = frame.depth
+            if isinstance(node, ir.BaseIR):
+                if node.renderable_new_block(child_idx):
+                    child_min_binding_depth = frame.depth
+                    child_min_value_binding_depth = frame.depth
+                if node.renderable_uses_agg_context(child_idx):
+                    child_min_value_binding_depth = frame.depth
+                    child_scan_scope = False
+                if node.renderable_uses_scan_context(child_idx):
+                    child_min_value_binding_depth = frame.depth
+                    child_scan_scope = True
+
             if isinstance(child, ir.BaseIR):
                 child_depth += 1
-                lift_to_frame = next((frame for frame in context if id(child) in frame.lifted_lets), None)
+                lift_to_frame = next(
+                    (c for c in context
+                     if c.depth >= child_min_value_binding_depth
+                     and id(child) in c.lifted_lets),
+                    None)
+                if lift_to_frame:
+                    lift_type = 'value'
+                else:
+                    lift_to_frame = next(
+                        (c for c in context
+                         if child_min_binding_depth <= c.depth < child_min_value_binding_depth
+                         and id(child) in c.agg_lifted_lets),
+                        None)
+                    if lift_to_frame:
+                        lift_type = 'agg'
+                    else:
+                        lift_to_frame = next(
+                            (c for c in context
+                             if child_min_binding_depth <= c.depth < child_min_value_binding_depth
+                             and id(child) in c.scan_lifted_lets),
+                            None)
+                        if lift_to_frame:
+                            lift_type = 'scan'
             else:
                 lift_to_frame = None
 
-            if lift_to_frame and lift_to_frame.depth >= frame.min_binding_depth:
-                insert_lets = id(child) in binding_sites and len(binding_sites[id(child)].lifted_lets) > 0
+            if lift_to_frame:
+                insert_lets = (id(child) in binding_sites
+                               and (len(binding_sites[id(child)].lifted_lets) > 0
+                                    or len(binding_sites[id(child)].agg_lifted_lets) > 0
+                                    or len(binding_sites[id(child)].scan_lifted_lets > 0)))
                 assert not insert_lets
-                (name, _) = lift_to_frame.lifted_lets[id(child)]
-
-                child_builder = [f'(Let {name} ']
-
-                if id(child) in self.memo:
-                    new_state = PrintStackFrame(child, [], child_builder, child_outermost_scope, child_depth, insert_lets, lift_to_frame)
-                    stack.append(new_state)
-                    continue
+                if lift_type == 'value':
+                    name = lift_to_frame.lifted_lets[id(child)]
+                    child_builder = [f'(Let {name} ']
+                    visited = lift_to_frame.visited
+                elif lift_type == 'agg':
+                    name = lift_to_frame.agg_lifted_lets[id(child)]
+                    child_builder = [f'(AggLet {name} False ']
+                    visited = lift_to_frame.agg_visited
+                else:
+                    name = lift_to_frame.scan_lifted_lets[id(child)]
+                    child_builder = [f'(AggLet {name} True ']
+                    visited = lift_to_frame.scan_visited
 
                 frame.builder.append(f'(Ref {name})')
 
-                if id(child) in lift_to_frame.visited:
+                if id(child) in self.memo:
+                    child_builder.extend(self.memo[id(child)])
+                    child_builder.append(' ')
+                    lift_to_frame.let_bodies.append(child_builder)
                     continue
+                    # new_state = PrintStackFrame(child, [], child_builder, child_min_binding_depth, child_depth, insert_lets, lift_to_frame)
+                    # stack.append(new_state)
+                    # continue
 
-                lift_to_frame.visited[id(child)] = child
+                if id(child) in visited:
+                    continue
+                visited[id(child)] = child
 
-                new_state = frame.make_child_frame(self, binding_sites, child_builder, context, child_outermost_scope, child_depth)
+                new_state = frame.make_child_frame(self, binding_sites,
+                                                   child_builder, context,
+                                                   child_min_binding_depth,
+                                                   child_min_value_binding_depth,
+                                                   child_scan_scope,
+                                                   child_depth)
                 new_state.lift_to_frame = lift_to_frame
                 stack.append(new_state)
                 continue
@@ -461,7 +602,12 @@ class Renderer:
                 frame.builder.extend(self.memo[id(child)])
                 continue
 
-            new_state = frame.make_child_frame(self, binding_sites, frame.builder, context, child_outermost_scope, child_depth)
+            new_state = frame.make_child_frame(self, binding_sites,
+                                               frame.builder, context,
+                                               child_min_binding_depth,
+                                               child_min_value_binding_depth,
+                                               child_scan_scope,
+                                               child_depth)
             stack.append(new_state)
             continue
 

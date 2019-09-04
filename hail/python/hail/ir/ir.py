@@ -1347,7 +1347,7 @@ class BaseApplyAggOp(IR):
         return new_instance(self.agg_op, constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args)
 
     def head_str(self):
-        return f' {self.agg_op} '
+        return f'{self.agg_op}'
 
     def render_children(self, r):
         return [

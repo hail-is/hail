@@ -397,11 +397,17 @@ class CSETests(unittest.TestCase):
                 ' (I32 5))'
         )
         self.assertEqual(expected, Renderer()(cond))
-    #
-    # def test_foo(self):
-    #     array = ir.MakeArray([ir.I32(5)], tint32)
-    #     ref = ir.Ref('x')
-    #     sum = ir.ApplyBinaryPrimOp('+', ref, ref)
-    #     map = ir.ArrayMap(array, 'x', sum)
-    #     print(NewCSE()(map))
-    #     self.assertTrue(False)
+
+    def test_agg_cse(self):
+        x = ir.GetField(ir.Ref('row'), 'idx')
+        inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
+        agg = ir.ApplyAggOp('AggOp', [], [], [inner_sum])
+        outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
+        table_agg = ir.TableAggregate(ir.TableRange(5, 1), outer_sum)
+        expected = (
+            '(TableAggregate (TableRange 5 1)'
+                ' (AggLet __cse_1 False (GetField idx (Ref row))'
+                ' (Let __cse_2 (ApplyAggOp AggOp () None'
+                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
+                ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
+        self.assertEqual(expected, Renderer()(table_agg))
