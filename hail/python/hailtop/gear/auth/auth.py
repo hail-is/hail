@@ -45,7 +45,7 @@ def _authenticated_users_only(rest, redirect):
                     unauth()
                 session_id = auth_header[7:]
             else:
-                session = aiohttp_session.get_session(request)
+                session = await aiohttp_session.get_session(request)
                 if 'session_id' not in session:
                     unauth()
                 session_id = session['session_id']
@@ -94,7 +94,7 @@ def web_maybe_authenticated_user(fun):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         userdata = None
-        session = aiohttp_session.get_session(request)
+        session = await aiohttp_session.get_session(request)
         if 'session_id' in session:
             session_id = session['session_id']
             headers = {'Authorization': f'Bearer {session_id}'}

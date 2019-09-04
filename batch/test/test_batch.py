@@ -4,6 +4,7 @@ import collections
 from hailtop.batch_client.client import BatchClient
 import json
 import os
+import base64
 import pkg_resources
 import secrets
 import time
