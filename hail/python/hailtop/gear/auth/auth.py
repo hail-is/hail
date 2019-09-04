@@ -106,7 +106,7 @@ def web_maybe_authenticated_user(fun):
                         userdata = await resp.json()
             except Exception:
                 log.exception('getting userinfo')
-                raise web.HTTPUnauthorized()
+                return None
         return await fun(request, userdata, *args, **kwargs)
     return wrapped
 
