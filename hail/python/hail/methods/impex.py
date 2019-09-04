@@ -1631,9 +1631,10 @@ def import_matrix_table(paths,
                               entry_type,
                               missing,
                               not no_header,
-                              sep)
+                              sep,
+                              force_bgz)
 
-    return MatrixTable(MatrixRead(reader)).key_by(*wrap_to_list(row_key))
+    return MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
 
 
 @typecheck(bed=str,

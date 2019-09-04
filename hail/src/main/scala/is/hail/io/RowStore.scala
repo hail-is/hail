@@ -1091,7 +1091,7 @@ class MethodBuilderSelfLike(val mb: MethodBuilder) extends MethodBuilderLike[Met
   type MB = MethodBuilder
 
   def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilderSelfLike =
-    new MethodBuilderSelfLike(mb.fb.newMethod(paramInfo, returnInfo))
+    new MethodBuilderSelfLike(mb.fb.newMethod(paramInfo, returnInfo, None))
 }
 
 object EmitPackDecoder {

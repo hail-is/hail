@@ -3,7 +3,8 @@ package is.hail.io
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{ ExecuteContext, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue }
+import is.hail.backend.BroadcastValue
+import is.hail.expr.ir.{ ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue }
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -11,6 +12,7 @@ import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.io.fs.FS
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -99,17 +101,63 @@ object LoadMatrix {
     }
     TStruct(fields: _*)
   }
+
+  def computePartitionCounts(
+    lines: RDD[WithContext[String]],
+    hasHeader: Boolean,
+    firstPartitions: Array[Int],
+    paths: Array[String],
+    fileByPartition: Array[String],
+    header1Bc: BroadcastValue[Array[String]],
+    separator: Char
+  ): Array[Long] = {
+    lines.filter(l => l.value.nonEmpty)
+      .mapPartitionsWithIndex { (i, it) =>
+        if (firstPartitions(i) == i) {
+          if (hasHeader) {
+            val hd1 = header1Bc.value
+            val hd = it.next().value.split(separator)
+            if (!hd1.sameElements(hd)) {
+              if (hd1.length != hd.length) {
+                fatal(
+                  s"""invalid header: lengths of headers differ.
+                     |    ${ hd1.length } elements in ${ paths(0) }
+                     |    ${ hd.length } elements in ${ fileByPartition(i) }
+               """.stripMargin
+                )
+              }
+              hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
+                if (s1 != s2) {
+                  fatal(
+                    s"""invalid header: expected elements to be identical for all input paths. Found different elements at position $j.
+                       |    ${ paths(0) }: $s1
+                       |    ${ fileByPartition(i) }: $s2""".
+                      stripMargin)
+                }
+              }
+            }
+          }
+        }
+        it
+      }.countPerPartition().scanLeft(0L)(_ + _)
+  }
 }
 
 class TextMatrixReader(
   paths: Array[String],
   nPartitions: Option[Int],
-  rowFields: Map[String, Type],
-  entryType: TStruct = TStruct("x" -> TInt64()),
-  missingValue: String = "NA",
-  hasHeader: Boolean = true,
-  separator: Char = '\t'
+  rowFieldsStr: Map[String, String],
+  entryTypeStr: String,
+  missingValue: String,
+  hasHeader: Boolean,
+  separatorStr: String,
+  gzipAsBGZip: Boolean
 ) extends MatrixHybridReader {
+  assert(separatorStr.length == 1)
+  private[this] val separator = separatorStr.charAt(0)
+  private[this] val rowFields = rowFieldsStr.mapValues(IRParser.parseType(_))
+  private[this] val entryType = TStruct("x" -> IRParser.parseType(entryTypeStr))
+
   require(entryType.size == 1, "entryType can only have 1 field")
   if (paths.isEmpty)
     fatal("no paths specified for import_matrix_table.")
@@ -122,7 +170,6 @@ class TextMatrixReader(
     t.isOfType(TFloat64())
   })
 
-
   private[this] val hc = HailContext.get
   private[this] val sc = hc.sc
   private[this] val fs = hc.sFS
@@ -133,39 +180,20 @@ class TextMatrixReader(
   private[this] val header1Bc = hc.backend.broadcast(header1)
   if (hasHeader)
     LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
-  private[this] val lines = sc.textFilesLines(paths, nPartitions.getOrElse(sc.defaultMinPartitions))
+  private[this] val lines = HailContext.maybeGZipAsBGZip(gzipAsBGZip) {
+    sc.textFilesLines(paths, nPartitions.getOrElse(sc.defaultMinPartitions))
+  }
   private[this] val fileByPartition = lines.partitions.map(p => partitionPath(p))
   private[this] val firstPartitions = fileByPartition.scanLeft(0) {
     (i, file) => if (fileByPartition(i) == file) i else i + 1 }.tail
-  private[this] val _partitionCounts = lines.filter(l => l.value.nonEmpty)
-    .mapPartitionsWithIndex { (i, it) =>
-      if (firstPartitions(i) == i) {
-        if (hasHeader) {
-          val hd1 = header1Bc.value
-          val hd = it.next().value.split(separator)
-          if (!hd1.sameElements(hd)) {
-            if (hd1.length != hd.length) {
-              fatal(
-                s"""invalid header: lengths of headers differ.
-                     |    ${ hd1.length } elements in ${ paths(0) }
-                     |    ${ hd.length } elements in ${ fileByPartition(i) }
-               """.stripMargin
-              )
-            }
-            hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
-              if (s1 != s2) {
-                fatal(
-                  s"""invalid header: expected elements to be identical for all input paths. Found different elements at position $j.
-                       |    ${ paths(0) }: $s1
-                       |    ${ fileByPartition(i) }: $s2""".
-                    stripMargin)
-              }
-            }
-          }
-        }
-      }
-      it
-    }.countPerPartition().scanLeft(0L)(_ + _)
+  private[this] val _partitionCounts = computePartitionCounts(
+    lines,
+    hasHeader,
+    firstPartitions,
+    paths,
+    fileByPartition,
+    header1Bc,
+    separator)
 
   def columnCount = Some(nCols)
 
@@ -173,7 +201,7 @@ class TextMatrixReader(
 
   val fullMatrixType = MatrixType(
     TStruct.empty(),
-    colType = TStruct("col_id" -> (if (hasHeader) TInt32() else TString())),
+    colType = TStruct("col_id" -> (if (hasHeader) TString() else TInt32())),
     colKey = Array("col_id"),
     rowType = rowFieldType,
     rowKey = Array().toFastIndexedSeq,
@@ -213,20 +241,19 @@ class CompiledLineParser(
   requestedTableType: TableType,
   nCols: Int,
   missingValue: String,
-  sep: Char,
+  separator: Char,
   partitionCounts: Array[Long],
   fileByPartition: Array[String],
   firstPartitions: Array[Int],
-  noHeader: Boolean
+  hasHeader: Boolean
 ) extends ((Int, RVDContext, Iterator[WithContext[String]]) => Iterator[RegionValue]) with Serializable {
-  assert(!missingValue.contains(sep))
-  val requestedRowType = requestedTableType.canonicalPType
-  val entriesType = requestedRowType
+  assert(!missingValue.contains(separator))
+  @transient private[this] val requestedRowType = requestedTableType.canonicalPType
+  @transient private[this] val entriesType = requestedRowType
     .selfField(MatrixType.entriesIdentifier)
     .map(f => f.typ.asInstanceOf[PArray])
-  val rowFieldsType = requestedRowType
+  @transient private[this] val rowFieldsType = requestedRowType
     .dropFields(Set(MatrixType.entriesIdentifier))
-
   @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]
   @transient private[this] val mb = fb.apply_method
   @transient private[this] val region = fb.arg1
@@ -258,8 +285,6 @@ class CompiledLineParser(
   }
   @transient private[this] val parseRowFieldsMb = fb.newMethod[Region, Unit]
   parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
-  @transient private[this] val parseKeys = fb.newMethod[Region, Unit]
-  parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
 
   mb.emit(Code(
     pos := 0,
@@ -285,7 +310,7 @@ class CompiledLineParser(
       (c - '0').toI)
 
   private[this] def endField(p: Code[Int]): Code[Boolean] =
-    p.ceq(line.length) || line(p).ceq(sep)
+    p.ceq(line.length) || line(p).ceq(separator)
 
   private[this] def endField(): Code[Boolean] =
     endField(pos)
@@ -413,7 +438,7 @@ class CompiledLineParser(
     it: Iterator[WithContext[String]]
   ): Iterator[RegionValue] = {
     val filename = fileByPartition(partition)
-    if (firstPartitions(partition) == partition && !noHeader) { it.next() }
+    if (firstPartitions(partition) == partition && hasHeader) { it.next() }
 
     val rv = RegionValue(ctx.region)
     val parse = loadParserOnWorker()
