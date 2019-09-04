@@ -174,7 +174,6 @@ def pod_condition_for_ui(conds):
 
 
 def pod_to_ui_dict(pod):
-    log.info(f'getting pod: pod_ip: {pod.status.pod_ip}')
     notebook = {
         'name': 'a_notebook',
         'pod_name': pod.metadata.name,
@@ -193,10 +192,7 @@ def pod_to_ui_dict(pod):
     return notebook
 
 
-async def get_notebook(k8s, session, userdata):
-    if 'notebook' in session:
-        return session['notebook']
-
+async def get_live_notebook(k8s, userdata):
     user_id = userdata['id']
     pods = await k8s.list_namespaced_pod(
         namespace=NOTEBOOK_NAMESPACE,
@@ -205,9 +201,7 @@ async def get_notebook(k8s, session, userdata):
 
     for pod in pods.items:
         if pod.metadata.deletion_timestamp is None:
-            notebook = pod_to_ui_dict(pod)
-            session['notebook'] = notebook
-            return notebook
+            return pod_to_ui_dict(pod)
 
 
 async def delete_worker_pod(k8s, pod_name):
@@ -246,18 +240,26 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 @web_authenticated_users_only
 async def notebook_page(request, userdata):
     k8s = request.app['k8s_client']
+
+    notebook = await get_live_notebook(k8s, userdata)
     session = await aiohttp_session.get_session(request)
+    if notebook:
+        session['notebook'] = notebook
+    else:
+        if 'notebook' in session:
+            del session['notebook']
+
     context = base_context(userdata)
-    context['notebook'] = await get_notebook(k8s, session, userdata)
+    context['notebook'] = notebook
     return context
 
 
 @routes.post('/notebook/delete')
 @web_authenticated_users_only
-async def notebook_delete(request, userdata):
+async def notebook_delete(request, userdata):  # pylint: disable=unused-argument
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    notebook = await get_notebook(k8s, session, userdata)
+    notebook = session.get('notebook')
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
         del session['notebook']
@@ -271,29 +273,17 @@ async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
     pod = await start_pod(k8s, userdata)
-    pod_name = pod.metadata.name
-
-    # FIXME this should go into /wait
-    while not pod.status.pod_ip:
-        await asyncio.sleep(1)
-        pod = await k8s.read_namespaced_pod(
-            name=pod_name,
-            namespace=NOTEBOOK_NAMESPACE,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-
     session['notebook'] = pod_to_ui_dict(pod)
     return web.HTTPFound(location=deploy_config.external_url('notebook2', '/notebook'))
 
 
 @routes.get('/auth/{requested_pod_uuid}')
 @web_authenticated_users_only
-async def auth(request, userdata):
+async def auth(request, userdata):  # pylint: disable=unused-argument
     request_pod_uuid = request.match_info['requested_pod_uuid']
-    k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    notebook = await get_notebook(k8s, session, userdata)
+    notebook = session.get('notebook')
     if notebook and notebook['pod_uuid'] == request_pod_uuid:
-        log.info(f'/auth: pod_ip: {notebook["pod_ip"]}')
         return web.Response(headers={
             'pod_ip': f"{notebook['pod_ip']}:{POD_PORT}"
         })
@@ -308,36 +298,48 @@ async def worker_image():
 
 @routes.get('/wait')
 @web_authenticated_users_only
-async def wait_websocket(request, userdata):
+async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    notebook = await get_notebook(k8s, session, userdata)
+    notebook = session.get('notebook')
 
     if not notebook:
         return web.HTTPNotFound()
 
-    notebook = session['notebook']
-
-    pod_uuid = notebook['pod_uuid']
-    url = deploy_config.external_url('notebook2', f'/instance-ready/{pod_uuid}')
-
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    attempts = 0
-    while attempts < 10:
-        try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
-                async with session.head(url, cookies=request.cookies) as resp:
-                    if resp.status == 405:
-                        log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {resp}')
-                        break
-                    else:
-                        log.info(f'HEAD on jupyter failed for {pod_uuid}: {resp}')
-        except aiohttp.ServerTimeoutError:
-            log.info(f'HEAD on jupyter timed out for pod_uuid : {pod_uuid}')
+    pod_name = notebook['pod_name']
+    if notebook['pod_ip']:
+        ready_url = deploy_config.external_url('notebook2', f'/instance-ready/{notebook["pod_uuid"]}')
+        attempts = 0
+        while attempts < 10:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                    async with session.head(ready_url, cookies=request.cookies) as resp:
+                        if resp.status == 405:
+                            log.info(f'HEAD on jupyter pod {pod_name} succeeded: {resp}')
+                            break
+                        else:
+                            log.info(f'HEAD on jupyter pod {pod_name} failed: {resp}')
+            except aiohttp.ServerTimeoutError:
+                log.info(f'HEAD on jupyter pod {pod_name} timed out')
 
-        attempts += 1
+            await asyncio.sleep(1)
+            attempts += 1
+    else:
+        log.info(f'jupyter pod {pod_name} no IP')
+        attempts = 0
+        while attempts < 10:
+            pod = await k8s.read_namespaced_pod(
+                name=pod_name,
+                namespace=NOTEBOOK_NAMESPACE,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            if pod.status.pod_ip:
+                log.info(f'jupyter pod {pod_name} IP {pod.status.pod_ip}')
+                break
+            await asyncio.sleep(1)
+            attempts += 1
 
     await ws.send_str("1")
 
