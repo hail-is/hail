@@ -359,7 +359,7 @@ object InferPType {
         InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
         PArray(body.pType2)
       }
-      case _: ReadPartition, _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
+      case _: ReadPartition | _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge

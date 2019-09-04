@@ -8,8 +8,8 @@ import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.{TableType, virtual}
-import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PTuple, PType}
+import is.hail.expr.types.TableType
+import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -83,10 +83,6 @@ class IRSuite extends HailSuite {
 
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
     InferPType(node, env)
-    println("GOT")
-    println(node.pType2.parsableString())
-    println("EXPECTED")
-    println(expected.parsableString())
     assert(node.pType2 == expected)
   }
 
