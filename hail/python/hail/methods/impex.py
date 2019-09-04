@@ -1614,23 +1614,26 @@ def import_matrix_table(paths,
         MatrixTable constructed from imported data
     """
 
-    paths = wrap_to_list(paths)
-    jrow_fields = {k: v._parsable_string() for k, v in row_fields.items()}
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-            raise FatalError("""import_matrix_table expects field types to be one of:
-            'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
-    row_key = wrap_to_list(row_key)
+            raise FatalError(
+                f'import_matrix_table expects field types to be one of:'
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'")
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
-
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    return MatrixTable._from_java(
-        Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                   no_header, force_bgz, sep))
+    reader = TextMatrixReader(paths,
+                              min_partitions,
+                              row_fields,
+                              entry_type,
+                              missing,
+                              not no_header,
+                              sep)
+
+    return MatrixTable(MatrixRead(reader)).key_by(*wrap_to_list(row_key))
 
 
 @typecheck(bed=str,

@@ -209,6 +209,53 @@ class MatrixBGENReader(MatrixReader):
                other.included_variants == self.included_variants
 
 
+class TextMatrixReader(MatrixReader):
+    @typecheck_method(paths=oneof(str, sequenceof(str)),
+                      n_partitions=nullable(int),
+                      row_fields=dictof(str, hail_type),
+                      entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
+                      missing_value=str,
+                      has_header=bool,
+                      separator=str)
+    def __init__(self,
+                 paths,
+                 n_partitions,
+                 row_fields,
+                 entry_type,
+                 missing_value,
+                 has_header,
+                 separator):
+        self.paths = wrap_to_list(paths)
+        self.n_partitions = n_partitions
+        self.row_fields = row_fields
+        self.entry_type = entry_type
+        self.missing_value = missing_value
+        self.has_header = has_header
+        self.separator = separator
+
+    def render(self, r):
+        reader = {'name': 'TextMatrixReader',
+                  'paths': self.paths,
+                  'nPartitions': self.n_partitions,
+                  'rowFields': {k: v._parsable_string()
+                                for k, v in self.row_fields},
+                  'entryType': self.entry_type._parsable_string(),
+                  'missingValue': self.missing_value,
+                  'hasHeader': self.has_header,
+                  'separator': self.separator}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixBGENReader) and \
+            self.paths == other.paths and \
+            self.n_partitions == other.n_partitions and \
+            self.row_fields == other.row_fields and \
+            self.entry_type == other.entry_type and \
+            self.missing_value == other.missing_value and \
+            self.has_header == other.has_header and \
+            self.separator == other.separator
+
+
 class MatrixPLINKReader(MatrixReader):
     @typecheck_method(bed=str, bim=str, fam=str, min_partitions=nullable(int),
                       missing=str, delimiter=str, quant_pheno=bool,
