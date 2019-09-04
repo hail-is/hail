@@ -6,7 +6,13 @@ import org.apache.spark.Partitioner
 
 import scala.collection.mutable
 
-
+/**
+  *
+  * @param blockSize
+  * @param nRows
+  * @param nCols
+  * @param maybeBlocks If exists, matrix is sparse and this contains a list of indices of blocks that are not all zero
+  */
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks: Option[Array[Int]] = None) extends Partitioner {
   if (nRows == 0)
     fatal("block matrix must have at least one row")
@@ -25,9 +31,12 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
 
   val maxNBlocks: Long = nBlockRows.toLong * nBlockCols
   
-  require(maybeBlocks.forall(bis => bis.isEmpty ||
+  if (!maybeBlocks.forall(bis => bis.isEmpty ||
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
       bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
+    throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${maybeBlocks.toIndexedSeq}")
+
+  val blockToPartitonMap = maybeBlocks.map(_.zipWithIndex.toMap.withDefaultValue(-1))
 
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
@@ -78,23 +87,23 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       maxNBlocks.toInt
   }
   
-  val partBlock: Int => Int = maybeBlocks match {
-    case Some(bis) => pi =>
+  def partitionToBlock(pi: Int): Int = maybeBlocks match {
+    case Some(bis) =>
       assert(pi >= 0 && pi < bis.length)
       bis(pi)
-    case None => pi =>
+    case None =>
       assert(pi >= 0 && pi < numPartitions)
       pi
   }
   
-  val blockPart: Int => Int = maybeBlocks match {
-    case Some(bis) => bis.zipWithIndex.toMap.withDefaultValue(-1)
-    case None => bi => bi
+  def blockToPartition(blockId: Int): Int = blockToPartitonMap match {
+    case Some(bpMap) => bpMap(blockId)
+    case None =>  blockId
   }
   
-  def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partBlock(pi))
+  def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partitionToBlock(pi))
 
-  def coordinatesPart(i: Int, j: Int): Int = blockPart(coordinatesBlock(i, j))
+  def coordinatesPart(i: Int, j: Int): Int = blockToPartition(coordinatesBlock(i, j))
 
   override def getPartition(key: Any): Int = key match {
     case (i: Int, j: Int) => coordinatesPart(i, j)

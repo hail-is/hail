@@ -25,7 +25,7 @@ object LocusFunctions extends RegistryFunctions {
         val rg = locusT.rg.asInstanceOf[ReferenceGenome]
 
         val codeRG = r.mb.getReferenceGenome(rg)
-        unwrapReturn(r, TBoolean())(locusObject.invoke[RGBase, Boolean](methodName, codeRG))
+        unwrapReturn(r, rt)(locusObject.invoke[ReferenceGenome, Boolean](methodName, codeRG))
     }
   }
 

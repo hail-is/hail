@@ -3,6 +3,7 @@ package is.hail.backend
 import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -62,7 +63,7 @@ object LowerTableIR {
 
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
-      invoke("sum", stage.toIR(node => Cast(ArrayLen(node), TInt64())))
+      invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(node), TInt64())))
 
     case TableGetGlobals(child) =>
       val stage = lower(child)
@@ -145,7 +146,7 @@ object LowerTableIR {
       val partCounts = partition(n, nPartitionsAdj)
       val partStarts = partCounts.scanLeft(0)(_ + _)
 
-      val rvdType = RVDType(tir.typ.rowType.physicalType, Array("idx"))
+      val rvdType = RVDType(PType.canonical(tir.typ.rowType).asInstanceOf[PStruct], Array("idx"))
 
       val contextType = TStruct(
         "start" -> TInt32(),

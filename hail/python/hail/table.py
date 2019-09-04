@@ -979,7 +979,7 @@ class Table(ExprContainer):
         --------
         Export to a tab-separated file:
 
-        >>> table1.export('output/table1.tsv.bgz')
+        >>> table1.export(f'{output_dir}/table1.tsv.bgz')
 
         Note
         ----
@@ -1182,7 +1182,7 @@ class Table(ExprContainer):
 
         Examples
         --------
-        >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
+        >>> table1 = table1.checkpoint(f'{output_dir}/table_checkpoint.ht')
 
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -1200,7 +1200,7 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> table1.write('output/table1.ht')
+        >>> table1.write(f'{output_dir}/table1.ht')
 
         Warning
         -------
@@ -1532,8 +1532,9 @@ class Table(ExprContainer):
             return self._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
             key_type, exprs = err.args
+
             raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                      f"  Table key:         {', '.join(str(t) for t in key_type.values())}\n"
+                                      f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                                       f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
     def _index(self, *exprs, all_matches=False) -> 'Expression':
@@ -1553,6 +1554,7 @@ class Table(ExprContainer):
             raise ExpressionException('Cannot index with a scalar expression')
 
         is_interval = (len(exprs) == 1
+                       and len(self.key) > 0
                        and isinstance(self.key[0].dtype, hl.tinterval)
                        and exprs[0].dtype == self.key[0].dtype.point_type)
 
@@ -1647,7 +1649,7 @@ class Table(ExprContainer):
                                 MatrixAnnotateRowsTable(left._mir, join_table._tir, uid),
                                 InsertFields(
                                     Ref('va'),
-                                    [(uid, Apply('get',
+                                    [(uid, Apply('get', join_table._row_type[uid].value_type,
                                                  GetField(GetField(Ref('va'), uid), uid),
                                                  MakeTuple([e._ir for e in exprs])))],
                                     None
@@ -1865,7 +1867,7 @@ class Table(ExprContainer):
         --------
 
         >>> table_result = table1.add_index()
-        >>> table_result.show()  # doctest: +NOTEST
+        >>> table_result.show()  # doctest: +SKIP_OUTPUT_CHECK
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
         |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
@@ -2455,6 +2457,11 @@ class Table(ExprContainer):
         :class:`.Table`
             Expanded table.
         """
+
+        t = self
+        if len(t.key) > 0:
+            t = t.order_by(*t.key)
+
         def _expand(e):
             if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
                 return hl.map(lambda x: _expand(x), hl.array(e))
@@ -2477,7 +2484,6 @@ class Table(ExprContainer):
                 assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
                 return e
 
-        t = self.key_by()
         t = t.select(**_expand(t.row))
         t = t.select_globals(**_expand(t.globals))
         return t
@@ -2650,7 +2656,7 @@ class Table(ExprContainer):
         element in the `Children` field:
 
         >>> exploded = people_table.explode('Children')
-        >>> exploded.show() # doctest: +NOTEST
+        >>> exploded.show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+-------+----------+
         | Name    |   Age | Children |
         +---------+-------+----------+
@@ -2667,7 +2673,7 @@ class Table(ExprContainer):
         names:
 
         >>> exploded = people_table.explode('Children', name='Child')
-        >>> exploded.show() # doctest: +NOTEST
+        >>> exploded.show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+-------+---------+
         | Name    |   Age | Child   |
         +---------+-------+---------+

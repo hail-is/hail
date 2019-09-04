@@ -6,6 +6,19 @@ import is.hail.expr.types.virtual.TStream
 
 trait PStreamable extends PIterable {
   def asPArray: PArray = PArray(this.elementType, this.required)
+  def copyStreamable(elt: PType, req: Boolean = required): PStreamable = {
+    this match {
+      case _: PArray => PArray(elt, req)
+      case _: PStream => PStream(elt, req)
+    }
+  }
+
+  override def unify(concrete: PType): Boolean = {
+    concrete match {
+      case t: PStreamable => elementType.unify(t.elementType)
+      case _ => false
+    }
+  }
 
 }
 

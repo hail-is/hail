@@ -5,6 +5,8 @@ import is.hail.utils._
 
 final case class ArrayElementsAggregator(rvAggs: Array[RegionValueAggregator]) extends RegionValueAggregator {
 
+  override def isCommutative: Boolean = rvAggs.forall(_.isCommutative)
+
   // this can't be private for reflection to work
   var a: Array[Array[RegionValueAggregator]] = null
 

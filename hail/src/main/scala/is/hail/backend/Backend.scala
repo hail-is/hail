@@ -2,11 +2,10 @@ package is.hail.backend
 
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, IRParser, MakeTuple, Pretty, TypeCheck}
 import is.hail.io.CodecSpec
 import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils._
@@ -38,7 +37,7 @@ abstract class Backend {
           val (_, f) = timer.time(Compile[Unit](ir), "JVM compile")
           timer.time(f(0, region)(region), "Runtime")
         case _ =>
-          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "JVM compile")
+          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple.ordered(FastSeq(ir))), "JVM compile")
           timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
       }
     }
@@ -59,7 +58,7 @@ abstract class Backend {
         timer.time(Region.scoped { region => f(region.get()) }, "Runtime")
         Unit
       case _ =>
-        val pipeline = MakeTuple(FastIndexedSeq(ir))
+        val pipeline = MakeTuple.ordered(FastIndexedSeq(ir))
         val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "CXX compile")
         timer.time(
           Region.scoped { region =>
@@ -73,6 +72,7 @@ abstract class Backend {
   }
 
   def execute(ir: IR, optimize: Boolean): (Any, Timings) = {
+    TypeCheck(ir)
     try {
       if (HailContext.get.flags.get("cpp") == null) {
         if (HailContext.get.flags.get("lower") == null)
@@ -106,7 +106,7 @@ abstract class Backend {
       throw new LowererUnsupportedOperation(s"lowered to unit-valued IR: ${Pretty(ir)}")
 
     Region.scoped { region =>
-      val (pt: PTuple, f) = Compile[Long](MakeTuple(FastSeq(ir)))
+      val (pt: PTuple, f) = Compile[Long](MakeTuple.ordered(FastSeq(ir)))
       (pt.parsableString(), codec.encode(pt, region, f(0, region)(region)))
     }
   }

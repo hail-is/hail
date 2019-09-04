@@ -1,6 +1,7 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations._
+import is.hail.backend.BroadcastValue
 import is.hail.check._
 import is.hail.expr.types.physical.PLocus
 import is.hail.utils._
@@ -9,9 +10,9 @@ import is.hail.variant._
 import scala.reflect.{ClassTag, classTag}
 
 object TLocus {
-  def apply(rg: RGBase): TLocus = TLocus(rg.broadcastRGBase)
+  def apply(rg: ReferenceGenome): TLocus = TLocus(rg.broadcastRG)
 
-  def apply(rg: RGBase, required: Boolean): TLocus = TLocus(rg.broadcastRGBase, required)
+  def apply(rg: ReferenceGenome, required: Boolean): TLocus = TLocus(rg.broadcastRG, required)
 
   def representation(required: Boolean = false): TStruct = {
     TStruct(required,
@@ -25,8 +26,8 @@ object TLocus {
   }
 }
 
-case class TLocus(rgBc: BroadcastRGBase, override val required: Boolean = false) extends ComplexType {
-  def rg: RGBase = rgBc.value
+case class TLocus(rgBc: BroadcastRG, override val required: Boolean = false) extends ComplexType {
+  def rg: ReferenceGenome = rgBc.value
 
   lazy val physicalType: PLocus = PLocus(rgBc, required)
 
@@ -39,7 +40,7 @@ case class TLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
   }
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
-  override def genNonmissingValue: Gen[Annotation] = Locus.gen(rg.asInstanceOf[ReferenceGenome])
+  override def genNonmissingValue: Gen[Annotation] = Locus.gen(rg)
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
@@ -51,11 +52,7 @@ case class TLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
   def locusOrdering: Ordering[Locus] = rg.locusOrdering
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TLocus(crgBc, _) => rg.unify(crgBc.value)
+    case TLocus(crgBc, _) => rg == crgBc.value
     case _ => false
   }
-
-  override def clear(): Unit = rg.clear()
-
-  override def subst(): TLocus = rg.subst().locusType
 }

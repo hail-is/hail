@@ -10,7 +10,7 @@ def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, 
     --------
     >>> range_mt = hl.utils.range_matrix_table(10, 10)
     >>> range_mt = range_mt.annotate_entries(x = hl.rand_unif(0, 1))
-    >>> hl.experimental.export_entries_by_col(range_mt, 'output/cols_files')
+    >>> hl.experimental.export_entries_by_col(range_mt, f'{output_dir}/cols_files')
 
     Notes
     -----

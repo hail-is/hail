@@ -2,18 +2,16 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.check._
+import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TLocus
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.reflect.{ClassTag, classTag}
-
 object PLocus {
-  def apply(rg: RGBase): PLocus = PLocus(rg.broadcastRGBase)
+  def apply(rg: ReferenceGenome): PLocus = PLocus(rg.broadcastRG)
 
-  def apply(rg: RGBase, required: Boolean): PLocus = PLocus(rg.broadcastRGBase, required)
+  def apply(rg: ReferenceGenome, required: Boolean): PLocus = PLocus(rg.broadcastRG, required)
 
   def representation(required: Boolean = false): PStruct = PStruct(
       required,
@@ -26,8 +24,8 @@ object PLocus {
   }
 }
 
-case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false) extends ComplexPType {
-  def rg: RGBase = rgBc.value
+case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) extends ComplexPType {
+  def rg: ReferenceGenome = rgBc.value
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
 
@@ -69,17 +67,17 @@ case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
     new CodeOrdering {
       type T = Long
 
-      override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long]): Code[Int] = {
+      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
         val cmp = mb.newLocal[Int]
 
-        val c1 = representation.loadField(rx, x, 0)
-        val c2 = representation.loadField(ry, y, 0)
+        val c1 = representation.loadField(x, 0)
+        val c2 = representation.loadField(y, 0)
 
-        val s1 = Code.invokeScalaObject[Region, Long, String](PString.getClass, "loadString", rx, c1)
-        val s2 = Code.invokeScalaObject[Region, Long, String](PString.getClass, "loadString", ry, c2)
+        val s1 = PString.loadString(c1)
+        val s2 = PString.loadString(c2)
 
-        val p1 = rx.loadInt(representation.fieldOffset(x, 1))
-        val p2 = ry.loadInt(representation.fieldOffset(y, 1))
+        val p1 = Region.loadInt(representation.fieldOffset(x, 1))
+        val p2 = Region.loadInt(representation.fieldOffset(y, 1))
 
         val codeRG = mb.getReferenceGenome(rg.asInstanceOf[ReferenceGenome])
 

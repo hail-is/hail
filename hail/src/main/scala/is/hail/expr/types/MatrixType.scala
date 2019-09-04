@@ -111,6 +111,8 @@ case class MatrixType(
     globalType == globalType2 && colType == colType2 && rowType == rowType2 && entryType == entryType2 && rowKey == tt.key
   }
 
+  def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical && colType.isCanonical
+
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,
     "va" -> rowType,

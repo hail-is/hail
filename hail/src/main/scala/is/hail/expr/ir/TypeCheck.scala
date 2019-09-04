@@ -140,7 +140,7 @@ object TypeCheck {
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
       case x@MakeNDArray(data, shape, rowMajor) =>
-        assert(data.typ.isInstanceOf[TStreamable])
+        assert(data.typ.isInstanceOf[TArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayShape(nd) =>
@@ -161,7 +161,7 @@ object TypeCheck {
           t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
         })
       case x@NDArrayMap(_, _, body) =>
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
@@ -261,15 +261,11 @@ object TypeCheck {
         assert(args.map(_.typ) == aggSig.seqOpArgs)
         assert(i.typ.isInstanceOf[TInt32])
       case x@InitOp2(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.constructorArgs ++ aggSig.initOpArgs.getOrElse(FastIndexedSeq()))
+        assert(args.map(_.typ) == aggSig.initOpArgs)
       case x@SeqOp2(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpArgs)
       case _: CombOp2 =>
       case _: ResultOp2 =>
-      case x@ReadAggs(_, path, _, _) =>
-        assert(path.typ isOfType TString())
-      case x@WriteAggs(_, path, _, _) =>
-        assert(path.typ isOfType TString())
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>
@@ -305,19 +301,22 @@ object TypeCheck {
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
         assert(x.typ == -t.field(name).typ)
-      case x@MakeTuple(types) =>
-        assert(x.typ == TTuple(types.map(_.typ): _*))
+      case x@MakeTuple(fields) =>
+        val indices = fields.map(_._1)
+        assert(indices.areDistinct())
+        assert(indices.isSorted)
+        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastIndexedSeq))
       case x@GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
-        assert(idx >= 0 && idx < t.size)
-        assert(x.typ == -t.types(idx))
+        val fd = t.fields(t.fieldIndex(idx))
+        assert(x.typ == -fd.typ)
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
-        assert(x.implementation.unify(x.args.map(_.typ)))
+        assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
       case Uniroot(name, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
         assert(min.typ.isInstanceOf[TFloat64])

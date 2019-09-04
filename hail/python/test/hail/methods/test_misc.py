@@ -212,3 +212,11 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
         with self.assertRaises(hl.utils.FatalError):
             hl.methods.misc.require_biallelic(mt, '')._force_count_rows()
+
+    def test_lambda_gc(self):
+        N = 5000000
+        ht = hl.utils.range_table(N).annotate(x = hl.scan.count() / N, x2 = (hl.scan.count() / N) ** 1.5)
+        lgc = hl.lambda_gc(ht.x)
+        lgc2 = hl.lambda_gc(ht.x2)
+        self.assertAlmostEqual(lgc, 1, places=1)  # approximate, 1 place is safe
+        self.assertAlmostEqual(lgc2, 1.89, places=1)  # approximate, 1 place is safe

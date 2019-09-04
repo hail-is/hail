@@ -2,44 +2,34 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 
-class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
+class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   type State = TypedRVAState
 
-  val initOpTypes: Array[PType] = Array()
-  val seqOpTypes: Array[PType] = Array(typ)
-
-  val stateType: PTuple = PTuple(FastIndexedSeq(typ.setRequired(false)))
+  val stateType: PTuple = PTuple(typ.setRequired(false))
   val resultType: PType = typ
 
-  def createState(mb: EmitMethodBuilder): State =
-    TypedRVAState(stateType, mb)
+  def createState(fb: EmitFunctionBuilder[_]): State =
+    new TypedRVAState(stateType, fb)
 
-  def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     Code(
       state.off := state.region.allocate(stateType.alignment, stateType.byteSize),
       stateType.setFieldMissing(state.region, state.off, 0))
   }
 
-  def seqOp(state: State, seq: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
-    val Array(elt: RVAVariable) = seq
-    assert(elt.t == typ)
+  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+    val Array(elt: EmitTriplet) = seq
 
-    val copyValue = typ match {
-      case _: PBoolean => state.region.storeByte(stateType.fieldOffset(state.off, 0), elt.v[Boolean].toI.toB)
-      case _: PInt32 => state.region.storeInt(stateType.fieldOffset(state.off, 0), elt.v[Int])
-      case _: PInt64 => state.region.storeLong(stateType.fieldOffset(state.off, 0), elt.v[Long])
-      case _: PFloat32 => state.region.storeFloat(stateType.fieldOffset(state.off, 0), elt.v[Float])
-      case _: PFloat64 => state.region.storeDouble(stateType.fieldOffset(state.off, 0), elt.v[Double])
-      case _ =>
-        val v = state.mb.newField[Long]
-        Code(v := elt.v[Long],
-          StagedRegionValueBuilder.deepCopy(state.er, elt.t, v, stateType.fieldOffset(state.off, 0)))
-    }
+    val v = state.fb.newField(typeToTypeInfo(typ))
+    val copyValue =
+      Code(
+        v := elt.value,
+        StagedRegionValueBuilder.deepCopy(state.fb, state.region, typ, v, stateType.fieldOffset(state.off, 0)))
 
     Code(
       elt.setup,
@@ -54,16 +44,16 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    stateType.isFieldMissing(other.region, other.off, 0).mux(
+    stateType.isFieldMissing(other.off, 0).mux(
       Code._empty,
       Code(
         state.newState,
-        state.off := StagedRegionValueBuilder.deepCopy(other.er, stateType, other.off)))
+        state.off := StagedRegionValueBuilder.deepCopy(state.fb, state.region, stateType, other.off)))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
     stateType.isFieldMissing(state.region, state.off, 0).mux(
       srvb.setMissing(),
-      srvb.addWithDeepCopy(resultType, stateType.loadField(state.region, state.off, 0)))
+      srvb.addWithDeepCopy(resultType, Region.loadIRIntermediate(resultType)(stateType.fieldOffset(state.off, 0))))
   }
 }

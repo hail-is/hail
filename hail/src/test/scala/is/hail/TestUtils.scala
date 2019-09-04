@@ -188,7 +188,7 @@ object TestUtils {
       val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
       val f = cxx.Compile(
         argsVar, argsType.physicalType,
-        MakeTuple(FastSeq(rewritten)), false)
+        MakeTuple.ordered(FastSeq(rewritten)), false)
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
@@ -257,7 +257,7 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
@@ -332,7 +332,7 @@ object TestUtils {
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -390,6 +390,11 @@ object TestUtils {
       case _: CXXUnsupportedOperation =>
     }
   }
+
+  def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit = {
+    assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
+  }
+
 
   def assertEvalsTo(x: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {

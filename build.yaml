@@ -29,10 +29,17 @@ steps:
    dependsOn:
     - default_ns
     - deploy_batch_sa
+ - kind: deploy
+   name: deploy_batch_output_sa
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch/output-service-account.yaml
+   dependsOn:
+    - batch_pods_ns
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
-   contextPath: docker
+   contextPath: .
    publishAs: base
  - kind: runImage
    name: create_accounts
@@ -51,6 +58,7 @@ steps:
      kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      # batch
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
      python3 -c "
      import jwt
      with open('secret-key', 'rb') as f:
@@ -135,6 +143,23 @@ steps:
    publishAs: batch
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_batch
+   image:
+     valueFrom: batch_image.image
+   script: |
+     set -ex
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
+   dependsOn:
+     - batch_image
+ - kind: buildImage
+   name: batch2_image
+   dockerFile: batch2/Dockerfile
+   contextPath: .
+   publishAs: batch2
+   dependsOn:
+     - base_image
  - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
@@ -161,6 +186,16 @@ steps:
    publishAs: ci
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_ci
+   image:
+     valueFrom: ci_image.image
+   script: |
+     set -ex
+     python3 -m flake8 ci
+     python3 -m pylint --rcfile pylintrc ci
+   dependsOn:
+     - ci_image
  - kind: buildImage
    name: ci_utils_image
    dockerFile: ci/Dockerfile.ci-utils
@@ -184,7 +219,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars
+     make jars python-version-info
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
@@ -299,6 +334,23 @@ steps:
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
+   name: hailtop_check_image
+   dockerFile: hail/python/Dockerfile.hailtop-check
+   contextPath: .
+   publishAs: hailtop-check
+   dependsOn:
+     - hail_base_image
+ - kind: runImage
+   name: check_hailtop
+   image:
+     valueFrom: hailtop_check_image.image
+   script: |
+     set -ex
+     python3 -m flake8 hailtop
+     python3 -m pylint --rcfile pylintrc hailtop
+   dependsOn:
+     - hailtop_check_image
+ - kind: buildImage
    name: scheduler_image
    dockerFile: scheduler/Dockerfile
    contextPath: .
@@ -338,7 +390,7 @@ steps:
      export HAIL_DOCTEST_DATA_DIR=./data
      export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
-     python3 -m pytest test --durations=50
+     python3 -m pytest --instafail test --durations=50
    inputs:
      - from: /hail.jar
        to: /io/hail.jar
@@ -360,7 +412,7 @@ steps:
    script: |
      set -ex
      cd /hail/python/hail
-     python3 -m pytest \
+     python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
        --ignore=docs/conf.py \
@@ -446,7 +498,7 @@ steps:
     - kind: Pod
       name: create-ci-tables
       for: completed
-      timeout: 120
+      timeout: 240
    dependsOn:
      - default_ns
      - base_image
@@ -489,7 +541,7 @@ steps:
     - kind: Pod
       name: create-batch-tables
       for: completed
-      timeout: 120
+      timeout: 240
    dependsOn:
      - default_ns
      - create_batch_tables_image
@@ -503,7 +555,7 @@ steps:
     - kind: Pod
       name: create-batch-tables
       for: completed
-      timeout: 120
+      timeout: 240
    dependsOn:
      - default_ns
      - create_batch_tables_image
@@ -521,6 +573,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - deploy_batch_output_sa
     - create_accounts
     - batch_image
     - batch_database
@@ -532,6 +585,18 @@ steps:
    config: batch/batch-pods-deployment.yaml
    dependsOn:
     - batch_pods_ns
+ - kind: deploy
+   name: deploy_batch2
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/deployment.yaml
+   wait:
+    - kind: Service
+      name: batch2
+      for: alive
+   dependsOn:
+    - default_ns
+    - batch2_image
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
@@ -589,7 +654,7 @@ steps:
    name: cleanup_pipeline
    image:
      valueFrom: base_image.image
-   alwaysRun: true     
+   alwaysRun: true
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
@@ -600,7 +665,7 @@ steps:
       mountPath: /test-gsa-key
    dependsOn:
     - base_image
-    - setup_pipeline    
+    - setup_pipeline
     - test_pipeline
  - kind: deploy
    name: deploy_scheduler

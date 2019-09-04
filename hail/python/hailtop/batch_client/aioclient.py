@@ -1,14 +1,15 @@
-import os
 import math
-import time
 import random
+import asyncio
+import aiohttp
 
 import hailtop.gear.auth as hj
 
 from .globals import complete_states
 
 
-job_array_size = 20
+job_array_size = 50
+max_job_submit_attempts = 3
 
 
 def filter_params(complete, success, attributes):
@@ -36,7 +37,7 @@ class Job:
             return None
 
         exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes[task] for task in ['input', 'main', 'output'] if task in exit_codes]
+        exit_codes = [exit_codes[task] for task in ['setup', 'main', 'cleanup'] if task in exit_codes]
 
         i = 0
         while i < len(exit_codes):
@@ -47,6 +48,24 @@ class Job:
                 return ec
             i += 1
         return 0
+
+    @staticmethod
+    def total_duration(job_status):
+        if 'duration' not in job_status or job_status['duration'] is None:
+            return None
+
+        durations = job_status['duration']
+        durations = [durations[task] for task in ['setup', 'main', 'cleanup'] if task in durations]
+
+        i = 0
+        duration = 0
+        while i < len(durations):
+            d = durations[i]
+            if d is None:
+                return None
+            duration += d
+            i += 1
+        return duration
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
@@ -184,7 +203,7 @@ class SubmittedJob:
             if await self.is_complete():
                 return self._status
             j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
+            await asyncio.sleep(0.100 * j)
             # max 44.5s
             if i < 64:
                 i = i + 1
@@ -205,17 +224,26 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def status(self):
-        return await self._client._get(f'/api/v1alpha/batches/{self.id}')
+    async def status(self, limit=None, offset=None):
+        params = None
+        if limit is not None:
+            if not params:
+                params = {}
+            params['limit'] = str(limit)
+        if offset is not None:
+            if limit is None:
+                raise ValueError("cannot define 'offset' without a 'limit'")
+            params['offset'] = str(offset)
+        return await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
 
     async def wait(self):
         i = 0
         while True:
-            status = await self.status()
+            status = await self.status(limit=0)
             if status['complete']:
-                return status
+                return await self.status()
             j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
+            await asyncio.sleep(0.100 * j)
             # max 44.5s
             if i < 64:
                 i = i + 1
@@ -264,7 +292,7 @@ class BatchBuilder:
         error_msg = []
         if len(foreign_batches) != 0:
             error_msg.append('Found {} parents from another batch:\n{}'.format(str(len(foreign_batches)),
-                                                                           "\n".join([str(j) for j in foreign_batches])))
+                                                                               "\n".join([str(j) for j in foreign_batches])))
         if len(invalid_job_ids) != 0:
             error_msg.append('Found {} parents with invalid job ids:\n{}'.format(str(len(invalid_job_ids)),
                                                                                  "\n".join([str(j) for j in invalid_job_ids])))
@@ -342,6 +370,18 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
+    async def _submit_job_with_retry(self, batch_id, docs):
+        n_attempts = 0
+        saved_err = None
+        while n_attempts < max_job_submit_attempts:
+            try:
+                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+            except Exception as err:  # pylint: disable=W0703
+                saved_err = err
+                n_attempts += 1
+                await asyncio.sleep(1)
+        raise saved_err
+
     async def submit(self):
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
@@ -353,23 +393,29 @@ class BatchBuilder:
         if self.callback:
             batch_doc['callback'] = self.callback
 
-        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-        batch = Batch(self._client, b['id'], b.get('attributes'))
+        batch = None
+        try:
+            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+            batch = Batch(self._client, b['id'], b.get('attributes'))
 
-        docs = []
-        n = 0
-        for jdoc in self._job_docs:
-            n += 1
-            docs.append(jdoc)
-            if n == job_array_size:
-                await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
-                n = 0
-                docs = []
+            docs = []
+            n = 0
+            for jdoc in self._job_docs:
+                n += 1
+                docs.append(jdoc)
+                if n == job_array_size:
+                    await self._submit_job_with_retry(batch.id, docs)
+                    n = 0
+                    docs = []
 
-        if docs:
-            await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
+            if docs:
+                await self._submit_job_with_retry(batch.id, docs)
 
-        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+        except Exception as err:  # pylint: disable=W0703
+            if batch:
+                await batch.cancel()
+            raise err
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -382,11 +428,16 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
-        if not url:
+    def __init__(self, session=None, url=None, token_file=None, token=None, headers=None):
+        if url is None:
             url = 'http://batch.default'
         self.url = url
+
+        if session is None:
+            session = aiohttp.ClientSession(raise_for_status=True,
+                                            timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
+
         if token is None:
             token = hj.find_token(token_file)
         userdata = hj.JWTClient.unsafe_decode(token)

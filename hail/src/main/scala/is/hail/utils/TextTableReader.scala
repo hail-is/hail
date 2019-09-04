@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, RegionValue}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -16,7 +17,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.util.matching.Regex
-
 import is.hail.io.fs.FS
 
 case class TextTableReaderOptions(
@@ -359,6 +359,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
     val rowTyp = tr.typ.rowType
     val nFieldOrig = fullType.rowType.size
     val rowFields = rowTyp.fields
+    val rowPType = PType.canonical(rowTyp).asInstanceOf[PStruct]
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
@@ -381,7 +382,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
           rvb.set(region)
-          rvb.start(rowTyp.physicalType)
+          rvb.start(rowPType)
           rvb.startStruct()
 
           var i = 0
@@ -409,6 +410,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
       }
     }
 
-    TableValue(tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowTyp.physicalType, crdd))
+    TableValue(tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPType, crdd))
   }
 }

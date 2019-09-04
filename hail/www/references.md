@@ -1,9 +1,14 @@
-
 # Hail-Powered Science
 
-The following is an incomplete list of scientific work enabled by Hail. We welcome you to add additional examples by [editing the page directly]((https://github.com/hail-is/hail/edit/master/hail/www/references.md)), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.  
+The following is an incomplete list of scientific work enabled by Hail. We welcome you to add additional examples by [editing this page directly](https://github.com/hail-is/hail/edit/master/hail/www/references.md), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.
+
+In addition to software development, the Hail team engages in theoretical, algorithmic, and empirical research inspired by scientific collaboration. Examples include [Loss landscapes of regularized linear autoencoders](https://github.com/danielkunin/Regularized-Linear-Autoencoders), [Secure multi-party linear regression at plaintext speed](https://github.com/jbloom22/DASH), and [A synthetic-diploid benchmark for accurate variant-calling evaluation](https://www.nature.com/articles/s41592-018-0054-7).
 
 ## 2019
+
+* Werling, Donna, et al. "Whole-genome and RNA sequencing reveal variation and transcriptomic coordination in the developing human prefrontal cortex." *bioRxiv* (2019): 538421. https://www.biorxiv.org/content/10.1101/585430v1
+
+* Satterstrom, Kyle F., et al. "Large-scale exome sequencing study implicates both developmental and functional changes in the neurobiology of autism." *bioRxiv* (2019): 538421. https://www.biorxiv.org/content/10.1101/484113v3
 
 * Huang, Qin, et al. "Delivering genes across the blood-brain barrier: LY6A, a novel cellular receptor for AAV-PHP. B capsids." *bioRxiv* (2019): 538421. https://www.biorxiv.org/content/10.1101/538421v1
 
@@ -11,7 +16,7 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 * Martin, Alicia R., et al. "Current clinical use of polygenic scores will risk exacerbating health disparities." *bioRxiv* (2019): 441261. https://www.biorxiv.org/content/10.1101/441261v3
 
-* Collaborative, Epi25, et al. "Ultra-rare genetic variation in the epilepsies: a whole-exome sequencing study of 17,606 individuals." *bioRxiv* (2019): 525683. https://www.biorxiv.org/content/10.1101/525683v1j
+* Collaborative, Epi25, et al. "Ultra-rare genetic variation in the epilepsies: a whole-exome sequencing study of 17,606 individuals." *American Journal of Human Genetics* (2019): https://www.cell.com/ajhg/fulltext/S0002-9297(19)30207-1
 
 * Karczewski, Konrad J., et al. "Variation across 141,456 human exomes and genomes reveals the spectrum of loss-of-function intolerance across human protein-coding genes." *bioRxiv* (2019): 531210. https://www.biorxiv.org/content/10.1101/531210v2.abstract
 
@@ -31,11 +36,11 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 * Cirulli, Elizabeth T., et al. "Genome-wide rare variant analysis for thousands of phenotypes in 54,000 exomes." *bioRxiv* (2019): 692368. https://www.biorxiv.org/content/10.1101/692368v1.abstract
 
-* Kerminen, Sini, et al. "Geographic Variation and Bias in the Polygenic Scores of Complex Diseases and Traits in Finland." *The American Journal of Human Genetics* (2019). https://www.biorxiv.org/content/10.1101/485441v1.abstract
+* Kerminen, Sini, et al. "Geographic Variation and Bias in the Polygenic Scores of Complex Diseases and Traits in Finland." *American Journal of Human Genetics* (2019). https://www.biorxiv.org/content/10.1101/485441v1.abstract
 
 * Jiang, Fan, Kyle Ferriter, and Claris Castillo. "PIVOT: Cost-Aware Scheduling of Data-Intensive Applications in a Cloud-Agnostic System." https://renci.org/wp-content/uploads/2019/02/Cloud_19.pdf
 
-* Pividori, Milton, et al. "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma: genome-wide and transcriptome-wide studies." *The Lancet Respiratory Medicine* 7.6 (2019): 509-522. https://www.biorxiv.org/content/10.1101/427427v2
+* Pividori, Milton, et al. "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma: genome-wide and transcriptome-wide studies." *Lancet Respiratory Medicine* 7.6 (2019): 509-522. https://www.biorxiv.org/content/10.1101/427427v2
 
 * Cox, Samantha L., et al. "Genetic contributions to variation in human stature in prehistoric Europe." *bioRxiv* (2019): 690545. https://www.biorxiv.org/content/10.1101/690545v1.abstract
 
@@ -44,6 +49,8 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 * Khera, Amit V., et al. "Whole-genome sequencing to characterize monogenic and polygenic contributions in patients hospitalized with early-onset myocardial infarction." *Circulation* 139.13 (2019): 1593-1602. https://www.ahajournals.org/doi/10.1161/CIRCULATIONAHA.118.035658
 
 ## 2018
+
+* An, Joon-Yong, et al. "Genome-wide de novo risk score implicates promoter variation in autism spectrum disorder." *Science* (2018): 1. https://science.sciencemag.org/content/362/6420/eaat6576.full
 
 * Molnos, Sophie Claudia. Metabolites: implications in type 2 diabetes and the effect of epigenome-wide interaction with genetic variation. Diss. Technische Universität München, 2018. https://mediatum.ub.tum.de/1372795f
 
@@ -61,7 +68,7 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 * Farhan, Sali MK, et al. "Enrichment of rare protein truncating variants in amyotrophic lateral sclerosis patients." *bioRxiv* (2018): 307835. https://www.biorxiv.org/content/10.1101/307835v2
 
-* Ganna, Andrea, et al. "Quantifying the impact of rare and ultra-rare coding variation across the phenotypic spectrum." *The American Journal of Human Genetics* 102.6 (2018): 1204-1211. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5992130/
+* Ganna, Andrea, et al. "Quantifying the impact of rare and ultra-rare coding variation across the phenotypic spectrum." *American Journal of Human Genetics* 102.6 (2018): 1204-1211. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5992130/
 
 * Khera, Amit V., et al. "Genome-wide polygenic scores for common diseases identify individuals with risk equivalent to monogenic mutations." *Nature Genetics* 50.9 (2018): 1219. https://www.nature.com/articles/s41588-018-0183-z?_ga=2.263293700.980063710.1543017600-1151073636.1543017600
 
@@ -73,7 +80,7 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 * Rees, Elliott, et al. "Association between schizophrenia and both loss of function and missense mutations in paralog conserved sites of voltage-gated sodium channels." *bioRxiv* (2018): 246850. https://www.biorxiv.org/content/10.1101/246850v1.abstract
 
-* Haas, Mary E., et al. "Genetic association of albuminuria with cardiometabolic disease and blood pressure." *The American Journal of Human Genetics* 103.4 (2018): 461-473. https://www.cell.com/ajhg/pdf/S0002-9297(18)30270-2.pdf
+* Haas, Mary E., et al. "Genetic association of albuminuria with cardiometabolic disease and blood pressure." *American Journal of Human Genetics* 103.4 (2018): 461-473. https://www.cell.com/ajhg/pdf/S0002-9297(18)30270-2.pdf
 
 * Abel, Haley J., et al. "Mapping and characterization of structural variation in 17,795 deeply sequenced human genomes." *bioRxiv* (2018): 508515. https://www.biorxiv.org/content/10.1101/508515v1.abstract
 

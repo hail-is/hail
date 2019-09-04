@@ -172,7 +172,10 @@ object PruneDeadFields {
             TStruct(ts.required, subFields: _*)
           case tt: TTuple =>
             val subTuples = children.map(_.asInstanceOf[TTuple])
-            TTuple(tt.required, tt.types.indices.map(i => unifySeq(tt.types(i), subTuples.map(_.types(i)))): _*)
+            TTuple(tt._types.map { fd => fd -> subTuples.flatMap(child => child.fieldIndex.get(fd.index).map(child.types)) }
+              .filter(_._2.nonEmpty)
+              .map { case (fd, fdChildren) => TupleField(fd.index, unifySeq(fd.typ, fdChildren)) },
+              tt.required)
           case ta: TStreamable =>
             ta.copyStreamable(unifySeq(ta.elementType, children.map(_.asInstanceOf[TStreamable].elementType)))
           case _ =>
@@ -387,7 +390,13 @@ object PruneDeadFields {
         memoizeTableIR(child, unify(child.typ, requestedType, irDep), memo)
       case TableKeyBy(child, _, isSorted) =>
         val reqKey = requestedType.key
-        val childReqKey = if (isSorted) child.typ.key.take(reqKey.length) else FastIndexedSeq()
+        val isPrefix = reqKey.zip(child.typ.key).forall { case (l, r) => l == r }
+        val childReqKey = if (isSorted)
+          child.typ.key
+        else if (isPrefix)
+          if  (reqKey.length <= child.typ.key.length) reqKey else child.typ.key
+        else FastIndexedSeq()
+
         memoizeTableIR(child, TableType(
           key = childReqKey,
           rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, childReqKey), requestedType.rowType),
@@ -498,6 +507,9 @@ object PruneDeadFields {
             PruneDeadFields.selectKey(child.typ.rowType, child.typ.key))), memo)
       case TableToTableApply(child, f) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case BlockMatrixToTableApply(bm, aux, _) =>
+        memoizeBlockMatrixIR(bm, bm.typ, memo)
+        memoizeValueIR(aux, aux.typ, memo)
       case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
       case RelationalLetTable(name, value, body) =>
         memoizeTableIR(body, requestedType, memo)
@@ -822,8 +834,10 @@ object PruneDeadFields {
                 Field(base.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
               }, base.required)
             case (TTuple(req, _), TTuple(cast, _), TTuple(base, r)) =>
-              assert(req.length == cast.length && req.length == base.length)
-              TTuple(req.indices.map { i => recur(req(i), cast(i), base(i)) }, r)
+              assert(base.length == cast.length)
+              val castFields = cast.map { f => f.index -> f.typ }.toMap
+              val baseFields = base.map { f => f.index -> f.typ }.toMap
+              TTuple(req.map { f => TupleField(f.index, recur(f.typ, castFields(f.index), baseFields(f.index)))})
             case (TArray(req, _), TArray(cast, _), TArray(base, r)) =>
               TArray(recur(req, cast, base), r)
             case (TSet(req, _), TSet(cast, _), TSet(base, r)) =>
@@ -1145,19 +1159,19 @@ object PruneDeadFields {
         memoizeValueIR(old, TStruct(old.typ.required, fields.flatMap(f => sType.fieldOption(f).map(f -> _.typ)): _*), memo)
       case GetField(o, name) =>
         memoizeValueIR(o, TStruct(o.typ.required, name -> requestedType), memo)
-      case MakeTuple(types) =>
+      case MakeTuple(fields) =>
         val tType = requestedType.asInstanceOf[TTuple]
-        assert(types.length == tType.size)
+
         unifyEnvsSeq(
-          types.zip(tType.types).map { case (tir, t) => memoizeValueIR(tir, t, memo) }
-        )
+          fields.flatMap { case (i, value) =>
+            // ignore unreachable fields, these are eliminated on the upwards pass
+            tType.fieldIndex.get(i)
+              .map { idx =>
+                memoizeValueIR(value, tType.types(idx), memo)
+              }})
       case GetTupleElement(o, idx) =>
-        // FIXME handle tuples better
         val childTupleType = o.typ.asInstanceOf[TTuple]
-        val tupleDep = TTuple(childTupleType.required,
-          childTupleType.types
-            .zipWithIndex
-            .map { case (t, i) => if (i == idx) requestedType else minimal(t) }: _*)
+        val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)), childTupleType.required)
         memoizeValueIR(o, tupleDep, memo)
       case TableCount(child) =>
         memoizeTableIR(child, minimal(child.typ), memo)
@@ -1308,6 +1322,10 @@ object PruneDeadFields {
         val value2 = rebuildIR(value, BindingEnv.empty, memo)
         memo.relationalRefs += name -> value2.typ
         RelationalLetTable(name, value2, rebuild(body, memo))
+      case BlockMatrixToTableApply(bmir, aux, function) =>
+        val bmir2 = rebuild(bmir, memo)
+        val aux2 = rebuildIR(aux, BindingEnv.empty, memo)
+        BlockMatrixToTableApply(bmir2, aux2, function)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -1461,8 +1479,10 @@ object PruneDeadFields {
                 Field(cast.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
               }, base.required)
             case (TTuple(reb, _), TTuple(cast, _), TTuple(base, r)) =>
-              assert(reb.length == cast.length && reb.length == base.length)
-              TTuple(reb.indices.map { i => recur(reb(i), cast(i), base(i)) }, r)
+              assert(base.length == cast.length)
+              val castFields = cast.map { f => f.index -> f.typ }.toMap
+              val baseFields = base.map { f => f.index -> f.typ }.toMap
+              TTuple(reb.map { f => TupleField(f.index, recur(f.typ, castFields(f.index), baseFields(f.index)))})
             case (TArray(reb, _), TArray(cast, _), TArray(base, r)) =>
               TArray(recur(reb, cast, base), r)
             case (TSet(reb, _), TSet(cast, _), TSet(base, r)) =>
@@ -1567,6 +1587,16 @@ object PruneDeadFields {
             log.info(s"Prune: MakeStruct: eliminating field '$f'")
             None
           }
+        })
+      case MakeTuple(fields) =>
+        val depTuple = requestedType.asInstanceOf[TTuple]
+        // drop unnecessary field IRs
+        val depFieldIndices = depTuple.fieldIndex.keySet
+        MakeTuple(fields.flatMap { case (i, f) =>
+          if (depFieldIndices(i))
+            Some(i -> rebuildIR(f, env, memo))
+          else
+            None
         })
       case InsertFields(old, fields, fieldOrder) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
@@ -1687,8 +1717,8 @@ object PruneDeadFields {
           val rt = rType.asInstanceOf[TTuple]
           val uid = genUID()
           val ref = Ref(uid, ir.typ)
-          val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
-            upcast(GetTupleElement(ref, i), typ)
+          val mt = MakeTuple(rt.fields.map { fd =>
+            fd.index -> upcast(GetTupleElement(ref, fd.index), fd.typ)
           })
           Let(uid, ir, If(IsNA(ref), NA(mt.typ), mt))
         case td: TDict =>

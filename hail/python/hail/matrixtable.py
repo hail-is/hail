@@ -2,7 +2,6 @@ import itertools
 from typing import *
 from collections import OrderedDict, Counter
 import warnings
-
 import hail
 import hail as hl
 from hail.expr.expressions import *
@@ -602,8 +601,17 @@ class MatrixTable(ExprContainer):
 
     def __getitem__(self, item):
         invalid_usage = TypeError(f"MatrixTable.__getitem__: invalid index argument(s)\n"
-                                  f"  Usage 1: field selection ( mt['field'] )\n"
-                                  f"  Usage 2: Entry joining ( mt[mt2.row_key, mt2.col_key] )")
+                                  f"  Usage 1: field selection: mt['field']\n"
+                                  f"  Usage 2: Entry joining: mt[mt2.row_key, mt2.col_key]\n\n"
+                                  f"  To join row or column fields, use one of the following:\n"
+                                  f"    rows:\n"
+                                  f"       mt.index_rows(mt2.row_key)\n"
+                                  f"       mt.rows().index(mt2.row_key)\n"
+                                  f"       mt.rows()[mt2.row_key]\n"
+                                  f"    cols:\n"
+                                  f"       mt.index_cols(mt2.col_key)\n"
+                                  f"       mt.cols().index(mt2.col_key)\n"
+                                  f"       mt.cols()[mt2.col_key]")
 
         if isinstance(item, str):
             return self._get_field(item)
@@ -719,7 +727,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all column field names:
 
-        >>> list(dataset.col)  # doctest: +NOTEST
+        >>> list(dataset.col)  # doctest: +SKIP_OUTPUT_CHECK
         ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -737,7 +745,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all non-key column field names:
 
-        >>> list(dataset.col_value)  # doctest: +NOTEST
+        >>> list(dataset.col_value)  # doctest: +SKIP_OUTPUT_CHECK
         ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -1387,7 +1395,7 @@ class MatrixTable(ExprContainer):
         filtering the matrix table to row keys not present in another table.
 
         To restrict to rows whose key is present in `other`, use
-        :meth:`.anti_join_rows`.
+        :meth:`.semi_join_rows`.
 
         Examples
         --------
@@ -1466,7 +1474,7 @@ class MatrixTable(ExprContainer):
         filtering the matrix table to column keys not present in another table.
 
         To restrict to columns whose key is present in `other`, use
-        :meth:`.anti_join_cols`.
+        :meth:`.semi_join_cols`.
 
         Examples
         --------
@@ -2273,7 +2281,7 @@ class MatrixTable(ExprContainer):
         ...     .explode_cols('foo'))
         >>> mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
 
-        >>> mt.cols().show() # doctest: +NOTEST
+        >>> mt.cols().show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+-------+
         | col_idx |   foo |
         +---------+-------+
@@ -2287,7 +2295,7 @@ class MatrixTable(ExprContainer):
         |       2 |     6 |
         +---------+-------+
 
-        >>> mt.entries().show() # doctest: +NOTEST
+        >>> mt.entries().show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+---------+-------+-------+
         | row_idx | col_idx |   foo |   bar |
         +---------+---------+-------+-------+
@@ -2318,7 +2326,7 @@ class MatrixTable(ExprContainer):
         |       2 | [4,5,6]      |
         +---------+--------------+
 
-        >>> mt.entries().show() # doctest: +NOTEST
+        >>> mt.entries().show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+---------+--------------+--------------+
         | row_idx | col_idx | foo          | bar          |
         +---------+---------+--------------+--------------+
@@ -2455,7 +2463,7 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
+        >>> dataset = dataset.checkpoint(f'{output_dir}/dataset_checkpoint.mt')
 
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -2474,7 +2482,7 @@ class MatrixTable(ExprContainer):
         Examples
         --------
 
-        >>> dataset.write('output/dataset.mt')
+        >>> dataset.write(f'{output_dir}/dataset.mt')
 
         Warning
         -------
@@ -2761,7 +2769,7 @@ class MatrixTable(ExprContainer):
             key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                 f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
     def index_cols(self, *exprs, all_matches=False) -> 'Expression':
@@ -2801,7 +2809,7 @@ class MatrixTable(ExprContainer):
             key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                 f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
     def index_entries(self, row_exprs, col_exprs):

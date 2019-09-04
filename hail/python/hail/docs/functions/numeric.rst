@@ -37,7 +37,9 @@ Numeric functions
 .. autosummary::
 
     min
+    nanmin
     max
+    nanmax
     mean
     median
     product
@@ -67,7 +69,9 @@ Numeric functions
 .. autofunction:: sqrt
 .. autofunction:: sign
 .. autofunction:: min
+.. autofunction:: nanmin
 .. autofunction:: max
+.. autofunction:: nanmax
 .. autofunction:: mean
 .. autofunction:: median
 .. autofunction:: product

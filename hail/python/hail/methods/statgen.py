@@ -813,17 +813,17 @@ def linear_mixed_model(y,
     Initialize a model using three fixed effects (including intercept) and
     genetic marker random effects:
 
-    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker)
-    >>> model, _ = hl.linear_mixed_model(
+    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker) # doctest: +SKIP
+    >>> model, _ = hl.linear_mixed_model( # doctest: +SKIP
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
     ...     z_t=marker_ds.GT.n_alt_alleles(),
-    ...     p_path='output/p.bm')
+    ...     p_path=f'{output_dir}/p.bm')
 
     Fit the model and examine :math:`h^2`:
 
-    >>> model.fit()
-    >>> model.h_sq
+    >>> model.fit()  # doctest: +SKIP
+    >>> model.h_sq  # doctest: +SKIP
 
     Sanity-check the normalized likelihood of :math:`h^2` over the percentile
     grid:
@@ -833,7 +833,7 @@ def linear_mixed_model(y,
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)
+    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)  # doctest: +SKIP
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -841,12 +841,12 @@ def linear_mixed_model(y,
     as above with :math:`P` written as a block matrix but returned as an
     ndarray:
 
-    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()
-    >>> model, p = hl.linear_mixed_model(
+    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()  # doctest: +SKIP
+    >>> model, p = hl.linear_mixed_model(  # doctest: +SKIP
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,
-    ...     p_path='output/p.bm',
+    ...     p_path=f'{output_dir}/p.bm',
     ...     overwrite=True)
 
     Notes
@@ -1150,7 +1150,6 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    >>> burden_ds = hl.read_matrix_table('data/example_burden.vds')
     >>> skat_table = hl.skat(key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
@@ -1347,7 +1346,7 @@ def lambda_gc(p_value, approximate=True):
         Genomic inflation factor (lambda genomic control).
     """
     check_row_indexed('lambda_gc', p_value)
-    t = table_source(p_value)
+    t = table_source('lambda_gc', p_value)
     med_chisq = _lambda_gc_agg(p_value, approximate)
     return t.aggregate(med_chisq)
 
@@ -1558,11 +1557,11 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            min_individual_maf=numeric,
            k=nullable(int),
            scores_expr=nullable(expr_array(expr_float64)),
-           min_kinship=numeric,
+           min_kinship=nullable(numeric),
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
            block_size=nullable(int))
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
-              min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
+              min_kinship=None, statistics="all", block_size=None) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -1808,8 +1807,8 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         source as `call_expr`. All array values must have the same positive length,
         corresponding to the number of principal components, and all scores must
         be non-missing. Exactly one of `k` and `scores_expr` must be specified.
-    min_kinship : :obj:`float`
-        Pairs of samples with kinship lower than ``min_kinship`` are excluded
+    min_kinship : :obj:`float`, optional
+        If set, pairs of samples with kinship lower than ``min_kinship`` are excluded
         from the results.
     statistics : :obj:`str`
         Set of statistics to compute.
@@ -1855,15 +1854,15 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     g = BlockMatrix.from_entry_expr(mean_imputed_gt,
                                     block_size=block_size)
 
-    int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
+    pcs = scores_table.collect(_localize=False).map(lambda x: x.__scores)
 
-    ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
-                          .pyApply(g._jbm,
-                                   Env.spark_backend('pc_relate')._to_java_ir(scores_table.collect(_localize=False)._ir),
-                                   min_individual_maf,
-                                   block_size,
-                                   min_kinship,
-                                   int_statistics))
+    ht = Table(BlockMatrixToTableApply(g._bmir, pcs._ir, {
+        'name': 'PCRelate',
+        'maf': min_individual_maf,
+        'blockSize': block_size,
+        'minKinship': min_kinship,
+        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
+    }))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -2058,7 +2057,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     Examples
     --------
 
-    >>> hl.split_multi_hts(dataset).write('output/split.vds')
+    >>> hl.split_multi_hts(dataset).write(f'{output_dir}/split.vds')
 
     Notes
     -----
@@ -2142,7 +2141,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     >>> split_ds = hl.split_multi_hts(dataset)
     >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.a_index - 1],
     ...                                   **split_ds.info)) # doctest: +SKIP
-    >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
+    >>> hl.export_vcf(split_ds, f'{output_dir}/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 

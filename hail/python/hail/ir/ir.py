@@ -296,6 +296,35 @@ class Let(IR):
         return i == 1
 
 
+class AggLet(IR):
+    @typecheck_method(name=str, value=IR, body=IR, is_scan=bool)
+    def __init__(self, name, value, body, is_scan):
+        super().__init__(value, body)
+        self.name = name
+        self.value = value
+        self.body = body
+        self.is_scan = is_scan
+
+    @typecheck_method(value=IR, body=IR)
+    def copy(self, value, body):
+        return AggLet(self.name, value, body, self.is_scan)
+
+    def head_str(self):
+        return escape_id(self.name) + " " + str(self.is_scan)
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+    def _eq(self, other):
+        return other.name == self.name and other.is_scan == self.is_scan
+
+    def _compute_type(self, env, agg_env):
+        self.value._compute_type(agg_env, None)
+        self.body._compute_type(env, _env_bind(agg_env, self.name, self.value._type))
+        self._type = self.body._type
+
+
 class Ref(IR):
     @typecheck_method(name=str)
     def __init__(self, name):
@@ -1598,6 +1627,9 @@ class MakeTuple(IR):
     def copy(self, *args):
         return MakeTuple(args)
 
+    def head_str(self):
+        return f'({" ".join([str(i) for i in range(len(self.elements))])})'
+
     def _compute_type(self, env, agg_env):
         for x in self.elements:
             x._compute_type(env, agg_env)
@@ -1624,6 +1656,7 @@ class GetTupleElement(IR):
     def _compute_type(self, env, agg_env):
         self.o._compute_type(env, agg_env)
         self._type = self.o.typ.types[self.idx]
+
 
 class In(IR):
     @typecheck_method(i=int, typ=hail_type)
@@ -1683,6 +1716,7 @@ _seeded_function_registry = defaultdict(list)
 _session_functions = set()
 _udf_registry = dict()
 
+
 def clear_session_functions():
     global _session_functions, _udf_registry
     for name, param_types, ret_type in _session_functions:
@@ -1694,6 +1728,7 @@ def clear_session_functions():
     _session_functions = set()
     _udf_registry = dict()
 
+
 def remove_function(name, param_types, ret_type):
     f = (param_types, ret_type)
     bindings = _function_registry[name]
@@ -1703,9 +1738,11 @@ def remove_function(name, param_types, ret_type):
     else:
         _function_registry[name] = bindings
 
+
 def register_session_function(name, param_types, ret_type):
     _session_functions.add((name, param_types, ret_type))
     register_function(name, param_types, ret_type)
+
 
 def register_function(name, param_types, ret_type):
     _register(_function_registry, name, (param_types, ret_type))
@@ -1713,25 +1750,6 @@ def register_function(name, param_types, ret_type):
 
 def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
-
-
-def _lookup_function_return_type(registry, fkind, name, arg_types):
-    for f in registry[name]:
-        (param_types, ret_type) = f
-        for p in param_types:
-            p.clear()
-        ret_type.clear()
-        if all(p.unify(a) for p, a in zip(param_types, arg_types)):
-            return ret_type.subst()
-    raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
-
-
-def lookup_function_return_type(name, arg_types):
-    return _lookup_function_return_type(_function_registry, 'function', name, arg_types)
-
-
-def lookup_seeded_function_return_type(name, arg_types):
-    return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
 
 
 def udf(*param_types):
@@ -1752,51 +1770,55 @@ def udf(*param_types):
 
 
 class Apply(IR):
-    @typecheck_method(function=str, args=IR)
-    def __init__(self, function, *args):
+    @typecheck_method(function=str, return_type=hail_type, args=IR)
+    def __init__(self, function, return_type, *args):
         super().__init__(*args)
         self.function = function
+        self.return_type = return_type
         self.args = args
 
     def copy(self, *args):
-        return Apply(self.function, *args)
+        return Apply(self.function, self.return_type, *args)
 
     def head_str(self):
-        return escape_id(self.function)
+        return f'{escape_id(self.function)} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
-        return other.function == self.function
+        return other.function == self.function and \
+               other.return_type == self.return_type
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
             arg._compute_type(env, agg_env)
 
-        self._type = lookup_function_return_type(self.function, [a.typ for a in self.args])
+        self._type = self.return_type
 
 
 class ApplySeeded(IR):
-    @typecheck_method(function=str, seed=int, args=IR)
-    def __init__(self, function, seed, *args):
+    @typecheck_method(function=str, seed=int, return_type=hail_type, args=IR)
+    def __init__(self, function, seed, return_type, *args):
         super().__init__(*args)
         self.function = function
         self.args = args
         self.seed = seed
+        self.return_type = return_type
 
     def copy(self, *args):
-        return ApplySeeded(self.function, self.seed, *args)
+        return ApplySeeded(self.function, self.seed, self.return_type, *args)
 
     def head_str(self):
-        return f'{escape_id(self.function)} {self.seed}'
+        return f'{escape_id(self.function)} {self.seed} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
         return other.function == self.function and \
-               other.seed == self.seed
+               other.seed == self.seed and \
+               other.return_type == self.return_type
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
             arg._compute_type(env, agg_env)
 
-        self._type = lookup_seeded_function_return_type(self.function, [a.typ for a in self.args])
+        self._type = self.return_type
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2258,7 +2280,12 @@ def subst(ir, env, agg_env):
     elif isinstance(ir, Let):
         return Let(ir.name,
                    _subst(ir.value),
-                   _subst(ir.body, env))
+                   _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, AggLet):
+        return AggLet(ir.name,
+                      _subst(ir.value, agg_env, {}),
+                      _subst(ir.body, delete(env, ir.name)),
+                      ir.is_scan)
     elif isinstance(ir, ArrayMap):
         return ArrayMap(_subst(ir.a),
                         ir.name,

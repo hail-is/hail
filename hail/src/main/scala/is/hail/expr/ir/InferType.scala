@@ -28,7 +28,7 @@ object InferType {
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
       case MakeNDArray(data, shape, _) =>
-        TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
+        TNDArray(coerce[TArray](data.typ).elementType.setRequired(true), Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())
@@ -41,8 +41,6 @@ object InferType {
       case _: CombOp2 => TVoid
       case ResultOp2(_, aggSigs) =>
         TTuple(aggSigs.map(agg.Extract.getType): _*)
-      case _: ReadAggs => TVoid
-      case _: WriteAggs => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
@@ -71,8 +69,8 @@ object InferType {
       case a: ApplyIR => a.explicitNode.typ
       case a: AbstractApplyNode[_] =>
         val argTypes = a.args.map(_.typ)
-        a.implementation.unify(argTypes)
-        a.implementation.returnType.subst()
+        a.implementation.unify(argTypes :+ a.returnType)
+        a.returnType
       case _: Uniroot => TFloat64()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
@@ -120,7 +118,7 @@ object InferType {
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayMap(nd, _, body) =>
-        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
+        TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>
@@ -172,11 +170,10 @@ object InferType {
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) =>
-        TTuple(values.map(_.typ).toFastIndexedSeq)
+        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq, required = false)
       case GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
-        assert(idx >= 0 && idx < t.size)
-        val fd = t.types(idx)
+        val fd = t.fields(t.fieldIndex(idx)).typ
         fd.setRequired(t.required && fd.required)
       case TableCount(_) => TInt64()
       case TableAggregate(child, query) =>

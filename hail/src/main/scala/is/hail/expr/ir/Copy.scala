@@ -183,12 +183,6 @@ object Copy {
       case x@(_: ResultOp2 | _: CombOp2) =>
         assert(newChildren.isEmpty)
         x
-      case WriteAggs(startIdx, _, spec, aggSigs) =>
-        assert(newChildren.length == 1)
-        WriteAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
-      case ReadAggs(startIdx, _, spec, aggSigs) =>
-        assert(newChildren.length == 1)
-        ReadAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
       case x: SerializeAggs => x
       case x: DeserializeAggs => x
       case Begin(_) =>
@@ -207,8 +201,9 @@ object Copy {
           initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
           args.takeRight(x.nSeqOpArgs),
           aggSig)
-      case MakeTuple(_) =>
-        MakeTuple(newChildren.map(_.asInstanceOf[IR]))
+      case MakeTuple(fields) =>
+        assert(fields.length == newChildren.length)
+        MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })
       case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx)
@@ -220,12 +215,12 @@ object Copy {
         val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion
         r
-      case Apply(fn, args) =>
-        Apply(fn, newChildren.map(_.asInstanceOf[IR]))
-      case ApplySeeded(fn, args, seed) =>
-        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed)
-      case ApplySpecial(fn, args) =>
-        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
+      case Apply(fn, args, t) =>
+        Apply(fn, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySeeded(fn, args, seed, t) =>
+        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
+      case ApplySpecial(fn, args, t) =>
+        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
       case Uniroot(argname, _, _, _) =>
         val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
         Uniroot(argname, fn, min, max)

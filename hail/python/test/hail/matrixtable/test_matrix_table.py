@@ -387,6 +387,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.index_cols(mt.col_key).take(1), mt.index_cols(mt.s).take(1))
         self.assertEqual(mt[mt.row_key, mt.col_key].take(1), mt[(mt.locus, mt.alleles), mt.s].take(1))
 
+    def test_index_keyless(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable row key: *<<<empty key>>>"):
+            mt.key_rows_by().index_rows(mt.row_idx)
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable col key: *<<<empty key>>>"):
+            mt.key_cols_by().index_cols(mt.col_idx)
+
     def test_table_join(self):
         ds = self.get_vds()
         # test different row schemas
@@ -645,6 +652,12 @@ class Tests(unittest.TestCase):
         assert mt.key_cols_by().entries().collect() == original_order
         assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
         assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
+
+    def test_entries_table_with_out_of_order_row_key_fields(self):
+        mt = hl.utils.range_matrix_table(10, 10, 1)
+        mt = mt.select_rows(key2=0, key1=mt.row_idx)
+        mt = mt.key_rows_by(mt.key1, mt.key2)
+        mt.entries()._force_count()
 
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)

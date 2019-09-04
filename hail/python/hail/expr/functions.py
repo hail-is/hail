@@ -21,13 +21,13 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
-    return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(Apply(name, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
-    return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(a=expr_array(), x=expr_any)
@@ -44,10 +44,13 @@ def _quantile_from_cdf(cdf, q):
         n = cdf.ranks[cdf.ranks.length() - 1]
         pos = hl.int64(q*n) + 1
         idx = (hl.switch(q)
-                .when(0.0, 0)
-                .when(1.0, cdf.values.length() - 1)
-                .default(_lower_bound(cdf.ranks, pos) - 1))
-        return cdf.values[idx]
+                 .when(0.0, 0)
+                 .when(1.0, cdf.values.length() - 1)
+                 .default(_lower_bound(cdf.ranks, pos) - 1))
+        res = hl.cond(n == 0,
+                      hl.null(cdf.values.dtype.element_type),
+                      cdf.values[idx])
+        return res
     return hl.rbind(cdf, compute)
 
 
@@ -351,8 +354,8 @@ def switch(expr) -> 'hail.expr.builders.SwitchBuilder':
     return SwitchBuilder(expr)
 
 
-@typecheck(f=anytype, exprs=expr_any)
-def bind(f: Callable, *exprs):
+@typecheck(f=anytype, exprs=expr_any, _ctx=nullable(str))
+def bind(f: Callable, *exprs, _ctx=None):
     """Bind a temporary variable and use it in a function.
 
     Examples
@@ -383,22 +386,30 @@ def bind(f: Callable, *exprs):
     irs = []
 
     for expr in exprs:
-        uid = Env.get_uid()
+        uid = Env.get_uid(base=_ctx)
         args.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uids.append(uid)
         irs.append(expr._ir)
 
     lambda_result = to_expr(f(*args))
-    indices, aggregations = unify_all(*exprs, lambda_result)
+    if _ctx:
+        indices, aggregations = unify_all(lambda_result)  # FIXME: hacky. May drop field refs from errors?
+    else:
+        indices, aggregations = unify_all(*exprs, lambda_result)
 
     res_ir = lambda_result._ir
     for (uid, ir) in builtins.zip(uids, irs):
-        res_ir = Let(uid, ir, res_ir)
+        if _ctx == 'agg':
+            res_ir = AggLet(uid, ir, res_ir, is_scan=False)
+        elif _ctx == 'scan':
+            res_ir = AggLet(uid, ir, res_ir, is_scan=True)
+        else:
+            res_ir = Let(uid, ir, res_ir)
 
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
-def rbind(*exprs):
+def rbind(*exprs, _ctx=None):
     """Bind a temporary variable and use it in a function.
 
     This is :func:`.bind` with flipped argument order.
@@ -430,7 +441,7 @@ def rbind(*exprs):
     f = exprs[-1]
     args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
 
-    return hl.bind(f, *args)
+    return hl.bind(f, *args, _ctx=_ctx)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -526,7 +537,7 @@ def dict(collection) -> DictExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +NOTEST
+    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +SKIP_OUTPUT_CHECK
     {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
@@ -1472,7 +1483,7 @@ def json(x) -> StringExpression:
     >>> hl.eval(hl.json([1,2,3,4,5]))
     '[1,2,3,4,5]'
 
-    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +NOTEST
+    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +SKIP_OUTPUT_CHECK
     '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -1869,15 +1880,18 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     return _func("qpois", tint32, p, lamb, lower_tail, log_p)
 
 
-@typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
-def range(start, stop, step=1) -> ArrayNumericExpression:
+@typecheck(start=expr_int32, stop=nullable(expr_int32), step=expr_int32)
+def range(start, stop=None, step=1) -> ArrayNumericExpression:
     """Returns an array of integers from `start` to `stop` by `step`.
 
     Examples
     --------
 
-    >>> hl.eval(hl.range(0, 10))
+    >>> hl.eval(hl.range(10))
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    >>> hl.eval(hl.range(3, 10))
+    [3, 4, 5, 6, 7, 8, 9]
 
     >>> hl.eval(hl.range(0, 10, step=3))
     [0, 3, 6, 9]
@@ -1885,6 +1899,9 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     Notes
     -----
     The range includes `start`, but excludes `stop`.
+
+    If provided exactly one argument, the argument is interpreted as `stop` and
+    `start` is set to zero. This matches the behavior Python's ``range``.
 
     Parameters
     ----------
@@ -1899,6 +1916,9 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     -------
     :class:`.ArrayInt32Expression`
     """
+    if stop is None:
+        stop = start
+        start = hl.literal(0)
     return apply_expr(lambda sta, sto, ste: ArrayRange(sta, sto, ste), tarray(tint32), start, stop, step)
 
 
@@ -1909,10 +1929,10 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +SKIP_OUTPUT_CHECK
     True
 
-    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +SKIP_OUTPUT_CHECK
     False
 
     Parameters
@@ -1937,10 +1957,10 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm())  # doctest: +SKIP_OUTPUT_CHECK
     1.5388475315213386
 
-    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm())  # doctest: +SKIP_OUTPUT_CHECK
     -0.3006188509144124
 
     Parameters
@@ -1966,10 +1986,10 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +SKIP_OUTPUT_CHECK
     [0.5515477294463427, -1.1782691532205807]
 
-    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +SKIP_OUTPUT_CHECK
     [-1.127240906867922, 1.4495317887283203]
 
     Notes
@@ -2026,10 +2046,10 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +SKIP_OUTPUT_CHECK
     2.0
 
-    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +SKIP_OUTPUT_CHECK
     3.0
 
     Parameters
@@ -2054,10 +2074,10 @@ def rand_unif(lower, upper, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.7983073825816226
 
-    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.5161799497741769
 
     Parameters
@@ -2097,10 +2117,10 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.6696807666871818
 
-    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.8512985039011525
 
     Parameters
@@ -2139,10 +2159,10 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +SKIP_OUTPUT_CHECK
     2.3915947710237537
 
-    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.1339939936379711
 
     Parameters
@@ -2178,10 +2198,10 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +SKIP_OUTPUT_CHECK
     2
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +SKIP_OUTPUT_CHECK
     1
 
     Parameters
@@ -2206,10 +2226,10 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     [0.4630197581640282,0.18207753442497876,0.3549027074109931]
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     [0.20851948405364765,0.7873859423649898,0.004094573581362475]
 
     Parameters
@@ -2263,7 +2283,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     -0.6546536707079772
 
     Notes
@@ -2987,7 +3007,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +NOTEST
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +SKIP_OUTPUT_CHECK
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters
@@ -3204,7 +3224,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: Apply("length", x), tint32, x)
+        return apply_expr(lambda x: Apply("length", tint32, x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
@@ -3236,9 +3256,94 @@ def reversed(x):
     return x
 
 
+@typecheck(name=builtins.str,
+           exprs=tupleof(Expression),
+           filter_missing=builtins.bool,
+           filter_nan=builtins.bool)
+def _comparison_func(name, exprs, filter_missing, filter_nan):
+    if builtins.len(exprs) < 1:
+        raise ValueError(f"{name:!r} requires at least one argument")
+    if (builtins.len(exprs) == 1
+            and (isinstance(exprs[0].dtype, (tarray, tset)))
+            and is_numeric(exprs[0].dtype.element_type)):
+        [e] = exprs
+        if filter_nan and e.dtype.element_type in (tfloat32, tfloat64):
+            name = 'nan' + name
+        return array(e)._filter_missing_method(filter_missing, name, exprs[0].dtype.element_type)
+    else:
+        if not builtins.all(is_numeric(e.dtype) for e in exprs):
+            expr_types = ', '.join("'{}'".format(e.dtype) for e in exprs)
+            raise TypeError(f"{name!r} expects a single numeric array expression or multiple numeric expressions\n"
+                            f"  Found {builtins.len(exprs)} arguments with types {expr_types}")
+        unified_typ = unify_types_limited(*(e.dtype for e in exprs))
+        ec = coercer_from_dtype(unified_typ)
+        indices, aggs = unify_all(*exprs)
+
+        func_name = name
+        if filter_missing:
+            func_name += '_ignore_missing'
+        if filter_nan and unified_typ in (tfloat32, tfloat64):
+            func_name = 'nan' + func_name
+        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, unified_typ, l, r), [ec.coerce(e)._ir for e in exprs]),
+                              unified_typ,
+                              indices,
+                              aggs)
+
+
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
-           filter_missing=bool)
-def max(*exprs, filter_missing: bool = True) -> NumericExpression:
+           filter_missing=builtins.bool)
+def nanmax(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
+    """Returns the maximum value of a collection or of given arguments, excluding NaN.
+
+    Examples
+    --------
+
+    Compute the maximum value of an array:
+
+    >>> hl.eval(hl.nanmax([1.1, 50.1, float('nan')]))
+    50.1
+
+    Take the maximum value of arguments:
+
+    >>> hl.eval(hl.nanmax(1.1, 50.1, float('nan')))
+    50.1
+
+    Notes
+    -----
+    Like the Python builtin ``max`` function, this function can either take a
+    single iterable expression (an array or set of numeric elements), or
+    variable-length arguments of numeric expressions.
+
+    Note
+    ----
+    If `filter_missing` is ``True``, then the result is the maximum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    NaN arguments / array elements are ignored; the maximum value of `NaN` and
+    any non-`NaN` value `x` is `x`.
+
+    See Also
+    --------
+    :func:`max`, :func:`min`, :func:`nanmin`
+
+    Parameters
+    ----------
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
+        Single numeric array or set, or multiple numeric values.
+    filter_missing : :obj:`bool`
+        Remove missing arguments/elements before computing maximum.
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+    """
+
+    return _comparison_func('max', exprs, filter_missing, filter_nan=True)
+
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=builtins.bool)
+def max(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     """Returns the maximum element of a collection or of given numeric expressions.
 
     Examples
@@ -3262,54 +3367,46 @@ def max(*exprs, filter_missing: bool = True) -> NumericExpression:
 
     Note
     ----
-    Missing arguments / array elements are ignored if `filter_missing` is ``True``.
-    If `filter_missing` is ``False``, then any missing element causes the result to
-    be missing.
+    If `filter_missing` is ``True``, then the result is the maximum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    If any element or argument is `NaN`, then the result is `NaN`.
+
+    See Also
+    --------
+    :func:`nanmax`, :func:`min`, :func:`nanmin`
 
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
     filter_missing : :obj:`bool`
-        Remove missing elements from the collection before computing product.
+        Remove missing arguments/elements before computing maximum.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    if builtins.len(exprs) < 1:
-        raise ValueError("'max' requires at least one argument")
-    if builtins.len(exprs) == 1:
-        expr = exprs[0]
-        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
-            raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._filter_missing_method(filter_missing, 'max', expr.dtype.element_type)
-    else:
-        if not builtins.all(is_numeric(e.dtype) for e in exprs):
-            raise TypeError("'max' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
-                "'{}'".format(e.dtype) for e in exprs)))
-        return max(hl.array(list(exprs)), filter_missing=filter_missing)
-
+    return _comparison_func('max', exprs, filter_missing, filter_nan=False)
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
-           filter_missing=bool)
-def min(*exprs, filter_missing: bool = True) -> NumericExpression:
-    """Returns the minimum of a collection or of given numeric expressions.
+           filter_missing=builtins.bool)
+def nanmin(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
+    """Returns the minimum value of a collection or of given arguments, excluding NaN.
 
     Examples
     --------
 
-    Take the minimum value of an array:
+    Compute the minimum value of an array:
 
-    >>> hl.eval(hl.min([2, 3, 5, 6, 7, 9]))
-    2
+    >>> hl.eval(hl.nanmin([1.1, 50.1, float('nan')]))
+    1.1
 
-    Take the minimum value:
+    Take the minimum value of arguments:
 
-    >>> hl.eval(hl.min(12, 50, 2))
-    2
+    >>> hl.eval(hl.nanmin(1.1, 50.1, float('nan')))
+    1.1
 
     Notes
     -----
@@ -3319,35 +3416,79 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
 
     Note
     ----
-    Missing arguments / array elements are ignored if `filter_missing` is ``True``.
-    If `filter_missing` is ``False``, then any missing element causes the result to
-    be missing.
+    If `filter_missing` is ``True``, then the result is the minimum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    NaN arguments / array elements are ignored; the minimum value of `NaN` and
+    any non-`NaN` value `x` is `x`.
+
+    See Also
+    --------
+    :func:`min`, :func:`max`, :func:`nanmax`
 
     Parameters
     ----------
     exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
         Single numeric array or set, or multiple numeric values.
     filter_missing : :obj:`bool`
-        Remove missing elements from the collection before computing product.
+        Remove missing arguments/elements before computing minimum.
 
     Returns
     -------
     :class:`.NumericExpression`
     """
-    if builtins.len(exprs) < 1:
-        raise ValueError("'min' requires at least one argument")
-    if builtins.len(exprs) == 1:
-        expr = exprs[0]
-        if not (isinstance(expr.dtype, tset) or isinstance(expr.dtype, tarray)):
-            raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found 1 argument of type '{}'".format(expr.dtype))
-        return expr._filter_missing_method(filter_missing, 'min', expr.dtype.element_type)
-    else:
-        if not builtins.all(is_numeric(e.dtype) for e in exprs):
-            raise TypeError("'min' expects a single numeric array expression or multiple numeric expressions\n"
-                            "  Found {} arguments with types '{}'".format(builtins.len(exprs), ', '.join(
-                "'{}'".format(e.dtype) for e in exprs)))
-        return min(hl.array(list(exprs)), filter_missing=filter_missing)
+
+    return _comparison_func('min', exprs, filter_missing, filter_nan=True)
+
+@typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
+           filter_missing=builtins.bool)
+def min(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
+    """Returns the minimum element of a collection or of given numeric expressions.
+
+    Examples
+    --------
+
+    Take the minimum value of an array:
+
+    >>> hl.eval(hl.min([1, 3, 5, 6, 7, 9]))
+    1
+
+    Take the minimum value of arguments:
+
+    >>> hl.eval(hl.min(1, 50, 2))
+    1
+
+    Notes
+    -----
+    Like the Python builtin ``min`` function, this function can either take a
+    single iterable expression (an array or set of numeric elements), or
+    variable-length arguments of numeric expressions.
+
+    Note
+    ----
+    If `filter_missing` is ``True``, then the result is the minimum of
+    non-missing arguments or elements. If `filter_missing` is ``False``, then
+    any missing argument or element causes the result to be missing.
+
+    If any element or argument is `NaN`, then the result is `NaN`.
+
+    See Also
+    --------
+    :func:`nanmin`, :func:`max`, :func:`nanmax`
+
+    Parameters
+    ----------
+    exprs : :class:`.ArrayExpression` or :class:`.SetExpression` or varargs of :class:`.NumericExpression`
+        Single numeric array or set, or multiple numeric values.
+    filter_missing : :obj:`bool`
+        Remove missing arguments/elements before computing minimum.
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+    """
+    return _comparison_func('min', exprs, filter_missing, filter_nan=False)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
@@ -3623,7 +3764,7 @@ def set(collection) -> SetExpression:
     --------
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
-    >>> hl.eval(s)  # doctest: +NOTEST
+    >>> hl.eval(s)  # doctest: +SKIP_OUTPUT_CHECK
     {'Alice', 'Bob', 'Charlie'}
 
     Returns
@@ -4036,13 +4177,13 @@ def float64(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float64('1.1'))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
     1.1
 
-    >>> hl.eval(hl.float64(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64(1))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
-    >>> hl.eval(hl.float64(True))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64(True))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
     Parameters
@@ -4065,13 +4206,13 @@ def float32(x) -> Float32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float32('1.1'))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
     1.1
 
-    >>> hl.eval(hl.float32(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32(1))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
-    >>> hl.eval(hl.float32(True))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32(True))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
     Parameters

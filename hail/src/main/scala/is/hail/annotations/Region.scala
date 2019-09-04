@@ -54,6 +54,8 @@ object Region {
   def copyFrom(srcOff: Long, dstOff: Long, n: Long): Unit =
     Memory.memcpy(dstOff, srcOff, n)
 
+  def setMemory(offset: Long, size: Long, b: Byte): Unit = Memory.memset(offset, size, b)
+
   def loadBit(byteOff: Long, bitOff: Long): Boolean = {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0
@@ -113,6 +115,9 @@ object Region {
   def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean]): Code[Unit] =
     Code.invokeScalaObject[Long, Long, Boolean, Unit](Region.getClass, "storeBit", byteOff, bitOff, b)
 
+  def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte]): Code[Unit] =
+    Code.invokeScalaObject[Long, Long, Byte, Unit](Region.getClass, "setMemory", offset, size, b)
+
   def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: PBoolean => loadBoolean
     case _: PInt32 => loadInt
@@ -127,6 +132,37 @@ object Region {
     case _: PInt64 => v => storeLong(dest, coerce[Long](v))
     case _: PFloat32 => v => storeFloat(dest, coerce[Float](v))
     case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
+  }
+
+  def loadIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
+    case _: PBoolean => loadBoolean
+    case _: PInt32 => loadInt
+    case _: PInt64 => loadLong
+    case _: PFloat32 => loadFloat
+    case _: PFloat64 => loadDouble
+    case _: PArray => loadAddress
+    case _: PBinary => loadAddress
+    case _: PBaseStruct => off => off
+  }
+
+  def getIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
+    case _: PBoolean => loadBoolean
+    case _: PInt32 => loadInt
+    case _: PInt64 => loadLong
+    case _: PFloat32 => loadFloat
+    case _: PFloat64 => loadDouble
+    case _ => off => off
+  }
+
+  def storeIRIntermediate(typ: PType): (Code[Long], Code[_]) => Code[Unit] = typ.fundamentalType match {
+    case _: PBoolean => (addr, v) => Region.storeBoolean(addr, coerce[Boolean](v))
+    case _: PInt32 => (addr, v) => Region.storeInt(addr, coerce[Int](v))
+    case _: PInt64 => (addr, v) => Region.storeLong(addr, coerce[Long](v))
+    case _: PFloat32 => (addr, v) => Region.storeFloat(addr, coerce[Float](v))
+    case _: PFloat64 => (addr, v) => Region.storeDouble(addr, coerce[Double](v))
+    case _: PArray => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
+    case _: PBinary => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
+    case t: PBaseStruct => (addr, v) => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
   }
 }
 
@@ -149,6 +185,7 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   @native def nativeGetNewRegion(addr: Long, poolAddr: Long, blockSize: Int): Unit
 
   @native def clearButKeepMem(addr: Long): Unit
+  @native def setNull(addr: Long): Unit
   @native def nativeAlign(addr: Long, alignment: Long): Unit
   @native def nativeAlignAllocate(addr: Long, alignment: Long, n: Long): Long
   @native def nativeAllocate(addr: Long, n: Long): Long
@@ -177,7 +214,12 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   }
 
   def isValid: Boolean = _isValid
-  def invalidate(): Unit = _isValid = false
+  def invalidate(): Unit = {
+    if (_isValid) {
+      _isValid = false
+      setNull(this.addrA)
+    }
+  }
   
   def this(b: Region) {
     this()
@@ -206,8 +248,10 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
 
   def setNumParents(n: Int): Unit = {
     assert(_numParents >= 0 && _numParents <= n)
-    nativeSetNumParents(this.addrA, n)
-    _numParents = n
+    if (n != _numParents) {
+      nativeSetNumParents(this.addrA, n)
+      _numParents = n
+    }
   }
 
   def setParentReference(r: Region, i: Int): Unit = {

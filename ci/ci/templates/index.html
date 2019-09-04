@@ -48,7 +48,7 @@
   </script>
   <body>
     <h1>CI</h1>
-    <h3>Alive for {{ age }}.</h3>
+    <h3>Service unchanged for {{ age }}.</h3>
     {% for wb in watched_branches %}
     <h2>{{ wb.branch }}</h2>
     <p>SHA:
@@ -61,9 +61,6 @@
     <p>Deploy State:
       {% if wb.deploy_state is not none %}
       {{ wb.deploy_state }}
-      {% endif %}
-      {% if wb.status_age is not none %}
-      {{ wb.status_age }}
       {% endif %}
     </p>
     <p>Deploy Batch:
@@ -102,9 +99,6 @@
               <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
             {% else %}
               pending
-            {% endif %}
-            {% if pr.status_age is not none %}
-              {{ pr.status_age }}
             {% endif %}
             {% if pr.build_state is not none and pr.out_of_date %}
               *

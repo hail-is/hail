@@ -45,11 +45,11 @@ class Test(unittest.TestCase):
         j = builder.create_job('alpine', ['echo', 'test'])
         builder.submit()
         status = j.wait()
-        self.assertTrue('attributes' not in status)
-        self.assertEqual(status['state'], 'Success')
-        self.assertEqual(status['exit_code']['main'], 0)
+        self.assertTrue('attributes' not in status, (status, j.log()))
+        self.assertEqual(status['state'], 'Success', (status, j.log()))
+        self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
 
-        self.assertEqual(j.log(), {'main': 'test\n'})
+        self.assertEqual(j.log()['main'], 'test\n', status)
         j.pod_status()
 
         self.assertTrue(j.is_complete())
@@ -91,7 +91,7 @@ class Test(unittest.TestCase):
     def test_list_batches(self):
         tag = secrets.token_urlsafe(64)
         b1 = self.client.create_batch(attributes={'tag': tag, 'name': 'b1'})
-        b1.create_job('alpine', ['sleep', '30'])
+        b1.create_job('alpine', ['sleep', '3600'])
         b1 = b1.submit()
 
         b2 = self.client.create_batch(attributes={'tag': tag, 'name': 'b2'})
@@ -124,6 +124,15 @@ class Test(unittest.TestCase):
         assert_batch_ids({b1.id, b2.id}, complete=True, attributes={'tag': tag})
 
         assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
+
+    def test_limit_offset(self):
+        b1 = self.client.create_batch()
+        for i in range(3):
+            b1.create_job('alpine', ['true'])
+        b1 = b1.submit()
+        s = b1.status(limit=2, offset=1)
+        filtered_jobs = {j['job_id'] for j in s['jobs']}
+        assert filtered_jobs == {2, 3}, s
 
     def test_fail(self):
         b = self.client.create_batch()
@@ -215,15 +224,15 @@ class Test(unittest.TestCase):
         b.cancel()
         bstatus = b.wait()
 
-        assert(len(bstatus['jobs']) == 3)
+        assert len(bstatus['jobs']) == 3, bstatus
         state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
         n_cancelled = state_count['Cancelled']
         n_complete = state_count['Error'] + state_count['Failed'] + state_count['Success']
-        self.assertTrue(n_cancelled <= 1)
-        self.assertTrue(n_cancelled + n_complete == 3)
+        assert n_cancelled <= 1, bstatus
+        assert n_cancelled + n_complete == 3, bstatus
 
         n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
-        self.assertTrue(n_failed == 1)
+        assert n_failed == 1, bstatus
 
     def test_batch_status(self):
         b1 = self.client.create_batch()
@@ -262,11 +271,14 @@ class Test(unittest.TestCase):
 
         @app.route('/test', methods=['POST'])
         def test():
-            d['status'] = request.get_json()
+            body = request.get_json()
+            print(f'body {body}')
+            d['status'] = body
             return Response(status=200)
 
         server = ServerThread(app)
         try:
+            print('1starting...')
             server.start()
             b = self.client.create_batch()
             j = b.create_job(
@@ -275,6 +287,7 @@ class Test(unittest.TestCase):
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
             b = b.submit()
+            print(f'1ids {j.job_id}')
             j.wait()
 
             poll_until(lambda: 'status' in d)
@@ -282,8 +295,10 @@ class Test(unittest.TestCase):
             self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
         finally:
+            print(f'1shutting down...')
             server.shutdown()
             server.join()
+            print(f'1shut down, joined')
 
     def test_log_after_failing_job(self):
         b = self.client.create_batch()
@@ -294,7 +309,7 @@ class Test(unittest.TestCase):
         self.assertEqual(status['state'], 'Failed')
         self.assertEqual(status['exit_code']['main'], 127)
 
-        self.assertEqual(j.log(), {'main': 'test\n'})
+        self.assertEqual(j.log()['main'], 'test\n')
 
         self.assertTrue(j.is_complete())
 

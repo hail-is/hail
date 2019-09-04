@@ -143,8 +143,7 @@ class Pipeline:
             if file not in self._allocated_files:
                 self._allocated_files.add(file)
                 return file
-            else:
-                return _get_random_file()
+            return _get_random_file()
 
         return _get_random_file()
 
@@ -313,8 +312,8 @@ class Pipeline:
         if isinstance(resource, TaskResourceFile) and resource not in resource._source._mentioned:
             name = resource._source._resources_inverse
             raise PipelineException(f"undefined resource '{name}'\n"
-                            f"Hint: resources must be defined within the "
-                            "task methods 'command' or 'declare_resource_group'")
+                                    f"Hint: resources must be defined within the "
+                                    "task methods 'command' or 'declare_resource_group'")
         resource._add_output_path(dest)
 
     def select_tasks(self, pattern):

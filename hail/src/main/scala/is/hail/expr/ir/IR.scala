@@ -1,23 +1,30 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.{ExportType, FastIndexedSeq, log}
+import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  private var _ptype: PType = null
+  protected[ir] var _pType2: PType = null
+  private var _pType: PType = null
   private var _typ: Type = null
 
-  def pType: PType = {
-    if (_ptype == null)
-      _ptype = PType.canonical(typ)
-    _ptype
+  def pType = {
+    if (_pType == null)
+      _pType = PType.canonical(typ)
+
+    _pType
+  }
+
+  def pType2 = {
+    assert(_pType2 != null)
+
+    _pType2
   }
 
   def typ: Type = {
@@ -25,7 +32,7 @@ sealed trait IR extends BaseIR {
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+        case e: Throwable => throw new RuntimeException(s"typ: inference failure: \n${ Pretty(this) }", e)
       }
     _typ
   }
@@ -41,8 +48,8 @@ sealed trait IR extends BaseIR {
     val cp = super.deepCopy()
     if (_typ != null)
       cp._typ = _typ
-    if (_ptype != null)
-      cp._ptype = _ptype
+    if (_pType != null)
+      cp._pType = _pType
     cp
   }
 
@@ -92,7 +99,7 @@ final case class Void() extends IR
 final case class Cast(v: IR, _typ: Type) extends IR
 final case class CastRename(v: IR, _typ: Type) extends IR
 
-final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
+final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
 object Coalesce {
@@ -197,7 +204,7 @@ object ArraySort {
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
         case atyp: TStreamable if atyp.elementType.isInstanceOf[TTuple] =>
           val elt = coerce[TTuple](atyp.elementType)
-          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
+          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), elt.fields(0).index), GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index))
       }
     } else {
       ApplyComparisonOp(Compare(atyp.elementType), Ref(l, -atyp.elementType), Ref(r, -atyp.elementType))
@@ -303,15 +310,13 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 
-final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
-final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
-final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -338,7 +343,11 @@ object GetFieldByIdx {
 
 final case class GetField(o: IR, name: String) extends IR
 
-final case class MakeTuple(types: Seq[IR]) extends IR
+object MakeTuple {
+  def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir)}.toFastIndexedSeq)
+}
+
+final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 final case class In(i: Int, _typ: Type) extends IR
@@ -365,17 +374,18 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
 sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
+  def returnType: Type
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes)
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, argTypes)
     .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
       .asInstanceOf[F]
 }
 
-final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
+final case class Apply(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode[SeededIRFunction]
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction]
 
-final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithMissingness]
+final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR
 
@@ -418,8 +428,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)
   def floorDiv(other: IR): IR = ApplyBinaryPrimOp(RoundToNegInfDivide(), self, other)
 
-  def &&(other: IR): IR = invoke("&&", self, other)
-  def ||(other: IR): IR = invoke("||", self, other)
+  def &&(other: IR): IR = invoke("&&", TBoolean(), self, other)
+  def ||(other: IR): IR = invoke("||", TBoolean(), self, other)
 
   def toI: IR = Cast(self, TInt32())
   def toL: IR = Cast(self, TInt64())

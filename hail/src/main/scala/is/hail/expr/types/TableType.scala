@@ -12,6 +12,11 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case JString(s) => IRParser.parseTableType(s) },
   { case tt: TableType => JString(tt.toString) }))
 
+object TableType {
+  def keyType(ts: TStruct, key: IndexedSeq[String]): TStruct = ts.typeAfterSelect(key.map(ts.fieldIdx))
+  def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct = ts.filterSet(key.toSet, include = false)._1
+}
+
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
   lazy val canonicalPType = PType.canonical(rowType).asInstanceOf[PStruct]
   lazy val canonicalRVDType = RVDType(canonicalPType, key)
@@ -32,9 +37,11 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     "global" -> globalType,
     "row" -> rowType)
 
-  def keyType: TStruct = canonicalRVDType.kType.virtualType
+  def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
+
+  lazy val keyType: TStruct = TableType.keyType(rowType, key)
   def keyFieldIdx: Array[Int] = canonicalRVDType.kFieldIdx
-  def valueType: TStruct = canonicalRVDType.valueType.virtualType
+  lazy val valueType: TStruct = TableType.valueType(rowType, key)
   def valueFieldIdx: Array[Int] = canonicalRVDType.valueFieldIdx
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {

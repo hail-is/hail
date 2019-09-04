@@ -128,8 +128,6 @@ object Children {
     case SeqOp2(_, args, _) => args
     case _: ResultOp2 => none
     case _: CombOp2 => none
-    case WriteAggs(_, path, _, _) => Array(path)
-    case ReadAggs(_, path, _, _) => Array(path)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>
@@ -140,8 +138,8 @@ object Children {
       constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
-    case MakeTuple(types) =>
-      types.toFastIndexedSeq
+    case MakeTuple(fields) =>
+      fields.map(_._2).toFastIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
     case In(i, typ) =>
@@ -150,11 +148,11 @@ object Children {
       Array(message)
     case ApplyIR(_, args) =>
       args.toFastIndexedSeq
-    case Apply(_, args) =>
+    case Apply(_, args, _) =>
       args.toFastIndexedSeq
-    case ApplySeeded(_, args, seed) =>
+    case ApplySeeded(_, args, seed, _) =>
       args.toFastIndexedSeq
-    case ApplySpecial(_, args) =>
+    case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
     case Uniroot(_, fn, min, max) =>
       Array(fn, min, max)

@@ -1,3 +1,4 @@
+python/.eggs
 python/**/*.pyc
 python/README.md
 python/dist
@@ -6,8 +7,7 @@ python/hail/hail_pip_version
 python/hail/hail_version
 python/hail/docs/_build/*
 python/hail/hail-all-spark.jar
-python/hailtop/hail_pip_version
-python/hailtop/hail_version
+python/hailtop/hailctl/hail_version
 python/hailtop/hailctl/deploy.yaml
 src/main/c/.cxx.vsn
 src/main/c/headers
@@ -21,3 +21,5 @@ src/test/resources/parallelBgenExport.bgen/part-00000.idx*
 src/test/resources/random-*.bgen.idx*
 src/test/resources/random.bgen.idx*
 src/test/resources/skip_invalid_loci.bgen.idx*
+env/
+www/docs

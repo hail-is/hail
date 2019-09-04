@@ -318,56 +318,6 @@ class RVD(
 
   // Key-wise operations
 
-  def groupByKey(valuesField: String = "values"): RVD = {
-    val newTyp = RVDType(
-      (typ.kType.virtualType ++ TStruct(valuesField -> TArray(typ.valueType.virtualType))).physicalType,
-      typ.key)
-    val newRowType = newTyp.rowType
-
-    val localType = typ
-
-    RVD(newTyp, partitioner, crdd.cmapPartitionsAndContext { (consumerCtx, useCtxes) =>
-      val consumerRegion = consumerCtx.region
-      val rvb = consumerCtx.rvb
-      val outRV = RegionValue(consumerRegion)
-
-      val bufferRegion = consumerCtx.freshRegion
-      val buffer = new RegionValueArrayBuffer(localType.valueType, bufferRegion)
-
-      val producerCtx = consumerCtx.freshContext
-      val producerRegion = producerCtx.region
-      val it = useCtxes.flatMap(_ (producerCtx))
-
-      val stepped = OrderedRVIterator(
-        localType,
-        it,
-        consumerCtx.freshContext
-      ).staircase
-
-      stepped.map { stepIt =>
-        buffer.clear()
-        rvb.start(newRowType)
-        rvb.startStruct()
-        var i = 0
-        while (i < localType.kType.size) {
-          rvb.addField(localType.rowType, stepIt.value, localType.kFieldIdx(i))
-          i += 1
-        }
-        for (rv <- stepIt) {
-          buffer.appendSelect(localType.rowType, localType.valueFieldIdx, rv)
-          producerRegion.clear()
-        }
-        rvb.startArray(buffer.length)
-        for (rv <- buffer)
-          rvb.addRegionValue(localType.valueType, rv)
-        rvb.endArray()
-        rvb.endStruct()
-        outRV.setOffset(rvb.end())
-        outRV
-      }
-    })
-  }
-
   def distinctByKey(): RVD = {
     val localType = typ
     repartition(partitioner.strictify)
@@ -610,13 +560,25 @@ class RVD(
   }
 
   // Aggregating
+  // used in Interpret by TableAggregate2
+  def combine[U: ClassTag](
+    zeroValue: U,
+    itF: (Int, RVDContext, Iterator[RegionValue]) => U,
+    combOp: (U, U) => U,
+    commutative: Boolean): U = {
+    val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
+    ac.result()
+  }
 
   // used in Interpret by TableAggregate, MatrixAggregate
   def aggregateWithPartitionOp[PC, U: ClassTag](
     zeroValue: U,
     makePC: (Int, RVDContext) => PC
   )(seqOp: (PC, U, RegionValue) => Unit,
-    combOp: (U, U) => U
+    combOp: (U, U) => U,
+    commutative: Boolean
   ): U = {
     val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
       val pc = makePC(i, ctx)
@@ -628,7 +590,7 @@ class RVD(
       Iterator.single(comb)
     }
 
-    val ac = new AssociativeCombiner(zeroValue, combOp)
+    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }
@@ -1487,7 +1449,7 @@ object RVD {
         val sc = first.sparkContext
         RVD.unkeyed(first.rowPType, ContextRDD.union(sc, rvds.map(_.crdd)))
       } else
-        rvds.reduce(_.orderedMerge(_, joinKey))
+        rvds.toArray.treeReduce(_.orderedMerge(_, joinKey))
   }
 
   def union(rvds: Seq[RVD]): RVD =

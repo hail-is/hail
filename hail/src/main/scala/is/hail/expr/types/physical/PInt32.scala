@@ -32,23 +32,18 @@ class PInt32(override val required: Boolean) extends PIntegral {
     new CodeOrdering {
       type T = Int
 
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
         Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", x, y)
 
-      override def ltNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Boolean] =
-        x < y
+      override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
 
-      override def lteqNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Boolean] =
-        x <= y
+      override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
 
-      override def gtNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Boolean] =
-        x > y
+      override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
 
-      override def gteqNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Boolean] =
-        x >= y
+      override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
 
-      override def equivNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Boolean] =
-        x.ceq(y)
+      override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
     }
   }
 

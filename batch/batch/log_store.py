@@ -1,3 +1,4 @@
+import logging
 import os
 
 import google
@@ -6,38 +7,58 @@ import hailtop.gear.auth as hj
 from .google_storage import GCS
 
 
+log = logging.getLogger('batch.logstore')
+
+
 class LogStore:
-    def __init__(self, blocking_pool, instance_id, log, batch_gsa_key=None, batch_bucket_name=None):
+    log_file_name = 'container_logs'
+    pod_status_file_name = 'pod_status'
+
+    files = (log_file_name, pod_status_file_name)
+
+    @staticmethod
+    def _parse_uri(uri):
+        assert uri.startswith('gs://')
+        uri = uri.lstrip('gs://').split('/')
+        bucket = uri[0]
+        path = '/'.join(uri[1:])
+        return bucket, path
+
+    def __init__(self, blocking_pool, instance_id, batch_gsa_key=None, batch_bucket_name=None):
         self.instance_id = instance_id
-        self.log = log
         self.gcs = GCS(blocking_pool, batch_gsa_key)
+
         if batch_bucket_name is None:
             batch_jwt = os.environ.get('BATCH_JWT', '/batch-jwt/jwt')
             with open(batch_jwt, 'r') as f:
                 batch_bucket_name = hj.JWTClient.unsafe_decode(f.read())['bucket_name']
         self.batch_bucket_name = batch_bucket_name
 
-    def _gs_log_path(self, batch_id, job_id, task_name):
-        return f'{self.instance_id}/{batch_id}/{job_id}/{task_name}/job.log'
+    def gs_job_output_directory(self, batch_id, job_id, token):
+        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/{token}/'
 
-    async def write_gs_log_file(self, batch_id, job_id, task_name, log):
-        path = self._gs_log_path(batch_id, job_id, task_name)
-        err = await self.gcs.upload_private_gs_file_from_string(self.batch_bucket_name, path, log)
-        if err is None:
-            return (f'gs://{self.batch_bucket_name}/{path}', err)
-        return (None, err)
+    async def write_gs_file(self, directory, file_name, data):
+        assert file_name in LogStore.files
+        bucket, path = LogStore._parse_uri(f'{directory}{file_name}')
+        return await self.gcs.upload_private_gs_file_from_string(bucket, path, data)
 
-    async def read_gs_log_file(self, uri):
-        assert uri.startswith('gs://')
-        uri = uri.lstrip('gs://').split('/')
-        bucket_name = uri[0]
-        path = '/'.join(uri[1:])
-        return await self.gcs.download_gs_file_as_string(bucket_name, path)
+    async def read_gs_file(self, directory, file_name):
+        assert file_name in LogStore.files
+        bucket, path = LogStore._parse_uri(f'{directory}{file_name}')
+        return await self.gcs.download_gs_file_as_string(bucket, path)
 
-    async def delete_gs_log_file(self, batch_id, job_id, task_name):
-        path = self._gs_log_path(batch_id, job_id, task_name)
-        err = await self.gcs.delete_gs_file(self.batch_bucket_name, path)
+    async def delete_gs_file(self, directory, file_name):
+        assert file_name in LogStore.files
+        bucket, path = LogStore._parse_uri(f'{directory}{file_name}')
+        err = await self.gcs.delete_gs_file(bucket, path)
         if isinstance(err, google.api_core.exceptions.NotFound):
-            self.log.info(f'ignoring: cannot delete log file that does not exist: {err}')
+            log.info(f'ignoring: cannot delete file that does not exist: {err}')
             err = None
         return err
+
+    async def delete_gs_files(self, directory):
+        errors = []
+        for file in LogStore.files:
+            err = await self.delete_gs_file(directory, file)
+            errors.append((file, err))
+        return errors

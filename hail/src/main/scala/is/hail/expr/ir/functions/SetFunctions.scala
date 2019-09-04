@@ -81,7 +81,7 @@ object SetFunctions extends RegistryFunctions {
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t)))))
+          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t))), TBoolean()))
     }
 
     registerIR("sum", TSet(tnum("T")), tv("T")) { s =>
@@ -90,34 +90,6 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("product", TSet(tnum("T")), tv("T")) { s =>
       ArrayFunctions.product(ToArray(s))
-    }
-
-    registerIR("min", TSet(tnum("T")), tv("T")) { s =>
-      val t = s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val size = genUID()
-      val last = genUID()
-
-      Let(a, ToArray(s),
-        Let(size, ArrayLen(Ref(a, TArray(t))),
-          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
-            NA(t),
-            If(IsNA(ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1)))),
-              NA(t),
-              ArrayRef(Ref(a, TArray(t)), I32(0))))))
-    }
-
-    registerIR("max", TSet(tnum("T")), tv("T")) { s =>
-      val t = s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val size = genUID()
-      val last = genUID()
-
-      Let(a, ToArray(s),
-        Let(size, ArrayLen(Ref(a, TArray(t))),
-          If(ApplyComparisonOp(EQ(TInt32()), Ref(size, TInt32()), I32(0)),
-            NA(t),
-            ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))))))
     }
 
     registerIR("mean", TSet(tnum("T")), TFloat64()) { s => ArrayFunctions.mean(ToArray(s)) }
@@ -139,7 +111,7 @@ object SetFunctions extends RegistryFunctions {
             If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", size, 2).cne(0),
+              If(invoke("%", TInt32(), size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }

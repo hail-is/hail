@@ -8,7 +8,7 @@ import is.hail.expr.types
 import is.hail.expr.types.physical.{PArray, PBaseStruct, PInterval, PLocus, PString, PStruct, PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Locus, RGBase, ReferenceGenome, VariantMethods}
+import is.hail.variant.{Locus, ReferenceGenome, VariantMethods}
 
 class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 
@@ -233,7 +233,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
         val slocus = asm4s.coerce[String](wrapArg(r, strT)(locusoff))
         val locus = Code
-          .invokeScalaObject[String, RGBase, Locus](
+          .invokeScalaObject[String, ReferenceGenome, Locus](
           locusClass, "parse", slocus, rgCode(r.mb))
         emitLocus(r, locus, rt)
     }
@@ -255,7 +255,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r, rt: PStruct, (strT, variantoff: Code[Long])) =>
         val svar = asm4s.coerce[String](wrapArg(r, strT)(variantoff))
         val variant = Code
-          .invokeScalaObject[String, RGBase, (Locus, IndexedSeq[String])](
+          .invokeScalaObject[String, ReferenceGenome, (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "parse", svar, rgCode(r.mb))
         emitVariant(r, variant, rt)
     }
@@ -264,7 +264,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r: EmitRegion, rt: PInterval, (strT, ioff: EmitTriplet), (missingT, invalidMissing: EmitTriplet)) =>
         val sinterval = asm4s.coerce[String](wrapArg(r, strT)(ioff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval](name="intervalObject")
-        val interval = Code.invokeScalaObject[String, RGBase, Boolean, Interval](
+        val interval = Code.invokeScalaObject[String, ReferenceGenome, Boolean, Interval](
           locusClass, "parseInterval", sinterval, rgCode(r.mb), invalidMissing.value[Boolean])
 
         EmitTriplet(
@@ -284,7 +284,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       (invalidMissingT, invalidMissing: EmitTriplet)) =>
         val sloc = asm4s.coerce[String](wrapArg(r, locoffT)(locoff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval]("intervalObject")
-        val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
+        val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
           locusClass, "makeInterval", sloc, pos1.value[Int], pos2.value[Int], include1.value[Boolean], include2.value[Boolean], rgCode(r.mb), invalidMissing.value[Boolean])
 
         EmitTriplet(
@@ -309,16 +309,18 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString(), null) {
       case (r, rt, (contigT, contig: Code[Long]), (posT, pos: Code[Int]), (beforeT, before: Code[Int]), (afterT, after: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
-        unwrapReturn(r, TString())(rgCode(r.mb).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
+        unwrapReturn(r, rt)(rgCode(r.mb).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
     }
 
     registerIR(rg.wrapFunctionName("getReferenceSequence"), TString(), TInt32(), TInt32(), TInt32(), TString()) {
       (contig, pos, before, after) =>
         val getRef = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("getReferenceSequenceFromValidLocus"),
+          TString(),
           Seq(TString(), TInt32(), TInt32(), TInt32())).get
         val isValid = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("isValidLocus"),
+          TBoolean(),
           Seq(TString(), TInt32())).get
         If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString()))
     }
@@ -332,7 +334,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     registerRGCode("locusToGlobalPos", TLocus(rg), TInt64(), null) {
       case (r, rt, (locusT, locus: Code[Long])) =>
         val locusObject = Code.checkcast[Locus](wrapArg(r, locusT)(locus).asInstanceOf[Code[AnyRef]])
-        unwrapReturn(r, TInt64())(rgCode(r.mb).invoke[Locus, Long]("locusToGlobalPos", locusObject))
+        unwrapReturn(r, rt)(rgCode(r.mb).invoke[Locus, Long]("locusToGlobalPos", locusObject))
     }
   }
 }

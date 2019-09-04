@@ -67,7 +67,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 }
 
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = reader.fullType
+  override lazy val typ: BlockMatrixType = reader.fullType
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
@@ -95,7 +95,7 @@ abstract class BlockMatrixReader {
 }
 
 case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
-  override def fullType: BlockMatrixType = {
+  override lazy val fullType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
@@ -109,7 +109,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   val IndexedSeq(nRows, nCols) = shape
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
 
-  override def fullType: BlockMatrixType = {
+  override lazy val fullType: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
 
     BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
@@ -122,7 +122,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 }
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
     val (shape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(value.nRows, value.nCols)
     BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize)
   }
@@ -140,7 +140,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply])
 
-  override def typ: BlockMatrixType = child.typ
+  override lazy val typ: BlockMatrixType = child.typ
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
@@ -153,11 +153,11 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
     val prev = child.execute(ctx)
     f match {
       case ApplyUnaryPrimOp(Negate(), _) => prev.unary_-()
-      case Apply("abs", _) => prev.abs()
-      case Apply("log", _) => prev.log()
-      case Apply("sqrt", _) => prev.sqrt()
-      case Apply("ceil", _) => prev.ceil()
-      case Apply("floor", _) => prev.floor()
+      case Apply("abs", _, _) => prev.abs()
+      case Apply("log", _, _) => prev.log()
+      case Apply("sqrt", _, _) => prev.sqrt()
+      case Apply("ceil", _, _) => prev.ceil()
+      case Apply("floor", _, _) => prev.floor()
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }
@@ -272,7 +272,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
         if (reverse) left.reverseScalarSub(right) else left.scalarSub(right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
         if (reverse) left.reverseScalarDiv(right) else left.scalarDiv(right)
-      case Apply("**", _) => left.pow(right)
+      case Apply("**", _, _) => left.pow(right)
     }
   }
 
@@ -304,7 +304,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.mul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) => left.sub(right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) => left.div(right)
-      case Apply("**", _) =>
+      case Apply("**", _, _) =>
         assert(right.nRows == 1 && right.nCols == 1)
         // BlockMatrix does not currently support elem-wise pow and this case would
         // only get hit when left and right are both 1x1

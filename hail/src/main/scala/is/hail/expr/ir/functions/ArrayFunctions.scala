@@ -18,8 +18,8 @@ object ArrayFunctions extends RegistryFunctions {
       ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
       ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
       ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2))),
-      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2))))
+      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2), TFloat64())),
+      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2), ir2.typ)))
 
   def mean(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
@@ -68,7 +68,7 @@ object ArrayFunctions extends RegistryFunctions {
       False(),
       "acc",
       "elt",
-      invoke("||",
+      invoke("||",TBoolean(),
         Ref("acc", TBoolean()),
         ApplyComparisonOp(
           EQWithNA(t, value.typ),
@@ -136,7 +136,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("product", TArray(tnum("T")), tv("T"))(product)
 
-    def makeMinMaxOp(op: Type => ComparisonOp[Boolean]): IR => IR = {
+    def makeMinMaxOp(op: String): IR => IR = {
       { a =>
         val t = -coerce[TArray](a.typ).elementType
         val accum = genUID()
@@ -146,16 +146,15 @@ object ArrayFunctions extends RegistryFunctions {
         val aRef = Ref(aUID, a.typ)
         val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
 
-        val body = If(
-          ApplyComparisonOp(op(t), Ref(value, t), Ref(accum, t)),
-          Ref(value, t),
-          Ref(accum, t))
+        val body = invoke(op, t, Ref(value, t), Ref(accum, t))
         Let(aUID, a, ArrayFold(aRef, zVal, accum, value, body))
       }
     }
 
-    registerIR("min", TArray(tnum("T")), tv("T"))(makeMinMaxOp(LT(_)))
-    registerIR("max", TArray(tnum("T")), tv("T"))(makeMinMaxOp(GT(_)))
+    registerIR("min", TArray(tnum("T")), tv("T"))(makeMinMaxOp("min"))
+    registerIR("nanmin", TArray(tnum("T")), tv("T"))(makeMinMaxOp("nanmin"))
+    registerIR("max", TArray(tnum("T")), tv("T"))(makeMinMaxOp("max"))
+    registerIR("nanmax", TArray(tnum("T")), tv("T"))(makeMinMaxOp("nanmax"))
 
     registerIR("mean", TArray(tnum("T")), TFloat64())(mean)
 
@@ -176,7 +175,7 @@ object ArrayFunctions extends RegistryFunctions {
             ArrayLen(a),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", size, 2).cne(0),
+              If(invoke("%", TInt32(), size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }
@@ -273,7 +272,7 @@ object ArrayFunctions extends RegistryFunctions {
       ArrayMap(
         ArrayRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
-            UtilFunctions.max(
+            UtilFunctions.intMax(
               ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
               I32(0)),
             i),
@@ -291,7 +290,7 @@ object ArrayFunctions extends RegistryFunctions {
             I32(0),
             If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
               ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-              UtilFunctions.min(i, ArrayLen(a))),
+              UtilFunctions.intMin(i, ArrayLen(a))),
             I32(1)),
           idx,
           ArrayRef(a, Ref(idx, TInt32()))))
@@ -302,13 +301,13 @@ object ArrayFunctions extends RegistryFunctions {
       ArrayMap(
         ArrayRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
-            UtilFunctions.max(
+            UtilFunctions.intMax(
               ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
               I32(0)),
             i),
           If(ApplyComparisonOp(LT(TInt32()), j, I32(0)),
             ApplyBinaryPrimOp(Add(), ArrayLen(a), j),
-            UtilFunctions.min(j, ArrayLen(a))),
+            UtilFunctions.intMin(j, ArrayLen(a))),
           I32(1)),
         idx,
         ArrayRef(a, Ref(idx, TInt32())))

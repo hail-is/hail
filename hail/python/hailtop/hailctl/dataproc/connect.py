@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 
+
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('service', type=str,
@@ -15,31 +16,27 @@ def init_parser(parser):
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
 
-def main(args, pass_through_args):
+
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Connecting to cluster '{}'...".format(args.name))
 
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',
-        'ui1': 'spark-ui1',
-        'ui2': 'spark-ui2',
-        'hist': 'history',
+        'hist': 'spark-history',
         'nb': 'notebook'
     }
 
     service = args.service
-    if service in shortcut:
-        service = shortcut[service]
+    service = shortcut.get(service, service)
 
     # Dataproc port mapping
-    dataproc_ports = {
-        'spark-ui': 4040,
-        'spark-ui1': 4041,
-        'spark-ui2': 4042,
-        'spark-history': 18080,
-        'notebook': 8123
+    dataproc_port_and_path = {
+        'spark-ui': '18080/?showIncomplete=true',
+        'spark-history': '18080',
+        'notebook': '8123'
     }
-    connect_port = dataproc_ports[service]
+    connect_port_and_path = dataproc_port_and_path[service]
 
     # open SSH tunnel to master node
     sp.check_call(
@@ -76,9 +73,9 @@ def main(args, pass_through_args):
     with open(os.devnull, 'w') as f:
         sp.Popen([
             chrome,
-            'http://localhost:{}'.format(connect_port),
+            'http://localhost:{}'.format(connect_port_and_path),
             '--proxy-server=socks5://localhost:{}'.format(args.port),
             '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
-            '--proxy-bypass-list=<-loopback>', # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
+            '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
             '--user-data-dir={}'.format(tempfile.gettempdir())
         ], stdout=f, stderr=f)

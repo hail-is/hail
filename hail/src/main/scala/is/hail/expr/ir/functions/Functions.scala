@@ -15,10 +15,10 @@ import scala.collection.mutable
 import scala.reflect._
 
 object IRFunctionRegistry {
-  private val userAddedFunctions: mutable.Set[(String, Seq[Type])] = mutable.HashSet.empty
+  private val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type]))] = mutable.HashSet.empty
 
   def clearUserFunctions() {
-    userAddedFunctions.foreach { case (name, argTypes) => removeIRFunction(name, argTypes) }
+    userAddedFunctions.foreach { case (name, (rt, argTypes)) => removeIRFunction(name, rt, argTypes) }
     userAddedFunctions.clear()
   }
 
@@ -39,7 +39,7 @@ object IRFunctionRegistry {
     argTypeStrs: java.util.ArrayList[String], retType: String,
     body: IR): Unit = {
     val argTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
-    userAddedFunctions += ((mname, argTypes))
+    userAddedFunctions += ((mname, (body.typ, argTypes)))
     addIR(mname,
       argTypes, IRParser.parseType(retType), { args =>
         Subst(body,
@@ -47,9 +47,9 @@ object IRFunctionRegistry {
       })
   }
 
-  def removeIRFunction(name: String, args: Seq[Type]): Unit = {
+  def removeIRFunction(name: String, rt: Type, args: Seq[Type]): Unit = {
     val functions = codeRegistry(name)
-    val toRemove = functions.filter(_.unify(args)).toArray
+    val toRemove = functions.filter(_.unify(args :+ rt)).toArray
     assert(toRemove.length == 1)
     codeRegistry.removeBinding(name, toRemove.head)
   }
@@ -57,18 +57,18 @@ object IRFunctionRegistry {
   def removeIRFunction(name: String): Unit =
     codeRegistry.remove(name)
 
-  private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
-    reg.lift(name).map { fs => fs.filter(t => cond(t, args)).toSeq }.getOrElse(FastSeq()) match {
+  private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, rt: Type, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
+    reg.lift(name).map { fs => fs.filter(t => cond(t, args :+ rt)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
     }
   }
 
-  def lookupFunction(name: String, args: Seq[Type]): Option[IRFunction] =
-    lookupInRegistry(codeRegistry, name, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
+  def lookupFunction(name: String, rt: Type, args: Seq[Type]): Option[IRFunction] =
+    lookupInRegistry(codeRegistry, name, rt, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
 
-  def lookupConversion(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
+  def lookupConversion(name: String, rt: Type, args: Seq[Type]): Option[Seq[IR] => IR] = {
     type Conversion = (Seq[Type], Type, Seq[IR] => IR)
     val findIR: (Conversion, Seq[Type]) => Boolean = {
       case ((ts, _, _), t2s) =>
@@ -77,19 +77,19 @@ object IRFunctionRegistry {
           (ts, t2s).zipped.forall(_.unify(_))
         }
     }
-    val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
+    val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, rt, args, findIR).map {
       case (_, _, conversion) => args =>
         val x = ApplyIR(name, args)
         x.conversion = conversion
         x
     }
 
-    val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>
+    val validMethods = lookupFunction(name, rt, args).map { f => { irArgs: Seq[IR] =>
       f match {
         case _: SeededIRFunction =>
-          ApplySeeded(name, irArgs.init, irArgs.last.asInstanceOf[I64].x)
-        case _: IRFunctionWithoutMissingness => Apply(name, irArgs)
-        case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs)
+          ApplySeeded(name, irArgs.init, irArgs.last.asInstanceOf[I64].x, f.returnType.subst())
+        case _: IRFunctionWithoutMissingness => Apply(name, irArgs, f.returnType.subst())
+        case _: IRFunctionWithMissingness => ApplySpecial(name, irArgs, f.returnType.subst())
       }
     }
     }
@@ -174,7 +174,7 @@ abstract class RegistryFunctions {
         r.region, coerce[Long](c))
   }
 
-  def boxArg(r: EmitRegion, t: PType): Code[_] => Code[Any] = t match {
+  def boxArg(r: EmitRegion, t: PType): Code[_] => Code[AnyRef] = t match {
     case _: PBoolean => c => Code.boxBoolean(coerce[Boolean](c))
     case _: PInt32 => c => Code.boxInt(coerce[Int](c))
     case _: PInt64 => c => Code.boxLong(coerce[Long](c))
@@ -186,23 +186,23 @@ abstract class RegistryFunctions {
         PString.getClass, "loadString",
         r.region, coerce[Long](c))
     case _ => c =>
-      Code.invokeScalaObject[PType, Region, Long, Any](
-        UnsafeRow.getClass, "read",
+      Code.invokeScalaObject[PType, Region, Long, AnyRef](
+        UnsafeRow.getClass, "readAnyRef",
         r.mb.getPType(t),
         r.region, coerce[Long](c))
   }
 
-  def unwrapReturn(r: EmitRegion, t: Type): Code[_] => Code[_] = t match {
-    case _: TBoolean => coerce[Boolean]
-    case _: TInt32 => coerce[Int]
-    case _: TInt64 => coerce[Long]
-    case _: TFloat32 => coerce[Float]
-    case _: TFloat64 => coerce[Double]
+  def unwrapReturn(r: EmitRegion, t: PType): Code[_] => Code[_] = t.virtualType match {
+    case _: TBoolean => identity[Code[_]]
+    case _: TInt32 => identity[Code[_]]
+    case _: TInt64 => identity[Code[_]]
+    case _: TFloat32 => identity[Code[_]]
+    case _: TFloat64 => identity[Code[_]]
     case _: TString => c =>
       r.region.appendString(coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, t)
       val alocal = r.mb.newLocal[IndexedSeq[Int]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Integer]
@@ -218,7 +218,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TFloat64, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, t)
       val alocal = r.mb.newLocal[IndexedSeq[Double]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Double]
@@ -234,7 +234,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, t)
       val alocal = r.mb.newLocal[IndexedSeq[String]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.String]
@@ -301,7 +301,7 @@ abstract class RegistryFunctions {
     registerCode(mname, argTypes, rType, pt) { case (r, rt, args) =>
       val cts = argTypes.map(ct(_).runtimeClass)
       val out = Code.invokeScalaObject(cls, method, cts, args.map { case (t, a) => wrapArg(r, t)(a) })(ct(rType))
-      unwrapReturn(r, rType)(out)
+      unwrapReturn(r, rt)(out)
     }
   }
 
@@ -463,7 +463,7 @@ sealed abstract class IRFunction {
 
   def apply(mb: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet
 
-  def getAsMethod(fb: EmitFunctionBuilder[_], args: PType*): EmitMethodBuilder = ???
+  def getAsMethod(fb: EmitFunctionBuilder[_], rt: Type, args: PType*): EmitMethodBuilder = ???
 
   def returnType: Type
 
@@ -472,9 +472,10 @@ sealed abstract class IRFunction {
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 
   def unify(concrete: Seq[Type]): Boolean = {
-    argTypes.length == concrete.length && {
-      argTypes.foreach(_.clear())
-      argTypes.zip(concrete).forall { case (i, j) => i.unify(j) }
+    val types = argTypes :+ returnType
+    types.length == concrete.length && {
+      types.foreach(_.clear())
+      types.zip(concrete).forall { case (i, j) => i.unify(j) }
     }
   }
 }
@@ -494,8 +495,8 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
     EmitTriplet(setup, missing, value)
   }
 
-  override def getAsMethod(fb: EmitFunctionBuilder[_], args: PType*): EmitMethodBuilder = {
-    val unified = unify(args.map(_.virtualType))
+  override def getAsMethod(fb: EmitFunctionBuilder[_], rt: Type, args: PType*): EmitMethodBuilder = {
+    val unified = unify(args.map(_.virtualType) :+ rt)
     assert(unified)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
     val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))

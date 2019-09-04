@@ -1,64 +1,103 @@
+/* color on hail.is: #444 */
+/* border-color on hail.is: #ddd */
+/* background-color on hail.is: #fff */
+.wy-nav-content {
+  max-width: 1140px !important;
+  background-color: #fff;
+}
+
+.wy-nav-content-wrap {
+  background-color: #fff;
+}
 .wy-grid-for-nav {
-    top: 51px;
+  top: 51px;
 }
 
 .wy-nav-side {
-    position: fixed;
+  position: fixed;
 }
 
 .wy-side-nav-search {
-    padding-top: 4em;
+  padding-top: 4em;
 }
 
 .wy-body-for-nav {
-    background-color: #ffffff;
-    background-image: none;
+  background-color: #fff;
+  border-color: #ddd;
+  background-image: none;
 }
 
 table.docutils col {
-    width: auto;
+  width: auto;
 }
 
 .code.noexec {
-    border: 1px solid #cfcfcf;
-    border-radius: 2px;
-    background: #f7f7f7;
-    padding: 0.4em;
-    flex: 1;
-    overflow: auto;
-    white-space: pre;
-    font-family: Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console", "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier, monospace;
-    font-size: 12px;
-    line-height: 1.5;
-    display: block;
-    overflow: auto;
-    color: #404040
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  background: #fff;
+  padding: 0.4em;
+  flex: 1;
+  overflow: auto;
+  white-space: pre;
+  font-family: Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console",
+    "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono",
+    "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier,
+    monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  display: block;
+  overflow: auto;
+  color: #444;
 }
 
 div.nboutput div.output_area.stderr {
-    display: none;
+  display: none;
 }
 
 .hll {
-    background-color: #ffffff;
-    font-style: italic;
-    font-weight: bold;
-    color: #E74C3C;
+  background-color: #ffffff;
+  font-style: italic;
+  font-weight: bold;
+  color: #e74c3c;
 }
 
 .bolditalic {
-    font-weight: bold;
-    font-italic: italic;
+  font-weight: bold;
+  font-italic: italic;
 }
 
 .container.annotation {
-    background-color: #f3f6f6;
-    border: 1px solid #e1e4e5;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    padding: 10px;
+  background-color: #ffff;
+  border: 1px solid #ddd;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
 }
 
 .rst-content .highlighted {
-    padding: 0;
+  padding: 0;
+}
+
+hr {
+  border-color: #ddd;
+}
+
+#hail-navbar.documentation-view {
+  position: fixed;
+  z-index: 999;
+  padding: 0px 0.809em;
+  width: 100%;
+  position: fixed;
+}
+
+@media screen and (max-width: 768px) {
+  /* Nav is absolutely broken on mobile and we already have breadcrumbs */
+  .wy-nav-top {
+    display: none;
+  }
+
+  /* Fixed navbar obscures valuable vertical real estate on mobile */
+  #hail-navbar.documentation-view {
+    position: relative;
+  }
 }

@@ -306,6 +306,8 @@ object Code {
     assert(f.isStatic)
     f.put(null, rhs)
   }
+
+  def foreach[A](it: Seq[A])(f: A => Code[_]): Code[Unit] = Code(it.map(f): _*).asInstanceOf[Code[Unit]]
 }
 
 trait Code[+T] {
@@ -419,6 +421,21 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
         il += lfalse
         celse.emit(il)
         il += new JumpInsnNode(GOTO, lafter)
+        il += ltrue
+        cthen.emit(il)
+        // fall through
+        il += lafter
+      }
+    }
+  }
+
+  def orEmpty[T](cthen: Code[T]): Code[T] = {
+    val cond = lhs.toConditional
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        val lafter = new LabelNode
+        val ltrue = new LabelNode
+        cond.emitConditional(il, ltrue, lafter)
         il += ltrue
         cthen.emit(il)
         // fall through

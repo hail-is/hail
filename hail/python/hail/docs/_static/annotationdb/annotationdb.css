@@ -1,0 +1,126 @@
+#rowDiv {
+  margin: auto;
+  text-align: center;
+  width: 50%;
+}
+
+#searchInput {
+  height: 40px;
+  font-size: 0.875rem;
+  font-weight: bold;
+  margin-left: 27px;
+  font-size: 0.875rem;
+}
+
+#searchDatabase {
+  height: 40px;
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+#annotation-db div.search span,
+#searchInput {
+  display: block;
+  width: 350px;
+}
+
+#searchInput {
+  margin-top: 4px;
+  margin-left: 0px;
+}
+
+#searchInput,
+#annotation-db textarea {
+  box-shadow: none;
+  border-radius: 3px;
+}
+
+#annotation-db textarea {
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+#annotation-db .btn-group-sm > .btn,
+#annotation-db .btn-sm {
+  font-size: 0.875rem;
+  border-radius: 3px;
+  line-height: 0;
+  height: 24px;
+  padding: 12px 10px;
+  box-shadow: none;
+}
+
+#annotation-db .panel {
+  background-color: #fff;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+#annotation-db .panel {
+  margin-bottom: 0.875rem;
+}
+
+#annotation-db .panel-default {
+  border-color: #ddd;
+}
+
+#annotation-db .panel-body {
+  padding: 0.875rem;
+}
+
+#annotation-db .panel-default > .panel-heading {
+  color: #333;
+  background-color: #f5f5f5;
+  border-color: #ddd;
+}
+
+#annotation-db div.panel-heading {
+  padding: 10px 15px;
+  border-bottom: 1px solid transparent;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+#annotation-db div.panel .panel-body p:last-child {
+  margin-bottom: 0;
+}
+
+#table1 th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  background-color: #f5f5f5;
+  color: black;
+}
+
+#table1 td,
+#table1 th {
+  display: table-cell;
+  border-bottom: 1px solid #ddd;
+  border-left: 0px;
+  border-right: 0px;
+  border-top: 0px;
+  padding: 8px;
+  width: auto;
+}
+
+#table1 tr:last-child td {
+  border-bottom: 0px;
+}
+
+#annotation-db table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  resize: none;
+  table-layout: fixed;
+  display: block;
+  height: 770px;
+  width: 100%;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  border-radius: 5px;
+}
+
+#annotation-db textarea {
+  font-size: 0.875rem;
+}
