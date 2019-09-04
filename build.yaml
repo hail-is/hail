@@ -103,7 +103,7 @@ steps:
    name: create_session_key
    namespace:
      valueFrom: default_ns.name
-   config: auth/create-session-key.yaml
+   config: auth/create-session-key-pod.yaml
    wait:
     - kind: Pod
       name: create-session-key
