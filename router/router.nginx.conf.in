@@ -89,11 +89,7 @@ server {
         resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$1.default.svc.cluster.local$request_uri;
 
-        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -120,11 +116,7 @@ server {
     location / {
         proxy_pass http://notebook/;
 
-        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -155,11 +147,7 @@ server {
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -190,11 +178,7 @@ server {
     location / {
         proxy_pass http://notebook2;
 
-        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -238,12 +222,9 @@ server {
 
     location / {
         proxy_pass http://auth/;
-    }
 
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
 
     listen 80;
     listen [::]:80;

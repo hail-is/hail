@@ -34,8 +34,17 @@ def _authenticated_users_only(rest, redirect):
             def unauth():
                 if redirect:
                     login_url = deploy_config.external_url('auth', '/login')
+
                     # request.url is yarl.URL
-                    raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request.url))}')
+                    request_url = request.url
+                    x_forwarded_host = request.headers.get('X-Forwarded-Host')
+                    if x_forwarded_host:
+                        request_url = request_url.with_host(x_forwarded_host)
+                    x_forwarded_proto = request.headers.get('X-Forwarded-Proto')
+                    if x_forwarded_proto:
+                        request_url = request_url.with_scheme(x_forwarded_proto)
+
+                    raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request_url))}')
                 raise web.HTTPUnauthorized()
 
             if rest:
