@@ -314,7 +314,6 @@ final class Region private (var blockSize: Region.Size) extends NativeBase() {
   }
 
   def setFromParentReference(src: Region, i: Int, blockSize: Int): Unit = {
-    src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize)
     _isValid = true
     update(src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize), blockSize)
     _numParents = nativeGetNumParents(this.addrA)
@@ -323,7 +322,6 @@ final class Region private (var blockSize: Region.Size) extends NativeBase() {
   def getParentReference(i: Int, blockSize: Int): Region = {
     assert(i < _numParents)
     val r = new Region(blockSize)
-    nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize)
     r.update(nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize), blockSize)
     r
   }
