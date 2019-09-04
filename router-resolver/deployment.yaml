@@ -62,6 +62,8 @@ spec:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
          env:
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
          resources:

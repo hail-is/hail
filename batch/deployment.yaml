@@ -34,6 +34,8 @@ spec:
             memory: "1G"
             cpu: "1"
         env:
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
          - name: HAIL_POD_NAMESPACE
