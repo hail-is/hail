@@ -93,11 +93,13 @@ object TableMapIRNew {
 
     // 2. load in init op on each partition, seq op over partition, comb op if possible, write.
     var nextIdx = 0
+    var results = 0
     val scanAggCount = tv.rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
     val aggs: Array[Array[Byte]] = new Array(1 + scanAggCount)
     val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
     aggs(0) = initAgg
+    var mem: Long = initAgg.length
 
     HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
       HailContext.get.sc.runJob(
@@ -106,6 +108,9 @@ object TableMapIRNew {
         (i: Int, row: Array[Byte]) => synchronized {
           assert(aggs(i+1) == null)
           aggs(i+1) = row
+          mem += row.length
+          results += 1
+          log.info(s"At result $i, scan runJob contains $results queued results and $mem bytes")
           while (nextIdx < aggs.length - 1 && aggs(nextIdx) != null && aggs(nextIdx+1) != null) {
             if (nextIdx < scanAggCount) {
               partitionIndices(nextIdx) = os.getPos
@@ -114,8 +119,10 @@ object TableMapIRNew {
               os.hflush()
             }
             val buf = combOpF(aggs(nextIdx), aggs(nextIdx+1))
+            mem += buf.length - aggs(nextIdx).length - aggs(nextIdx+1).length
             aggs(nextIdx) = null
             aggs(nextIdx+1) = buf
+            results -= 1
             nextIdx += 1
           }
         }
