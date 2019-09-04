@@ -517,7 +517,7 @@ class CreateNamespaceStep(Step):
                                    json.get('public', False),
                                    json.get('secrets'))
 
-    def config(self, scope):
+    def config(self, scope):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'kind': 'createNamespace',

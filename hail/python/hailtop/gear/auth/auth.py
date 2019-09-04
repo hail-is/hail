@@ -1,5 +1,6 @@
 import logging
 from functools import wraps
+import urllib.parse
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -30,7 +31,7 @@ def _authenticated_users_only(rest, redirect):
     def unauth():
         if redirect:
             login_url = deploy_config.external_url('auth', '/login')
-            raise web.HTTPFound(f'{login_url}?next={request.url}')
+            raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(request.url)}')
         else:
             raise web.HTTPUnauthorized()
     def wrap(fun):
