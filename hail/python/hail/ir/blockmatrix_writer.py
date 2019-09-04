@@ -141,3 +141,22 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                self.add_index == other.add_index and \
                self.compression == other.compression and \
                self.custom_filenames == other.custom_filenames
+
+
+class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
+    @typecheck_method(prefix=str, overwrite=bool)
+    def __init__(self, prefix, overwrite):
+        self.prefix = prefix
+        self.overwrite = overwrite
+
+    def render(self):
+        writer = {'name': 'BlockMatrixNativeMultiWriter',
+                  'prefix': self.prefix,
+                  'overwrite': self.overwrite}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixNativeMultiWriter) and \
+               self.prefix == other.prefix and \
+               self.overwrite == other.overwrite
+>>>>>>> Python side BlockMatrixMultiWriter exists
