@@ -57,7 +57,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        ...                                 reference_genome='GRCh37',
        ...                                 skip_invalid_contigs=True)
 
-       >>> ht.describe()  # doctest: +NOTEST
+       >>> ht.describe()  # doctest: +SKIP_OUTPUT_CHECK
        ----------------------------------------
        Global fields:
        None
@@ -211,6 +211,8 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     }
     if reference_genome is None:
         reference_genome = hl.default_reference().name
+    else:
+        reference_genome = reference_genome.name
     if gtf_file is None:
         gtf_file = GTFS.get(reference_genome)
         if gtf_file is None:

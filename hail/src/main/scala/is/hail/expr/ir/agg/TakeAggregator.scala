@@ -4,11 +4,8 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-
-object TakeRVAS {
-}
 
 class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   private val r: ClassFieldRef[Region] = fb.newField[Region]
@@ -38,7 +35,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
         Region.storeInt(maxSizeOffset(dest), maxSize),
         builder.storeFields(builderStateOffset(dest))))
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>
       Code(
         ob.writeInt(maxSize),
@@ -46,7 +43,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
     }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     { ib: Code[InputBuffer] =>
 
       Code(

@@ -261,6 +261,7 @@ abstract class PContainer extends PIterable {
     }
   }
 
+  override def containsPointers: Boolean = true
 
   def cxxImpl: String = {
     elementType match {

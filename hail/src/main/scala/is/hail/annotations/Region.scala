@@ -215,8 +215,10 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
 
   def isValid: Boolean = _isValid
   def invalidate(): Unit = {
-    _isValid = false
-    setNull(this.addrA)
+    if (_isValid) {
+      _isValid = false
+      setNull(this.addrA)
+    }
   }
   
   def this(b: Region) {
@@ -246,8 +248,10 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
 
   def setNumParents(n: Int): Unit = {
     assert(_numParents >= 0 && _numParents <= n)
-    nativeSetNumParents(this.addrA, n)
-    _numParents = n
+    if (n != _numParents) {
+      nativeSetNumParents(this.addrA, n)
+      _numParents = n
+    }
   }
 
   def setParentReference(r: Region, i: Int): Unit = {

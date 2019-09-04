@@ -45,18 +45,19 @@ object Compile {
     val litType = PTuple(literals.map { case (t, _) => t }: _*)
     val f = { spec: CodecSpec =>
 
+      val enc = spec.makeCodecSpec2(litType)
       val baos = new ByteArrayOutputStream()
-      val enc = spec.buildEncoder(litType)(baos)
+      val encoder = enc.buildEncoder(litType)(baos)
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
         rvb.start(litType)
         rvb.startTuple()
         literals.foreach { case (t, a) => rvb.addAnnotation(t.virtualType, a) }
         rvb.endTuple()
-        enc.writeRegionValue(region, rvb.end())
+        encoder.writeRegionValue(region, rvb.end())
       }
-      enc.flush()
-      enc.close()
+      encoder.flush()
+      encoder.close()
       baos.toByteArray
     }
 
@@ -86,7 +87,8 @@ object Compile {
       Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i").mkString(", ", ", ", "")
 
     val (lType, encoded) = literals
-    val litEnc = defaultSpec.buildNativeDecoderClass(lType, lType, "InputStream", tub).name
+    val (lTypeRet, litEnc) = defaultSpec.makeCodecSpec2(lType).buildNativeDecoderClass(lType.virtualType, "InputStream", tub)
+    assert(lTypeRet == lType)
 
     tub.include("hail/Upcalls.h")
 
@@ -103,7 +105,7 @@ object Compile {
            |    jobject sparkUtils = ((ObjectArray *) obj)->at(0);
            |    jobject fs = ((ObjectArray *) obj)->at(1);
            |    jobject jlit_in = ((ObjectArray *) obj)->at(2);
-           |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
+           |    ${ litEnc.name } lit_in { std::make_shared<InputStream>(up, jlit_in) };
            |    const char * lit_ptr = lit_in.decode_row(region.get());
            |
            |    ${ if (!isVoid) s"return (long)$funcCall;" else s"$funcCall;\nreturn 0;" }
@@ -134,8 +136,10 @@ object Compile {
     tub.include("<iostream>")
     val o = new Orderings().ordering(tub, l, r)
     val typ = if (op == "compare") "int" else "bool"
-    val decodel = codec.buildNativeDecoderClass(l, l, "ByteArrayInputStream", tub)
-    val decoder = codec.buildNativeDecoderClass(r, r, "ByteArrayInputStream", tub)
+    val (lTyp, decodel) = codec.makeCodecSpec2(l).buildNativeDecoderClass(l.virtualType, "ByteArrayInputStream", tub)
+    val (rTyp, decoder) = codec.makeCodecSpec2(r).buildNativeDecoderClass(r.virtualType, "ByteArrayInputStream", tub)
+    assert(lTyp == l)
+    assert(rTyp == r)
     tub += new Definition {
       def name = op
       def define =

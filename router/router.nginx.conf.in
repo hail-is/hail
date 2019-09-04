@@ -6,7 +6,7 @@ map $http_x_forwarded_proto $updated_scheme {
 }
 
 server {
-    server_name @domain@ www.@domain@;
+    server_name @domain@ www.* site.*;
 
     location = /healthcheck {
       return 204;
@@ -21,7 +21,7 @@ server {
 }
 
 server {
-    server_name scorecard.@domain@;
+    server_name scorecard.*;
 
     location / {
         proxy_pass http://scorecard/;
@@ -32,7 +32,7 @@ server {
 }
 
 server {
-    server_name ci.@domain@;
+    server_name ci.*;
 
     location ~ /(test-ci-[a-z0-9]+)/(.*) {
         resolver kube-dns.kube-system.svc.cluster.local;
@@ -48,7 +48,7 @@ server {
 }
 
 server {
-    server_name batch.@domain@;
+    server_name batch.*;
     client_max_body_size 10000m;
 
     location / {
@@ -60,7 +60,7 @@ server {
 }
 
 server {
-    server_name batch2.@domain@;
+    server_name batch2.*;
     client_max_body_size 10000m;
 
     location / {
@@ -72,7 +72,7 @@ server {
 }
 
 server {
-    server_name notebook.@domain@;
+    server_name notebook.*;
 
     # needed to correctly handle error_page with internal handles
     recursive_error_pages on;
@@ -138,7 +138,7 @@ server {
 }
 
 server {
-    server_name notebook2.@domain@;
+    server_name notebook2.*;
 
     # needed to correctly handle error_page with internal handles
     recursive_error_pages on;
@@ -213,7 +213,7 @@ map $http_upgrade $connection_upgrade {
 }
 
 server {
-    server_name ukbb-rg.@domain@;
+    server_name ukbb-rg.*;
 
     location /rg_browser {
         proxy_pass http://ukbb-rg-browser.ukbb-rg;
@@ -228,6 +228,22 @@ server {
     location / {
         proxy_pass http://ukbb-rg-static.ukbb-rg;
     }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name auth.*;
+
+    location / {
+        proxy_pass http://auth/;
+    }
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto https;
 
     listen 80;
     listen [::]:80;

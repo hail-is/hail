@@ -813,6 +813,17 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    def test_nested_union(self):
+        N = 10
+        M = 200
+        t = hl.utils.range_table(N, n_partitions=1)
+        t = t.filter(hl.rand_bool(1)) # prevent count optimization
+
+        union = hl.Table.union(*[t for _ in range(M)])
+
+        assert union._force_count() == N * M
+        assert union.count() == N * M
+
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
         t2 = t1.annotate(x=hl.int32(1), y='A')
@@ -973,6 +984,11 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
         self.assertTrue(t1._same(t2))
 
+    def test_expand_types_ordering(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.key_by(x = 9 - ht.idx)
+        assert ht.expand_types().x.collect() == list(range(10))
+
     def test_expand_types_on_all_types(self):
         t = create_all_values_table()
         t.expand_types()
@@ -1019,6 +1035,33 @@ class Tests(unittest.TestCase):
     def test_expr_collect_localize_false(self):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
+
+    def test_expr_collect(self):
+        t = hl.utils.range_table(3)
+
+        globe = 'the globe!'
+        keys = ['Bob', 'Alice', 'David']
+        fields = [1, 0, 3]
+
+        t = t.annotate_globals(globe=globe)
+        t = t.annotate(k = hl.array(keys)[t.idx],
+                       field = hl.array(fields)[t.idx])
+        t = t.key_by(t.k)
+
+        rows = [hl.Struct(k=k, field=field)
+                for k, field in zip(keys, fields)]
+        ordered_rows = sorted(rows, key=lambda x: x.k)
+
+        assert t.globe.collect() == [globe]
+
+        assert t.row.collect() == sorted([hl.Struct(idx=i, **r)
+                                          for i, r in enumerate(rows)],
+                                         key=lambda x: x.k)
+        assert t.key.collect() == [hl.Struct(k=r.k) for r in ordered_rows]
+        assert t.k.collect() == [r.k for r in ordered_rows]
+
+        assert (t.k + '1').collect() == [r.k + '1' for r in ordered_rows]
+        assert (t.field + 1).collect() == [r.field + 1 for r in ordered_rows]
 
     def test_expr_take_localize_false(self):
         ht = hl.utils.range_table(10)

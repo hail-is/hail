@@ -3,7 +3,7 @@
     <title>Job {{ job_id }} Log</title>
   </head>
   <body>
-    <p><a href="/">ci</a> : job {{ job_id }} log</p>
+    <p><a href="/">ci</a> : <a href="/batches/{{ batch_id }}">Batch {{ batch_id }}</a> : job {{ job_id }} log</p>
 
     <h1>Job {{ job_id }} Log</h1>
     {% if 'setup' in job_log %}

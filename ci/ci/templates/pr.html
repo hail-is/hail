@@ -4,7 +4,7 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
-    <p><a href="/">ci</a> : pr #{{ number }}</p>
+    <p><a href="/">ci</a> : <a href="https://github.com/{{ repo }}/pull/{{ number }}">pr #{{ number }}</a></p>
 
     <h1>PR {{ number }}</h1>
     {% if batch is defined %}
@@ -19,6 +19,7 @@
           <th align="right">exit_code</th>
           <th align="right">duration</th>
           <th align="left">log</th>
+          <th align="left">pod status</th>
           <th align="left">links</th>
         </tr>
       </thead>
@@ -32,14 +33,14 @@
             {% if 'exit_code' in job and job['exit_code'] is not none %}
             {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
-            Success 🎉
-            {% else %}
-            <span style="color: #a93333;">
-            Failure 🤷‍♀️
-            {% endif %}
-            ({{ job['exit_code'] }})
-            </span>
-            {% endif %}
+              Success 🎉
+              {% else %}
+              <span style="color: #a93333;">
+                Failure 🤷‍♀️
+                {% endif %}
+                ({{ job['exit_code'] }})
+              </span>
+              {% endif %}
           </td>
           <td align="right">
             {% if 'duration' in job and job['duration'] %}
@@ -48,6 +49,9 @@
           </td>
           <td align="left">
             <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
+          </td>
+          <td align="left">
+            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
           </td>
           <td>
             {% if 'link' in job['attributes'] %}
@@ -68,7 +72,7 @@
     {% else %}
     No build running.
     {% endif %}
-    
+
     <h2>Build History</h2>
     {% if history %}
     <table>
@@ -79,7 +83,7 @@
         </tr>
       </thead>
       <tbody>
-	{% for batch in history %}
+        {% for batch in history %}
         <tr>
           <td align="right">
             <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
@@ -99,5 +103,5 @@
     {% else %}
     No builds.
     {% endif %}
-</body>
+  </body>
 </html>

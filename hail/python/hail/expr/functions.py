@@ -21,13 +21,13 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args):
     indices, aggregations = unify_all(*args)
-    return construct_expr(Apply(name, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(Apply(name, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
-    return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(a=expr_array(), x=expr_any)
@@ -537,7 +537,7 @@ def dict(collection) -> DictExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +NOTEST
+    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +SKIP_OUTPUT_CHECK
     {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
@@ -803,8 +803,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     -------
     :class:`.LocusExpression`
     """
-    fname = 'Locus({})'.format(reference_genome.name)
-    return _func(fname, tlocus(reference_genome), contig, pos)
+    return _func('Locus', tlocus(reference_genome), contig, pos)
 
 
 @typecheck(global_pos=expr_int64,
@@ -836,8 +835,7 @@ def locus_from_global_position(global_pos,
     -------
     :class:`.LocusExpression`
     """
-    fname = 'globalPosToLocus({})'.format(reference_genome.name)
-    return _func(fname, tlocus(reference_genome), global_pos)
+    return _func('globalPosToLocus', tlocus(reference_genome), global_pos)
 
 
 @typecheck(s=expr_str,
@@ -867,7 +865,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     -------
     :class:`.LocusExpression`
     """
-    return _func('Locus({})'.format(reference_genome.name), tlocus(reference_genome), s)
+    return _func('Locus', tlocus(reference_genome), s)
 
 
 @typecheck(s=expr_str,
@@ -903,7 +901,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     """
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
-    return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
+    return _func('LocusAlleles', t, s)
 
 
 def variant_str(*args) -> 'StringExpression':
@@ -1146,8 +1144,7 @@ def locus_interval(contig,
     -------
     :class:`.IntervalExpression`
     """
-    fname = 'LocusInterval({})'.format(reference_genome.name)
-    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end, invalid_missing)
+    return _func('LocusInterval', tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end, invalid_missing)
 
 
 @typecheck(s=expr_str,
@@ -1223,7 +1220,7 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     -------
     :class:`.IntervalExpression`
     """
-    return _func('LocusInterval({})'.format(reference_genome.name),
+    return _func('LocusInterval',
                  tinterval(tlocus(reference_genome)), s, invalid_missing)
 
 
@@ -1483,7 +1480,7 @@ def json(x) -> StringExpression:
     >>> hl.eval(hl.json([1,2,3,4,5]))
     '[1,2,3,4,5]'
 
-    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +NOTEST
+    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +SKIP_OUTPUT_CHECK
     '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -1880,15 +1877,18 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     return _func("qpois", tint32, p, lamb, lower_tail, log_p)
 
 
-@typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
-def range(start, stop, step=1) -> ArrayNumericExpression:
+@typecheck(start=expr_int32, stop=nullable(expr_int32), step=expr_int32)
+def range(start, stop=None, step=1) -> ArrayNumericExpression:
     """Returns an array of integers from `start` to `stop` by `step`.
 
     Examples
     --------
 
-    >>> hl.eval(hl.range(0, 10))
+    >>> hl.eval(hl.range(10))
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    >>> hl.eval(hl.range(3, 10))
+    [3, 4, 5, 6, 7, 8, 9]
 
     >>> hl.eval(hl.range(0, 10, step=3))
     [0, 3, 6, 9]
@@ -1896,6 +1896,9 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     Notes
     -----
     The range includes `start`, but excludes `stop`.
+
+    If provided exactly one argument, the argument is interpreted as `stop` and
+    `start` is set to zero. This matches the behavior Python's ``range``.
 
     Parameters
     ----------
@@ -1910,6 +1913,9 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     -------
     :class:`.ArrayInt32Expression`
     """
+    if stop is None:
+        stop = start
+        start = hl.literal(0)
     return apply_expr(lambda sta, sto, ste: ArrayRange(sta, sto, ste), tarray(tint32), start, stop, step)
 
 
@@ -1920,10 +1926,10 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +SKIP_OUTPUT_CHECK
     True
 
-    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +SKIP_OUTPUT_CHECK
     False
 
     Parameters
@@ -1948,10 +1954,10 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm())  # doctest: +SKIP_OUTPUT_CHECK
     1.5388475315213386
 
-    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm())  # doctest: +SKIP_OUTPUT_CHECK
     -0.3006188509144124
 
     Parameters
@@ -1977,10 +1983,10 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +SKIP_OUTPUT_CHECK
     [0.5515477294463427, -1.1782691532205807]
 
-    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +SKIP_OUTPUT_CHECK
     [-1.127240906867922, 1.4495317887283203]
 
     Notes
@@ -2037,10 +2043,10 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +SKIP_OUTPUT_CHECK
     2.0
 
-    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +SKIP_OUTPUT_CHECK
     3.0
 
     Parameters
@@ -2065,10 +2071,10 @@ def rand_unif(lower, upper, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.7983073825816226
 
-    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.5161799497741769
 
     Parameters
@@ -2108,10 +2114,10 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.6696807666871818
 
-    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.8512985039011525
 
     Parameters
@@ -2150,10 +2156,10 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +SKIP_OUTPUT_CHECK
     2.3915947710237537
 
-    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.1339939936379711
 
     Parameters
@@ -2189,10 +2195,10 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +SKIP_OUTPUT_CHECK
     2
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +SKIP_OUTPUT_CHECK
     1
 
     Parameters
@@ -2217,10 +2223,10 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     [0.4630197581640282,0.18207753442497876,0.3549027074109931]
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     [0.20851948405364765,0.7873859423649898,0.004094573581362475]
 
     Parameters
@@ -2274,7 +2280,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +NOTEST
+    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +SKIP_OUTPUT_CHECK
     -0.6546536707079772
 
     Notes
@@ -2998,7 +3004,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +NOTEST
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +SKIP_OUTPUT_CHECK
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters
@@ -3215,7 +3221,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: Apply("length", x), tint32, x)
+        return apply_expr(lambda x: Apply("length", tint32, x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
@@ -3275,7 +3281,7 @@ def _comparison_func(name, exprs, filter_missing, filter_nan):
             func_name += '_ignore_missing'
         if filter_nan and unified_typ in (tfloat32, tfloat64):
             func_name = 'nan' + func_name
-        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, l, r), [ec.coerce(e)._ir for e in exprs]),
+        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, unified_typ, l, r), [ec.coerce(e)._ir for e in exprs]),
                               unified_typ,
                               indices,
                               aggs)
@@ -3755,7 +3761,7 @@ def set(collection) -> SetExpression:
     --------
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
-    >>> hl.eval(s)  # doctest: +NOTEST
+    >>> hl.eval(s)  # doctest: +SKIP_OUTPUT_CHECK
     {'Alice', 'Bob', 'Charlie'}
 
     Returns
@@ -4168,13 +4174,13 @@ def float64(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float64('1.1'))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
     1.1
 
-    >>> hl.eval(hl.float64(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64(1))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
-    >>> hl.eval(hl.float64(True))  # doctest: +NOTEST
+    >>> hl.eval(hl.float64(True))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
     Parameters
@@ -4197,13 +4203,13 @@ def float32(x) -> Float32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float32('1.1'))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
     1.1
 
-    >>> hl.eval(hl.float32(1))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32(1))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
-    >>> hl.eval(hl.float32(True))  # doctest: +NOTEST
+    >>> hl.eval(hl.float32(True))  # doctest: +SKIP_OUTPUT_CHECK
     1.0
 
     Parameters
@@ -4691,11 +4697,11 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
 
     if isinstance(x.dtype, tlocus):
         rg = x.dtype.reference_genome
-        method_name = "liftoverLocus({})({})".format(rg.name, dest_reference_genome.name)
+        method_name = "liftoverLocus"
         rtype = tstruct(result=tlocus(dest_reference_genome), is_negative_strand=tbool)
     else:
         rg = x.dtype.point_type.reference_genome
-        method_name = "liftoverLocusInterval({})({})".format(rg.name, dest_reference_genome.name)
+        method_name = "liftoverLocusInterval"
         rtype = tstruct(result=tinterval(tlocus(dest_reference_genome)), is_negative_strand=tbool)
 
     if not rg.has_liftover(dest_reference_genome.name):

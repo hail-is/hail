@@ -72,7 +72,7 @@ class CollectionExpression(Expression):
         >>> hl.eval(a.filter(lambda x: x % 2 == 0))
         [2, 4]
 
-        >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))  # doctest: +NOTEST
+        >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))  # doctest: +SKIP_OUTPUT_CHECK
         {'Bob'}
 
         Notes
@@ -154,7 +154,7 @@ class CollectionExpression(Expression):
         >>> hl.eval(a.flatmap(lambda x: hl.range(0, x)))
         [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
 
-        >>> hl.eval(s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))  # doctest: +NOTEST
+        >>> hl.eval(s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))  # doctest: +SKIP_OUTPUT_CHECK
         {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
 
         Parameters
@@ -284,10 +284,10 @@ class CollectionExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(a.group_by(lambda x: x % 2 == 0))  # doctest: +NOTEST
+        >>> hl.eval(a.group_by(lambda x: x % 2 == 0))  # doctest: +SKIP_OUTPUT_CHECK
         {False: [1, 3, 5], True: [2, 4]}
 
-        >>> hl.eval(s3.group_by(lambda x: x.length()))  # doctest: +NOTEST
+        >>> hl.eval(s3.group_by(lambda x: x.length()))  # doctest: +SKIP_OUTPUT_CHECK
         {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
 
         Parameters
@@ -816,10 +816,10 @@ class ArrayNumericExpression(ArrayExpression):
         Examples
         --------
 
-        >>> hl.eval(a1 / 10)  # doctest: +NOTEST
+        >>> hl.eval(a1 / 10)  # doctest: +SKIP_OUTPUT_CHECK
         [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-        >>> hl.eval(a2 / a1)  # doctest: +NOTEST
+        >>> hl.eval(a2 / a1)  # doctest: +SKIP_OUTPUT_CHECK
         [inf, -1.0, 0.5, -0.3333333333333333, 0.25, -0.2]
 
         Parameters
@@ -931,7 +931,7 @@ class SetExpression(CollectionExpression):
         Examples
         --------
 
-        >>> hl.eval(s1.add(10))  # doctest: +NOTEST
+        >>> hl.eval(s1.add(10))  # doctest: +SKIP_OUTPUT_CHECK
         {1, 2, 3, 10}
 
         Parameters
@@ -1293,7 +1293,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.key_set())  # doctest: +NOTEST
+        >>> hl.eval(d.key_set())  # doctest: +SKIP_OUTPUT_CHECK
         {'Alice', 'Bob', 'Charles'}
 
         Returns
@@ -1309,7 +1309,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.keys())  # doctest: +NOTEST
+        >>> hl.eval(d.keys())  # doctest: +SKIP_OUTPUT_CHECK
         ['Bob', 'Charles', 'Alice']
 
         Returns
@@ -1326,7 +1326,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.map_values(lambda x: x * 10))  # doctest: +NOTEST
+        >>> hl.eval(d.map_values(lambda x: x * 10))  # doctest: +SKIP_OUTPUT_CHECK
         {'Alice': 430, 'Bob': 330, 'Charles': 440}
 
         Parameters
@@ -1363,7 +1363,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.values())  # doctest: +NOTEST
+        >>> hl.eval(d.values())  # doctest: +SKIP_OUTPUT_CHECK
         [33, 44, 43]
 
         Returns
@@ -2235,7 +2235,7 @@ class StringExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Length of the string.
         """
-        return apply_expr(lambda x: Apply("length", x), tint32, self)
+        return apply_expr(lambda x: Apply("length", tint32, x), tint32, self)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
@@ -2887,8 +2887,7 @@ class LocusExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint64`
             Global base position of locus along the reference genome.
         """
-        name = 'locusToGlobalPos({})'.format(self.dtype.reference_genome)
-        return self._method(name, tint64)
+        return self._method('locusToGlobalPos', tint64)
 
     def in_x_nonpar(self):
         """Returns ``True`` if the locus is in a non-pseudoautosomal

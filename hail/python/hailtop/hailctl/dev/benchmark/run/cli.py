@@ -34,61 +34,23 @@ def main(args_):
     parser.add_argument("--output", "-o",
                         type=str,
                         help="Output file path.")
-    parser.add_argument("--format", "-f",
+    parser.add_argument("--data-dir", "-d",
                         type=str,
-                        help="Output format.",
-                        default='table',
-                        choices=['table', 'json', 'text'])
+                        help="Data directory.")
 
     args = parser.parse_args(args_)
 
     initialize(args)
 
-    finalizers = []
-    if args.output:
-        out_file = open(args.output, 'w')
-        finalizers.append(lambda: out_file.close())  # pylint: disable=unnecessary-lambda
-    else:
-        out_file = None
-
-    def writer(s):
-        print(s, end='', file=out_file)
-
     run_data = {'cores': args.cores,
                 'version': hl.__version__,
                 'timestamp': str(datetime.datetime.now()),
                 'system': sys.platform}
-    if args.format == 'table':
-        writer(f'#{json.dumps(run_data, separators=(",", ":"))}\n')
-        writer('Name\tMean\tMedian\tStDev\n')
 
-        def handler(stats):
-            writer(f'{stats["name"]}\t{stats["mean"]:.3f}\t{stats["median"]:.3f}\t{stats["stdev"]:.3f}\n')
-    elif args.format == 'json':
-        records = []
+    records = []
 
-        def handler(stats):
-            records.append(stats)
-
-        data = {'config': run_data,
-                'benchmarks': records}
-
-        def write_json():
-            with open(args.output, 'w') as out:
-                json.dump(data, out)
-
-        finalizers.append(write_json)
-    else:
-        assert args.format == 'text'
-        writer(f'Run data:\n')
-        for k, v in run_data.items():
-            writer(f'    {k}: {v}\n')
-
-        def handler(stats):
-            writer(f'{stats["name"]}:\n')
-            for t in stats["times"]:
-                writer(f'    {t:.2f}s\n')
-            writer(f'    Mean {stats["mean"]:.2f}, Median {stats["median"]:.2f}\n')
+    def handler(stats):
+        records.append(stats)
 
     config = RunConfig(args.n_iter, handler, args.verbose)
     if args.tests:
@@ -98,5 +60,10 @@ def main(args_):
     if not args.pattern and not args.tests:
         run_all(config)
 
-    for f in finalizers:
-        f()
+    data = {'config': run_data,
+            'benchmarks': records}
+    if args.output:
+        with open(args.output, 'w') as out:
+            json.dump(data, out)
+    else:
+        print(json.dumps(data))

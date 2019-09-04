@@ -60,7 +60,7 @@ but the value ``5`` is only stored once for the entire dataset and NOT once per
 row of the table. The output of :meth:`.Table.describe` lists what all of the row
 fields and global fields are.
 
-    >>> ht.describe()  # doctest: +NOTEST
+    >>> ht.describe()  # doctest: +SKIP_OUTPUT_CHECK
     ----------------------------------------
     Global fields:
         None
@@ -99,10 +99,10 @@ special characters in it. The Python type of each attribute is an
 :class:`.Expression` that also contains context about its type and source, in
 this case a row field of table `ht`.
 
-    >>> ht  # doctest: +NOTEST
+    >>> ht  # doctest: +SKIP_OUTPUT_CHECK
     <hail.table.Table at 0x110791a20>
 
-    >>> ht.ID  # doctest: +NOTEST
+    >>> ht.ID  # doctest: +SKIP_OUTPUT_CHECK
     <Int32Expression of type int32>
 
 
@@ -172,28 +172,17 @@ appended with a unique identifier "_N".
     >>> ht2 = hl.import_table("data/kt_example2.tsv", impute=True).key_by('ID')
 
     >>> ht_join = ht.join(ht2)
-    >>> ht_join.show()
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     A |
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 |
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-    |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |    65 |
-    |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |    72 |
-    |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    70 |
-    |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    60 |
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-    <BLANKLINE>
-    +----------+
-    | B        |
-    +----------+
-    | str      |
-    +----------+
-    | "cat"    |
-    | "dog"    |
-    | "mouse"  |
-    | "rabbit" |
-    +----------+
+    >>> ht_join.show(width=120)
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     A | B        |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 | str      |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
+    |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |    65 | "cat"    |
+    |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |    72 | "dog"    |
+    |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    70 | "mouse"  |
+    |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    60 | "rabbit" |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
     <BLANKLINE>
 
 In addition to the :meth:`.Table.join` method, Hail provides another
@@ -206,7 +195,7 @@ We can annotate the left table with this expression to perform a left join:
 we add the field 'B' from `ht2` to `ht`:
 
     >>> ht1 = ht.annotate(B = ht2[ht.ID].B)
-    >>> ht1.show()
+    >>> ht1.show(width=120)
     +-------+-------+-----+-------+-------+-------+-------+-------+----------+
     |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | B        |
     +-------+-------+-----+-------+-------+-------+-------+-------+----------+

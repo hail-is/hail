@@ -2,6 +2,7 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
+import is.hail.expr.ir.IRParser
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
@@ -9,9 +10,14 @@ import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.types.DataType
-import org.json4s.JValue
+import org.json4s.JsonAST.JString
+import org.json4s.{CustomSerializer, JValue}
 
 import scala.reflect.ClassTag
+
+class TypeSerializer extends CustomSerializer[Type](format => (
+  { case JString(s) => IRParser.parseType(s) },
+  { case t: Type => JString(t.parsableString()) }))
 
 object Type {
   def genScalar(required: Boolean): Gen[Type] =

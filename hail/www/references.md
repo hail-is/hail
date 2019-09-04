@@ -6,6 +6,10 @@ In addition to software development, the Hail team engages in theoretical, algor
 
 ## 2019
 
+* Werling, Donna, et al. "Whole-genome and RNA sequencing reveal variation and transcriptomic coordination in the developing human prefrontal cortex." *bioRxiv* (2019): 538421. https://www.biorxiv.org/content/10.1101/585430v1
+
+* Satterstrom, Kyle F., et al. "Large-scale exome sequencing study implicates both developmental and functional changes in the neurobiology of autism." *bioRxiv* (2019): 538421. https://www.biorxiv.org/content/10.1101/484113v3
+
 * Huang, Qin, et al. "Delivering genes across the blood-brain barrier: LY6A, a novel cellular receptor for AAV-PHP. B capsids." *bioRxiv* (2019): 538421. https://www.biorxiv.org/content/10.1101/538421v1
 
 * Kurki, Mitja I., et al. "Contribution of rare and common variants to intellectual disability in a sub-isolate of Northern Finland." *Nature Communications* 10.1 (2019): 410. https://www.ncbi.nlm.nih.gov/pmc/articles/pmid/30679432/
@@ -45,6 +49,8 @@ In addition to software development, the Hail team engages in theoretical, algor
 * Khera, Amit V., et al. "Whole-genome sequencing to characterize monogenic and polygenic contributions in patients hospitalized with early-onset myocardial infarction." *Circulation* 139.13 (2019): 1593-1602. https://www.ahajournals.org/doi/10.1161/CIRCULATIONAHA.118.035658
 
 ## 2018
+
+* An, Joon-Yong, et al. "Genome-wide de novo risk score implicates promoter variation in autism spectrum disorder." *Science* (2018): 1. https://science.sciencemag.org/content/362/6420/eaat6576.full
 
 * Molnos, Sophie Claudia. Metabolites: implications in type 2 diabetes and the effect of epigenome-wide interaction with genetic variation. Diss. Technische Universität München, 2018. https://mediatum.ub.tum.de/1372795f
 

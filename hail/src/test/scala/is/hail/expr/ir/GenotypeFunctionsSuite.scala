@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -27,21 +28,21 @@ class GenotypeFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider="gps")
   def testDosage(gp: IndexedSeq[java.lang.Double], expected: java.lang.Double) {
-    assertEvalsTo(invoke("dosage", toIRDoubleArray(gp)), expected)
+    assertEvalsTo(invoke("dosage", TFloat64(), toIRDoubleArray(gp)), expected)
   }
 
   @Test(dataProvider="pls")
   def testPLDosage(pl: IndexedSeq[Integer], expected: java.lang.Double) {
-    assertEvalsTo(invoke("plDosage", toIRArray(pl)), expected)
+    assertEvalsTo(invoke("plDosage", TFloat64(), toIRArray(pl)), expected)
   }
 
   def testDosageLength() {
-    assertFatal(invoke("dosage", IRDoubleArray(1.0, 1.5)), "length")
-    assertFatal(invoke("dosage", IRDoubleArray(1.0, 1.5, 0.0, 0.0)), "length")
+    assertFatal(invoke("dosage", TFloat64(), IRDoubleArray(1.0, 1.5)), "length")
+    assertFatal(invoke("dosage", TFloat64(), IRDoubleArray(1.0, 1.5, 0.0, 0.0)), "length")
   }
 
   def testPLDosageLength() {
-    assertFatal(invoke("plDosage", IRArray(1, 2)), "length")
-    assertFatal(invoke("plDosage", IRArray(1, 2, 0, 0)), "length")
+    assertFatal(invoke("plDosage", TFloat64(), IRArray(1, 2)), "length")
+    assertFatal(invoke("plDosage", TFloat64(), IRArray(1, 2, 0, 0)), "length")
   }
 }

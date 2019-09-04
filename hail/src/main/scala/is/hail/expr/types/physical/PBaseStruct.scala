@@ -125,6 +125,8 @@ abstract class PBaseStruct extends PType {
     region.allocate(alignment, byteSize)
   }
 
+  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
+
   def setAllMissing(off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
     var i = 0
@@ -161,6 +163,11 @@ abstract class PBaseStruct extends PType {
 
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
+    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldMissing(off: Long, fieldIdx: Int): Boolean = !isFieldDefined(off, fieldIdx)
 
   def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (fieldRequired(fieldIdx))
@@ -231,6 +238,8 @@ abstract class PBaseStruct extends PType {
       case _ => fieldOffset
     }
   }
+
+  override def containsPointers: Boolean = types.exists(_.containsPointers)
 
   def cxxIsFieldMissing(o: cxx.Code, fieldIdx: Int): cxx.Code = {
     s"load_bit($o, ${ missingIdx(fieldIdx) })"

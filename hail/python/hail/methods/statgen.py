@@ -813,8 +813,8 @@ def linear_mixed_model(y,
     Initialize a model using three fixed effects (including intercept) and
     genetic marker random effects:
 
-    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker)
-    >>> model, _ = hl.linear_mixed_model(
+    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker) # doctest: +SKIP
+    >>> model, _ = hl.linear_mixed_model( # doctest: +SKIP
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
     ...     z_t=marker_ds.GT.n_alt_alleles(),
@@ -822,8 +822,8 @@ def linear_mixed_model(y,
 
     Fit the model and examine :math:`h^2`:
 
-    >>> model.fit()
-    >>> model.h_sq
+    >>> model.fit()  # doctest: +SKIP
+    >>> model.h_sq  # doctest: +SKIP
 
     Sanity-check the normalized likelihood of :math:`h^2` over the percentile
     grid:
@@ -833,7 +833,7 @@ def linear_mixed_model(y,
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)
+    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)  # doctest: +SKIP
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -841,8 +841,8 @@ def linear_mixed_model(y,
     as above with :math:`P` written as a block matrix but returned as an
     ndarray:
 
-    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()
-    >>> model, p = hl.linear_mixed_model(
+    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()  # doctest: +SKIP
+    >>> model, p = hl.linear_mixed_model(  # doctest: +SKIP
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,
@@ -1150,7 +1150,6 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    >>> burden_ds = hl.read_matrix_table('data/example_burden.vds')
     >>> skat_table = hl.skat(key_expr=burden_ds.gene,
     ...                      weight_expr=burden_ds.weight,
     ...                      y=burden_ds.burden.pheno,
@@ -2140,7 +2139,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     values. Here is an example:
 
     >>> split_ds = hl.split_multi_hts(dataset)
-    >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.a_index - 1],
+    >>> split_ds = split_ds.annotate_rows(info = hl.struct(AC=split_ds.info.AC[split_ds.a_index - 1],
     ...                                   **split_ds.info)) # doctest: +SKIP
     >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
 
@@ -2235,11 +2234,14 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
             (hl.range(0, 3).map(lambda i:
                                 hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
                                         .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                                                      split.a_index) == hl.unphased_diploid_gt_index_call(i)
+                                                                      split.a_index).unphased_diploid_gt_index() == i
                                                 ).map(lambda j: split.PL[j]))))))
-        update_entries_expression['PL'] = pl
         if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
+            pl_gq_struct = hl.rbind(pl, lambda pl: hl.struct(PL=pl, GQ=hl.gq_from_pl(pl)))
+            update_entries_expression['PL'] = pl_gq_struct['PL']
+            update_entries_expression['GQ'] = pl_gq_struct['GQ']
+        else:
+            update_entries_expression['PL'] = pl
     else:
         if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = split.GQ

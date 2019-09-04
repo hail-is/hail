@@ -345,28 +345,6 @@ class IRSuite extends HailSuite {
     assertSumsTo(TFloat64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpAddInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32(false))
-    assertToPType(TInt64(true), PInt64(true))
-    assertToPType(TFloat32(true), PFloat32(true))
-    assertToPType(TFloat64(), PFloat64(false))
-  }
-
-  @Test def testApplyBinaryPrimOpSubtractInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32(false))
-    assertToPType(TInt64(true), PInt64(true))
-    assertToPType(TFloat32(true), PFloat32(true))
-    assertToPType(TFloat64(), PFloat64(false))
-  }
-
   @Test def testApplyBinaryPrimOpSubtract() {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -419,17 +397,6 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpMultiplyInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(true), PInt32(true))
-    assertToPType(TInt64(true), PInt64(true))
-    assertToPType(TFloat32(), PFloat32())
-    assertToPType(TFloat64(), PFloat64())
-  }
-
   @Test def testApplyBinaryPrimOpFloatingPointDivide() {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -454,17 +421,6 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), 5d, null, null)
     assertExpected(TFloat64(), null, 2d, null)
     assertExpected(TFloat64(), null, null, null)
-  }
-
-  @Test def testApplyBinaryPrimOpFloatingPointDivideInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(true), PFloat32(true))
-    assertToPType(TInt64(true), PFloat32(true))
-    assertToPType(TFloat32(true), PFloat32(true))
-    assertToPType(TFloat64(true), PFloat64(true))
   }
 
   @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
@@ -493,17 +449,6 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRoundToNegInfDivideInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32())
-    assertToPType(TInt64(), PInt64())
-    assertToPType(TFloat32(), PFloat32())
-    assertToPType(TFloat64(), PFloat64())
-  }
-
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -526,15 +471,6 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64(), null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitAndInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(true), PInt32(true))
-    assertToPType(TInt64(), PInt64())
-  }
-
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -555,15 +491,6 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64(), 5L, null, null)
     assertExpected(TInt64(), null, 2L, null)
     assertExpected(TInt64(), null, null, null)
-  }
-
-  @Test def testApplyBinaryPrimOpBitOrInferPType() {
-    def assertToPType(t: Type, p: PType) {
-      assertPType(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), p)
-    }
-
-    assertToPType(TInt32(), PInt32())
-    assertToPType(TInt64(true), PInt64(true))
   }
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
@@ -1037,18 +964,18 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TSet(TInt32())
-    assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
+    assertEvalsTo(invoke("contains", TBoolean(), NA(t), I32(2)), null)
 
-    assertEvalsTo(invoke("contains", In(0, t), NA(TInt32())),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), NA(TInt32())),
       FastIndexedSeq((Set(-7, 2, null), t)),
       true)
-    assertEvalsTo(invoke("contains", In(0, t), I32(2)),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(2)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       true)
-    assertEvalsTo(invoke("contains", In(0, t), I32(0)),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(0)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       false)
-    assertEvalsTo(invoke("contains", In(0, t), I32(7)),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(7)),
       FastIndexedSeq((Set(-7, 2), t)),
       false)
   }
@@ -1057,19 +984,19 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TDict(TInt32(), TString())
-    assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
+    assertEvalsTo(invoke("contains", TBoolean(), NA(t), I32(2)), null)
 
     val d = Map(1 -> "a", 2 -> null, (null, "c"))
-    assertEvalsTo(invoke("contains", In(0, t), NA(TInt32())),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), NA(TInt32())),
       FastIndexedSeq((d, t)),
       true)
-    assertEvalsTo(invoke("contains", In(0, t), I32(2)),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(2)),
       FastIndexedSeq((d, t)),
       true)
-    assertEvalsTo(invoke("contains", In(0, t), I32(0)),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(0)),
       FastIndexedSeq((d, t)),
       false)
-    assertEvalsTo(invoke("contains", In(0, t), I32(3)),
+    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(3)),
       FastIndexedSeq((Map(1 -> "a", 2 -> null), t)),
       false)
   }
@@ -1549,7 +1476,7 @@ class IRSuite extends HailSuite {
         "elt",
         AggLet("y",
           Cast(Ref("x", TInt32()) * Ref("x", TInt32()) * Ref("elt", TInt32()), TInt64()), // different type to trigger validation errors
-          invoke("append",
+          invoke("append", TArray(TArray(TInt32())),
             ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
               MakeArray(FastSeq(
                 Ref("x", TInt32()),
@@ -1908,8 +1835,8 @@ class IRSuite extends HailSuite {
       SeqOp2(0, FastIndexedSeq(i), collectSig2),
       CombOp2(0, 1, collectSig2),
       ResultOp2(0, FastSeq(collectSig2)),
-      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
-      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
+      SerializeAggs(0, 0, CodecSpec.defaultBufferSpec, FastSeq(collectSig2)),
+      DeserializeAggs(0, 0, CodecSpec.defaultBufferSpec, FastSeq(collectSig2)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -1920,8 +1847,8 @@ class IRSuite extends HailSuite {
       GetTupleElement(t, 1),
       In(2, TFloat64()),
       Die("mumblefoo", TFloat64()),
-      invoke("&&", b, c), // ApplySpecial
-      invoke("toFloat64", i), // Apply
+      invoke("&&", TBoolean(), b, c), // ApplySpecial
+      invoke("toFloat64", TFloat64(), i), // Apply
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
@@ -1941,7 +1868,7 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
-      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32())),
+      ReadPartition(Str("foo"), CodecSpec.default.makeCodecSpec2(PStruct("foo" -> PInt32(), "bar" -> PString())), TStruct("foo" -> TInt32())),
       RelationalLet("x", I32(0), I32(0))
     )
     irs.map(x => Array(x))
@@ -2221,23 +2148,23 @@ class IRSuite extends HailSuite {
 
     def i = In(0, TBoolean())
 
-    def st = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def st = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean())
 
-    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L)
+    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean())
 
-    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L)
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L, TBoolean())
 
-    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean())
 
-    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L)
+    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean())
 
-    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L)
+    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L, TBoolean())
 
-    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean())
 
-    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L)
+    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean())
 
-    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L, TBoolean())
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
@@ -2498,9 +2425,9 @@ class IRSuite extends HailSuite {
       """
         |(ArrayMap __uid_3
         |    (Literal Array[Interval[Locus(GRCh37)]] "[{\"start\": {\"contig\": \"20\", \"position\": 10277621}, \"end\": {\"contig\": \"20\", \"position\": 11898992}, \"includeStart\": true, \"includeEnd\": false}]")
-        |    (Apply Interval
-        |       (MakeStruct (locus  (Apply start (Ref __uid_3))))
-        |       (MakeStruct (locus  (Apply end (Ref __uid_3)))) (True) (False)))
+        |    (Apply Interval Interval[Struct{locus:Locus(GRCh37)}]
+        |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
+        |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False)))
         |""".stripMargin)
     val (v, _) = HailContext.backend.execute(ir, optimize = true)
     assert(

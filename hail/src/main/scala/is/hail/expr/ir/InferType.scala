@@ -69,8 +69,8 @@ object InferType {
       case a: ApplyIR => a.explicitNode.typ
       case a: AbstractApplyNode[_] =>
         val argTypes = a.args.map(_.typ)
-        a.implementation.unify(argTypes)
-        a.implementation.returnType.subst()
+        a.implementation.unify(argTypes :+ a.returnType)
+        a.returnType
       case _: Uniroot => TFloat64()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
@@ -192,7 +192,7 @@ object InferType {
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
-      case ReadPartition(_, _, _, rowType) => TStream(rowType)
+      case ReadPartition(_, _, rowType) => TStream(rowType)
     }
   }
 }

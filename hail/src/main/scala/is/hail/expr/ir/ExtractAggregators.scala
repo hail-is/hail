@@ -41,8 +41,6 @@ object ExtractAggregators {
         case AggSignature(TakeBy(), _, _, Seq(aggType, keyType)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(aggType)),
             EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
-        case AggSignature(InfoScore(), _, _, Seq(t)) =>
-          codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
         case AggSignature(LinearRegression(), _, _, Seq(_, xType)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(xType)))
         case AggSignature(Sum(), _, _, Seq(t@(_: TInt64 | _: TFloat64))) =>
@@ -133,7 +131,7 @@ object ExtractAggregators {
         val transformed = this.extract(aggBody, ab, newBuilder, aggLetAB, result, newAggregator, keyedAggregator, arrayAggregator)
 
         // collect lets that depend on `name`, push the rest up
-        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, name))
+        val (dependent, independent) = agg.Extract.partitionDependentLets(aggLetAB.result(), name)
         ab3 ++= independent
 
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
@@ -172,11 +170,11 @@ object ExtractAggregators {
         val transformed = this.extract[RVAgg](aggBody, newRVAggBuilder, newBuilder, aggLetAB, newRef, newAggregator, keyedAggregator, arrayAggregator)
 
         // collect lets that depend on `elementName`, push the rest up
-        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, elementName))
+        val (dependent, independent) = agg.Extract.partitionDependentLets(aggLetAB.result(), elementName)
         ab3 ++= independent
 
         val nestedAggs = newRVAggBuilder.result()
-        val agg = arrayAggregator(nestedAggs.map(_.rvAgg).toArray)
+        val arrAgg = arrayAggregator(nestedAggs.map(_.rvAgg).toArray)
         val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
         newRef._typ = -rt.elementType
 
@@ -193,7 +191,7 @@ object ExtractAggregators {
 
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val i = ab.length
-        ab += IRAgg[RVAgg](i, agg, rt)
+        ab += IRAgg[RVAgg](i, arrAgg, rt)
         ab2 += AggOps(
           Some(InitOp(i, FastIndexedSeq[IR](Begin(initOp.flatten.toFastIndexedSeq)) ++ knownLengthIRSeq, aggSigCheck)),
           Let(

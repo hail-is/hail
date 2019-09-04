@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.asm4s.coerce
+import is.hail.io.{InputBuffer, OutputBuffer}
 
 trait BTreeKey {
   def storageType: PType
@@ -227,5 +228,49 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       copyNodes))
 
     { srcRoot: Code[Long] => f.invoke(root, srcRoot) }
+  }
+
+  def bulkStore(ob: Code[OutputBuffer])(keyStore: (Code[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
+    val f = fb.newMethod("bulkStore", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
+    val node = f.getArg[Long](1)
+
+    f.emit(Code(
+      ob.writeBoolean(!isLeaf(node)),
+      (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, -1))),
+      Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
+        hasKey(node, i).mux(Code(
+          ob.writeBoolean(true),
+          keyStore(ob, loadKey(node, i)),
+          (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, i))),
+          cont),
+          ob.writeBoolean(false)) }))
+    f.invoke(root)
+  }
+
+  def bulkLoad(ib: Code[InputBuffer])(keyLoad: (Code[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
+    val f = fb.newMethod("bulkLoad", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
+    val node = f.getArg[Long](1)
+    val newNode = f.newLocal[Long]
+    val isInternalNode = f.newLocal[Boolean]
+
+    f.emit(Code(
+      isInternalNode := ib.readBoolean(),
+      isInternalNode.orEmpty(
+        Code(
+          createNode(newNode),
+          setChild(node, -1, newNode),
+          f.invoke(newNode)
+      )),
+      Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
+        ib.readBoolean().orEmpty(Code(
+          setKeyPresent(node, i),
+          keyLoad(ib, keyOffset(node, i)),
+          isInternalNode.orEmpty(
+            Code(createNode(newNode),
+            setChild(node, i, newNode),
+            f.invoke(newNode))),
+          cont))
+      }))
+    f.invoke(root)
   }
 }

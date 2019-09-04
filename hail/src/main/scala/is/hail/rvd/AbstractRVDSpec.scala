@@ -4,14 +4,13 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PStruct, PTypeSerializer}
 import is.hail.expr.types.virtual.{TStructSerializer, _}
 import is.hail.io._
-import is.hail.utils._
-import org.apache.hadoop
 import is.hail.io.fs.FS
+import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 
@@ -22,10 +21,13 @@ object AbstractRVDSpec {
       classOf[CodecSpec], classOf[PackCodecSpec], classOf[BlockBufferSpec],
       classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
       classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec],
-      classOf[StreamBufferSpec], classOf[UnpartitionedRVDSpec]))
+      classOf[StreamBufferSpec], classOf[UnpartitionedRVDSpec],
+      classOf[CodecSpec2], classOf[PackCodecSpec2]))
     override val typeHintFieldName = "name"
   } +
     new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
     new RVDTypeSerializer
 
   def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
@@ -39,25 +41,20 @@ object AbstractRVDSpec {
 
   def readLocal(hc: HailContext,
     path: String,
-    rowType: PStruct,
-    codecSpec: CodecSpec,
+    enc: CodecSpec2,
     partFiles: Array[String],
-    requestedType: PStruct,
-    forEachElement: RegionValue => Unit): Unit = {
+    requestedType: TStruct,
+    r: Region): (PStruct, Long) = {
     assert(partFiles.length == 1)
 
     val fs = hc.sFS
-    partFiles.foreach { p =>
-      val f = partPath(path, p)
-      fs.readFile(f) { in =>
-        using(RVDContext.default) { ctx =>
-          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
-            .foreach { rv =>
-              forEachElement(rv)
-              ctx.region.clear()
-            }
-        }
-      }
+
+    val (rType: PStruct, dec) = enc.buildDecoder(requestedType)
+
+    val f = partPath(path, partFiles(0))
+    fs.readFile(f) { in =>
+      val Array(rv) = HailContext.readRowsPartition(dec)(r, in).toArray
+      (rType, rv.offset)
     }
   }
 
@@ -83,7 +80,7 @@ object AbstractRVDSpec {
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(PackCodecSpec2(rowType, codecSpec.asInstanceOf[PackCodecSpec].child).buildEncoder(rowType))(ctx,
             rows.iterator.map { a =>
               rvb.start(rowType)
               rvb.addAnnotation(rowType.virtualType, a)
@@ -109,9 +106,9 @@ object AbstractRVDSpec {
     specRight: AbstractRVDSpec,
     pathLeft: String,
     pathRight: String,
-    requestedType: PStruct,
-    requestedTypeLeft: PStruct,
-    requestedTypeRight: PStruct,
+    requestedType: TStruct,
+    requestedTypeLeft: TStruct,
+    requestedTypeRight: TStruct,
     newPartitioner: Option[RVDPartitioner],
     filterIntervals: Boolean
   ): RVD = {
@@ -121,7 +118,6 @@ object AbstractRVDSpec {
     val partitioner = specLeft.partitioner
     val tmpPartitioner = partitioner.intersect(newPartitioner.getOrElse(partitioner))
 
-    val rvdType = RVDType(requestedType, requestedKey)
     val parts = if (specLeft.key.isEmpty)
       specLeft.partFiles
     else
@@ -132,11 +128,12 @@ object AbstractRVDSpec {
       case _ => (None, None)
     }
 
-    val crdd = hc.readRowsSplit(
-      pathLeft, pathRight, isl, isr, specLeft.encodedType, specRight.encodedType,
-      specLeft.codecSpec, parts, tmpPartitioner.rangeBounds,
-      requestedType, requestedTypeLeft, requestedTypeRight)
-    val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
+    val (t, crdd) = hc.readRowsSplit(
+      pathLeft, pathRight, isl, isr,
+      specLeft.codecSpec2, specRight.codecSpec2, parts, tmpPartitioner.rangeBounds,
+      requestedTypeLeft, requestedTypeRight)
+    assert(t.virtualType == requestedType)
+    val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     newPartitioner match {
       case Some(part) if !filterIntervals => tmprvd.repartition(part.coarsen(requestedKey.length))
       case _ => tmprvd
@@ -169,46 +166,49 @@ case class OrderedRVDSpec(
 ) extends AbstractRVDSpec {
   def key: IndexedSeq[String] = rvdType.key
 
-  override def encodedType: PStruct = rvdType.rowType
+  override def encodedType: TStruct = rvdType.rowType.virtualType
 
   def partitioner: RVDPartitioner = {
     val rangeBoundsType = TArray(TInterval(rvdType.kType.virtualType))
     new RVDPartitioner(rvdType.kType.virtualType,
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
+
+  override def codecSpec2: CodecSpec2 = PackCodecSpec2(rvdType.rowType, codecSpec.asInstanceOf[PackCodecSpec].child)
 }
 
 abstract class AbstractRVDSpec {
   def partitioner: RVDPartitioner
 
   // FIXME introduce EType
-  def encodedType: PStruct
+  def encodedType: TStruct
 
   def key: IndexedSeq[String]
 
   def partFiles: Array[String]
 
-  def codecSpec: CodecSpec
+  def codecSpec2: CodecSpec2
 
   val indexed: Boolean = false
 
   def read(
     hc: HailContext,
     path: String,
-    requestedType: PStruct,
+    requestedType: TStruct,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
       val requestedKey = key.takeWhile(requestedType.hasField)
-      val rvdType = RVDType(requestedType, requestedKey)
+      val (pType: PStruct, crdd) = hc.readRows(path, codecSpec2, partFiles, requestedType)
+      val rvdType = RVDType(pType, requestedKey)
 
-      RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
+      RVD(rvdType, partitioner.coarsen(requestedKey.length), crdd)
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: PStruct, forEachElement: RegionValue => Unit): Unit =
-    AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType, forEachElement)
+  def readLocalSingleRow(hc: HailContext, path: String, requestedType: TStruct, r: Region): (PStruct, Long) =
+    AbstractRVDSpec.readLocal(hc, path, codecSpec2, partFiles, requestedType, r)
 
   def write(fs: FS, path: String) {
     fs.writeTextFile(path + "/metadata.json.gz") { out =>
@@ -218,13 +218,30 @@ abstract class AbstractRVDSpec {
   }
 }
 
+trait AbstractIndexSpec {
+  def relPath: String
+  def leafCodec: CodecSpec2
+  def internalNodeCodec: CodecSpec2
+  def keyType: Type
+  def annotationType: Type
+  def offsetField: Option[String] = None
+  def types: (Type, Type) = (keyType, annotationType)
+}
+
 case class IndexSpec(
   relPath: String,
   keyType: TStruct,
   annotationType: TStruct,
-  offsetField: Option[String] = None
-) {
-  def types: (Type, Type) = (keyType, annotationType)
+  override val offsetField: Option[String] = None
+) extends AbstractIndexSpec {
+  val baseSpec = LEB128BufferSpec(
+      BlockingBufferSpec(32 * 1024,
+        LZ4BlockBufferSpec(32 * 1024,
+          new StreamBlockBufferSpec)))
+
+  def leafCodec: CodecSpec2 = PackCodecSpec2(LeafNodeBuilder.typ(keyType.physicalType, annotationType.physicalType), baseSpec)
+
+  def internalNodeCodec: CodecSpec2 = PackCodecSpec2(InternalNodeBuilder.typ(keyType.physicalType, annotationType.physicalType), baseSpec)
 }
 
 object IndexSpec {
@@ -278,7 +295,7 @@ case class IndexedRVDSpec(
 ) extends AbstractRVDSpec {
   def key: IndexedSeq[String] = rvdType.key
 
-  override def encodedType: PStruct = rvdType.rowType
+  override def encodedType: TStruct = rvdType.rowType.virtualType
 
   val partitioner: RVDPartitioner = {
     val rangeBoundsType = TArray(TInterval(rvdType.kType.virtualType))
@@ -291,7 +308,7 @@ case class IndexedRVDSpec(
   override def read(
     hc: HailContext,
     path: String,
-    requestedType: PStruct,
+    requestedType: TStruct,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = {
@@ -300,11 +317,11 @@ case class IndexedRVDSpec(
         val requestedKey = key.takeWhile(requestedType.hasField)
         val tmpPartitioner = partitioner.intersect(np)
 
-        val rvdType = RVDType(requestedType, requestedKey)
         assert(key.nonEmpty)
         val parts = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
 
-        val crdd = hc.readIndexedRows(path, indexSpec, encodedType, codecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
+        val (decPType: PStruct, crdd) = hc.readIndexedRows(path, indexSpec, codecSpec2, parts, tmpPartitioner.rangeBounds, requestedType)
+        val rvdType = RVDType(decPType, requestedKey)
         val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
 
         if (filterIntervals)
@@ -316,4 +333,6 @@ case class IndexedRVDSpec(
         super.read(hc, path, requestedType, None, filterIntervals)
     }
   }
+
+  override def codecSpec2: CodecSpec2 = PackCodecSpec2(rvdType.rowType, codecSpec.asInstanceOf[PackCodecSpec].child)
 }

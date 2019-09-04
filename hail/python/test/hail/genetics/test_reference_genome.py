@@ -49,6 +49,7 @@ class Tests(unittest.TestCase):
                                               resource("fake_reference.fasta.fai"),
                                               mt_contigs=["b", "c"], x_contigs=["a"])
         self.assertTrue(gr4.has_sequence())
+        self.assertEqual(gr4._sequence_files, (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai")))
         self.assertTrue(gr4.x_contigs == ["a"])
 
         t = hl.import_table(resource("fake_reference.tsv"), impute=True)
@@ -63,6 +64,7 @@ class Tests(unittest.TestCase):
         gr4.add_sequence(resource("fake_reference.fasta"),
                          resource("fake_reference.fasta.fai"))
         assert gr4.has_sequence()
+        self.assertEqual(gr4._sequence_files, (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai")))
 
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')
@@ -73,6 +75,8 @@ class Tests(unittest.TestCase):
         grch38.add_liftover(resource('grch38_to_grch37_chr20.over.chain.gz'), 'GRCh37')
         assert grch37.has_liftover('GRCh38')
         assert grch38.has_liftover('GRCh37')
+        self.assertEquals(grch37._liftovers, {'GRCh38': resource('grch37_to_grch38_chr20.over.chain.gz')})
+        self.assertEquals(grch38._liftovers, {'GRCh37': resource('grch38_to_grch37_chr20.over.chain.gz')})
 
         ds = hl.import_vcf(resource('sample.vcf'))
         t = ds.annotate_rows(liftover=hl.liftover(hl.liftover(ds.locus, 'GRCh38'), 'GRCh37')).rows()

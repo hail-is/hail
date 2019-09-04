@@ -324,31 +324,21 @@ Using Variants (SNPs) as Covariates
 
 :**code**:
 
-    List the variants of interest:
+    Create a sample annotation from the genotype dosage for each variant of
+    interest by combining the filter an collect aggregators:
 
-    >>> my_snps = ['20:13714384:A:C', '20:17479730:T:C']
-
-    Annotate the variants as a global field:
-
-    >>> mt_filt = mt.annotate_globals(
-    ...     snps = hl.set([hl.parse_variant(x) for x in my_snps]))
-
-    Filter rows to these variants:
-
-    >>> mt_filt = mt_filt.filter_rows(mt_filt.snps.contains(mt_filt.row_key))
-
-    Aggregate to collect a dictionary per sample of SNP to allele dosage:
-
-        >>> sample_genos = mt_filt.annotate_cols(
-        ...     genotypes = hl.dict(hl.agg.collect( (hl.variant_str(mt_filt.row_key), mt_filt.GT.n_alt_alleles()) )))
-        >>> mt_annot = mt.annotate_cols(snp_covs = sample_genos.cols()[mt.s].genotypes)
+    >>> mt_annot = mt.annotate_cols(
+    ...     snp1 = hl.agg.filter(hl.parse_variant('20:13714384:A:C') == mt.row_key,
+    ...                          hl.agg.collect(mt.GT.n_alt_alleles()))[0],
+    ...     snp2 = hl.agg.filter(hl.parse_variant('20:17479730:T:C') == mt.row_key,
+    ...                          hl.agg.collect(mt.GT.n_alt_alleles()))[0])
 
     Run the GWAS with :func:`.linear_regression_rows` using variant dosages as covariates:
 
-    >>> gwas = hl.linear_regression_rows(
+    >>> gwas = hl.linear_regression_rows(  # doctest: +SKIP
     ...     x=mt_annot.GT.n_alt_alleles(),
     ...     y=mt_annot.pheno.blood_pressure,
-    ...     covariates=[1, mt_annot.pheno.age, *(mt_annot.snp_covs.get(x) for x in my_snps)])
+    ...     covariates=[1, mt_annot.pheno.age, mt_annot.snp1, mt_annot.snp2])
 
 :**dependencies**: :func:`.linear_regression_rows`, :func:`.aggregators.collect`, :func:`.parse_variant`, :func:`.variant_str`
 

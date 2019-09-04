@@ -8,7 +8,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -62,6 +62,9 @@ case class AggContainer(aggs: Array[AggSignature2], container: agg.StateContaine
       aggs(i).op match {
         case AggElements() | AggElementsLengthCheck() =>
           val state = container(i).asInstanceOf[agg.ArrayElementState]
+          AggContainer(n.toArray, state.container, state.off)
+        case Group() =>
+          val state = container(i).asInstanceOf[agg.DictState]
           AggContainer(n.toArray, state.container, state.off)
       }
     }
@@ -1009,8 +1012,9 @@ private class Emit(
         void(rvAgg.combOp(sc(i1), sc(i2)))
 
       case x@ResultOp2(start, aggSigs) =>
+        val newRegion = mb.newField[Region]
         val AggContainer(aggs, sc, aggOff) = container.get
-        val srvb = new StagedRegionValueBuilder(er, x.pType)
+        val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)
         val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
           val idx = start + j
           assert(aggSigs(j) == aggs(idx))
@@ -1021,6 +1025,7 @@ private class Emit(
         }: _*))
 
         present(Code(
+          newRegion := region,
           srvb.start(),
           addFields,
           sc.store(0, aggOff),
@@ -1050,7 +1055,7 @@ private class Emit(
 
         val deserializers = sc.states
           .slice(start, start + aggSigs.length)
-          .map(_.deserialize(spec))
+          .map(sc => sc.deserialize(CodecSpec.defaultUncompressedBuffer))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
           .map(i => sc(i).newState): _*))
@@ -1242,9 +1247,9 @@ private class Emit(
           wrapToMethod(FastSeq(ir.explicitNode))(addFields),
           mfield, vfield)
 
-      case ir@Apply(fn, args) =>
+      case ir@Apply(fn, args, rt) =>
         val impl = ir.implementation
-        val unified = impl.unify(args.map(_.typ))
+        val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
 
         val argPTypes = args.map(_.pType)
@@ -1253,7 +1258,7 @@ private class Emit(
             case Seq(f) =>
               f._2
             case Seq() =>
-              val methodbuilder = impl.getAsMethod(mb.fb, argPTypes: _*)
+              val methodbuilder = impl.getAsMethod(mb.fb, rt, argPTypes: _*)
               methods.update(fn, methods(fn) :+ (argPTypes -> methodbuilder))
               methodbuilder
           }
@@ -1262,18 +1267,18 @@ private class Emit(
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         strict(value, codeArgs: _*)
-      case x@ApplySeeded(fn, args, seed) =>
+      case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => (a.pType, emit(a)))
         val impl = x.implementation
-        val unified = impl.unify(args.map(_.typ))
+        val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.setSeed(seed)
         impl.apply(er, codeArgs: _*)
-      case x@ApplySpecial(_, args) =>
+      case x@ApplySpecial(_, args, rt) =>
         val codeArgs = args.map(a => (a.pType, emit(a)))
         val impl = x.implementation
         impl.argTypes.foreach(_.clear())
-        val unified = impl.unify(args.map(_.typ))
+        val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.apply(er, codeArgs: _*)
       case x@Uniroot(argname, fn, min, max) =>
@@ -1389,14 +1394,21 @@ private class Emit(
         val spec = CodecSpec.defaultUncompressed
         val parentFB = mb.fb
 
+        val cCodec = spec.makeCodecSpec2(ctxTypeTuple)
+        val gCodec = spec.makeCodecSpec2(gTypeTuple)
+        val bCodec = spec.makeCodecSpec2(bTypeTuple)
+
         val functionID: String = {
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]]
           val bodyMB = bodyFB.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeToTypeInfo(ctxType), typeInfo[Boolean], typeToTypeInfo(gType), typeInfo[Boolean]), typeInfo[Long])
 
-          val cDec = spec.buildEmitDecoderF[Long](ctxTypeTuple, ctxTypeTuple, bodyFB)
-          val gDec = spec.buildEmitDecoderF[Long](gTypeTuple, gTypeTuple, bodyFB)
-          val bEnc = spec.buildEmitEncoderF[Long](bTypeTuple, bTypeTuple, bodyFB)
+          val (cRetPtype, cDec) = cCodec.buildEmitDecoderF[Long](ctxTypeTuple.virtualType, bodyFB)
+          val (gRetPtype, gDec) = gCodec.buildEmitDecoderF[Long](gTypeTuple.virtualType, bodyFB)
+          val bEnc = bCodec.buildEmitEncoderF[Long](bTypeTuple, bodyFB)
           val bOB = bodyFB.newField[OutputBuffer]
+
+          assert(cRetPtype == ctxTypeTuple)
+          assert(gRetPtype == gTypeTuple)
 
           val env = Env[(TypeInfo[_], Code[Boolean], Code[_])](
             (cname, (typeToTypeInfo(ctxType), bodyMB.getArg[Boolean](3).load(), bodyMB.getArg(2)(typeToTypeInfo(ctxType)).load())),
@@ -1415,15 +1427,15 @@ private class Emit(
           val bOS = bodyFB.newLocal[ByteArrayOutputStream]
 
           bodyFB.emit(Code(
-            ctxOff := cDec(bodyFB.getArg[Region](1), spec.buildCodeInputBuffer(ctxIS)),
-            gOff := gDec(bodyFB.getArg[Region](1), spec.buildCodeInputBuffer(gIS)),
+            ctxOff := cDec(bodyFB.getArg[Region](1), cCodec.buildCodeInputBuffer(ctxIS)),
+            gOff := gDec(bodyFB.getArg[Region](1), gCodec.buildCodeInputBuffer(gIS)),
             bOff := bodyMB.invoke[Long](bodyFB.getArg[Region](1),
               region.loadIRIntermediate(ctxType.virtualType)(ctxTypeTuple.fieldOffset(ctxOff, 0)),
               ctxTypeTuple.isFieldMissing(region, ctxOff, 0),
               region.loadIRIntermediate(gType.virtualType)(gTypeTuple.fieldOffset(gOff, 0)),
               gTypeTuple.isFieldMissing(region, gOff, 0)),
             bOS := Code.newInstance[ByteArrayOutputStream](),
-            bOB := spec.buildCodeOutputBuffer(bOS),
+            bOB := bCodec.buildCodeOutputBuffer(bOS),
             bEnc(bodyFB.getArg[Region](1), bOff, bOB),
             bOB.invoke[Unit]("flush"),
             bOB.invoke[Unit]("close"),
@@ -1438,9 +1450,11 @@ private class Emit(
         val contextAE = emitArrayIterator(contexts)
         val globalsT = emit(globals)
 
-        val cEnc = spec.buildEmitEncoderF[Long](ctxTypeTuple, ctxTypeTuple, parentFB)
-        val gEnc = spec.buildEmitEncoderF[Long](gTypeTuple, gTypeTuple, parentFB)
-        val bDec = spec.buildEmitDecoderF[Long](bTypeTuple, bTypeTuple, parentFB)
+        val cEnc = cCodec.buildEmitEncoderF[Long](ctxTypeTuple, parentFB)
+        val gEnc = gCodec.buildEmitEncoderF[Long](gTypeTuple, parentFB)
+        val (bRetPType, bDec) = bCodec.buildEmitDecoderF[Long](bTypeTuple.virtualType, parentFB)
+
+        assert(bRetPType == bTypeTuple)
 
         val baos = mb.newField[ByteArrayOutputStream]
         val buf = mb.newField[OutputBuffer]
@@ -1481,7 +1495,7 @@ private class Emit(
           Code(
             sab.start(encRes.length()),
             Code.whileLoop(sab.arrayIdx < encRes.length(),
-              eltTupled := bDec(region, spec.buildCodeInputBuffer(bais)),
+              eltTupled := bDec(region, bCodec.buildCodeInputBuffer(bais)),
               bTypeTuple.isFieldMissing(region, eltTupled, 0).mux(
                 sab.setMissing(),
                 sab.addIRIntermediate(bType)(region.loadIRIntermediate(bType)(bTypeTuple.fieldOffset(eltTupled, 0)))),
@@ -1494,7 +1508,7 @@ private class Emit(
           contextT.m.getOrElse(false),
           Code(
             baos := Code.newInstance[ByteArrayOutputStream](),
-            buf := spec.buildCodeOutputBuffer(baos),
+            buf := cCodec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
             ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
             contextAE.calcLength,
             contextT.addElements,
@@ -1857,9 +1871,9 @@ private class Emit(
           aggInit.setup,
           it.calcLength))
 
-      case ReadPartition(path, spec, encType, rowType) =>
+      case ReadPartition(path, spec, rowType) =>
         val p = emit(path)
-        val rowDec = spec.buildEmitDecoderF[Long](encType.physicalType, rowType.physicalType, mb.fb)
+        val (returnedRowPType, rowDec) = spec.buildEmitDecoderF[Long](rowType, mb.fb)
         val rowBuf = mb.newField[InputBuffer]
         val pathString = Code.invokeScalaObject[Region, Long, String](
           PString.getClass, "loadString", region, p.value[Long])

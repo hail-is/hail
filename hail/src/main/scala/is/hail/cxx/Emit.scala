@@ -786,10 +786,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val (bodyF, mods, (lType, lits)) = Compile.makeNonmissingFunction(tub, body, cname -> ctxType, gname -> g.pType)
         assert(mods.isEmpty)
 
-        val ctxDec = spec.buildNativeDecoderClass(ctxType, ctxType, "InputStream", tub).name
-        val globDec = spec.buildNativeDecoderClass(g.pType, g.pType, "InputStream", tub).name
-        val litDec = spec.buildNativeDecoderClass(lType, lType, "InputStream", tub).name
-        val resEnc = PackEncoder(body.pType, spec.child, tub).name
+        val ctxSpec = spec.makeCodecSpec2(ctxType)
+        val globSpec = spec.makeCodecSpec2(g.pType)
+        val litSpec = spec.makeCodecSpec2(lType)
+
+        val (decCtxType, ctxDec) = ctxSpec.buildNativeDecoderClass(ctxType.virtualType, "InputStream", tub)
+        val (decGlobType, globDec) = globSpec.buildNativeDecoderClass(g.typ, "InputStream", tub)
+        val (decLitType, litDec) = litSpec.buildNativeDecoderClass(lType.virtualType, "InputStream", tub)
+        val resSpec = spec.makeCodecSpec2(body.pType)
+        val resEnc = resSpec.buildNativeEncoderClass(body.pType, tub).name
 
         val fname = tub.genSym("wrapper")
         val wrapperf = tub.buildFunction(fname,
@@ -804,15 +809,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |$resEnc res_out { std::make_shared<OutputStream>(up, jres_out) };
              |
              |jobject jctx_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(1);
-             |$ctxDec ctx_in { std::make_shared<InputStream>(up, jctx_in) };
+             |${ ctxDec.name } ctx_in { std::make_shared<InputStream>(up, jctx_in) };
              |char * ctx_ptr = ctx_in.decode_row(region.get());
              |
              |jobject jglob_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(2);
-             |$globDec glob_in { std::make_shared<InputStream>(up, jglob_in) };
+             |${ globDec.name } glob_in { std::make_shared<InputStream>(up, jglob_in) };
              |char * glob_ptr = glob_in.decode_row(region.get());
              |
              |jobject jlit_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(3);
-             |$litDec lit_in { std::make_shared<InputStream>(up, jlit_in) };
+             |${ litDec.name } lit_in { std::make_shared<InputStream>(up, jlit_in) };
              |char * lit_ptr = lit_in.decode_row(region.get());
              |
              |try {
@@ -839,10 +844,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         fb.translationUnitBuilder().include("hail/SparkUtils.h")
         val ctxs = fb.variable("ctxs", "const char *")
-        val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
+        val ctxEnc = ctxSpec.buildNativeEncoderClass(ctxType, fb.translationUnitBuilder())
         val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PStreamable](c.pType).asPArray.cxxImpl }>"
-        val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
-        val resDec = PackDecoder(body.pType, body.pType, "InputStream", spec.child, fb.translationUnitBuilder())
+        val globEnc = globSpec.buildNativeEncoderClass(g.pType, fb.translationUnitBuilder()).name
+        val (resPType, resDec) = resSpec.buildNativeDecoderClass(body.typ, "InputStream", fb.translationUnitBuilder())
 
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
         val arrayBuilder = StagedContainerBuilder.builderType(coerce[PStreamable](x.pType).asPArray)
@@ -1069,7 +1074,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val patht = emit(path)
         val stdStringPath = fb.variable("path", "std::string", s"load_string(${ patht.v })")
 
-        val nativeEncoderClass = CodecSpec.unblockedUncompressed.buildNativeEncoderClass(nd.pType, tub)
+        val nativeEncoderClass = CodecSpec.unblockedUncompressed.makeCodecSpec2(nd.pType).buildNativeEncoderClass(nd.pType, tub)
         val enc = fb.variable("enc", s"$nativeEncoderClass")
         triplet(
           s"""

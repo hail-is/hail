@@ -574,9 +574,6 @@ object Interpret {
             val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
-          case InfoScore() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
-            new InfoScoreAggregator(aggType.physicalType)
           case LinearRegression() =>
             val Seq(k, k0) = constructorArgs
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
@@ -655,7 +652,7 @@ object Interpret {
         fatal(if (message_ != null) message_ else "<exception message missing>")
       case ir@ApplyIR(function, functionArgs) =>
         interpret(ir.explicitNode, env, args, aggArgs)
-      case ApplySpecial("||", Seq(left_, right_)) =>
+      case ApplySpecial("||", Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -667,7 +664,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("&&", Seq(left_, right_)) =>
+      case ApplySpecial("&&", Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == false)
           false
@@ -722,7 +719,7 @@ object Interpret {
         child.execute(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = child.execute(ctx)
-        Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.safeJavaValue)
+        Row(tv.rvd.collect().toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(_.execute(ctx))
         writer(tvs)
@@ -757,7 +754,7 @@ object Interpret {
                 SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
               }
             } else {
-              val spec = CodecSpec.defaultUncompressed
+              val spec = CodecSpec.defaultUncompressedBuffer
 
               val (_, initOp) = CompileWithAggregators2[Long, Unit](
                 extracted.aggs,

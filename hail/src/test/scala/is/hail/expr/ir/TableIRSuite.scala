@@ -370,7 +370,7 @@ class TableIRSuite extends HailSuite {
       ctx)
 
     // construct the table with a longer key, then copy the table to shorten the key in type, but not rvd
-    val distinctCount = TableCount(TableDistinct(TableLiteral(tt.copy(key = FastIndexedSeq("field1")), base.rvd, base.encodedGlobals)))
+    val distinctCount = TableCount(TableDistinct(TableLiteral(tt.copy(key = FastIndexedSeq("field1")), base.rvd, base.enc, base.encodedGlobals)))
     assertEvalsTo(distinctCount, 2L)
   }
 
