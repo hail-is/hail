@@ -1,14 +1,12 @@
 import os
 import uvloop
-import asyncio
-import aiodns
 import aiohttp
 from aiohttp import web
 import aiohttp_session
 from kubernetes_asyncio import client, config
 import logging
 
-from hailtop.gear import configure_logging, get_deploy_config
+from hailtop.gear import configure_logging, setup_aiohttp_session, get_deploy_config
 
 uvloop.install()
 
@@ -16,6 +14,7 @@ configure_logging()
 log = logging.getLogger('router-resolver')
 
 app = web.Application()
+setup_aiohttp_session(app)
 
 routes = web.RouteTableDef()
 
@@ -33,7 +32,7 @@ async def auth(request):
     elif 'Authorization' in request.headers:
         headers['Authorization'] = request.headers['Authorization']
     else:
-        session = aiohttp_session.get_session(request)
+        session = await aiohttp_session.get_session(request)
         session_id = session.get('session_id')
         if not session_id:
             raise web.HTTPUnauthorized()
@@ -45,6 +44,8 @@ async def auth(request):
             async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
                                    headers=headers) as resp:
                 userdata = await resp.json()
+                if userdata['developer'] != 1:
+                    raise web.HTTPUnauthorized()
     except Exception:
         log.exception('getting userinfo')
         raise web.HTTPUnauthorized()
