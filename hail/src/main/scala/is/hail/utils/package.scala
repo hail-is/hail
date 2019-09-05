@@ -553,10 +553,10 @@ package object utils extends Logging
       1 + digitsNeeded(i / 10)
   }
 
-  def partFile(d: Int, i: Int): String = {
+  def partFile(numDigits: Int, i: Int): String = {
     val is = i.toString
-    assert(is.length <= d)
-    "part-" + StringUtils.leftPad(is, d, "0")
+    assert(is.length <= numDigits)
+    "part-" + StringUtils.leftPad(is, numDigits, "0")
   }
 
   def partSuffix(ctx: TaskContext): String = {
