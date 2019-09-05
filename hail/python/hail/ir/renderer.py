@@ -200,7 +200,7 @@ class AnalysisStackFrame:
         self._child_bindings = new_bindings
         child_context = x.child_context(i, self.context, depth)
 
-        return AnalysisStackFrame(child_min_binding_depth, child_min_value_binding_depth, child_scan_scope, child_context, child,)
+        return AnalysisStackFrame(child_min_binding_depth, child_min_value_binding_depth, child_scan_scope, child_context, child)
 
     def free_vars(self):
         # subtract vars that will be bound by inserted lets
@@ -293,6 +293,7 @@ class PrintStackFrame:
     def make(node, renderer, binding_sites, builder, context, min_binding_depth,
              min_value_binding_depth, scan_scope, depth):
         insert_lets = (id(node) in binding_sites
+                       and depth == binding_sites[id(node)].depth
                        and (len(binding_sites[id(node)].lifted_lets) > 0
                             or len(binding_sites[id(node)].agg_lifted_lets) > 0))
         state = PrintStackFrame(node, node.render_children(renderer), builder,
@@ -384,6 +385,8 @@ class CSERenderer:
                     else:
                         stack[bind_depth].visited.add(id(node))
 
+                stack.pop()
+
                 # if any lets being inserted here, add node to registry of
                 # binding sites
                 if frame.lifted_lets or frame.agg_lifted_lets or frame.scan_lifted_lets:
@@ -393,7 +396,6 @@ class CSERenderer:
                         scan_lifted_lets=frame.scan_lifted_lets,
                         depth=len(stack))
 
-                stack.pop()
                 if not stack:
                     break
                 stack[-1].update_free_vars(frame)
@@ -416,8 +418,10 @@ class CSERenderer:
                 self.memo[id(child)] = jref
                 continue
 
+            child_frame = frame.make_child_frame(len(stack))
+
             if isinstance(child, ir.IR):
-                seen_in_scope = next((i for i in reversed(range(frame.min_value_binding_depth,
+                seen_in_scope = next((i for i in reversed(range(child_frame.min_value_binding_depth,
                                                                 len(stack)))
                                       if id(child) in stack[i].visited),
                                      None)
@@ -427,16 +431,16 @@ class CSERenderer:
                 else:
                     if frame.scan_scope:
                         seen_in_scope = next(
-                            (i for i in reversed(range(frame.min_binding_depth,
-                                                       frame.min_value_binding_depth))
+                            (i for i in reversed(range(child_frame.min_binding_depth,
+                                                       child_frame.min_value_binding_depth))
                              if id(child) in stack[i].scan_visited),
                             None)
                         if seen_in_scope is not None:
                             lets = stack[seen_in_scope].scan_lifted_lets
                     else:
                         seen_in_scope = next(
-                            (i for i in reversed(range(frame.min_binding_depth,
-                                                       frame.min_value_binding_depth))
+                            (i for i in reversed(range(child_frame.min_binding_depth,
+                                                       child_frame.min_value_binding_depth))
                              if id(child) in stack[i].agg_visited),
                             None)
                         if seen_in_scope is not None:
@@ -464,23 +468,12 @@ class CSERenderer:
                 if child.name not in node.bindings(child_idx, default_value=0).keys():
                     (eval_c, _, _) = node.child_context_without_bindings(
                         child_idx, frame.context)
-                    try:
-                        frame._free_vars[child.name] = eval_c[child.name]
-                    except:
-                        raise
+                    frame._free_vars[child.name] = eval_c[child.name]
                 continue
 
-            stack.append(frame.make_child_frame(len(stack)))
+            stack.append(child_frame)
             continue
 
-        root_free_vars = root_frame.free_vars()
-        assert(len(root_free_vars) == 0)
-
-        binding_sites[id(root)] = BindingSite(
-            lifted_lets=frame.lifted_lets,
-            agg_lifted_lets=frame.agg_lifted_lets,
-            scan_lifted_lets=frame.scan_lifted_lets,
-            depth=0)
         return binding_sites
 
     # At top of main loop, we are considering the 'Renderable' 'node' and its
@@ -519,15 +512,13 @@ class CSERenderer:
         if id(root) in self.memo:
             return ''.join(self.memo[id(root)])
 
-        stack = [PrintStackFrame.make(root, self, binding_sites, root_builder, context, 0, 0, False, 1)]
+        stack = [PrintStackFrame.make(root, self, binding_sites, root_builder, context, 0, 0, False, 0)]
 
         while True:
             frame = stack[-1]
             node = frame.node
             frame.child_idx += 1
             child_idx = frame.child_idx
-            if isinstance(node, ir.ApplyAggOp) and node.agg_op == 'Count':
-                print('...')
 
             if child_idx >= len(frame.children):
                 if frame.lift_to_frame is not None:
@@ -569,38 +560,31 @@ class CSERenderer:
                 if node.renderable_new_block(child_idx):
                     child_min_binding_depth = frame.depth
                     child_min_value_binding_depth = frame.depth
-                if node.renderable_uses_agg_context(child_idx):
+                elif node.renderable_uses_agg_context(child_idx):
                     child_min_value_binding_depth = frame.depth
                     child_scan_scope = False
-                if node.renderable_uses_scan_context(child_idx):
+                elif node.renderable_uses_scan_context(child_idx):
                     child_min_value_binding_depth = frame.depth
                     child_scan_scope = True
 
             if isinstance(child, ir.BaseIR):
                 child_depth += 1
-                lift_to_frame = next(
-                    (c for c in context
-                     if c.depth >= child_min_value_binding_depth
-                     and id(child) in c.lifted_lets),
-                    None)
-                if lift_to_frame:
-                    lift_type = 'value'
-                else:
-                    lift_to_frame = next(
-                        (c for c in context
-                         if child_min_binding_depth <= c.depth < child_min_value_binding_depth
-                         and id(child) in c.agg_lifted_lets),
-                        None)
-                    if lift_to_frame:
-                        lift_type = 'agg'
-                    else:
-                        lift_to_frame = next(
-                            (c for c in context
-                             if child_min_binding_depth <= c.depth < child_min_value_binding_depth
-                             and id(child) in c.scan_lifted_lets),
-                            None)
-                        if lift_to_frame:
+                for c in context:
+                    if c.depth >= child_min_value_binding_depth and id(child) in c.lifted_lets:
+                        lift_to_frame = c
+                        lift_type = 'value'
+                        break
+                    if child_min_binding_depth <= c.depth < child_min_value_binding_depth:
+                        if id(child) in c.scan_lifted_lets:
+                            lift_to_frame = c
                             lift_type = 'scan'
+                            break
+                        if id(child) in c.agg_lifted_lets:
+                            lift_to_frame = c
+                            lift_type = 'agg'
+                            break
+                else:
+                    lift_to_frame = None
             else:
                 lift_to_frame = None
 

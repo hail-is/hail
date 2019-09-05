@@ -415,3 +415,21 @@ class CSETests(unittest.TestCase):
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
                 ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
         self.assertEqual(expected, CSERenderer()(table_agg))
+
+    def test_init_op(self):
+        x = ir.I32(5)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        agg = ir.ApplyAggOp('CallStats', [sum], [sum], [sum])
+        top = ir.ApplyBinaryPrimOp('+', sum, agg)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (AggLet __cse_4 False (I32 5)'
+            ' (ApplyBinaryPrimOp `+`'
+                ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+                ' (ApplyAggOp CallStats'
+                    ' ((Let __cse_3 (I32 5)'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
+                    ' ((Let __cse_3 (I32 5)'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
+                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
+        self.assertEqual(expected, CSERenderer()(top))

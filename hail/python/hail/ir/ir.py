@@ -321,8 +321,37 @@ class AggLet(IR):
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(agg_env, None)
-        self.body._compute_type(env, _env_bind(agg_env, self.name, self.value._type))
+        self.body._compute_type(env, _env_bind(agg_env, [(self.name, self.value._type)]))
         self._type = self.body._type
+
+    def agg_bindings(self, i, default_value=None):
+        if not self.is_scan and i == 1:
+            if default_value is None:
+                value = self.value._type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
+
+    def scan_bindings(self, i, default_value=None):
+        if self.is_scan and i == 1:
+            if default_value is None:
+                value = self.value._type
+            else:
+                value = default_value
+            return {self.name: value}
+        else:
+            return {}
+
+    def binds(self, i):
+        return i == 1
+
+    def uses_agg_context(self, i: int) -> bool:
+        return not self.is_scan and i == 0
+
+    def uses_scan_context(self, i: int) -> bool:
+        return self.is_scan and i == 0
 
 
 class Ref(IR):
@@ -1421,6 +1450,13 @@ class BaseApplyAggOp(IR):
             [a.typ for a in self.constructor_args],
             [a.typ for a in self.init_op_args] if self.init_op_args else None,
             [a.typ for a in self.seq_op_args])
+
+    def new_block(self, i: int) -> bool:
+        n = len(self.constructor_args)
+        return self.init_op_args and i < n + len(self.init_op_args)
+
+    def renderable_new_block(self, i: int) -> bool:
+        return i <= 1
 
 
 class ApplyAggOp(BaseApplyAggOp):
