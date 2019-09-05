@@ -1470,8 +1470,7 @@ def import_matrix_table(paths,
                         no_header=False,
                         force_bgz=False,
                         sep='\t') -> MatrixTable:
-    """
-    Import tab-delimited file(s) as a :class:`.MatrixTable`.
+    """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
@@ -1584,6 +1583,9 @@ def import_matrix_table(paths,
     column IDs are present, but the header must then consist only of tab-delimited
     column IDs (no row field names).
 
+    The column IDs will never be missing, even if the `missing` string appears
+    in the column IDs.
+
     Parameters
     ----------
     paths: :obj:`str` or :obj:`list` of :obj:`str`
@@ -1646,8 +1648,6 @@ def import_matrix_table(paths,
                               add_row_id)
 
     mt = MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
-    if not add_row_id and 'row_id' not in row_fields:
-        mt = mt.drop('row_id')
     return mt
 
 

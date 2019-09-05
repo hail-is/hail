@@ -184,7 +184,10 @@ case class TextMatrixReader(
          |as the key, please provide a key or choose a different row field name.\n
          |  Row field names: ${rowFieldNames}""".stripMargin)
   }
-  private[this] val rowFieldType = TStruct("row_id" -> TInt64()) ++ verifyRowFields(rowFieldNames, rowFields)
+  private[this] val rowFieldTypeWithoutRowId = verifyRowFields(rowFieldNames, rowFields)
+  private[this] val rowFieldType =
+    if (addRowId) TStruct("row_id" -> TInt64()) ++ rowFieldTypeWithoutRowId
+    else rowFieldTypeWithoutRowId
   private[this] val header1Bc = hc.backend.broadcast(header1)
   if (hasHeader)
     LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
@@ -283,6 +286,7 @@ class CompiledLineParser(
     line := Code._null,
     srvb.init()))
 
+
   @transient private[this] val parseStringMb = fb.newMethod[Region, String]
   parseStringMb.emit(parseString(parseStringMb))
   @transient private[this] val parseIntMb = fb.newMethod[Region, Int]
@@ -335,7 +339,7 @@ class CompiledLineParser(
     val end = mb.newField[Int]
     val condition = Code(
       end := pos + missingValue.size,
-      end < line.length && endField(end) &&
+      end <= line.length && endField(end) &&
       line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
         pos, missingValue, 0, missingValue.size))
     condition.mux(
@@ -426,12 +430,12 @@ class CompiledLineParser(
       case _: PString =>
         srvb.addString(parseStringMb.invoke(region))
     }
-    if (t.required) missingOr(mb, srvb, parseDefinedValue) else parseDefinedValue
+    if (t.required) parseDefinedValue else missingOr(mb, srvb, parseDefinedValue)
   }
 
   private[this] def skipType(mb: MethodBuilder, t: PType): Code[Unit] = {
     val skipDefinedValue = Code.whileLoop(!endField(), pos := pos + 1)
-    if (t.required) skipMissingOr(mb, skipDefinedValue) else skipDefinedValue
+    if (t.required) skipDefinedValue else skipMissingOr(mb, skipDefinedValue)
   }
 
   private[this] def parseRowFields(mb: MethodBuilder): Code[_] = {
@@ -441,8 +445,18 @@ class CompiledLineParser(
     val ab = new ArrayBuilder[Code[_]]()
     while (inputIndex < onDiskRowFieldsType.size) {
       val onDiskField = onDiskRowFieldsType.fields(inputIndex)
-      val requestedField = rowFieldsType.fields(outputIndex)
-      if (onDiskField.name == requestedField.name) {
+      val requestedField =
+        if (outputIndex < rowFieldsType.size)
+          rowFieldsType.fields(outputIndex)
+        else
+          null
+      if (requestedField == null || onDiskField.name != requestedField.name) {
+        if (onDiskField.name != "row_id") {
+          ab += Code(
+            skipType(mb, onDiskField.typ.physicalType),
+            pos := pos + 1)
+        }
+      } else {
         assert(onDiskField.typ.physicalType == requestedField.typ)
         ab += (pos >= line.length).mux(
           parseError(
@@ -450,7 +464,7 @@ class CompiledLineParser(
               .concat(onDiskField.name)),
           Code._empty)
         if (onDiskField.name == "row_id") {
-          ab += srvb.addLong(fb.arg3)
+          ab += srvb.addLong(lineNumber)
         } else {
           ab += Code(
             parseType(mb, srvb, onDiskField.typ.physicalType),
@@ -458,10 +472,6 @@ class CompiledLineParser(
         }
         ab += srvb.advance()
         outputIndex += 1
-      } else {
-        if (onDiskField.name != "row_id") {
-          skipType(mb, onDiskField.typ.physicalType)
-        }
       }
       inputIndex += 1
     }
