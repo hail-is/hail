@@ -6,7 +6,7 @@ import java.util
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderLike, PruneDeadFields}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderSelfLike, PruneDeadFields}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -110,23 +110,6 @@ object ShowBuf {
     }
     System.err.println(sb.toString())
   }
-}
-
-trait Decoder extends Closeable {
-  def close()
-
-  def readRegionValue(region: Region): Long
-
-  def readByte(): Byte
-
-  def seek(offset: Long): Unit
-}
-
-class MethodBuilderSelfLike(val mb: MethodBuilder) extends MethodBuilderLike[MethodBuilderSelfLike] {
-  type MB = MethodBuilder
-
-  def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilderSelfLike =
-    new MethodBuilderSelfLike(mb.fb.newMethod(paramInfo, returnInfo))
 }
 
 object EmitPackDecoder {
@@ -459,18 +442,6 @@ final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, I
   }
 
   def seek(offset: Long): Unit = in.seek(offset)
-}
-
-trait Encoder extends Closeable {
-  def flush(): Unit
-
-  def close(): Unit
-
-  def writeRegionValue(region: Region, offset: Long): Unit
-
-  def writeByte(b: Byte): Unit
-
-  def indexOffset(): Long
 }
 
 object EmitPackEncoder { self =>
