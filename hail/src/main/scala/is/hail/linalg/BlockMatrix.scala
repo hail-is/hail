@@ -7,6 +7,7 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
+import is.hail.utils._
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.expr.types._
@@ -334,7 +335,7 @@ object BlockMatrix {
   ): Unit = {
 
     val fs = HailContext.sFS
-    def blockMatrixURI(matrixIdx: Int): String = prefix + matrixIdx
+    def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
     def partitionURI(matrixIdx: Int, partitionIdx: Int) = s"{$prefix}{$matrixIdx}/$partitionIdx"
 
     // Deal with overwrite, make the folders
@@ -346,6 +347,8 @@ object BlockMatrix {
         fatal(s"file already exists: $uri")
 
       fs.mkDir(uri)
+      // Need a parts folder inside.
+      fs.mkDir(uri + "/parts")
     }}
 
     def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
@@ -367,31 +370,42 @@ object BlockMatrix {
     val rdds = bms.map(bm => bm.blocks)
     val blockMatrixMetadataFields = bms.map(bm => (bm.blockSize, bm.nRows, bm.nCols, bm.gp.maybeBlocks))
     val first = rdds(0)
+    val nPartitions = rdds.map(_.getNumPartitions).sum
+    val numDigits = digitsNeeded(nPartitions)
 
     val func = (rddIndex: Int, partitionIndex: Int, it: Iterator[((Int, Int), BDM[Double])]) => {
-      // Write each RDD
-      //val (partFiles, partitionCounts) = ???
+      // Write each chunk wherever it belongs
+      val pathToBlockMatrixRDD = blockMatrixURI(rddIndex)
+      val partFileName = partFile(numDigits, partitionIndex, TaskContext.get())
 
-      fs.writeDataFile(blockMatrixURI(rddIndex) + metadataRelativePath) { os =>
-        implicit val formats = defaultJSONFormats
-        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex)
-        jackson.Serialization.write(
-          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, Array.empty[String]), os)
-      }
+      
+      println(s"Processing partition $partitionIndex from rdd $rddIndex")
 
-      fs.writeTextFile(blockMatrixURI(rddIndex) + "/_SUCCESS")(out => ())
-      Iterator.single(0)
+      Iterator.single((rddIndex, partFileName))
     }
 
-    val ordd = new OriginUnionRDD[((Int, Int), BDM[Double]), Int](
+    val ordd = new OriginUnionRDD[((Int, Int), BDM[Double]), (Int, String)](
       first.sparkContext,
       rdds,
       func
     )
 
-    val x = ordd.collect()
+    val rddNumberAndPartFiles = ordd.collect()
+    val grouped = rddNumberAndPartFiles.groupBy(_._1)
+    grouped.foreach{ case (rddIndex, numberedPartFiles) =>
+      val partFiles = numberedPartFiles.map{case (_, partFileName) => partFileName}
 
-    println("Round tripped")
+      fs.writeDataFile(blockMatrixURI(rddIndex) + metadataRelativePath) { os =>
+        implicit val formats = defaultJSONFormats
+        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex)
+        jackson.Serialization.write(
+          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, partFiles), os)
+      }
+
+      fs.writeTextFile(blockMatrixURI(rddIndex) + "/_SUCCESS")(out => ())
+    }
+
+    log.info("Wrote block matrices to disk")
   }
 }
 

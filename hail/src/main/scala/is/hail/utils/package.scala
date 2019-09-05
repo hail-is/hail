@@ -550,16 +550,16 @@ package object utils extends Logging
       1 + digitsNeeded(i / 10)
   }
 
-  def partFile(d: Int, i: Int): String = {
+  def partFile(numDigits: Int, i: Int): String = {
     val is = i.toString
-    assert(is.length <= d)
-    "part-" + StringUtils.leftPad(is, d, "0")
+    assert(is.length <= numDigits)
+    "part-" + StringUtils.leftPad(is, numDigits, "0")
   }
 
-  def partFile(d: Int, i: Int, ctx: TaskContext): String = {
+  def partFile(numDigits: Int, i: Int, ctx: TaskContext): String = {
     val rng = new java.security.SecureRandom()
     val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-    s"${ partFile(d, i) }-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
+    s"${ partFile(numDigits, i) }-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
   }
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
