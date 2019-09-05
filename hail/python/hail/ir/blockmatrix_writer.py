@@ -144,19 +144,21 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
 
 
 class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
-    @typecheck_method(prefix=str, overwrite=bool)
-    def __init__(self, prefix, overwrite):
+    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool)
+    def __init__(self, prefix, overwrite, force_row_major):
         self.prefix = prefix
         self.overwrite = overwrite
+        self.force_row_major = force_row_major
 
     def render(self):
         writer = {'name': 'BlockMatrixNativeMultiWriter',
                   'prefix': self.prefix,
-                  'overwrite': self.overwrite}
+                  'overwrite': self.overwrite,
+                  'forceRowMajor': self.force_row_major}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeMultiWriter) and \
                self.prefix == other.prefix and \
-               self.overwrite == other.overwrite
->>>>>>> Python side BlockMatrixMultiWriter exists
+               self.overwrite == other.overwrite and \
+               self.force_row_major == other.force_row_major
