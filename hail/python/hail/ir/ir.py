@@ -321,7 +321,7 @@ class AggLet(IR):
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(agg_env, None)
-        self.body._compute_type(env, _env_bind(agg_env, self.agg_bindings(1)))
+        self.body._compute_type(env, _env_bind(agg_env, {self.name: self.value._type}))
         self._type = self.body._type
 
     def agg_bindings(self, i, default_value=None):
