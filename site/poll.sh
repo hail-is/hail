@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -x
 
 while true; do
     /bin/bash poll-0.2.sh
