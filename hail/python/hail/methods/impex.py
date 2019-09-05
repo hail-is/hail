@@ -1563,7 +1563,7 @@ def import_matrix_table(paths,
           of all row fields must be specified in the `row_fields` argument.
         * The row key is taken from the `row_key` argument, and must be a
           subset of row fields. If left empty, the row key will be a new row field
-          `row_idx` of type :obj:`int`, whose values 0, 1, ... index the original
+          `row_id` of type :obj:`int`, whose values 0, 1, ... index the original
           rows of the matrix.
         * There is one column field, **col_id**, which is a key field of type
           :obj:str or :obj:int. By default, its values are the strings given by
@@ -1614,6 +1614,16 @@ def import_matrix_table(paths,
         MatrixTable constructed from imported data
     """
 
+    add_row_id = False
+    if isinstance(row_key, list) and len(row_key) == 0:
+        add_row_id = True
+        row_key = ['row_id']
+
+    if 'row_id' in row_fields and add_row_id:
+        raise FatalError(
+            f"import_matrix_table reserves the field name 'row_id' for"
+            f'its own use, please use a different name')
+
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError(
@@ -1632,9 +1642,13 @@ def import_matrix_table(paths,
                               missing,
                               not no_header,
                               sep,
-                              force_bgz)
+                              force_bgz,
+                              add_row_id)
 
-    return MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
+    mt = MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
+    if not add_row_id and 'row_id' not in row_fields:
+        mt = mt.drop('row_id')
+    return mt
 
 
 @typecheck(bed=str,

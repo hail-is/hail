@@ -1314,12 +1314,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                row_fields=row_fields,
                                no_header=True,
                                row_key=[]).count()
-        self.assertRaises(hl.utils.FatalError,
-                          hl.import_matrix_table,
-                          doctest_resource('matrix3.tsv'),
-                          row_fields=row_fields,
-                          no_header=True,
-                          row_key=['foo'])
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1337,20 +1331,67 @@ class ImportMatrixTableTests(unittest.TestCase):
             "invalid header",
             hl.import_matrix_table,
             resource("sampleheader*.txt"),
-            row_fields={'f0', hl.tstr},
+            row_fields={'f0': hl.tstr},
             row_key=['f0'])
 
     def test_mising_values(self):
         self.assertRaisesRegex(
             hl.utils.FatalError,
-            "Incorrect number",
+            "unexpected end of line while reading entry 3",
             hl.import_matrix_table,
             resource("samplesmissing.txt"),
-            row_fields={'f0', hl.tstr},
+            row_fields={'f0': hl.tstr},
             row_key=['f0'])
 
-    hl.utils.range_matrix_table(100, 100).x.export('foo.tsv', overwrite=True)
-    hl.import_matrix_table('foo.tsv')
+    def test_round_trip(self):
+        for missing in ['NA', '.', '9']:
+            for delimiter in [',', '\t', ' ']:
+                for header in [True, False]:
+                    for entry_type, entry_fun in [(hl.tstr, hl.str),
+                                                  (hl.tint32, hl.int32),
+                                                  (hl.tfloat64, hl.float64)]:
+                        mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
+                        mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
+                        mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
+                        mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
+                        mt.x.export('foo.tsv',
+                                    missing=missing,
+                                    delimiter=delimiter,
+                                    header=header)
+                        if header:
+                            row_fields = {'row_idx': hl.tint32,
+                                          'row_str': hl.tstr,
+                                          'row_float': hl.tfloat}
+                            row_key = 'row_idx'
+                        else:
+                            row_fields = {'f0': hl.tint32,
+                                          'f1': hl.tstr,
+                                          'f2': hl.tfloat}
+                            row_key = 'f0'
+
+                        actual = hl.import_matrix_table(
+                            'foo.tsv',
+                            row_fields=row_fields,
+                            row_key=row_key,
+                            entry_type=entry_type,
+                            missing=missing,
+                            no_header=not header,
+                            sep=delimiter)
+                        expected = mt.annotate_entries(
+                            hl.cond(hl.str(mt.x).contains('9'),
+                                    hl.null(entry_type),
+                                    mt.x))
+                        expected = mt.annotate_rows(**{
+                            f: hl.cond(hl.str(mt[f]).contains('9'),
+                                       hl.null(entry_type),
+                                       mt[f])
+                            for f in mt.row})
+                        expected = mt.annotate_cols(**{
+                            f: hl.cond(hl.str(mt[f]).contains('9'),
+                                       hl.null(entry_type),
+                                       mt[f])
+                            for f in mt.col})
+                        assert expected._same(actual)
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):

@@ -151,15 +151,20 @@ case class TextMatrixReader(
   missingValue: String,
   hasHeader: Boolean,
   separatorStr: String,
-  gzipAsBGZip: Boolean
+  gzipAsBGZip: Boolean,
+  addRowId: Boolean
 ) extends MatrixHybridReader {
+  private[this] val hc = HailContext.get
+  private[this] val sc = hc.sc
+  private[this] val fs = hc.sFS
+
   assert(separatorStr.length == 1)
   private[this] val separator = separatorStr.charAt(0)
   private[this] val rowFields = rowFieldsStr.mapValues(IRParser.parseType(_))
   private[this] val entryType = TStruct("x" -> IRParser.parseType(entryTypeStr))
-
+  private[this] val resolvedPaths = fs.globAll(paths)
   require(entryType.size == 1, "entryType can only have 1 field")
-  if (paths.isEmpty)
+  if (resolvedPaths.isEmpty)
     fatal("no paths specified for import_matrix_table.")
   import LoadMatrix._
   assert((rowFields.values ++ entryType.types).forall { t =>
@@ -170,18 +175,21 @@ case class TextMatrixReader(
     t.isOfType(TFloat64())
   })
 
-  private[this] val hc = HailContext.get
-  private[this] val sc = hc.sc
-  private[this] val fs = hc.sFS
 
-  private[this] val (header1, nCols) = parseHeader(fs, paths.head, separator, rowFields.size, hasHeader)
+  private[this] val (header1, nCols) = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, hasHeader)
   private[this] val (rowFieldNames, colIDs) = splitHeader(header1, rowFields.size, nCols)
+  if (addRowId && rowFieldNames.contains("row_id")) {
+    fatal(
+      s"""If no key is specified, `import_matrix_table`, uses 'row_id'
+         |as the key, please provide a key or choose a different row field name.\n
+         |  Row field names: ${rowFieldNames}""".stripMargin)
+  }
   private[this] val rowFieldType = TStruct("row_id" -> TInt64()) ++ verifyRowFields(rowFieldNames, rowFields)
   private[this] val header1Bc = hc.backend.broadcast(header1)
   if (hasHeader)
     LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
   private[this] val lines = HailContext.maybeGZipAsBGZip(gzipAsBGZip) {
-    sc.textFilesLines(paths, nPartitions.getOrElse(sc.defaultMinPartitions))
+    sc.textFilesLines(resolvedPaths, nPartitions.getOrElse(sc.defaultMinPartitions))
   }
   private[this] val fileByPartition = lines.partitions.map(p => partitionPath(p))
   private[this] val firstPartitions = fileByPartition.scanLeft(0) {
@@ -190,7 +198,7 @@ case class TextMatrixReader(
     lines,
     hasHeader,
     firstPartitions,
-    paths,
+    resolvedPaths,
     fileByPartition,
     header1Bc,
     separator)
@@ -436,6 +444,11 @@ class CompiledLineParser(
       val requestedField = rowFieldsType.fields(outputIndex)
       if (onDiskField.name == requestedField.name) {
         assert(onDiskField.typ.physicalType == requestedField.typ)
+        ab += (pos >= line.length).mux(
+          parseError(
+            const("unexpected end of line while reading row field ")
+              .concat(onDiskField.name)),
+          Code._empty)
         if (onDiskField.name == "row_id") {
           ab += srvb.addLong(fb.arg3)
         } else {
@@ -468,6 +481,11 @@ class CompiledLineParser(
           srvb.addBaseStruct(entryType, { srvb =>
             Code(
               srvb.start(),
+              (pos >= line.length).mux(
+                parseError(
+                  const("unexpected end of line while reading entry ")
+                    .concat(i.toS)),
+                Code._empty),
               parseType(mb, srvb, entryType.fields(0).typ),
               pos := pos + 1,
               srvb.advance())
