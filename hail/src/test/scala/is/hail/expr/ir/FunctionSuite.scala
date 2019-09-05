@@ -47,51 +47,51 @@ class FunctionSuite extends HailSuite {
   def emitFromFB[F >: Null : TypeInfo](fb: FunctionBuilder[F]) =
     new EmitFunctionBuilder[F](fb.parameterTypeInfo, fb.returnTypeInfo, fb.packageName)
 
-  def lookup(meth: String, types: Type*)(irs: IR*): IR =
-    IRFunctionRegistry.lookupConversion(meth, types).get(irs)
+  def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR =
+    IRFunctionRegistry.lookupConversion(meth, rt, types).get(irs)
 
   @Test
   def testCodeFunction() {
-    assertEvalsTo(lookup("triangle", TInt32())(In(0, TInt32())),
+    assertEvalsTo(lookup("triangle", TInt32(), TInt32())(In(0, TInt32())),
       FastIndexedSeq(5 -> TInt32()),
       (5 * (5 + 1)) / 2)
   }
 
   @Test
   def testStaticFunction() {
-    assertEvalsTo(lookup("compare", TInt32(), TInt32())(In(0, TInt32()), I32(0)) > 0,
+    assertEvalsTo(lookup("compare", TInt32(), TInt32(), TInt32())(In(0, TInt32()), I32(0)) > 0,
       FastIndexedSeq(5 -> TInt32()),
       true)
   }
 
   @Test
   def testScalaFunction() {
-    assertEvalsTo(lookup("foobar1")(), 1)
+    assertEvalsTo(lookup("foobar1", TInt32())(), 1)
   }
 
   @Test
   def testIRConversion() {
-    assertEvalsTo(lookup("addone", TInt32())(In(0, TInt32())),
+    assertEvalsTo(lookup("addone", TInt32(), TInt32())(In(0, TInt32())),
       FastIndexedSeq(5 -> TInt32()),
       6)
   }
 
   @Test
   def testScalaFunctionCompanion() {
-    assertEvalsTo(lookup("foobar2")(), 2)
+    assertEvalsTo(lookup("foobar2", TInt32())(), 2)
   }
 
   @Test
   def testVariableUnification() {
-    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt32(), TInt32())).isDefined)
-    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt64(), TInt32())).isEmpty)
-    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt64(), TInt64())).isEmpty)
-    assert(IRFunctionRegistry.lookupConversion("testCodeUnification2", Seq(TArray(TInt32()))).isDefined)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", TInt32(), Seq(TInt32(), TInt32())).isDefined)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", TInt32(), Seq(TInt64(), TInt32())).isEmpty)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification", TInt64(), Seq(TInt32(), TInt32())).isEmpty)
+    assert(IRFunctionRegistry.lookupConversion("testCodeUnification2", TArray(TInt32()), Seq(TArray(TInt32()))).isDefined)
   }
 
   @Test
   def testUnphasedDiploidGtIndexCall() {
-    assertEvalsTo(lookup("UnphasedDiploidGtIndexCall", TInt32())(In(0, TInt32())),
+    assertEvalsTo(lookup("UnphasedDiploidGtIndexCall", TCall(), TInt32())(In(0, TInt32())),
       FastIndexedSeq(0 -> TInt32()),
       Call2.fromUnphasedDiploidGtIndex(0))
   }

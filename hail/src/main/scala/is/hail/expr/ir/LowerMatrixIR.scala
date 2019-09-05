@@ -160,7 +160,7 @@ object LowerMatrixIR {
             .apply('rows)
             .arrayStructToDict(table.typ.key)) {
             'global.insertFields(colsField ->
-              'global (colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", colKey))))
+              'global (colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", table.typ.valueType, colKey))))
           })
 
       case MatrixMapGlobals(child, newGlobals) =>
@@ -215,6 +215,8 @@ object LowerMatrixIR {
 
         val aggBuilder = new ArrayBuilder[(String, IR)]
         val scanBuilder = new ArrayBuilder[(String, IR)]
+        val aggLetBuilder = new ArrayBuilder[(String, IR)]
+        val scanLetBuilder = new ArrayBuilder[(String, IR)]
 
         def lift(ir: IR): IR = ir match {
           case x if IsScanResult(x) =>
@@ -227,6 +229,10 @@ object LowerMatrixIR {
             val s = genUID()
             aggBuilder += (s -> x)
             Ref(s, x.typ)
+          case AggLet(name, value, body, isScan) =>
+            val ab = if (isScan) scanLetBuilder else aggLetBuilder
+            ab += ((name, value))
+            lift(body)
           case _ =>
             MapIR(lift)(ir)
         }
@@ -241,7 +247,9 @@ object LowerMatrixIR {
         val aggTransformer: IRProxy => IRProxy = if (aggs.isEmpty)
           identity
         else {
-          val aggStruct = MakeStruct(aggs)
+          val aggStruct = aggLetBuilder.result().foldRight[IR](MakeStruct(aggs)) { case ((name, value), comb) =>
+            AggLet(name, value, comb, isScan = false)
+          }
           val aggResultArray = loweredChild.aggregate(
             aggLet(va = 'row.selectFields(child.typ.rowType.fieldNames: _*)) {
               irRange(0, 'global (colsField).len)
@@ -268,7 +276,9 @@ object LowerMatrixIR {
         val scanTransformer: IRProxy => IRProxy = if (scans.isEmpty)
           identity
         else {
-          val scanStruct = MakeStruct(scans)
+          val scanStruct = scanLetBuilder.result().foldRight[IR](MakeStruct(scans)) { case ((name, value), comb) =>
+            AggLet(name, value, comb, isScan = true)
+          }
           val scanResultArray = ArrayAggScan(
             GetField(Ref("global", loweredChild.typ.globalType), colsFieldName),
             "sa",
@@ -356,8 +366,8 @@ object LowerMatrixIR {
       case MatrixRowsHead(child, n) => TableHead(lower(child, ab), n)
 
       case MatrixColsHead(child, n) => lower(child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", n)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", n)))
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", TArray(child.typ.colType), n)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", TArray(child.typ.entryType), n)))
 
       case MatrixExplodeCols(child, path) =>
         val loweredChild = lower(child, ab)

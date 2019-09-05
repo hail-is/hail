@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2, InputBuffer, OutputBuffer, PackCodecSpec2}
 import is.hail.utils._
 import is.hail.asm4s.coerce
 
@@ -23,9 +23,9 @@ trait AggregatorState {
 
   def copyFrom(src: Code[Long]): Code[Unit]
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit]
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit]
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit]
 }
 
 trait PointerBasedRVAState extends AggregatorState {
@@ -57,13 +57,13 @@ class TypedRVAState(val valueType: PType, val fb: EmitFunctionBuilder[_]) extend
 
   def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(fb, region, valueType, src)
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
-    val enc = codec.buildEmitEncoderF[Long](valueType, valueType, fb)
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
+    val enc = PackCodecSpec2(valueType, codec).buildEmitEncoderF[Long](valueType, fb)
     ob: Code[OutputBuffer] => enc(region, off, ob)
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-    val dec = codec.buildEmitDecoderF[Long](valueType, valueType, fb)
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+    val (t, dec) = PackCodecSpec2(valueType, codec).buildEmitDecoderF[Long](valueType.virtualType, fb)
     ib: Code[InputBuffer] => off := dec(region, ib)
   }
 }
@@ -111,7 +111,7 @@ class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_])
 
   def copyFrom(src: Code[Long]): Code[Unit] = loadVarsFromRegion(src)
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     ob: Code[OutputBuffer] =>
       foreachField {
         case (_, (None, v, t)) => ob.writePrimitive(t)(v)
@@ -121,7 +121,7 @@ class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_])
       }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     ib: Code[InputBuffer] =>
       foreachField {
         case (_, (None, v, t)) =>

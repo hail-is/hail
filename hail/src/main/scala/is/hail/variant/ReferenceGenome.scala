@@ -19,74 +19,24 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 
-abstract class RGBase extends Serializable {
-  def locusType: TLocus
 
-  def name: String
-
-  def locusOrdering: Ordering[Locus]
-
-  def contigParser: Parser[String]
-
-  def isValidContig(contig: String): Boolean
-
-  def checkLocus(l: Locus): Unit
-
-  def checkLocus(contig: String, pos: Int): Unit
-
-  def contigLength(contig: String): Int
-
-  def contigLength(contigIdx: Int): Int
-
-  def inX(contigIdx: Int): Boolean
-
-  def inX(contig: String): Boolean
-
-  def inY(contigIdx: Int): Boolean
-
-  def inY(contig: String): Boolean
-
-  def isMitochondrial(contigIdx: Int): Boolean
-
-  def isMitochondrial(contig: String): Boolean
-
-  def inXPar(locus: Locus): Boolean
-
-  def inYPar(locus: Locus): Boolean
-
-  def compare(c1: String, c2: String): Int
-
-  def unify(concrete: RGBase): Boolean
-
-  def isBound: Boolean
-
-  def clear(): Unit
-
-  def subst(): RGBase
-
-  @transient lazy val broadcastRGBase: BroadcastRGBase = new BroadcastRGBase(this)
-}
-
-class BroadcastRGBase(rgParam: RGBase) extends Serializable {
-  @transient private[this] val rg: RGBase = rgParam
+class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
+  @transient private[this] val rg: ReferenceGenome = rgParam
 
   private[this] val rgBc: BroadcastValue[ReferenceGenome] = {
     if (TaskContext.get != null)
       null
     else
-      rgParam match {
-        case rg: ReferenceGenome => rg.broadcast
-        case _ => null
-      }
+      rg.broadcast
   }
 
-  def value: RGBase = {
+  def value: ReferenceGenome = {
     val t = if (rg != null)
       rg
     else
@@ -97,7 +47,9 @@ class BroadcastRGBase(rgParam: RGBase) extends Serializable {
 
 case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[String, Int],
   xContigs: Set[String] = Set.empty[String], yContigs: Set[String] = Set.empty[String],
-  mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends RGBase {
+  mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
+
+  @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
 
   val nContigs = contigs.length
 
@@ -415,8 +367,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
 
-  private[this] var liftoverFunctions: Map[String, Set[String]] = Map.empty[String, Set[String]]
-
   def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
 
   def addLiftover(hc: HailContext, chainFile: String, destRGName: String): Unit = {
@@ -435,9 +385,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.checkChainFile(this, destRG)
 
     liftoverMaps += destRGName -> lo
-    val irFunctions = new LiftoverFunctions(this, destRG)
-    irFunctions.registerAll()
-    liftoverFunctions += destRGName -> irFunctions.registered
   }
 
   def addLiftoverFromFS(fs: FS, chainFilePath: String, destRGName: String): ReferenceGenome = {
@@ -456,8 +403,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!hasLiftover(destRGName))
       fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
     liftoverMaps -= destRGName
-    liftoverFunctions(destRGName).foreach(IRFunctionRegistry.removeIRFunction)
-    liftoverFunctions -= destRGName
   }
 
   def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) = {
@@ -500,13 +445,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: RGBase): Boolean = this == concrete
-
   def isBound: Boolean = true
-
-  def clear() {}
-
-  def subst(): ReferenceGenome = this
 
   override def toString: String = name
 
@@ -569,7 +508,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
   def removeIRFunctions(): Unit = {
     registeredFunctions.foreach(IRFunctionRegistry.removeIRFunction)
-    liftoverFunctions.foreach(_._2.foreach(IRFunctionRegistry.removeIRFunction))
     registeredFunctions = Set.empty[String]
   }
 }
@@ -715,7 +653,7 @@ object ReferenceGenome {
     }
   }
 
-  private def writeReference(fs: is.hail.io.fs.FS, path: String, rg: RGBase) {
+  private def writeReference(fs: is.hail.io.fs.FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
@@ -793,66 +731,3 @@ object ReferenceGenome {
     ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 }
-
-case class RGVariable(var rg: RGBase = null) extends RGBase {
-  val locusType: TLocus = TLocus(this)
-
-  override def toString = "?RG"
-
-  def unify(concrete: RGBase): Boolean = {
-    if (rg == null) {
-      rg = concrete
-      true
-    } else
-      rg == concrete
-  }
-
-  def isBound: Boolean = rg != null
-
-  def clear() {
-    rg = null
-  }
-
-  def subst(): RGBase = {
-    assert(rg != null)
-    rg
-  }
-
-  def name: String = ???
-
-  def locusOrdering: Ordering[Locus] =
-    new Ordering[Locus] {
-      def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("RGVariable.locusOrdering unimplemented")
-    }
-
-  def contigParser: Parser[String] = ???
-
-  def isValidContig(contig: String): Boolean = ???
-
-  def checkLocus(l: Locus): Unit = ???
-
-  def checkLocus(contig: String, pos: Int): Unit = ???
-
-  def contigLength(contig: String): Int = ???
-
-  def contigLength(contigIdx: Int): Int = ???
-
-  def inX(contigIdx: Int): Boolean = ???
-
-  def inX(contig: String): Boolean = ???
-
-  def inY(contigIdx: Int): Boolean = ???
-
-  def inY(contig: String): Boolean = ???
-
-  def isMitochondrial(contigIdx: Int): Boolean = ???
-
-  def isMitochondrial(contig: String): Boolean = ???
-
-  def inXPar(locus: Locus): Boolean = ???
-
-  def inYPar(locus: Locus): Boolean = ???
-
-  def compare(c1: String, c2: String): Int = ???
-}
-

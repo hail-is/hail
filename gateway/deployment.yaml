@@ -16,7 +16,6 @@ spec:
         app: gateway
         hail.is/sha: "{{ code.sha }}"
     spec:
-      serviceAccountName: gateway
       priorityClassName: infrastructure
       affinity:
         podAntiAffinity:

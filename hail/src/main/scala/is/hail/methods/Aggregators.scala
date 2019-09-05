@@ -108,24 +108,6 @@ class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
   def copy() = new CollectAggregator(t)
 }
 
-class InfoScoreAggregator(t: PType) extends TypedAggregator[Annotation] {
-
-  var _state = new InfoScoreCombiner(t)
-
-  def result = _state.asAnnotation
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(x.asInstanceOf[IndexedSeq[java.lang.Double]])
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new InfoScoreAggregator(t)
-}
-
 class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregator[T] {
 
   import scala.math.Numeric.Implicits._
@@ -304,33 +286,6 @@ class CallStatsAggregator(nAllelesF: (Any) => Any)
   def copy() = new CallStatsAggregator(nAllelesF)
 }
 
-class InbreedingAggregator(getAF: (Call) => Any) extends TypedAggregator[Annotation] {
-  var _state = new InbreedingCombiner()
-
-  def result = _state.asAnnotation
-
-  def seqOp(x: Any, af: Any) = {
-    if (x != null) {
-      val gt = x.asInstanceOf[Call]
-      if (af != null)
-        _state.merge(gt, af.asInstanceOf[Double])
-    }
-  }
-
-  def seqOp(x: Any) = {
-    if (x != null) {
-      val gt = x.asInstanceOf[Call]
-      val af = getAF(gt)
-      if (af != null)
-        _state.merge(gt, af.asInstanceOf[Double])
-    }
-  }
-
-  def combOp(agg2: this.type) = _state.merge(agg2.asInstanceOf[InbreedingAggregator]._state)
-
-  def copy() = new InbreedingAggregator(getAF)
-}
-
 class TakeAggregator(t: Type, n: Int) extends TypedAggregator[IndexedSeq[Any]] {
   var _state = new ArrayBuffer[Any]()
 
@@ -445,8 +400,6 @@ class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggrega
     agg match {
       case tagg: KeyedAggregator[_, _] => agg.seqOp(x)
       case tagg: CountAggregator => agg.seqOp(0)
-      case tagg: InbreedingAggregator =>
-        agg.asInstanceOf[InbreedingAggregator].seqOp(r.get(0), r.get(1))
       case tagg: TakeByAggregator[_] =>
         agg.asInstanceOf[TakeByAggregator[_]].seqOp(r.get(0), r.get(1))
       case _ => agg.seqOp(r.get(0))

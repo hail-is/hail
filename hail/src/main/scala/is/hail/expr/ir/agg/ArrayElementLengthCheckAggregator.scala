@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
@@ -89,7 +89,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
   def store(eltIdx: Code[Int]): Code[Unit] =
     container.store(regionOffset(eltIdx), statesOffset(eltIdx))
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.map(_.serialize(codec));
     { ob: Code[OutputBuffer] =>
       Code(
@@ -104,7 +104,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
     }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
         Code(

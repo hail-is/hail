@@ -12,4 +12,6 @@ abstract class ComplexPType extends PType {
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
 
   override def fundamentalType: PType = representation.fundamentalType
+
+  override def containsPointers: Boolean = representation.containsPointers
 }

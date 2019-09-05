@@ -134,9 +134,9 @@ object IRBuilder {
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
 
-    def invoke(name: String, args: IRProxy*): IRProxy = { env: E =>
+    def invoke(name: String, rt: Type, args: IRProxy*): IRProxy = { env: E =>
       val irArgs = Array(ir(env)) ++ args.map(_ (env))
-      is.hail.expr.ir.invoke(name, irArgs: _*)
+      is.hail.expr.ir.invoke(name, rt, irArgs: _*)
     }
 
     def selectDynamic(field: String): IRProxy = (env: E) =>
@@ -152,9 +152,9 @@ object IRBuilder {
 
     def floorDiv(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(RoundToNegInfDivide(), ir(env), other(env))
 
-    def &&(other: IRProxy): IRProxy = invoke("&&", ir, other)
+    def &&(other: IRProxy): IRProxy = invoke("&&", TBoolean(), ir, other)
 
-    def ||(other: IRProxy): IRProxy = invoke("||", ir, other)
+    def ||(other: IRProxy): IRProxy = invoke("||", TBoolean(), ir, other)
 
     def toI: IRProxy = (env: E) => Cast(ir(env), TInt32())
 

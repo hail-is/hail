@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
+import is.hail.io.{BufferSpec, CodecSpec2}
 import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
@@ -99,7 +99,7 @@ final case class Void() extends IR
 final case class Cast(v: IR, _typ: Type) extends IR
 final case class CastRename(v: IR, _typ: Type) extends IR
 
-final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
+final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
 object Coalesce {
@@ -315,8 +315,8 @@ final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) ext
 final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR
 final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -374,17 +374,18 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
 sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
+  def returnType: Type
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes)
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, argTypes)
     .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
       .asInstanceOf[F]
 }
 
-final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
+final case class Apply(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extends AbstractApplyNode[SeededIRFunction]
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction]
 
-final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithMissingness]
+final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR
 
@@ -418,7 +419,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
-final case class ReadPartition(path: IR, spec: CodecSpec, encodedType: TStruct, rowType: TStruct) extends IR
+final case class ReadPartition(path: IR, spec: CodecSpec2, rowType: TStruct) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
@@ -427,8 +428,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)
   def floorDiv(other: IR): IR = ApplyBinaryPrimOp(RoundToNegInfDivide(), self, other)
 
-  def &&(other: IR): IR = invoke("&&", self, other)
-  def ||(other: IR): IR = invoke("||", self, other)
+  def &&(other: IR): IR = invoke("&&", TBoolean(), self, other)
+  def ||(other: IR): IR = invoke("||", TBoolean(), self, other)
 
   def toI: IR = Cast(self, TInt32())
   def toL: IR = Cast(self, TInt64())

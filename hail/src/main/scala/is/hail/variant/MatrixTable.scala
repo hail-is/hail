@@ -5,7 +5,7 @@ import is.hail.check.Gen
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -82,8 +82,6 @@ abstract class RelationalSpec {
     }
   }
 
-  def rvdType(path: String): RVDType
-
   def indexed(path: String): Boolean
 
   def version: SemanticVersion = SemanticVersion(file_version)
@@ -100,7 +98,7 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def read(
     hc: HailContext,
     path: String,
-    requestedType: PStruct,
+    requestedType: TStruct,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = {
@@ -109,10 +107,10 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
       .read(hc, rvdPath, requestedType, newPartitioner, filterIntervals)
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: PStruct, forEachElement: RegionValue => Unit): Unit = {
+  def readLocalSingleRow(hc: HailContext, path: String, requestedType: TStruct, r: Region): (PStruct, Long) = {
     val rvdPath = path + "/" + rel_path
     rvdSpec(hc.sFS, path)
-      .readLocal(hc, rvdPath, requestedType, forEachElement)
+      .readLocalSingleRow(hc, rvdPath, requestedType, r)
   }
 }
 
@@ -128,12 +126,6 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
-
-  def rvdType(path: String): RVDType = {
-    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
-    val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
-    RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
-  }
 
   def indexed(path: String): Boolean = rowsComponent.indexed(HailContext.get, path)
 

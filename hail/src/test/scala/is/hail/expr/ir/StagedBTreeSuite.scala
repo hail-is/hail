@@ -1,15 +1,18 @@
 package is.hail.expr.ir
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import is.hail.HailSuite
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils}
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
 import is.hail.expr.types.physical._
+import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer, StreamBufferSpec}
+import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
-
 class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
   private val comp = mb.getCodeOrdering[Int](PInt64(), CodeOrdering.compare)
   def storageType: PTuple = PTuple(required = true, PInt64(), PTuple())
@@ -37,6 +40,39 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
   def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) =
     storageType.isFieldMissing(off, 0) -> storageType.isFieldMissing(off, 0).mux(
       0L, Region.loadLong(storageType.fieldOffset(off, 0)))
+}
+
+object BTreeBackedSet {
+  def bulkLoad(region: Region, serialized: Array[Byte]): BTreeBackedSet = {
+    val fb = EmitFunctionBuilder[Region, InputBuffer, Long]
+    val root = fb.newField[Long]
+    val r = fb.newField[Region]
+    val ib = fb.getArg[InputBuffer](2)
+    val ib2 = fb.newField[InputBuffer]
+
+    val km = fb.newField[Boolean]
+    val kv = fb.newField[Long]
+
+    val key = new TestBTreeKey(fb.apply_method)
+    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root)
+    fb.emit(Code(
+      r := fb.getArg[Region](1),
+      btree.init,
+      ib2 := ib,
+      btree.bulkLoad(ib2) { (ib, off) =>
+        Code(
+          km := ib.readBoolean(),
+          kv := km.mux(0L, ib.readLong()),
+          key.storeKey(off, km, kv))
+      },
+      root
+    ))
+
+    val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
+    val set = new BTreeBackedSet(region)
+    set.root = fb.resultWithIndex()(0, region)(region, inputBuffer)
+    set
+  }
 }
 
 class BTreeBackedSet(region: Region) {
@@ -110,6 +146,30 @@ class BTreeBackedSet(region: Region) {
     fb.resultWithIndex()(0, region)
   }
 
+  private val bulkStoreF = {
+    val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit]
+    val root = fb.newField[Long]
+    val r = fb.newField[Region]
+    val ob = fb.getArg[OutputBuffer](2)
+    val ob2 = fb.newField[OutputBuffer]
+
+    val key = new TestBTreeKey(fb.apply_method)
+    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root)
+
+    fb.emit(Code(
+      root := fb.getArg[Long](1),
+      ob2 := ob,
+      btree.bulkStore(ob2) { (ob, off) =>
+        val (km, kv) = key.loadCompKey(off)
+        Code(
+          ob.writeBoolean(km),
+          (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+      },
+      ob2.load().flush()))
+
+    fb.resultWithIndex()(0, region)
+  }
+
   def clear(): Unit = {
     if (root != 0) { region.clear() }
     root = newTreeF(region)
@@ -120,6 +180,13 @@ class BTreeBackedSet(region: Region) {
 
   def getElements: Array[java.lang.Long] =
     getResultsF(region, root)
+
+  def bulkStore: Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    val outputBuffer = new StreamBufferSpec().buildOutputBuffer(baos)
+    bulkStoreF(root, outputBuffer)
+    baos.toByteArray
+  }
 }
 
 class TestSet {
@@ -153,7 +220,12 @@ class StagedBTreeSuite extends HailSuite {
         set.forall { v =>
           refSet.getOrElseInsert(v)
           testSet.getOrElseInsert(v)
+
           refSet.getElements.sortWith(lt) sameElements testSet.getElements.sortWith(lt)
+        } && {
+          val serialized = testSet.bulkStore
+          val testSet2 = BTreeBackedSet.bulkLoad(region, serialized)
+          refSet.getElements.sortWith(lt) sameElements testSet2.getElements.sortWith(lt)
         }
       }.check()
     }

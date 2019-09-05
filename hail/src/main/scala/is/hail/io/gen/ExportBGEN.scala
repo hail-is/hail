@@ -109,10 +109,13 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
     val nAlleles = alleles.length
     require(nAlleles <= 0xffff, s"Maximum number of alleles per variant is ${ 0xffff }. Found ${ nAlleles }.")
 
+    val chr = v.contig()
+    val pos = v.position()
+
     stringToBytesWithShortLength(bb, va.varid())
     stringToBytesWithShortLength(bb, va.rsid())
-    stringToBytesWithShortLength(bb, v.contig())
-    intToBytesLE(bb, v.position())
+    stringToBytesWithShortLength(bb, chr)
+    intToBytesLE(bb, pos)
     shortToBytesLE(bb, nAlleles)
 
     var i = 0
@@ -125,7 +128,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
     intToBytesLE(bb, 0) // placeholder for length of compressed data
     intToBytesLE(bb, 0) // placeholder for length of uncompressed data
 
-    val dropped = emitGPData(nAlleles)
+    val dropped = emitGPData(chr, pos, alleles)
 
     val uncompressedLength = uncompressedData.length
     val compressedLength = compress(bb, uncompressedData.result())
@@ -226,7 +229,8 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   }
 
 
-  private def emitGPData(nAlleles: Int): Long = {
+  private def emitGPData(chr: String, pos: Int, alleles: Array[String]): Long = {
+    val nAlleles = alleles.length
     uncompressedData.clear()
     val nGenotypes = triangle(nAlleles)
 
@@ -268,6 +272,9 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
         var gpSum = 0d
         while (idx < nGenotypes) {
           val x = gs.getGP(idx)
+          if (x < 0)
+            fatal(s"found GP value less than 0: $x, at sample $i of variant " +
+              s"$chr:$pos:${ alleles.head }:${ alleles.tail.mkString(",") }")
           gpSum += x
           gpResized(idx) = x * totalProb // Assuming sum(GP) == 1
           idx += 1

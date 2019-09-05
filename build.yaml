@@ -39,7 +39,7 @@ steps:
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
-   contextPath: docker
+   contextPath: .
    publishAs: base
  - kind: runImage
    name: create_accounts
@@ -143,6 +143,16 @@ steps:
    publishAs: batch
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_batch
+   image:
+     valueFrom: batch_image.image
+   script: |
+     set -ex
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
+   dependsOn:
+     - batch_image
  - kind: buildImage
    name: batch2_image
    dockerFile: batch2/Dockerfile
@@ -150,13 +160,6 @@ steps:
    publishAs: batch2
    dependsOn:
      - base_image
- - kind: buildImage
-   name: check_batch_image
-   dockerFile: batch/Dockerfile.check
-   contextPath: .
-   publishAs: check-batch
-   dependsOn:
-     - batch_image
  - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
@@ -183,6 +186,16 @@ steps:
    publishAs: ci
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_ci
+   image:
+     valueFrom: ci_image.image
+   script: |
+     set -ex
+     python3 -m flake8 ci
+     python3 -m pylint --rcfile pylintrc ci
+   dependsOn:
+     - ci_image
  - kind: buildImage
    name: ci_utils_image
    dockerFile: ci/Dockerfile.ci-utils
@@ -206,7 +219,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars
+     make jars python-version-info
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
@@ -320,6 +333,23 @@ steps:
       to: /hail-test.jar
     - from: /hail.zip
       to: /hail.zip
+ - kind: buildImage
+   name: hailtop_check_image
+   dockerFile: hail/python/Dockerfile.hailtop-check
+   contextPath: .
+   publishAs: hailtop-check
+   dependsOn:
+     - hail_base_image
+ - kind: runImage
+   name: check_hailtop
+   image:
+     valueFrom: hailtop_check_image.image
+   script: |
+     set -ex
+     python3 -m flake8 hailtop
+     python3 -m pylint --rcfile pylintrc hailtop
+   dependsOn:
+     - hailtop_check_image
  - kind: buildImage
    name: scheduler_image
    dockerFile: scheduler/Dockerfile
@@ -575,16 +605,6 @@ steps:
    dependsOn:
     - default_ns
     - image_fetcher_image
- - kind: runImage
-   name: check_batch
-   image:
-     valueFrom: check_batch_image.image
-   script: |
-     set -ex
-     python3 -m flake8 batch
-     python3 -m pylint --rcfile pylintrc batch
-   dependsOn:
-     - check_batch_image
  - kind: deploy
    name: test_batch
    namespace:
@@ -777,6 +797,7 @@ steps:
      DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
      gsutil cp /io/www.tar.gz ${DOCS}
      gsutil acl set public-read ${DOCS}
+     gsutil retention temp set ${DOCS}
      echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
      # CLOUDTOOLS_VERSION=4
      # HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt

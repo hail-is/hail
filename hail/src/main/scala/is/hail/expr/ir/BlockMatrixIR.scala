@@ -153,11 +153,11 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
     val prev = child.execute(ctx)
     f match {
       case ApplyUnaryPrimOp(Negate(), _) => prev.unary_-()
-      case Apply("abs", _) => prev.abs()
-      case Apply("log", _) => prev.log()
-      case Apply("sqrt", _) => prev.sqrt()
-      case Apply("ceil", _) => prev.ceil()
-      case Apply("floor", _) => prev.floor()
+      case Apply("abs", _, _) => prev.abs()
+      case Apply("log", _, _) => prev.log()
+      case Apply("sqrt", _, _) => prev.sqrt()
+      case Apply("ceil", _, _) => prev.ceil()
+      case Apply("floor", _, _) => prev.floor()
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }
@@ -272,7 +272,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
         if (reverse) left.reverseScalarSub(right) else left.scalarSub(right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
         if (reverse) left.reverseScalarDiv(right) else left.scalarDiv(right)
-      case Apply("**", _) => left.pow(right)
+      case Apply("**", _, _) => left.pow(right)
     }
   }
 
@@ -304,7 +304,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.mul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) => left.sub(right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) => left.div(right)
-      case Apply("**", _) =>
+      case Apply("**", _, _) =>
         assert(right.nRows == 1 && right.nCols == 1)
         // BlockMatrix does not currently support elem-wise pow and this case would
         // only get hit when left and right are both 1x1

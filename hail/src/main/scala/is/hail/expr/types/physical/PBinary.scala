@@ -72,6 +72,8 @@ class PBinary(override val required: Boolean) extends PType {
   }
 
   override def byteSize: Long = 8
+
+  override def containsPointers: Boolean = true
 }
 
 object PBinary {

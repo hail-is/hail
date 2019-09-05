@@ -151,7 +151,7 @@ class Job:
             log.info(f'pvc cannot be created for job {self.id} with the following error: {err}')
             PVC_CREATION_FAILURES.inc()
             if err.status == 403:
-                await self.mark_failed(failure_reason=str(err))
+                await self.mark_creation_failed(failure_reason=str(err))
             return False
 
         log.info(f'created pvc name: {self._pvc_name} for job {self.id}')
@@ -337,26 +337,23 @@ class Job:
     async def _read_pod_statuses(self):
         if self._state in ('Pending', 'Cancelled'):
             return None
-
-        async def _read_pod_status_from_gcs():
-            pod_status, err = await app['log_store'].read_gs_file(self.directory,
-                                                                  LogStore.pod_status_file_name)
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read pod status for {self.id} '
-                         f'due to {err}')
-                return None
-            return json.loads(pod_status)
-
         if self._state == 'Running':
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
+            pod_status = pod_status.to_dict()
             return pod_status
         assert self._state in ('Error', 'Failed', 'Success')
-        return await _read_pod_status_from_gcs()
+        pod_status, err = await app['log_store'].read_gs_file(self.directory,
+                                                              LogStore.pod_status_file_name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring: could not read pod status for {self.id} '
+                     f'due to {err}')
+            return None
+        return json.loads(pod_status)
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
@@ -585,11 +582,36 @@ class Job:
         except Exception as err:  # pylint: disable=W0703
             return err
 
-    async def mark_failed(self, failure_reason):
+    async def mark_creation_failed(self, failure_reason):
         await self._upload_logs({'setup': failure_reason})
         await self._reap_job('Error')
 
-    async def mark_successful(self, pod):
+    async def mark_setup_failed(self, pod):
+        container_log, err = app['k8s'].read_pod_log(pod.metadata.name, container='setup')
+        if err is not None:
+            container_log = err
+        container_logs = {'setup': container_log}
+        await self._upload_logs(container_logs)
+        await self._store_status(pod)
+        assert len(pod.status.init_container_statuses) == 1
+        startup_status = pod.status.init_container_statuses[0]
+        exit_codes = [
+            startup_status.state.terminated.exit_code,
+            None,
+            None]
+        finished_at = startup_status.state.terminated.finished_at
+        started_at = startup_status.state.terminated.started_at
+        durations = [
+            finished_at and started_at and ((finished_at - started_at).total_seconds()),
+            None,
+            None]
+
+        await self._reap_job(
+            'Failed',
+            exit_codes=exit_codes,
+            durations=durations)
+
+    async def mark_terminated(self, pod):
         container_logs, errs = gear.unzip(
             await asyncio.gather(*(
                 app['k8s'].read_pod_log(pod.metadata.name, container=container)
@@ -1234,7 +1256,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
         if image_pull_back_off_reasons:
-            await job.mark_failed("\n".join(image_pull_back_off_reasons))
+            await job.mark_creation_failed("\n".join(image_pull_back_off_reasons))
             return
 
     if not pod and not app['pod_throttler'].is_queued(job):
@@ -1254,7 +1276,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
             init_status = pod.status.init_container_statuses[0]
             if init_status.state and init_status.state.terminated and init_status.state.terminated.exit_code != 0:
                 log.info(f'job {job.id} failed -- setup container exited {init_status.state.terminated.exit_code}')
-                await job.mark_failed(f'setup container exited {init_status.state.terminated.exit_code}')
+                await job.mark_setup_failed(pod)
                 return
         if pod.status.container_statuses:
             main_status = [x for x in pod.status.container_statuses
@@ -1268,7 +1290,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
                         cleanup_status = cleanup_status[0]
                         if cleanup_status.state and cleanup_status.state.terminated:
                             log.info(f'job {job.id} mark complete')
-                            await job.mark_successful(pod=pod)
+                            await job.mark_terminated(pod=pod)
                             return
                         err = await job._terminate_cleanup_pod(pod)
                         if err:

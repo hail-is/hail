@@ -1,4 +1,3 @@
-import datetime
 import secrets
 from shlex import quote as shq
 import json
@@ -7,7 +6,6 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
-import humanize
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .environment import SELF_HOSTNAME
 from .utils import check_shell, check_shell_output
@@ -16,16 +14,6 @@ from .build import BuildConfiguration, Code
 repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
-
-def timestamp_age(t):
-    if t is None:
-        return None
-    tz_delta = datetime.datetime.now() - t
-    return tz_delta
-
-
-def pretty_timestamp_age(t):
-    return humanize.naturaltime(timestamp_age(t))
 
 
 class Repo:
@@ -155,7 +143,6 @@ class PR(Code):
 
         # error, success, failure
         self._build_state = None
-        self._build_state_timestamp = None
 
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
@@ -168,11 +155,7 @@ class PR(Code):
     @build_state.setter
     def build_state(self, new_state):
         if new_state != self._build_state:
-            self._build_state_timestamp = datetime.datetime.now()
             self._build_state = new_state
-
-    def pretty_status_age(self):
-        return pretty_timestamp_age(self._build_state_timestamp)
 
     async def authorized(self, dbpool):
         if self.author in AUTHORIZED_USERS:
@@ -486,7 +469,6 @@ class WatchedBranch(Code):
         # success, failure, pending
         self.deploy_batch = None
         self._deploy_state = None
-        self._deploy_state_timestamp = None
 
         self.updating = False
         self.github_changed = True
@@ -503,9 +485,6 @@ class WatchedBranch(Code):
     @deploy_state.setter
     def deploy_state(self, new_state):
         self._deploy_state = new_state
-
-    def pretty_status_age(self):
-        return pretty_timestamp_age(self._deploy_state_timestamp)
 
     def short_str(self):
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
@@ -778,11 +757,10 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, namespace):
+    def __init__(self, branch, sha, userdata):
         self.branch = branch
-        self.userdata = userdata
         self.user = userdata['username']
-        self.namespace = namespace
+        self.namespace = userdata['namespace_name']
         self.sha = sha
 
         self.deploy_batch = None
@@ -803,7 +781,7 @@ class UnwatchedBranch(Code):
             'user': self.user
         }
 
-    async def deploy(self, batch_client, profile_steps=None):
+    async def deploy(self, batch_client, steps):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -813,9 +791,9 @@ class UnwatchedBranch(Code):
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
-            log.info(f'User {self.user} requested these steps for dev deploy: {profile_steps}')
+            log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps)
+                config = BuildConfiguration(self, f.read(), scope='dev', requested_step_names=steps)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 

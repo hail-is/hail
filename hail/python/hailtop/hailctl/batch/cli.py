@@ -11,6 +11,7 @@ from . import wait
 from . import log
 from . import pod_status
 
+
 def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl batch',

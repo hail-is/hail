@@ -251,7 +251,7 @@ object PruneDeadFields {
     memo.requestedType.bind(tir, requestedType)
     tir match {
       case TableRead(_, _, _) =>
-      case TableLiteral(_, _, _) =>
+      case TableLiteral(_, _, _, _) =>
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
@@ -390,7 +390,13 @@ object PruneDeadFields {
         memoizeTableIR(child, unify(child.typ, requestedType, irDep), memo)
       case TableKeyBy(child, _, isSorted) =>
         val reqKey = requestedType.key
-        val childReqKey = if (isSorted) child.typ.key.take(reqKey.length) else FastIndexedSeq()
+        val isPrefix = reqKey.zip(child.typ.key).forall { case (l, r) => l == r }
+        val childReqKey = if (isSorted)
+          child.typ.key
+        else if (isPrefix)
+          if  (reqKey.length <= child.typ.key.length) reqKey else child.typ.key
+        else FastIndexedSeq()
+
         memoizeTableIR(child, TableType(
           key = childReqKey,
           rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, childReqKey), requestedType.rowType),

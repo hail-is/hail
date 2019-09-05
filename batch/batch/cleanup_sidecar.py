@@ -25,7 +25,8 @@ async def finish(request):
         try:
             copy_output = sp.check_output(copy_output_cmd, shell=True, stderr=sp.STDOUT)
             log.info(copy_output.decode('ascii'))
-        except sp.CalledProcessError:
+        except sp.CalledProcessError as err:
+            log.error(f'bad exit code {err.returncode}: {err.output}')
             log.exception(f'exiting 1 due to exception')
             server.stop(1)
     log.info(f'exiting cleanly')

@@ -215,12 +215,12 @@ object Copy {
         val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion
         r
-      case Apply(fn, args) =>
-        Apply(fn, newChildren.map(_.asInstanceOf[IR]))
-      case ApplySeeded(fn, args, seed) =>
-        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed)
-      case ApplySpecial(fn, args) =>
-        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
+      case Apply(fn, args, t) =>
+        Apply(fn, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySeeded(fn, args, seed, t) =>
+        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
+      case ApplySpecial(fn, args, t) =>
+        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
       case Uniroot(argname, _, _, _) =>
         val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
         Uniroot(argname, fn, min, max)
@@ -268,9 +268,9 @@ object Copy {
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)
-      case ReadPartition(path, spec, encodedType, rowType) =>
+      case ReadPartition(path, spec, rowType) =>
         val IndexedSeq(newPath: IR) = newChildren
-        ReadPartition(newPath, spec, encodedType, rowType)
+        ReadPartition(newPath, spec, rowType)
     }
   }
 }

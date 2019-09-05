@@ -12,6 +12,7 @@ from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
 
 log = logging.getLogger('ci')
 
+
 def expand_value_from(value, config):
     if isinstance(value, str):
         return value
@@ -66,21 +67,33 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, profile=None):
+    def __init__(self, code, config_str, scope, requested_step_names=None):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
 
-        if profile:
-            log.info(f"Constructing build configuration with following profile: {profile}")
+        if requested_step_names:
+            log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
+            step = Step.from_json(step_params)
+            self.steps.append(step)
+            name_step[step.name] = step
 
-            if profile is None or step_params.json['name'] in profile:
-                step = Step.from_json(step_params)
-                self.steps.append(step)
-                name_step[step.name] = step
+        # transitively close requested_step_names over dependenies
+        if requested_step_names:
+            visited = set()
+
+            def request(step):
+                if step not in visited:
+                    visited.add(step)
+                    for s2 in step.deps:
+                        request(s2)
+
+            for step_name in requested_step_names:
+                request(name_step[step_name])
+            self.steps = [s for s in self.steps if s in visited]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
@@ -98,7 +111,7 @@ class BuildConfiguration:
                 step_to_parent_steps[dep].add(step)
 
         for step in self.steps:
-            parent_jobs = flatten([parent_step.wrapped_job() for parent_step in  step_to_parent_steps[step]])
+            parent_jobs = flatten([parent_step.wrapped_job() for parent_step in step_to_parent_steps[step]])
 
             log.info(f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}")
 
@@ -151,7 +164,6 @@ class Step(abc.ABC):
                     visited.add(d)
                     frontier.append(d)
         return visited
-
 
     @staticmethod
     def from_json(params):

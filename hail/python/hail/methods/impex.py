@@ -1080,8 +1080,8 @@ def import_bgen(path,
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)
-            variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
-            variants = variants.key_by(**{fname: variants[uid][fname] for fname in fnames})
+            name, variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
+            variants = variants.key_by(**{fname: variants[name][fname] for fname in fnames})
             variants = variants.select()
         elif isinstance(variants, Table):
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
@@ -1496,7 +1496,7 @@ def import_matrix_table(paths,
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
     ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
     ...                                  row_key='Barcode')
-    >>> matrix1.describe()  # doctest: +NOTEST
+    >>> matrix1.describe()  # doctest: +SKIP_OUTPUT_CHECK
     ----------------------------------------
     Global fields:
         None
@@ -1813,7 +1813,7 @@ def get_vcf_metadata(path):
     Examples
     --------
 
-    >>> hl.get_vcf_metadata('data/example2.vcf.bgz')  # doctest: +NOTEST
+    >>> hl.get_vcf_metadata('data/example2.vcf.bgz')  # doctest: +SKIP_OUTPUT_CHECK
     {'filter': {'LowQual': {'Description': ''}, ...},
      'format': {'AD': {'Description': 'Allelic depths for the ref and alt alleles in the order listed',
                        'Number': 'R',

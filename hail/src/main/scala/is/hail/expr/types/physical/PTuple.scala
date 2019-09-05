@@ -11,7 +11,6 @@ object PTuple {
   def apply(required: Boolean, args: PType*): PTuple = PTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toArray, required)
 
   def apply(args: PType*): PTuple = PTuple(args.zipWithIndex.map { case (a, i) => PTupleField(i, a)}.toFastIndexedSeq, required = false)
-
 }
 
 final case class PTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PBaseStruct {

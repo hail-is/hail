@@ -11,6 +11,8 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 
+HAIL_VERSION=$(cat python/hail/hail_version)
+
 # make directories
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 
@@ -40,3 +42,4 @@ cp -R python build/tmp
 DEST="build/www/docs/${HAIL_SHORT_VERSION}/"
 rm -rf ${DEST}
 mv build/tmp/python/hail/docs/_build/html $DEST
+find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=${HAIL_VERSION}/" {} +;

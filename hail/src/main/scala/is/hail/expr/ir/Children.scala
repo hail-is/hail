@@ -148,11 +148,11 @@ object Children {
       Array(message)
     case ApplyIR(_, args) =>
       args.toFastIndexedSeq
-    case Apply(_, args) =>
+    case Apply(_, args, _) =>
       args.toFastIndexedSeq
-    case ApplySeeded(_, args, seed) =>
+    case ApplySeeded(_, args, seed, _) =>
       args.toFastIndexedSeq
-    case ApplySpecial(_, args) =>
+    case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
     case Uniroot(_, fn, min, max) =>
       Array(fn, min, max)
@@ -174,6 +174,6 @@ object Children {
     case BlockMatrixWrite(child, _) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
-    case ReadPartition(path, _, _, _) => Array(path)
+    case ReadPartition(path, _, _) => Array(path)
   }
 }
