@@ -221,16 +221,16 @@ final class Region private (var blockSize: Region.Size) extends NativeBase() {
     super.close()
   }
 
-  def update(addr: Long, blockSize: Int): Unit = {
+  def update(addr: Long, blockSize: Int, off: Long): Unit = {
     this.blockSize = blockSize
-    _block_offset = nativeGetCurrentOffset(this.addrA)
+    _block_offset = off
     _block_addr = addr
     _block_threshold = if (blockSize < 4 * 1024) blockSize else 4 * 1024
   }
 
   def getNewRegion(blockSize: Int): Unit = {
     val addr = nativeGetNewRegion(this.addrA, RegionPool.get.getAddr, blockSize)
-    update(addr, blockSize)
+    update(addr, blockSize, 0)
     _isValid = true
     _numParents = 0
   }
@@ -256,7 +256,7 @@ final class Region private (var blockSize: Region.Size) extends NativeBase() {
   
 
   final def clear(): Unit = {
-    update(clearButKeepMem(this.addrA, _block_offset.toInt), blockSize)
+    update(clearButKeepMem(this.addrA, _block_offset.toInt), blockSize, 0)
   }
 
   final def allocate(a: Long, n: Long): Long = {
@@ -313,14 +313,14 @@ final class Region private (var blockSize: Region.Size) extends NativeBase() {
 
   def setFromParentReference(src: Region, i: Int, blockSize: Int): Unit = {
     _isValid = true
-    update(src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize), blockSize)
+    update(src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize), blockSize, getCurrentOffset())
     _numParents = nativeGetNumParents(this.addrA)
   }
 
   def getParentReference(i: Int, blockSize: Int): Region = {
     assert(i < _numParents)
     val r = new Region(blockSize)
-    r.update(nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize), blockSize)
+    r.update(nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize), blockSize, r.getCurrentOffset())
     r
   }
 
