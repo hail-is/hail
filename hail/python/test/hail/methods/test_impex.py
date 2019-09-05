@@ -1331,6 +1331,26 @@ class ImportMatrixTableTests(unittest.TestCase):
         self.assertEqual(mt.count_cols(), 0)
         self.assertTrue(t._same(mt.rows()))
 
+    def test_headers_not_identical(self):
+        self.assertRaisesRegex(
+            hl.utils.FatalError,
+            "invalid header",
+            hl.import_matrix_table,
+            resource("sampleheader*.txt"),
+            row_fields={'f0', hl.tstr},
+            row_key=['f0'])
+
+    def test_mising_values(self):
+        self.assertRaisesRegex(
+            hl.utils.FatalError,
+            "Incorrect number",
+            hl.import_matrix_table,
+            resource("samplesmissing.txt"),
+            row_fields={'f0', hl.tstr},
+            row_key=['f0'])
+
+    hl.utils.range_matrix_table(100, 100).x.export('foo.tsv', overwrite=True)
+    hl.import_matrix_table('foo.tsv')
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):

@@ -143,7 +143,7 @@ object LoadMatrix {
   }
 }
 
-class TextMatrixReader(
+case class TextMatrixReader(
   paths: Array[String],
   nPartitions: Option[Int],
   rowFieldsStr: Map[String, String],
@@ -162,7 +162,7 @@ class TextMatrixReader(
   if (paths.isEmpty)
     fatal("no paths specified for import_matrix_table.")
   import LoadMatrix._
-  assert(rowFields.values.forall { t =>
+  assert((rowFields.values ++ entryType.types).forall { t =>
     t.isOfType(TString()) ||
     t.isOfType(TInt32()) ||
     t.isOfType(TInt64()) ||
@@ -176,7 +176,7 @@ class TextMatrixReader(
 
   private[this] val (header1, nCols) = parseHeader(fs, paths.head, separator, rowFields.size, hasHeader)
   private[this] val (rowFieldNames, colIDs) = splitHeader(header1, rowFields.size, nCols)
-  private[this] val rowFieldType = verifyRowFields(rowFieldNames, rowFields)
+  private[this] val rowFieldType = TStruct("row_id" -> TInt64()) ++ verifyRowFields(rowFieldNames, rowFields)
   private[this] val header1Bc = hc.backend.broadcast(header1)
   if (hasHeader)
     LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
@@ -210,6 +210,7 @@ class TextMatrixReader(
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
     val compiledLineParser = new CompiledLineParser(
+      rowFieldType,
       requestedType,
       nCols,
       missingValue,
@@ -238,6 +239,7 @@ class MatrixParseError(
 ) extends RuntimeException(s"${filename}:${posStart}-${posEnd}, ${msg}")
 
 class CompiledLineParser(
+  onDiskRowFieldsType: TStruct,
   requestedTableType: TableType,
   nCols: Int,
   missingValue: String,
@@ -265,6 +267,7 @@ class CompiledLineParser(
   @transient private[this] val line = mb.newField[String]("line")
   @transient private[this] val pos = mb.newField[Int]("pos")
   @transient private[this] val srvb = new StagedRegionValueBuilder(mb, requestedRowType)
+
   fb.addInitInstructions(Code(
     pos := 0,
     filename := Code._null,
@@ -315,7 +318,11 @@ class CompiledLineParser(
   private[this] def endField(): Code[Boolean] =
     endField(pos)
 
-  private[this] def missingOr(mb: MethodBuilder, parse: Code[Unit]): Code[Unit] = {
+  private[this] def missingOr(
+    mb: MethodBuilder,
+    srvb: StagedRegionValueBuilder,
+    parse: Code[Unit]
+  ): Code[Unit] = {
     assert(missingValue.size > 0)
     val end = mb.newField[Int]
     val condition = Code(
@@ -324,8 +331,23 @@ class CompiledLineParser(
       line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
         pos, missingValue, 0, missingValue.size))
     condition.mux(
-      srvb.setMissing(),
+      Code(
+        pos := end,
+        srvb.setMissing()),
       parse)
+  }
+
+  private[this] def skipMissingOr(mb: MethodBuilder, skip: Code[Unit]): Code[Unit] = {
+    assert(missingValue.size > 0)
+    val end = mb.newField[Int]
+    val condition = Code(
+      end := pos + missingValue.size,
+      end < line.length && endField(end) &&
+      line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
+        pos, missingValue, 0, missingValue.size))
+    condition.mux(
+      pos := end,
+      skip)
   }
 
   private[this] def parseInt(mb: MethodBuilder): Code[Int] = {
@@ -382,32 +404,55 @@ class CompiledLineParser(
   }
 
   private[this] def parseType(mb: MethodBuilder, srvb: StagedRegionValueBuilder, t: PType): Code[Unit] = {
-    // FIXME: missingness
-    t match {
-      case _: PInt32 => missingOr(mb, srvb.addInt(parseIntMb.invoke(region)))
-      case _: PInt64 => missingOr(mb, srvb.addLong(parseLongMb.invoke(region)))
-      case _: PFloat32 => missingOr(mb,
+    val parseDefinedValue = t match {
+      case _: PInt32 =>
+        srvb.addInt(parseIntMb.invoke(region))
+      case _: PInt64 =>
+        srvb.addLong(parseLongMb.invoke(region))
+      case _: PFloat32 =>
         srvb.addFloat(
-          Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invoke(region))))
-      case _: PFloat64 => missingOr(mb,
+          Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invoke(region)))
+      case _: PFloat64 =>
         srvb.addDouble(
-          Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invoke(region))))
+          Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invoke(region)))
       case _: PString =>
-        missingOr(mb, srvb.addString(parseStringMb.invoke(region)))
+        srvb.addString(parseStringMb.invoke(region))
     }
+    if (t.required) missingOr(mb, srvb, parseDefinedValue) else parseDefinedValue
+  }
+
+  private[this] def skipType(mb: MethodBuilder, t: PType): Code[Unit] = {
+    val skipDefinedValue = Code.whileLoop(!endField(), pos := pos + 1)
+    if (t.required) skipMissingOr(mb, skipDefinedValue) else skipDefinedValue
   }
 
   private[this] def parseRowFields(mb: MethodBuilder): Code[_] = {
-    val fields = rowFieldsType.fields
-    var i = 0
+    var inputIndex = 0
+    var outputIndex = 0
+    assert(onDiskRowFieldsType.size >= rowFieldsType.size)
     val ab = new ArrayBuilder[Code[_]]()
-    while (i < fields.size) {
-      ab += Code(
-        parseType(mb, srvb, fields(i).typ),
-        pos := pos + 1,
-        srvb.advance())
-      i += 1
+    while (inputIndex < onDiskRowFieldsType.size) {
+      val onDiskField = onDiskRowFieldsType.fields(inputIndex)
+      val requestedField = rowFieldsType.fields(outputIndex)
+      if (onDiskField.name == requestedField.name) {
+        assert(onDiskField.typ.physicalType == requestedField.typ)
+        if (onDiskField.name == "row_id") {
+          ab += srvb.addLong(fb.arg3)
+        } else {
+          ab += Code(
+            parseType(mb, srvb, onDiskField.typ.physicalType),
+            pos := pos + 1)
+        }
+        ab += srvb.advance()
+        outputIndex += 1
+      } else {
+        if (onDiskField.name != "row_id") {
+          skipType(mb, onDiskField.typ.physicalType)
+        }
+      }
+      inputIndex += 1
     }
+    assert(outputIndex == rowFieldsType.size)
     Code.apply(ab.result():_*)
   }
 
