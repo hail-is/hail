@@ -1412,12 +1412,12 @@ class BlockMatrix(object):
         start_bcol, stop_bcol = block_col_range
 
         start_row = start_brow * self.block_size
-        stop_row = (stop_brow - 1) * self.block_size + (self._last_row_block_height if start_brow == self._n_block_rows - 1 else self.block_size)
+        stop_row = (stop_brow - 1) * self.block_size + (self._last_row_block_height if stop_brow == self._n_block_rows else self.block_size)
 
         start_col = start_bcol * self.block_size
-        stop_col = (stop_bcol - 1) * self.block_size + (self._last_col_block_width if start_bcol == self._n_block_cols - 1 else self.block_size)
+        stop_col = (stop_bcol - 1) * self.block_size + (self._last_col_block_width if stop_bcol == self._n_block_cols else self.block_size)
 
-        print(f"{block_row_range}, {block_col_range} -> {(start_row, stop_row)}, {(start_col, stop_col)}")
+        #print(f"{block_row_range}, {block_col_range} -> {(start_row, stop_row)}, {(start_col, stop_col)}")
 
         return self[start_row:stop_row, start_col:stop_col]
 
@@ -1447,15 +1447,13 @@ class BlockMatrix(object):
             blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
                                 self._select_blocks((start, stop), (0, self._n_block_cols))) for start, stop in inner_ranges]
 
+            intermediate_multiply_exprs = [b1 @ b2 for b1, b2 in blocks_to_multiply]
 
-            intermediates = []
-            for b1, b2 in blocks_to_multiply:
-                temp_path = hl.utils.new_temp_file()
-                (b1 @ b2).write(temp_path)
+            path_prefix = new_local_temp_file("block_matrix_multiply_intermediates")
+            hl.experimental.write_block_matrices(intermediate_multiply_exprs, path_prefix)
+            read_intermediates = [BlockMatrix.read(f"{path_prefix}_{i}") for i in range(0, len(intermediate_multiply_exprs))]
 
-
-            
-            return sum(intermediates)
+            return sum(read_intermediates)
         
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
