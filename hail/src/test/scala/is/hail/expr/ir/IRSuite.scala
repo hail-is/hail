@@ -1235,6 +1235,7 @@ class IRSuite extends HailSuite {
 
     val t = MakeTuple.ordered(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
+
     assertEvalsTo(GetTupleElement(t, 0), 5)
     assertEvalsTo(GetTupleElement(t, 1), "abc")
     assertEvalsTo(GetTupleElement(t, 2), null)
