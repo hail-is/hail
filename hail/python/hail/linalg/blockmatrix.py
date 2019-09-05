@@ -564,11 +564,13 @@ class BlockMatrix(object):
 
     @property
     def _last_col_block_width(self):
-        return self.n_cols % self.block_size
+        remainder = self.n_cols % self.block_size
+        return remainder if remainder != 0 else self.block_size
 
     @property
     def _last_row_block_height(self):
-        return self.n_rows % self.block_size
+        remainder = self.n_rows % self.block_size
+        return remainder if remainder != 0 else self.block_size
 
     @typecheck_method(path=str,
                       overwrite=bool,
@@ -1435,7 +1437,7 @@ class BlockMatrix(object):
         start_col = start_bcol * self.block_size
         stop_col = (stop_bcol - 1) * self.block_size + (self._last_col_block_width if stop_bcol == self._n_block_cols else self.block_size)
 
-        #print(f"{block_row_range}, {block_col_range} -> {(start_row, stop_row)}, {(start_col, stop_col)}")
+        print(f"{block_row_range}, {block_col_range} -> {(start_row, stop_row)}, {(start_col, stop_col)}")
 
         return self[start_row:stop_row, start_col:stop_col]
 
@@ -1463,7 +1465,7 @@ class BlockMatrix(object):
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             print(inner_ranges)
             blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
-                                self._select_blocks((start, stop), (0, self._n_block_cols))) for start, stop in inner_ranges]
+                                b._select_blocks((start, stop), (0, b._n_block_cols))) for start, stop in inner_ranges]
 
             intermediate_multiply_exprs = [b1 @ b2 for b1, b2 in blocks_to_multiply]
 
