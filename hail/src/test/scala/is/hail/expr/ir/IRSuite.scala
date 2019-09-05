@@ -845,6 +845,25 @@ class IRSuite extends HailSuite {
       TArray(TArray(TArray(TInt32())))
     )
 
+    assertPType(ir, PArray(PArray(PArray(PInt32(true), false), false), true))
+
+    ir = MakeArray(
+      FastSeq(
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32()))),
+        NA(TArray(TArray(TInt32()))),
+        MakeArray(FastSeq(
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+          MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
+        ), TArray(TArray(TInt32())))
+      ),
+      TArray(TArray(TArray(TInt32())))
+    )
+
     assertPType(ir, PArray(PArray(PArray(PInt32(true), true), false), true))
   }
 
