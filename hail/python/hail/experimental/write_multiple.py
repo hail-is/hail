@@ -43,7 +43,8 @@ def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool =
     writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression, custom_filenames)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
 
-@typecheck(bms=sequenceof(BlockMatrix), prefix=str, overwrite=bool)
-def write_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False):
-    writer = BlockMatrixNativeMultiWriter(prefix, overwrite)
+
+@typecheck(bms=sequenceof(BlockMatrix), prefix=str, overwrite=bool, force_row_major=bool)
+def write_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False, force_row_major: bool = False):
+    writer = BlockMatrixNativeMultiWriter(prefix, overwrite, force_row_major)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))

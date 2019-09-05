@@ -331,7 +331,8 @@ object BlockMatrix {
   def writeBlockMatrices(
     bms: IndexedSeq[BlockMatrix],
     prefix: String,
-    overwrite: Boolean
+    overwrite: Boolean,
+    forceRowMajor: Boolean
   ): Unit = {
 
     val fs = HailContext.sFS
@@ -357,7 +358,7 @@ object BlockMatrix {
       assert(!it.hasNext)
 
       // TODO Replace false with forceRowMajor
-      lm.write(os, false, bufferSpec)
+      lm.write(os, forceRowMajor, bufferSpec)
       os.close()
 
       1
@@ -377,9 +378,9 @@ object BlockMatrix {
       // Write each chunk wherever it belongs
       val pathToBlockMatrixRDD = blockMatrixURI(rddIndex)
       val partFileName = partFile(numDigits, partitionIndex, TaskContext.get())
-
-      
-      println(s"Processing partition $partitionIndex from rdd $rddIndex")
+      val finalFilename = pathToBlockMatrixRDD + "/parts/" + partFileName
+      val os = fs.unsafeWriter(finalFilename)
+      writeBlock(it, os)
 
       Iterator.single((rddIndex, partFileName))
     }
