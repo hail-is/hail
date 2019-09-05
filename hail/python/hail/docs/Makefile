@@ -54,6 +54,8 @@ check-python:
 
 .PHONY: tutorials-tar
 tutorials-tar:
+	rm -rf tutorials/data
+	rm -f tutorials/*.log
 	mkdir -p $(BUILDDIR)/html
 	tar cvf $(BUILDDIR)/html/tutorials.tar.gz tutorials
 
