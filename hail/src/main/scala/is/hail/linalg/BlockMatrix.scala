@@ -16,7 +16,7 @@ import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat
 import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
-import is.hail.sparkextras.ContextRDD
+import is.hail.sparkextras.{ContextRDD, OriginUnionRDD}
 import is.hail.utils._
 import is.hail.utils.richUtils.{RichArray, RichDenseMatrixDouble}
 import is.hail.io.fs.FS
@@ -332,6 +332,65 @@ object BlockMatrix {
     prefix: String,
     overwrite: Boolean
   ): Unit = {
+
+    val fs = HailContext.sFS
+    def blockMatrixURI(matrixIdx: Int): String = prefix + matrixIdx
+    def partitionURI(matrixIdx: Int, partitionIdx: Int) = s"{$prefix}{$matrixIdx}/$partitionIdx"
+
+    // Deal with overwrite, make the folders
+    bms.zipWithIndex.foreach{ case (bm, bIdx) => {
+      val uri = blockMatrixURI(bIdx)
+      if (overwrite)
+        fs.delete(prefix, recursive = true)
+      else if (fs.exists(prefix))
+        fatal(s"file already exists: $uri")
+
+      fs.mkDir(uri)
+    }}
+
+    def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
+      assert(it.hasNext)
+      val (_, lm) = it.next()
+      assert(!it.hasNext)
+
+      // TODO Replace false with forceRowMajor
+      lm.write(os, false, bufferSpec)
+      os.close()
+
+      1
+    }
+
+    if (bms.isEmpty) {
+      return
+    }
+
+    val rdds = bms.map(bm => bm.blocks)
+    val blockMatrixMetadataFields = bms.map(bm => (bm.blockSize, bm.nRows, bm.nCols, bm.gp.maybeBlocks))
+    val first = rdds(0)
+
+    val func = (rddIndex: Int, partitionIndex: Int, it: Iterator[((Int, Int), BDM[Double])]) => {
+      // Write each RDD
+      //val (partFiles, partitionCounts) = ???
+
+      fs.writeDataFile(blockMatrixURI(rddIndex) + metadataRelativePath) { os =>
+        implicit val formats = defaultJSONFormats
+        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex)
+        jackson.Serialization.write(
+          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, Array.empty[String]), os)
+      }
+
+      fs.writeTextFile(blockMatrixURI(rddIndex) + "/_SUCCESS")(out => ())
+      Iterator.single(0)
+    }
+
+    val ordd = new OriginUnionRDD[((Int, Int), BDM[Double]), Int](
+      first.sparkContext,
+      rdds,
+      func
+    )
+
+    val x = ordd.collect()
+
     println("Round tripped")
   }
 }
