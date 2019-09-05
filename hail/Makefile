@@ -307,6 +307,13 @@ docs: install $(PYTHON_VERSION_INFO)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
+.PHONY: upload-docs
+upload-docs: docs
+	cd build && tar cvf www.tar.gz www
+	gsutil -m cp build/www.tar.gz $(docs_location)
+	gsutil -m retention temp set $(docs_location)
+	gsutil -m acl set public-read $(docs_location)
+
 .PHONY: test
 test: pytest jvm-test doctest tutorial-test
 
