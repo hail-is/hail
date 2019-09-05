@@ -321,7 +321,7 @@ class AggLet(IR):
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(agg_env, None)
-        self.body._compute_type(env, _env_bind(agg_env, [(self.name, self.value._type)]))
+        self.body._compute_type(env, _env_bind(agg_env, self.agg_bindings(1)))
         self._type = self.body._type
 
     def agg_bindings(self, i, default_value=None):
@@ -617,7 +617,7 @@ class NDArrayMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, [(self.name, self.nd.typ.element_type)]), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
         self._type = tndarray(self.body.typ, self.nd.typ.ndim)
 
     def bindings(self, i, default_value=None):
@@ -903,7 +903,7 @@ class ArrayMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, [(self.name, self.a.typ.element_type)]), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
         self._type = tarray(self.body.typ)
 
     def bindings(self, i, default_value=None):
@@ -944,7 +944,7 @@ class ArrayFilter(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, [(self.name, self.a.typ.element_type)]), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
         self._type = self.a.typ
 
     def bindings(self, i, default_value=None):
@@ -985,7 +985,7 @@ class ArrayFlatMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, [(self.name, self.a.typ.element_type)]), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
         self._type = tarray(self.body.typ.element_type)
 
     def bindings(self, i, default_value=None):
@@ -1029,10 +1029,7 @@ class ArrayFold(IR):
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
-        self.body._compute_type(
-            _env_bind(env, [(self.value_name, self.a.typ.element_type),
-                           (self.accum_name, self.zero.typ)]),
-            agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
         self._type = self.zero.typ
 
     def bindings(self, i, default_value=None):
@@ -1076,10 +1073,7 @@ class ArrayScan(IR):
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
-        self.body._compute_type(
-            _env_bind(env, [(self.value_name, self.a.typ.element_type),
-                           (self.accum_name, self.zero.typ)]),
-            agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
         self._type = tarray(self.body.typ)
 
     def bindings(self, i, default_value=None):
@@ -1160,7 +1154,7 @@ class ArrayFor(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, [(self.value_name, self.a.typ.element_type)]), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
         self._type = tvoid
 
     def bindings(self, i, default_value=None):
@@ -1232,8 +1226,7 @@ class AggExplode(IR):
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        new_agg = _env_bind(agg_env, [(self.name, self.array.typ.element_type)])
-        self.agg_body._compute_type(env, new_agg)
+        self.agg_body._compute_type(env, _env_bind(agg_env, self.agg_bindings(1)))
         self._type = self.agg_body.typ
 
     def agg_bindings(self, i, default_value=None):
@@ -1311,8 +1304,8 @@ class AggArrayPerElement(IR):
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        self.agg_ir._compute_type(_env_bind(env, [(self.index_name, tint32)]),
-                                  _env_bind(agg_env, [(self.element_name, self.array.typ.element_type)]))
+        self.agg_ir._compute_type(_env_bind(env, self.bindings(1)),
+                                  _env_bind(agg_env, self.agg_bindings(1)))
         self._type = tarray(self.agg_ir.typ)
 
     @property
@@ -1879,7 +1872,7 @@ class Uniroot(IR):
         return other.argname == self.argname
 
     def _compute_type(self, env, agg_env):
-        self.function._compute_type(_env_bind(env, [(self.argname, tfloat64)]), agg_env)
+        self.function._compute_type(_env_bind(env, self.bindings(0)), agg_env)
         self.min._compute_type(env, agg_env)
         self.max._compute_type(env, agg_env)
         self._type = tfloat64
