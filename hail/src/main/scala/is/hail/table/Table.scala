@@ -34,10 +34,6 @@ abstract class AbstractTableSpec extends RelationalSpec {
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 
   def rowsSpec(path: String): AbstractRVDSpec = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
-  def rvdType(path: String): RVDType = {
-    val rows = rowsSpec(path)
-    RVDType(rows.encodedType, rows.key)
-  }
   def indexed(path: String): Boolean = rowsSpec(path).indexed
 }
 

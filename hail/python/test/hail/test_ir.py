@@ -133,7 +133,9 @@ class ValueIRTests(unittest.TestCase):
 
     def test_copies(self):
         for x in self.value_irs():
-            self.assertEqual(x, x.copy(*x.children))
+            cp = x.copy(*x.children)
+            assert x == cp
+            assert hash(x) == hash(cp)
 
 
 class TableIRTests(unittest.TestCase):

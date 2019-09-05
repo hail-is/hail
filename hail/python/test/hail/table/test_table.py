@@ -1036,6 +1036,33 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
 
+    def test_expr_collect(self):
+        t = hl.utils.range_table(3)
+
+        globe = 'the globe!'
+        keys = ['Bob', 'Alice', 'David']
+        fields = [1, 0, 3]
+
+        t = t.annotate_globals(globe=globe)
+        t = t.annotate(k = hl.array(keys)[t.idx],
+                       field = hl.array(fields)[t.idx])
+        t = t.key_by(t.k)
+
+        rows = [hl.Struct(k=k, field=field)
+                for k, field in zip(keys, fields)]
+        ordered_rows = sorted(rows, key=lambda x: x.k)
+
+        assert t.globe.collect() == [globe]
+
+        assert t.row.collect() == sorted([hl.Struct(idx=i, **r)
+                                          for i, r in enumerate(rows)],
+                                         key=lambda x: x.k)
+        assert t.key.collect() == [hl.Struct(k=r.k) for r in ordered_rows]
+        assert t.k.collect() == [r.k for r in ordered_rows]
+
+        assert (t.k + '1').collect() == [r.k + '1' for r in ordered_rows]
+        assert (t.field + 1).collect() == [r.field + 1 for r in ordered_rows]
+
     def test_expr_take_localize_false(self):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.idx.take(3, _localize=False)) == ht.idx.take(3)

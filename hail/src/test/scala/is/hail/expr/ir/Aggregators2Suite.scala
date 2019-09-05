@@ -25,7 +25,7 @@ class Aggregators2Suite extends HailSuite {
     val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
     val argRef = Ref(genUID(), argT.virtualType)
-    val spec = CodecSpec.defaultUncompressed
+    val spec = CodecSpec.defaultUncompressedBuffer
 
     val (_, combAndDuplicate) = CompileWithAggregators2[Unit](
       Array.fill(nPartitions)(aggSig),

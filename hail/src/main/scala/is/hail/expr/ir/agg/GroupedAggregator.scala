@@ -155,7 +155,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
       size := Region.loadInt(typ.loadField(src, 1)),
       tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.map(_.serialize(codec))
     val kEnc = EmitPackEncoder.buildMethod(keyType, keyType, fb)
     val km = fb.newField[Boolean]
@@ -179,7 +179,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.map(_.deserialize(codec))
     val kDec = EmitPackDecoder.buildMethod(keyType, keyType, fb)
     val km = fb.newField[Boolean]

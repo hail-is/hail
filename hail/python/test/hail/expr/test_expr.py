@@ -16,6 +16,9 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    def collect_unindexed_expression(self):
+        self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
+
     def test_key_by_random(self):
         ht = hl.utils.range_table(10, 4)
         ht = ht.annotate(new_key=hl.rand_unif(0, 1))
@@ -2307,6 +2310,68 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    def test_export(self):
+        for delimiter in ['\t', ',', '@']:
+            for missing in ['NA', 'null']:
+                for header in [True, False]:
+                    self._test_export_entry(delimiter, missing, header)
+
+    def _test_export_entry(self, delimiter, missing, header):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
+        mt = mt.annotate_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.annotate_entries(x = hl.or_missing(mt.x != 4, mt.x))
+        with tempfile.NamedTemporaryFile() as f:
+            mt.x.export(f.name,
+                        delimiter=delimiter,
+                        header=header,
+                        missing=missing)
+            if header:
+                actual = hl.import_matrix_table(f.name,
+                                                row_fields={'row_idx': hl.tint32},
+                                                row_key=['row_idx'],
+                                                sep=delimiter,
+                                                missing=missing)
+            else:
+                actual = hl.import_matrix_table(f.name,
+                                                row_fields={'f0': hl.tint32},
+                                                row_key=['f0'],
+                                                sep=delimiter,
+                                                no_header=True,
+                                                missing=missing)
+                actual = actual.rename({'f0': 'row_idx'})
+            actual = actual.key_cols_by(col_idx = hl.int(actual.col_id))
+            actual = actual.drop('col_id')
+            if not header:
+                actual = actual.key_cols_by(col_idx = actual.col_idx + 1)
+            mt.show()
+            actual.show()
+            assert mt._same(actual)
+
+            expected_collect = [0, 0, 0,
+                                1, 2, 3,
+                                2, None, 6]
+            assert expected_collect == actual.x.collect()
+
+    def test_export_genetic_data(self):
+        mt = hl.balding_nichols_model(1, 3, 3)
+        mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
+        with tempfile.NamedTemporaryFile() as f:
+            mt.GT.export(f.name)
+            actual = hl.import_matrix_table(f.name,
+                                            row_fields={'locus': hl.tstr,
+                                                        'alleles': hl.tstr},
+                                            row_key=['locus', 'alleles'],
+                                            entry_type=hl.tstr)
+            actual = actual.rename({'col_id': 's'})
+            actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
+                                        alleles = actual.alleles.replace('"', '').replace('\[', '').replace('\]', '').split(','))
+            actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
+            expected = mt.select_cols().select_globals().select_rows()
+            expected.show()
+            actual.show()
+            assert expected._same(actual)
+
     def test_or_else_type_conversion(self):
         self.assertEqual(hl.eval(hl.or_else(0.5, 2)), 0.5)
 
@@ -3370,3 +3435,22 @@ class Tests(unittest.TestCase):
         values = [-1, 0, 1, 2, 3, 4, 10, hl.null('int32')]
         expected = [0, 0, 1, 1, 2, 2, 4, None]
         assert hl.eval(hl.map(lambda x: hl.binary_search(a, x), values)) == expected
+
+    def verify_6930_still_holds(self):
+        rmt33 = hl.utils.range_matrix_table(3, 3, n_partitions=2)
+
+        mt = rmt33.choose_cols([1, 2, 0])
+        assert mt.col.collect() == [hl.Struct(col_idx=x) for x in [1, 2, 0]]
+
+        mt = rmt33.key_rows_by(rowkey=-mt.row_idx)
+        assert mt.row.collect() == [hl.Struct(row_idx=x) for x in [2, 1, 0]]
+
+        mt = rmt33.annotate_entries(
+            x=(rmt33.row_idx + 1) * (rmt33.col_idx + 1))
+        mt = mt.key_rows_by(rowkey=-mt.row_idx)
+        mt = mt.choose_cols([2, 1, 0])
+        assert mt.x.collect() == [9, 6, 3, 6, 4, 2, 3, 2, 1]
+
+        t = hl.utils.range_table(3)
+        t = t.key_by(-t.idx)
+        assert t.idx.collect() == [2, 1, 0]

@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).20
+HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).21
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -292,6 +292,7 @@ clean-docs:
 .PHONY: docs
 docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
+	rm -rf build/www
 	cp -R www build/www
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
@@ -302,7 +303,16 @@ docs: install $(PYTHON_VERSION_INFO)
 	$(MAKE) -C build/www
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
+	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+
+.PHONY: upload-docs
+upload-docs: docs
+	cd build && tar cvf www.tar.gz www
+	gsutil -m cp build/www.tar.gz $(docs_location)
+	gsutil -m retention temp set $(docs_location)
+	gsutil -m acl set public-read $(docs_location)
 
 .PHONY: test
 test: pytest jvm-test doctest tutorial-test
@@ -310,6 +320,7 @@ test: pytest jvm-test doctest tutorial-test
 .PHONY: tutorial-test
 docs-no-test: $(PYTHON_VERSION_INFO)
 	mkdir -p build
+	rm -rf build/www
 	cp -R www build/www
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
@@ -320,7 +331,9 @@ docs-no-test: $(PYTHON_VERSION_INFO)
 	$(MAKE) -C build/www
 	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
+	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:

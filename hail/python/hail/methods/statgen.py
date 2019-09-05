@@ -818,7 +818,7 @@ def linear_mixed_model(y,
     ...     y=marker_ds.pheno.height,
     ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
     ...     z_t=marker_ds.GT.n_alt_alleles(),
-    ...     p_path=f'{output_dir}/p.bm')
+    ...     p_path='output/p.bm')
 
     Fit the model and examine :math:`h^2`:
 
@@ -846,7 +846,7 @@ def linear_mixed_model(y,
     ...     y=dataset.pheno.height,
     ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
     ...     k=rrm,
-    ...     p_path=f'{output_dir}/p.bm',
+    ...     p_path='output/p.bm',
     ...     overwrite=True)
 
     Notes
@@ -2057,7 +2057,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     Examples
     --------
 
-    >>> hl.split_multi_hts(dataset).write(f'{output_dir}/split.vds')
+    >>> hl.split_multi_hts(dataset).write('output/split.vds')
 
     Notes
     -----
@@ -2139,9 +2139,9 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     values. Here is an example:
 
     >>> split_ds = hl.split_multi_hts(dataset)
-    >>> split_ds = split_ds.annotate_rows(info = Struct(AC=split_ds.info.AC[split_ds.a_index - 1],
+    >>> split_ds = split_ds.annotate_rows(info = hl.struct(AC=split_ds.info.AC[split_ds.a_index - 1],
     ...                                   **split_ds.info)) # doctest: +SKIP
-    >>> hl.export_vcf(split_ds, f'{output_dir}/export.vcf') # doctest: +SKIP
+    >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 
@@ -2234,11 +2234,14 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
             (hl.range(0, 3).map(lambda i:
                                 hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
                                         .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                                                      split.a_index) == hl.unphased_diploid_gt_index_call(i)
+                                                                      split.a_index).unphased_diploid_gt_index() == i
                                                 ).map(lambda j: split.PL[j]))))))
-        update_entries_expression['PL'] = pl
         if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
+            pl_gq_struct = hl.rbind(pl, lambda pl: hl.struct(PL=pl, GQ=hl.gq_from_pl(pl)))
+            update_entries_expression['PL'] = pl_gq_struct['PL']
+            update_entries_expression['GQ'] = pl_gq_struct['GQ']
+        else:
+            update_entries_expression['PL'] = pl
     else:
         if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = split.GQ

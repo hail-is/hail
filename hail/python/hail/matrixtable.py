@@ -2463,7 +2463,7 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-        >>> dataset = dataset.checkpoint(f'{output_dir}/dataset_checkpoint.mt')
+        >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
 
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -2482,7 +2482,7 @@ class MatrixTable(ExprContainer):
         Examples
         --------
 
-        >>> dataset.write(f'{output_dir}/dataset.mt')
+        >>> dataset.write('output/dataset.mt')
 
         Warning
         -------
@@ -3693,7 +3693,7 @@ class MatrixTable(ExprContainer):
 
         >>> table = hl.import_table('data/variant-lof.tsv')
         >>> table = table.transmute(**hl.parse_variant(table['v'])).key_by('locus', 'alleles')
-        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
+        >>> sites_mt = hl.MatrixTable.from_rows_table(table)
 
         Notes
         -----
@@ -4016,7 +4016,6 @@ class MatrixTable(ExprContainer):
                 for k, v in fields.items():
                     print(f'    {k.rjust(max_k_len)} : {v(results)}')
                 print()
-
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self

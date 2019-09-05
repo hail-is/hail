@@ -17,10 +17,7 @@ class LocusFunctionsSuite extends HailSuite {
   private def tlocus = TLocus(grch38)
   private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString()))
 
-  def locusIR: Apply = {
-    val fn = grch38.wrapFunctionName("Locus")
-    Apply(fn, FastSeq(Str("chr22"), I32(1)), tlocus)
-  }
+  def locusIR: Apply = Apply("Locus", FastSeq(Str("chr22"), I32(1)), tlocus)
 
   def locus = Locus("chr22", 1, grch38)
 
@@ -67,11 +64,11 @@ class LocusFunctionsSuite extends HailSuite {
   }
   
   @Test def globalPosition() {
-    assertEvalsTo(invoke("locusToGlobalPos(GRCh38)", TInt64(), locusIR), grch38.locusToGlobalPos(locus))
+    assertEvalsTo(invoke("locusToGlobalPos", TInt64(), locusIR), grch38.locusToGlobalPos(locus))
   }
   
   @Test def reverseGlobalPosition() {
     val globalPosition = 2824183054L
-    assertEvalsTo(invoke("globalPosToLocus(GRCh38)", tlocus, I64(globalPosition)), grch38.globalPosToLocus(globalPosition))
+    assertEvalsTo(invoke("globalPosToLocus", tlocus, I64(globalPosition)), grch38.globalPosToLocus(globalPosition))
   }
 }

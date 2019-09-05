@@ -33,25 +33,16 @@ def init(doctest_namespace):
     olddir = os.getcwd()
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
-    output_dir = tempfile.TemporaryDirectory()
     try:
-        doctest_namespace['output_dir'] = output_dir.name
-        print(f'output_dir: {output_dir.name}')
-        generate_datasets(doctest_namespace, output_dir)
+        generate_datasets(doctest_namespace)
         print("finished setting up doctest...")
         yield
     finally:
         os.chdir(olddir)
-        output_dir.cleanup()
 
 
-def generate_datasets(doctest_namespace, output_dir):
+def generate_datasets(doctest_namespace):
     doctest_namespace['hl'] = hl
-
-    files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-    for f in files:
-        if os.path.isdir(f):
-            shutil.rmtree(f)
 
     ds = hl.import_vcf('data/sample.vcf.bgz')
     ds = ds.sample_rows(0.03)
@@ -81,7 +72,8 @@ def generate_datasets(doctest_namespace, output_dir):
                              populations=['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
     ds = ds.annotate_rows(gene=['TTN'])
     ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')
-    ds = ds.checkpoint(f'{output_dir.name}/example.vds', overwrite=True)
+    ds = ds.checkpoint(f'output/example.mt', overwrite=True)
+
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
     doctest_namespace['dataset2'] = ds.annotate_globals(global_field=5)
@@ -97,6 +89,9 @@ def generate_datasets(doctest_namespace, output_dir):
     doctest_namespace['cols_to_remove'] = s_metadata
     doctest_namespace['rows_to_keep'] = v_metadata
     doctest_namespace['rows_to_remove'] = v_metadata
+
+    small_mt = hl.balding_nichols_model(3, 4, 4)
+    doctest_namespace['small_mt'] = small_mt.checkpoint('output/small.mt', overwrite=True)
 
     # Table
     table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
@@ -167,7 +162,36 @@ def generate_datasets(doctest_namespace, output_dir):
     burden_ds = hl.variant_qc(burden_ds)
     genekt = hl.import_locus_intervals('data/gene.interval_list')
     burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
-    burden_ds = burden_ds.checkpoint(f'{output_dir.name}/example_burden.vds', overwrite=True)
+    burden_ds = burden_ds.checkpoint(f'output/example_burden.vds', overwrite=True)
     doctest_namespace['burden_ds'] = burden_ds
+
+    ld_score_one_pheno_sumstats = hl.import_table(
+        'data/ld_score_regression.one_pheno.sumstats.tsv',
+        types={'locus': hl.tlocus('GRCh37'),
+               'alleles': hl.tarray(hl.tstr),
+               'chi_squared': hl.tfloat64,
+               'n': hl.tint32,
+               'ld_score': hl.tfloat64,
+               'phenotype': hl.tstr,
+               'chi_squared_50_irnt': hl.tfloat64,
+               'n_50_irnt': hl.tint32,
+               'chi_squared_20160': hl.tfloat64,
+               'n_20160': hl.tint32},
+        key=['locus', 'alleles'])
+    doctest_namespace['ld_score_one_pheno_sumstats'] = ld_score_one_pheno_sumstats
+
+    mt = hl.import_matrix_table(
+        'data/ld_score_regression.all_phenos.sumstats.tsv',
+        row_fields={'locus': hl.tstr,
+                    'alleles': hl.tstr,
+                    'ld_score': hl.tfloat64},
+        entry_type=hl.tstr)
+    mt = mt.key_cols_by(phenotype=mt.col_id)
+    mt = mt.key_rows_by(locus=hl.parse_locus(mt.locus), alleles=mt.alleles.split(','))
+    mt = mt.drop('row_id', 'col_id')
+    mt = mt.annotate_entries(x=mt.x.split(","))
+    mt = mt.transmute_entries(chi_squared=hl.float64(mt.x[0]), n=hl.int32(mt.x[1]))
+    mt = mt.annotate_rows(ld_score=hl.float64(mt.ld_score))
+    doctest_namespace['ld_score_all_phenos_sumstats'] = mt
 
     print("finished setting up doctest...")

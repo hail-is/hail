@@ -1,5 +1,5 @@
 from os import path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, NamedTemporaryFile
 
 import hail as hl
 from .utils import benchmark, resource
@@ -213,3 +213,62 @@ def per_row_stats_star_star():
 @benchmark
 def read_decode_gnomad_coverage():
     hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))._force_count_rows()
+
+
+@benchmark
+def import_bgen_force_count_just_gp():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GP'],
+                        n_partitions=8)
+    mt._force_count_rows()
+
+
+@benchmark
+def import_bgen_force_count_all():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GT', 'GP', 'dosage'],
+                        n_partitions=8)
+    mt._force_count_rows()
+
+
+@benchmark
+def import_bgen_info_score():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GP'],
+                        n_partitions=8)
+    mt = mt.annotate_rows(info_score=hl.agg.info_score(mt.GP))
+    mt.rows().select('info_score')._force_count()
+
+
+@benchmark
+def import_bgen_filter_count():
+    mt = hl.import_bgen(resource('sim_ukb.bgen'),
+                        sample_file=resource('sim_ukb.sample'),
+                        entry_fields=['GT', 'GP'],
+                        n_partitions=8)
+    mt = mt.filter_rows(mt.alleles == ['A', 'T'])
+    mt._force_count_rows()
+
+@benchmark
+def export_range_matrix_table_entry_field_p100():
+    with NamedTemporaryFile() as f:
+        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+        mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
+        mt.x.export(f.name)
+
+
+@benchmark
+def export_range_matrix_table_row_p100():
+    with NamedTemporaryFile() as f:
+        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+        mt.row.export(f.name)
+
+
+@benchmark
+def export_range_matrix_table_col_p100():
+    with NamedTemporaryFile() as f:
+        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+        mt.col.export(f.name)

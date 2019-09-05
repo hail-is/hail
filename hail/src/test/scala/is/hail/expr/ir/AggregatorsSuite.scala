@@ -134,18 +134,6 @@ class AggregatorsSuite extends HailSuite {
       initOpArgs = Some(FastIndexedSeq(I32(3))))
   }
 
-  @Test def infoScore() {
-    runAggregator(InfoScore(), TArray(TFloat64()),
-      FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3), null),
-      Row(-0.6654567, 2))
-  }
-
-  @Test def infoScoreRequired() {
-    runAggregator(InfoScore(), TArray(+TFloat64()),
-      FastIndexedSeq(FastIndexedSeq(0.3, 0.69, 0.01), FastIndexedSeq(0.3, 0.4, 0.3), null),
-      Row(-0.6654567, 2))
-  }
-
   // FIXME Max Boolean not supported by old-style MaxAggregator
 
   @Test def maxInt32() {

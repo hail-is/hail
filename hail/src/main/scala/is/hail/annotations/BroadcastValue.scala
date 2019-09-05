@@ -43,9 +43,9 @@ trait BroadcastRegionValue {
   def backend: Backend
 
   lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
-    val codec = RVD.wireCodec
-    val makeEnc = codec.buildEncoder(t)
-    val makeDec = codec.buildDecoder(t, t)
+    val encoding = RVD.wireCodec.makeCodecSpec2(t)
+    val makeEnc = encoding.buildEncoder(t)
+    val (decodedPType, makeDec) = encoding.buildDecoder(t.virtualType)
 
     val baos = new ByteArrayOutputStream()
 
@@ -54,7 +54,7 @@ trait BroadcastRegionValue {
     enc.flush()
     enc.close()
 
-    val srv = SerializableRegionValue(baos.toByteArray, t, makeDec)
+    val srv = SerializableRegionValue(baos.toByteArray, decodedPType, makeDec)
     backend.broadcast(srv)
   }
 
