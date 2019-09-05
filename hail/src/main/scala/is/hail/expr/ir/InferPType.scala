@@ -7,9 +7,34 @@ import is.hail.utils._
 object InferPType {
   private def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
     ptypes.head match {
-      case _: PStreamable => {
+      case x: PStreamable => {
         val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStreamable].elementType))
-        ptypes.head.asInstanceOf[PStreamable].copyStreamable(elementType, ptypes.forall(_.required))
+        x.copyStreamable(elementType, ptypes.forall(_.required))
+      }
+      case _: PSet => {
+        val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PSet].elementType))
+        PSet(elementType, ptypes.forall(_.required))
+      }
+      case x: PStruct => {
+        val allRequired = ptypes.forall(_.required)
+
+        PStruct(allRequired, x.fieldNames.map( fieldName =>
+          fieldName -> getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
+        ):_*)
+      }
+      case x: PTuple => {
+        val allRequired = ptypes.forall(_.required)
+
+        PTuple(allRequired, x._types.map( pTupleField =>
+          getNestedElementPTypes(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
+        ):_*)
+      }
+      case _: PDict => {
+        val allRequired = ptypes.forall(_.required)
+        val keyType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].keyType))
+        val valueType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].valueType))
+
+        PDict(keyType, valueType, allRequired)
       }
       case _ => ptypes.head.setRequired(ptypes.forall(_.required))
     }
@@ -163,7 +188,9 @@ object InferPType {
       case ToDict(a) => {
         InferPType(a, env)
         val elt = coerce[PBaseStruct](coerce[PIterable](a.pType2).elementType)
-        PDict(elt.types(0), elt.types(1), a.pType2.required)
+        val typeRequired = elt.types(0).required && elt.required
+        val valRequired =  elt.types(1).required && elt.required
+        PDict(elt.types(0).setRequired(typeRequired), elt.types(1).setRequired(valRequired), a.pType2.required)
       }
       case ToArray(a) => {
         InferPType(a, env)
@@ -334,7 +361,6 @@ object InferPType {
           val irElem = it.next()
 
           InferPType(irElem, env)
-          assert(head.pType2 isOfType irElem.pType2)
 
           if(allRequired == true && irElem.pType2.required == false) {
             allRequired = false
