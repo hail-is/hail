@@ -1,5 +1,7 @@
 from aiohttp import web
 
+from hailtop.gear import get_deploy_config
+
 from .utils import jsonify
 
 
@@ -13,4 +15,5 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 app.add_routes(routes)
-web.run_app(app, host='0.0.0.0', port=5000)
+deploy_config = get_deploy_config()
+web.run_app(deploy_config.prefix_application(app, 'batch2'), host='0.0.0.0', port=5000)
