@@ -99,7 +99,7 @@ class SparkBackend(Backend):
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
-            r = Renderer(stop_at_jir=True)
+            r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
             ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
