@@ -1334,7 +1334,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             row_fields={'f0': hl.tstr},
             row_key=['f0'])
 
-    def test_missing_values(self):
+    def test_too_few_entries(self):
         def boom():
             hl.import_matrix_table(resource("samplesmissing.txt"),
                                    row_fields={'f0': hl.tstr},
