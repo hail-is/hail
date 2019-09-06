@@ -1437,7 +1437,9 @@ class ImportMatrixTableTests(unittest.TestCase):
                   'alt': hl.tstr}
         mt = hl.import_matrix_table(resource('import_matrix_table_devlish.ninesv'),
                                     row_fields=fields,
-                                    row_key=['chr', ''])
+                                    row_key=['chr', ''],
+                                    sep='9',
+                                    missing='8')
         actual = mt.x.collect()
         expected = [
             [1, 2, 3, 4],
