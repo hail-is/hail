@@ -16,7 +16,7 @@ import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
 import is.hail.io.index._
 import is.hail.io.vcf._
-import is.hail.io.{CodecSpec, Decoder, CodecSpec2, LoadMatrix}
+import is.hail.io.{CodecSpec, Decoder, CodecSpec2}
 import is.hail.rvd.{IndexSpec, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table

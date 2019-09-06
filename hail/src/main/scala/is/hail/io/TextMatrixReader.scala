@@ -18,7 +18,7 @@ import org.apache.spark.sql.Row
 import scala.io.Source
 import scala.language.{existentials, implicitConversions}
 
-object LoadMatrix {
+object TextMatrixReader {
 
   def warnDuplicates(ids: Array[String]) {
     val duplicates = ids.counter().filter(_._2 > 1)
