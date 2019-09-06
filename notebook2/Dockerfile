@@ -7,8 +7,6 @@ COPY hail/python/hailtop /hailtop/hailtop/
 RUN python3 -m pip install --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
-WORKDIR /notebook
-
 EXPOSE 5000
 
-ENTRYPOINT ["python3", "notebook.py"]
+ENTRYPOINT ["python3", "-m", "notebook"]

@@ -10,7 +10,8 @@ import jwt
 import hail as hl
 from hail.utils import FatalError
 from hail.utils.java import Env, info, scala_object
-from hailtop.gear.auth import authenticated_users_only
+from hailtop.gear import setup_aiohttp_session
+from hailtop.gear.auth import rest_authenticated_users_only
 
 uvloop.install()
 
@@ -18,6 +19,8 @@ master = os.environ.get('HAIL_APISERVER_SPARK_MASTER')
 hl.init(master=master, min_block_size=0)
 
 app = web.Application()
+setup_aiohttp_session(app)
+
 routes = web.RouteTableDef()
 
 
@@ -50,7 +53,7 @@ def blocking_execute(code):
 
 
 @routes.post('/execute')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def execute(request, userdata):
     code = await request.json()
     info(f'execute: {code}')
@@ -70,7 +73,7 @@ def blocking_value_type(code):
 
 
 @routes.post('/type/value')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def value_type(request, userdata):
     code = await request.json()
     info(f'value type: {code}')
@@ -95,7 +98,7 @@ def blocking_table_type(code):
 
 
 @routes.post('/type/table')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def table_type(request, userdata):
     code = await request.json()
     info(f'table type: {code}')
@@ -123,7 +126,7 @@ def blocking_matrix_type(code):
 
 
 @routes.post('/type/matrix')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def matrix_type(request, userdata):
     code = await request.json()
     info(f'matrix type: {code}')
@@ -149,7 +152,7 @@ def blocking_blockmatrix_type(code):
 
 
 @routes.post('/type/blockmatrix')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def blockmatrix_type(request, userdata):
     code = await request.json()
     info(f'blockmatrix type: {code}')
@@ -164,7 +167,7 @@ async def blockmatrix_type(request, userdata):
 
 
 @routes.post('/references/create')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def create_reference(request, userdata):
     try:
         config = await request.json()
@@ -177,7 +180,7 @@ async def create_reference(request, userdata):
 
 
 @routes.post('/references/create/fasta')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def create_reference_from_fasta(request, userdata):
     try:
         data = await request.json()
@@ -204,7 +207,7 @@ def blocking_get_reference(data):
 
 
 @routes.get('/references/get')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def get_reference(request, userdata):
     try:
         data = await request.json()
@@ -222,7 +225,7 @@ def blocking_reference_add_sequence(data):
 
 
 @routes.post('/references/sequence/set')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def reference_add_sequence(request, userdata):
     try:
         data = await request.json()
@@ -238,7 +241,7 @@ def blocking_reference_remove_sequence(data):
 
 
 @routes.delete('/references/sequence/delete')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def reference_remove_sequence(request, userdata):
     try:
         data = await request.json()
@@ -258,7 +261,7 @@ def blocking_reference_add_liftover(data):
 
 
 @routes.post('/references/liftover/add')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def reference_add_liftover(request, userdata):
     try:
         data = await request.json()
@@ -275,7 +278,7 @@ def blocking_reference_remove_liftover(data):
 
 
 @routes.delete('/references/liftover/remove')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def reference_remove_liftover(request, userdata):
     try:
         data = await request.json()
@@ -290,7 +293,7 @@ def blocking_parse_vcf_metadata(data):
 
 
 @routes.post('/parse-vcf-metadata')
-@authenticated_users_only
+@rest_authenticated_users_only
 async def parse_vcf_metadata(request, userdata):
     try:
         data = await request.json()

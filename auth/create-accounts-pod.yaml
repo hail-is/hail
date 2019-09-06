@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: create-accounts
+spec:
+  serviceAccount: admin
+  containers:
+  - name: create-accounts
+    image: "{{ hailtop_image.image }}"
+    env:
+     - name: HAIL_DEPLOY_CONFIG_FILE
+       value: /deploy-config/deploy-config.json
+    command:
+     - /bin/bash
+     - -c
+     - |
+       set -ex
+       # create accounts
+       mkdir /user-tokens
+       cat > create-session.py <<EOF
+       import sys
+       import json
+       import asyncio
+       from hailtop.gear import create_database_pool, get_deploy_config
+       from hailtop.gear.auth import get_tokens, insert_user, create_session
+       async def main():
+           dbpool = await create_database_pool()
+           tokens = get_tokens()
+           user_spec = json.loads(sys.argv[1])
+           userdata = await insert_user(dbpool, user_spec)
+           deploy_config = get_deploy_config()
+           auth_ns = deploy_config.service_ns('auth')
+           tokens[auth_ns] = await create_session(dbpool, userdata['id'])
+           tokens.write()
+       loop = asyncio.get_event_loop()
+       loop.run_until_complete(main())
+       loop.run_until_complete(loop.shutdown_asyncgens())
+       EOF
+       # create batch
+       kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+       kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
+       python3 create-session.py '{"username":"batch","user_id":"hail|batch","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch-gsa-key","jwt_secret_name":"batch-tokens"}'
+       kubectl -n {{ default_ns.name }} create secret generic batch-tokens --from-file=/user-tokens/tokens.json
+       # create ci
+       rm /user-tokens/tokens.json
+       kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+       python3 create-session.py '{"username":"ci","user_id":"hail|ci","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","jwt_secret_name":"ci-tokens"}'
+       kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
+       # test
+       # test-gsa-key already exists
+       rm /user-tokens/tokens.json
+       python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-tokens"}'
+       kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
+    volumeMounts:
+      - mountPath: /sql-config
+        readOnly: true
+        name: sql-config
+      - mountPath: /deploy-config
+        readOnly: true
+        name: deploy-config
+  volumes:
+    - name: sql-config
+      secret:
+        secretName: "{{ users_database.user_secret_name }}"
+    - name: deploy-config
+      secret:
+        secretName: deploy-config
+  restartPolicy: Never

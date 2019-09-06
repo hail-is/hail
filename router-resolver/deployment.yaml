@@ -61,6 +61,11 @@ spec:
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
+         env:
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
          resources:
            requests:
              memory: "250M"
@@ -68,17 +73,17 @@ spec:
            limits:
              memory: "1G"
              cpu: "1"
-         volumeMounts:
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
-            readOnly: true
          ports:
           - containerPort: 5000
+         volumeMounts:
+          - name: session-secret-key
+            mountPath: /session-secret-key
+            readOnly: true
       volumes:
-       - name: jwt-secret-key
+       - name: session-secret-key
          secret:
            optional: false
-           secretName: jwt-secret-key
+           secretName: session-secret-key
 ---
 apiVersion: v1
 kind: Service

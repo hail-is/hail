@@ -9,6 +9,7 @@ steps:
     - gcr-pull-key
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
+    - auth-oauth2-client-secret
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -36,71 +37,117 @@ steps:
    config: batch/output-service-account.yaml
    dependsOn:
     - batch_pods_ns
+ - kind: deploy
+   name: deploy_default_admin_admin
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch/default-admin-admin.yaml
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
    contextPath: .
    publishAs: base
+ - kind: buildImage
+   name: hailtop_image
+   dockerFile: hail/Dockerfile.hailtop
+   contextPath: hail
+   publishAs: hailtop
+   dependsOn:
+    - base_image
+ - kind: buildImage
+   name: test_hailtop_image
+   dockerFile: hail/python/Dockerfile.test-hailtop
+   contextPath: .
+   publishAs: test-hailtop
+   dependsOn:
+     - hailtop_image
  - kind: runImage
-   name: create_accounts
+   name: test_hailtop
    image:
-     valueFrom: base_image.image
+     valueFrom: test_hailtop_image.image
    script: |
      set -ex
-     # secret-key
-     python3 -c "
-     import secrets, jwt
-     secret_key = secrets.token_bytes(64)
-     with open('secret-key', 'wb') as f:
-       f.write(secret_key)
-     "
-     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret jwt-secret-key
-     kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
-     # batch
-     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
-     python3 -c "
-     import jwt
-     with open('secret-key', 'rb') as f:
-       secret_key = f.read()
-     payload = {'id':1,'service_account':True,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
-     with open('jwt', 'w') as f:
-       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
-     "
-     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret batch-jwt
-     kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
-     # ci
-     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
-     python3 -c "
-     import jwt
-     with open('secret-key', 'rb') as f:
-       secret_key = f.read()
-     payload = {'id':2,'service_account':True,'username':'ci','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci-gsa-key','jwt_secret_name':'ci-jwt'}
-     with open('jwt', 'w') as f:
-       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
-     "
-     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret ci-jwt
-     kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./jwt
-     # test
-     # test-gsa-key exists
-     python3 -c "
-     import jwt
-     with open('secret-key', 'rb') as f:
-       secret_key = f.read()
-     payload = {'id':3,'service_account':True,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
-     with open('jwt', 'w') as f:
-       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
-     "
-     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret test-jwt
-     kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
-   serviceAccount: ci-agent
-   scopes:
-    - test
-    - dev
+     python3 -m pytest -v --instafail test/hailtop
+   dependsOn:
+     - test_hailtop_image
+ - kind: createDatabase
+   name: users_database
+   databaseName: users
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: buildImage
+   name: create_auth_tables_image
+   dockerFile: auth/Dockerfile.create-tables
+   contextPath: auth
+   dependsOn:
+    - base_image
+ - kind: deploy
+   name: create_auth_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/create-auth-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-auth-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - create_auth_tables_image
+     - users_database
+ - kind: deploy
+   name: create_deploy_config
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/create-deploy-config-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-deploy-config
+      for: completed
+      timeout: 120
    dependsOn:
     - default_ns
     - batch_pods_ns
     - base_image
+    - deploy_default_admin_admin
+ - kind: deploy
+   name: create_session_key
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/create-session-key-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-session-key
+      for: completed
+      timeout: 120
+   dependsOn:
+    - default_ns
+    - base_image
+ - kind: deploy
+   name: create_accounts
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/create-accounts-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-accounts
+      for: completed
+      timeout: 120
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_default_admin_admin
+    - users_database
+    - hailtop_image
+    - create_auth_tables
+    - create_deploy_config
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
@@ -122,6 +169,23 @@ steps:
    publishAs: scorecard
    dependsOn:
      - base_image
+ - kind: buildImage
+   name: auth_image
+   dockerFile: auth/Dockerfile
+   contextPath: .
+   publishAs: auth
+   dependsOn:
+     - base_image
+ - kind: runImage
+   name: check_auth
+   image:
+     valueFrom: auth_image.image
+   script: |
+     set -ex
+     python3 -m flake8 auth
+     python3 -m pylint --rcfile pylintrc auth
+   dependsOn:
+     - auth_image
  - kind: buildImage
    name: site_image
    dockerFile: site/Dockerfile
@@ -220,7 +284,7 @@ steps:
      {{ code.checkout_script }}
      cd hail
      make jars python-version-info
-     (cd python && zip -r hail.zip hail)
+     (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
@@ -373,6 +437,16 @@ steps:
    dependsOn:
     - base_image
  - kind: runImage
+   name: check_notebook2
+   image:
+     valueFrom: notebook2_image.image
+   script: |
+     set -ex
+     python3 -m flake8 notebook
+     python3 -m pylint --rcfile pylintrc notebook
+   dependsOn:
+     - notebook2_image
+ - kind: runImage
    name: test_hail_python
    image:
      valueFrom: hail_run_image.image
@@ -482,6 +556,38 @@ steps:
     - default_ns
     - scorecard_image
     - deploy_router
+ - kind: runImage
+   name: create_dummy_oauth2_client_secret
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     kubectl -n {{ default_ns.name }} create secret generic auth-oauth2-client-secret || true
+   scopes:
+    - test
+    - dev
+   dependsOn:
+    - default_ns
+    - base_image
+ - kind: deploy
+   name: deploy_auth
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/deployment.yaml
+   wait:
+    - kind: Service
+      name: auth
+      for: alive
+   dependsOn:
+    - default_ns
+    - create_deploy_config
+    - create_session_key
+    - deploy_router
+    - users_database
+    - create_auth_tables
+    - auth_image
+    - check_auth
+    - create_dummy_oauth2_client_secret
  - kind: createDatabase
    name: ci_database
    databaseName: ci
@@ -519,6 +625,7 @@ steps:
     - create_accounts
     - ci_database
     - create_ci_tables
+    - deploy_auth
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -577,6 +684,7 @@ steps:
     - create_accounts
     - batch_image
     - batch_database
+    - deploy_auth
     - create_batch_tables
  - kind: deploy
    name: deploy_batch_pods
@@ -695,8 +803,8 @@ steps:
    config: notebook2/deployment.yaml
    dependsOn:
     - default_ns
+    - create_session_key
     - notebook2_image
-    - hail_jupyter_image
     - deploy_router
  - kind: runImage
    name: test_scheduler

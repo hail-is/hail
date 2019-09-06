@@ -1,8 +1,13 @@
 server_names_hash_bucket_size 128;
 
 map $http_x_forwarded_proto $updated_scheme {
-     default $scheme;
-     https https;
+     default $http_x_forwarded_proto;
+     '' $scheme;
+}
+
+map $http_x_forwarded_host $updated_host {
+     default $http_x_forwarded_host;
+     '' $http_host;
 }
 
 server {
@@ -89,11 +94,8 @@ server {
         resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$1.default.svc.cluster.local$request_uri;
 
-        proxy_set_header Host $http_host;
+        proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -109,7 +111,7 @@ server {
     }
 
     location @pod_dead {
-        return 307 $updated_scheme://$http_host/new;
+        return 307 $updated_scheme://$updated_host/new;
     }
 
     location ~ /instance-ready/([^/]+)/ {
@@ -120,11 +122,8 @@ server {
     location / {
         proxy_pass http://notebook/;
 
-        proxy_set_header Host $http_host;
+        proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -145,21 +144,18 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://notebook2/auth/$pod_uuid;
+        proxy_pass http://notebook2@notebook2_base_path@/auth/$pod_uuid;
     }
 
-    location ~ /instance/([^/]+)/(.*) {
+    location ~ @notebook2_base_path@/instance/([^/]+)/(.*) {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-        proxy_set_header Host $http_host;
+        proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -176,25 +172,22 @@ server {
 
     location @pod_dead {
         set $args "?err=Notebook not found";
-        return 307 $updated_scheme://$http_host/error$args;
+        return 307 $updated_scheme://$updated_host/error$args;
     }
 
-    location ~ /instance-ready/([^/]+)/ {
+    location ~ @notebook2_base_path@/instance-ready/([^/]+) {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
-        proxy_pass http://$auth_pod_ip/instance/$1/;
+        proxy_pass http://$auth_pod_ip@notebook2_base_path@/instance/$1;
     }
 
     location / {
-        proxy_pass http://notebook2/;
+        proxy_pass http://notebook2;
 
-        proxy_set_header Host $http_host;
+        proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -238,12 +231,10 @@ server {
 
     location / {
         proxy_pass http://auth/;
-    }
 
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Host $updated_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
 
     listen 80;
     listen [::]:80;

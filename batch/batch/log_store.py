@@ -1,8 +1,6 @@
 import logging
-import os
 
 import google
-import hailtop.gear.auth as hj
 
 from .google_storage import GCS
 
@@ -24,14 +22,9 @@ class LogStore:
         path = '/'.join(uri[1:])
         return bucket, path
 
-    def __init__(self, blocking_pool, instance_id, batch_gsa_key=None, batch_bucket_name=None):
+    def __init__(self, blocking_pool, instance_id, batch_bucket_name):
         self.instance_id = instance_id
-        self.gcs = GCS(blocking_pool, batch_gsa_key)
-
-        if batch_bucket_name is None:
-            batch_jwt = os.environ.get('BATCH_JWT', '/batch-jwt/jwt')
-            with open(batch_jwt, 'r') as f:
-                batch_bucket_name = hj.JWTClient.unsafe_decode(f.read())['bucket_name']
+        self.gcs = GCS(blocking_pool)
         self.batch_bucket_name = batch_bucket_name
 
     def gs_job_output_directory(self, batch_id, job_id, token):
