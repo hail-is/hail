@@ -16,25 +16,24 @@ object InferPType {
         PSet(elementType, ptypes.forall(_.required))
       }
       case x: PStruct => {
-        val allRequired = ptypes.forall(_.required)
-
-        PStruct(allRequired, x.fieldNames.map( fieldName =>
+        PStruct(ptypes.forall(_.required), x.fieldNames.map( fieldName =>
           fieldName -> getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
         ):_*)
       }
       case x: PTuple => {
-        val allRequired = ptypes.forall(_.required)
-
-        PTuple(allRequired, x._types.map( pTupleField =>
+        PTuple( ptypes.forall(_.required), x._types.map( pTupleField =>
           getNestedElementPTypes(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
         ):_*)
       }
       case _: PDict => {
-        val allRequired = ptypes.forall(_.required)
         val keyType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].keyType))
         val valueType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].valueType))
 
-        PDict(keyType, valueType, allRequired)
+        PDict(keyType, valueType, ptypes.forall(_.required))
+      }
+      case _:PInterval => {
+        val pointType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PInterval].pointType))
+        PInterval(pointType, ptypes.forall(_.required))
       }
       case _ => ptypes.head.setRequired(ptypes.forall(_.required))
     }
@@ -351,23 +350,12 @@ object InferPType {
           v._2.pType2
       }):_*)
       case MakeArray(irs, _) => {
-        val it = irs.iterator
-        val head = it.next()
-        InferPType(head, env)
-
-        var allRequired = head.pType2.required
-
-        while(it.hasNext) {
-          val irElem = it.next()
-
-          InferPType(irElem, env)
-
-          if(allRequired == true && irElem.pType2.required == false) {
-            allRequired = false
-          }
+        val elementTypes = irs.map { elt =>
+          InferPType(elt, env)
+          elt.pType2
         }
 
-        val inferredElementType = getNestedElementPTypes(irs.map(_.pType2))
+        val inferredElementType = getNestedElementPTypes(elementTypes)
 
         PArray(inferredElementType, true)
       }
