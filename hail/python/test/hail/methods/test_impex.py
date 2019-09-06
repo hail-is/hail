@@ -1334,7 +1334,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             row_fields={'f0': hl.tstr},
             row_key=['f0'])
 
-    def test_mising_values(self):
+    def test_missing_values(self):
         def boom():
             hl.import_matrix_table(resource("samplesmissing.txt"),
                                    row_fields={'f0': hl.tstr},
@@ -1346,8 +1346,8 @@ class ImportMatrixTableTests(unittest.TestCase):
             boom)
 
     def test_round_trip(self):
-        for missing in ['NA', '.', '9']:
-            for delimiter in [',', '\t', ' ']:
+        for missing in ['.', '9']:
+            for delimiter in [',', ' ']:
                 for header in [True, False]:
                     for entry_type, entry_fun in [(hl.tstr, hl.str),
                                                   (hl.tint32, hl.int32),
