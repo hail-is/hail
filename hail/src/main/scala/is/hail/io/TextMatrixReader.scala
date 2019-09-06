@@ -154,6 +154,7 @@ case class TextMatrixReader(
   gzipAsBGZip: Boolean,
   addRowId: Boolean
 ) extends MatrixHybridReader {
+  import TextMatrixReader._
   private[this] val hc = HailContext.get
   private[this] val sc = hc.sc
   private[this] val fs = hc.sFS
@@ -166,7 +167,6 @@ case class TextMatrixReader(
   require(entryType.size == 1, "entryType can only have 1 field")
   if (resolvedPaths.isEmpty)
     fatal("no paths specified for import_matrix_table.")
-  import LoadMatrix._
   assert((rowFields.values ++ entryType.types).forall { t =>
     t.isOfType(TString()) ||
     t.isOfType(TInt32()) ||
@@ -190,7 +190,7 @@ case class TextMatrixReader(
     else rowFieldTypeWithoutRowId
   private[this] val header1Bc = hc.backend.broadcast(header1)
   if (hasHeader)
-    LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
+    warnDuplicates(colIDs.asInstanceOf[Array[String]])
   private[this] val lines = HailContext.maybeGZipAsBGZip(gzipAsBGZip) {
     sc.textFilesLines(resolvedPaths, nPartitions.getOrElse(sc.defaultMinPartitions))
   }
