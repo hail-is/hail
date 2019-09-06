@@ -161,7 +161,7 @@ case class TextMatrixReader(
   assert(separatorStr.length == 1)
   private[this] val separator = separatorStr.charAt(0)
   private[this] val rowFields = rowFieldsStr.mapValues(IRParser.parseType(_))
-  private[this] val entryType = TStruct("x" -> IRParser.parseType(entryTypeStr))
+  private[this] val entryType = TStruct(true, "x" -> IRParser.parseType(entryTypeStr))
   private[this] val resolvedPaths = fs.globAll(paths)
   require(entryType.size == 1, "entryType can only have 1 field")
   if (resolvedPaths.isEmpty)
@@ -458,18 +458,16 @@ class CompiledLineParser(
         }
       } else {
         assert(onDiskField.typ.physicalType == requestedField.typ)
-        ab += (pos >= line.length).mux(
-          parseError(
-            const("unexpected end of line while reading row field ")
-              .concat(onDiskField.name)),
-          Code._empty)
-        if (onDiskField.name == "row_id") {
-          ab += srvb.addLong(lineNumber)
-        } else {
-          ab += Code(
+        val parseAndAddField =
+          if (onDiskField.name == "row_id") srvb.addLong(lineNumber)
+          else Code(
             parseType(mb, srvb, onDiskField.typ.physicalType),
             pos := pos + 1)
-        }
+        ab += (pos < line.length).mux(
+          parseAndAddField,
+          parseError(
+            const("unexpected end of line while reading row field ")
+              .concat(onDiskField.name)))
         ab += srvb.advance()
         outputIndex += 1
       }
