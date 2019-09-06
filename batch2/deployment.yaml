@@ -22,7 +22,7 @@ spec:
       serviceAccountName: batch2
       containers:
       - name: batch2
-        image: "gcr.io/hail-vdc/batch2:latest"
+        image: {{ batch2_image.image }}
         resources:
           requests:
             memory: "250M"
