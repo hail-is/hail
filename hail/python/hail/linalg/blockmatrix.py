@@ -1451,7 +1451,9 @@ class BlockMatrix(object):
 
             intermediate_multiply_exprs = [b1 @ b2 for b1, b2 in blocks_to_multiply]
 
-            path_prefix = new_local_temp_file("block_matrix_multiply_intermediates")
+            path_prefix = new_temp_file(prefix="block_matrix_multipy_intermediates")
+            #new_local_temp_file("block_matrix_multiply_intermediates")
+            print(path_prefix)
             hl.experimental.write_block_matrices(intermediate_multiply_exprs, path_prefix)
             read_intermediates = [BlockMatrix.read(f"{path_prefix}_{i}") for i in range(0, len(intermediate_multiply_exprs))]
 
