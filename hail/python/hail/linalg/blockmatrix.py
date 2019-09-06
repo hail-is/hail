@@ -1423,8 +1423,8 @@ class BlockMatrix(object):
 
         return self[start_row:stop_row, start_col:stop_col]
 
-    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), _split_on_inner=int)
-    def __matmul__(self, b, _split_on_inner=1):
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
+    def __matmul__(self, b):
         """Matrix multiplication: a @ b.
 
         Parameters
@@ -1440,20 +1440,40 @@ class BlockMatrix(object):
 
         if self.n_cols != b.n_rows:
             raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+        
+        return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
-        if _split_on_inner != 1:
-            inner_brange_size = int(math.ceil(self._n_block_cols / _split_on_inner))
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=str)
+    def tree_matmul(self, b, split_on_inner, path_prefix):
+        """Matrix multiplication in situations with large inner dimension. This function splits a single matrix multiplication into
+        `split_on_inner` smaller matrix multiplications, does the smaller multiplications, checkpoints them with names defined by `file_name_prefix`,
+        and adds them together. This is useful in cases when the multiplication of two large matrices results in a much smaller matrix.
+
+        Parameters
+        ----------
+        b: :class:`numpy.ndarray` or :class:`BlockMatrix`
+        split_on_inner: :obj:`int`
+        path_prefix: :class:`str`
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        if isinstance(b, np.ndarray):
+            b = BlockMatrix(_to_bmir(b, self.block_size))
+
+        if self.n_cols != b.n_rows:
+            raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        if split_on_inner != 1:
+            inner_brange_size = int(math.ceil(self._n_block_cols / split_on_inner))
             split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
-            print(inner_ranges)
             blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
                                 b._select_blocks((start, stop), (0, b._n_block_cols))) for start, stop in inner_ranges]
 
             intermediate_multiply_exprs = [b1 @ b2 for b1, b2 in blocks_to_multiply]
 
-            path_prefix = new_temp_file(prefix="block_matrix_multipy_intermediates")
-            #new_local_temp_file("block_matrix_multiply_intermediates")
-            print(path_prefix)
             hl.experimental.write_block_matrices(intermediate_multiply_exprs, path_prefix)
             read_intermediates = [BlockMatrix.read(f"{path_prefix}_{i}") for i in range(0, len(intermediate_multiply_exprs))]
 
