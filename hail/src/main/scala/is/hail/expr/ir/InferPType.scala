@@ -48,7 +48,10 @@ object InferPType {
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
-      case Literal(t, _) => PType.canonical(t, true)
+      case Literal(t, _) => {
+        val ptype = PType.canonical(t, true)
+        ptype.deepInnerRequired(true)
+      }
       case True() | False() => PBoolean(true)
       case Void() => PVoid
       case Cast(ir, t) => {

@@ -285,6 +285,8 @@ abstract class PType extends BaseType with Serializable {
         PStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
       case t: PTuple =>
         PTuple(required, t.types.map(_.deepInnerRequired(true)): _*)
+      case t: PInterval =>
+        PInterval(t.pointType.setRequired(required), required)
       case t =>
         t.setRequired(required)
     }
