@@ -4,7 +4,7 @@ from .auth import async_get_userinfo, get_userinfo, \
     web_authenticated_users_only, web_authenticated_developers_only, \
     web_maybe_authenticated_user, auth_headers
 from .csrf import new_csrf_token, check_csrf_token
-from .utils import create_user, create_session
+from .utils import insert_user, create_session
 
 
 __all__ = [
@@ -18,6 +18,6 @@ __all__ = [
     'auth_headers',
     'new_csrf_token',
     'check_csrf_token',
-    'create_user',
+    'insert_user',
     'create_session'
 ]
