@@ -121,8 +121,7 @@ class RVD(
     changeKey(newKey, newKey.length)
 
   def changeKey(newKey: IndexedSeq[String], partitionKey: Int): RVD =
-    RVD.coerce(
-      typ.copy(key = newKey), partitionKey, this.crdd)
+    RVD.coerce(typ.copy(key = newKey), partitionKey, this.crdd)
 
   def extendKeyPreservesPartitioning(newKey: IndexedSeq[String]): RVD = {
     require(newKey startsWith typ.key)
