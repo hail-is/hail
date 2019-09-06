@@ -37,6 +37,14 @@ spec:
              port: 5000
            initialDelaySeconds: 5
            periodSeconds: 5
+         volumeMounts:
+          - mountPath: /deploy-config
+            name: deploy-config
+            readOnly: true
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
 ---
 apiVersion: v1
 kind: Service
