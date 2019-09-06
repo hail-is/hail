@@ -11,7 +11,7 @@
 
   {% if userdata %}
   <a href="{{ base_path }}/user"
-    ><b id="user-name">{{ userdata["namename"] }}</b></a
+    ><b id="user-name">{{ userdata["username"] }}</b></a
   >
   <form action="{{ auth_base_url }}/logout" method="POST">
     <button class="link-button" type="submit">

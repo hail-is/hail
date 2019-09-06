@@ -81,7 +81,7 @@ def _authenticated_developers_only(rest, redirect):
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
             if ('developer' in userdata) and userdata['developer'] == 1:
-                return await fun(request, *args, **kwargs)
+                return await fun(request, userdata, *args, **kwargs)
             raise web.HTTPUnauthorized()
         return wrapped
     return wrap
