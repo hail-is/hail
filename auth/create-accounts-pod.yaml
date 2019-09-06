@@ -22,12 +22,12 @@ spec:
        import json
        import asyncio
        from hailtop.gear import create_database_pool, get_deploy_config
-       from hailtop.gear.auth import get_tokens, create_user, create_session
+       from hailtop.gear.auth import get_tokens, insert_user, create_session
        async def main():
            dbpool = await create_database_pool()
            tokens = get_tokens()
            user_spec = json.loads(sys.argv[1])
-           userdata = await create_user(dbpool, user_spec)
+           userdata = await insert_user(dbpool, user_spec)
            deploy_config = get_deploy_config()
            auth_ns = deploy_config.service_ns('auth')
            tokens[auth_ns] = await create_session(dbpool, userdata['id'])

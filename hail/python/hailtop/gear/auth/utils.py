@@ -2,7 +2,7 @@ import secrets
 import base64
 
 
-async def create_user(dbpool, spec):
+async def insert_user(dbpool, spec):
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(
