@@ -587,7 +587,7 @@ class Job:
         await self._reap_job('Error')
 
     async def mark_setup_failed(self, pod):
-        container_log, err = app['k8s'].read_pod_log(pod.metadata.name, container='setup')
+        container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='setup')
         if err is not None:
             container_log = err
         container_logs = {'setup': container_log}
