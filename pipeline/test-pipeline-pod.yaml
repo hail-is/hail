@@ -17,12 +17,12 @@ spec:
         name: deploy-config
       - mountPath: /user-tokens
         readOnly: true
-        name: test-jwt
+        name: test-tokens
   volumes:
     - name: deploy-config
       secret:
         secretName: deploy-config
-    - name: test-jwt
+    - name: test-tokens
       secret:
-        secretName: test-jwt
+        secretName: test-tokens
   restartPolicy: Never

@@ -64,7 +64,7 @@ spec:
              name: hail-ci-0-1-github-oauth-token
              readOnly: true
            - mountPath: /user-tokens
-             name: ci-jwt
+             name: ci-tokens
              readOnly: true
           livenessProbe:
             httpGet:
@@ -93,9 +93,9 @@ spec:
        - name: hail-ci-0-1-github-oauth-token
          secret:
            secretName: hail-ci-0-1-github-oauth-token
-       - name: ci-jwt
+       - name: ci-tokens
          secret:
-           secretName: ci-jwt
+           secretName: ci-tokens
       tolerations:
       - key: "preemptible"
         operator: "Equal"
