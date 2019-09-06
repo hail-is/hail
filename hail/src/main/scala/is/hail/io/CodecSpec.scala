@@ -15,6 +15,10 @@ import org.apache.spark.rdd.RDD
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
 
+trait CodecSpec extends Spec {
+  def makeCodecSpec2(pType: PType): CodecSpec2
+}
+
 trait CodecSpec2 extends Spec {
   def encodedType: Type
 
@@ -66,3 +70,44 @@ trait CodecSpec2 extends Spec {
   override def toString: String = super[Spec].toString
 }
 
+object CodecSpec {
+  val defaultBufferSpec: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
+
+  val default: CodecSpec = PackCodecSpec(defaultBufferSpec)
+
+  val defaultUncompressedBuffer: BufferSpec = BlockingBufferSpec(32 * 1024,
+    new StreamBlockBufferSpec)
+
+  val defaultUncompressed: CodecSpec = PackCodecSpec(defaultUncompressedBuffer)
+
+  val unblockedUncompressed: CodecSpec = PackCodecSpec(new StreamBufferSpec)
+
+  def fromShortString(s: String): CodecSpec = s match {
+    case "default" => CodecSpec.default
+    case "defaultUncompressed" => CodecSpec.defaultUncompressed
+    case "unblockedUncompressed" => CodecSpec.unblockedUncompressed
+  }
+
+  val baseBufferSpecs: Array[BufferSpec] = Array(
+    BlockingBufferSpec(64 * 1024,
+      new StreamBlockBufferSpec),
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)),
+    new StreamBufferSpec)
+
+  val bufferSpecs: Array[BufferSpec] = baseBufferSpecs.flatMap { blockSpec =>
+    Array(blockSpec, LEB128BufferSpec(blockSpec))
+  }
+
+  val codecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
+    Array(PackCodecSpec(bufferSpec))
+  }
+
+  val supportedCodecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
+    Array(PackCodecSpec(bufferSpec))
+  }
+}
