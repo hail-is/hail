@@ -1,28 +1,16 @@
 package is.hail.io
 
 import java.io._
-import java.util
 
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderSelfLike, PruneDeadFields}
-import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.fs.FS
-import is.hail.io.index.IndexWriter
 import is.hail.nativecode._
-import is.hail.rvd.{AbstractRVDSpec, IndexSpec, IndexedRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
-import is.hail.sparkextras._
 import is.hail.utils._
-import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.{HailContext, cxx}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.apache.spark.{ExposedMetrics, TaskContext}
-import org.json4s.jackson.JsonMethods
-import org.json4s.{Extraction, JValue}
 
 case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   def makeCodecSpec2(pType: PType) = PackCodecSpec2(pType, child)
