@@ -315,7 +315,7 @@ async def wait_websocket(request):
     notebook_url = request.url.with_scheme(notebook_url_scheme)
     notebook_url = notebook_url.with_path(f'instance/{svc_name}/')
     notebook_url = notebook_url.with_query(token=jupyter_token)
-    await ws.send_str(notebook_url)
+    await ws.send_str(str(notebook_url))
     await ws.close()
     log.info(f'notification sent to user for {svc_name} {pod_name}')
     return ws
