@@ -1335,13 +1335,15 @@ class ImportMatrixTableTests(unittest.TestCase):
             row_key=['f0'])
 
     def test_mising_values(self):
+        def boom():
+            hl.import_matrix_table(resource("samplesmissing.txt"),
+                                   row_fields={'f0': hl.tstr},
+                                   row_key=['f0']
+            )._force_count_rows()
         self.assertRaisesRegex(
             hl.utils.FatalError,
             "unexpected end of line while reading entry 3",
-            hl.import_matrix_table,
-            resource("samplesmissing.txt"),
-            row_fields={'f0': hl.tstr},
-            row_key=['f0'])
+            boom)
 
     def test_round_trip(self):
         for missing in ['NA', '.', '9']:
