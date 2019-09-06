@@ -516,8 +516,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
            skip_invalid_intervals=bool,
+           contig_recoding=nullable(dictof(str, str)),
            kwargs=anytype)
-def import_locus_intervals(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
+def import_locus_intervals(path,
+                           reference_genome='default',
+                           skip_invalid_intervals=False,
+                           contig_recoding=None,
+                           **kwargs) -> Table:
     """Import a locus interval list as a :class:`.Table`.
 
     Examples
@@ -576,6 +581,10 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+        Mapping from contig name in file to contig name in loaded dataset.
+        All contigs must be present in the `reference_genome`, so this is
+        useful for mapping differently-formatted data onto known references.
     **kwargs
         Additional optional arguments to :func:`import_table` are valid
         arguments here except: `no_header`, `comment`, `impute`, and
@@ -586,6 +595,14 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     :class:`.Table`
         Interval-keyed table.
     """
+
+    if contig_recoding is not None:
+        contig_recoding = hl.literal(contig_recoding)
+
+    def recode_contig(x):
+        if contig_recoding is None:
+            return x
+        return contig_recoding[x]
 
     t = import_table(path, comment="@", impute=False, no_header=True,
                      types={'f0': tstr, 'f1': tint32, 'f2': tint32,
@@ -601,7 +618,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
             def checked_match_interval_expr(match):
                 return hl.or_missing(hl.len(match) == 3,
-                                     locus_interval_expr(match[0],
+                                     locus_interval_expr(recode_contig(match[0]),
                                                          hl.int32(match[1]),
                                                          hl.int32(match[2]),
                                                          True,
@@ -613,7 +630,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
                 hl.bind(t['f0'].first_match_in(interval_regex),
                         lambda match: hl.cond(hl.bool(skip_invalid_intervals),
                                               checked_match_interval_expr(match),
-                                              locus_interval_expr(match[0],
+                                              locus_interval_expr(recode_contig(match[0]),
                                                                   hl.int32(match[1]),
                                                                   hl.int32(match[2]),
                                                                   True,
@@ -624,7 +641,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
             t = t.select(interval=expr)
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'],
                                                   t['f2'],
                                                   True,
@@ -633,7 +650,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
                                                   skip_invalid_intervals))
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr, f4=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'],
                                                   t['f2'],
                                                   True,
@@ -657,8 +674,13 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
            skip_invalid_intervals=bool,
+           contig_recoding=nullable(dictof(str, str)),
            kwargs=anytype)
-def import_bed(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
+def import_bed(path,
+               reference_genome='default',
+               skip_invalid_intervals=False,
+               contig_recoding=None,
+               **kwargs) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
@@ -731,6 +753,10 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+        Mapping from contig name in BED to contig name in loaded dataset.
+        All contigs must be present in the `reference_genome`, so this is
+        useful for mapping differently-formatted data onto known references.
     **kwargs
         Additional optional arguments to :func:`import_table` are valid arguments here except:
         `no_header`, `delimiter`, `impute`, `skip_blank_lines`, `types`, and `comment` as these
@@ -752,8 +778,16 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
                               r"""^\w+=("[\w\d ]+"|\d+).*"""],
                      **kwargs)
 
+    if contig_recoding is not None:
+        contig_recoding = hl.literal(contig_recoding)
+
+    def recode_contig(x):
+        if contig_recoding is None:
+            return x
+        return contig_recoding[x]
+
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'] + 1,
                                                   t['f2'] + 1,
                                                   True,
@@ -762,7 +796,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'] + 1,
                                                   t['f2'] + 1,
                                                   True,
