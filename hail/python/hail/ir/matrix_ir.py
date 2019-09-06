@@ -42,9 +42,6 @@ class MatrixAggregateRowsByKey(MatrixIR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 1 or i == 2
-
 
 class MatrixRead(MatrixIR):
     def __init__(self, reader, drop_cols=False, drop_rows=False):
@@ -79,9 +76,6 @@ class MatrixFilterRows(MatrixIR):
 
     def bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class MatrixChooseCols(MatrixIR):
@@ -137,9 +131,6 @@ class MatrixMapCols(MatrixIR):
     def scan_bindings(self, i, default_value=None):
         return self.child.typ.col_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class MatrixUnionCols(MatrixIR):
     def __init__(self, left, right):
@@ -176,9 +167,6 @@ class MatrixMapEntries(MatrixIR):
     def bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class MatrixFilterEntries(MatrixIR):
     def __init__(self, child, pred):
@@ -196,9 +184,6 @@ class MatrixFilterEntries(MatrixIR):
 
     def bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class MatrixKeyRowsBy(MatrixIR):
@@ -257,9 +242,6 @@ class MatrixMapRows(MatrixIR):
     def scan_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class MatrixMapGlobals(MatrixIR):
     def __init__(self, child, new_global):
@@ -285,9 +267,6 @@ class MatrixMapGlobals(MatrixIR):
     def bindings(self, i, default_value=None):
         return self.child.typ.global_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class MatrixFilterCols(MatrixIR):
     def __init__(self, child, pred):
@@ -305,9 +284,6 @@ class MatrixFilterCols(MatrixIR):
 
     def bindings(self, i, default_value=None):
         return self.child.typ.col_env(default_value) if i == 1 else {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class MatrixCollectColsByKey(MatrixIR):
@@ -365,9 +341,6 @@ class MatrixAggregateColsByKey(MatrixIR):
             return self.child.typ.col_env(default_value)
         else:
             return {}
-
-    def binds(self, i):
-        return i == 1 or i == 2
 
 
 class MatrixExplodeRows(MatrixIR):

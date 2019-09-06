@@ -142,9 +142,6 @@ class TableMapGlobals(TableIR):
     def bindings(self, i, default_value=None):
         return self.child.typ.global_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class TableExplode(TableIR):
     def __init__(self, child, path):
@@ -207,9 +204,6 @@ class TableMapRows(TableIR):
 
     def scan_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class TableRead(TableIR):
@@ -279,9 +273,6 @@ class TableFilter(TableIR):
     def bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class TableKeyByAndAggregate(TableIR):
     def __init__(self, child, expr, new_key, n_partitions, buffer_size):
@@ -320,9 +311,6 @@ class TableKeyByAndAggregate(TableIR):
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1 or i == 2
-
 
 class TableAggregateByKey(TableIR):
     def __init__(self, child, expr):
@@ -346,9 +334,6 @@ class TableAggregateByKey(TableIR):
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class MatrixColsTable(TableIR):

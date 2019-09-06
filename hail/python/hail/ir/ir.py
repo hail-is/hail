@@ -292,9 +292,6 @@ class Let(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class AggLet(IR):
     @typecheck_method(name=str, value=IR, body=IR, is_scan=bool)
@@ -343,9 +340,6 @@ class AggLet(IR):
             return {self.name: value}
         else:
             return {}
-
-    def binds(self, i):
-        return i == 1
 
     def uses_agg_context(self, i: int) -> bool:
         return not self.is_scan and i == 0
@@ -630,9 +624,6 @@ class NDArrayMap(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class NDArrayRef(IR):
     @typecheck_method(nd=IR, idxs=sequenceof(IR))
@@ -793,9 +784,6 @@ class ArraySort(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class ToSet(IR):
     @typecheck_method(a=IR)
@@ -916,9 +904,6 @@ class ArrayMap(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class ArrayFilter(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -957,9 +942,6 @@ class ArrayFilter(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class ArrayFlatMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -996,9 +978,6 @@ class ArrayFlatMap(IR):
                 value = default_value
             return {self.name: value}
         return {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class ArrayFold(IR):
@@ -1041,9 +1020,6 @@ class ArrayFold(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 2
-
 
 class ArrayScan(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
@@ -1085,9 +1061,6 @@ class ArrayScan(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 2
-
 
 class ArrayLeftJoinDistinct(IR):
     @typecheck_method(left=IR, right=IR, l_name=str, r_name=str, compare=IR, join=IR)
@@ -1126,9 +1099,6 @@ class ArrayLeftJoinDistinct(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 2 or i == 3
-
 
 class ArrayFor(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
@@ -1166,9 +1136,6 @@ class ArrayFor(IR):
             return {self.value_name: value}
         else:
             return {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class AggFilter(IR):
@@ -1241,9 +1208,6 @@ class AggExplode(IR):
 
     def scan_bindings(self, i, default_value=None):
         return self.agg_bindings(i, default_value)
-
-    def binds(self, i):
-        return i == 1
 
     def uses_agg_context(self, i: int):
         return i == 0 and not self.is_scan
@@ -1337,9 +1301,6 @@ class AggArrayPerElement(IR):
 
     def scan_bindings(self, i, default_value=None):
         return self.agg_bindings(i, default_value)
-
-    def binds(self, i):
-        return i == 1
 
 
 def _register(registry, name, f):
@@ -1884,9 +1845,6 @@ class Uniroot(IR):
         else:
             return {}
 
-    def binds(self, i):
-        return i == 0
-
 
 class TableCount(IR):
     @typecheck_method(child=TableIR)
@@ -1958,9 +1916,6 @@ class TableAggregate(IR):
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
-    def binds(self, i):
-        return i == 1
-
 
 class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
@@ -1985,9 +1940,6 @@ class MatrixAggregate(IR):
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
-
-    def binds(self, i):
-        return i == 1
 
 
 class TableWrite(IR):

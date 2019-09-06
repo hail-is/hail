@@ -93,9 +93,6 @@ class BaseIR(Renderable):
     def is_effectful() -> bool:
         return False
 
-    def binds(self, i: int) -> bool:
-        return False
-
     def bindings(self, i: int, default_value=None):
         """Compute variables bound in child 'i'.
 
@@ -130,13 +127,14 @@ class BaseIR(Renderable):
 
     def child_context(self, i: int, parent_context, default_value=None):
         base = self.child_context_without_bindings(i, parent_context)
-        if not self.binds(i):
-            return base
         eval_b = self.bindings(i, default_value)
         agg_b = self.agg_bindings(i, default_value)
         scan_b = self.scan_bindings(i, default_value)
-        (eval_c, agg_c, scan_c) = base
-        return _env_bind(eval_c, eval_b), _env_bind(agg_c, agg_b), _env_bind(scan_c, scan_b)
+        if eval_b or agg_b or scan_b:
+            (eval_c, agg_c, scan_c) = base
+            return _env_bind(eval_c, eval_b), _env_bind(agg_c, agg_b), _env_bind(scan_c, scan_b)
+        else:
+            return base
 
 
 class IR(BaseIR):
