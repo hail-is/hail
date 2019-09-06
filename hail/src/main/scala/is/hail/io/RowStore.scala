@@ -42,7 +42,7 @@ final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSp
       (out: OutputStream) => new NativePackEncoder(out, e)
     } else {
       val f = EmitPackEncoder(t, requestedType)
-      out: OutputStream => new CompiledPackEncoder(child.buildOutputBuffer(out), f)
+      out: OutputStream => new CompiledEncoder(child.buildOutputBuffer(out), f)
     }
   }
 
@@ -53,7 +53,7 @@ final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSp
       (rt, (in: InputStream) => new NativePackDecoder(in, d))
     } else {
       val f = EmitPackDecoder(eType, rt)
-      (rt, (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f))
+      (rt, (in: InputStream) => new CompiledDecoder(child.buildInputBuffer(in), f))
     }
   }
 
@@ -430,20 +430,6 @@ final class NativePackDecoder(in: InputStream, module: NativeDecoderModule) exte
   def seek(offset: Long): Unit = ???
 }
 
-final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, InputBuffer, Long]) extends Decoder {
-  def close() {
-    in.close()
-  }
-
-  def readByte(): Byte = in.readByte()
-
-  def readRegionValue(region: Region): Long = {
-    f()(region, in)
-  }
-
-  def seek(offset: Long): Unit = in.seek(offset)
-}
-
 object EmitPackEncoder { self =>
 
   type Emitter = EstimableEmitter[MethodBuilderSelfLike]
@@ -612,26 +598,6 @@ object EmitPackEncoder { self =>
     mb.emit(encode(t, requestedType, Region.getIRIntermediate(t)(offset), mb))
     fb.result()
   }
-}
-
-final class CompiledPackEncoder(out: OutputBuffer, f: () => AsmFunction3[Region, Long, OutputBuffer, Unit]) extends Encoder {
-  def flush() {
-    out.flush()
-  }
-
-  def close() {
-    out.close()
-  }
-
-  def writeRegionValue(region: Region, offset: Long) {
-    f()(region, offset, out)
-  }
-
-  def writeByte(b: Byte) {
-    out.writeByte(b)
-  }
-
-  def indexOffset(): Long = out.indexOffset()
 }
 
 case class NativeEncoderModule(

@@ -12,17 +12,17 @@ class RegionValuePrevNonnullAnnotationAggregator2(
 ) extends RegionValueAggregator {
   def this(t: PType) = this(t, {
     val f = EmitPackEncoder(t, t)
-    (mb: MemoryBuffer) => new CompiledPackEncoder(new MemoryOutputBuffer(mb), f)
+    (mb: MemoryBuffer) => new CompiledEncoder(new MemoryOutputBuffer(mb), f)
   }, {
     val f = EmitPackDecoder(t, t)
-    (mb: MemoryBuffer) => new CompiledPackDecoder(new MemoryInputBuffer(mb), f)
+    (mb: MemoryBuffer) => new CompiledDecoder(new MemoryInputBuffer(mb), f)
   })
   def this(t: Type) = this(t.physicalType)
 
   val mb = new MemoryBuffer
   @transient lazy val encoder: Encoder = makeEncoder(mb)
   @transient lazy val decoder: Decoder = makeDecoder(mb)
-  
+
   var present: Boolean = false
 
   override def isCommutative: Boolean = false
