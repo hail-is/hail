@@ -10,8 +10,6 @@ from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
-from hailtop.gear import get_deploy_config
-
 import requests
 
 import pyspark
@@ -209,6 +207,7 @@ class LocalBackend(Backend):
 
 class ServiceBackend(Backend):
     def __init__(self):
+        from hailtop.gear import get_deploy_config
         deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('apiserver')
         self.headers = deploy_config.auth_headers('apiserver')
