@@ -298,7 +298,7 @@ async def auth(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/worker-image')
-async def worker_image():
+async def worker_image(request):  # pylint: disable=unused-argument
     return web.Response(text=WORKER_IMAGE)
 
 
