@@ -27,3 +27,10 @@ CREATE TABLE `sessions` (
   PRIMARY KEY (`session_id`),
   FOREIGN KEY (`user_id`) REFERENCES user_data(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+CREATE EVENT `purge_sessions`
+    ON SCHEDULE EVERY 5 MINUTE
+    ON COMPLETION PRESERVE
+    DO
+        DELETE FROM sessions
+        WHERE (sessions.max_age_secs IS NOT NULL) AND (TIMESTAMPADD(SECOND, max_age_secs, created) < NOW());

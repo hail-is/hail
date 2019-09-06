@@ -70,8 +70,8 @@ async def start_pod(k8s, userdata):
                 ],
                 name='default',
                 image=WORKER_IMAGE,
-                env=[kube.client.V1EnvVar(name='HAIL_TOKEN_FILE',
-                                          value='/user-jwt/jwt')],
+                env=[kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE',
+                                          value='/deploy-config/deploy-config.json')],
                 ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
@@ -84,15 +84,16 @@ async def start_pod(k8s, userdata):
                     kube.client.V1VolumeMount(
                         mount_path='/gsa-key',
                         name='gsa-key',
-                        read_only=True
-                    ),
+                        read_only=True),
                     kube.client.V1VolumeMount(
-                        mount_path='/user-jwt',
-                        name='user-jwt',
-                        read_only=True
-                    )
-                ]
-            )
+                        mount_path='/user-tokens',
+                        name='user-tokens',
+                        read_only=True),
+                    kube.client.V1VolumeMount(
+                        mount_path='/deploy-config',
+                        name='deploy-config',
+                        read_only=True)
+                ])
         ],
         volumes=[
             kube.client.V1Volume(
@@ -100,9 +101,13 @@ async def start_pod(k8s, userdata):
                 secret=kube.client.V1SecretVolumeSource(
                     secret_name=gsa_key_secret_name)),
             kube.client.V1Volume(
-                name='user-jwt',
+                name='user-tokens',
                 secret=kube.client.V1SecretVolumeSource(
-                    secret_name=jwt_secret_name))
+                    secret_name=jwt_secret_name)),
+            kube.client.V1Volume(
+                name='deploy-config',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name='deploy-config'))
         ])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(

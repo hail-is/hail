@@ -57,6 +57,22 @@ steps:
    publishAs: hailtop
    dependsOn:
     - base_image
+ - kind: buildImage
+   name: test_hailtop_image
+   dockerFile: hail/python/Dockerfile.test-hailtop
+   contextPath: .
+   publishAs: test-hailtop
+   dependsOn:
+     - hailtop_image
+ - kind: runImage
+   name: test_hailtop
+   image:
+     valueFrom: test_hailtop_image.image
+   script: |
+     set -ex
+     python3 -m pytest -v --instafail test.hailtop
+   dependsOn:
+     - test_hailtop_image
  - kind: createDatabase
    name: users_database
    databaseName: users

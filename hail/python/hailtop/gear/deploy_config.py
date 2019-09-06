@@ -7,19 +7,22 @@ log = logging.getLogger('gear')
 
 
 class DeployConfig:
-    def __init__(self):
-        config_file = os.environ.get(
-            'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
-        if os.path.isfile(config_file):
-            with open(config_file, 'r') as f:
-                config = json.loads(f.read())
+    def __init__(self, _config=None):
+        if _config:
+            config = _config
         else:
-            log.info(f'deploy config file not found: {config_file}')
-            config = {
-                'location': 'external',
-                'default_namespace': 'default',
-                'service_namespace': {}
-            }
+            config_file = os.environ.get(
+                'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
+            if os.path.isfile(config_file):
+                with open(config_file, 'r') as f:
+                    config = json.loads(f.read())
+            else:
+                log.info(f'deploy config file not found: {config_file}')
+                config = {
+                    'location': 'external',
+                    'default_namespace': 'default',
+                    'service_namespace': {}
+                }
         self._location = config['location']
         assert self._location in ('external', 'k8s', 'gce')
         self._default_ns = config['default_namespace']
