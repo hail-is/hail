@@ -1442,10 +1442,10 @@ class ImportMatrixTableTests(unittest.TestCase):
                                     missing='8')
         actual = mt.x.collect()
         expected = [
-            [1, 2, 3, 4],
-            [11, 12, 13, 14],
-            [21, 22, 23, 24],
-            [1, None, None, 4]]
+            1, 2, 3, 4,
+            11, 12, 13, 14,
+            21, 22, 23, 24,
+            1, None, None, 4]
         assert actual == expected
 
         actual = mt.chr.collect()
