@@ -28,6 +28,8 @@ spec:
             memory: "250M"
             cpu: "0.5"
         env:
+         - name: HAIL_DEPLOY_CONFIG_FILE
+           value: /deploy-config/deploy-config.json
         ports:
          - containerPort: 5000
         readinessProbe:
