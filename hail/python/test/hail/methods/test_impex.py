@@ -1273,7 +1273,7 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
     def test_import_bed_recoding(self):
-        bed_file = resource('example-grch38-some-missing-chr.bed')
+        bed_file = resource('some-missing-chr-grch38.bed')
         bed = hl.import_bed(bed_file,
                             reference_genome='GRCh38',
                             contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']})
