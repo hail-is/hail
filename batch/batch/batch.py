@@ -493,9 +493,9 @@ class Job:
         if self._state != new_state:
             column_updates = {'state': new_state}
             if durations is not None:
-                column_updates['durations'] = durations
+                column_updates['durations'] = json.dumps(durations)
             if exit_codes is not None:
-                column_updates['exit_codes'] = exit_codes
+                column_updates['exit_codes'] = json.dumps(exit_codes)
             n_updated = await db.jobs.update_record(
                 *self.id,
                 compare_items={'state': self._state},
