@@ -312,7 +312,7 @@ docs: install $(PYTHON_VERSION_INFO)
 
 .PHONY: upload-docs
 upload-docs: docs
-	cd build && tar cvf www.tar.gz www
+	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)
 	gsutil -m acl set public-read $(docs_location)
