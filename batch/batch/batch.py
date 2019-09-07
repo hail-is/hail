@@ -124,7 +124,7 @@ def copy(files):
             mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
         else:
             mkdirs = ""
-        return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
+        return f'{mkdirs} gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp -R {shq(src)} {shq(dst)}'
 
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'set -ex; {resiliently_authenticate("/gsa-key/privateKeyData")} && {copies}'
