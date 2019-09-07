@@ -324,7 +324,7 @@ steps:
    resources:
      requests:
        memory: "1G"
-       cpu: "1"
+       cpu: "2"
    script: |
      set -ex
      cd /io
@@ -351,7 +351,7 @@ steps:
    resources:
      requests:
        memory: "1G"
-       cpu: "1"
+       cpu: "2"
    script: |
      set -ex
      cd /io
@@ -453,7 +453,7 @@ steps:
    resources:
      requests:
        memory: "1G"
-       cpu: "1"
+       cpu: "2"
    script: |
      set -ex
      cd /io
