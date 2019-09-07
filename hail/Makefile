@@ -277,7 +277,7 @@ BENCHMARK_ITERS ?= 5
 BENCHMARK_REPLICATES ?= 5
 .PHONY: benchmark
 benchmark: push-benchmark-image install
-	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
+	$(HAIL_PYTHON3) benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
 clean: clean-env clean-docs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
