@@ -206,7 +206,12 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   init.instructions.add(new IntInsnNode(ALOAD, 0))
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
-  init.instructions.add(new InsnNode(RETURN))
+
+  def addInitInstructions(c: Code[Unit]): Unit = {
+    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+    c.emit(l)
+    l.foreach(init.instructions.add _)
+  }
 
   protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
@@ -290,6 +295,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+    init.instructions.add(new InsnNode(RETURN))
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 

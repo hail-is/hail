@@ -136,6 +136,12 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     }
   }
 
+  def init(): Code[Unit] = Code(
+    startOffset := -1L,
+    elementsOffset := -1L,
+    if (idx != null) idx := -1 else Code._empty
+  )
+
   def start(): Code[Unit] = {
     assert(!ftype.isInstanceOf[PArray])
     ftype match {

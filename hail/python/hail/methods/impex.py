@@ -1470,8 +1470,7 @@ def import_matrix_table(paths,
                         no_header=False,
                         force_bgz=False,
                         sep='\t') -> MatrixTable:
-    """
-    Import tab-delimited file(s) as a :class:`.MatrixTable`.
+    """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
@@ -1563,7 +1562,7 @@ def import_matrix_table(paths,
           of all row fields must be specified in the `row_fields` argument.
         * The row key is taken from the `row_key` argument, and must be a
           subset of row fields. If left empty, the row key will be a new row field
-          `row_idx` of type :obj:`int`, whose values 0, 1, ... index the original
+          `row_id` of type :obj:`int`, whose values 0, 1, ... index the original
           rows of the matrix.
         * There is one column field, **col_id**, which is a key field of type
           :obj:str or :obj:int. By default, its values are the strings given by
@@ -1583,6 +1582,9 @@ def import_matrix_table(paths,
     The header information for row fields is allowed to be missing, if the
     column IDs are present, but the header must then consist only of tab-delimited
     column IDs (no row field names).
+
+    The column IDs will never be missing, even if the `missing` string appears
+    in the column IDs.
 
     Parameters
     ----------
@@ -1614,23 +1616,39 @@ def import_matrix_table(paths,
         MatrixTable constructed from imported data
     """
 
-    paths = wrap_to_list(paths)
-    jrow_fields = {k: v._parsable_string() for k, v in row_fields.items()}
+    add_row_id = False
+    if isinstance(row_key, list) and len(row_key) == 0:
+        add_row_id = True
+        row_key = ['row_id']
+
+    if 'row_id' in row_fields and add_row_id:
+        raise FatalError(
+            f"import_matrix_table reserves the field name 'row_id' for"
+            f'its own use, please use a different name')
+
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-            raise FatalError("""import_matrix_table expects field types to be one of:
-            'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
-    row_key = wrap_to_list(row_key)
+            raise FatalError(
+                f'import_matrix_table expects field types to be one of:'
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'")
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
-
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    return MatrixTable._from_java(
-        Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                   no_header, force_bgz, sep))
+    reader = TextMatrixReader(paths,
+                              min_partitions,
+                              row_fields,
+                              entry_type,
+                              missing,
+                              not no_header,
+                              sep,
+                              force_bgz,
+                              add_row_id)
+
+    mt = MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
+    return mt
 
 
 @typecheck(bed=str,

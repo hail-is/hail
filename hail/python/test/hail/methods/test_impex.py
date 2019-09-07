@@ -1314,12 +1314,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                row_fields=row_fields,
                                no_header=True,
                                row_key=[]).count()
-        self.assertRaises(hl.utils.FatalError,
-                          hl.import_matrix_table,
-                          doctest_resource('matrix3.tsv'),
-                          row_fields=row_fields,
-                          no_header=True,
-                          row_key=['foo'])
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1330,6 +1324,140 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         self.assertEqual(mt.count_cols(), 0)
         self.assertTrue(t._same(mt.rows()))
+
+    def test_headers_not_identical(self):
+        self.assertRaisesRegex(
+            hl.utils.FatalError,
+            "invalid header",
+            hl.import_matrix_table,
+            resource("sampleheader*.txt"),
+            row_fields={'f0': hl.tstr},
+            row_key=['f0'])
+
+    def test_too_few_entries(self):
+        def boom():
+            hl.import_matrix_table(resource("samplesmissing.txt"),
+                                   row_fields={'f0': hl.tstr},
+                                   row_key=['f0']
+            )._force_count_rows()
+        self.assertRaisesRegex(
+            hl.utils.FatalError,
+            "unexpected end of line while reading entry 3",
+            boom)
+
+    def test_round_trip(self):
+        for missing in ['.', '9']:
+            for delimiter in [',', ' ']:
+                for header in [True, False]:
+                    for entry_type, entry_fun in [(hl.tstr, hl.str),
+                                                  (hl.tint32, hl.int32),
+                                                  (hl.tfloat64, hl.float64)]:
+                        try:
+                            self._test_round_trip(missing, delimiter, header, entry_type, entry_fun)
+                        except Exception as e:
+                            raise ValueError(
+                                f'missing {missing!r} delimiter {delimiter!r} '
+                                f'header {header!r} entry_type {entry_type!r}'
+                            ) from e
+
+    def _test_round_trip(self, missing, delimiter, header, entry_type, entry_fun):
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
+        mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
+        mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
+        mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
+        mt.key_rows_by(*mt.row).x.export('foo.tsv',
+                                         missing=missing,
+                                         delimiter=delimiter,
+                                         header=header)
+
+        row_fields = {f: mt.row[f].dtype for f in mt.row}
+        row_key = 'row_idx'
+
+        if not header:
+            pseudonym = {'row_idx': 'f0',
+                         'row_str': 'f1',
+                         'row_float': 'f2'}
+            row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
+            row_key = pseudonym[row_key]
+            mt = mt.rename(pseudonym)
+        else:
+            mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        actual = hl.import_matrix_table(
+            'foo.tsv',
+            row_fields=row_fields,
+            row_key=row_key,
+            entry_type=entry_type,
+            missing=missing,
+            no_header=not header,
+            sep=delimiter)
+        actual = actual.rename({'col_id': 'col_idx'})
+
+        row_key = mt.row_key
+        col_key = mt.col_key
+        mt = mt.key_rows_by()
+        mt = mt.annotate_entries(
+            x = hl.cond(hl.str(mt.x) == missing,
+                        hl.null(entry_type),
+                        mt.x))
+        mt = mt.annotate_rows(**{
+            f: hl.cond(hl.str(mt[f]) == missing,
+                       hl.null(mt[f].dtype),
+                       mt[f])
+            for f in mt.row})
+        mt = mt.key_rows_by(*row_key)
+        assert mt._same(actual)
+
+    def test_key_by_after_empty_key_import(self):
+        fields = {'Chromosome':hl.tstr,
+                  'Position': hl.tint32,
+                  'Ref': hl.tstr,
+                  'Alt': hl.tstr}
+        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'),
+                                    row_fields=fields,
+                                    row_key=[],
+                                    entry_type=hl.tfloat)
+        mt = mt.key_rows_by('Chromosome', 'Position')
+        assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
+
+    def test_key_by_after_empty_key_import(self):
+        fields = {'Chromosome':hl.tstr,
+                  'Position': hl.tint32,
+                  'Ref': hl.tstr,
+                  'Alt': hl.tstr}
+        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'),
+                                    row_fields=fields,
+                                    row_key=[],
+                                    entry_type=hl.tfloat)
+        mt = mt.key_rows_by('Chromosome', 'Position')
+        mt._force_count_rows()
+
+    def test_devlish_nine_separated_eight_missing_file(self):
+        fields = {'chr': hl.tstr,
+                  '': hl.tint32,
+                  'ref': hl.tstr,
+                  'alt': hl.tstr}
+        mt = hl.import_matrix_table(resource('import_matrix_table_devlish.ninesv'),
+                                    row_fields=fields,
+                                    row_key=['chr', ''],
+                                    sep='9',
+                                    missing='8')
+        actual = mt.x.collect()
+        expected = [
+            1, 2, 3, 4,
+            11, 12, 13, 14,
+            21, 22, 23, 24,
+            31, None, None, 34]
+        assert actual == expected
+
+        actual = mt.chr.collect()
+        assert actual == ['chr1', 'chr1', 'chr1', None]
+        actual = mt[''].collect()
+        assert actual == [1, 10, 101, None]
+        actual = mt.ref.collect()
+        assert actual == ['A', 'AGT', None, 'CTA']
+        actual = mt.alt.collect()
+        assert actual == ['T', 'TGG', 'A', None]
 
 
 class ImportTableTests(unittest.TestCase):

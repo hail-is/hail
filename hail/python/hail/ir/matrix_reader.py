@@ -4,7 +4,7 @@ import json
 import hail as hl
 
 from .utils import make_filter_and_replace
-from ..expr.types import tfloat32, tfloat64
+from ..expr.types import tfloat32, tfloat64, hail_type, tint32, tint64, tstr
 from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import *
 from ..utils import wrap_to_list
@@ -207,6 +207,63 @@ class MatrixBGENReader(MatrixReader):
                other.index_file_map == self.index_file_map and \
                other.block_size == self.block_size and \
                other.included_variants == self.included_variants
+
+
+class TextMatrixReader(MatrixReader):
+    @typecheck_method(paths=oneof(str, sequenceof(str)),
+                      n_partitions=nullable(int),
+                      row_fields=dictof(str, hail_type),
+                      entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
+                      missing_value=str,
+                      has_header=bool,
+                      separator=str,
+                      gzip_as_bgzip=bool,
+                      add_row_id=bool)
+    def __init__(self,
+                 paths,
+                 n_partitions,
+                 row_fields,
+                 entry_type,
+                 missing_value,
+                 has_header,
+                 separator,
+                 gzip_as_bgzip,
+                 add_row_id):
+        self.paths = wrap_to_list(paths)
+        self.n_partitions = n_partitions
+        self.row_fields = row_fields
+        self.entry_type = entry_type
+        self.missing_value = missing_value
+        self.has_header = has_header
+        self.separator = separator
+        self.gzip_as_bgzip = gzip_as_bgzip
+        self.add_row_id = add_row_id
+
+    def render(self, r):
+        reader = {'name': 'TextMatrixReader',
+                  'paths': self.paths,
+                  'nPartitions': self.n_partitions,
+                  'rowFieldsStr': {k: v._parsable_string()
+                                   for k, v in self.row_fields.items()},
+                  'entryTypeStr': self.entry_type._parsable_string(),
+                  'missingValue': self.missing_value,
+                  'hasHeader': self.has_header,
+                  'separatorStr': self.separator,
+                  'gzipAsBGZip': self.gzip_as_bgzip,
+                  'addRowId': self.add_row_id}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixBGENReader) and \
+            self.paths == other.paths and \
+            self.n_partitions == other.n_partitions and \
+            self.row_fields == other.row_fields and \
+            self.entry_type == other.entry_type and \
+            self.missing_value == other.missing_value and \
+            self.has_header == other.has_header and \
+            self.separator == other.separator and \
+            self.gzip_as_bgzip == other.gzip_as_bgzip and \
+            self.add_row_id == other.add_row_id
 
 
 class MatrixPLINKReader(MatrixReader):

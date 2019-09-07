@@ -142,6 +142,14 @@ object Code {
     a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
 
+  def newInstance[T, A1, A2, A3, A4](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4]
+  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))
+
+  def newInstance[T, A1, A2, A3, A4, A5](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5]
+  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))
+
   def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T]): Code[Array[T]] = {
     new Code[Array[T]] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -640,10 +648,36 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
   def toS: Code[String] = Code.invokeStatic[java.lang.Double, Double, String]("toString", lhs)
 }
 
+class CodeChar(val lhs: Code[Char]) extends AnyVal {
+  def +(rhs: Code[Char]): Code[Char] = Code(lhs, rhs, new InsnNode(IADD))
+
+  def -(rhs: Code[Char]): Code[Char] = Code(lhs, rhs, new InsnNode(ISUB))
+
+  def >(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGT, rhs)
+
+  def >=(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGE, rhs)
+
+  def <(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPLT, rhs)
+
+  def <=(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPLE, rhs)
+
+  def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
+
+  def cne(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPNE, rhs)
+
+  def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
+
+  def toS: Code[String] = Code.invokeStatic[java.lang.String, Char, String]("valueOf", lhs)
+}
+
 class CodeString(val lhs: Code[String]) extends AnyVal {
   def concat(other: Code[String]): Code[String] = lhs.invoke[String, String]("concat", other)
 
   def println(): Code[Unit] = Code.getStatic[System, PrintStream]("out").invoke[String, Unit]("println", lhs)
+
+  def length(): Code[Int] = lhs.invoke[Int]("length")
+
+  def apply(i: Code[Int]): Code[Char] = lhs.invoke[Int, Char]("charAt", i)
 }
 
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
