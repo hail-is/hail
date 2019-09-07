@@ -1226,11 +1226,11 @@ class LocusIntervalTests(unittest.TestCase):
     def test_import_locus_intervals_recoding(self):
         interval_file = resource('annotinterall.grch38.no.chr.interval_list')
         t = hl.import_locus_intervals(interval_file,
-                                      contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'MT']},
+                                      contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']},
                                       reference_genome='GRCh38')
         t._force_count()
-        self.assertTrue(t.count() == 2)
-        self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertTrue(t.count() == 3)
+        self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
     def test_import_locus_intervals_badly_defined_intervals(self):
         interval_file = resource('example3.interval_list')
@@ -1273,23 +1273,12 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
     def test_import_bed_recoding(self):
-        bed_file = resource('example1.bed')
+        bed_file = resource('example-grch38-some-missing-chr.bed')
         bed = hl.import_bed(bed_file,
                             reference_genome='GRCh38',
-                            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'MT']})
-        bed._force_count()
-        nbed = bed.count()
-        i = 0
-        with open(bed_file) as f:
-            for line in f:
-                if len(line.strip()) != 0:
-                    try:
-                        int(line.split()[0])
-                        i += 1
-                    except:
-                        pass
-        self.assertEqual(nbed, i)
-
+                            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']})
+        self.assertEqual(bed._force_count(), 3)
+        self.assertEqual(bed.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
     def test_import_bed_no_reference_specified(self):
         bed_file = resource('example1.bed')

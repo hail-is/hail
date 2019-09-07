@@ -602,7 +602,7 @@ def import_locus_intervals(path,
     def recode_contig(x):
         if contig_recoding is None:
             return x
-        return contig_recoding[x]
+        return contig_recoding.get(x, x)
 
     t = import_table(path, comment="@", impute=False, no_header=True,
                      types={'f0': tstr, 'f1': tint32, 'f2': tint32,
@@ -784,7 +784,7 @@ def import_bed(path,
     def recode_contig(x):
         if contig_recoding is None:
             return x
-        return contig_recoding[x]
+        return contig_recoding.get(x, x)
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
