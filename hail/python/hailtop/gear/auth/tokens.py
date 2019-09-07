@@ -4,6 +4,7 @@ import json
 import logging
 
 from ..deploy_config import get_deploy_config
+from .exceptions import NoTokenFileFound
 
 log = logging.getLogger('gear')
 
@@ -23,8 +24,7 @@ class Tokens(collections.abc.MutableMapping):
             with open(tokens_file, 'r') as f:
                 self._tokens = json.loads(f.read())
         else:
-            log.info(f'tokens file not found: {tokens_file}')
-            self._tokens = {}
+            raise NoTokenFileFound(tokens_file)
 
     def __setitem__(self, key, value):
         self._tokens[key] = value
