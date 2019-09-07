@@ -1226,7 +1226,7 @@ class LocusIntervalTests(unittest.TestCase):
     def test_import_locus_intervals_recoding(self):
         interval_file = resource('annotinterall.grch38.no.chr.interval_list')
         t = hl.import_locus_intervals(interval_file,
-                                      contig_recoding={str(i): f'chr{i}' for i in [*range(22), 'X', 'Y', 'MT']},
+                                      contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'MT']},
                                       reference_genome='GRCh38')
         t._force_count()
         self.assertTrue(t.count() == 2)
@@ -1276,7 +1276,7 @@ class LocusIntervalTests(unittest.TestCase):
         bed_file = resource('example1.bed')
         bed = hl.import_bed(bed_file,
                             reference_genome='GRCh38',
-                            contig_recoding={str(i): f'chr{i}' for i in [*range(22), 'X', 'Y', 'MT']})
+                            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'MT']})
         bed._force_count()
         nbed = bed.count()
         i = 0
