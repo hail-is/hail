@@ -1,4 +1,4 @@
-from .tokens import get_tokens
+from .tokens import get_tokens, Tokens
 from .auth import async_get_userinfo, get_userinfo, \
     rest_authenticated_users_only, rest_authenticated_developers_only, \
     web_authenticated_users_only, web_authenticated_developers_only, \
@@ -8,6 +8,7 @@ from .utils import insert_user, create_session
 
 
 __all__ = [
+    'Tokens',
     'get_tokens',
     'async_get_userinfo',
     'get_userinfo',

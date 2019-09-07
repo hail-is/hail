@@ -6,7 +6,7 @@ import aiohttp
 from aiohttp import web
 
 from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_tokens, auth_headers
+from hailtop.gear.auth import Tokens, auth_headers
 
 
 def init_parser(parser):  # pylint: disable=unused-argument
@@ -76,21 +76,18 @@ Opening in your browser.
     token = resp['token']
     username = resp['username']
 
-    auth_ns = deploy_config.service_ns('auth')
-    tokens = get_tokens()
-    tokens[auth_ns] = token
     dot_hail_dir = os.path.expanduser('~/.hail')
     if not os.path.exists(dot_hail_dir):
         os.mkdir(dot_hail_dir, mode=0o700)
-    tokens.write()
+    auth_ns = deploy_config.service_ns('auth')
+    Tokens({auth_ns: token}).write()
 
     print(f'Logged in as {username}.')
 
 
 async def async_main():
-    headers = auth_headers('auth', authorize_target=False)
     async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await auth_flow(session)
 
 

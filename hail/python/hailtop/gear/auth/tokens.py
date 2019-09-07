@@ -18,13 +18,17 @@ class Tokens(collections.abc.MutableMapping):
             return os.path.expanduser('~/.hail/tokens.json')
         return '/user-tokens/tokens.json'
 
-    def __init__(self):
-        tokens_file = self.get_tokens_file()
+    @staticmethod
+    def from_file():
+        tokens_file = Tokens.get_tokens_file()
         if os.path.isfile(tokens_file):
             with open(tokens_file, 'r') as f:
-                self._tokens = json.loads(f.read())
+                return Tokens(json.loads(f.read()))
         else:
             raise NoTokenFileFoundError(tokens_file)
+
+    def __init__(self, tokens):
+        self._tokens = tokens
 
     def __setitem__(self, key, value):
         self._tokens[key] = value
@@ -54,5 +58,5 @@ def get_tokens():
     global tokens
 
     if not tokens:
-        tokens = Tokens()
+        tokens = Tokens.from_file()
     return tokens
