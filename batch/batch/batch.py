@@ -1190,7 +1190,10 @@ async def ui_get_pod_status(request, userdata):
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
     pod_status = await _get_pod_status(batch_id, job_id, user)
-    return {'batch_id': batch_id, 'job_id': job_id, 'pod_status': pod_status}
+    return {'batch_id': batch_id,
+            'job_id': job_id,
+            'pod_status': json.dumps(json.loads(pod_status),
+                                     indent=2)}
 
 
 @routes.get('/')
