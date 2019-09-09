@@ -54,29 +54,20 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     def getShapeAtIdx(index: Int) = Region.loadLong(sourceShapePType.loadField(sourceShape, index))
 
     val stridesPType = this.representation.fieldType("strides").asInstanceOf[PTuple]
-    val srvb = new StagedRegionValueBuilder(mb, stridesPType)
     val tupleStartAddress = mb.newField[Long]
-    Code (
-      srvb.start(),
-      tupleStartAddress := srvb.offset,
-      // Fill with 0s, then backfill with actual data
-      Code.foreach(0 until nDims) { index =>
-        Code(srvb.addLong(0L), srvb.advance())
-      },
-      {
-        val runningProduct = mb.newField[Long]
+    val runningProduct = mb.newLocal[Long]
+    val region = mb.getArg[Region](1)
+
+    Code(
+      tupleStartAddress := stridesPType.allocate(region),
+      runningProduct := elementType.byteSize,
+      Code.foreach((nDims - 1) to 0 by -1) { idx =>
+        val fieldOffset = stridesPType.fieldOffset(tupleStartAddress, idx)
         Code(
-          runningProduct := elementType.byteSize,
-          Code.foreach((nDims - 1) to 0 by -1) { idx =>
-            val fieldOffset = stridesPType.fieldOffset(tupleStartAddress, idx)
-            Code(
-              Region.storeLong(fieldOffset, runningProduct),
-              runningProduct := runningProduct * getShapeAtIdx(idx)
-            )
-          },
-          srvb.end()
-        )
-      }
+          Region.storeLong(fieldOffset, runningProduct),
+          runningProduct := runningProduct * getShapeAtIdx(idx))
+      },
+      tupleStartAddress
     )
   }
 
