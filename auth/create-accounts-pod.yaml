@@ -21,7 +21,8 @@ spec:
        import sys
        import json
        import asyncio
-       from hailtop.gear import create_database_pool, get_deploy_config
+       from hailtop.gear import get_deploy_config
+       from hailtop.gear.database import create_database_pool
        from hailtop.gear.auth import get_tokens, insert_user, create_session
        async def main():
            dbpool = await create_database_pool()
