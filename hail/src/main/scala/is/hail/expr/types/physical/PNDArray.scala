@@ -39,14 +39,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       0L
     }
     else {
-      val totalElements = mb.newField[Long]
-      Code(
-        totalElements := 1L,
-        Code.foreach(0 until nDims) { index =>
-          totalElements := totalElements * getShapeAtIdx(index)
-        },
-        totalElements
-      )
+      Array.range(0, nDims).foldLeft(coerce[Long](Code(1L))) { (prod, idx) => prod * getShapeAtIdx(idx) }
     }
   }
 
