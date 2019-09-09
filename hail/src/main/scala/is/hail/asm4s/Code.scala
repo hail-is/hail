@@ -18,6 +18,13 @@ object Code {
     }
   }
 
+  def apply[S1](c1: Code[S1]): Code[S1] =
+    new Code[S1] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+      }
+    }
+
   def apply[S1, S2](c1: Code[S1], c2: Code[S2]): Code[S2] =
     new Code[S2] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
