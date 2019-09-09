@@ -2,14 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.check.Gen
-import is.hail.cxx
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
-import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
-
-import scala.reflect.{ClassTag, classTag}
 
 object PBaseStruct {
   def getMissingness(types: Array[PType], missingIdx: Array[Int]): Int = {
@@ -240,13 +233,4 @@ abstract class PBaseStruct extends PType {
   }
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
-
-  def cxxIsFieldMissing(o: cxx.Code, fieldIdx: Int): cxx.Code = {
-    s"load_bit($o, ${ missingIdx(fieldIdx) })"
-  }
-
-  def cxxLoadField(o: cxx.Code, fieldIdx: Int): cxx.Code = {
-    val a = s"(((char *)$o) + (${ byteOffsets(fieldIdx) }))"
-    cxx.loadIRIntermediate(fields(fieldIdx).typ, a)
-  }
 }
