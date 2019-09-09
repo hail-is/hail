@@ -42,6 +42,8 @@ class DeployConfig:
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
+            if ns == 'default':
+                return f'{service}.hail'
             return 'internal.hail'
         assert self._location == 'external'
         if ns == 'default':
