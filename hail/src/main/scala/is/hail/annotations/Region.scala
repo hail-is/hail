@@ -207,6 +207,8 @@ object Region {
 }
 
 final class Region(var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
+  def isValid(): Boolean = memory != null
+
   def allocate(n: Long): Long = {
     memory.allocate(n)
   }
