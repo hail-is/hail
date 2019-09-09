@@ -1233,8 +1233,7 @@ class LocusIntervalTests(unittest.TestCase):
         t = hl.import_locus_intervals(interval_file,
                                       contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']},
                                       reference_genome='GRCh38')
-        t._force_count()
-        self.assertEqual(t.count(), 3)
+        self.assertEqual(t._force_count(), 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
     def test_import_locus_intervals_badly_defined_intervals(self):
