@@ -44,7 +44,21 @@ def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool =
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
 
 
-@typecheck(bms=sequenceof(BlockMatrix), prefix=str, overwrite=bool, force_row_major=bool)
-def write_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False, force_row_major: bool = False):
-    writer = BlockMatrixNativeMultiWriter(prefix, overwrite, force_row_major)
+@typecheck(bms=sequenceof(BlockMatrix), path_prefix=str, overwrite=bool, force_row_major=bool)
+def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False, force_row_major: bool = False):
+    """Writes a sequence of block matrices to disk in the same format as BlockMatrix.write.
+
+    :param bms: :obj:`list` of :class:`BlockMatrix`
+        Block matrices to write to disk.
+    :param path_prefix: obj:`str`
+        Prefix of path to write the block matrices to.
+    :param overwrite: obj:`bool`
+        If true, overwrite any files with the same name as the block matrices being generated.
+    :param force_row_major: obj:`bool`
+        If ``True``, transform blocks in column-major format
+        to row-major format before writing.
+        If ``False``, write blocks in their current format.
+    :return:
+    """
+    writer = BlockMatrixNativeMultiWriter(path_prefix, overwrite, force_row_major)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
