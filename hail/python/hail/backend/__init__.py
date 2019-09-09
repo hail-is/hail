@@ -4,5 +4,6 @@ __all__ = [
     'Backend',
     'LocalBackend',
     'SparkBackend',
-    'ServiceBackend'
+    'ServiceBackend',
+    'DistributedBackend'
 ]

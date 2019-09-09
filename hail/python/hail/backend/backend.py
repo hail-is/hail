@@ -362,8 +362,10 @@ class ServiceBackend(Backend):
 
 class DistributedBackend(AbstractPy4JBackend):
 
-    def __init__(self):
+    def __init__(self, jvm, gateway):
         self._fs = None
+        self._jvm = jvm
+        self._gateway = gateway
 
     @property
     def fs(self):

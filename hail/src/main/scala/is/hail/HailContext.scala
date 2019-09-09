@@ -241,17 +241,19 @@ object HailContext {
 
     configureLogging(logFile, quiet, append)
 
-
+    var hadoopFS: HadoopFS = null
     if (backend.isInstanceOf[SparkBackend]) {
-      val sparkContext = backend.asSpark().sc
+      val sparkBackend = backend.asSpark()
+      val sparkContext = sparkBackend.sc
+      hadoopFS = sparkBackend.getHadoopFS()
       sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
       if (!quiet) {
         ProgressBarBuilder.build(sparkContext)
       }
     }
 
-    val sparkBackend = backend.asSpark() //new SparkBackend(sparkContext, appName, master, local, minBlockSize)
-    val hc = new HailContext(sparkBackend, sparkBackend.getHadoopFS(), logFile, tmpDir, branchingFactor, optimizerIterations)
+    //new SparkBackend(sparkContext, appName, master, local, minBlockSize)
+    val hc = new HailContext(backend, hadoopFS, logFile, tmpDir, branchingFactor, optimizerIterations)
 
 
     info(s"Running Hail version ${ hc.version }")
@@ -585,10 +587,7 @@ class HailContext private(
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-  lazy val sc: SparkContext = backend.asSpark().sc
 
-  lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
-  lazy val bcFS: Broadcast[FS] = sc.broadcast(sFS)
 
   val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
   info(s"Hail temporary directory: $tmpDir")
@@ -612,6 +611,12 @@ class HailContext private(
   }
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
+
+  def sc: SparkContext = backend.asSpark().sc
+
+  def sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
+
+  def bcFS: Broadcast[FS] = sc.broadcast(sFS)
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
     val regexp = regex.r

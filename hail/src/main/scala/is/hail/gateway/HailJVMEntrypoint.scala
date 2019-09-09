@@ -14,7 +14,7 @@ object HailJVMEntrypoint {
        // Do nothing, just keeping it alive.
      }
 
-     println("System.in connection lost")
+     println("Stopping gateway server")
      gatewayServer.shutdown()
      System.exit(0)
 

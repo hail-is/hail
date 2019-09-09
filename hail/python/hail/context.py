@@ -1,6 +1,8 @@
 import sys
 import os
-import subprocess
+from subprocess import Popen, PIPE
+import signal
+import time
 
 import pkg_resources
 from pyspark import SparkContext, SparkConf
@@ -13,8 +15,7 @@ from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
-from hail.backend import Backend, ServiceBackend, SparkBackend
-
+from hail.backend import Backend, ServiceBackend, SparkBackend, DistributedBackend
 
 
 class HailContext(object):
@@ -38,6 +39,10 @@ class HailContext(object):
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
             if jsc.uiWebUrl().isDefined():
                 sys.stderr.write('SparkUI available at {}\n'.format(jsc.uiWebUrl().get()))
+
+        elif isinstance(backend, DistributedBackend):
+            self._jvm = backend._jvm
+            self._gateway = backend._gateway
 
         install_exception_handler()
         Env.set_seed(global_seed)
@@ -176,7 +181,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
 
     HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
-def initDistributedBackend():
+def init_distributed_backend(global_seed, log, quiet):
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = [jar for jar in os.listdir(spark_jars_path) if jar.startswith("scala") or jar.startswith("py4j")]
@@ -185,13 +190,26 @@ def initDistributedBackend():
     classpath_jars = spark_jars_path_list + hail_jars_path_list
     classpath = ":".join(classpath_jars)
 
-
     cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint"]
     print(cmd)
-    ret = subprocess.call(cmd)
-    print(ret)
 
-    return spark_jars_list
+    def preexec_func():
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    proc = Popen(cmd, stdin=PIPE, preexec_fn=preexec_func)
+
+    from py4j.java_gateway import JavaGateway, java_import
+
+    #TODO Need to have the Java server tell Python it's started.
+    time.sleep(1)
+    gateway = JavaGateway(eager_load=True)
+    jvm = gateway.jvm
+
+    jhc = None
+    hailpkg = getattr(jvm, 'is').hail
+
+    backend = DistributedBackend(jvm, gateway)
+
+    return HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
 
 @typecheck(sc=nullable(SparkContext),
@@ -300,6 +318,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             service_backend = ServiceBackend(apiserver_url)
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
+            #init_distributed_backend(global_seed, log, quiet)
             init_spark_backend(sc, app_name, master, local, log, quiet, append,
                                min_block_size, branching_factor, tmp_dir,
                                default_reference, idempotent, global_seed,
