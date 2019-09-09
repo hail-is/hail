@@ -1445,15 +1445,18 @@ class BlockMatrix(object):
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=str)
     def tree_matmul(self, b, split_on_inner, path_prefix):
-        """Matrix multiplication in situations with large inner dimension. This function splits a single matrix multiplication into
-        `split_on_inner` smaller matrix multiplications, does the smaller multiplications, checkpoints them with names defined by `file_name_prefix`,
-        and adds them together. This is useful in cases when the multiplication of two large matrices results in a much smaller matrix.
+        """Matrix multiplication in situations with large inner dimension. This function splits a single matrix
+        multiplication into `split_on_inner` smaller matrix multiplications, does the smaller multiplications,
+        checkpoints them with names defined by `file_name_prefix`, and adds them together. This is useful in cases when
+        the multiplication of two large matrices results in a much smaller matrix.
 
         Parameters
         ----------
         b: :class:`numpy.ndarray` or :class:`BlockMatrix`
         split_on_inner: :obj:`int`
-        path_prefix: :class:`str`
+            The number of smaller multiplications to do.
+        path_prefix: :obj:`str`
+            The prefix of the path to write the block matrices to.
 
         Returns
         -------
