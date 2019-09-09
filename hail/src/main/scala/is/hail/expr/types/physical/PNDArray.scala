@@ -112,11 +112,11 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       srvb.advance(),
       srvb.addInt(offset),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("shape").asInstanceOf[PTuple])(shape),
+      srvb.addIRIntermediate(this.representation.fieldType("shape"))(shape),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("strides").asInstanceOf[PBaseStruct])(this.makeDefaultStrides(shapeP, shape, mb)),
+      srvb.addIRIntermediate(this.representation.fieldType("strides"))(this.makeDefaultStrides(shapeP, shape, mb)),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("data").asInstanceOf[PArray])(data),
+      srvb.addIRIntermediate(this.representation.fieldType("data"))(data),
       srvb.end()
     ))
   }

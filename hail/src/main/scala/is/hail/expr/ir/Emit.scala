@@ -1958,13 +1958,12 @@ abstract class NDArrayEmitter(
   def emit(targetType: PNDArray): EmitTriplet = {
     val dataSrvb = new StagedRegionValueBuilder(mb, targetType.representation.fieldType("data").asInstanceOf[PArray])
 
-    val dataAddress: Code[Long] = {
+    val dataAddress: Code[Long] =
       Code(
         dataSrvb.start(targetType.numElements(outputShape, mb).toI),
         emitLoops(dataSrvb),
         dataSrvb.end()
       )
-    }
 
     val ndAddress = mb.newField[Long]
 
