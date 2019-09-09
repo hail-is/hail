@@ -1277,7 +1277,7 @@ class LocusIntervalTests(unittest.TestCase):
         bed = hl.import_bed(bed_file,
                             reference_genome='GRCh38',
                             contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']})
-        self.assertEqual(bed._force_count(), 3)
+        self.assertEqual(bed._force_count(), 5)
         self.assertEqual(bed.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
     def test_import_bed_no_reference_specified(self):
