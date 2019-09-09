@@ -5,8 +5,8 @@ import webbrowser
 import aiohttp
 from aiohttp import web
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_tokens, auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import get_tokens, auth_headers
 
 
 def init_parser(parser):  # pylint: disable=unused-argument

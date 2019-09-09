@@ -1,4 +1,4 @@
-from hailtop.gear.auth import get_userinfo
+from hailtop.auth import get_userinfo
 
 GITHUB_CLONE_URL = 'https://github.com/'
 

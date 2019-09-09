@@ -13,18 +13,19 @@ import jinja2
 import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-
 from hailtop.batch_client.aioclient import BatchClient, Job
-from hailtop.gear import get_deploy_config, setup_aiohttp_session
-from hailtop.gear.auth import rest_authenticated_developers_only, web_authenticated_developers_only, new_csrf_token, check_csrf_token
-from hailtop import gear
+from hailtop.config import get_deploy_config
+from gear import configure_logging, setup_aiohttp_session, \
+    rest_authenticated_developers_only, web_authenticated_developers_only, \
+    new_csrf_token, check_csrf_token
+
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('ci')
 
 uvloop.install()

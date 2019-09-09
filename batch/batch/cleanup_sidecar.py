@@ -3,13 +3,13 @@ import os
 import subprocess as sp
 
 from aiohttp import web
-from hailtop import gear
+from gear import configure_logging
 
 from .stoppable_server import StoppableServer
 
 copy_output_cmd = os.environ.get('COPY_OUTPUT_CMD')
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('cleanup_sidecar')
 
 app = web.Application()

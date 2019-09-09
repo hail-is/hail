@@ -7,13 +7,12 @@ from aiohttp import web
 import jinja2
 import aiohttp_jinja2
 import uvloop
-
-from hailtop import gear
-from hailtop.gear import get_deploy_config
+from hailtop.config import get_deploy_config
+from gear import configure_logging
 
 uvloop.install()
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('scheduler')
 
 

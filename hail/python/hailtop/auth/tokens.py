@@ -2,8 +2,7 @@ import collections.abc
 import os
 import json
 import logging
-
-from ..deploy_config import get_deploy_config
+from hailtop.config import get_deploy_config
 
 log = logging.getLogger('gear')
 

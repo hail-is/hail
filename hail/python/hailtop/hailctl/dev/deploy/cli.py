@@ -2,8 +2,8 @@ import asyncio
 import webbrowser
 import aiohttp
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import auth_headers
 
 
 def init_parser(parser):

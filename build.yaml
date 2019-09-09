@@ -51,28 +51,22 @@ steps:
    contextPath: .
    publishAs: base
  - kind: buildImage
-   name: hailtop_image
-   dockerFile: hail/Dockerfile.hailtop
-   contextPath: hail
-   publishAs: hailtop
+   name: service_base_image
+   dockerFile: docker/Dockerfile.service-base
+   contextPath: .
+   publishAs: service-base
    dependsOn:
     - base_image
- - kind: buildImage
-   name: test_hailtop_image
-   dockerFile: hail/python/Dockerfile.test-hailtop
-   contextPath: .
-   publishAs: test-hailtop
-   dependsOn:
-     - hailtop_image
  - kind: runImage
-   name: test_hailtop
+   name: check_gear
    image:
-     valueFrom: test_hailtop_image.image
+     valueFrom: service_base_image.image
    script: |
      set -ex
-     python3 -m pytest -v --instafail test/hailtop
+     python3 -m flake8 gear
+     python3 -m pylint --rcfile pylintrc gear
    dependsOn:
-     - test_hailtop_image
+     - service_base_image
  - kind: createDatabase
    name: users_database
    databaseName: users
@@ -146,7 +140,7 @@ steps:
     - batch_pods_ns
     - deploy_default_admin_admin
     - users_database
-    - hailtop_image
+    - service_base_image
     - create_auth_tables
     - create_deploy_config
  - kind: buildImage
@@ -176,7 +170,7 @@ steps:
    contextPath: .
    publishAs: auth
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: check_auth
    image:
@@ -207,7 +201,7 @@ steps:
    contextPath: .
    publishAs: batch
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: check_batch
    image:
@@ -224,7 +218,7 @@ steps:
    contextPath: .
    publishAs: batch2
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
@@ -250,7 +244,7 @@ steps:
    contextPath: .
    publishAs: ci
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: check_ci
    image:
@@ -371,30 +365,23 @@ steps:
       to: /hail-test.jar
     - from: /hail.zip
       to: /hail.zip
- - kind: buildImage
-   name: hailtop_check_image
-   dockerFile: hail/python/Dockerfile.hailtop-check
-   contextPath: .
-   publishAs: hailtop-check
-   dependsOn:
-     - hail_base_image
  - kind: runImage
    name: check_hailtop
    image:
-     valueFrom: hailtop_check_image.image
+     valueFrom: hail_base_image.image
    script: |
      set -ex
      python3 -m flake8 hailtop
      python3 -m pylint --rcfile pylintrc hailtop
    dependsOn:
-     - hailtop_check_image
+     - hail_base_image
  - kind: buildImage
    name: scheduler_image
    dockerFile: scheduler/Dockerfile
    contextPath: .
    publishAs: scheduler
    dependsOn:
-    - base_image
+    - service_base_image
  - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
@@ -409,7 +396,7 @@ steps:
    contextPath: .
    publishAs: notebook2
    dependsOn:
-    - base_image
+    - service_base_image
  - kind: runImage
    name: check_notebook2
    image:

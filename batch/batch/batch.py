@@ -20,12 +20,12 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop.gear import unzip, setup_aiohttp_session
-from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
-    new_csrf_token, check_csrf_token, \
-    async_get_userinfo
+from hailtop.utils import unzip, blocking_to_async
+from hailtop.auth import async_get_userinfo
+from gear import setup_aiohttp_session, \
+    rest_authenticated_users_only, web_authenticated_users_only, \
+    new_csrf_token, check_csrf_token
 
-from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .datetime_json import JSON_ENCODER

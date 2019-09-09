@@ -41,30 +41,36 @@ def matrix_table_show():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.show(100)
 
+
 @benchmark
 def matrix_table_rows_show():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.rows().show(100)
+
 
 @benchmark
 def matrix_table_cols_show():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.cols().show(100)
 
+
 @benchmark
 def matrix_table_take_entry():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.GT.take(100)
+
 
 @benchmark
 def matrix_table_take_row():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.info.AF.take(100)
 
+
 @benchmark
 def matrix_table_take_col():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.s.take(100)
+
 
 @benchmark
 def write_range_matrix_table_p100():
@@ -251,6 +257,7 @@ def import_bgen_filter_count():
                         n_partitions=8)
     mt = mt.filter_rows(mt.alleles == ['A', 'T'])
     mt._force_count_rows()
+
 
 @benchmark
 def export_range_matrix_table_entry_field_p100():

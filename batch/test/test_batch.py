@@ -13,7 +13,7 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-from hailtop.gear import get_deploy_config
+from hailtop.config import get_deploy_config
 
 from .serverthread import ServerThread
 

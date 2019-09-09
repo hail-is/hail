@@ -28,8 +28,8 @@ clean:
 build:
 	make -C ../docker build
 	-docker pull $(ROUTER_RESOLVER_LATEST)
-	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
-	docker build -f Dockerfile.out -t router-resolver --cache-from router-resolver,$(ROUTER_RESOLVER_LATEST),base ..
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
+	docker build -f Dockerfile.out -t router-resolver --cache-from router-resolver,$(ROUTER_RESOLVER_LATEST),service-base ..
 
 .PHONY: push
 push: build

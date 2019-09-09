@@ -24,8 +24,8 @@ check: flake8-stmp pylint-stmp
 build:
 	make -C ../docker build
 	-docker pull $(BATCH_LATEST)
-	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
-	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),base ..
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
+	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base ..
 
 push: build
 	docker tag batch $(BATCH_LATEST)
