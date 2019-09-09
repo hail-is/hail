@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
@@ -27,7 +28,7 @@ class TableIRSuite extends HailSuite {
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
-  implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.LoweredJVMCompile)
+  implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
   @Test def testRangeCount() {
     val node1 = TableCount(TableRange(10, 2))

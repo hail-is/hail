@@ -10,7 +10,6 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.nativecode._
 import is.hail.utils._
-import is.hail.{HailContext, cxx}
 
 case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   def makeCodecSpec2(pType: PType) = PackCodecSpec2(pType, child)
@@ -25,24 +24,14 @@ final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSp
   }
 
   def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder = {
-    if (HailContext.isInitialized && HailContext.get.flags.get("cpp") != null && requestedType == t) {
-      val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
-      (out: OutputStream) => new NativePackEncoder(out, e)
-    } else {
-      val f = EmitPackEncoder(t, requestedType)
-      out: OutputStream => new CompiledEncoder(child.buildOutputBuffer(out), f)
-    }
+    val f = EmitPackEncoder(t, requestedType)
+    out: OutputStream => new CompiledEncoder(child.buildOutputBuffer(out), f)
   }
 
   def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder) = {
     val rt = computeSubsetPType(requestedType)
-    if (HailContext.isInitialized && HailContext.get.flags != null && HailContext.get.flags.get("cpp") != null) {
-      val d: NativeDecoderModule = cxx.PackDecoder.buildModule(eType, rt, child)
-      (rt, (in: InputStream) => new NativePackDecoder(in, d))
-    } else {
-      val f = EmitPackDecoder(eType, rt)
-      (rt, (in: InputStream) => new CompiledDecoder(child.buildInputBuffer(in), f))
-    }
+    val f = EmitPackDecoder(eType, rt)
+    (rt, (in: InputStream) => new CompiledDecoder(child.buildInputBuffer(in), f))
   }
 
   def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = child.buildCodeInputBuffer(is)
@@ -59,17 +48,6 @@ final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSp
     val mb = EmitPackEncoder.buildMethod(t, eType, fb)
     (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
   }
-
-  def buildNativeDecoderClass(
-    requestedType: Type,
-    inputStreamType: String,
-    tub: cxx.TranslationUnitBuilder
-  ): (PType, cxx.Class) = {
-    val rt = computeSubsetPType(requestedType)
-    (rt, cxx.PackDecoder(eType, rt, inputStreamType, child, tub))
-  }
-
-  def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackEncoder(t, child, tub)
 }
 
 object ShowBuf {
@@ -418,7 +396,8 @@ final class NativePackDecoder(in: InputStream, module: NativeDecoderModule) exte
   def seek(offset: Long): Unit = ???
 }
 
-object EmitPackEncoder { self =>
+object EmitPackEncoder {
+  self =>
 
   type Emitter = EstimableEmitter[MethodBuilderSelfLike]
 

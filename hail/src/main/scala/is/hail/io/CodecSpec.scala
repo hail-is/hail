@@ -4,16 +4,13 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.Code
-import is.hail.{HailContext, cxx}
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.rvd.{AbstractRVDSpec, RVDContext}
+import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.using
 import org.apache.spark.rdd.RDD
-import org.json4s.Extraction
-import org.json4s.jackson.JsonMethods
 
 trait CodecSpec extends Spec {
   def makeCodecSpec2(pType: PType): CodecSpec2
@@ -49,14 +46,6 @@ trait CodecSpec2 extends Spec {
   def buildEmitDecoderF[T](requestedType: Type, fb: EmitFunctionBuilder[_]): (PType, StagedDecoderF[T])
 
   def buildEmitEncoderF[T](t: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
-
-  def buildNativeDecoderClass(
-    requestedType: Type,
-    inputStreamType: String,
-    tub: cxx.TranslationUnitBuilder
-  ): (PType, cxx.Class)
-
-  def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
 
   // FIXME: is there a better place for this to live?
   def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[RVDContext, RegionValue]) = {
