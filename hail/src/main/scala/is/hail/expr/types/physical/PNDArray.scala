@@ -78,10 +78,8 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: ClassFieldRef[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
-          bytesAway := bytesAway + requestedIndex * getStrideAtIdx(strideIndex)
-        )
+          bytesAway := bytesAway + requestedIndex * getStrideAtIdx(strideIndex))
       },
-
       bytesAway + dataP.elementOffset(data, dataP.loadLength(data), 0)
     ))
   }
