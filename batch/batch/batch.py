@@ -1286,7 +1286,7 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911,R0915
                         err = await job._terminate_cleanup_pod(pod)
                         if err:
                             log.info(f'could not connect to cleanup pod, we will '
-                                     f'try again in next refresh loop {job} {pod} {err}')
+                                     f'try again in next refresh loop {job.id} {pod} {err}')
                             return
                         return
 
@@ -1437,7 +1437,8 @@ async def on_startup(app):
 
     app['log_store'] = LogStore(pool, INSTANCE_ID, userinfo['bucket_name'])
     app['pod_throttler'] = PodThrottler(QUEUE_SIZE, MAX_PODS, parallelism=16)
-    app['client_session'] = aiohttp.ClientSession()
+    app['client_session'] = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(10))
 
     asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(kube_event_loop())
