@@ -133,7 +133,7 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_no_reference_specified(self):
         vcf = hl.import_vcf(resource('sample2.vcf'),
                             reference_genome=None)
-        self.assertEuqal(vcf.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(vcf.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(vcf.count_rows(), 735)
 
     def test_import_vcf_bad_reference_allele(self):
