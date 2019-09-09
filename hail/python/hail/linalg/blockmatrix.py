@@ -183,6 +183,9 @@ class BlockMatrix(object):
     - :meth:`sum` along an axis realizes those blocks for which at least one
       block summand is realized.
 
+    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
+      and :meth:`filter_cols`.
+
     These following methods always result in a block-dense matrix:
 
     - :meth:`fill`
@@ -190,9 +193,6 @@ class BlockMatrix(object):
     - Addition or subtraction of a scalar or broadcasted vector.
 
     - Matrix multiplication, ``@``.
-
-    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
-      and :meth:`filter_cols`.
 
     The following methods fail if any operand is block-sparse, but can be forced
     by first applying :meth:`densify`.
