@@ -397,6 +397,64 @@ class UnsafeSuite extends HailSuite {
     p.check()
   }
 
+  @Test def  testRegionAllocationSimple() {
+    using(new RegionPool) { pool =>
+      assert(pool.numFreeBlocks() == 0)
+      assert(pool.numRegions() == 0)
+      assert(pool.numFreeRegions() == 0)
+
+      val r = pool.getRegion(Region.REGULAR)
+
+      assert(pool.numRegions() == 1)
+      assert(pool.numFreeRegions() == 0)
+      assert(pool.numFreeBlocks() == 0)
+
+      r.clear()
+
+      assert(pool.numRegions() == 1)
+      assert(pool.numFreeRegions() == 0)
+      assert(pool.numFreeBlocks() == 0)
+
+      r.allocate(Region.SIZES(Region.REGULAR) - 1)
+      r.allocate(Region.SIZES(Region.REGULAR) - 1)
+      r.clear()
+
+      assert(pool.numRegions() == 1)
+      assert(pool.numFreeRegions() == 0)
+      assert(pool.numFreeBlocks() == 1)
+
+      val r2 = pool.getRegion(Region.SMALL)
+
+      assert(pool.numRegions() == 2)
+      assert(pool.numFreeRegions() == 0)
+      assert(pool.numFreeBlocks() == 1)
+
+      val r3 = pool.getRegion(Region.REGULAR)
+
+      assert(pool.numRegions() == 3)
+      assert(pool.numFreeRegions() == 0)
+      assert(pool.numFreeBlocks() == 0)
+
+      r.invalidate()
+      r2.invalidate()
+      r3.invalidate()
+
+      assert(pool.numRegions() == 3)
+      assert(pool.numFreeRegions() == 3)
+      assert(pool.numFreeBlocks() == 3)
+
+      val r4 = pool.getRegion(Region.TINIER)
+
+      assert(pool.numRegions() == 3)
+      assert(pool.numFreeRegions() == 2)
+      assert(pool.numFreeBlocks() == 3)
+
+      info(s" before invalidate: ${pool.getTotalAllocatedBytes.toString}")
+      r4.invalidate()
+      info(s" after invalidate: ${pool.getTotalAllocatedBytes.toString}")
+    }
+  }
+
   @Test def testRegionAllocation() {
     val pool = RegionPool.get
 
@@ -423,15 +481,15 @@ class UnsafeSuite extends HailSuite {
 
       Region.scoped { region2 =>
         assertAfterEquals(before.allocate(1))
-        region.reference(region2)
+        region.addReferenceTo(region2)
       }
       assertAfterEquals(before)
     }
     assertAfterEquals(before.free(2))
 
     Region.scoped { region =>
-      Region.scoped { region2 => region.reference(region2) }
-      Region.scoped { region2 => region.reference(region2) }
+      Region.scoped { region2 => region.addReferenceTo(region2) }
+      Region.scoped { region2 => region.addReferenceTo(region2) }
       assertAfterEquals(before.allocate(3))
     }
     assertAfterEquals(before.free(3))
@@ -467,8 +525,8 @@ class UnsafeSuite extends HailSuite {
       assert(offset(r) == off4)
     }
 
-    assertUsesRegions(-1) { region.clearParentReference(2) }
-    assertUsesRegions(-1) { region.clearParentReference(4) }
+    assertUsesRegions(-1) { region.unreferenceRegionAtIndex(2) }
+    assertUsesRegions(-1) { region.unreferenceRegionAtIndex(4) }
   }
 
   @Test def testRegionSizes() {
