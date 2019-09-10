@@ -184,7 +184,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
 def init_distributed_backend(global_seed, log, quiet):
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
-    spark_jars_list = [jar for jar in os.listdir(spark_jars_path) if jar.startswith("scala") or jar.startswith("py4j")]
+    spark_jars_list = [jar for jar in os.listdir(spark_jars_path)]
     spark_jars_path_list = [os.path.join(spark_jars_path, spark_jar_name) for spark_jar_name in spark_jars_list]
     hail_jars_path_list = ["hail-all-spark.jar"]
     classpath_jars = spark_jars_path_list + hail_jars_path_list
@@ -197,12 +197,17 @@ def init_distributed_backend(global_seed, log, quiet):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
     proc = Popen(cmd, stdin=PIPE, preexec_fn=preexec_func)
 
-    from py4j.java_gateway import JavaGateway, java_import
+    from py4j.java_gateway import JavaGateway, GatewayParameters, java_import
 
-    #TODO Need to have the Java server tell Python it's started.
+    # TODO Need to have the Java server tell Python it's started.
     time.sleep(1)
-    gateway = JavaGateway(eager_load=True)
+
+    gateway_params = GatewayParameters(auto_convert=True)
+    gateway = JavaGateway(gateway_parameters=gateway_params)
     jvm = gateway.jvm
+
+    Env._gateway = gateway
+    Env._jvm = jvm
 
     jhc = None
     hailpkg = getattr(jvm, 'is').hail
@@ -318,11 +323,11 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             service_backend = ServiceBackend(apiserver_url)
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
-            #init_distributed_backend(global_seed, log, quiet)
-            init_spark_backend(sc, app_name, master, local, log, quiet, append,
-                               min_block_size, branching_factor, tmp_dir,
-                               default_reference, idempotent, global_seed,
-                               _optimizer_iterations)
+            init_distributed_backend(global_seed, log, quiet)
+            # init_spark_backend(sc, app_name, master, local, log, quiet, append,
+            #                    min_block_size, branching_factor, tmp_dir,
+            #                    default_reference, idempotent, global_seed,
+            #                    _optimizer_iterations)
 
 
 def _hail_cite_url():

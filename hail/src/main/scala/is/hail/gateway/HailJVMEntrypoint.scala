@@ -17,7 +17,6 @@ object HailJVMEntrypoint {
      println("Stopping gateway server")
      gatewayServer.shutdown()
      System.exit(0)
-
    }
 
 }
