@@ -357,45 +357,6 @@ object EmitPackDecoder {
   }
 }
 
-case class NativeDecoderModule(
-  modKey: String,
-  modBinary: Array[Byte]) extends Serializable
-
-final class NativePackDecoder(in: InputStream, module: NativeDecoderModule) extends Decoder {
-  private[this] val st = new NativeStatus()
-  private[this] val mod = new NativeModule(module.modKey, module.modBinary)
-  private[this] val make_decoder = mod.findPtrFuncL1(st, "make_input_buffer")
-  assert(st.ok, st.toString())
-  private[this] val decode_row = mod.findLongFuncL2(st, "decode_row")
-  assert(st.ok, st.toString())
-  private[this] val decode_byte = mod.findLongFuncL1(st, "decode_byte")
-  assert(st.ok, st.toString())
-  private[this] val input = new ObjectArray(in)
-  private[this] val decoder = new NativePtr(make_decoder, st, input.get())
-  input.close()
-  make_decoder.close()
-  assert(st.ok, st.toString())
-
-  def close(): Unit = {
-    decoder.close()
-    decode_row.close()
-    decode_byte.close()
-    // NativePtr's to objects with destructors using the module code must
-    // *not* be close'd last, since the module will be dlclose'd before the
-    // destructor is called.  One safe policy is to close everything in
-    // reverse order, ending with the NativeModule
-    mod.close()
-    st.close()
-    in.close()
-  }
-
-  def readByte(): Byte = decode_byte(st, decoder.get()).toByte
-
-  def readRegionValue(region: Region): Long = decode_row(st, decoder.get(), region.get())
-
-  def seek(offset: Long): Unit = ???
-}
-
 object EmitPackEncoder {
   self =>
 
@@ -565,60 +526,4 @@ object EmitPackEncoder {
     mb.emit(encode(t, requestedType, Region.getIRIntermediate(t)(offset), mb))
     fb.result()
   }
-}
-
-case class NativeEncoderModule(
-  modKey: String,
-  modBinary: Array[Byte]) extends Serializable
-
-final class NativePackEncoder(out: OutputStream, module: NativeEncoderModule) extends Encoder {
-  private[this] val st = new NativeStatus()
-  private[this] val mod = new NativeModule(module.modKey, module.modBinary)
-  private[this] val makeOutputBufferF = mod.findPtrFuncL1(st, "makeOutputBuffer")
-  assert(st.ok, st.toString())
-  private[this] val encodeByteF = mod.findLongFuncL2(st, "encode_byte")
-  assert(st.ok, st.toString())
-  private[this] val encodeRVF = mod.findLongFuncL2(st, "encode_row")
-  assert(st.ok, st.toString())
-  private[this] val flushF = mod.findLongFuncL1(st, "encoder_flush")
-  assert(st.ok, st.toString())
-  private[this] val closeF = mod.findLongFuncL1(st, "encoder_close")
-  assert(st.ok, st.toString())
-
-  private[this] val objArray = new ObjectArray(out)
-  assert(st.ok, st.toString())
-  val buf = new NativePtr(makeOutputBufferF, st, objArray.get())
-  objArray.close()
-  makeOutputBufferF.close()
-
-  def flush(): Unit = {
-    flushF(st, buf.get())
-    assert(st.ok, st.toString())
-    out.flush()
-  }
-
-  def close(): Unit = {
-    closeF(st, buf.get())
-    assert(st.ok, st.toString())
-    buf.close()
-    encodeByteF.close()
-    encodeRVF.close()
-    flushF.close()
-    closeF.close()
-    mod.close()
-    st.close()
-    out.close()
-  }
-
-  def writeRegionValue(region: Region, offset: Long): Unit = {
-    encodeRVF(st, buf.get(), offset)
-    assert(st.ok, st.toString())
-  }
-
-  def writeByte(b: Byte): Unit = {
-    encodeByteF(st, buf.get(), b)
-    assert(st.ok, st.toString())
-  }
-
-  def indexOffset(): Long = ???
 }
