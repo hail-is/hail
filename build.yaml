@@ -330,7 +330,7 @@ steps:
      set -ex
      cd /io
      mkdir -p src/test
-     tar xzvf resources.tar.gz -C src/test
+     tar xzf resources.tar.gz -C src/test
      HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng.xml
    inputs:
     - from: /resources.tar.gz
