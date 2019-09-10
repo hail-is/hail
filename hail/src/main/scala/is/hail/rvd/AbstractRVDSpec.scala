@@ -174,7 +174,7 @@ case class OrderedRVDSpec(
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
-  override def codecSpec2: CodecSpec2 = PackCodecSpec2(rvdType.rowType, codecSpec.asInstanceOf[PackCodecSpec].child)
+  override def codecSpec2: CodecSpec2 = codecSpec.makeCodecSpec2(rvdType.rowType)
 }
 
 abstract class AbstractRVDSpec {
@@ -334,5 +334,5 @@ case class IndexedRVDSpec(
     }
   }
 
-  override def codecSpec2: CodecSpec2 = PackCodecSpec2(rvdType.rowType, codecSpec.asInstanceOf[PackCodecSpec].child)
+  override def codecSpec2: CodecSpec2 = codecSpec.makeCodecSpec2(rvdType.rowType)
 }
