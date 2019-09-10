@@ -32,7 +32,7 @@ build/images/%/_PUSHED_LATEST_TAG: build/images/%/_BUILT
 
 $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 
-notebook-worker-images: $(PUSHED)
+notebook-worker-images: $(PUSHED) external-worker-images
 	cat $^ > $@
 
 build: $(BUILT) notebook-worker-images
