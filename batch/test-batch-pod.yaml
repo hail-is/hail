@@ -11,16 +11,20 @@ spec:
        valueFrom:
          fieldRef:
            fieldPath: status.podIP
-     - name: HAIL_TOKEN_FILE
-       value: '/test-jwt/jwt'
-     - name: BATCH_URL
-       value: http://batch.{{ default_ns.name }}
+     - name: HAIL_DEPLOY_CONFIG_FILE
+       value: /deploy-config/deploy-config.json
     volumeMounts:
-      - mountPath: /test-jwt
+      - mountPath: /deploy-config
         readOnly: true
-        name: test-jwt
+        name: deploy-config
+      - mountPath: /user-tokens
+        readOnly: true
+        name: test-tokens
   volumes:
-    - name: test-jwt
+    - name: deploy-config
       secret:
-        secretName: test-jwt
+        secretName: deploy-config
+    - name: test-tokens
+      secret:
+        secretName: test-tokens
   restartPolicy: Never

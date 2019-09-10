@@ -22,6 +22,9 @@ spec:
       containers:
        - name: scheduler
          image: "{{ scheduler_image.image }}"
+         env:
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
          resources:
            requests:
              memory: "1G"
@@ -37,6 +40,14 @@ spec:
              port: 5000
            initialDelaySeconds: 5
            periodSeconds: 5
+         volumeMounts:
+          - mountPath: /deploy-config
+            name: deploy-config
+            readOnly: true
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
 ---
 apiVersion: v1
 kind: Service

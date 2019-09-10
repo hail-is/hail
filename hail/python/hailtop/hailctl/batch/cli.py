@@ -16,8 +16,6 @@ def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl batch',
         description='Manage batches running on the batch service managed by the Hail team.')
-    main_parser.add_argument(
-        '--master-url', type=str, default='https://batch.hail.is', help='URL for the batch master')
     subparsers = main_parser.add_subparsers()
 
     list_parser = subparsers.add_parser(
@@ -96,7 +94,7 @@ def main(args):
     session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session, url=args.master_url)
+    client = BatchClient(session)
 
     try:
         jmp[args.module].main(args, pass_through_args, client)

@@ -70,7 +70,6 @@ object PruneDeadFields {
   }
 
   def apply(ir: BaseIR): BaseIR = {
-
     try {
       val irCopy = ir.deepCopy()
       val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)

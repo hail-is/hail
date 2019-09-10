@@ -5,7 +5,6 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.backend.spark.SparkBackend
-import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
@@ -18,12 +17,12 @@ import org.apache.spark.sql.Row
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile, LoweredJVMCompile = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile = Value
 
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
-  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
-  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile, CxxCompile)
+  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
 }
 
 object TestUtils {
@@ -142,71 +141,6 @@ object TestUtils {
       None
   }
 
-  def nativeExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
-    if (agg.isDefined)
-      throw new CXXUnsupportedOperation
-
-    if (env.m.isEmpty && args.isEmpty) {
-      try {
-        val (res, _) = HailContext.backend.cxxLowerAndExecute(x, optimize = false)
-        res
-      } catch {
-        case e: CXXUnsupportedOperation =>
-          throw e
-      }
-    } else {
-      val inputTypesB = new ArrayBuilder[Type]()
-      val inputsB = new ArrayBuilder[Any]()
-
-      args.foreach { case (v, t) =>
-        inputsB += v
-        inputTypesB += t
-      }
-
-      env.m.foreach { case (name, (v, t)) =>
-        inputsB += v
-        inputTypesB += t
-      }
-
-      val argsType = TTuple(inputTypesB.result(): _*)
-      val resultType = TTuple(x.typ)
-      val argsVar = genUID()
-
-      val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
-        (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
-      }
-
-      def rewrite(x: IR): IR = {
-        x match {
-          case In(i, t) =>
-            GetTupleElement(In(0, argsType), i)
-          case _ =>
-            MapIR(rewrite)(x)
-        }
-      }
-
-      val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
-      val f = cxx.Compile(
-        argsVar, argsType.physicalType,
-        MakeTuple.ordered(FastSeq(rewritten)), false)
-
-      Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(argsType.physicalType)
-        rvb.startTuple()
-        var i = 0
-        while (i < inputsB.length) {
-          rvb.addAnnotation(inputTypesB(i), inputsB(i))
-          i += 1
-        }
-        rvb.endTuple()
-        val argsOff = rvb.end()
-
-        val resultOff = f(region.get(), argsOff)
-        SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
-      }
-    }
-  }
 
   def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
@@ -381,20 +315,11 @@ object TestUtils {
 
     assert(t.valuesSimilar(i, c), s"interpret $i vs compile $c")
     assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
-
-    try {
-      val c2 = nativeExecute(x, env, args, agg)
-      assert(t.typeCheck(c2))
-      assert(t.valuesSimilar(c2, c), s"native compile $c2 vs compile $c")
-    } catch {
-      case _: CXXUnsupportedOperation =>
-    }
   }
 
   def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit = {
     assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
   }
-
 
   def assertEvalsTo(x: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
@@ -439,7 +364,6 @@ object TestUtils {
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
               eval(x, env, args, agg)
-            case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
             case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
           }
           assert(t.typeCheck(res))

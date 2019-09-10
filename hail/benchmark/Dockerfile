@@ -24,5 +24,7 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 
+RUN pip3 install aiomysql
+
 COPY $WHEEL .
 RUN pip3 install $WHEEL

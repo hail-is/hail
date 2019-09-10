@@ -1,0 +1,4 @@
+/Dockerfile.out
+/deployment.yaml.out
+/flake8-stmp
+/pylint-stmp

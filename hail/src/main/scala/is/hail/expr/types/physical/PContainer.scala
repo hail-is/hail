@@ -2,7 +2,6 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.cxx
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
@@ -262,55 +261,4 @@ abstract class PContainer extends PIterable {
   }
 
   override def containsPointers: Boolean = true
-
-  def cxxImpl: String = {
-    elementType match {
-      case _: PStruct | _: PTuple =>
-        s"ArrayAddrImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
-      case _ =>
-        s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
-    }
-  }
-
-  def cxxArrayBuilder: String = {
-    elementType match {
-      case _: PStruct | _: PTuple =>
-        s"ArrayAddrBuilder<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }, ${ alignment }>"
-      case _ =>
-        s"ArrayLoadBuilder<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize }, ${ elementType.alignment }, ${ alignment }>"
-    }
-  }
-
-  def cxxArraySorter(ltClass: String): String = s"ArraySorter<$cxxArrayBuilder, $ltClass>"
-
-  def cxxLoadLength(a: cxx.Code): cxx.Code = {
-    s"$cxxImpl::load_length($a)"
-  }
-
-  def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::is_element_missing($a, $i)"
-  }
-
-  def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
-    if (elementType.required)
-      "0"
-    else
-      s"(($len + 7) >> 3)"
-  }
-
-  def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
-    s"${ cxxElementsOffset(len) } + $len * ${ UnsafeUtils.arrayElementSize(elementType) }"
-  }
-
-  def cxxElementsOffset(len: cxx.Code): cxx.Code = {
-    s"$cxxImpl::elements_offset($len)"
-  }
-
-  def cxxElementAddress(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::element_address($a, $i)"
-  }
-
-  def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::load_element($a, $i)"
-  }
 }

@@ -144,6 +144,13 @@ abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {
   def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): M
 }
 
+class MethodBuilderSelfLike(val mb: MethodBuilder) extends MethodBuilderLike[MethodBuilderSelfLike] {
+  type MB = MethodBuilder
+
+  def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilderSelfLike =
+    new MethodBuilderSelfLike(mb.fb.newMethod(paramInfo, returnInfo))
+}
+
 abstract class EstimableEmitter[M <: MethodBuilderLike[M]] {
   def emit(mb: M): Code[Unit]
 

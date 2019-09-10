@@ -1,25 +1,25 @@
 <div id="header">
-  <a class="home link-button" href="/">
+  <a class="home link-button" href="{{ base_path }}/">
     <b>/</b>
   </a>
 
-  <a href="/notebook" class="home link-button">
+  <a href="{{ base_path }}/notebook" class="home link-button">
     Notebook
   </a>
 
   <div id="profile-divider"></div>
 
-  {% if g.user %}
-  <a href="/user"
-    ><b id="user-name">{{ g.user["name"] }}</b></a
+  {% if userdata %}
+  <a href="{{ base_path }}/user"
+    ><b id="user-name">{{ userdata["username"] }}</b></a
   >
-  <form action="/logout" method="POST">
+  <form action="{{ auth_base_url }}/logout" method="POST">
     <button class="link-button" type="submit">
       Log out
     </button>
   </form>
   {% else %}
-  <a class="link-button" href="/login">
+  <a class="link-button" href="{{ auth_base_url }}/login">
     Login
   </a>
   {% endif %}

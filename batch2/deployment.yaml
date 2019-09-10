@@ -22,12 +22,14 @@ spec:
       serviceAccountName: batch2
       containers:
       - name: batch2
-        image: "gcr.io/hail-vdc/batch2:latest"
+        image: {{ batch2_image.image }}
         resources:
           requests:
             memory: "250M"
             cpu: "0.5"
         env:
+         - name: HAIL_DEPLOY_CONFIG_FILE
+           value: /deploy-config/deploy-config.json
         ports:
          - containerPort: 5000
         readinessProbe:
@@ -36,6 +38,14 @@ spec:
             port: 5000
           initialDelaySeconds: 5
           periodSeconds: 5
+        volumeMounts:
+         - mountPath: /deploy-config
+           name: deploy-config
+           readOnly: true
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
       tolerations:
       - key: "preemptible"
         operator: "Equal"

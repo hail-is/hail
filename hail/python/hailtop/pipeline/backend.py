@@ -187,11 +187,11 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self, url):
+    def __init__(self):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self._batch_client = BatchClient(session, url)
+        self._batch_client = BatchClient(session)
 
     def close(self):
         self._batch_client.close()

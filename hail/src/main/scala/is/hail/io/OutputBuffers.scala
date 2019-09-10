@@ -1,0 +1,279 @@
+package is.hail.io
+
+import java.io._
+import java.util
+
+import is.hail.annotations.{Memory, Region}
+import is.hail.io.compress.LZ4Utils
+import is.hail.utils._
+import is.hail.utils.richUtils.ByteTrackingOutputStream
+
+trait OutputBuffer extends Closeable {
+  def flush(): Unit
+
+  def close(): Unit
+
+  def indexOffset(): Long
+
+  def writeByte(b: Byte): Unit
+
+  def writeInt(i: Int): Unit
+
+  def writeLong(l: Long): Unit
+
+  def writeFloat(f: Float): Unit
+
+  def writeDouble(d: Double): Unit
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit
+
+  def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
+
+  def writeBoolean(b: Boolean) {
+    writeByte(b.toByte)
+  }
+}
+
+trait OutputBlockBuffer extends Spec with Closeable {
+  def writeBlock(buf: Array[Byte], len: Int): Unit
+
+  def getPos(): Long
+}
+
+final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
+  private val buf = new Array[Byte](8)
+
+  override def flush(): Unit = out.flush()
+
+  override def close(): Unit = out.close()
+
+  def indexOffset(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+
+  override def writeByte(b: Byte): Unit = out.write(Array(b))
+
+  override def writeInt(i: Int) {
+    Memory.storeInt(buf, 0, i)
+    out.write(buf, 0, 4)
+  }
+
+  def writeLong(l: Long) {
+    Memory.storeLong(buf, 0, l)
+    out.write(buf, 0, 8)
+  }
+
+  def writeFloat(f: Float) {
+    Memory.storeFloat(buf, 0, f)
+    out.write(buf, 0, 4)
+  }
+
+  def writeDouble(d: Double) {
+    Memory.storeDouble(buf, 0, d)
+    out.write(buf, 0, 8)
+  }
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(region.loadBytes(off, n))
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
+    var i = 0
+    while (i < n) {
+      writeDouble(from(fromOff + i))
+      i += 1
+    }
+  }
+}
+
+final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
+  def flush() {}
+
+  def close() {}
+
+  def indexOffset(): Long = ???
+
+  def writeByte(b: Byte): Unit = mb.writeByte(b)
+
+  def writeInt(i: Int): Unit = mb.writeInt(i)
+
+  def writeLong(l: Long): Unit = mb.writeLong(l)
+
+  def writeFloat(f: Float): Unit = mb.writeFloat(f)
+
+  def writeDouble(d: Double): Unit = mb.writeDouble(d)
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = mb.writeBytes(region, off, n)
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = ???
+}
+
+final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
+  def flush(): Unit = out.flush()
+
+  def close() {
+    out.close()
+  }
+
+  def indexOffset(): Long = out.indexOffset()
+
+  def writeByte(b: Byte): Unit = out.writeByte(b)
+
+  def writeInt(i: Int): Unit = {
+    var j = i
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      out.writeByte(b.toByte)
+    } while (j != 0)
+  }
+
+  def writeLong(l: Long): Unit = {
+    var j = l
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      out.writeByte(b.toByte)
+    } while (j != 0)
+  }
+
+  def writeFloat(f: Float): Unit = out.writeFloat(f)
+
+  def writeDouble(d: Double): Unit = out.writeDouble(d)
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = out.writeDoubles(from, fromOff, n)
+}
+
+final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
+  private val buf: Array[Byte] = new Array[Byte](blockSize)
+  private var off: Int = 0
+
+  def indexOffset(): Long = {
+    if (off == blockSize)
+      writeBlock()
+    (out.getPos() << 16) | off
+  }
+
+  private def writeBlock() {
+    out.writeBlock(buf, off)
+    off = 0
+  }
+
+  def flush() {
+    writeBlock()
+  }
+
+  def close() {
+    flush()
+    out.close()
+  }
+
+  def writeByte(b: Byte) {
+    if (off + 1 > buf.length)
+      writeBlock()
+    Memory.storeByte(buf, off, b)
+    off += 1
+  }
+
+  def writeInt(i: Int) {
+    if (off + 4 > buf.length)
+      writeBlock()
+    Memory.storeInt(buf, off, i)
+    off += 4
+  }
+
+  def writeLong(l: Long) {
+    if (off + 8 > buf.length)
+      writeBlock()
+    Memory.storeLong(buf, off, l)
+    off += 8
+  }
+
+  def writeFloat(f: Float) {
+    if (off + 4 > buf.length)
+      writeBlock()
+    Memory.storeFloat(buf, off, f)
+    off += 4
+  }
+
+  def writeDouble(d: Double) {
+    if (off + 8 > buf.length)
+      writeBlock()
+    Memory.storeDouble(buf, off, d)
+    off += 8
+  }
+
+  def writeBytes(fromRegion: Region, fromOff0: Long, n0: Int) {
+    assert(n0 >= 0)
+    var fromOff = fromOff0
+    var n = n0
+
+    while (off + n > buf.length) {
+      val p = buf.length - off
+      fromRegion.loadBytes(fromOff, buf, off, p)
+      off += p
+      fromOff += p
+      n -= p
+      assert(off == buf.length)
+      writeBlock()
+    }
+    fromRegion.loadBytes(fromOff, buf, off, n)
+    off += n
+  }
+
+  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int) {
+    assert(n0 >= 0)
+    assert(fromOff0 >= 0)
+    assert(fromOff0 <= from.length - n0)
+    var fromOff = fromOff0
+    var n = n0
+
+    while (off + (n << 3) > buf.length) {
+      val p = (buf.length - off) >>> 3
+      Memory.memcpy(buf, off, from, fromOff, p)
+      off += (p << 3)
+      fromOff += p
+      n -= p
+      writeBlock()
+    }
+    Memory.memcpy(buf, off, from, fromOff, n)
+    off += (n << 3)
+  }
+}
+
+final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
+  private val lenBuf = new Array[Byte](4)
+
+  def close() {
+    out.close()
+  }
+
+  def writeBlock(buf: Array[Byte], len: Int): Unit = {
+    Memory.storeInt(lenBuf, 0, len)
+    out.write(lenBuf, 0, 4)
+    out.write(buf, 0, len)
+  }
+
+  def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+}
+
+final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+  private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
+
+  def close() {
+    out.close()
+  }
+
+  def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
+    val compLen = LZ4Utils.compress(comp, 4, buf, decompLen)
+    Memory.storeInt(comp, 0, decompLen) // decompLen
+    out.writeBlock(comp, compLen + 4)
+  }
+
+  def getPos(): Long = out.getPos()
+}
+

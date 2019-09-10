@@ -277,7 +277,7 @@ BENCHMARK_ITERS ?= 5
 BENCHMARK_REPLICATES ?= 5
 .PHONY: benchmark
 benchmark: push-benchmark-image install
-	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
+	$(HAIL_PYTHON3) benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
 clean: clean-env clean-docs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
@@ -288,6 +288,8 @@ clean: clean-env clean-docs native-lib-clean
 .PHONY: clean-docs
 clean-docs:
 	$(MAKE) -C www clean
+
+HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 
 .PHONY: docs
 docs: install $(PYTHON_VERSION_INFO)
@@ -305,11 +307,12 @@ docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: docs
-	cd build && tar cvf www.tar.gz www
+	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)
 	gsutil -m acl set public-read $(docs_location)
@@ -333,6 +336,7 @@ docs-no-test: $(PYTHON_VERSION_INFO)
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
