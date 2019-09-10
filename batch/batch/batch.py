@@ -1158,7 +1158,7 @@ async def ui_cancel_batch(request, userdata):
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
-    batches = await _get_batches_list(params, user)
+    batches = await _get_batches_list(params, user)[::-1]
     token = new_csrf_token()
     context = {'batch_list': batches, 'token': token}
 
