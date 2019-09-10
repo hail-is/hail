@@ -49,22 +49,24 @@ final class RegionPool extends AutoCloseable {
 
   def getChunk(size: Long): Long = {
     totalAllocatedBytes += size
-    val newBlock = Memory.malloc(size)
-    assert((newBlock & 0x7) == 0, newBlock)
-    newBlock
+    Memory.malloc(size)
   }
 
-  def decrementFreedBytes(n: Long): Unit = totalAllocatedBytes -= n
+  def freeChunk(addr: Long): Unit = {
+    totalAllocatedBytes -= addr
+    Memory.free(addr)
+  }
 
   def getBlock(): Long = getBlock(0)
 
   def getMemory(size: Int): RegionMemory = {
     if (freeRegions.size > 0) {
       val rm = freeRegions.pop()
-      rm.reinitialize(size)
+      rm.initialize(size)
       rm
     } else {
-      val rm = new RegionMemory(this, size)
+      val rm = new RegionMemory(this)
+      rm.initialize(size)
       regions += rm
       rm
     }
