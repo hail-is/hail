@@ -95,7 +95,6 @@ async def async_main(args):
         deploy_config = deploy_config.with_service('auth', auth_ns)
     else:
         auth_ns = deploy_config.service_ns('auth')
-    print('auth_ns', auth_ns)
     headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
