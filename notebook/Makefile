@@ -8,7 +8,9 @@ PUSHED_LATEST_TAG = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_
 
 .PHONY: $(IMAGE_SHORT_NAMES)
 
-build/images/%/_BUILT: images/%/Dockerfile
+.PHONY: force
+
+build/images/%/_BUILT: force
 	mkdir -p $(dir $@)
 ifeq ($(CI_BUILD),true)
 	-docker pull gcr.io/${PROJECT}/$*:latest
