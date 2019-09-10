@@ -321,7 +321,7 @@ upload-docs: docs
 test: pytest jvm-test doctest tutorial-test
 
 .PHONY: tutorial-test
-docs-no-test: $(PYTHON_VERSION_INFO)
+docs-no-test: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
