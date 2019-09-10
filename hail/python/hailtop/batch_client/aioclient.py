@@ -430,8 +430,10 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, session=None, headers=None, _token=None):
-        deploy_config = get_deploy_config()
+    async def __init__(self, deploy_config=None, session=None, headers=None, _token=None):
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+
         self.url = deploy_config.base_url('batch')
 
         if session is None:
@@ -439,7 +441,7 @@ class BatchClient:
                                             timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
 
-        userinfo = await async_get_userinfo()
+        userinfo = await async_get_userinfo(deploy_config)
         self.bucket = userinfo['bucket_name']
 
         h = {}

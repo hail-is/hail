@@ -188,10 +188,7 @@ class BatchBackend(Backend):
     """
 
     def __init__(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self._batch_client = BatchClient(session)
+        self._batch_client = BatchClient()
 
     def close(self):
         self._batch_client.close()

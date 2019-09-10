@@ -5,8 +5,9 @@ from hailtop.utils import async_to_blocking
 from .tokens import get_tokens
 
 
-async def async_get_userinfo():
-    deploy_config = get_deploy_config()
+async def async_get_userinfo(deploy_config=None):
+    if not deploy_config:
+        deploy_config = get_deploy_config()
     headers = service_auth_headers(deploy_config, 'auth')
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -15,8 +16,8 @@ async def async_get_userinfo():
             return await resp.json()
 
 
-def get_userinfo():
-    return async_to_blocking(async_get_userinfo())
+def get_userinfo(deploy_config=None):
+    return async_to_blocking(async_get_userinfo(deploy_config))
 
 
 def namespace_auth_headers(deploy_config, ns, authorize_target=True):

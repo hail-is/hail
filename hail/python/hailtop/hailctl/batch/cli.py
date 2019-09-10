@@ -91,10 +91,7 @@ def main(args):
 
     args, pass_through_args = parser().parse_known_args(args=args)
 
-    session = aiohttp.ClientSession(
-        raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session)
+    client = BatchClient()
 
     try:
         jmp[args.module].main(args, pass_through_args, client)

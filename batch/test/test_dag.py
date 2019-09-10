@@ -13,10 +13,7 @@ from .serverthread import ServerThread
 
 @pytest.fixture
 def client():
-    session = aiohttp.ClientSession(
-        raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session)
+    client = BatchClient()
     yield client
     client.close()
 
