@@ -1158,9 +1158,9 @@ async def ui_cancel_batch(request, userdata):
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
-    batches = await _get_batches_list(params, user)[::-1]
+    batches = await _get_batches_list(params, user)
     token = new_csrf_token()
-    context = {'batch_list': batches, 'token': token}
+    context = {'batch_list': batches[::-1], 'token': token}
 
     response = aiohttp_jinja2.render_template('batches.html',
                                               request,
