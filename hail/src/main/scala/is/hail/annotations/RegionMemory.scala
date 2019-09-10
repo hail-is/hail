@@ -120,6 +120,11 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     assert(referenceCount == 1)
     assert(currentBlock != 0)
 
+    while (bigChunks.size > 0) {
+      val chunk = bigChunks.pop()
+      pool.freeChunk(chunk)
+    }
+
     val freeBlocksOfSize = pool.freeBlocks(blockSize)
     freeBlocksOfSize.appendFrom(usedBlocks)
     usedBlocks.clear()
