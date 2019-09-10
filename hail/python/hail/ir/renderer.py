@@ -396,7 +396,7 @@ class CSEPrintPass:
     # 'bindings_stack' is a stack of 'BindingsStackFrame's, one for each
     # potential binding site on the path from 'root' to 'node'.
 
-    def __call__(self, root: ir.BaseIR, binding_sites: Dict[int, BindingSite]):
+    def __call__(self, root: 'ir.BaseIR', binding_sites: Dict[int, BindingSite]):
         root_builder = []
         bindings_stack: List[CSEPrintPass.BindingsStackFrame] = []
         memo = self.renderer.memo
