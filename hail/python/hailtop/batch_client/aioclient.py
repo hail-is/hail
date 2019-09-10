@@ -5,7 +5,7 @@ import aiohttp
 from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import async_get_userinfo, auth_headers
+from hailtop.auth import async_get_userinfo, service_auth_headers
 
 from .globals import complete_states
 
@@ -448,7 +448,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(auth_headers('batch'))
+            h.update(service_auth_headers(deploy_config, 'batch'))
         self._headers = h
 
     async def _get(self, path, params=None):

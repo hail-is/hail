@@ -1,5 +1,6 @@
 import collections.abc
 import os
+import sys
 import json
 import logging
 from hailtop.config import get_deploy_config
@@ -30,6 +31,22 @@ class Tokens(collections.abc.MutableMapping):
 
     def __getitem__(self, key):
         return self._tokens[key]
+
+    def namespace_token_or_error(self, ns):
+        if ns in self._tokens:
+            return self._tokens[ns]
+
+        deploy_config = get_deploy_config()
+        auth_ns = deploy_config.service_ns('auth')
+        ns_arg = '' if ns == auth_ns else f'-n {ns}'
+        sys.stderr.write(f'''\
+You are not authenticated.  Please log in with:
+
+  $ hailctl auth login {ns_arg}
+
+to obtain new credentials.
+''')
+        sys.exit(1)
 
     def __delitem__(self, key):
         del self._tokens[key]
