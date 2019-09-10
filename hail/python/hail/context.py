@@ -27,11 +27,12 @@ class HailContext(object):
         self._warn_entries_order = True
 
         self._log = log
+        self._jhc = jhc
 
         if isinstance(backend, SparkBackend):
             self._jvm = SparkContext._jvm
             self._gateway = SparkContext._gateway
-            self._jhc = jhc
+
             self.sc = backend.sc
             jsc = jhc.sc()
             self._spark_session = backend.spark_session
@@ -43,6 +44,7 @@ class HailContext(object):
         elif isinstance(backend, DistributedBackend):
             self._jvm = backend._jvm
             self._gateway = backend._gateway
+            self._hail = getattr(self._jvm, 'is').hail
 
         install_exception_handler()
         Env.set_seed(global_seed)
@@ -73,7 +75,8 @@ class HailContext(object):
 
             connect_logger('localhost', 12888)
 
-            self._hail.HailContext.startProgressBar(jsc)
+            if isinstance(backend, SparkBackend):
+                self._hail.HailContext.startProgressBar(jsc)
 
             sys.stderr.write(
                 'Welcome to\n'
@@ -134,10 +137,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
             raise FatalError('Hail has already been initialized, restart session '
                              'or stop Hail to change configuration.')
 
-    hail_jar_path = None
-    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-        hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-        assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
+    hail_jar_path = _find_hail_jar()
 
     conf = SparkConf()
     if hail_jar_path:
@@ -163,7 +163,6 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
 
     # we always pass 'quiet' to the JVM because stderr output needs
     # to be routed through Python separately.
-    # if idempotent:
     if idempotent:
         jhc = hailpkg.HailContext.getOrCreate(
             jspark_backend, app_name, joption(master), local, log, True, append,
@@ -181,13 +180,18 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
 
     HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
-def init_distributed_backend(global_seed, log, quiet):
+
+def init_distributed_backend(hostname, log, quiet, append, min_block_size,
+                             branching_factor, tmp_dir, default_reference,
+                             global_seed, optimizer_iterations):
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = [jar for jar in os.listdir(spark_jars_path)]
     spark_jars_path_list = [os.path.join(spark_jars_path, spark_jar_name) for spark_jar_name in spark_jars_list]
-    hail_jars_path_list = ["hail-all-spark.jar"]
-    classpath_jars = spark_jars_path_list + hail_jars_path_list
+    hail_jar = _find_hail_jar()
+    if hail_jar is None:
+        raise FileNotFoundError("Could not find hail jar")
+    classpath_jars = spark_jars_path_list + [hail_jar]
     classpath = ":".join(classpath_jars)
 
     cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint"]
@@ -197,7 +201,7 @@ def init_distributed_backend(global_seed, log, quiet):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
     proc = Popen(cmd, stdin=PIPE, preexec_fn=preexec_func)
 
-    from py4j.java_gateway import JavaGateway, GatewayParameters, java_import
+    from py4j.java_gateway import JavaGateway, GatewayParameters
 
     # TODO Need to have the Java server tell Python it's started.
     time.sleep(1)
@@ -213,6 +217,10 @@ def init_distributed_backend(global_seed, log, quiet):
     hailpkg = getattr(jvm, 'is').hail
 
     backend = DistributedBackend(jvm, gateway)
+
+    jhc = hailpkg.HailContext.createDistributed(
+        hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, 3
+    )
 
     return HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
@@ -323,12 +331,21 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             service_backend = ServiceBackend(apiserver_url)
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
-            init_distributed_backend(global_seed, log, quiet)
+            init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
+                                     tmp_dir, default_reference, global_seed, _optimizer_iterations)
             # init_spark_backend(sc, app_name, master, local, log, quiet, append,
             #                    min_block_size, branching_factor, tmp_dir,
             #                    default_reference, idempotent, global_seed,
             #                    _optimizer_iterations)
 
+
+def _find_hail_jar():
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+        assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
+        return hail_jar_path
+    else:
+        return None
 
 def _hail_cite_url():
     version = read_version_info()
