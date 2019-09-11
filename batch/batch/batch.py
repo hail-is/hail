@@ -1196,6 +1196,7 @@ async def ui_get_pod_status(request, userdata):
                                      indent=2)}
 
 
+@routes.get('')
 @routes.get('/')
 @web_authenticated_users_only()
 async def batch_id(request, userdata):
