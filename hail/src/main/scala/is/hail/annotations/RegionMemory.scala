@@ -11,7 +11,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private var offsetWithinBlock: Long = _
 
   // blockThreshold and blockByteSize are mutable because RegionMemory objects are reused with different sizes
-  var blockSize: Region.Size = -1
+  protected[annotations] var blockSize: Region.Size = -1
   private var blockThreshold: Long = _
   private var blockByteSize: Long = _
 
@@ -69,27 +69,13 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def isFreed: Boolean = blockSize == -1
 
-  def freeMemory(): Unit = {
-    // freeMemory should be idempotent
-    if (isFreed) {
-      assert(references.size == 0)
-      assert(usedBlocks.size == 0)
-      assert(bigChunks.size == 0)
-      return
-    }
+  private def freeChunks(): Unit = {
+    pool.freeChunks(bigChunks, totalChunkMemory)
+    bigChunks.clear()
+    totalChunkMemory = 0L
+  }
 
-    while (bigChunks.size > 0) {
-      val chunk = bigChunks.pop()
-      pool.freeChunk(chunk)
-    }
-
-    val freeBlocksOfSize = pool.freeBlocks(blockSize)
-    freeBlocksOfSize.appendFrom(usedBlocks)
-    usedBlocks.clear()
-
-    if (currentBlock != 0)
-      freeBlocksOfSize += currentBlock
-
+  private def releaseReferences(): Unit = {
     var j = 0
     while (j < references.size) {
       val rj = references(j)
@@ -100,11 +86,35 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       j += 1
     }
     references.clear()
+  }
 
-    offsetWithinBlock = 0
-    currentBlock = 0
-    totalChunkMemory = 0
-    blockSize = -1
+  private def freeFullBlocks(): Unit = freeFullBlocks(pool.freeBlocks(blockSize))
+
+  private def freeFullBlocks(ab: ArrayBuilder[Long]): Unit = {
+    ab.appendFrom(usedBlocks)
+    usedBlocks.clear()
+  }
+
+  protected[annotations] def freeMemory(): Unit = {
+    // freeMemory should be idempotent
+    if (isFreed) {
+      assert(references.size == 0)
+      assert(usedBlocks.size == 0)
+      assert(bigChunks.size == 0)
+    } else {
+      val freeBlocksOfSize = pool.freeBlocks(blockSize)
+      if (currentBlock != 0)
+        freeBlocksOfSize += currentBlock
+
+      freeFullBlocks(freeBlocksOfSize)
+      freeChunks()
+      releaseReferences()
+
+      offsetWithinBlock = 0
+      currentBlock = 0
+      totalChunkMemory = 0
+      blockSize = -1
+    }
   }
 
   private def free(): Unit = {
@@ -120,20 +130,10 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     assert(referenceCount == 1)
     assert(currentBlock != 0)
 
-    while (bigChunks.size > 0) {
-      val chunk = bigChunks.pop()
-      pool.freeChunk(chunk)
-    }
+    freeFullBlocks()
+    freeChunks()
+    releaseReferences()
 
-    val freeBlocksOfSize = pool.freeBlocks(blockSize)
-    freeBlocksOfSize.appendFrom(usedBlocks)
-    usedBlocks.clear()
-
-    while (references.size > 0) {
-      val rr = references.pop()
-      if (rr != null)
-        rr.release()
-    }
     offsetWithinBlock = 0L
   }
 

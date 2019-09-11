@@ -13,9 +13,9 @@ object RegionPool {
   }
 }
 
-final class RegionPool extends AutoCloseable {
-  val freeBlocks: Array[ArrayBuilder[Long]] = Array.fill[ArrayBuilder[Long]](4)(new ArrayBuilder[Long])
-  val regions = new ArrayBuilder[RegionMemory]()
+final class RegionPool(strictMemoryCheck: Boolean = false) extends AutoCloseable {
+  protected[annotations] val freeBlocks: Array[ArrayBuilder[Long]] = Array.fill[ArrayBuilder[Long]](4)(new ArrayBuilder[Long])
+  protected[annotations] val regions = new ArrayBuilder[RegionMemory]()
   private val freeRegions = new ArrayBuilder[RegionMemory]()
 
   private val nBlocksAllocated: Array[Long] = Array(0L, 0L, 0L, 0L)
@@ -24,18 +24,11 @@ final class RegionPool extends AutoCloseable {
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
-  def reclaim(memory: RegionMemory): Unit = {
+  protected[annotations] def reclaim(memory: RegionMemory): Unit = {
     freeRegions += memory
   }
 
-  private var id = 0L
-
-  def nextID: Long = {
-    id += 1
-    id
-  }
-
-  def getBlock(size: Int): Long = {
+  protected[annotations] def getBlock(size: Int): Long = {
     val pool = freeBlocks(size)
     if (pool.size > 0) {
       pool.pop()
@@ -47,19 +40,20 @@ final class RegionPool extends AutoCloseable {
     }
   }
 
-  def getChunk(size: Long): Long = {
+  protected[annotations] def getChunk(size: Long): Long = {
     totalAllocatedBytes += size
     Memory.malloc(size)
   }
 
-  def freeChunk(addr: Long): Unit = {
-    totalAllocatedBytes -= addr
-    Memory.free(addr)
+  protected[annotations] def freeChunks(ab: ArrayBuilder[Long], totalSize: Long): Unit = {
+    while (ab.size > 0) {
+      val addr = ab.pop()
+      Memory.free(addr)
+    }
+    totalAllocatedBytes -= totalSize
   }
 
-  def getBlock(): Long = getBlock(0)
-
-  def getMemory(size: Int): RegionMemory = {
+  protected[annotations] def getMemory(size: Int): RegionMemory = {
     if (freeRegions.size > 0) {
       val rm = freeRegions.pop()
       rm.initialize(size)
@@ -71,6 +65,8 @@ final class RegionPool extends AutoCloseable {
       rm
     }
   }
+
+  def getRegion(): Region = getRegion(Region.REGULAR)
 
   def getRegion(size: Int): Region = {
     val r = new Region(size, this)
@@ -101,7 +97,7 @@ final class RegionPool extends AutoCloseable {
   }
 
   def close(): Unit = {
-    info(s"freeing RegionPool with $totalAllocatedBytes bytes allocated")
+    log.info(s"freeing RegionPool with $totalAllocatedBytes bytes allocated")
 
     var i = 0
     while (i < regions.size) {
@@ -112,16 +108,21 @@ final class RegionPool extends AutoCloseable {
     i = 0
     while (i < 4) {
       val blockSize = Region.SIZES(i)
-      info(s"at blockSize ${ blockSize }")
       val blocks = freeBlocks(i)
       while (blocks.size > 0) {
         Memory.free(blocks.pop())
         totalAllocatedBytes -= blockSize
-        info(s"freed ${ blockSize } bytes to $totalAllocatedBytes")
       }
       i += 1
     }
 
-    assert(totalAllocatedBytes == 0, totalAllocatedBytes)
+    if (totalAllocatedBytes != 0) {
+      val msg = s"RegionPool: total allocated bytes not 0 after closing! total allocated: " +
+        s"$totalAllocatedBytes (${ readableBytes(totalAllocatedBytes) })"
+      if (strictMemoryCheck)
+        fatal(msg)
+      else
+        warn(msg)
+    }
   }
 }
