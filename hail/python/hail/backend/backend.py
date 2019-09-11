@@ -85,8 +85,14 @@ class Backend(abc.ABC):
     def fs(self):
         pass
 
+    def py4jGateway(self):
+        raise AttributeError("The current backend does not support access to a JVM")
+
 
 class AbstractPy4JBackend(Backend):
+    def __init__(self, py4JGateway):
+        self._gateway = py4JGateway
+
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
             r = Renderer(stop_at_jir=True)
@@ -161,9 +167,13 @@ class AbstractPy4JBackend(Backend):
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
+    def py4jGateway(self):
+        return self._gateway
+
 
 class SparkBackend(AbstractPy4JBackend):
     def __init__(self, spark_context, spark_session):
+        super().__init__(spark_context._gateway)
         self._fs = None
         self.sc = spark_context
         self.spark_session = spark_session
@@ -362,10 +372,9 @@ class ServiceBackend(Backend):
 
 class DistributedBackend(AbstractPy4JBackend):
 
-    def __init__(self, jvm, gateway):
+    def __init__(self, gateway):
+        super().__init__(gateway)
         self._fs = None
-        self._jvm = jvm
-        self._gateway = gateway
 
     @property
     def fs(self):
