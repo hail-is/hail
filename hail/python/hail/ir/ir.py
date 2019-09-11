@@ -1512,13 +1512,13 @@ class InsertFields(IR):
             self.field = field
             self.child = child
 
-        def render_head(self, r: 'Renderer'):
+        def render_head(self, r: Renderer):
             return f'({self.field} '
 
-        def render_tail(self, r: 'Renderer'):
+        def render_tail(self, r: Renderer):
             return ')'
 
-        def render_children(self, r: 'Renderer'):
+        def render_children(self, r: Renderer):
             return [self.child]
 
     @staticmethod

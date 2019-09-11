@@ -1,6 +1,6 @@
 from hail import ir
 import abc
-from typing import Sequence, List, Set, Dict, Callable, Tuple, Optional
+from typing import Sequence, MutableSequence, List, Set, Dict, Optional
 from collections import namedtuple
 
 
@@ -89,7 +89,13 @@ class RQStack(object):
         return self._idx < 0
 
 
-class Renderer(object):
+class Renderer:
+    @abc.abstractmethod
+    def add_jir(self, jir):
+        pass
+
+
+class PlainRenderer(Renderer):
     def __init__(self, stop_at_jir=False):
         self.stop_at_jir = stop_at_jir
         self.count = 0
@@ -146,8 +152,40 @@ BindingSite = namedtuple(
     'depth lifted_lets agg_lifted_lets scan_lifted_lets')
 
 
+class CSERenderer(Renderer):
+    def __init__(self, stop_at_jir=False):
+        self.stop_at_jir = stop_at_jir
+        self.jir_count = 0
+        self.jirs = {}
+        self.memo: Dict[int, Sequence[str]] = {}
+
+    def add_jir(self, jir):
+        jir_id = f'm{self.jir_count}'
+        self.jir_count += 1
+        self.jirs[jir_id] = jir
+        return jir_id
+
+    def _add_jir(self, node):
+        jir_id = self.add_jir(node._jir)
+        if isinstance(node, ir.MatrixIR):
+            jref = f'(JavaMatrix {jir_id})'
+        elif isinstance(node, ir.TableIR):
+            jref = f'(JavaTable {jir_id})'
+        elif isinstance(node, ir.BlockMatrixIR):
+            jref = f'(JavaBlockMatrix {jir_id})'
+        else:
+            assert isinstance(node, ir.IR)
+            jref = f'(JavaIR {jir_id})'
+
+        self.memo[id(node)] = jref
+
+    def __call__(self, root: 'ir.BaseIR') -> str:
+        binding_sites = CSEAnalysisPass(self)(root)
+        return CSEPrintPass(self)(root, binding_sites)
+
+
 class CSEAnalysisPass:
-    def __init__(self, renderer):
+    def __init__(self, renderer: CSERenderer):
         self.renderer = renderer
         self.uid_count = 0
 
@@ -230,6 +268,7 @@ class CSEAnalysisPass:
                 else:
                     lets = None
 
+                # 'lets' is either assigned before one of the 'br/has
                 if lets is not None:
                     # we've seen 'child' before, should not traverse (or we will
                     # find too many lifts)
@@ -317,7 +356,7 @@ class CSEAnalysisPass:
             self._child_bindings = None
 
         def has_lifted_lets(self) -> bool:
-            return self.lifted_lets or self.agg_lifted_lets or self.scan_lifted_lets
+            return bool(self.lifted_lets or self.agg_lifted_lets or self.scan_lifted_lets)
 
         def make_binding_site(self, depth):
             return BindingSite(
@@ -383,7 +422,7 @@ class CSEAnalysisPass:
 
 
 class CSEPrintPass:
-    def __init__(self, renderer):
+    def __init__(self, renderer: CSERenderer):
         self.renderer = renderer
 
     # At top of main loop, we are considering the 'Renderable' 'node' and its
@@ -554,7 +593,7 @@ class CSEPrintPass:
         def __init__(self,
                      node: Renderable,
                      children: Sequence[Renderable],
-                     builder: Sequence[str],
+                     builder: MutableSequence[str],
                      min_binding_depth: int,
                      min_value_binding_depth: int,
                      scan_scope: bool,
@@ -600,7 +639,7 @@ class CSEPrintPass:
             #   parent's 'builder', to save copying.
             self.builder = builder
 
-        def add_lets(self, let_bodies: Sequence[str], out_builder: Sequence[str]):
+        def add_lets(self, let_bodies: Sequence[str], out_builder: MutableSequence[str]):
             for let_body in let_bodies:
                 out_builder.extend(let_body)
             out_builder.extend(self.builder)
@@ -611,8 +650,8 @@ class CSEPrintPass:
         def make_child_frame(self,
                              renderer: 'CSERenderer',
                              binding_sites: Dict[int, BindingSite],
-                             builder: Sequence[str],
-                             bindings_stack: 'Sequence[CSEPrintPass.BindingsStackFrame]',
+                             builder: MutableSequence[str],
+                             bindings_stack: 'MutableSequence[CSEPrintPass.BindingsStackFrame]',
                              min_binding_depth: int,
                              min_value_binding_depth: int,
                              scan_scope: bool,
@@ -626,8 +665,8 @@ class CSEPrintPass:
         def make(node: Renderable,
                  renderer: 'CSERenderer',
                  binding_sites: Dict[int, BindingSite],
-                 builder: Sequence[str],
-                 bindings_stack: 'Sequence[CSEPrintPass.BindingsStackFrame]',
+                 builder: MutableSequence[str],
+                 bindings_stack: 'MutableSequence[CSEPrintPass.BindingsStackFrame]',
                  min_binding_depth: int,
                  min_value_binding_depth: int,
                  scan_scope: bool,
@@ -663,35 +702,3 @@ class CSEPrintPass:
                 agg_visited={},
                 scan_visited={},
                 let_bodies=[])
-
-
-class CSERenderer:
-    def __init__(self, stop_at_jir=False):
-        self.stop_at_jir = stop_at_jir
-        self.jir_count = 0
-        self.jirs = {}
-        self.memo: Dict[int, Sequence[str]] = {}
-
-    def add_jir(self, jir):
-        jir_id = f'm{self.jir_count}'
-        self.jir_count += 1
-        self.jirs[jir_id] = jir
-        return jir_id
-
-    def _add_jir(self, node):
-        jir_id = self.add_jir(node._jir)
-        if isinstance(node, ir.MatrixIR):
-            jref = f'(JavaMatrix {jir_id})'
-        elif isinstance(node, ir.TableIR):
-            jref = f'(JavaTable {jir_id})'
-        elif isinstance(node, ir.BlockMatrixIR):
-            jref = f'(JavaBlockMatrix {jir_id})'
-        else:
-            assert isinstance(node, ir.IR)
-            jref = f'(JavaIR {jir_id})'
-
-        self.memo[id(node)] = jref
-
-    def __call__(self, root: 'ir.BaseIR') -> str:
-        binding_sites = CSEAnalysisPass(self)(root)
-        return CSEPrintPass(self)(root, binding_sites)
