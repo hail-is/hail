@@ -85,13 +85,16 @@ class Backend(abc.ABC):
     def fs(self):
         pass
 
-    def py4jGateway(self):
+    def py4j_gateway(self):
         raise AttributeError("The current backend does not support access to a JVM")
+
+    def as_spark(self):
+        raise ValueError("The current backend is not a SparkBackend.")
 
 
 class AbstractPy4JBackend(Backend):
-    def __init__(self, py4JGateway):
-        self._gateway = py4JGateway
+    def __init__(self, py4j_gateway):
+        self._gateway = py4j_gateway
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
@@ -167,7 +170,7 @@ class AbstractPy4JBackend(Backend):
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
-    def py4jGateway(self):
+    def py4j_gateway(self):
         return self._gateway
 
 
@@ -199,6 +202,9 @@ class SparkBackend(AbstractPy4JBackend):
 
     def from_pandas(self, df, key):
         return Table.from_spark(Env.spark_session().createDataFrame(df), key)
+
+    def as_spark(self):
+        return self
 
 
 class LocalBackend(Backend):

@@ -30,9 +30,7 @@ class HailContext(object):
         self._jhc = jhc
 
         if isinstance(backend, SparkBackend):
-            self.sc = backend.sc
             jsc = jhc.sc()
-            self._spark_session = backend.spark_session
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
             if jsc.uiWebUrl().isDefined():
                 sys.stderr.write('SparkUI available at {}\n'.format(jsc.uiWebUrl().get()))
@@ -84,7 +82,7 @@ class HailContext(object):
 
     @property
     def _gateway(self):
-        return self._backend.py4jGateway()
+        return self._backend.py4j_gateway()
 
     @property
     def _jvm(self):
@@ -95,13 +93,22 @@ class HailContext(object):
         return getattr(self._jvm, 'is').hail
 
     @property
+    def sc(self):
+        return self._backend.as_spark().sc
+
+    @property
+    def _spark_session(self):
+        return self._backend.as_spark().spark_session
+
+    @property
     def default_reference(self):
         return self._default_ref
 
     def stop(self):
         Env.hail().HailContext.clear()
-        self.sc.stop()
-        self.sc = None
+        if isinstance(self._backend, SparkBackend):
+            self.sc.stop()
+        self._backend = None
         Env._hc = None
         uninstall_exception_handler()
         Env._dummy_table = None
