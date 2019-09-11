@@ -1,12 +1,8 @@
 package is.hail.backend.spark
 
-import is.hail.HailContext
-import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.HailContext.{createSparkConf, hailCompressionCodecs}
 import is.hail.{HailContext, cxx}
-import is.hail.annotations.{Region, SafeRow}
-import is.hail.backend.{Backend, BroadcastValue, LowerTableIR, LowererUnsupportedOperation}
-import is.hail.cxx.CXXUnsupportedOperation
+import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir._
 import is.hail.io.fs.HadoopFS
 import is.hail.utils._
