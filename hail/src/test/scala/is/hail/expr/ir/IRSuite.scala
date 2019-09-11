@@ -740,7 +740,80 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
   }
 
-  @Test def testMakeArrayInferPType() {
+  @Test def testMakeArrayInferPTypeFromNestedRef() {
+    var ir = MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32()))
+
+    assertPType(ir, PArray(PInt32(false), true))
+
+    ir = MakeArray(FastSeq(I32(5), I32(-3)), TArray(TInt32()))
+    assertPType(ir, PArray(PInt32(true), true))
+
+    var ref = FastSeq(
+      Ref("1", TArray(TInt32())),
+      Ref("2", TArray(TInt32())),
+      Ref("3", TArray(TInt32()))
+    )
+
+    var env = Env[PType](
+      "1" -> PArray(PInt32(), true),
+      "2" -> PArray(PInt32(true), true),
+      "3" -> PArray(PInt32(true), true)
+    )
+
+    ir = MakeArray(ref, TArray(TArray(TInt32())))
+
+    assertPType(ir, PArray(PArray(PInt32(), true), true), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TInt32())),
+      Ref("2", TArray(TInt32())),
+      Ref("3", TArray(TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PInt32(true), true),
+      "2" -> PArray(PInt32(true), true),
+      "3" -> PArray(PInt32(true), true)
+    )
+
+    ir = MakeArray(ref, TArray(TArray(TInt32())))
+
+    assertPType(ir, PArray(PArray(PInt32(true), true), true), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TInt32())),
+      Ref("2", TArray(TInt32())),
+      Ref("3", TArray(TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PInt32(true), false),
+      "2" -> PArray(PInt32(true), true),
+      "3" -> PArray(PInt32(true), true)
+    )
+
+    ir = MakeArray(ref, TArray(TArray(TInt32())))
+
+    assertPType(ir, PArray(PArray(PInt32(true), false), true), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TInt32())),
+      Ref("2", TArray(TInt32())),
+      Ref("3", TArray(TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PInt32(true), false),
+      "2" -> PArray(PInt32(true), true),
+      "3" -> PArray(PInt32(true), true)
+    )
+
+    val null_ir = NA(TArray(TArray(TInt32())))
+
+    assertPType(null_ir, PArray(PArray(PInt32(true), true), false), env)
+  }
+
+  @Test def testMakeArrayInferPTypeIntegrationTest() {
     var ir = MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32()))
 
     assertPType(ir, PArray(PInt32(false), true))
@@ -849,17 +922,22 @@ class IRSuite extends HailSuite {
 
     ir = MakeArray(
       FastSeq(
-        MakeArray(FastSeq(
-          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
-          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
-          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
-        ), TArray(TArray(TInt32()))),
+        MakeArray(
+          FastSeq(
+            MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+            MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+            MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32()))
+          ),
+          TArray(TArray(TInt32()))
+        ),
         NA(TArray(TArray(TInt32()))),
-        MakeArray(FastSeq(
-          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
-          MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
-          MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
-        ), TArray(TArray(TInt32())))
+        MakeArray(
+          FastSeq(
+            MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+            MakeArray(FastSeq(I32(5), I32(-3), I32(-3)), TArray(TInt32())),
+            MakeArray(FastSeq(I32(5),I32(-3), I32(-3)), TArray(TInt32()))
+          ), TArray(TArray(TInt32()))
+        )
       ),
       TArray(TArray(TArray(TInt32())))
     )
