@@ -1421,9 +1421,9 @@ private class Emit(
         val shape = t.loadField(region, ndt.value[Long], "shape")
 
         EmitTriplet(ndt.setup, false, shape)
-      case x: NDArrayMap =>
-        val emitter = emitDeforestedNDArray(resultRegion, x, env)
-        emitter.emit(x.pType.asInstanceOf[PNDArray])
+      case _: NDArrayMap | _: NDArrayMap2 =>
+        val emitter = emitDeforestedNDArray(resultRegion, ir, env)
+        emitter.emit(ir.pType.asInstanceOf[PNDArray])
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
@@ -1994,6 +1994,42 @@ private class Emit(
             )
           }
         }
+      case NDArrayMap2(lChild, rChild, lName, rName, body) =>
+        val lP = lChild.pType.asInstanceOf[PNDArray]
+        val rP = rChild.pType.asInstanceOf[PNDArray]
+
+        val lElemType = lP.elementType
+        val rElemType = rP.elementType
+
+        val lVti = typeToTypeInfo(lElemType.virtualType)
+        val rVti = typeToTypeInfo(rElemType.virtualType)
+
+        val lElemRef = coerce[Any](mb.newField(lName)(lVti))
+        val rElemRef = coerce[Any](mb.newField(rName)(rVti))
+
+        val bodyEnv = env.bind(name=lName, v=(lVti, false, lElemRef.load()))
+          .bind(name=rName, v=(rVti, false, rElemRef.load()))
+                              // (rName, (rVti, false, rElemRef.load())))
+        val bodyt = this.emit(body, bodyEnv, er, None)
+
+        val leftChildEmitter = deforest(lChild)
+        val rightChildEmitter = deforest(rChild)
+        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup)
+
+        new NDArrayEmitter(mb, leftChildEmitter.nDims, leftChildEmitter.outputShape,
+          lP.representation.field("shape").typ.asInstanceOf[PTuple],
+          body.pType, setup) {
+          override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
+            Code(
+              lElemRef := leftChildEmitter.outputElement(idxVars),
+              rElemRef := rightChildEmitter.outputElement(idxVars),
+              bodyt.setup,
+              bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
+              bodyt.v
+            )
+          }
+        }
+
       case _ =>
         val ndt = emit(x, env, er, None)
         val setup = Code(ndt.setup)

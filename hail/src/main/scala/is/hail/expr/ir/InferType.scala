@@ -121,7 +121,7 @@ object InferType {
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
-        TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
+        TNDArray(body.typ.setRequired(true), coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
       case NDArrayAgg(nd, axes) =>
