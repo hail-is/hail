@@ -209,8 +209,6 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     gateway_params = GatewayParameters(auto_convert=True)
     gateway = JavaGateway(gateway_parameters=gateway_params)
     jvm = gateway.jvm
-
-    jhc = None
     hailpkg = getattr(jvm, 'is').hail
 
     backend = DistributedBackend(jvm, gateway)
