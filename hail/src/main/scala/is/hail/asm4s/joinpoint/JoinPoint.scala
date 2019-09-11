@@ -7,19 +7,18 @@ import scala.collection.mutable
 import scala.collection.generic.Growable
 
 object JoinPoint {
-  abstract class CallCC[R](mb: MethodBuilder)(implicit p: ParameterPack[R]) {
-    // polymorphic over 'X', to try to enforce continuations get called in tail position
-    def apply[X](jb: JoinPointBuilder[X], ret: R => Code[X]): Code[X]
+  abstract class CallCC[A: ParameterPack](mb: MethodBuilder) {
+    def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[A, X]): Code[X]
 
-    def emit: (Code[Unit], R) = {
+    private[joinpoint] def emit: Code[Nothing] = {
       val jb = new JoinPointBuilder[Nothing](mb)
-      val ret = JoinPoint[R, Nothing](new LabelNode)
-      val store = p.store(mb)
+      val ret = JoinPoint[A, Nothing](new LabelNode)
       val body = apply(jb, ret)
-      (Code(body, jb.define, ret.placeLabel, store.pop), store.load)
+      Code(body, jb.define, ret.placeLabel)
     }
   }
 }
+
 
 case class JoinPoint[A, X] private[joinpoint](label: LabelNode)(implicit p: ParameterPack[A])
     extends (A => Code[X]) {
@@ -31,7 +30,7 @@ case class JoinPoint[A, X] private[joinpoint](label: LabelNode)(implicit p: Para
     }
   }
 
-  private[joinpoint] def placeLabel: Code[X] = new Code[Nothing] {
+  private[joinpoint] def placeLabel = new Code[Nothing] {
     def emit(il: Growable[AbstractInsnNode]): Unit =
       il += label
   }

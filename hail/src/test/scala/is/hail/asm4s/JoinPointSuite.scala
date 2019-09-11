@@ -7,9 +7,9 @@ import org.testng.annotations.Test
 
 class JoinPointSuite extends TestNGSuite {
 
-  def fac(mb: MethodBuilder, n: Code[Int]): Code[Int] = {
-    val (setup, result) = new JoinPoint.CallCC[Code[Int]](mb) {
-      def apply[X](jb: JoinPointBuilder[X], ret: Code[Int] => Code[X]) = {
+  def fac(mb: MethodBuilder, n: Code[Int]): Code[Int] =
+    new JoinPoint.CallCC[Code[Int]](mb) {
+      def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]) = {
         val loop = jb.joinPoint[(Code[Int], Code[Int])]
         loop.define { case (i, a) =>
           (i <= n).mux(
@@ -18,9 +18,7 @@ class JoinPointSuite extends TestNGSuite {
         }
         loop((1, 1))
       }
-    }.emit
-    Code(setup, result)
-  }
+    }
 
   def fac(n: Int): Int =
     (1 to n).fold(1)(_ * _)
