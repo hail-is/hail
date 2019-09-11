@@ -32,7 +32,7 @@ def parser():
         'submit',
         help='Submit a Python script to a running Dataproc cluster.',
         description='Submit a Python script to a running Dataproc cluster. To pass arguments to the '
-                    'script being submitted, use -- before the script arguments.')
+                    'script being submitted, just list them after the name of the script.')
     connect_parser = subparsers.add_parser(
         'connect',
         help='Connect to a running Dataproc cluster.',
