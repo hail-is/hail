@@ -6,7 +6,7 @@ spec:
   serviceAccount: admin
   containers:
   - name: create-accounts
-    image: "{{ hailtop_image.image }}"
+    image: "{{ service_base_image.image }}"
     env:
      - name: HAIL_DEPLOY_CONFIG_FILE
        value: /deploy-config/deploy-config.json
@@ -21,9 +21,10 @@ spec:
        import sys
        import json
        import asyncio
-       from hailtop.gear import get_deploy_config
-       from hailtop.gear.database import create_database_pool
-       from hailtop.gear.auth import get_tokens, insert_user, create_session
+       from hailtop.config import get_deploy_config
+       from hailtop.auth import get_tokens
+       from hailtop.utils import async_to_blocking
+       from gear import create_database_pool, insert_user, create_session
        async def main():
            dbpool = await create_database_pool()
            tokens = get_tokens()
@@ -33,9 +34,7 @@ spec:
            auth_ns = deploy_config.service_ns('auth')
            tokens[auth_ns] = await create_session(dbpool, userdata['id'])
            tokens.write()
-       loop = asyncio.get_event_loop()
-       loop.run_until_complete(main())
-       loop.run_until_complete(loop.shutdown_asyncgens())
+       async_to_blocking(main())
        EOF
        # create batch
        kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -

@@ -51,10 +51,12 @@ def split_multi_hts():
     mt = hl.read_matrix_table(resource('profile.mt'))
     hl.split_multi_hts(mt)._force_count_rows()
 
+
 @benchmark
 def split_multi():
     mt = hl.read_matrix_table(resource('profile.mt'))
     hl.split_multi(mt)._force_count_rows()
+
 
 @benchmark
 def concordance():

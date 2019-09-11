@@ -12,8 +12,9 @@ import sass
 from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
-from hailtop.gear import get_deploy_config, setup_aiohttp_session
-from hailtop.gear.auth import web_authenticated_users_only, web_maybe_authenticated_user
+from hailtop.config import get_deploy_config
+from gear import setup_aiohttp_session, \
+    web_authenticated_users_only, web_maybe_authenticated_user
 
 log = logging.getLogger('notebook2')
 

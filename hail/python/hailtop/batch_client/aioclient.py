@@ -4,8 +4,8 @@ import asyncio
 import aiohttp
 from asyncinit import asyncinit
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import async_get_userinfo, auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import async_get_userinfo, auth_headers
 
 from .globals import complete_states
 

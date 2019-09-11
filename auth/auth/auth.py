@@ -8,9 +8,9 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
-from hailtop.gear import get_deploy_config, setup_aiohttp_session
-from hailtop.gear.database import create_database_pool
-from hailtop.gear.auth import rest_authenticated_users_only, \
+from hailtop.config import get_deploy_config
+from gear import setup_aiohttp_session, create_database_pool, \
+    rest_authenticated_users_only, \
     web_maybe_authenticated_user, create_session
 
 log = logging.getLogger('auth')

@@ -1,7 +1,8 @@
 import uvloop
 from aiohttp import web
 
-from hailtop.gear import configure_logging, get_deploy_config
+from hailtop.config import get_deploy_config
+from gear import configure_logging
 
 uvloop.install()
 

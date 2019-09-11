@@ -1,11 +1,11 @@
 import logging
 
 from aiohttp import web
-from hailtop import gear
+from gear import configure_logging
 
 from .stoppable_server import StoppableServer
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('keep_alive_sidecar')
 
 app = web.Application()

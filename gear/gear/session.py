@@ -1,8 +1,7 @@
 import os
 import aiohttp_session
 import aiohttp_session.cookie_storage
-
-from .deploy_config import get_deploy_config
+from hailtop.config import get_deploy_config
 
 def setup_aiohttp_session(app):
     deploy_config = get_deploy_config()

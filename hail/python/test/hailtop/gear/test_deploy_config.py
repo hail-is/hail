@@ -1,5 +1,5 @@
 import unittest
-from hailtop.gear.deploy_config import DeployConfig
+from hailtop.config.deploy_config import DeployConfig
 
 class Test(unittest.TestCase):
     def test_deploy_external_default(self):
