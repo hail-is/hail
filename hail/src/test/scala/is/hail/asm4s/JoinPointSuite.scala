@@ -6,32 +6,168 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class JoinPointSuite extends TestNGSuite {
-
-  def fac(mb: MethodBuilder, n: Code[Int]): Code[Int] =
-    new JoinPoint.CallCC[Code[Int]](mb) {
-      def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]) = {
-        val loop = jb.joinPoint[(Code[Int], Code[Int])]
-        loop.define { case (i, a) =>
-          (i <= n).mux(
-            loop((i + 1, a * i)),
-            ret(a))
-        }
-        loop((1, 1))
-      }
-    }
-
-  def fac(n: Int): Int =
-    (1 to n).fold(1)(_ * _)
-
-  @Test def testFac() {
-    val f = {
-      val fb = FunctionBuilder.functionBuilder[Int, Int]
-      val mb = fb.apply_method
-      mb.emit(fac(mb, mb.getArg[Int](1).load))
-      fb.result()()
-    }
-    for (i <- 0 to 12)
-      assert(f(i) == fac(i), s"fac($i)")
+  private def compile1[T: TypeInfo, U: TypeInfo](f: (MethodBuilder, Code[T]) => Code[U]): T => U = {
+    val fb = FunctionBuilder.functionBuilder[T, U]
+    val mb = fb.apply_method
+    mb.emit(f(mb, mb.getArg[T](1).load))
+    val asmFn = fb.result()()
+    asmFn(_)
   }
 
+  // op(...op(op(t0, 0), 1)..., (n-1))
+  def rangeFoldCPS[X, T: ParameterPack](
+    jb: JoinPointBuilder[X],
+    n: Code[Int],
+    t0: T,
+    op: (T, Code[Int], T => Code[X]) => Code[X],
+    ret: T => Code[X]
+  ): Code[X] = {
+    val loop = jb.joinPoint[(Code[Int], T)]
+    loop.define { case (i, acc) =>
+      (i < n).mux(
+        op(acc, i, acc2 => loop((i + 1, acc2))),
+        ret(acc))
+    }
+    loop((0, t0))
+  }
+
+  // n! = 1 * ... * n
+  def facStaged[X](
+    jb: JoinPointBuilder[X],
+    n: Code[Int],
+    ret: Code[Int] => Code[X]
+  ): Code[X] =
+    rangeFoldCPS[X, Code[Int]](jb, n,
+      1,
+      (prod, i, k) => k(prod * (i + 1)),
+      ret)
+
+  // f(n) = 0! + ... + (n-1)!
+  def sumFacStaged[X](
+    jb: JoinPointBuilder[X],
+    n: Code[Int],
+    ret: Code[Int] => Code[X]
+  ): Code[X] =
+    rangeFoldCPS[X, Code[Int]](jb, n,
+      0,
+      (sum, i, k) => facStaged(jb, i, fac => k(sum + fac)),
+      ret)
+
+  // parity(2n, even, odd) = even
+  // parity(2n+1, even, odd) = odd
+  def parityStaged[X] (
+    jb: JoinPointBuilder[X],
+    n: Code[Int],
+    even: Code[X],
+    odd: Code[X]
+  ): Code[X] = {
+    val isEven = jb.joinPoint[Code[Int]]
+    val isOdd = jb.joinPoint[Code[Int]]
+    isEven.define { i => (i ceq 0).mux(even, isOdd(i - 1)) }
+    isOdd.define { i => (i ceq 0).mux(odd, isEven(i - 1)) }
+    isEven(n)
+  }
+
+  @Test def testSimpleEarlyReturn() {
+    val f = compile1[Int, Boolean] { (mb, n) =>
+      new JoinPoint.CallCC[Code[Boolean]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Boolean], X]): Code[X] =
+          Code(ret(true), ret(false))
+      }
+    }
+    assert(f(0) == true)
+  }
+
+  @Test def testMux() {
+    val f = compile1[Boolean, Int] { (mb, arg) =>
+      new JoinPoint.CallCC[Code[Int]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]): Code[X] = {
+          val j1 = jb.joinPoint[Code[Int]]
+          val j2 = jb.joinPoint[Code[Int]]
+          j1.define { n => ret(n + 5) }
+          j2.define { n => ret(n * 5) }
+          JoinPoint.mux(const(100), arg, j1, j2)
+        }
+      }
+    }
+    assert(f(true) == 105)
+    assert(f(false) == 500)
+  }
+
+  @Test def testFac() {
+    def fac(n: Int): Int = (1 to n).fold(1)(_ * _)
+    val facS = compile1[Int, Int] { (mb, n) =>
+      new JoinPoint.CallCC[Code[Int]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]): Code[X] =
+          facStaged(jb, n, ret)
+      }
+    }
+    for (i <- 0 to 12)
+      assert(facS(i) == fac(i), s"compute: $i!")
+  }
+
+  @Test def testNestedFac() {
+    def sumFac(n: Int): Int = (0 until n).map { i => (1 to i).fold(1)(_ * _) }.sum
+    val sumFacS = compile1[Int, Int] { (mb, n) =>
+      new JoinPoint.CallCC[Code[Int]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]): Code[X] =
+          sumFacStaged(jb, n, ret)
+      }
+    }
+    for (i <- 1 to 12)
+      assert(sumFacS(i) == sumFac(i), s"compute: 0! + ... + ${i-1}!")
+  }
+
+  @Test def testNestedCallCC() {
+    def sumFac(n: Int): Int = (0 until n).map { i => (1 to i).fold(1)(_ * _) }.sum
+    val sumFacS = compile1[Int, Int] { (mb, n) =>
+      new JoinPoint.CallCC[Code[Int]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]): Code[X] =
+          rangeFoldCPS[X, Code[Int]](jb, n,
+            0,
+            (acc, i, k) => k(acc +
+              new JoinPoint.CallCC[Code[Int]](mb) {
+                def apply[X2](jb2: JoinPointBuilder[X2], ret2: JoinPoint[Code[Int], X2]): Code[X2] =
+                  facStaged(jb2, i, ret2)
+              }),
+            ret)
+      }
+    }
+    for (i <- 1 to 12)
+      assert(sumFacS(i) == sumFac(i), s"compute: 0! + ... + ${i-1}!")
+  }
+
+  @Test def testSelectiveSum() {
+    def ssum(n: Int): Int = (0 until n).filter(_ % 2 == 0).sum
+    val ssumS = compile1[Int, Int] { (mb, n) =>
+      new JoinPoint.CallCC[Code[Int]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]): Code[X] =
+          rangeFoldCPS[X, Code[Int]](jb, n,
+            0,
+            (sum, i, k) => parityStaged(jb, i, k(sum + i), k(sum)),
+            ret)
+      }
+    }
+    for (i <- 1 to 12)
+      assert(ssumS(i) == ssum(i), s"compute: 0 + 2 + ... + $i")
+  }
+
+  @Test def testEarlyReturnSum() {
+    def sum(n: Int): Int = (0 until n.min(10)).sum
+    val sumS = compile1[Int, Int] { (mb, n) =>
+      new JoinPoint.CallCC[Code[Int]](mb) {
+        def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Code[Int], X]): Code[X] =
+          rangeFoldCPS[X, Code[Int]](jb, n,
+            0,
+            (sum, i, k) => {
+              (i < 10).mux(
+                k(sum + i),
+                ret(sum))
+            },
+            ret)
+      }
+    }
+    for (i <- 1 to 50)
+      assert(sumS(i) == sum(i), s"compute: 0 + ... + min($i, 10)")
+  }
 }
