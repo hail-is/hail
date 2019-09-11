@@ -136,14 +136,6 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
                        min_block_size=1, branching_factor=50, tmp_dir=None,
                        default_reference="GRCh37", idempotent=False,
                        global_seed=6348563392232659379, optimizer_iterations=None):
-
-    if Env._hc:
-        if idempotent:
-            return
-        else:
-            raise FatalError('Hail has already been initialized, restart session '
-                             'or stop Hail to change configuration.')
-
     hail_jar_path = _find_hail_jar()
 
     conf = SparkConf()
@@ -320,6 +312,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     global_seed : :obj:`int`, optional
         Global random seed.
     """
+
+    if Env._hc:
+        if idempotent:
+            return
+        else:
+            raise FatalError('Hail has already been initialized, restart session '
+                             'or stop Hail to change configuration.')
 
     version = read_version_info()
     hail.__version__ = version 
