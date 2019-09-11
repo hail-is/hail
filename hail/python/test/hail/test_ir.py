@@ -370,7 +370,7 @@ class CSETests(unittest.TestCase):
             ' (ApplyBinaryPrimOp `+`'
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
-        self.assertEqual(expected, CSERenderer()(x))
+        assert expected == CSERenderer()(x)
 
     def test_cse2(self):
         x = ir.I32(5)
@@ -386,7 +386,7 @@ class CSETests(unittest.TestCase):
                     ' (Ref __cse_2)'
                     ' (I32 4))'
                 ' (Ref __cse_2))))')
-        self.assertEqual(expected, CSERenderer()(div))
+        assert expected == CSERenderer()(div)
 
     def test_cse_ifs(self):
         outer_repeated = ir.I32(5)
@@ -402,7 +402,7 @@ class CSETests(unittest.TestCase):
                     ' (I32 5)))'
                 ' (I32 5))'
         )
-        self.assertEqual(expected, CSERenderer()(cond))
+        assert expected == CSERenderer()(cond)
 
     def test_agg_cse(self):
         x = ir.GetField(ir.Ref('row'), 'idx')
@@ -416,7 +416,7 @@ class CSETests(unittest.TestCase):
                 ' (Let __cse_2 (ApplyAggOp AggOp () None'
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
                 ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
-        self.assertEqual(expected, CSERenderer()(table_agg))
+        assert expected == CSERenderer()(table_agg)
 
     def test_init_op(self):
         x = ir.I32(5)
@@ -434,4 +434,4 @@ class CSETests(unittest.TestCase):
                     ' ((Let __cse_3 (I32 5)'
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
-        self.assertEqual(expected, CSERenderer()(top))
+        assert expected == CSERenderer()(top)
