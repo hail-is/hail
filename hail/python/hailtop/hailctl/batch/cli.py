@@ -1,6 +1,5 @@
 import sys
 import argparse
-import aiohttp
 
 from hailtop.batch_client.client import BatchClient
 from . import list_batches

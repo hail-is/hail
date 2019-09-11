@@ -2,6 +2,7 @@ import os
 import json
 from hailtop.config import get_deploy_config
 
+
 def init_parser(parser):
     parser.add_argument("namespace", type=str, nargs='?',
                         help="Default namespace.  Show the current configuration if not specified.")

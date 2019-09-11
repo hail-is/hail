@@ -3,7 +3,6 @@ import os
 import subprocess as sp
 import uuid
 from shlex import quote as shq
-import aiohttp
 from hailtop.batch_client.client import BatchClient, Job
 
 from .resource import InputResourceFile, TaskResourceFile
