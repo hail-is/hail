@@ -5,7 +5,7 @@ import java.util
 import java.util.Map.Entry
 
 import is.hail.annotations._
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{Type, TypeSerializer}
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.io._
@@ -15,8 +15,8 @@ import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
-import org.json4s.Formats
-import org.json4s.jackson.JsonMethods
+import org.json4s.{Formats, NoTypeHints}
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
   def apply(fs: FS, path: String): (FS, String, Int) => IndexReader = {
@@ -59,15 +59,25 @@ object IndexReaderBuilder {
 }
 
 object IndexReader {
-  def readMetadata(fs: FS, path: String): IndexMetadata = {
-    val jv = fs.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
-    implicit val formats: Formats = AbstractRVDSpec.formats
-    jv.extract[IndexMetadata]
+  def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
+    val jv = fs.readFile(path + "/metadata.json.gz") { in =>
+      JsonMethods.parse(in)
+        .removeField{ case (f, _) => f == "keyType" || f == "annotationType" }
+    }
+    implicit val formats: Formats = defaultJSONFormats
+    jv.extract[IndexMetadataUntypedJSON]
+  }
+
+  def readMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): IndexMetadata = {
+    val untyped = IndexReader.readUntyped(fs, path)
+    untyped.toMetadata(keyType, annotationType)
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val metadata = IndexReader.readMetadata(fs, path)
-    (metadata.keyType, metadata.annotationType)
+    val jv = fs.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
+    implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
+    val metadata = jv.extract[IndexMetadata]
+    metadata.keyType -> metadata.annotationType
   }
 
   def apply(fs: FS, path: String, cacheCapacity: Int = 8): IndexReader = {
@@ -87,7 +97,7 @@ class IndexReader(fs: FS,
   val leafPType: PStruct,
   val internalPType: PStruct
 ) extends AutoCloseable {
-  private[io] val metadata = IndexReader.readMetadata(fs, path)
+  private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
