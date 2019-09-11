@@ -264,7 +264,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
 
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
     val f = field(fieldName)
-    loadField(region, fieldOffset(offset, f.index), f.index)
+    loadField(region, offset, f.index)
   }
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {

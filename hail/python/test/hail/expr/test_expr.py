@@ -3196,7 +3196,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
-    def test_ndarray_map(self):
+    def test_ndarray_map_cxx(self):
         a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
         b = hl.map(lambda x: -x, a)
         c = hl.map(lambda x: True, a)
@@ -3205,6 +3205,17 @@ class Tests(unittest.TestCase):
             (b, [[-2, -3, -4], [-5, -6, -7]]),
             (c, [[True, True, True],
                  [True, True, True]]))
+
+    @skip_unless_spark_backend()
+    def test_ndarray_map_jvm(self):
+        a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
+        b = hl.map(lambda x: -x, a)
+        c = hl.map(lambda x: True, a)
+
+        assert(np.array_equal(hl.eval(b), [[-2, -3, -4],
+                                           [-5, -6, -7]]))
+        assert(np.array_equal(hl.eval(c), [[True, True, True],
+                                           [True, True, True]]))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
