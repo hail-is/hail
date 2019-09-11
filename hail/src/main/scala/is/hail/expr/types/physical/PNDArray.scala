@@ -39,7 +39,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       0L
     }
     else {
-      Array.range(0, nDims).foldLeft(Code(1L)) { (prod, idx) => prod * getShapeAtIdx(idx) }
+      Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * getShapeAtIdx(idx) }
     }
   }
 
