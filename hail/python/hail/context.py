@@ -14,7 +14,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
+from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, scala_object
 from hail.backend import Backend, ServiceBackend, SparkBackend, DistributedBackend
 
 
@@ -100,8 +100,6 @@ class HailContext(object):
         Env.hail().HailContext.clear()
         self.sc.stop()
         self.sc = None
-        Env._jvm = None
-        Env._gateway = None
         Env._hc = None
         uninstall_exception_handler()
         Env._dummy_table = None
@@ -152,24 +150,25 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
     # hail package
     hailpkg = getattr(jvm, 'is').hail
 
-    Env._jvm = SparkContext._jvm
-    Env._gateway = SparkContext._gateway
-
     jsc = sc._jsc.sc() if sc else None
     jspark_backend = hailpkg.backend.spark.SparkBackend(jsc, app_name, joption(master), local, min_block_size)
 
     tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
     optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    # Calling regular joption will ask the Env for a JVM, which will cause endless loop init.
+    def local_joption(x):
+        return jvm.scala.Some(x) if x else scala_object(jvm.scala, 'None')
+
     # we always pass 'quiet' to the JVM because stderr output needs
     # to be routed through Python separately.
     if idempotent:
         jhc = hailpkg.HailContext.getOrCreate(
-            jspark_backend, app_name, joption(master), local, log, True, append,
+            jspark_backend, app_name, local_joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir, optimizer_iterations)
     else:
         jhc = hailpkg.HailContext.apply(
-            jspark_backend, app_name, joption(master), local, log, True, append,
+            jspark_backend, app_name, local_joption(master), local, log, True, append,
             min_block_size, branching_factor, tmp_dir, optimizer_iterations)
 
     jsc = jspark_backend.sc()
@@ -183,7 +182,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
 
 def init_distributed_backend(hostname, log, quiet, append, min_block_size,
                              branching_factor, tmp_dir, default_reference,
-                             global_seed, optimizer_iterations):
+                             global_seed, optimizer_iterations = 3):
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = [jar for jar in os.listdir(spark_jars_path)]
@@ -210,16 +209,13 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     gateway = JavaGateway(gateway_parameters=gateway_params)
     jvm = gateway.jvm
 
-    Env._gateway = gateway
-    Env._jvm = jvm
-
     jhc = None
     hailpkg = getattr(jvm, 'is').hail
 
     backend = DistributedBackend(jvm, gateway)
 
     jhc = hailpkg.HailContext.createDistributed(
-        hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, 3
+        hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations
     )
 
     return HailContext(backend, jhc, default_reference, global_seed, log, quiet)
@@ -331,12 +327,12 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             service_backend = ServiceBackend(apiserver_url)
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
-            init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
-                                     tmp_dir, default_reference, global_seed, _optimizer_iterations)
-            # init_spark_backend(sc, app_name, master, local, log, quiet, append,
-            #                    min_block_size, branching_factor, tmp_dir,
-            #                    default_reference, idempotent, global_seed,
-            #                    _optimizer_iterations)
+            # init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
+            #                          tmp_dir, default_reference, global_seed, _optimizer_iterations)
+            init_spark_backend(sc, app_name, master, local, log, quiet, append,
+                               min_block_size, branching_factor, tmp_dir,
+                               default_reference, idempotent, global_seed,
+                               _optimizer_iterations)
 
 
 def _find_hail_jar():

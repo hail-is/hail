@@ -14,8 +14,6 @@ class FatalError(Exception):
 
 
 class Env:
-    _jvm = None
-    _gateway = None
     _hail_package = None
     _jutils = None
     _hc = None
@@ -33,10 +31,7 @@ class Env:
 
     @staticmethod
     def jvm():
-        if not Env._jvm:
-            Env.hc()
-            assert Env._jvm is not None
-        return Env._jvm
+        return Env.hc()._jvm
 
     @staticmethod
     def hail():
@@ -47,10 +42,7 @@ class Env:
 
     @staticmethod
     def gateway():
-        if not Env._gateway:
-            Env.hc()
-            assert Env._gateway is not None
-        return Env._gateway
+        return Env.hc()._gateway
 
     @staticmethod
     def jutils():
