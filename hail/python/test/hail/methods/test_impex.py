@@ -1386,7 +1386,9 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
         mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
         mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
-        mt.key_rows_by(*mt.row).x.export('foo.tsv',
+
+        path = new_temp_file(suffix='tsv')
+        mt.key_rows_by(*mt.row).x.export(path,
                                          missing=missing,
                                          delimiter=delimiter,
                                          header=header)
@@ -1405,7 +1407,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
 
         actual = hl.import_matrix_table(
-            'foo.tsv',
+            path,
             row_fields=row_fields,
             row_key=row_key,
             entry_type=entry_type,
