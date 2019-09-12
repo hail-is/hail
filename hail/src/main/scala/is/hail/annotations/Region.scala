@@ -67,7 +67,13 @@ object Region {
   def copyFrom(srcOff: Long, dstOff: Long, n: Long): Unit =
     Memory.memcpy(dstOff, srcOff, n)
 
-  def setMemory(offset: Long, size: Long, b: Byte): Unit = Memory.memset(offset, size, b)
+  def setMemory(offset: Long, size: Long, b: Byte): Unit = {
+    var x = 0L
+    while (x < size) {
+      Memory.storeByte(offset + x, b)
+      x += 1
+    }
+  }
 
   def loadBit(byteOff: Long, bitOff: Long): Boolean = {
     val b = byteOff + (bitOff >> 3)
