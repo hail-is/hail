@@ -289,7 +289,7 @@ steps:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
-       to: /hail-test.jarcat
+       to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
        to: /testng.xml
      - from: /io/repo/hail/testng-cpp-codegen.xml
