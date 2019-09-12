@@ -2,13 +2,11 @@
 
 ## 0.2.22
 
-Released 2019-09-03
+Released 2019-09-12
 
 ### Bug fixes
-- (hail#7046) Fix bugs such as "key not found: GRCh37" when reading tables and
-  matrix tables.
-- (hail#6921) Fix issue (hail#6907) when reading tables and matrix tables using
-  non-default genome references.
+- (hail#6921)(hail#6907) Fix reading tables and matrix tables using non-default
+  genome references.
 
 ### New features
 - (hail#7013) Add `contig_recoding` to `import_bed` and `import_locus_intervals`.
@@ -16,6 +14,8 @@ Released 2019-09-03
 ### Performance
 - (hail#6969) Improve performance of `hl.agg.mean`, `hl.agg.stats`, and `hl.agg.corr`.
 - (hail#6987) Improve performance of `import_matrix_table`.
+- (hail#7033)(hail#7049) Various improvements leading to overall 10-15%
+  improvement.
 
 ### `hailctl dataproc`
 - (hail#7003) Pass through extra arguments for `hailctl dataproc list` and
