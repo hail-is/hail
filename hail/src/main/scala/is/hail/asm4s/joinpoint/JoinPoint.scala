@@ -29,9 +29,7 @@ object JoinPoint {
       }
     }
 
-  def mux[A: ParameterPack, X](cond: Code[Boolean],
-    j1: JoinPoint[Unit, X], j2: JoinPoint[Unit, X]
-  ): Code[X] =
+  def mux[X](cond: Code[Boolean], j1: JoinPoint[Unit, X], j2: JoinPoint[Unit, X]): Code[X] =
     mux((), cond, j1, j2)
 }
 
