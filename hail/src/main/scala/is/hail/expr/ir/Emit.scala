@@ -1421,6 +1421,55 @@ private class Emit(
         val shape = t.loadField(region, ndt.value[Long], "shape")
 
         EmitTriplet(ndt.setup, false, shape)
+      // TODO: Does this have to be outside of deforesting? Seems like it could eventually just be a reordering of index vars in NDArrayEmitter?
+      case x@NDArrayReindex(child, indexExpr) =>
+        val childt = emit(child)
+        val childPType = child.pType.asInstanceOf[PNDArray]
+        val childShapePType = childPType.representation.fieldType("shape").asInstanceOf[PTuple]
+        val childStridesPType = childPType.representation.fieldType("strides").asInstanceOf[PTuple]
+        val childFlags = region.loadInt(childPType.representation.loadField(region, childt.value[Long], "flags"))
+        val childOffset = region.loadInt(childPType.representation.loadField(region, childt.value[Long], "offset"))
+        val childShapeAddress = childPType.representation.loadField(region, childt.value[Long], "shape")
+        val childStridesAddress = childPType.representation.loadField(region, childt.value[Long], "strides")
+        val childDataAddress = childPType.representation.loadField(region, childt.value[Long], "data")
+        val nChildDims = childPType.nDims
+
+        val outputPType = x.pType.asInstanceOf[PNDArray]
+        val outputShapePType = outputPType.representation.fieldType("shape")
+        val outputStridesPType = outputPType.representation.fieldType("strides")
+
+        def getShapeAtIdx(index: Int) = region.loadLong(childShapePType.loadField(childShapeAddress, index))
+        def getStrideAtIdx(index: Int): Code[Long] = region.loadLong(childStridesPType.loadField(childStridesAddress, index))
+
+        val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
+        val stridesSrvb = new StagedRegionValueBuilder(mb, outputStridesPType)
+
+        val ndAddress = mb.newField[Long]
+        
+        val reindexShapeAndStrides = indexExpr.map {childIndex =>
+          Code(
+            const(childIndex < nChildDims).mux(
+              Code(
+                shapeSrvb.addLong(getShapeAtIdx(childIndex)),
+                stridesSrvb.addLong(getStrideAtIdx(childIndex))
+              ),
+              Code(
+                shapeSrvb.addLong(1L),
+                stridesSrvb.addLong(0L)
+              )),
+            shapeSrvb.advance(),
+            stridesSrvb.advance()
+          )
+        }
+
+        val setup = Code(
+          shapeSrvb.start(),
+          stridesSrvb.start(),
+          childt.setup,
+          reindexShapeAndStrides,
+          ndAddress := outputPType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
+        )
+        EmitTriplet(setup, false, ndAddress)
       case _: NDArrayMap | _: NDArrayMap2 =>
         val emitter = emitDeforestedNDArray(resultRegion, ir, env)
         emitter.emit(ir.pType.asInstanceOf[PNDArray])
