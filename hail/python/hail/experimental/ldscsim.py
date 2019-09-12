@@ -55,7 +55,7 @@ import scipy.stats as stats
            popstrat_var=nullable(oneof(float,
                                        int)))
 def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat=None,popstrat_var=None):
-    """Simulate phenotypes for testing LD score regression.
+    r"""Simulate phenotypes for testing LD score regression.
     
     Simulates betas (SNP effects) under the infinitesimal, spike & slab, or 
     annotation-informed models, depending on parameters passed. Optionally adds
@@ -134,7 +134,7 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
                              list,
                              np.ndarray)))
 def make_betas(mt, h2, pi=None, annot=None, rg=None):
-    """Generates betas under different models. 
+    r"""Generates betas under different models. 
        
     Simulates betas (SNP effects) under the infinitesimal, spike & slab, or 
     annotation-informed models, depending on parameters passed.
@@ -200,7 +200,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
            cov_matrix=nullable(np.ndarray),
            seed=nullable(int))
 def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
-    """Generates correlated betas for multi-trait infinitesimal simulations for 
+    r"""Generates correlated betas for multi-trait infinitesimal simulations for 
     any number of phenotypes.
     
     Parameters
@@ -268,7 +268,7 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
                     int),
            seed=nullable(int))
 def multitrait_ss(mt, h2, pi, rg=0, seed=None):
-    """Generates spike & slab betas for simulation of two correlated phenotypes.
+    r"""Generates spike & slab betas for simulation of two correlated phenotypes.
     
     Parameters
     ----------
@@ -335,7 +335,7 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
                     np.ndarray),
            psd_rg=bool)
 def get_cov_matrix(h2, rg, psd_rg=False):
-    """Creates covariance matrix for simulating correlated SNP effects.
+    r"""Creates covariance matrix for simulating correlated SNP effects.
     
     Given a list of heritabilities and a list of genetic correlations, :func:`.get_cov_matrix`
     constructs the covariance matrix necessary to draw from a multivariate normal
@@ -491,7 +491,7 @@ def _nearpsd(A):
            popstrat_var=nullable(oneof(float,
                                        int)))
 def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=None):
-    """Calculates phenotypes by multiplying genotypes and betas.
+    r"""Calculates phenotypes by multiplying genotypes and betas.
     
     Parameters
     ----------
@@ -539,7 +539,7 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
                            expr_float64,
                            expr_call))
 def normalize_genotypes(genotype):
-    """Normalizes genotypes to have mean 0 and variance 1 at each SNP
+    r"""Normalizes genotypes to have mean 0 and variance 1 at each SNP
     
     Parameters
     ----------
@@ -598,7 +598,7 @@ def annotate_all(mt,row_exprs={},col_exprs={},entry_exprs={},global_exprs={}):
            str_expr=nullable(str),
            axis=str)
 def agg_fields(tb,coef_dict=None,str_expr=None,axis='rows'):
-    '''Aggregates by linear combination fields matching either keys in `coef_dict`
+    r"""Aggregates by linear combination fields matching either keys in `coef_dict`
     or `str_expr`. Outputs the aggregation in a :class:`.MatrixTable` or :class:`.Table` 
     as a new row field "agg_annot" or a new column field "agg_cov".
     
@@ -620,7 +620,7 @@ def agg_fields(tb,coef_dict=None,str_expr=None,axis='rows'):
     -------
     :class:`.MatrixTable` or :class:`.Table`
         :class:`.MatrixTable` or :class:`.Table` containing aggregation field.
-    '''
+    """
     assert (str_expr != None or coef_dict != None), "str_expr and coef_dict cannot both be None"
     assert axis is 'rows' or axis is 'cols', "axis must be 'rows' or 'cols'"
     coef_dict = get_coef_dict(tb=tb,str_expr=str_expr, ref_coef_dict=coef_dict,axis=axis)
@@ -638,7 +638,7 @@ def agg_fields(tb,coef_dict=None,str_expr=None,axis='rows'):
            ref_coef_dict=nullable(dict),
            axis=str)
 def get_coef_dict(tb, str_expr=None, ref_coef_dict=None,axis='rows'):
-    '''Gets either col or row fields matching `str_expr` and take intersection 
+    r"""Gets either col or row fields matching `str_expr` and take intersection 
     with keys in coefficient reference dict.
     
     Parameters
@@ -660,7 +660,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None,axis='rows'):
     coef_dict : :obj:`dict`
         Coefficients to multiply each field. The coefficients are specified by 
         `coef_dict` value, the row (or col) field name is specified by `coef_dict` key. 
-    '''
+    """
     assert (str_expr != None or ref_coef_dict != None), "str_expr and ref_coef_dict cannot both be None"
     assert axis is 'rows' or axis is 'cols', "axis must be 'rows' or 'cols'"
     fields_to_search = (tb.row if axis=='rows' or type(tb) is Table else tb.col)
@@ -689,7 +689,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None,axis='rows'):
            P=oneof(int,
                    float))
 def ascertainment_bias(mt,y,P):
-    """Adds ascertainment bias to a binary phenotype such that it was sample 
+    r"""Adds ascertainment bias to a binary phenotype such that it was sample 
     prevalence of `P` = cases/(cases+controls).
     
     Parameters
@@ -740,7 +740,7 @@ def ascertainment_bias(mt,y,P):
                    float),
            exact=bool)
 def binarize(mt,y,K,exact=False):
-    """Binarize phenotype `y` such that it has prevalence `K` = cases/(cases+controls)
+    r"""Binarize phenotype `y` such that it has prevalence `K` = cases/(cases+controls)
     Uses inverse CDF of Gaussian to set binarization threshold when `exact` = False, 
     otherwise uses ranking to determine threshold.
     
