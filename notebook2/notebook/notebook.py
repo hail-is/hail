@@ -1,7 +1,6 @@
 import logging
 import os
 import uuid
-import jinja2
 import asyncio
 import aiohttp
 from aiohttp import web
