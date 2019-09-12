@@ -147,10 +147,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       elt.m.mux(
         pushMissing(lastNode),
         pushPresent(lastNode, { dst =>
-          if(elemType.isPrimitive)
-            Region.storePrimitive(elemType, dst)(elt.value)
-          else
-            StagedRegionValueBuilder.deepCopy(fb, r, elemType, elt.value, dst)
+          StagedRegionValueBuilder.deepCopy(fb, r, elemType, elt.value, dst)
         })),
       totalCount := totalCount + 1)
   }
@@ -220,10 +217,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
           et.m.mux(bufferType.setElementMissing(r, buf, i),
             Code(
               bufferType.setElementPresent(r, buf, i),
-              if(elemType.isPrimitive)
-                Region.storePrimitive(elemType, bufi)(et.value)
-              else
-                StagedRegionValueBuilder.deepCopy(fb, r, elemType, et.value, bufi))),
+              StagedRegionValueBuilder.deepCopy(fb, r, elemType, et.value, bufi))),
           incrCount(firstNode),
           i := i + 1)
       },
