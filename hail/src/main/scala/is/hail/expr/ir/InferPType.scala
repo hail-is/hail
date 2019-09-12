@@ -352,15 +352,19 @@ object InferPType {
           InferPType(v._2, env)
           v._2.pType2
       }):_*)
-      case MakeArray(irs, _) => {
-        val elementTypes = irs.map { elt =>
-          InferPType(elt, env)
-          elt.pType2
+      case MakeArray(irs, t) => {
+        if(irs == null || irs.length == 0) {
+          PType.canonical(t, true).deepInnerRequired(true)
+        } else {
+          val elementTypes = irs.map { elt =>
+            InferPType(elt, env)
+            elt.pType2
+          }
+
+          val inferredElementType = getNestedElementPTypes(elementTypes)
+
+          PArray(inferredElementType, true)
         }
-
-        val inferredElementType = getNestedElementPTypes(elementTypes)
-
-        PArray(inferredElementType, true)
       }
       case GetTupleElement(o, idx) => {
         InferPType(o, env)

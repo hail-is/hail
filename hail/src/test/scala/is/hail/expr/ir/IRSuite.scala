@@ -803,20 +803,372 @@ class IRSuite extends HailSuite {
     )
 
     env = Env[PType](
+      "1" -> PArray(PInt32(false), true),
+      "2" -> PArray(PInt32(true), true),
+      "3" -> PArray(PInt32(true), true)
+    )
+
+    ir = MakeArray(ref, TArray(TArray(TInt32())))
+
+    assertPType(ir, PArray(PArray(PInt32(false), true), true), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TInt32())),
+      Ref("2", TArray(TInt32())),
+      Ref("3", TArray(TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PInt32(false), true),
+      "2" -> PArray(PInt32(true), false),
+      "3" -> PArray(PInt32(true), true)
+    )
+
+    ir = MakeArray(ref, TArray(TArray(TInt32())))
+
+    assertPType(ir, PArray(PArray(PInt32(false), false), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(false), true), true), "b" -> PInt32(true)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), true), "b" -> PInt32(true)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), false), true), "b" -> PInt32(true)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(true), false), true), "b" -> PInt32(true)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), false), "b" -> PInt32(true))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(true), true), false), "b" -> PInt32(true)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(false))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(false)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32()))
+    )
+
+    env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), false), true), "b" -> PInt32(true)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32())))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(false), false), false), "b" -> PInt32(true)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TInt32())),
+      Ref("2", TArray(TInt32())),
+      Ref("3", TArray(TInt32()))
+    )
+
+    env = Env[PType](
       "1" -> PArray(PInt32(true), false),
       "2" -> PArray(PInt32(true), true),
       "3" -> PArray(PInt32(true), true)
     )
 
+    ref = FastSeq(
+      Ref("1", TDict(TInt32(), TString())),
+      Ref("2", TDict(TInt32(), TString()))
+    )
+
+    env = Env[PType](
+      "1" -> PDict(PInt32(false), PString(true), true),
+      "2" -> PDict(PInt32(true), PString(true), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TDict(TInt32(), TString()))
+    )
+
+    assertPType(ir, PArray(PDict(PInt32(false), PString(true), true), true), env)
+
+    ref = FastSeq(
+      Ref("1", TDict(TInt32(), TString())),
+      Ref("2", TDict(TInt32(), TString()))
+    )
+
+    env = Env[PType](
+      "1" -> PDict(PInt32(true), PString(true), true),
+      "2" -> PDict(PInt32(true), PString(false), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TDict(TInt32(), TString()))
+    )
+
+    assertPType(ir, PArray(PDict(PInt32(true), PString(false), true), true), env)
+
+    ref = FastSeq(
+      Ref("1", TDict(TInt32(), TString())),
+      Ref("2", TDict(TInt32(), TString()))
+    )
+
+    env = Env[PType](
+      "1" -> PDict(PInt32(true), PString(true), true),
+      "2" -> PDict(PInt32(true), PString(false), false)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TDict(TInt32(), TString()))
+    )
+
+    assertPType(ir, PArray(PDict(PInt32(true), PString(false), false), true), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(true, PInt32(true), PArray(PString(true), true)), true),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(true), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(true,
+            PInt32(true),
+            PArray(PString(true),true)
+          ),
+          true
+        ),
+        true
+      ), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(true, PInt32(true), PArray(PString(true), false)), true),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(true), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(true,
+            PInt32(true),
+            PArray(PString(true),false)
+          ),
+          true
+        ),
+        true
+      ), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(true, PInt32(true), PArray(PString(true), false)), true),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(false), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(true,
+            PInt32(true),
+            PArray(PString(false),false)
+          ),
+          true
+        ),
+        true
+      ), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(true, PInt32(true), PArray(PString(true), false)), true),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(false), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(true,
+            PInt32(true),
+            PArray(PString(false),false)
+          ),
+          true
+        ),
+        true
+      ), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(true, PInt32(false), PArray(PString(true), false)), true),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(false), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(true,
+            PInt32(false),
+            PArray(PString(false),false)
+          ),
+          true
+        ),
+        true
+      ), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(false, PInt32(false), PArray(PString(true), false)), true),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(false), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(false,
+            PInt32(false),
+            PArray(PString(false),false)
+          ),
+          true
+        ),
+        true
+      ), env)
+
+    ref = FastSeq(
+      Ref("1", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*))),
+      Ref("2", TArray(TTuple(FastIndexedSeq(TInt32(), TArray(TString())): _*)))
+    )
+
+    env = Env[PType](
+      "1" -> PArray(PTuple(false, PInt32(false), PArray(PString(true), false)), false),
+      "2" -> PArray(PTuple(true, PInt32(true), PArray(PString(false), true)), true)
+    )
+
+    ir = MakeArray(ref,
+      TArray(TArray(TTuple(TInt32(), TArray(TString()))))
+    )
+
+    assertPType(ir,
+      PArray(
+        PArray(
+          PTuple(false,
+            PInt32(false),
+            PArray(PString(false),false)
+          ),
+          false
+        ),
+        true
+      ), env)
+
     val null_ir = NA(TArray(TArray(TInt32())))
 
-    assertPType(null_ir, PArray(PArray(PInt32(true), true), false), env)
+    assertPType(null_ir, PArray(PArray(PInt32(true), true), false))
   }
 
   @Test def testMakeArrayInferPTypeIntegrationTest() {
     var ir = MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32()))
 
     assertPType(ir, PArray(PInt32(false), true))
+
+    ir = MakeArray(FastSeq(), TArray(TInt32()))
+    assertPType(ir, PArray(PInt32(true), true))
+
+    ir = MakeArray(null, TArray(TInt32()))
+    assertPType(ir, PArray(PInt32(true), true))
 
     ir = MakeArray(FastSeq(I32(5), I32(-3)), TArray(TInt32()))
     assertPType(ir, PArray(PInt32(true), true))
@@ -829,6 +1181,17 @@ class IRSuite extends HailSuite {
           ),
           TArray(TArray(TInt32()))
         )
+
+    assertPType(ir, PArray(PArray(PInt32(), true), true))
+
+    ir = MakeArray(
+      FastSeq(
+        MakeArray(FastSeq(), TArray(TInt32())),
+        MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())),
+        MakeArray(FastSeq(I32(5)), TArray(TInt32()))
+      ),
+      TArray(TArray(TInt32()))
+    )
 
     assertPType(ir, PArray(PArray(PInt32(), true), true))
 
