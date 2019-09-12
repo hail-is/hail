@@ -36,8 +36,8 @@ def setup_common_static_routes(routes):
 def base_context(deploy_config, userdata, service):
     return {
         'base_path': deploy_config.base_path(service),
-        'base_url': deploy_config.base_url(service),
-        'notebook_base_url': deploy_config.external_url('notebook2'),
+        'base_url': deploy_config.external_url(service, ''),
+        'notebook_base_url': deploy_config.external_url('notebook2', ''),
         'auth_base_url': deploy_config.external_url('auth', ''),
         'batch_base_url': deploy_config.external_url('batch', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
