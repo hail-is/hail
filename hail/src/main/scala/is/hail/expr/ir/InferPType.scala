@@ -353,7 +353,7 @@ object InferPType {
           v._2.pType2
       }):_*)
       case MakeArray(irs, t) => {
-        if(irs == null || irs.length == 0) {
+        if(irs.length == 0) {
           PType.canonical(t, true).deepInnerRequired(true)
         } else {
           val elementTypes = irs.map { elt =>
