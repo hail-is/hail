@@ -38,7 +38,7 @@ trait PointerBasedRVAState extends AggregatorState {
 
   def newState: Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(Code(r := Code.newInstance[Region, Int](regionSize), region.invalidate()), Code._empty)
+  def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
   def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(regionLoader(r), off := Region.loadAddress(src))

@@ -179,14 +179,14 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def setParentReference(r: Code[Region], i: Code[Int]): Code[Unit] =
     region.invoke[Region, Int, Unit]("setParentReference", r, i)
 
-  def getParentReference(i: Code[Int], size: Int): Code[Region] =
+  def getParentReference(r: Code[Region], i: Code[Int], size: Int): Code[Region] =
     region.invoke[Int, Int, Region]("getParentReference", i, size)
 
-  def setFromParentReference(src: Code[Region], i: Code[Int], blockSize: Code[Int]): Code[Unit] =
-    region.invoke[Region, Int, Int, Unit]("setFromParentReference", src, i, blockSize)
+  def setFromParentReference(r: Code[Region], i: Code[Int], size: Int): Code[Unit] =
+    region.invoke[Region, Int, Int, Unit]("setFromParentReference", r, i, size)
 
-  def clearParentReference(i: Code[Int]): Code[Unit] =
-    region.invoke[Int, Unit]("clearParentReference", i)
+  def unreferenceRegionAtIndex(i: Code[Int]): Code[Unit] =
+    region.invoke[Int, Unit]("unreferenceRegionAtIndex", i)
 
   def isValid: Code[Boolean] = region.invoke[Boolean]("isValid")
 

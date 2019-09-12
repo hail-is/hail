@@ -394,17 +394,15 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
         ContextRDD.parallelize(hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
           .cmapPartitionsWithIndex { case (i, ctx, _) =>
             val region = ctx.region
-            val rvb = ctx.rvb
             val rv = RegionValue(region)
 
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
-                rvb.start(localRowType)
-                rvb.startStruct()
-                rvb.addInt(j)
-                rvb.endStruct()
-                rv.setOffset(rvb.end())
+                val off = localRowType.allocate(region)
+                localRowType.setFieldPresent(region, off, 0)
+                Region.storeInt(localRowType.fieldOffset(off, 0), j)
+                rv.setOffset(off)
                 rv
               }
           }))
