@@ -325,11 +325,12 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
 
 
 async def on_startup(app):
-    app['client_session'] = aiohttp.ClientSession(
+    session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient(app['client_session'])
+    app['client_session'] = session
+    app['github_client'] = gh_aiohttp.GitHubAPI(session, 'ci', oauth_token=oauth_token)
+    app['batch_client'] = await BatchClient(session=session)
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())

@@ -11,10 +11,7 @@ def async_to_blocking(coro):
 
 class Test(unittest.TestCase):
     def setUp(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self.client = async_to_blocking(BatchClient(session))
+        self.client = async_to_blocking(BatchClient())
 
     def tearDown(self):
         loop = asyncio.get_event_loop()

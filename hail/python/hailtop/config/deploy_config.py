@@ -7,26 +7,35 @@ log = logging.getLogger('gear')
 
 
 class DeployConfig:
-    def __init__(self, _config=None):
-        if _config:
-            config = _config
-        else:
+    @staticmethod
+    def from_config(config):
+        return DeployConfig(config['location'], config['default_namespace'], config['service_namespace'])
+
+    @staticmethod
+    def from_config_file(config_file=None):
+        if not config_file:
             config_file = os.environ.get(
                 'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
-            if os.path.isfile(config_file):
-                with open(config_file, 'r') as f:
-                    config = json.loads(f.read())
-            else:
-                log.info(f'deploy config file not found: {config_file}')
-                config = {
-                    'location': 'external',
-                    'default_namespace': 'default',
-                    'service_namespace': {}
-                }
-        self._location = config['location']
-        assert self._location in ('external', 'k8s', 'gce')
-        self._default_ns = config['default_namespace']
-        self._service_namespace = config['service_namespace']
+        if os.path.isfile(config_file):
+            with open(config_file, 'r') as f:
+                config = json.loads(f.read())
+        else:
+            log.info(f'deploy config file not found: {config_file}')
+            config = {
+                'location': 'external',
+                'default_namespace': 'default',
+                'service_namespace': {}
+            }
+        return DeployConfig.from_config(config)
+
+    def __init__(self, location, default_ns, service_namespace):
+        assert location in ('external', 'k8s', 'gce')
+        self._location = location
+        self._default_ns = default_ns
+        self._service_namespace = service_namespace
+
+    def with_service(self, service, ns):
+        return DeployConfig(self._location, self._default_ns, {**self._service_namespace, service: ns})
 
     def location(self):
         return self._location
@@ -99,5 +108,5 @@ def get_deploy_config():
     global deploy_config
 
     if not deploy_config:
-        deploy_config = DeployConfig()
+        deploy_config = DeployConfig.from_config_file()
     return deploy_config
