@@ -241,7 +241,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
         hasKey(node, i).mux(Code(
           ob.writeBoolean(true),
-          keyStore(loadKey(node, i)),
+          keyStore(ob, loadKey(node, i)),
           (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, i))),
           cont),
           ob.writeBoolean(false)) }))
@@ -266,7 +266,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
         ib.readBoolean().orEmpty(Code(
           setKeyPresent(node, i),
-          keyLoad(keyOffset(node, i)),
+          keyLoad(ib, keyOffset(node, i)),
           isInternalNode.orEmpty(
             Code(createNode(newNode),
             setChild(node, i, newNode),
