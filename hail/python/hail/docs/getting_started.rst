@@ -197,4 +197,16 @@ If natives are not found, ``hail.log`` will contain these warnings:
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemLAPACK
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
 
+If you see an error like the following:
+
+.. code-block:: text
+
+    /usr/java/default/bin/java: symbol lookup error: /.../...netlib-native_system-linux-x86_64.so: undefined symbol: cblas_dgemv
+
+Then add extra Spark configuration Spark pointing to the directory where BLAS is installed:
+
+.. code-block:: text
+
+    --conf spark.executor.extraClassPath="/path/to/BLAS"
+
 See `netlib-java <http://github.com/fommil/netlib-java>`_ for more information.
