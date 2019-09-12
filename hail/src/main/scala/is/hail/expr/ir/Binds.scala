@@ -19,7 +19,6 @@ object Bindings {
     case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFold2(a, accum, valueName, seq, result) =>
-      val l = 2 + 2 * accum.length
       if (i <= accum.length)
         empty
       else if (i < 2 * accum.length + 1)
