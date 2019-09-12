@@ -102,7 +102,7 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
       size := Region.loadInt(typ.loadField(src, 0)),
       tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val kEnc = EmitPackEncoder.buildMethod(t, t, fb)
 
     { ob: Code[OutputBuffer] =>
@@ -115,7 +115,7 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
     }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     val kDec = EmitPackDecoder.buildMethod(t, t, fb)
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(t))
