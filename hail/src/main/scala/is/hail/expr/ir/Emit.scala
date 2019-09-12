@@ -1445,21 +1445,24 @@ private class Emit(
         val stridesSrvb = new StagedRegionValueBuilder(mb, outputStridesPType)
 
         val ndAddress = mb.newField[Long]
-        
+
         val reindexShapeAndStrides = indexExpr.map {childIndex =>
-          Code(
-            const(childIndex < nChildDims).mux(
-              Code(
-                shapeSrvb.addLong(getShapeAtIdx(childIndex)),
-                stridesSrvb.addLong(getStrideAtIdx(childIndex))
-              ),
-              Code(
-                shapeSrvb.addLong(1L),
-                stridesSrvb.addLong(0L)
-              )),
-            shapeSrvb.advance(),
-            stridesSrvb.advance()
-          )
+          if (childIndex < nChildDims) {
+            Code(
+              shapeSrvb.addLong(getShapeAtIdx(childIndex)),
+              stridesSrvb.addLong(getStrideAtIdx(childIndex)),
+              shapeSrvb.advance(),
+              stridesSrvb.advance()
+            )
+          }
+          else {
+            Code(
+              shapeSrvb.addLong(1L),
+              stridesSrvb.addLong(0L),
+              shapeSrvb.advance(),
+              stridesSrvb.advance()
+            )
+          }
         }
 
         val setup = Code(
