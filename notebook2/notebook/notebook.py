@@ -221,7 +221,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(deploy_config, userdata, 'notebook')
+    context = base_context(deploy_config, userdata, 'notebook2')
     return context
 
 
@@ -239,7 +239,7 @@ async def notebook_page(request, userdata):
         if 'notebook' in session:
             del session['notebook']
 
-    context = base_context(deploy_config, userdata, 'notebook')
+    context = base_context(deploy_config, userdata, 'notebook2')
     context['notebook'] = notebook
     return context
 
@@ -340,7 +340,7 @@ async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('error.html')
 @web_maybe_authenticated_user
 async def error_page(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(deploy_config, userdata, 'notebook')
+    context = base_context(deploy_config, userdata, 'notebook2')
     context['error'] = request.args.get('err')
     return context
 
@@ -349,7 +349,7 @@ async def error_page(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only()
 async def user_page(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(deploy_config, userdata, 'notebook')
+    context = base_context(deploy_config, userdata, 'notebook2')
     return context
 
 
