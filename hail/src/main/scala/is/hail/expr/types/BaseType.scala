@@ -1,7 +1,11 @@
 package is.hail.expr.types
 
 abstract class BaseType {
-  override final def toString: String =  parsableString
+  override final def toString: String = {
+    val sb = new StringBuilder
+    pyString(sb)
+    sb.result()
+  }
 
   def toPrettyString(indent: Int, compact: Boolean): String = {
     val sb = new StringBuilder
