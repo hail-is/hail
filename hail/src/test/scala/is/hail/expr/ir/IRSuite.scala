@@ -1562,7 +1562,8 @@ class IRSuite extends HailSuite {
       TArray(TDict(TInt32(), TArray(TString())))
     )
 
-    assertPType(ir, PArray(PDict(PInt32(false), PArray(PString(true), false), true), true))
+    // By interface contract, null tuples are filtered out before dict construction
+    assertPType(ir, PArray(PDict(PInt32(true), PArray(PString(true), true), true), true))
 
     val tupleValRequired = MakeArray(FastIndexedSeq(
       MakeTuple.ordered(FastIndexedSeq(I32(5), MakeArray(FastSeq(Str("a"), Str("b")), TArray(TString())))),
@@ -1630,6 +1631,7 @@ class IRSuite extends HailSuite {
 
     assertPType(ir, PArray(PSet(PArray(PInt32(true), false),true),true))
 
+    // FIXME: Walk all values of literals to determine nested requiredeness && handle nulls in Literal collections
     ir = MakeArray(
       FastSeq(
         Literal(TInterval(TInt32()), Interval(1,2, false, false)),
@@ -1638,7 +1640,7 @@ class IRSuite extends HailSuite {
       TArray(TInterval(TInt32()))
     )
 
-    assertPType(ir, PArray(PInterval(PInt32(true), true),true))
+    assertPType(ir, PArray(PInterval(PInt32(false), true),true))
 
     ir = MakeArray(
       FastSeq(
@@ -1648,14 +1650,14 @@ class IRSuite extends HailSuite {
       TArray(TInterval(TInt32()))
     )
 
-    assertPType(ir, PArray(PInterval(PInt32(true), false),true))
+    assertPType(ir, PArray(PInterval(PInt32(false), false),true))
 
     ir = MakeArray(
       FastSeq(
-        Literal(TArray(TInt32()),  NA(TInt32())),
-        Literal(TArray(TInt32()),  FastIndexedSeq(I32(1), I32(2), I32(5)))
+        Literal(TArray(TInt32()),  FastIndexedSeq(I32(1), I32(3), I32(5))),
+        Literal(TArray(TInt32()),  FastIndexedSeq(I32(1), NA(TInt32()), I32(5)))
       ),
-      TArray(TInterval(TInt32()))
+      TArray(TArray(TInt32()))
     )
 
     assertPType(ir, PArray(PArray(PInt32(false), true),true))

@@ -48,10 +48,7 @@ object InferPType {
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PString(true)
-      case Literal(t, _) => {
-        val ptype = PType.canonical(t, true)
-        ptype.deepInnerRequired(true)
-      }
+      case Literal(t, _) => PType.canonical(t, true)
       case True() | False() => PBoolean(true)
       case Void() => PVoid
       case Cast(ir, t) => {
@@ -190,8 +187,10 @@ object InferPType {
       case ToDict(a) => {
         InferPType(a, env)
         val elt = coerce[PBaseStruct](coerce[PIterable](a.pType2).elementType)
-        val typeRequired = elt.types(0).required && elt.required
-        val valRequired =  elt.types(1).required && elt.required
+        // Dict key/value types don't depend on PIterable's requiredeness because we have an interface guarantee that
+        // null PIterables are filtered out before dict construction
+        val typeRequired = elt.types(0).required
+        val valRequired =  elt.types(1).required
         PDict(elt.types(0).setRequired(typeRequired), elt.types(1).setRequired(valRequired), a.pType2.required)
       }
       case ToArray(a) => {
