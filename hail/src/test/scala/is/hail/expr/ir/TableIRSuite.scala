@@ -365,9 +365,7 @@ class TableIRSuite extends HailSuite {
     val kt = Table(hc, rdd, signature, keyNames)
     val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct())
     val base = TableLiteral(
-      TableValue(tt,
-        BroadcastRow.empty(ctx),
-        rdd),
+      TableValue(ctx, tt.rowType, tt.key, rdd),
       ctx)
 
     // construct the table with a longer key, then copy the table to shorten the key in type, but not rvd

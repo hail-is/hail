@@ -383,17 +383,17 @@ case class MatrixBGENReader(
       assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
-      val rvd = ExecuteContext.scoped { ctx =>
-        Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
+      ExecuteContext.scoped { ctx =>
+        val rvd = Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
+
+        val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
+          .toRows(rvd.rowPType)
+        assert(repartitioned.getNumPartitions == maybePartitions.length)
+
+        (maybePartitions.zipWithIndex.map { case (p, i) =>
+          p.asInstanceOf[LoadBgenPartition].copy(filterPartition = repartitioned.partitions(i)).asInstanceOf[Partition]
+        }, repartitioned)
       }
-
-      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
-        .toRows(rowType.physicalType)
-      assert(repartitioned.getNumPartitions == maybePartitions.length)
-
-      (maybePartitions.zipWithIndex.map { case (p, i) =>
-        p.asInstanceOf[LoadBgenPartition].copy(filterPartition = repartitioned.partitions(i)).asInstanceOf[Partition]
-      }, repartitioned)
     case _ => (maybePartitions, null)
   }
 
