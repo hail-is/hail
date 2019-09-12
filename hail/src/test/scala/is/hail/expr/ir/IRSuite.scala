@@ -1167,9 +1167,6 @@ class IRSuite extends HailSuite {
     ir = MakeArray(FastSeq(), TArray(TInt32()))
     assertPType(ir, PArray(PInt32(true), true))
 
-    ir = MakeArray(null, TArray(TInt32()))
-    assertPType(ir, PArray(PInt32(true), true))
-
     ir = MakeArray(FastSeq(I32(5), I32(-3)), TArray(TInt32()))
     assertPType(ir, PArray(PInt32(true), true))
 
@@ -1642,6 +1639,26 @@ class IRSuite extends HailSuite {
     )
 
     assertPType(ir, PArray(PInterval(PInt32(true), true),true))
+
+    ir = MakeArray(
+      FastSeq(
+        Literal(TInterval(TInt32()), Interval(1,2, false, false)),
+        NA(TInterval(TInt32()))
+      ),
+      TArray(TInterval(TInt32()))
+    )
+
+    assertPType(ir, PArray(PInterval(PInt32(true), false),true))
+
+    ir = MakeArray(
+      FastSeq(
+        Literal(TArray(TInt32()),  NA(TInt32())),
+        Literal(TArray(TInt32()),  FastIndexedSeq(I32(1), I32(2), I32(5)))
+      ),
+      TArray(TInterval(TInt32()))
+    )
+
+    assertPType(ir, PArray(PArray(PInt32(false), true),true))
   }
 
   @Test def testMakeStruct() {
