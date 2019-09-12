@@ -59,7 +59,7 @@ spec:
        # test-gsa-key already exists
        N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
        if [[ $N = 0 ]]; then
-           rm /user-tokens/tokens.json
+           rm -f /user-tokens/tokens.json
            python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-tokens"}'
            kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
        fi
