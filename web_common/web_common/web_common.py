@@ -1,4 +1,6 @@
 import os
+import importlib
+import sass
 import jinja2
 import aiohttp_jinja2
 
@@ -25,8 +27,8 @@ def sass_compile(module_name, include_common=True):
 def setup_aiohttp_jinja2(app, module):
     aiohttp_jinja2.setup(
         app, loader=jinja2.ChoiceLoader(app, loader=jinja2.ChoiceLoader([
-            PackageLoader('web_common'),
-            PackageLoader(module)
+            jinja2.PackageLoader('web_common'),
+            jinja2.PackageLoader(module)
         ])))
 
 
