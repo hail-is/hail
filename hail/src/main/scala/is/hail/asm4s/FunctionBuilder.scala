@@ -270,11 +270,14 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def emit(insn: AbstractInsnNode) = apply_method.emit(insn)
 
-  def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
-    val mb = new MethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
+  def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
+    val mb = new MethodBuilder(this, s"${ prefix }_${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb
   }
+
+  def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder =
+    newMethod("method", argsInfo, returnInfo)
 
   def newMethod[R: TypeInfo]: MethodBuilder =
     newMethod(Array[TypeInfo[_]](), typeInfo[R])
