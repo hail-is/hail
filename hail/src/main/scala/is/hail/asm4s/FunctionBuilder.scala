@@ -184,7 +184,7 @@ class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
 ) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F]
 
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
-  val packageName: String = "is/hail/codegen/generated")(implicit val interfaceTi: TypeInfo[F]) {
+  val packageName: String = "is/hail/codegen/generated", namePrefix: String = null)(implicit val interfaceTi: TypeInfo[F]) {
 
   import FunctionBuilder._
 
@@ -192,7 +192,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   cn.version = V1_8
   cn.access = ACC_PUBLIC
 
-  val name = packageName + "/C" + newUniqueID()
+  val name = packageName + "/C" + Option(namePrefix).map(n => s"_${n}_").getOrElse("") + newUniqueID()
   cn.name = name
   cn.superName = "java/lang/Object"
   cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
@@ -389,16 +389,16 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   }
 }
 
-class Function2Builder[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo]
-  extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
+class Function2Builder[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R], namePrefix = name) {
 
   def arg1 = getArg[A1](1)
 
   def arg2 = getArg[A2](2)
 }
 
-class Function3Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, R : TypeInfo]
-  extends FunctionBuilder[AsmFunction3[A1, A2, A3, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R]) {
+class Function3Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction3[A1, A2, A3, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R], namePrefix = name) {
 
   def arg1 = getArg[A1](1)
 
@@ -407,8 +407,8 @@ class Function3Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, R : TypeInfo
   def arg3 = getArg[A3](3)
 }
 
-class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, R : TypeInfo]
-  extends FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R]) {
+class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R], namePrefix = name) {
 
   def arg1 = getArg[A1](1)
 
