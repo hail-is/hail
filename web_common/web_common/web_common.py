@@ -7,7 +7,7 @@ import aiohttp_jinja2
 WEB_COMMON_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
-def sass_compile(module_name, include_common=True):
+def sass_compile(module_name):
     module = importlib.import_module(module_name)
     module_root = os.path.dirname(os.path.abspath(module.__file__))
 
@@ -15,13 +15,9 @@ def sass_compile(module_name, include_common=True):
     css_path = f'{module_root}/static/css'
     os.makedirs(css_path, exist_ok=True)
 
-    includes = []
-    if include_common:
-        includes = [f'{WEB_COMMON_ROOT}/styles']
-    else:
-        includes = []
     sass.compile(
-        dirname=(scss_path, css_path), output_style='compressed', include_paths=includes)
+        dirname=(scss_path, css_path), output_style='compressed',
+        include_paths=[f'{WEB_COMMON_ROOT}/styles'])
 
 
 def setup_aiohttp_jinja2(app, module):
@@ -33,7 +29,7 @@ def setup_aiohttp_jinja2(app, module):
 
 
 def setup_common_static_routes(routes):
-    sass_compile('web_common', include_common=False)
+    sass_compile('web_common')
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
 
