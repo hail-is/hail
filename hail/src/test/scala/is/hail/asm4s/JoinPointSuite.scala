@@ -68,6 +68,20 @@ class JoinPointSuite extends TestNGSuite {
     isEven(n)
   }
 
+  def whileLoop(cond: Code[Boolean], code: Code[Unit]*): Code[Unit] =
+    // NOTE: we just-so-happen to not need a methodbuilder because none of the
+    //       join points take any arguments. if we did take arguments then this
+    //       null methodbuilder would become a problem.
+    new JoinPoint.CallCC[Unit](mb = null) {
+      def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[Unit, X]): Code[X] = {
+        val guard = jb.joinPoint[Unit]
+        val body = jb.joinPoint[Unit]
+        guard.define { _ => JoinPoint.mux(cond, body, ret) }
+        body.define { _ => Code(Code(code: _*), guard(())) }
+        guard(())
+      }
+    }
+
   @Test def testSimpleEarlyReturn() {
     val f = compile1[Int, Boolean] { (mb, n) =>
       new JoinPoint.CallCC[Code[Boolean]](mb) {
@@ -166,6 +180,21 @@ class JoinPointSuite extends TestNGSuite {
             },
             ret)
       }
+    }
+    for (i <- 1 to 50)
+      assert(sumS(i) == sum(i), s"compute: 0 + ... + min($i, 10)")
+  }
+
+  @Test def testWhileLoop() {
+    def sum(n: Int): Int = (0 until n.min(10)).sum
+    val sumS = compile1[Int, Int] { (mb, n) =>
+      val acc = mb.newField[Int]
+      val i = mb.newField[Int]
+      Code(acc := 0, i := 0,
+        whileLoop((i < n && i < 10),
+          acc := acc + i,
+          i := i + 1),
+        acc)
     }
     for (i <- 1 to 50)
       assert(sumS(i) == sum(i), s"compute: 0 + ... + min($i, 10)")

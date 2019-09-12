@@ -17,6 +17,22 @@ object JoinPoint {
       Code(body, jb.define, ret.placeLabel)
     }
   }
+
+  // equivalent but produces better bytecode than 'cond.mux(j1(arg), j2(arg))'
+  def mux[A, X](arg: A, cond: Code[Boolean], j1: JoinPoint[A, X], j2: JoinPoint[A, X])(
+    implicit ap: ParameterPack[A]
+  ): Code[X] =
+    new Code[Nothing] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        ap.push(arg).emit(il)
+        cond.toConditional.emitConditional(il, j1.label, j2.label)
+      }
+    }
+
+  def mux[A: ParameterPack, X](cond: Code[Boolean],
+    j1: JoinPoint[Unit, X], j2: JoinPoint[Unit, X]
+  ): Code[X] =
+    mux((), cond, j1, j2)
 }
 
 
