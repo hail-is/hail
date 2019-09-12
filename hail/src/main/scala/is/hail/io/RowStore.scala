@@ -340,7 +340,7 @@ object EmitPackDecoder {
   }
 
   def apply(t: PType, requestedType: PType): () => AsmFunction2[Region, InputBuffer, Long] = {
-    val fb = new Function2Builder[Region, InputBuffer, Long]
+    val fb = new Function2Builder[Region, InputBuffer, Long]("decoder")
     val mb = fb.apply_method
 
     if (t.isPrimitive) {
@@ -520,7 +520,7 @@ object EmitPackEncoder {
   }
 
   def apply(t: PType, requestedType: PType): () => AsmFunction3[Region, Long, OutputBuffer, Unit] = {
-    val fb = new Function3Builder[Region, Long, OutputBuffer, Unit]
+    val fb = new Function3Builder[Region, Long, OutputBuffer, Unit]("encoder")
     val mb = fb.apply_method
     val offset = mb.getArg[Long](2).load()
     mb.emit(encode(t, requestedType, Region.getIRIntermediate(t)(offset), mb))

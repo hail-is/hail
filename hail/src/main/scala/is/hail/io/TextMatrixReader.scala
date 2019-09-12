@@ -267,7 +267,7 @@ class CompiledLineParser(
     .map(f => f.typ.asInstanceOf[PArray])
   @transient private[this] val rowFieldsType = requestedRowType
     .dropFields(Set(MatrixType.entriesIdentifier))
-  @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]
+  @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]("text_matrix_reader")
   @transient private[this] val mb = fb.apply_method
   @transient private[this] val region = fb.arg1
   @transient private[this] val _filename = fb.arg2
