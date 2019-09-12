@@ -26,10 +26,10 @@ def sass_compile(module_name, include_common=True):
 
 def setup_aiohttp_jinja2(app, module):
     aiohttp_jinja2.setup(
-        app, loader=jinja2.ChoiceLoader(app, loader=jinja2.ChoiceLoader([
+        app, loader=jinja2.ChoiceLoader([
             jinja2.PackageLoader('web_common'),
             jinja2.PackageLoader(module)
-        ])))
+        ]))
 
 
 def setup_common_static_routes(routes):
