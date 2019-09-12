@@ -7,6 +7,20 @@
     Notebook
   </a>
 
+  <a href="{{ batch_base_url }}" class="home link-button">
+    Batch
+  </a>
+
+  {% if userdata['developer'] == 1 %}
+    <a href="{{ ci_base_url }}" class="home link-button">
+      CI
+    </a>
+
+    <a href="{{ scorecard_base_url }}" class="home link-button">
+      Scorecard
+    </a>
+  {% endif %}
+
   <div id="profile-divider"></div>
 
   {% if userdata %}

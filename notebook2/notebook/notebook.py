@@ -229,6 +229,9 @@ def base_context(userdata):
     return {
         'base_path': deploy_config.base_path('notebook2'),
         'auth_base_url': deploy_config.external_url('auth', ''),
+        'batch_base_url': deploy_config.external_url('batch', ''),
+        'ci_base_url': deploy_config.external_url('ci', ''),
+        'scorecard_base_url': deploy_config.external_url('scorecard', ''),
         'userdata': userdata
     }
 
