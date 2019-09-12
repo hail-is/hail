@@ -473,6 +473,8 @@ steps:
      make -C python/hail/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      mv python/hail/docs/_build/html www/docs/0.2
+     HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
+     find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
    inputs:
     - from: /hail.zip
