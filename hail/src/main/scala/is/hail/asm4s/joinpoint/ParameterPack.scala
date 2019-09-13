@@ -5,7 +5,7 @@ import is.hail.asm4s._
 object ParameterPack {
   implicit val unit: ParameterPack[Unit] = new ParameterPack[Unit] {
     def push(u: Unit) = Code._empty
-    def newLocals(mb: MethodBuilder) = ParameterStore[Unit](Code._empty, ())
+    def newLocals(mb: MethodBuilder) = ParameterStore.unit
   }
 
   implicit def code[T](implicit tti: TypeInfo[T]): ParameterPack[Code[T]] =
@@ -40,6 +40,10 @@ object ParameterPack {
       ParameterStore(Code(cs.store, bs.store, as.store), (as.load, bs.load, cs.load))
     }
   }
+}
+
+object ParameterStore {
+  def unit = ParameterStore[Unit](Code._empty, ())
 }
 
 trait ParameterPack[A] {
