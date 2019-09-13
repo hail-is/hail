@@ -1442,6 +1442,8 @@ object IRParser {
 
   def parseType(code: String, env: TypeParserEnvironment): Type = parse(code, type_expr(env))
 
+  def parsePType(code: String, env: TypeParserEnvironment): PType = parse(code, type_expr(env)).physicalType
+
   def parseStructType(code: String, env: TypeParserEnvironment): TStruct = coerce[TStruct](parse(code, type_expr(env)))
 
   def parseUnionType(code: String, env: TypeParserEnvironment): TUnion = coerce[TUnion](parse(code, type_expr(env)))
@@ -1453,6 +1455,8 @@ object IRParser {
   def parseMatrixType(code: String, env: TypeParserEnvironment): MatrixType = parse(code, matrix_type_expr(env))
 
   def parseType(code: String): Type = parseType(code, TypeParserEnvironment.default)
+
+  def parsePType(code: String): PType = parsePType(code, TypeParserEnvironment.default)
 
   def parseStructType(code: String): TStruct = parseStructType(code, TypeParserEnvironment.default)
 
