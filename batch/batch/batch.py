@@ -1429,9 +1429,9 @@ routes.static('/static', os.path.join(batch_root, 'static'))
 
 setup_common_static_routes(routes)
 
-router.add_get("/metrics", server_stats)
-
 app.add_routes(routes)
+
+app.router.add_get("/metrics", server_stats)
 
 
 async def on_startup(app):
