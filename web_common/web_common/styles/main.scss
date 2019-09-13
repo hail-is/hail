@@ -21,9 +21,6 @@ body {
 }
 
 tr:nth-child(even) { background-color: #f2f2f2; }
-.header-link {
-    padding: 15px 7px;
-}
 
 a {
     color: $black;
@@ -33,6 +30,23 @@ a {
     &:hover {
         color: $devil-gray;
     }
+}
+
+.header-link {
+    padding: 15px 7px;
+}
+
+.button-header-link {
+    /* remove button styling, add link, header-link styling */
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: $black;
+    &:active,
+    &:hover {
+        color: $devil-gray;
+    }
+    padding: 15px 7px;
 }
 
 #main {
@@ -75,17 +89,4 @@ a {
     top: 50vh;
     left: 50vw;
     transform: translate(-50%, -50%);
-}
-
-button {
-    cursor: pointer;    
-}
-
-button,
-.link-button {
-    border: 1px solid $black;
-    border-radius: 3px;
-    a:active, a:hover {
-        color: $devil-gray;
-    }
 }
