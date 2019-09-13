@@ -1,20 +1,19 @@
 import logging
 import os
 import uuid
-import jinja2
 import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
 import aiohttp_jinja2
-import sass
 from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     web_authenticated_users_only, web_maybe_authenticated_user
+from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 log = logging.getLogger('notebook2')
 
@@ -23,14 +22,6 @@ NOTEBOOK_NAMESPACE = os.environ['HAIL_NOTEBOOK_NAMESPACE']
 deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
-
-notebook_root = os.path.dirname(os.path.abspath(__file__))
-
-scss_path = f'{notebook_root}/static/styles'
-css_path = f'{notebook_root}/static/css'
-os.makedirs(css_path, exist_ok=True)
-
-sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
 # Must be int for Kubernetes V1 api timeout_seconds property
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
@@ -225,23 +216,12 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-def base_context(userdata):
-    return {
-        'base_path': deploy_config.base_path('notebook2'),
-        'auth_base_url': deploy_config.external_url('auth', ''),
-        'batch_base_url': deploy_config.external_url('batch', ''),
-        'ci_base_url': deploy_config.external_url('ci', ''),
-        'scorecard_base_url': deploy_config.external_url('scorecard', ''),
-        'userdata': userdata
-    }
-
-
 @routes.get('')
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(userdata)
+    context = base_context(deploy_config, userdata, 'notebook2')
     return context
 
 
@@ -259,7 +239,7 @@ async def notebook_page(request, userdata):
         if 'notebook' in session:
             del session['notebook']
 
-    context = base_context(userdata)
+    context = base_context(deploy_config, userdata, 'notebook2')
     context['notebook'] = notebook
     return context
 
@@ -360,7 +340,7 @@ async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('error.html')
 @web_maybe_authenticated_user
 async def error_page(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(userdata)
+    context = base_context(deploy_config, userdata, 'notebook2')
     context['error'] = request.args.get('err')
     return context
 
@@ -369,7 +349,7 @@ async def error_page(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only()
 async def user_page(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(userdata)
+    context = base_context(deploy_config, userdata, 'notebook2')
     return context
 
 
@@ -382,12 +362,18 @@ async def on_startup(app):
 
 
 def run():
-    routes.static('/static', f'{notebook_root}/static')
     app = web.Application()
 
+    setup_aiohttp_jinja2(app, 'notebook')
     setup_aiohttp_session(app)
 
+    sass_compile('notebook')
+    root = os.path.dirname(os.path.abspath(__file__))
+    routes.static('/static', f'{root}/static')
+
+    setup_common_static_routes(routes)
+
     app.add_routes(routes)
+
     app.on_startup.append(on_startup)
-    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(notebook_root, 'templates')))
     web.run_app(deploy_config.prefix_application(app, 'notebook2'), host='0.0.0.0', port=5000)

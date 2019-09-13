@@ -403,6 +403,8 @@ steps:
      valueFrom: notebook2_image.image
    script: |
      set -ex
+     python3 -m flake8 web_common
+     python3 -m pylint --rcfile pylintrc web_common
      python3 -m flake8 notebook
      python3 -m pylint --rcfile pylintrc notebook
    dependsOn:

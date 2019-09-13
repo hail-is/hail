@@ -1,9 +1,9 @@
 <div id="header">
-  <a class="home link-button" href="{{ base_path }}/">
+  <a class="home link-button" href="{{ notebook_base_url }}/">
     <b>/</b>
   </a>
 
-  <a href="{{ base_path }}/notebook" class="home link-button">
+  <a href="{{ notebook_base_url }}/notebook" class="home link-button">
     Notebook
   </a>
 
@@ -24,7 +24,7 @@
   <div id="profile-divider"></div>
 
   {% if userdata %}
-  <a href="{{ base_path }}/user"
+  <a href="{{ notebook_base_url }}/user"
     ><b id="user-name">{{ userdata["username"] }}</b></a
   >
   <form action="{{ auth_base_url }}/logout" method="POST">
