@@ -403,8 +403,7 @@ class Aggregators2Suite extends HailSuite {
     }
 
     val expected = Array.tabulate(value(0).length)(i => Row(Array.tabulate(3)(j => value(j)(i)).toFastIndexedSeq)).toFastIndexedSeq
-    val expectedInit = FastIndexedSeq()
-    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, Some(expectedInit))
+    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, None)
   }
 
   @Test def testGroup() {
