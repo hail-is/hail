@@ -189,4 +189,16 @@ class JoinPointSuite extends TestNGSuite {
     for (i <- 1 to 50)
       assert(sumS(i) == sum(i), s"compute: 0 + ... + min($i, 10)")
   }
+
+  @Test def testBadCallCCEscape() {
+    intercept[JoinPoint.EmitLongJumpError] {
+      compile1[Int, Int] { (mb, n) =>
+        JoinPoint.CallCC[Code[Int]] { (jb1, ret1) =>
+          ret1(const(1) + JoinPoint.CallCC[Code[Int]] { (jb2, ret2) =>
+            ret1(const(2))
+          })
+        }
+      }
+    }
+  }
 }
