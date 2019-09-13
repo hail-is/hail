@@ -14,6 +14,7 @@
     }
 
     .ready-icon {
+        font-size: $icon-size;
         color: $blue;
         margin-right: $margin;
     }
@@ -29,6 +30,10 @@
 
     .nb-close {
         margin-left: $margin * 4;
+        font-size: $icon-size;
+        /* clear button styling */
+        border: none;
+        background: none;
     }
 
     .nb-create {

@@ -22,6 +22,10 @@ body {
 
 button {
     font-family: inherit;
+    font-size: 1rem;
+    background: none;
+    border: 1px solid $black;
+    border-radius: 3px;
 }
 
 tr:nth-child(even) { background-color: #f2f2f2; }

@@ -26,10 +26,9 @@
   <div id="header-user">
     {% if userdata %}
       <b class="header-link">
-        <a href="{{ notebook_base_url }}/user">
-          {{ userdata["username"] }}
-        </a>
+        <a href="{{ notebook_base_url }}/user">{{ userdata["username"] }}</a>
       </b>
+      |
       <form action="{{ auth_base_url }}/logout" method="POST">
         <button class="button-header-link" type="submit">
           Log out
