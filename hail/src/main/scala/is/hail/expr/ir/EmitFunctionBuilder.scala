@@ -65,8 +65,12 @@ trait FunctionWithAggRegion {
   def getSerializedAgg(i: Int): Array[Byte]
 }
 
+trait FunctionWithPartitionRegion {
+  def addPartitionRegion(r: Region): Unit
+}
+
 trait FunctionWithLiterals {
-  def addLiterals(lit: Array[Byte], r: Region): Unit
+  def addLiterals(lit: Array[Byte]): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -154,8 +158,9 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
 class EmitFunctionBuilder[F >: Null](
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated"
-)(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) {
+  packageName: String = "is/hail/codegen/generated",
+  namePrefix: String = null
+)(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, namePrefix) {
 
   private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
@@ -183,7 +188,8 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
     mutable.Map[(Type, Any), ClassFieldRef[_]]()
-  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
+  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]("encodedLiterals")
+  val partitionRegion: ClassFieldRef[Region] = newField[Region]("partitionRegion")
 
   def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
     assert(v != null)
@@ -199,7 +205,7 @@ class EmitFunctionBuilder[F >: Null](
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
     assert(litRType == litType)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]], typeInfo[Region]), typeInfo[Unit])
+    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
     val off = mb2.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
       f.storeAny(Region.loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
@@ -207,7 +213,7 @@ class EmitFunctionBuilder[F >: Null](
 
     mb2.emit(Code(
       encLitField := mb2.getArg[Array[Byte]](1),
-      off := dec(mb2.getArg[Region](2).load(),
+      off := dec(partitionRegion.load(),
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
       Code(storeFields: _*)
     ))
@@ -476,6 +482,13 @@ class EmitFunctionBuilder[F >: Null](
 
   val rngs: ArrayBuilder[(ClassFieldRef[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
 
+  def makeAddPartitionRegion(): Unit = {
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithPartitionRegion].iname)
+    val mb = new EmitMethodBuilder(this, "addPartitionRegion", Array(typeInfo[Region]), typeInfo[Unit])
+    mb.emit(partitionRegion := mb.getArg[Region](1))
+    methods.append(mb)
+  }
+
   def makeRNGs() {
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
 
@@ -507,6 +520,7 @@ class EmitFunctionBuilder[F >: Null](
 
   def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
     makeRNGs()
+    makeAddPartitionRegion()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val hasLiterals: Boolean = literalsMap.nonEmpty
@@ -540,12 +554,13 @@ class EmitFunctionBuilder[F >: Null](
             }
           }
           val f = theClass.newInstance().asInstanceOf[F]
+          f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
           if (localFS != null)
             f.asInstanceOf[FunctionWithFS].addFS(localFS)
           if (useBackend)
             f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (hasLiterals)
-            f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value, region)
+            f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
           if (nSerializedAggs != 0)
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
