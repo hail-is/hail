@@ -458,10 +458,14 @@ class Aggregators2Suite extends HailSuite {
     val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
     val rref = Ref("rows", TArray(t))
     val elts = Array.tabulate(rows.length)(i => FastIndexedSeq(GetField(ArrayRef(rref, i), "a")))
+    val eltsPrimitive = Array.tabulate(rows.length)(i => FastIndexedSeq(GetField(ArrayRef(rref, i), "b")))
 
     val expected = Set("abcd", "foo", null)
+    val expectedPrimitive = Set("abcd", "foo", null)
 
     val aggsig = AggSignature2(CollectAsSet(), FastSeq(), FastSeq(TString()), None)
     assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
+    assertAggEquals(aggsig, FastSeq(), FastIndexedSeq(), expected = FastIndexedSeq(), args = FastIndexedSeq(("rows", (arrayType, rows))))
+    assertAggEquals(aggsig, FastSeq(), eltsPrimitive, expected = expectedPrimitive, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 }
