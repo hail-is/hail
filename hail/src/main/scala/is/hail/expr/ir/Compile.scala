@@ -46,7 +46,6 @@ object Compile {
 
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-
     Emit(ir, fb, nSpecialArgs)
 
     val f = fb.resultWithIndex()

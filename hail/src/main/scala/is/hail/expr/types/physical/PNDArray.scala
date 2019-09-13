@@ -36,7 +36,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       .loadField(shape, idx))
 
     if (nDims == 0) {
-      0L
+      1L
     }
     else {
       Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * getShapeAtIdx(idx) }
