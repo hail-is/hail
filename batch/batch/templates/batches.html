@@ -1,42 +1,41 @@
 {% extends "layout.html" %}
 {% block title %}Batches{% endblock %}
 {% block content %}
-    <h4>Batches</h4>
-    <div style="align=right">
-      <p><input width="25em" type="text" id="searchBar" onkeyup="searchTable('batches', 'searchBar')" placeholder="Search terms..."></p>
-    </div>
-    <table style="" id="batches">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>State</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for batch in batch_list %}
-        <tr>
-          <td><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
-          <td>
-            {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
-            {{ batch['attributes']['name'] }}
-            {% endif %}
-          </td>
-          <td>{{ batch['state'] }}</td>
-          <td>
+    <h1>Batches</h1>
+    <div class="searchbar-table">
+      <input size=30 type="text" id="searchBar" onkeyup="searchTable('batches', 'searchBar')" placeholder="Search terms...">
+      <table style="min-width:480px;" id="batches">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>State</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for batch in batch_list %}
+          <tr>
+            <td><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+            <td>
+              {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
+              {{ batch['attributes']['name'] }}
+              {% endif %}
+            </td>
+            <td>{{ batch['state'] }}</td>
             {% if not batch['complete'] %}
-            <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
-              <input type="hidden" name="_csrf" value="{{ token }}"/>
-              <input type="submit" value="Cancel">
-            </form>
+              <td>
+                <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
+                  <input type="hidden" name="_csrf" value="{{ token }}"/>
+                  <button>Cancel</button>
+                </form>
+              </td>
             {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <script type="text/javascript">
-      document.getElementById("searchBar").focus();
-    </script>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <script type="text/javascript">
+        document.getElementById("searchBar").focus();
+      </script>
+    </div>
 {% endblock %}

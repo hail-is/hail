@@ -1,69 +1,91 @@
 @import "variables/colors.scss";
 @import "variables/margins.scss";
-@import "buttons.scss";
-@import "typography.scss";
-@import "input.scss";
-@import "spinkit-mod.scss";
 
 html {
-  box-sizing: border-box;
-  font-size: 16px;
+    box-sizing: border-box;
 }
-
-button,
-input {
-  margin: 0px;
-  font-size: 0.875rem;
-}
-
 *,
 *:before,
 *:after {
-  box-sizing: inherit;
+    box-sizing: inherit;
 }
 
 body {
-  margin: 0px;
-}
-
-#theme-site {
-  font-size: 0.875rem;
-  background-color: $white;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  font-family: "Open Sans", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-font-smmothing: grayscale;
-  input::placeholder {
+    font-family: "Open Sans", Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-font-smmothing: grayscale;
-  }
-  #main {
+    input::placeholder {
+        -webkit-font-smoothing: antialiased;
+        -moz-font-smmothing: grayscale;
+    }
+}
+
+tr:nth-child(even) { background-color: #f2f2f2; }
+.header-link {
+    padding: 15px 7px;
+}
+
+a {
+    color: $black;
+    /* remove underline */
+    text-decoration: none;
+    &:active,
+    &:hover {
+        color: $devil-gray;
+    }
+}
+
+#main {
     display: flex;
     flex-direction: column;
-    padding: $margin;
-    min-height: calc(100vh - 50px * 2);
-    .centered {
-      margin: auto;
-    }
-    align-items: flex-start;
-  }
-  #footer {
-    height: 50px;
+}
+
+#header {
     display: flex;
-    padding: 0 $margin;
-    align-content: center;
+    flex-direction: row;
+    justify-content: space-between;
     align-items: center;
-  }
-  .material-icons {
-    font-size: 1.75rem;
-  }
-  &.dark {
-    background-color: $black;
-    color: $white;
-  }
-  table {
-    border-collapse: collapse;
-  }
+}
+
+#header-menu {
+    display: flex;
+    flex-direction: row;
+}
+
+#header-user {
+    display: flex;
+    flex-direction: row;
+}
+
+#content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.searchbar-table {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+/* viewport centered */
+.vcentered {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    transform: translate(-50%, -50%);
+}
+
+button {
+    cursor: pointer;    
+}
+
+button,
+.link-button {
+    border: 1px solid $black;
+    border-radius: 3px;
+    a:active, a:hover {
+        color: $devil-gray;
+    }
 }

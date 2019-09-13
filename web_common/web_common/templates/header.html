@@ -1,40 +1,44 @@
 <div id="header">
-  <a class="home link-button" href="{{ notebook_base_url }}/">
-    <b>/</b>
-  </a>
+  <div id="header-menu">
+    <b class="header-link">
+      <a href="{{ notebook_base_url }}/">/</a>
+    </b>
 
-  <a href="{{ notebook_base_url }}/notebook" class="home link-button">
-    Notebook
-  </a>
-
-  <a href="{{ batch_base_url }}" class="home link-button">
-    Batch
-  </a>
-
-  {% if userdata['developer'] == 1 %}
-    <a href="{{ ci_base_url }}" class="home link-button">
-      CI
+    <a class="header-link" href="{{ notebook_base_url }}/notebook">
+      Notebook
     </a>
-
-    <a href="{{ scorecard_base_url }}" class="home link-button">
-      Scorecard
+    
+    <a class="header-link" href="{{ batch_base_url }}">
+      Batch
     </a>
-  {% endif %}
+    
+    {% if userdata['developer'] == 1 %}
+      <a class="header-link" href="{{ ci_base_url }}">
+        CI
+      </a>
+      
+      <a class="header-link" href="{{ scorecard_base_url }}">
+        Scorecard
+      </a>
+    {% endif %}
+  </div>
 
-  <div id="profile-divider"></div>
-
-  {% if userdata %}
-  <a href="{{ notebook_base_url }}/user">
-    <b id="home link-button user-name">{{ userdata["username"] }}</b>
-  </a>
-  <form action="{{ auth_base_url }}/logout" method="POST">
-    <button class="home link-button" type="submit">
-      Log out
-    </button>
-  </form>
-  {% else %}
-  <a class="home link-button" href="{{ auth_base_url }}/login">
-    Login
-  </a>
-  {% endif %}
+  <div id="header-user">
+    {% if userdata %}
+      <b id="header-link">
+        <a href="{{ notebook_base_url }}/user">
+          {{ userdata["username"] }}
+        </a>
+      </b>
+      <form action="{{ auth_base_url }}/logout" method="POST">
+        <button class="header-link" type="submit">
+          Log out
+        </button>
+      </form>
+    {% else %}
+      <a class="header-link" href="{{ auth_base_url }}/login">
+        Login
+      </a>
+    {% endif %}
+  </div>
 </div>
