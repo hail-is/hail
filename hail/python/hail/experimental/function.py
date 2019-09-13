@@ -22,7 +22,7 @@ def define_function(f, *param_types, _name=None):
     body = f(*(construct_expr(Ref(pn), pt) for pn, pt in zip(param_names, param_types)))
     ret_type = body.dtype
 
-    r = Renderer(stop_at_jir=True)
+    r = CSERenderer(stop_at_jir=True)
     code = r(body._ir)
     jbody = body._ir.parse(code, ref_map=dict(zip(param_names, param_types)), ir_map=r.jirs)
 
