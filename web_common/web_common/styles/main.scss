@@ -41,7 +41,7 @@ a {
 }
 
 .header-link {
-    padding: 15px 7px;
+    padding: 0 7px;
 }
 
 .button-header-link {
@@ -67,6 +67,7 @@ a {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+    padding: 15px 0;
 }
 
 #header-menu {
