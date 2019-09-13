@@ -3102,12 +3102,13 @@ class Tests(unittest.TestCase):
         exprs, expecteds = zip(*exprs_and_expecteds)
 
         from hail.ir import NDArrayWrite, Begin
-        tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
-        write_irs = [NDArrayWrite(expr._ir, hl.str(tmp_file)._ir) for (expr, tmp_file) in zip(exprs, tmp_files)]
-        hl.utils.java.Env.backend().execute(Begin(write_irs))
+        # tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
+        # write_irs = [NDArrayWrite(expr._ir, hl.str(tmp_file)._ir) for (expr, tmp_file) in zip(exprs, tmp_files)]
+        # hl.utils.java.Env.backend().execute(Begin(write_irs))
 
-        for (tmp_file, expected) in zip(tmp_files, expecteds):
-            self.assertTrue(asserter(np.load(tmp_file), expected))
+
+        for (expr, expected) in zip(exprs, expecteds):
+            self.assertTrue(asserter(hl.eval(expr), expected))
 
     def ndarrays_eq(self, *expr_and_expected):
         self.assert_ndarrays(np.array_equal, expr_and_expected)
@@ -3230,10 +3231,10 @@ class Tests(unittest.TestCase):
         b = hl.map(lambda x: -x, a)
         c = hl.map(lambda x: True, a)
 
-        assert(np.array_equal(hl.eval(b), [[-2, -3, -4],
-                                           [-5, -6, -7]]))
-        assert(np.array_equal(hl.eval(c), [[True, True, True],
-                                           [True, True, True]]))
+        self.ndarrays_eq(
+            (b, [[-2, -3, -4], [-5, -6, -7]]),
+            (c, [[True, True, True],
+                 [True, True, True]]))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
