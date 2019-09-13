@@ -4,10 +4,6 @@
 
 Released 2019-09-12
 
-### Bug fixes
-- (hail#6921)(hail#6907) Fix reading tables and matrix tables using non-default
-  genome references.
-
 ### New features
 - (hail#7013) Add `contig_recoding` to `import_bed` and `import_locus_intervals`.
 
