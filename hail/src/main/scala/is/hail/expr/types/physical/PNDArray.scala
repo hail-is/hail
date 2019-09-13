@@ -64,7 +64,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def getElementPosition(indices: Seq[ClassFieldRef[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def getElementPosition(indices: Seq[Settable[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val rep = this.representation
     val strides = rep.loadField(region, nd, "strides")
     val dataCode = rep.loadField(region, nd, "data")
