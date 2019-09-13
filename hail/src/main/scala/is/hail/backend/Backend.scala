@@ -82,23 +82,5 @@ abstract class Backend {
     }
   }
 
-  def decodeToJSON(
-    ptypeString: String,
-    bytes: Array[Byte],
-    codecString: String
-  ): String = Region.scoped { region =>
-    val codec = CodecSpec.fromShortString(codecString)
-    val pt = IRParser.parsePType(ptypeString).asInstanceOf[PTuple]
-    val enc = codec.makeCodecSpec2(pt)
-    val (ptResult: PTuple, dec) = enc.decode(pt.virtualType, bytes, region)
-    JsonMethods.compact(
-      JSONAnnotationImpex.exportAnnotation(
-        SafeRow(
-          ptResult,
-          region,
-          dec).get(0),
-        pt.fields(0).typ.virtualType))
-  }
-
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
 }

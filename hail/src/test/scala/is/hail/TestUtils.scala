@@ -7,6 +7,7 @@ import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
+import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -181,23 +182,25 @@ object TestUtils {
       }
     }
 
+    val argsPType = PType.canonical(argsType)
     agg match {
       case Some((aggElements, aggType)) =>
         val aggVar = genUID()
         val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
+        val aggPType = PType.canonical(aggType)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          argsVar, argsType.physicalType,
-          argsVar, argsType.physicalType,
-          aggVar, aggType.physicalType,
+          argsVar, argsPType,
+          argsVar, argsPType,
+          aggVar, aggPType,
           MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
         val (resultType2, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
-          argsVar, argsType.physicalType,
+          argsVar, argsPType,
           postAggIR)
         assert(resultType2.virtualType == resultType)
 
@@ -205,7 +208,7 @@ object TestUtils {
           val rvb = new RegionValueBuilder(region)
 
           // copy args into region
-          rvb.start(argsType.physicalType)
+          rvb.start(argsPType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -222,7 +225,7 @@ object TestUtils {
           var seqOpF = seqOps(0, region)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
-            rvb.start(aggType.physicalType)
+            rvb.start(aggPType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -237,7 +240,7 @@ object TestUtils {
           seqOpF = seqOps(1, region)
           while (i < aggElements.length) {
             // FIXME use second region for elements
-            rvb.start(aggType.physicalType)
+            rvb.start(aggPType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -260,18 +263,18 @@ object TestUtils {
           val aggResultsOff = rvb.end()
 
           val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
-          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+          SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
         }
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
-          argsVar, argsType.physicalType,
+          argsVar, argsPType,
           MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)
-          rvb.start(argsType.physicalType)
+          rvb.start(argsPType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -282,7 +285,7 @@ object TestUtils {
           val argsOff = rvb.end()
 
           val resultOff = f(0, region)(region, argsOff, false)
-          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+          SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
         }
     }
   }

@@ -235,7 +235,7 @@ case class TextMatrixReader(
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      RVD.unkeyed(requestedType.rowType.physicalType, rdd)
+      RVD.unkeyed(PStruct.canonical(requestedType.rowType), rdd)
     val globalValue = makeGlobalValue(ctx, requestedType, colIDs.map(Row(_)))
     TableValue(tr.typ, globalValue, rvd)
   }
@@ -282,7 +282,7 @@ class CompiledLineParser(
   fb.addInitInstructions(Code(
     pos := 0,
     filename := Code._null,
-    lineNumber := 0,
+    lineNumber := 0L,
     line := Code._null,
     srvb.init()))
 
@@ -318,14 +318,14 @@ class CompiledLineParser(
       msg, filename, lineNumber, pos, pos + 1))
 
   private[this] def numericValue(c: Code[Char]): Code[Int] =
-    ((c < '0') || (c > '9')).mux(
+    ((c < const('0')) || (c > const('9'))).mux(
       parseError(const("invalid character '")
         .concat(c.toS)
         .concat("' in integer literal")),
-      (c - '0').toI)
+      (c - const('0')).toI)
 
   private[this] def endField(p: Code[Int]): Code[Boolean] =
-    p.ceq(line.length) || line(p).ceq(separator)
+    p.ceq(line.length()) || line(p).ceq(const(separator))
 
   private[this] def endField(): Code[Boolean] =
     endField(pos)
@@ -370,7 +370,7 @@ class CompiledLineParser(
       parseError("empty integer literal"),
       Code(
         mul := 1,
-        (line(pos).ceq('-')).mux(
+        (line(pos).ceq(const('-'))).mux(
           Code(
             mul := -1,
             pos := pos + 1),
@@ -393,7 +393,7 @@ class CompiledLineParser(
       parseError(const("empty long literal at ")),
       Code(
         mul := 1L,
-        (line(pos).ceq('-')).mux(
+        (line(pos).ceq(const('-'))).mux(
           mul := -1L,
           pos := pos + 1),
         c := line(pos),
@@ -401,7 +401,7 @@ class CompiledLineParser(
         pos := pos + 1,
         Code.whileLoop(!endField(),
           c := line(pos),
-          v := v * 10 + numericValue(c).toL,
+          v := v * 10L + numericValue(c).toL,
           pos := pos + 1),
         v * mul))
   }
@@ -445,6 +445,7 @@ class CompiledLineParser(
     val ab = new ArrayBuilder[Code[_]]()
     while (inputIndex < onDiskRowFieldsType.size) {
       val onDiskField = onDiskRowFieldsType.fields(inputIndex)
+      val onDiskPType = PType.canonical(onDiskField.typ) // will always be optional
       val requestedField =
         if (outputIndex < rowFieldsType.size)
           rowFieldsType.fields(outputIndex)
@@ -453,15 +454,15 @@ class CompiledLineParser(
       if (requestedField == null || onDiskField.name != requestedField.name) {
         if (onDiskField.name != "row_id") {
           ab += Code(
-            skipType(mb, onDiskField.typ.physicalType),
+            skipType(mb, onDiskPType),
             pos := pos + 1)
         }
       } else {
-        assert(onDiskField.typ.physicalType == requestedField.typ)
+        assert(onDiskPType == requestedField.typ)
         val parseAndAddField =
           if (onDiskField.name == "row_id") srvb.addLong(lineNumber)
           else Code(
-            parseType(mb, srvb, onDiskField.typ.physicalType),
+            parseType(mb, srvb, onDiskPType),
             pos := pos + 1)
         ab += (pos < line.length).mux(
           parseAndAddField,

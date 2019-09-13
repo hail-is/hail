@@ -43,17 +43,6 @@ class OrderingSuite extends HailSuite {
     fb.resultWithIndex()(0, r)
   }
 
-  def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
-    val rvb = new RegionValueBuilder(region)
-    args.map { case (t, a) =>
-      rvb.start(TTuple(t).physicalType)
-      rvb.startTuple()
-      rvb.addAnnotation(t, a)
-      rvb.endTuple()
-      rvb.end()
-    }.toArray
-  }
-
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
