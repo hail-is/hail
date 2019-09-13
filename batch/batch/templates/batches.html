@@ -1,9 +1,11 @@
 {% extends "layout.html" %}
 {% block title %}Batches{% endblock %}
 {% block content %}
-    <h1>Batches</h1>
-    <input type="text" id="searchBar" onkeyup="searchTable('batches', 'searchBar')" placeholder="Search terms...">
-    <table id="batches">
+    <h4>Batches</h4>
+    <div style="align=right">
+      <p><input width="25em" type="text" id="searchBar" onkeyup="searchTable('batches', 'searchBar')" placeholder="Search terms..."></p>
+    </div>
+    <table style="" id="batches">
       <thead>
         <tr>
           <th>ID</th>
@@ -15,7 +17,7 @@
       <tbody>
         {% for batch in batch_list %}
         <tr>
-          <td><a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
           <td>
             {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
             {{ batch['attributes']['name'] }}
@@ -24,7 +26,7 @@
           <td>{{ batch['state'] }}</td>
           <td>
             {% if not batch['complete'] %}
-            <form action="/batches/{{ batch['id'] }}/cancel" method="post">
+            <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
               <input type="hidden" name="_csrf" value="{{ token }}"/>
               <input type="submit" value="Cancel">
             </form>
@@ -34,8 +36,7 @@
         {% endfor %}
       </tbody>
     </table>
-  </body>
-  <script type="text/javascript">
-    document.getElementById("searchBar").focus();
-  </script>
+    <script type="text/javascript">
+      document.getElementById("searchBar").focus();
+    </script>
 {% endblock %}
