@@ -55,7 +55,7 @@ class DefinableJoinPoint[A: ParameterPack, X](
   store: ParameterStore[A]
 ) extends JoinPoint[A, X](new LabelNode) {
   def define(f: A => Code[X]): Unit =
-    jb.definitions += this -> Code(store.pop, f(store.load))
+    jb.definitions += this -> Code(store.store, f(store.load))
 }
 
 class JoinPointBuilder[X] private[joinpoint](val mb: MethodBuilder) {
@@ -68,5 +68,5 @@ class JoinPointBuilder[X] private[joinpoint](val mb: MethodBuilder) {
     }
 
   def joinPoint[A](implicit p: ParameterPack[A]): DefinableJoinPoint[A, X] =
-    new DefinableJoinPoint[A, X](this, p.store(mb))
+    new DefinableJoinPoint[A, X](this, p.newLocals(mb))
 }
