@@ -1,72 +1,82 @@
 package is.hail.asm4s.joinpoint
 
 import is.hail.asm4s._
+import is.hail.utils.{fatal}
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.{LabelNode, AbstractInsnNode, JumpInsnNode}
 import scala.collection.mutable
 import scala.collection.generic.Growable
 
-object JoinPoint {
-  abstract class CallCC[A: ParameterPack](mb: MethodBuilder) {
-    def apply[X](jb: JoinPointBuilder[X], ret: JoinPoint[A, X]): Code[X]
+// uninhabitable dummy type, indicating some sort of control flow rather than returning a value;
+// used as the return type of JoinPoints
+case class Ctrl(n: Nothing)
 
-    private[joinpoint] def emit: Code[Nothing] = {
-      val jb = new JoinPointBuilder[Nothing](mb)
-      val ret = JoinPoint[A, Nothing](new LabelNode)
-      val body = apply(jb, ret)
+object JoinPoint {
+  // equivalent but produces better bytecode than 'cond.mux(j1(arg), j2(arg))'
+  def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
+    implicit ap: ParameterPack[A]
+  ) = new Code[Ctrl] {
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
+      ap.push(arg).emit(il)
+      cond.toConditional.emitConditional(il, j1.label, j2.label)
+    }
+  }
+
+  def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
+    mux((), cond, j1, j2)
+
+  case class CallCC[A: ParameterPack](
+    f: (JoinPointBuilder, JoinPoint[A]) => Code[Ctrl]
+  ) {
+    private[joinpoint] def code: Code[Nothing] = {
+      // NOTE: unsafe if you have nested CallCC's
+      val jb = new JoinPointBuilder
+      val ret = JoinPoint[A](new LabelNode)
+      val body = f(jb, ret)
       Code(body, jb.define, ret.placeLabel)
     }
   }
-
-  // equivalent but produces better bytecode than 'cond.mux(j1(arg), j2(arg))'
-  def mux[A, X](arg: A, cond: Code[Boolean], j1: JoinPoint[A, X], j2: JoinPoint[A, X])(
-    implicit ap: ParameterPack[A]
-  ): Code[X] =
-    new Code[Nothing] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        ap.push(arg).emit(il)
-        cond.toConditional.emitConditional(il, j1.label, j2.label)
-      }
-    }
-
-  def mux[X](cond: Code[Boolean], j1: JoinPoint[Unit, X], j2: JoinPoint[Unit, X]): Code[X] =
-    mux((), cond, j1, j2)
 }
 
-
-case class JoinPoint[A, X] private[joinpoint](label: LabelNode)(implicit p: ParameterPack[A])
-    extends (A => Code[X]) {
-  def apply(args: A): Code[X] = new Code[Nothing] {
-    val push = p.push(args)
-    def emit(il: Growable[AbstractInsnNode]): Unit = {
-      push.emit(il)
-      il += new JumpInsnNode(Opcodes.GOTO, label)
-    }
-  }
-
-  private[joinpoint] def placeLabel = new Code[Nothing] {
-    def emit(il: Growable[AbstractInsnNode]): Unit =
-      il += label
-  }
+case class JoinPoint[A] private[joinpoint](
+  label: LabelNode
+)(implicit p: ParameterPack[A]) extends (A => Code[Ctrl]) {
+  def apply(args: A) = Code(p.push(args), gotoLabel)
+  private[joinpoint] def placeLabel = Code(label)
+  private[joinpoint] def gotoLabel = Code[Ctrl](new JumpInsnNode(Opcodes.GOTO, label))
 }
 
-class DefinableJoinPoint[A: ParameterPack, X](
-  jb: JoinPointBuilder[X],
-  store: ParameterStore[A]
-) extends JoinPoint[A, X](new LabelNode) {
-  def define(f: A => Code[X]): Unit =
-    jb.definitions += this -> Code(store.store, f(store.load))
+class DefinableJoinPoint[A: ParameterPack](
+  args: ParameterStore[A]
+) extends JoinPoint[A](new LabelNode) {
+
+  def define(f: A => Code[Ctrl]): Unit =
+    body = Some(Code(args.store, f(args.load)))
+
+  private[joinpoint] var body: Option[Code[Ctrl]] = None
 }
 
-class JoinPointBuilder[X] private[joinpoint](val mb: MethodBuilder) {
-  private[joinpoint] val definitions: mutable.ArrayBuffer[(JoinPoint[_, X], Code[X])] =
+class JoinPointBuilder private[joinpoint] {
+  private[joinpoint] val joinPoints: mutable.ArrayBuffer[DefinableJoinPoint[_]] =
     new mutable.ArrayBuffer()
 
   private[joinpoint] def define: Code[Unit] =
-    Code.foreach(definitions) { case (j, body) =>
-      Code(j.placeLabel, body)
+    Code.foreach(joinPoints) { j =>
+      j.body match {
+        case Some(body) => Code(j.placeLabel, body)
+        case None => fatal("join point never defined")
+      }
     }
 
-  def joinPoint[A](implicit p: ParameterPack[A]): DefinableJoinPoint[A, X] =
-    new DefinableJoinPoint[A, X](this, p.newLocals(mb))
+  private def joinPoint[A: ParameterPack](s: ParameterStore[A]): DefinableJoinPoint[A] = {
+    val j = new DefinableJoinPoint[A](s)
+    joinPoints += j
+    j
+  }
+
+  def joinPoint[A](mb: MethodBuilder)(implicit p: ParameterPack[A]): DefinableJoinPoint[A] =
+    joinPoint(p.newLocals(mb))
+
+  def joinPoint(): DefinableJoinPoint[Unit] =
+    joinPoint(ParameterStore.unit)
 }
