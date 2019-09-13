@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
@@ -21,16 +21,18 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
     storageType.setFieldMissing(off, 1)
 
   def store(dest: Code[Long], m: Code[Boolean], v: Code[_]): Code[Unit] = {
-    var c = {
+    val c = {
       if (typ.isPrimitive)
         Region.storeIRIntermediate(typ)(storageType.fieldOffset(dest, 0), v)
       else
         Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopy(fb, region, typ, coerce[Long](v)))
     }
     if (!typ.required)
-      c = m.mux(storageType.setFieldMissing(dest, 0), c)
-
-    Code(storageType.setFieldPresent(dest, 1), c)
+      m.mux(
+        Code(storageType.setFieldPresent(dest, 1), storageType.setFieldMissing(dest, 0)),
+        Code(storageType.clearMissingBits(dest), c))
+    else
+      Code(storageType.setFieldPresent(dest, 1), c)
   }
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
@@ -90,7 +92,8 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
       _elt := tree.getOrElseInitialize(vm, vm.mux(defaultValue(t), vv)),
       key.isEmpty(_elt).orEmpty(Code(
         size := size + 1,
-        key.store(_elt, _vm, _vv))))
+        key.store(_elt, _vm, _vv)
+      )))
   }
 
   // loads container; does not update.

@@ -19,7 +19,9 @@ class Aggregators2Suite extends HailSuite {
     seqOps: IndexedSeq[IR],
     expected: Any,
     args: IndexedSeq[(String, (Type, Any))],
-    nPartitions: Int): Unit = {
+    nPartitions: Int,
+    expectedInit: Option[Any]
+  ): Unit = {
     assert(seqOps.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
 
     val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).asInstanceOf[PStruct]
@@ -45,24 +47,42 @@ class Aggregators2Suite extends HailSuite {
 
     Region.scoped { region =>
       val argOff = ScalaToRegionValue(region, argT, argVs)
-      val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
-        val serialize = SerializeAggs(0, 0, spec, Array(aggSig))
 
-        def withArgs(foo: IR) = {
-          CompileWithAggregators2[Long, Unit](
-            Array(aggSig),
-            argRef.name, argRef.pType,
-            args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
-              Let(name, GetField(argRef, name), op)
-            })._2(0, region)
-        }
-
-        val (_, writeF) = CompileWithAggregators2[Unit](
+      def withArgs(foo: IR) = {
+        CompileWithAggregators2[Long, Unit](
           Array(aggSig),
-          serialize)
+          argRef.name, argRef.pType,
+          args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
+            Let(name, GetField(argRef, name), op)
+          })._2
+      }
 
-        val init = withArgs(initOp)
-        val seq = withArgs(Begin(seqs))
+      val serialize = SerializeAggs(0, 0, spec, Array(aggSig))
+      val (_, writeF) = CompileWithAggregators2[Unit](
+        Array(aggSig),
+        serialize)
+
+      val initF = withArgs(initOp)
+
+      expectedInit.foreach { v =>
+        val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[Long](
+          Array(aggSig), ResultOp2(0, Array(aggSig)))
+
+        val init = initF(0, region)
+        val res = resOneF(0, region)
+
+        Region.smallScoped { aggRegion =>
+          init.newAggState(aggRegion)
+          init(region, argOff, false)
+          res.setAggState(aggRegion, init.getAggOffset())
+          val result = SafeRow(rt, region, res(region)).get(0)
+          assert(resultType.virtualType.valuesSimilar(result, v))
+        }
+      }
+
+      val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
+        val init = initF(0, region)
+        val seq = withArgs(Begin(seqs))(0, region)
         val write = writeF(0, region)
         Region.smallScoped { aggRegion =>
           init.newAggState(aggRegion)
@@ -84,7 +104,6 @@ class Aggregators2Suite extends HailSuite {
           combOp.setSerializedAgg(i, s)
         }
         combOp(region)
-
         val res = resF(0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, region, res(region))
@@ -102,11 +121,12 @@ class Aggregators2Suite extends HailSuite {
     seqArgs: IndexedSeq[IndexedSeq[IR]],
     expected: Any,
     args: IndexedSeq[(String, (Type, Any))] = FastIndexedSeq(),
-    nPartitions: Int = 2): Unit =
+    nPartitions: Int = 2,
+    expectedInit: Option[Any] = None): Unit =
     assertAggEquals(aggSig,
       InitOp2(0, initArgs, aggSig),
       seqArgs.map(s => SeqOp2(0, s, aggSig)),
-      expected, args, nPartitions)
+      expected, args, nPartitions, expectedInit)
 
   val t = TStruct("a" -> TString(), "b" -> TInt64())
   val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
@@ -324,7 +344,7 @@ class Aggregators2Suite extends HailSuite {
       }, lcAggSig)
     }
 
-    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2)
+    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, None)
   }
 
   @Test def testNestedArrayElementsAgg() {
@@ -353,7 +373,7 @@ class Aggregators2Suite extends HailSuite {
     val expected = FastIndexedSeq(Row(FastIndexedSeq(Row(45L))))
 
     val args = Array.tabulate(10)(i => FastIndexedSeq(FastIndexedSeq(i.toLong))).toFastIndexedSeq
-    assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2)
+    assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2, None)
   }
 
   @Test def testArrayElementsAggTake() {
@@ -383,7 +403,8 @@ class Aggregators2Suite extends HailSuite {
     }
 
     val expected = Array.tabulate(value(0).length)(i => Row(Array.tabulate(3)(j => value(j)(i)).toFastIndexedSeq)).toFastIndexedSeq
-    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2)
+    val expectedInit = FastIndexedSeq()
+    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, Some(expectedInit))
   }
 
   @Test def testGroup() {
@@ -461,11 +482,11 @@ class Aggregators2Suite extends HailSuite {
     val eltsPrimitive = Array.tabulate(rows.length)(i => FastIndexedSeq(GetField(ArrayRef(rref, i), "b")))
 
     val expected = Set("abcd", "foo", null)
-    val expectedPrimitive = Set("abcd", "foo", null)
+    val expectedPrimitive = Set(5L, -2L, 7L, null)
 
     val aggsig = AggSignature2(CollectAsSet(), FastSeq(), FastSeq(TString()), None)
-    assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
-    assertAggEquals(aggsig, FastSeq(), FastIndexedSeq(), expected = FastIndexedSeq(), args = FastIndexedSeq(("rows", (arrayType, rows))))
-    assertAggEquals(aggsig, FastSeq(), eltsPrimitive, expected = expectedPrimitive, args = FastIndexedSeq(("rows", (arrayType, rows))))
+    val aggsigPrimitive = AggSignature2(CollectAsSet(), FastSeq(), FastSeq(TInt64()), None)
+    assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
+    assertAggEquals(aggsigPrimitive, FastSeq(), eltsPrimitive, expected = expectedPrimitive, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
   }
 }
