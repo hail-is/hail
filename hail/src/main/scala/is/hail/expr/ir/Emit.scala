@@ -2065,15 +2065,24 @@ private class Emit(
 
         val leftChildEmitter = deforest(lChild)
         val rightChildEmitter = deforest(rChild)
+
+        val lBroadcastFlags = NDArrayEmitter.broadcastFlags(mb, nDims, leftChildEmitter.outputShape)
+        val rBroadcastFlags = NDArrayEmitter.broadcastFlags(mb, nDims, rightChildEmitter.outputShape)
+
         val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup)
 
         new NDArrayEmitter(mb, leftChildEmitter.nDims, leftChildEmitter.outputShape,
           lP.representation.field("shape").typ.asInstanceOf[PTuple],
           body.pType, setup) {
           override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
+            val (lIdxVarsSetup, lIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, lBroadcastFlags, idxVars)
+            val (rIdxVarsSetup, rIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, rBroadcastFlags, idxVars)
+
             Code(
-              lElemRef := leftChildEmitter.outputElement(idxVars),
-              rElemRef := rightChildEmitter.outputElement(idxVars),
+              lIdxVarsSetup,
+              rIdxVarsSetup,
+              lElemRef := leftChildEmitter.outputElement(lIdxVars),
+              rElemRef := rightChildEmitter.outputElement(rIdxVars),
               bodyt.setup,
               bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
               bodyt.v
@@ -2102,8 +2111,13 @@ object NDArrayEmitter {
     ???
   }
 
-  def zeroBroadcastedDims(mb: MethodBuilder, loopVars: Seq[ClassFieldRef[Long]]): Seq[Settable[Long]] = {
-    ???
+  def zeroBroadcastedDims(mb: MethodBuilder, broadcastFlags: Seq[Settable[Long]], loopVars: Seq[Settable[Long]]): (Code[_], Seq[Settable[Long]]) = {
+    val (newLoopsVars, setup) = broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
+        val newLoopVar = mb.newLocal[Long]
+        val setup = newLoopVar := flag * loopVar
+      (newLoopVar, setup)
+    }.unzip
+    (Code(setup), newLoopsVars)
   }
 }
 
