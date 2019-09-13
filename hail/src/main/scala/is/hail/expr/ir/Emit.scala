@@ -2066,10 +2066,10 @@ private class Emit(
         val leftChildEmitter = deforest(lChild)
         val rightChildEmitter = deforest(rChild)
 
-        val lBroadcastFlags = NDArrayEmitter.broadcastFlags(mb, nDims, leftChildEmitter.outputShape)
-        val rBroadcastFlags = NDArrayEmitter.broadcastFlags(mb, nDims, rightChildEmitter.outputShape)
+        val (lBroadcastFlagsSetup, lBroadcastFlags) = NDArrayEmitter.broadcastFlags(mb, nDims, leftChildEmitter.outputShape, leftChildEmitter.outputShapePType)
+        val (rBroadcastFlagsSetup, rBroadcastFlags) = NDArrayEmitter.broadcastFlags(mb, nDims, rightChildEmitter.outputShape, rightChildEmitter.outputShapePType)
 
-        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup)
+        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup, lBroadcastFlagsSetup, rBroadcastFlagsSetup)
 
         new NDArrayEmitter(mb, leftChildEmitter.nDims, leftChildEmitter.outputShape,
           lP.representation.field("shape").typ.asInstanceOf[PTuple],
@@ -2107,14 +2107,23 @@ private class Emit(
 }
 
 object NDArrayEmitter {
-  def broadcastFlags(mb: MethodBuilder, nDims: Int, shape: Code[Long]): Seq[Settable[Long]] = {
-    ???
+  def broadcastFlags(mb: MethodBuilder, nDims: Int, shape: Code[Long], shapePType: PTuple): (Code[_], Seq[Settable[Long]]) = {
+    val broadcasted = 0L
+    val notBroadcasted = 1L
+    def getShapeAtIdx(i: Int): Code[Long] = Region.loadLong(shapePType.loadField(shape, i))
+    
+    val (setup, flags) = IndexedSeq.tabulate(nDims) { dim =>
+      val flag = mb.newLocal[Long]
+      val setup = (flag := (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted))
+      (setup, flag)
+    }.unzip
+    (Code(setup), flags)
   }
 
   def zeroBroadcastedDims(mb: MethodBuilder, broadcastFlags: Seq[Settable[Long]], loopVars: Seq[Settable[Long]]): (Code[_], Seq[Settable[Long]]) = {
     val (newLoopsVars, setup) = broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
         val newLoopVar = mb.newLocal[Long]
-        val setup = newLoopVar := flag * loopVar
+        val setup = (newLoopVar := flag * loopVar)
       (newLoopVar, setup)
     }.unzip
     (Code(setup), newLoopsVars)

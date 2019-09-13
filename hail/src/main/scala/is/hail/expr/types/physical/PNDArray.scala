@@ -75,7 +75,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     coerce[Long](Code(
       data := dataCode,
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: ClassFieldRef[Long], strideIndex: Int)) =>
+      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Settable[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * getStrideAtIdx(strideIndex))
