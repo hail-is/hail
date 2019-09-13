@@ -1,11 +1,9 @@
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-  </head>
-  <script src="/js/search_bar.js"></script>
-  <body>
+{% extends "layout.html" %}
+{% block title %}Batch {{ batch['id'] }}{% endblock %}
+{% block head %}
+    <script src="{{ base_path }}/static/search_bar.js"></script>
+{% endblock %}
+{% block content %}
     <h1>Batch {{ batch['id'] }}</h1>
     {% if 'attributes' in batch %}
     {% for name, value in batch['attributes'].items() %}
@@ -44,8 +42,7 @@
         {% endfor %}
       </tbody>
     </table>
-  </body>
-  <script type="text/javascript">
-    document.getElementById("searchBar").focus();
-  </script>
-</html>
+    <script type="text/javascript">
+      document.getElementById("searchBar").focus();
+    </script>
+{% endblock %}

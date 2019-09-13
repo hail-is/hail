@@ -19,12 +19,12 @@ import uvloop
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
-
 from hailtop.utils import unzip, blocking_to_async
 from hailtop.auth import async_get_userinfo
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token
+from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
@@ -1421,12 +1421,17 @@ async def db_cleanup_event_loop():
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+setup_aiohttp_jinja2(app, 'batch')
+
+# sass_compile('batch')
 batch_root = os.path.dirname(os.path.abspath(__file__))
-aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
 routes.static('/static', os.path.join(batch_root, 'static'))
-routes.static('/js', os.path.join(batch_root, 'js'))
+
+setup_common_static_routes(routes)
+
+router.add_get("/metrics", server_stats)
+
 app.add_routes(routes)
-app.router.add_get("/metrics", server_stats)
 
 
 async def on_startup(app):
