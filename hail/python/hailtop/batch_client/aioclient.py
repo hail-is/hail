@@ -56,17 +56,14 @@ class Job:
             return None
 
         durations = job_status['duration']
-        durations = [durations[task] for task in ['setup', 'main', 'cleanup'] if task in durations]
 
-        i = 0
-        duration = 0
-        while i < len(durations):
-            d = durations[i]
-            if d is None:
-                return None
-            duration += d
-            i += 1
-        return duration
+        setup_duration = durations.get('setup', 0)
+        main_duration = durations.get('main', 0)
+        cleanup_duration = durations.get('cleanup', 0)
+        if setup_duration is None or main_duration is None or cleanup_duration is None:
+            return None
+
+        return setup_duration + max(main_duration, cleanup_duration)
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
