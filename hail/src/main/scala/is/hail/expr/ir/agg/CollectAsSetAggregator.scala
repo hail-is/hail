@@ -1,8 +1,8 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
@@ -101,9 +101,11 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
     tree.foreach { eoff => f(key.isKeyMissing(eoff), key.loadKey(eoff)) }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
-    Code(
-      size := Region.loadInt(typ.loadField(src, 0)),
-      tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
+  Code(
+    off := region.allocate(typ.alignment, typ.byteSize),
+    size := Region.loadInt(typ.loadField(src, 0)),
+    tree.init,
+    tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val kEnc = EmitPackEncoder.buildMethod(t, t, fb)
