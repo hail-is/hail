@@ -179,8 +179,10 @@ class CSERenderer(Renderer):
 
         self.memo[id(node)] = jref
 
-    def __call__(self, root: 'ir.BaseIR') -> str:
-        binding_sites = CSEAnalysisPass(self)(root)
+    def __call__(self, root: 'ir.BaseIR', free_vars=None) -> str:
+        if not free_vars:
+            free_vars = {}
+        binding_sites = CSEAnalysisPass(self)(root, free_vars)
         return CSEPrintPass(self)(root, binding_sites)
 
 
@@ -205,8 +207,10 @@ class CSEAnalysisPass:
     # 'BindingSite' recording the depth of 'node' and a Dict 'lifted_lets',
     # where for each descendant 'x' which will be bound above 'node',
     # 'lifted_lets' maps 'id(x)' to the unique id 'x' will be bound to.
-    def __call__(self, root: 'ir.BaseIR') -> Dict[int, BindingSite]:
-        root_frame = self.StackFrame(0, 0, False, ({}, {}, {}), root)
+    def __call__(self, root: 'ir.BaseIR', free_vars) -> Dict[int, BindingSite]:
+        root_frame = self.StackFrame(0, 0, False,
+                                     ({var: 0 for var in free_vars}, {}, {}),
+                                     root)
         stack = [root_frame]
         binding_sites = {}
 
