@@ -166,6 +166,16 @@ steps:
    publishAs: scorecard
    dependsOn:
      - base_image
+ - kind: runImage
+   name: check_scorecard
+   image:
+     valueFrom: scorecard_image.image
+   script: |
+     set -ex
+     python3 -m flake8 scorecard
+     python3 -m pylint --rcfile pylintrc scorecard
+   dependsOn:
+     - scorecard_image
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile

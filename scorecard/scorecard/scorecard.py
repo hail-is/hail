@@ -2,34 +2,20 @@ import time
 import collections
 import datetime
 import os
-import sys
-from flask import Flask, render_template, request, abort, url_for
+import asyncio
+from aiohttp import web
+import aiohttp_jinja2
 from github import Github
 from github.GithubException import RateLimitExceededException
 import random
-import threading
 import humanize
 import logging
+from hailtop.config import get_deploy_config
+from gear import configure_logging
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 
-fmt = logging.Formatter(
-    # NB: no space after levename because WARNING is so long
-    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-    '%(message)s')
-
-fh = logging.FileHandler('scorecard.log')
-fh.setLevel(logging.INFO)
-fh.setFormatter(fmt)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-ch.setFormatter(fmt)
-
+configure_logging()
 log = logging.getLogger('scorecard')
-log.setLevel(logging.INFO)
-
-logging.basicConfig(
-    handlers=[fh, ch],
-    level=logging.INFO)
 
 GITHUB_TOKEN_PATH = os.environ.get('GITHUB_TOKEN_PATH',
                                    '/secrets/scorecard-github-access-token.txt')
@@ -51,22 +37,38 @@ repos = {
     'hail': 'hail-is/hail',
 }
 
-app = Flask('scorecard')
+routes = web.RouteTableDef()
 
 data = None
-timsetamp = None
+timestamp = None
 
-@app.route('/')
-def index():
+
+@routes.get('')
+@routes.get('/')
+@aiohttp_jinja2.template('index.html')
+async def index(request):  # pylint: disable=unused-argument
     user_data, unassigned, urgent_issues, updated = get_users()
     component_random_user = {c: random.choice(us) for c, us in component_users.items()}
-    return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, urgent_issues=urgent_issues, component_user=component_random_user, updated=updated)
+    return {
+        'unassigned': unassigned,
+        'user_data': user_data,
+        'urgent_issues': urgent_issues,
+        'component_user': component_random_user,
+        'updated': updated
+    }
 
-@app.route('/users/<user>')
-def html_get_user(user):
+
+@routes.get('/users/{user}')
+@aiohttp_jinja2.template('user.html')
+async def html_get_user(request):
+    user = request.match_info['user']
     user_data, updated = get_user(user)
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+    return {
+        'user': user,
+        'user_data': user_data,
+        'updated': updated
+    }
+
 
 def get_users():
     cur_data = data
@@ -80,7 +82,7 @@ def get_users():
 
     urgent_issues = []
 
-    def add_pr(repo_name, pr):
+    def add_pr(pr):
         state = pr['state']
 
         if state == 'CHANGES_REQUESTED':
@@ -93,7 +95,7 @@ def get_users():
         else:
             assert state == 'APPROVED'
 
-    def add_issue(repo_name, issue):
+    def add_issue(issue):
         for user in issue['assignees']:
             d = user_data[user]
             if issue['urgent']:
@@ -106,23 +108,24 @@ def get_users():
             else:
                 d['ISSUES'].append(issue)
 
-    for repo_name, repo_data in cur_data.items():
+    for _, repo_data in cur_data.items():
         for pr in repo_data['prs']:
             if len(pr['assignees']) == 0:
                 unassigned.append(pr)
                 continue
 
-            add_pr(repo_name, pr)
+            add_pr(pr)
 
         for issue in repo_data['issues']:
-            add_issue(repo_name, issue)
+            add_issue(issue)
 
     list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+        datetime.datetime.now() - datetime.timedelta(seconds=(time.time() - cur_timestamp)))
 
     return (user_data, unassigned, urgent_issues, updated)
+
 
 def get_user(user):
     global data, timestamp
@@ -137,7 +140,7 @@ def get_user(user):
         'ISSUES': []
     }
 
-    for repo_name, repo_data in cur_data.items():
+    for _, repo_data in cur_data.items():
         for pr in repo_data['prs']:
             state = pr['state']
             if state == 'CHANGES_REQUESTED':
@@ -164,8 +167,8 @@ def get_user(user):
 def get_id(repo_name, number):
     if repo_name == default_repo:
         return f'{number}'
-    else:
-        return f'{repo_name}/{number}'
+    return f'{repo_name}/{number}'
+
 
 def get_pr_data(repo, repo_name, pr):
     assignees = [a.login for a in pr.assignees]
@@ -198,6 +201,7 @@ def get_pr_data(repo, repo_name, pr):
         'status': status
     }
 
+
 def get_issue_data(repo_name, issue):
     assignees = [a.login for a in issue.assignees]
     return {
@@ -209,6 +213,7 @@ def get_issue_data(repo_name, issue):
         'urgent': any(label.name == 'prio:high' for label in issue.labels),
         'created_at': issue.created_at
     }
+
 
 def update_data():
     global data, timestamp
@@ -239,7 +244,6 @@ def update_data():
     except RateLimitExceededException as e:
         log.error('Exceeded rate limit: ' + str(e))
 
-
     log.info('updating_data done')
 
     now = time.time()
@@ -247,36 +251,35 @@ def update_data():
     data = new_data
     timestamp = now
 
-def poll():
+
+async def poll():
     while True:
-        time.sleep(180)
-        update_data()
+        try:
+            log.info('run update_data')
+            update_data()
+            log.info('update_data returned')
+        except Exception:  # pylint: disable=broad-except
+            log.exception('update_data failed with exception')
+        await asyncio.sleep(180)
+
 
 update_data()
 
-def run_forever(target, *args, **kwargs):
-    # target should be a function
-    target_name = target.__name__
 
-    expected_retry_interval_ms = 15 * 1000 # 15s
-    while True:
-        start = time.time()
-        try:
-            log.info(f'run target {target_name}')
-            target(*args, **kwargs)
-            log.info(f'target {target_name} returned')
-        except:
-            log.error(f'target {target_name} threw exception', exc_info=sys.exc_info())
-        end = time.time()
+async def on_startup(app):  # pylint: disable=unused-argument
+    asyncio.ensure_future(poll())
 
-        run_time_ms = int((end - start) * 1000 + 0.5)
-        t = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
-        if t > 0:
-            log.debug(f'{target_name}: sleep {t}ms')
-            time.sleep(t / 1000.0)
-
-poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
-poll_thread.start()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    deploy_config = get_deploy_config()
+
+    app = web.Application()
+    app.on_startup.append(on_startup)
+
+    setup_aiohttp_jinja2(app, 'scorecard')
+
+    setup_common_static_routes(routes)
+
+    app.add_routes(routes)
+
+    web.run_app(deploy_config.prefix_application(app, 'scorecard'), host='0.0.0.0', port=5000)

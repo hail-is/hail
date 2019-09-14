@@ -1,44 +1,6 @@
-<html lang="en">
-<head>
-    <title>Scorecard</title>
-    <style type="text/css">
-      td {
-          padding: 3px 10px 3px 10px;
-          vertical-align: top;
-      }
-      tr:nth-child(even) { background-color: #f2f2f2; }
-      th { padding: 0px 10px 3px 10px; }
-
-      h1 { font-size: 1.4em; }
-      h2 { font-size: 1.2em; }
-
-      #avatar {
-          float: left;
-          width: 44px;
-          height: 44px;
-          margin: 0 8px 0 0;
-          border-radius: 3px;
-      }
-      #urgent {
-        color: red;
-        font-weight: bold;
-      }
-      .grid-container {
-          display: inline-grid;
-          justify-content: space-evenly;
-          grid-template-columns: auto;
-      }
-      .grid-item { padding: 10px 5px 10px 5px; }
-
-    body {
-        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-    }
-
-    </style>
-</head>
-<body>
-<div class="grid-container">
-    <div class="grid-item">
+{% extends "layout.html" %}
+{% block title %}Scorecard{% endblock %}
+{% block content %}
         <h1>Scorecard!</h1>
 
         <table>
@@ -79,10 +41,8 @@
             <a href="{{ pr.html_url }}">{{ pr.id }}</a>
             {% endfor %}
         </p>
-    </div>
 
     {% if urgent_issues %}
-    <div class="grid-item">
         <h2 id="urgent">&#x1F525;&#x1F525;&#x1F525;URGENT&#x1F525;&#x1F525;&#x1F525;</h2>
 
         <table>
@@ -105,10 +65,8 @@
             {% endfor %}
             </tbody>
         </table>
-    </div>
     {% endif %}
 
-    <div class="grid-item">
       <table>
 	<thead>
           <th align="left">component</th>
@@ -123,12 +81,6 @@
 	  {% endfor %}
 	</tbody>
       </table>
-    </div>
     
-    <div class="grid-item">
       <p><small>last updated {{ updated }}</small></p>
-    </div>
-</div>
-
-</body>
-</html>
+{% endblock %}
