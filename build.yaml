@@ -525,6 +525,7 @@ steps:
    config: scorecard/deployment.yaml
    scopes:
     - deploy
+    - dev
    dependsOn:
     - default_ns
     - scorecard_image
