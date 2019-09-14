@@ -4,8 +4,6 @@
     <script src="{{ base_path }}/static/search_bar.js"></script>
 {% endblock %}
 {% block content %}
-  <p><a href="{{ base_path }}/batches">Batches</a> : Batch {{ batch_id }}</p>
-
   <h1>Batch {{ batch['id'] }}</h1>
   {% if 'attributes' in batch %}
   {% for name, value in batch['attributes'].items() %}

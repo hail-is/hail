@@ -1,8 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch_id }} Job {{ job_id }} Pod Status{% endblock %}
 {% block content %}
-  <p><a href="{{ base_path }}/batches">Batches</a> : <a href="{{ base_path }}/batch/{{ batch_id }}">Batch {{ batch_id }}</a> : Job {{ job_id }} Pod Status</p>
-  
   <h1>Batch {{ batch_id }} Job {{ job_id }} Pod Status</h1>
   <pre>{{ pod_status }}</pre>
 {% endblock %}

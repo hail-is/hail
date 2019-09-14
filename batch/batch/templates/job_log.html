@@ -1,8 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch_id }} Job {{ job_id }} Log{% endblock %}
 {% block content %}
-  <p><a href="{{ base_path }}/batches">Batches</a> : <a href="{{ base_path }}/batch/{{ batch_id }}">Batch {{ batch_id }}</a> : Job {{ job_id }} Log</p>
-
   <h1>Batch {{ batch_id }} Job {{ job_id }} Log</h1>
 
   {% if 'setup' in job_log %}
