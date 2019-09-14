@@ -1432,10 +1432,6 @@ async def db_cleanup_event_loop():
 
 setup_aiohttp_jinja2(app, 'batch')
 
-# sass_compile('batch')
-batch_root = os.path.dirname(os.path.abspath(__file__))
-routes.static('/static', os.path.join(batch_root, 'static'))
-
 setup_common_static_routes(routes)
 
 app.add_routes(routes)

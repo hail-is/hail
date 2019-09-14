@@ -10,6 +10,7 @@ steps:
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
     - auth-oauth2-client-secret
+    - scorecard-github-access-token
  - kind: deploy
    name: deploy_batch_sa
    namespace:
