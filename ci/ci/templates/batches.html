@@ -1,11 +1,6 @@
-<html lang="en">
-  <head>
-    <title>CI | Batches</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-  </head>
-  <body>
-    <p><a href="/">ci</a> : batches</p>
-    
+{% extends "layout.html" %}
+{% block title %}Batches{% endblock %}
+{% block content %}
     <h1>Batches</h1>
     {% if batches %}
     <table>
@@ -45,5 +40,4 @@
       </tbody>
     </table>
     {% endif %}
-  </body>
-</html>
+{% endblock %}
