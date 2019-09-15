@@ -6,7 +6,7 @@ for i in $(seq 1 30); do
     if [[ $? = 0 ]]; then
         break;
     fi
-    sleep 1
+    sleep 5
 done
 
 nohup /bin/bash run-worker.sh >run-worker.log 2>&1 &
