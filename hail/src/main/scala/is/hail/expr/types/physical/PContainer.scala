@@ -95,18 +95,22 @@ abstract class PContainer extends PIterable {
     region.setBit(aoff + 4, i)
   }
 
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.setBit(aoff + 4L, i.toL)
-  }
+  def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    Region.setBit(aoff + 4L, i.toL)
+
+  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    setElementMissing(aoff, i)
 
   def setElementPresent(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
     region.clearBit(aoff + 4, i)
   }
 
-  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.clearBit(aoff + 4L, i.toL)
-  }
+  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    Region.clearBit(aoff + 4L, i.toL)
+
+  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    setElementPresent(aoff, i)
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize

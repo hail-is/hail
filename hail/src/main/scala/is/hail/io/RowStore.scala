@@ -452,30 +452,46 @@ object EmitPackEncoder {
       Code._empty[Unit])
   }
 
-  def emitArray(t: PArray, requestedType: PArray, mb: MethodBuilder, region: Code[Region], aoff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
-    val length = region.loadInt(aoff)
+  def emitArray(
+    t: PArray,
+    requestedType: PArray,
+    mb: MethodBuilder,
+    region: Code[Region],
+    aoff: Code[Long],
+    out: Code[OutputBuffer],
+    prefixLength: Code[Int]
+  ): Code[Unit] = {
+    val actualLength = region.loadInt(aoff)
 
-    val writeLen = out.writeInt(length)
+    val writeLen = out.writeInt(prefixLength)
     val writeMissingBytes =
       if (!t.elementType.required) {
-        val nMissingBytes = (length + 7) >>> 3
+        val nMissingBytes = (prefixLength + 7) >>> 3
         out.writeBytes(region, aoff + const(4), nMissingBytes)
       } else
-        Code._empty[Unit]
+        Code._empty
 
     val i = mb.newLocal[Int]("i")
 
     val writeElems = Code(
       i := 0,
-      Code.whileLoop(
-        i < length,
-        Code(t.isElementDefined(region, aoff, i).mux(
-          emit(t.elementType, requestedType.elementType, mb, region, t.elementOffset(aoff, length, i), out),
-          Code._empty[Unit]),
-          i := i + const(1))))
+      Code.whileLoop(i < prefixLength,
+        t.isElementDefined(region, aoff, i).orEmpty(
+          emit(t.elementType, requestedType.elementType, mb, region,
+            t.elementOffset(aoff, actualLength, i), out)),
+        i := i + 1))
 
     Code(writeLen, writeMissingBytes, writeElems)
   }
+
+  def emitArray(
+    t: PArray,
+    requestedType: PArray,
+    mb: MethodBuilder,
+    region: Code[Region],
+    aoff: Code[Long],
+    out: Code[OutputBuffer]): Code[Unit] =
+    emitArray(t, requestedType, mb, region, aoff, out, t.loadLength(region, aoff))
 
   def writeBinary(mb: MethodBuilder, region: Code[Region], boff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
     val length = region.loadInt(boff)
