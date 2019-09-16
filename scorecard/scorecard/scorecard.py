@@ -263,7 +263,7 @@ async def poll(gh_client):
             log.exception('update_data failed with exception')
 
 
-async def on_startup(app):  # pylint: disable=unused-argument
+async def on_startup(app):
     token_file = os.environ.get('GITHUB_TOKEN_PATH',
                                 '/secrets/scorecard-github-access-token.txt')
     with open(token_file, 'r') as f:
