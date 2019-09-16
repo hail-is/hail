@@ -762,6 +762,17 @@ object IRParser {
         val eltType = -coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayFold(a, zero, accumName, valueName, body)
+      case "ArrayFold2" =>
+        val accumNames = identifiers(it)
+        val valueName = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val accs = accumNames.map(name => (name, ir_value_expr(env)(it)))
+        val eltType = -coerce[TStreamable](a.typ).elementType
+        val resultEnv = env.update(accs.map { case (name, value) => (name, value.typ) }.toMap)
+        val seqEnv = resultEnv.update(Map(valueName -> eltType))
+        val seqs = Array.tabulate(accs.length)(_ => ir_value_expr(seqEnv)(it))
+        val res = ir_value_expr(resultEnv)(it)
+        ArrayFold2(a, accs, valueName, seqs, res)
       case "ArrayScan" =>
         val accumName = identifier(it)
         val valueName = identifier(it)

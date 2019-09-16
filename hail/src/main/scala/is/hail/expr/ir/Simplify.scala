@@ -189,7 +189,7 @@ object Simplify {
 
     case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean(), x, element)
 
-    case x: ApplyIR if x.body.size < 10 => x.explicitNode
+    case x: ApplyIR if x.inline || x.body.size < 10 => x.explicitNode
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
