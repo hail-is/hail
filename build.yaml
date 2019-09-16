@@ -173,7 +173,6 @@ steps:
      valueFrom: scorecard_image.image
    script: |
      set -ex
-     python3 -c 'from scorecard.scorecard import run'
      python3 -m flake8 scorecard
      python3 -m pylint --rcfile pylintrc scorecard
    dependsOn:
