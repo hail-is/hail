@@ -18,6 +18,7 @@ body {
         -webkit-font-smoothing: antialiased;
         -moz-font-smmothing: grayscale;
     }
+    margin: 0;
 }
 
 button {
@@ -41,7 +42,7 @@ a {
 }
 
 .header-link {
-    padding: 0 7px;
+    padding: 15px 15px;
 }
 
 .button-header-link {
@@ -54,7 +55,7 @@ a {
     &:hover {
         color: $devil-gray;
     }
-    padding: 0 7px;
+    padding: 15px 15px;
 }
 
 #main {
@@ -64,17 +65,10 @@ a {
 
 #header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 0;
 }
 
-#header-menu {
-    display: flex;
-}
-
-#header-user {
-    display: flex;
+#header-flex {
+    flex-grow: 1;
 }
 
 #content {
