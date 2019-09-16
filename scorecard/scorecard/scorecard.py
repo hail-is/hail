@@ -37,6 +37,11 @@ data = None
 timestamp = None
 
 
+@routes.get('/healthcheck')
+async def get_healthcheck(request):  # pylint: disable=unused-argument
+    return web.Response()
+
+
 @routes.get('')
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
