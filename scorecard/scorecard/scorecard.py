@@ -1,27 +1,20 @@
-import time
 import collections
 import datetime
 import os
 import asyncio
+import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
-from github import Github
-from github.GithubException import RateLimitExceededException
+import gidgethub.aiohttp
 import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from gear import configure_logging
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes
+from gear import configure_logging, setup_aiohttp_session, web_maybe_authenticated_user
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 configure_logging()
 log = logging.getLogger('scorecard')
-
-GITHUB_TOKEN_PATH = os.environ.get('GITHUB_TOKEN_PATH',
-                                   '/secrets/scorecard-github-access-token.txt')
-with open(GITHUB_TOKEN_PATH, 'r') as f:
-    token = f.read().strip()
-github = Github(token)
 
 component_users = {
     'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231', 'iitalics'],
@@ -46,28 +39,30 @@ timestamp = None
 @routes.get('')
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
-async def index(request):  # pylint: disable=unused-argument
+@web_maybe_authenticated_user
+async def index(request, userdata):  # pylint: disable=unused-argument
+    context = base_context(deploy_config, userdata, 'notebook2')
     user_data, unassigned, urgent_issues, updated = get_users()
     component_random_user = {c: random.choice(us) for c, us in component_users.items()}
-    return {
-        'unassigned': unassigned,
-        'user_data': user_data,
-        'urgent_issues': urgent_issues,
-        'component_user': component_random_user,
-        'updated': updated
-    }
+    context['unassigned'] = unassigned
+    context['user_data'] = user_data
+    context['urgent_issues'] = urgent_issues
+    context['component_user'] = component_random_user
+    context['updated'] = updated
+    return context
 
 
 @routes.get('/users/{user}')
 @aiohttp_jinja2.template('user.html')
-async def html_get_user(request):
+@web_maybe_authenticated_user
+async def html_get_user(request, userdata):
+    context = base_context(deploy_config, userdata, 'notebook2')
     user = request.match_info['user']
     user_data, updated = get_user(user)
-    return {
-        'user': user,
-        'user_data': user_data,
-        'updated': updated
-    }
+    context['user'] = user
+    context['user_data'] = user_data
+    context['updated'] = updated
+    return context
 
 
 def get_users():
@@ -122,7 +117,7 @@ def get_users():
     list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds=(time.time() - cur_timestamp)))
+        datetime.datetime.now() - cur_timestamp)
 
     return (user_data, unassigned, urgent_issues, updated)
 
@@ -160,7 +155,7 @@ def get_user(user):
                 user_data['ISSUES'].append(issue)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
+        datetime.datetime.now() - cur_timestamp)
     return (user_data, updated)
 
 
@@ -170,55 +165,60 @@ def get_id(repo_name, number):
     return f'{repo_name}/{number}'
 
 
-def get_pr_data(repo, repo_name, pr):
-    assignees = [a.login for a in pr.assignees]
+async def get_pr_data(gh_client, fq_repo, repo_name, pr):
+    assignees = [a['login'] for a in pr['assignees']]
+
+    reviews = []
+    async for review in gh_client.getiter(f'/repos/{fq_repo}/pulls/{pr["number"]}/reviews'):
+        reviews.append(review)
 
     state = 'NEEDS_REVIEW'
-    for review in pr.get_reviews().reversed:
-        if review.state == 'CHANGES_REQUESTED':
-            state = review.state
+    for review in reversed(reviews):
+        review_state = review['state']
+        if review_state == 'CHANGES_REQUESTED':
+            state = review_state
             break
-        elif review.state == 'DISMISSED':
+        elif review_state == 'DISMISSED':
             break
-        elif review.state == 'APPROVED':
+        elif review_state == 'APPROVED':
             state = 'APPROVED'
             break
         else:
-            if review.state != 'COMMENTED':
-                log.warning(f'unknown review state {review.state} on review {review} in pr {pr}')
+            if review_state != 'COMMENTED':
+                log.warning(f'unknown review state {review_state} on review {review} in pr {pr}')
 
-    sha = pr.head.sha
-    status = repo.get_commit(sha=sha).get_combined_status().state
+    sha = pr['head']['sha']
+    status = await gh_client.getitem(f'/repos/{fq_repo}/commits/{sha}')
 
     return {
         'repo': repo_name,
-        'id': get_id(repo_name, pr.number),
-        'title': pr.title,
-        'user': pr.user.login,
+        'id': get_id(repo_name, pr['number']),
+        'title': pr['title'],
+        'user': pr['user']['login'],
         'assignees': assignees,
-        'html_url': pr.html_url,
+        'html_url': pr['html_url'],
         'state': state,
         'status': status
     }
 
 
 def get_issue_data(repo_name, issue):
-    assignees = [a.login for a in issue.assignees]
+    assignees = [a['login'] for a in issue['assignees']]
     return {
         'repo': repo_name,
-        'id': get_id(repo_name, issue.number),
-        'title': issue.title,
+        'id': get_id(repo_name, issue['number']),
+        'title': issue['title'],
         'assignees': assignees,
-        'html_url': issue.html_url,
-        'urgent': any(label.name == 'prio:high' for label in issue.labels),
-        'created_at': issue.created_at
+        'html_url': issue['html_url'],
+        'urgent': any(label['name'] == 'prio:high' for label in issue['labels']),
+        'created_at': datetime.datetime.strptime(issue['created_at'], '%Y-%m-%dT%H:%M:%SZ')
     }
 
 
-def update_data():
+async def update_data(gh_client):
     global data, timestamp
 
-    log.info(f'rate_limit {github.get_rate_limit()}')
+    log.info(f'rate_limit {await gh_client.getitem("/rate_limit")}')
     log.info('start updating_data')
 
     new_data = {}
@@ -231,43 +231,51 @@ def update_data():
 
     try:
         for repo_name, fq_repo in repos.items():
-            repo = github.get_repo(fq_repo)
-
-            for pr in repo.get_pulls(state='open'):
-                pr_data = get_pr_data(repo, repo_name, pr)
+            async for pr in gh_client.getiter(f'/repos/{fq_repo}/pulls?state=open'):
+                pr_data = await get_pr_data(gh_client, fq_repo, repo_name, pr)
                 new_data[repo_name]['prs'].append(pr_data)
 
-            for issue in repo.get_issues(state='open'):
-                if issue.pull_request is None:
+            async for issue in gh_client.getiter(f'/repos/{fq_repo}/issues?state=open'):
+                print(issue)
+                if 'pull_request' not in issue:
                     issue_data = get_issue_data(repo_name, issue)
                     new_data[repo_name]['issues'].append(issue_data)
-    except RateLimitExceededException as e:
-        log.error('Exceeded rate limit: ' + str(e))
+    except Exception:  # pylint: disable=broad-except
+        log.exception('update failed due to except')
+        return
 
     log.info('updating_data done')
 
-    now = time.time()
+    now = datetime.datetime.now()
 
     data = new_data
     timestamp = now
 
 
-async def poll():
+async def poll(gh_client):
     while True:
+        await asyncio.sleep(180)
         try:
             log.info('run update_data')
-            update_data()
+            await update_data(gh_client)
             log.info('update_data returned')
         except Exception:  # pylint: disable=broad-except
             log.exception('update_data failed with exception')
-        await asyncio.sleep(180)
-
-
-update_data()
 
 
 async def on_startup(app):  # pylint: disable=unused-argument
-    asyncio.ensure_future(poll())
+    token_file = os.environ.get('GITHUB_TOKEN_PATH',
+                                '/secrets/scorecard-github-access-token.txt')
+    with open(token_file, 'r') as f:
+        token = f.read().strip()
+    session = aiohttp.ClientSession(
+        raise_for_status=True,
+        timeout=aiohttp.ClientTimeout(total=60))
+    gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
+    app['gh_client'] = gh_client
+
+    await update_data(gh_client)
+    asyncio.ensure_future(poll(gh_client))
 
 
 if __name__ == '__main__':
@@ -277,6 +285,7 @@ if __name__ == '__main__':
     app.on_startup.append(on_startup)
 
     setup_aiohttp_jinja2(app, 'scorecard')
+    setup_aiohttp_session(app)
 
     setup_common_static_routes(routes)
 

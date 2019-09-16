@@ -1,18 +1,20 @@
 {% extends "layout.html" %}
 {% block title %}Scorecard {{ user }}{% endblock %}
 {% block head %}
-#avatar {
-    float: left;
-    width: 44px;
-    height: 44px;
-    margin: 0 8px 0 0;
-    border-radius: 3px;
-}
-#user-cols {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-}
+<style>
+  #avatar {
+      float: left;
+      width: 44px;
+      height: 44px;
+      margin: 0 8px 0 0;
+      border-radius: 3px;
+  }
+  #user-cols {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+  }
+</style>
 {% endblock %}
 {% block content %}
   <div id="user-cols">
