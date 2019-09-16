@@ -26,7 +26,7 @@ object Optimize {
     }
 
     if (ir.typ != ir0.typ)
-      fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +
+      fatal(s"optimization changed type!\n  before: ${ ir0.typ.parsableString() }\n  after:  ${ ir.typ.parsableString() }" +
         s"\n  Before IR:\n  ----------\n${ Pretty(ir0) }\n  After IR:\n  ---------\n${ Pretty(ir) }")
 
     if (noisy)

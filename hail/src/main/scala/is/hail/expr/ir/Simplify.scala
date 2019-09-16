@@ -217,8 +217,6 @@ object Simplify {
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))
 
-    case NDArrayShape(MakeNDArray(_, shape, _)) => shape
-
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
