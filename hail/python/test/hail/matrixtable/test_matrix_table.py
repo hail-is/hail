@@ -14,47 +14,47 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    def get_vds(self, min_partitions=None) -> hl.MatrixTable:
+    def get_mt(self, min_partitions=None) -> hl.MatrixTable:
         return hl.import_vcf(resource("sample.vcf"), min_partitions=min_partitions)
 
     def test_range_count(self):
         self.assertEqual(hl.utils.range_matrix_table(7, 13).count(), (7, 13))
 
     def test_row_key_field_show_runs(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         ds.locus.show()
 
     def test_update(self):
-        vds = self.get_vds()
-        vds = vds.select_entries(dp=vds.DP, gq=vds.GQ)
-        self.assertTrue(schema_eq(vds.entry.dtype, hl.tstruct(dp=hl.tint32, gq=hl.tint32)))
+        mt = self.get_mt()
+        mt = mt.select_entries(dp=mt.DP, gq=mt.GQ)
+        self.assertTrue(schema_eq(mt.entry.dtype, hl.tstruct(dp=hl.tint32, gq=hl.tint32)))
 
     def test_annotate(self):
-        vds = self.get_vds()
-        vds = vds.annotate_globals(foo=5)
+        mt = self.get_mt()
+        mt = mt.annotate_globals(foo=5)
 
-        self.assertEqual(vds.globals.dtype, hl.tstruct(foo=hl.tint32))
+        self.assertEqual(mt.globals.dtype, hl.tstruct(foo=hl.tint32))
 
-        vds = vds.annotate_rows(x1=agg.count(),
+        mt = mt.annotate_rows(x1=agg.count(),
                                 x2=agg.fraction(False),
                                 x3=agg.count_where(True),
-                                x4=vds.info.AC + vds.foo)
+                                x4=mt.info.AC + mt.foo)
 
-        vds = vds.annotate_cols(apple=6)
-        vds = vds.annotate_cols(y1=agg.count(),
+        mt = mt.annotate_cols(apple=6)
+        mt = mt.annotate_cols(y1=agg.count(),
                                 y2=agg.fraction(False),
                                 y3=agg.count_where(True),
-                                y4=vds.foo + vds.apple)
+                                y4=mt.foo + mt.apple)
 
         expected_schema = hl.tstruct(s=hl.tstr, apple=hl.tint32, y1=hl.tint64, y2=hl.tfloat64, y3=hl.tint64,
                                      y4=hl.tint32)
 
-        self.assertTrue(schema_eq(vds.col.dtype, expected_schema),
-                        "expected: " + str(vds.col.dtype) + "\nactual: " + str(expected_schema))
+        self.assertTrue(schema_eq(mt.col.dtype, expected_schema),
+                        "expected: " + str(mt.col.dtype) + "\nactual: " + str(expected_schema))
 
-        vds = vds.select_entries(z1=vds.x1 + vds.foo,
-                                 z2=vds.x1 + vds.y1 + vds.foo)
-        self.assertTrue(schema_eq(vds.entry.dtype, hl.tstruct(z1=hl.tint64, z2=hl.tint64)))
+        mt = mt.select_entries(z1=mt.x1 + mt.foo,
+                                 z2=mt.x1 + mt.y1 + mt.foo)
+        self.assertTrue(schema_eq(mt.entry.dtype, hl.tstruct(z1=hl.tint64, z2=hl.tint64)))
 
     def test_annotate_globals(self):
         mt = hl.utils.range_matrix_table(1, 1)
@@ -100,43 +100,43 @@ class Tests(unittest.TestCase):
         assert mt1.head(None, 1).count() == (10, 1)
 
     def test_filter(self):
-        vds = self.get_vds()
-        vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_rows(x1=agg.count())
-        vds = vds.annotate_cols(y1=agg.count())
-        vds = vds.annotate_entries(z1=vds.DP)
+        mt = self.get_mt()
+        mt = mt.annotate_globals(foo=5)
+        mt = mt.annotate_rows(x1=agg.count())
+        mt = mt.annotate_cols(y1=agg.count())
+        mt = mt.annotate_entries(z1=mt.DP)
 
-        vds = vds.filter_rows((vds.x1 == 5) & (agg.count() == 3) & (vds.foo == 2))
-        vds = vds.filter_cols((vds.y1 == 5) & (agg.count() == 3) & (vds.foo == 2))
-        vds = vds.filter_entries((vds.z1 < 5) & (vds.y1 == 3) & (vds.x1 == 5) & (vds.foo == 2))
-        vds.count_rows()
+        mt = mt.filter_rows((mt.x1 == 5) & (agg.count() == 3) & (mt.foo == 2))
+        mt = mt.filter_cols((mt.y1 == 5) & (agg.count() == 3) & (mt.foo == 2))
+        mt = mt.filter_entries((mt.z1 < 5) & (mt.y1 == 3) & (mt.x1 == 5) & (mt.foo == 2))
+        mt.count_rows()
 
     def test_aggregate(self):
-        vds = self.get_vds()
+        mt = self.get_mt()
 
-        vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_rows(x1=agg.count())
-        vds = vds.annotate_cols(y1=agg.count())
-        vds = vds.annotate_entries(z1=vds.DP)
+        mt = mt.annotate_globals(foo=5)
+        mt = mt.annotate_rows(x1=agg.count())
+        mt = mt.annotate_cols(y1=agg.count())
+        mt = mt.annotate_entries(z1=mt.DP)
 
-        qv = vds.aggregate_rows(agg.count())
-        qs = vds.aggregate_cols(agg.count())
-        qg = vds.aggregate_entries(agg.count())
+        qv = mt.aggregate_rows(agg.count())
+        qs = mt.aggregate_cols(agg.count())
+        qg = mt.aggregate_entries(agg.count())
 
-        self.assertIsNotNone(vds.aggregate_entries(hl.agg.take(vds.s, 1)[0]))
+        self.assertIsNotNone(mt.aggregate_entries(hl.agg.take(mt.s, 1)[0]))
 
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)
         self.assertEqual(qg, qv * qs)
 
-        qvs = vds.aggregate_rows(hl.Struct(x=agg.collect(vds.locus.contig),
-                                           y=agg.collect(vds.x1)))
+        qvs = mt.aggregate_rows(hl.Struct(x=agg.collect(mt.locus.contig),
+                                           y=agg.collect(mt.x1)))
 
-        qss = vds.aggregate_cols(hl.Struct(x=agg.collect(vds.s),
-                                           y=agg.collect(vds.y1)))
+        qss = mt.aggregate_cols(hl.Struct(x=agg.collect(mt.s),
+                                           y=agg.collect(mt.y1)))
 
-        qgs = vds.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(vds.y1)),
-                                              y=agg.filter(hl.rand_bool(0.1), agg.collect(vds.GT))))
+        qgs = mt.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(mt.y1)),
+                                              y=agg.filter(hl.rand_bool(0.1), agg.collect(mt.GT))))
 
     def test_col_agg_no_rows(self):
         mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
@@ -192,22 +192,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(result, {'col_idx': 3, 'sum': 28, 'count': 2, 'foo': 3})
 
     def test_drop(self):
-        vds = self.get_vds()
-        vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_cols(bar=5)
-        vds1 = vds.drop('GT', 'info', 'foo', 'bar')
-        self.assertTrue('foo' not in vds1.globals)
-        self.assertTrue('info' not in vds1.row)
-        self.assertTrue('bar' not in vds1.col)
-        self.assertTrue('GT' not in vds1.entry)
-        vds1._force_count_rows()
+        mt = self.get_mt()
+        mt = mt.annotate_globals(foo=5)
+        mt = mt.annotate_cols(bar=5)
+        mt1 = mt.drop('GT', 'info', 'foo', 'bar')
+        self.assertTrue('foo' not in mt1.globals)
+        self.assertTrue('info' not in mt1.row)
+        self.assertTrue('bar' not in mt1.col)
+        self.assertTrue('GT' not in mt1.entry)
+        mt1._force_count_rows()
 
-        vds2 = vds.drop(vds.GT, vds.info, vds.foo, vds.bar)
-        self.assertTrue('foo' not in vds2.globals)
-        self.assertTrue('info' not in vds2.row)
-        self.assertTrue('bar' not in vds2.col)
-        self.assertTrue('GT' not in vds2.entry)
-        vds2._force_count_rows()
+        mt2 = mt.drop(mt.GT, mt.info, mt.foo, mt.bar)
+        self.assertTrue('foo' not in mt2.globals)
+        self.assertTrue('info' not in mt2.row)
+        self.assertTrue('bar' not in mt2.col)
+        self.assertTrue('GT' not in mt2.entry)
+        mt2._force_count_rows()
 
     def test_explode_rows(self):
         mt = hl.utils.range_matrix_table(4, 4)
@@ -316,7 +316,7 @@ class Tests(unittest.TestCase):
              hl.Struct(row_idx=2, col_idx=2, bar=[8, 10, 12])])
 
     def test_weird_names(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
 
         ds.annotate_globals(**exprs)
@@ -357,25 +357,25 @@ class Tests(unittest.TestCase):
         assert mt.anti_join_cols(ht).count() == (3, 7)
 
     def test_joins(self):
-        vds = self.get_vds().select_rows(x1=1, y1=1)
-        vds2 = vds.select_rows(x2=1, y2=2)
-        vds2 = vds2.select_cols(c1=1, c2=2)
+        mt = self.get_mt().select_rows(x1=1, y1=1)
+        mt2 = mt.select_rows(x2=1, y2=2)
+        mt2 = mt2.select_cols(c1=1, c2=2)
 
-        vds = vds.annotate_rows(y2=vds2.index_rows(vds.row_key).y2)
-        vds = vds.annotate_cols(c2=vds2.index_cols(vds.s).c2)
+        mt = mt.annotate_rows(y2=mt2.index_rows(mt.row_key).y2)
+        mt = mt.annotate_cols(c2=mt2.index_cols(mt.s).c2)
 
-        vds = vds.annotate_cols(c2=vds2.index_cols(hl.str(vds.s)).c2)
+        mt = mt.annotate_cols(c2=mt2.index_cols(hl.str(mt.s)).c2)
 
-        rt = vds.rows()
-        ct = vds.cols()
+        rt = mt.rows()
+        ct = mt.cols()
 
-        vds.annotate_rows(**rt[vds.locus, vds.alleles])
+        mt.annotate_rows(**rt[mt.locus, mt.alleles])
 
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
 
     def test_joins_with_key_structs(self):
-        mt = self.get_vds()
+        mt = self.get_mt()
 
         rows = mt.rows()
         cols = mt.cols()
@@ -395,7 +395,7 @@ class Tests(unittest.TestCase):
             mt.key_cols_by().index_cols(mt.col_idx)
 
     def test_table_join(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         # test different row schemas
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
@@ -409,13 +409,13 @@ class Tests(unittest.TestCase):
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
     def test_naive_coalesce(self):
-        vds = self.get_vds(min_partitions=8)
-        self.assertEqual(vds.n_partitions(), 8)
-        repart = vds.naive_coalesce(2)
-        self.assertTrue(vds._same(repart))
+        mt = self.get_mt(min_partitions=8)
+        self.assertEqual(mt.n_partitions(), 8)
+        repart = mt.naive_coalesce(2)
+        self.assertTrue(mt._same(repart))
 
     def test_coalesce_with_no_rows(self):
-        mt = self.get_vds().filter_rows(False)
+        mt = self.get_mt().filter_rows(False)
         self.assertEqual(mt.repartition(1).count_rows(), 0)
 
     def test_literals_rebuild(self):
@@ -476,7 +476,7 @@ class Tests(unittest.TestCase):
         assert mt.union_cols(mt).count_rows() == 5
 
     def test_index(self):
-        ds = self.get_vds(min_partitions=8)
+        ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
         ds = ds.add_row_index('rowidx').add_col_index('colidx')
 
@@ -486,7 +486,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(i, struct.rowidx)
 
     def test_choose_cols(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         indices = list(range(ds.count_cols()))
         random.shuffle(indices)
 
@@ -498,7 +498,7 @@ class Tests(unittest.TestCase):
                          old_order[:10])
 
     def test_choose_cols_vs_explode(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
 
         ds2 = ds.annotate_cols(foo=[0, 0]).explode_cols('foo').drop('foo')
 
@@ -524,7 +524,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.group_cols_by(mt.col_idx).aggregate().count_cols(), 3)
 
     def test_computed_key_join_1(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         kt = hl.Table.parallelize(
             [{'key': 0, 'value': True},
              {'key': 1, 'value': False}],
@@ -538,7 +538,7 @@ class Tests(unittest.TestCase):
 
     def test_computed_key_join_2(self):
         # multiple keys
-        ds = self.get_vds()
+        ds = self.get_mt()
         kt = hl.Table.parallelize(
             [{'key1': 0, 'key2': 0, 'value': 0},
              {'key1': 1, 'key2': 0, 'value': 1},
@@ -554,7 +554,7 @@ class Tests(unittest.TestCase):
 
     def test_computed_key_join_3(self):
         # duplicate row keys
-        ds = self.get_vds()
+        ds = self.get_mt()
         kt = hl.Table.parallelize(
             [{'culprit': 'InbreedingCoeff', 'foo': 'bar', 'value': 'IB'}],
             hl.tstruct(culprit=hl.tstr, foo=hl.tstr, value=hl.tstr),
@@ -653,6 +653,12 @@ class Tests(unittest.TestCase):
         assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
         assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
 
+    def test_entries_table_with_out_of_order_row_key_fields(self):
+        mt = hl.utils.range_matrix_table(10, 10, 1)
+        mt = mt.select_rows(key2=0, key1=mt.row_idx)
+        mt = mt.key_rows_by(mt.key1, mt.key2)
+        mt.entries()._force_count()
+
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
@@ -673,7 +679,7 @@ class Tests(unittest.TestCase):
             ds.filter_rows(ds.alleles.length() == 2).count_rows(), 0)
 
     def test_field_groups(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
 
         df = ds.annotate_rows(row_struct=ds.row).rows()
         self.assertTrue(df.all((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
@@ -689,7 +695,7 @@ class Tests(unittest.TestCase):
              (df.AD == df.entry_struct.AD))))
 
     def test_filter_partitions(self):
-        ds = self.get_vds(min_partitions=8)
+        ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
         self.assertEqual(ds._filter_partitions([0, 1, 4]).n_partitions(), 3)
         self.assertEqual(ds._filter_partitions(range(3)).n_partitions(), 3)
@@ -707,30 +713,30 @@ class Tests(unittest.TestCase):
         self.assertTrue(rm._same(mt.filter_cols(False).select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         ds_small = ds.sample_rows(0.01)
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
     def test_read_stored_cols(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
-        f = new_temp_file(suffix='vds')
+        f = new_temp_file(suffix='mt')
         ds.write(f)
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols()._same(t))
 
     def test_read_stored_rows(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
-        f = new_temp_file(suffix='vds')
+        f = new_temp_file(suffix='mt')
         ds.write(f)
         t = hl.read_table(f + '/rows')
         self.assertTrue(ds.rows()._same(t))
 
     def test_read_stored_globals(self):
-        ds = self.get_vds()
+        ds = self.get_mt()
         ds = ds.annotate_globals(x=5, baz='foo')
-        f = new_temp_file(suffix='vds')
+        f = new_temp_file(suffix='mt')
         ds.write(f)
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
@@ -754,7 +760,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
 
     def test_indexed_read_vcf(self):
-        vcf = self.get_vds(10)
+        vcf = self.get_mt(10)
         f = new_temp_file(suffix='mt')
         vcf.write(f)
         l1, l2, l3, l4 = hl.Locus('20', 10000000), hl.Locus('20', 11000000), hl.Locus('20', 13000000), hl.Locus('20', 14000000)
@@ -770,7 +776,7 @@ class Tests(unittest.TestCase):
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
-        ds = self.get_vds()
+        ds = self.get_mt()
         temp = new_temp_file(suffix='hmt')
         for codec in codecs:
             ds.write(temp, overwrite=True, _codec_spec=codec.toString())
@@ -780,7 +786,7 @@ class Tests(unittest.TestCase):
     def test_codecs_table(self):
         from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
-        rt = self.get_vds().rows()
+        rt = self.get_mt().rows()
         temp = new_temp_file(suffix='ht')
         for codec in codecs:
             rt.write(temp, overwrite=True, _codec_spec=codec.toString())
@@ -798,7 +804,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
 
     def test_rename(self):
-        dataset = self.get_vds()
+        dataset = self.get_mt()
         renamed1 = dataset.rename({'locus': 'locus2', 'info': 'info2', 's': 'info'})
 
         self.assertEqual(renamed1['locus2']._type, dataset['locus']._type)
@@ -845,29 +851,50 @@ class Tests(unittest.TestCase):
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
+        globe = 'the globe!'
         sample_ids = ['Bob', 'Alice', 'David', 'Carol']
         entries = [1, 0, 3, 2]
         rows = ['1:3:A:G', '1:2:A:G', '1:0:A:G']
+        sorted_rows = sorted(rows)
 
+        mt = mt.annotate_globals(globe=globe)
         mt = mt.annotate_cols(s=hl.array(sample_ids)[mt.col_idx]).key_cols_by('s')
         mt = mt.annotate_entries(e=hl.array(entries)[mt.col_idx])
         mt = mt.annotate_rows(r=hl.array(rows)[mt.row_idx]).key_rows_by('r')
 
+        self.assertEqual(mt.globe.collect(), [globe])
+
         self.assertEqual(mt.s.collect(), sample_ids)
+        self.assertEqual((mt.s + '1').collect(), [s + '1' for s in sample_ids])
+        self.assertEqual(('1' + mt.s).collect(), ['1' + s for s in sample_ids])
         self.assertEqual(mt.s.take(1), [sample_ids[0]])
         self.assertEqual(mt.e.collect(), entries * 3)
         self.assertEqual(mt.e.take(1), [entries[0]])
         self.assertEqual(mt.row_idx.collect(), [2, 1, 0])
-        self.assertEqual(mt.r.collect(), sorted(rows))
-        self.assertEqual(mt.r.take(1), [sorted(rows)[0]])
+        self.assertEqual(mt.r.collect(), sorted_rows)
+        self.assertEqual(mt.r.take(1), [sorted_rows[0]])
+
+        self.assertEqual(mt.col_key.collect(),
+                         [hl.Struct(s=s) for s in sample_ids])
+        self.assertEqual(mt.col.collect(),
+                         [hl.Struct(s=s, col_idx=i) for i, s in enumerate(sample_ids)])
+        self.assertEqual(mt.row_key.collect(),
+                         [hl.Struct(r=r) for r in sorted_rows])
+        self.assertEqual(mt.row.collect(),
+                         sorted([hl.Struct(r=r, row_idx=i) for i, r in enumerate(rows)],
+                                key=lambda x: x.r))
+        self.assertEqual(mt.entry.collect(),
+                         [hl.Struct(e=e)
+                          for _ in sorted_rows
+                          for e in entries])
 
         self.assertEqual(mt.cols().s.collect(), sorted(sample_ids))
         self.assertEqual(mt.cols().s.take(1), [sorted(sample_ids)[0]])
         self.assertEqual(mt.entries().e.collect(), sorted(entries) * 3)
         self.assertEqual(mt.entries().e.take(1), [sorted(entries)[0]])
         self.assertEqual(mt.rows().row_idx.collect(), [2, 1, 0])
-        self.assertEqual(mt.rows().r.collect(), sorted(rows))
-        self.assertEqual(mt.rows().r.take(1), [sorted(rows)[0]])
+        self.assertEqual(mt.rows().r.collect(), sorted_rows)
+        self.assertEqual(mt.rows().r.take(1), [sorted_rows[0]])
 
     def test_order_by(self):
         ht = hl.utils.range_table(10)
@@ -1033,7 +1060,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(rt.all(rt.hw == rt.hw2))
 
     def test_write_stage_locally(self):
-        mt = self.get_vds()
+        mt = self.get_mt()
         f = new_temp_file(suffix='mt')
         mt.write(f, stage_locally=True)
 
@@ -1243,7 +1270,7 @@ class Tests(unittest.TestCase):
         assert range(0, 10) == localized.cols.collect()
 
     def test_multi_write(self):
-        mt = self.get_vds()
+        mt = self.get_mt()
         f = new_temp_file()
         hl.experimental.write_matrix_tables([mt, mt], f)
         path1 = f + '0.mt'
@@ -1296,7 +1323,7 @@ class Tests(unittest.TestCase):
         assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
 
     def test_show(self):
-        mt = self.get_vds()
+        mt = self.get_mt()
         mt.show()
 
     def test_partitioned_write(self):

@@ -71,9 +71,9 @@ package object ir {
 
   private[ir] def coerce[T <: PType](x: PType): T = types.coerce[T](x)
 
-  def invoke(name: String, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, args.map(_.typ)) match {
+  def invoke(name: String, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, args.map(_.typ)) match {
     case Some(f) => f(args)
-    case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")})")
+    case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")})$rt")
   }
 
 
@@ -84,4 +84,11 @@ package object ir {
   implicit def floatToIR(f: Float): IR = F32(f)
   implicit def doubleToIR(d: Double): IR = F64(d)
   implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
+
+  def zero(t: Type): IR = t match {
+    case _: TInt32 => I32(0)
+    case _: TInt64 => I64(0L)
+    case _: TFloat32 => F32(0f)
+    case _: TFloat64 => F64(0d)
+  }
 }

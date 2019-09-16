@@ -81,18 +81,8 @@ object SetFunctions extends RegistryFunctions {
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t)))))
+          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t))), TBoolean()))
     }
-
-    registerIR("sum", TSet(tnum("T")), tv("T")) { s =>
-      ArrayFunctions.sum(ToArray(s))
-    }
-
-    registerIR("product", TSet(tnum("T")), tv("T")) { s =>
-      ArrayFunctions.product(ToArray(s))
-    }
-
-    registerIR("mean", TSet(tnum("T")), TFloat64()) { s => ArrayFunctions.mean(ToArray(s)) }
 
     registerIR("median", TSet(tnum("T")), tv("T")) { s =>
       val t = -s.typ.asInstanceOf[TSet].elementType
@@ -111,7 +101,7 @@ object SetFunctions extends RegistryFunctions {
             If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", size, 2).cne(0),
+              If(invoke("%", TInt32(), size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }

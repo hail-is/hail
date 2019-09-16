@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -55,7 +56,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
         .collect()
     }
 
-    val rowType = TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
+    val rowType = PStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64())))
     val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
@@ -65,7 +66,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>
-          rvb.start(rowType.physicalType)
+          rvb.start(rowType)
           rvb.startStruct()
 
           val rowKeys = rowKeysBc.value(ir.index.toInt).asInstanceOf[Row]
@@ -89,7 +90,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       }
     } else
       ContextRDD.empty(sc)
-    val rvd = RVD.coerce(RVDType(rowType.physicalType, mv.typ.rowKey), crdd)
+    val rvd = RVD.coerce(RVDType(rowType, mv.typ.rowKey), crdd)
 
     val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64()), "eigenvalues")
     val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64()), "scores")
@@ -117,7 +118,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     }
     val newGlobal = f2(g1, globalScores)
     
-    TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
+    TableValue(TableType(rowType.virtualType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
       BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct]), rvd)
   }
 }

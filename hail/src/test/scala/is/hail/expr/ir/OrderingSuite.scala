@@ -43,17 +43,6 @@ class OrderingSuite extends HailSuite {
     fb.resultWithIndex()(0, r)
   }
 
-  def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
-    val rvb = new RegionValueBuilder(region)
-    args.map { case (t, a) =>
-      rvb.start(TTuple(t).physicalType)
-      rvb.startTuple()
-      rvb.addAnnotation(t, a)
-      rvb.endTuple()
-      rvb.end()
-    }.toArray
-  }
-
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
@@ -183,13 +172,13 @@ class OrderingSuite extends HailSuite {
 
       if (set.nonEmpty) {
         assertEvalsTo(
-          invoke("contains", In(0, tset), In(1, telt)),
+          invoke("contains", TBoolean(), In(0, tset), In(1, telt)),
           FastIndexedSeq(set -> tset, set.head -> telt),
           expected = true)
       }
 
       assertEvalsTo(
-        invoke("contains", In(0, tset), In(1, telt)),
+        invoke("contains", TBoolean(), In(0, tset), In(1, telt)),
         FastIndexedSeq(set -> tset, test1 -> telt),
         expected = set.contains(test1))
       true
@@ -205,7 +194,7 @@ class OrderingSuite extends HailSuite {
         Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genNonmissingValue)
     }
     val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any]@unchecked, testKey1) =>
-      assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
+      assertEvalsTo(invoke("get", -tdict.valueType, In(0, tdict), In(1, -tdict.keyType)),
         FastIndexedSeq(dict -> tdict,
           testKey1 -> -tdict.keyType),
         dict.getOrElse(testKey1, null))
@@ -213,7 +202,7 @@ class OrderingSuite extends HailSuite {
       if (dict.nonEmpty) {
         val testKey2 = dict.keys.toSeq.head
         val expected2 = dict(testKey2)
-        assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
+        assertEvalsTo(invoke("get", -tdict.valueType, In(0, tdict), In(1, -tdict.keyType)),
           FastIndexedSeq(dict -> tdict,
             testKey2 -> -tdict.keyType),
           expected2)
@@ -326,7 +315,7 @@ class OrderingSuite extends HailSuite {
         ApplySpecial("&&",
           FastSeq(
             Ref("accumulator", TBoolean()),
-            invoke("contains", set2, Ref("setelt", TInt32()))))), true)
+            invoke("contains", TBoolean(), set2, Ref("setelt", TInt32()))), TBoolean())), true)
   }
 
   @DataProvider(name = "arrayDoubleOrderingData")

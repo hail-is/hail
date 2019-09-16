@@ -50,12 +50,20 @@ async def wait_for_pod_complete(v1, namespace, name):
         await asyncio.sleep(1)
 
 
+# this needs to agree with hailtop.config
+def internal_base_url(namespace, service, port):
+    if namespace == 'default':
+        return f'http://{service}.default:{port}'
+    return f'http://{service}.{namespace}:{port}/{namespace}/{service}'
+
+
 async def wait_for_service_alive(namespace, name, port):
     print('info: in wait_for_service_alive', file=sys.stderr)
+    base_url = internal_base_url(namespace, name, port)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
-                async with session.get(f'http://{name}.{namespace}:{port}/healthcheck') as resp:
+                async with session.get(f'{base_url}/healthcheck') as resp:
                     if resp.status >= 200 and resp.status < 300:
                         print('info: success')
                         sys.exit(0)

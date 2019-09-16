@@ -7,16 +7,20 @@ html {
   -ms-text-size-adjust: 100%;
 }
 
+body {
+  font-size: 16px;
+}
+
 #body {
   color: #444;
   font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-  font-size: 11px;
   line-height: 1.6;
-  padding: 1em;
+  padding: .875rem;
   padding-top: 0px;
   margin: auto;
-  max-width: 42em;
-  background: #fefefe;
+  max-width: 42rem;
+  background: #fff;
+  border-color: #ddd;
 }
 
 a, a code {
@@ -97,21 +101,10 @@ h6 {
   font-size: 0.9em;
 }
 
-hr {
-  display: block;
-  height: 2px;
-  border: 0;
-  border-top: 1px solid #aaa;
-  border-bottom: 1px solid #eee;
-  margin: 1em 0;
-  padding: 0;
-}
-
 code, samp, kbd {
   color: #000;
   font-family: monospace, monospace;
   _font-family: 'courier new', monospace;
-  background: #eee;
   padding: .15625em .25em;  /* 5/32, 1/4 */
 }
 
@@ -206,8 +199,9 @@ figcaption {
 
 table {
   margin-bottom: 2em;
-  border-bottom: 1px solid #ddd;
-  border-right: 1px solid #ddd;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+  border-color: inherit;
   border-spacing: 0;
   border-collapse: collapse;
 }
@@ -215,14 +209,16 @@ table {
 table th {
   padding: .2em 1em;
   background-color: #eee;
-  border-top: 1px solid #ddd;
-  border-left: 1px solid #ddd;
+  border-top: 1px solid;
+  border-left: 1px solid;
+  border-color: inherit;
 }
 
 table td {
   padding: .2em 1em;
-  border-top: 1px solid #ddd;
-  border-left: 1px solid #ddd;
+  border-top: 1px solid;
+  border-left: 1px solid;
+  border-color: inherit;
   vertical-align: top;
 }
 
@@ -231,14 +227,9 @@ table td {
   text-align: center;
 }
 
-@media only screen and (min-width: 480px) {
-  #body {
+@media only screen and (max-width: 768px) {
+  body {
     font-size: 14px;
-  }
-}
-@media only screen and (min-width: 768px) {
-  #body {
-    font-size: 16px;
   }
 }
 @media print {
@@ -249,8 +240,11 @@ table td {
     -ms-filter: none !important;
   }
 
-  #body {
+  body {
     font-size: 12pt;
+  }
+
+  #body {
     max-width: 100%;
   }
 
@@ -259,9 +253,14 @@ table td {
   }
 
   hr {
+    display: block;
     height: 1px;
     border: 0;
-    border-bottom: 1px solid black;
+    border-top: 1px solid;
+    border-bottom: 1px solid;
+    border-color: inherit;
+    margin: 1em 0;
+    padding: 0;
   }
 
   a[href]:after {
@@ -274,12 +273,6 @@ table td {
 
   .ir a:after, a[href^="javascript:"]:after, a[href^="#"]:after {
     content: "";
-  }
-
-  pre, blockquote {
-    border: 1px solid #999;
-    padding-right: 1em;
-    page-break-inside: avoid;
   }
 
   tr, img {
@@ -316,3 +309,39 @@ table td {
     text-decoration: none;
 }
 
+.sourceCode {
+  border-color: inherit;
+}
+
+pre, code {
+  background-color: #f5f5f5;
+}
+
+pre, blockquote {
+  border: 1px solid;
+  border-color: inherit;
+  padding-right: 1em;
+  page-break-inside: avoid;
+}
+
+code {
+  white-space: pre-wrap;
+  padding: 3px;
+  border-radius: 4px;
+}
+
+pre {
+  display: block;
+  padding: 9.5px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.42857143;
+  color: #333;
+  word-break: break-all;
+  word-wrap: break-word;
+  border-radius: 4px;
+}
+
+pre code {
+  padding: 0;
+}

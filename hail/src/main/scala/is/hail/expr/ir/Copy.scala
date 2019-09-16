@@ -130,6 +130,13 @@ object Copy {
       case ArrayFold(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
         ArrayFold(a, zero, accumName, valueName, body)
+      case ArrayFold2(_, accum, valueName, seq, _) =>
+        val ncIR = newChildren.map(_.asInstanceOf[IR])
+        assert(newChildren.length == 2 + accum.length + seq.length)
+        ArrayFold2(ncIR(0),
+          accum.indices.map(i => (accum(i)._1, ncIR(i + 1))),
+          valueName,
+          seq.indices.map(i => ncIR(i + 1 + accum.length)), ncIR.last)
       case ArrayScan(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
         ArrayScan(a, zero, accumName, valueName, body)
@@ -214,13 +221,14 @@ object Copy {
       case x@ApplyIR(fn, args) =>
         val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion
+        r.inline = x.inline
         r
-      case Apply(fn, args) =>
-        Apply(fn, newChildren.map(_.asInstanceOf[IR]))
-      case ApplySeeded(fn, args, seed) =>
-        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed)
-      case ApplySpecial(fn, args) =>
-        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]))
+      case Apply(fn, args, t) =>
+        Apply(fn, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySeeded(fn, args, seed, t) =>
+        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
+      case ApplySpecial(fn, args, t) =>
+        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
       case Uniroot(argname, _, _, _) =>
         val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
         Uniroot(argname, fn, min, max)
@@ -268,9 +276,9 @@ object Copy {
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)
-      case ReadPartition(path, spec, encodedType, rowType) =>
+      case ReadPartition(path, spec, rowType) =>
         val IndexedSeq(newPath: IR) = newChildren
-        ReadPartition(newPath, spec, encodedType, rowType)
+        ReadPartition(newPath, spec, rowType)
     }
   }
 }

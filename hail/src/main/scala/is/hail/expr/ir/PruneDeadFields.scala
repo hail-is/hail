@@ -70,7 +70,6 @@ object PruneDeadFields {
   }
 
   def apply(ir: BaseIR): BaseIR = {
-
     try {
       val irCopy = ir.deepCopy()
       val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
@@ -251,7 +250,7 @@ object PruneDeadFields {
     memo.requestedType.bind(tir, requestedType)
     tir match {
       case TableRead(_, _, _) =>
-      case TableLiteral(_, _, _) =>
+      case TableLiteral(_, _, _, _) =>
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
@@ -390,7 +389,13 @@ object PruneDeadFields {
         memoizeTableIR(child, unify(child.typ, requestedType, irDep), memo)
       case TableKeyBy(child, _, isSorted) =>
         val reqKey = requestedType.key
-        val childReqKey = if (isSorted) child.typ.key.take(reqKey.length) else FastIndexedSeq()
+        val isPrefix = reqKey.zip(child.typ.key).forall { case (l, r) => l == r }
+        val childReqKey = if (isSorted)
+          child.typ.key
+        else if (isPrefix)
+          if  (reqKey.length <= child.typ.key.length) reqKey else child.typ.key
+        else FastIndexedSeq()
+
         memoizeTableIR(child, TableType(
           key = childReqKey,
           rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, childReqKey), requestedType.rowType),
@@ -501,6 +506,9 @@ object PruneDeadFields {
             PruneDeadFields.selectKey(child.typ.rowType, child.typ.key))), memo)
       case TableToTableApply(child, f) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case BlockMatrixToTableApply(bm, aux, _) =>
+        memoizeBlockMatrixIR(bm, bm.typ, memo)
+        memoizeValueIR(aux, aux.typ, memo)
       case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
       case RelationalLetTable(name, value, body) =>
         memoizeTableIR(body, requestedType, memo)
@@ -949,6 +957,24 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val aType = a.typ.asInstanceOf[TStreamable]
+        val zeroEnvs = accum.map { case (name, zval) => memoizeValueIR(zval, zval.typ, memo) }
+        val seqEnvs = seq.map { seq => memoizeValueIR(seq, seq.typ, memo) }
+        val resEnv = memoizeValueIR(res, requestedType, memo)
+        val valueType = unifySeq(
+          aType.elementType,
+          resEnv.eval.lookupOption(valueName).map(_.result()).getOrElse(Array()) ++
+          seqEnvs.flatMap(_.eval.lookupOption(valueName).map(_.result()).getOrElse(Array())))
+
+        val accumNames = accum.map(_._1)
+        val seqNames = accumNames ++ Array(valueName)
+        unifyEnvsSeq(
+          zeroEnvs
+            ++ Array(resEnv.copy(eval = resEnv.eval.delete(accumNames)))
+            ++ seqEnvs.map(e => e.copy(eval = e.eval.delete(seqNames)))
+            ++ Array(memoizeValueIR(a, aType.copyStreamable(valueType), memo))
+        )
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val zeroEnv = memoizeValueIR(zero, zero.typ, memo)
@@ -1313,6 +1339,10 @@ object PruneDeadFields {
         val value2 = rebuildIR(value, BindingEnv.empty, memo)
         memo.relationalRefs += name -> value2.typ
         RelationalLetTable(name, value2, rebuild(body, memo))
+      case BlockMatrixToTableApply(bmir, aux, function) =>
+        val bmir2 = rebuild(bmir, memo)
+        val aux2 = rebuildIR(aux, BindingEnv.empty, memo)
+        BlockMatrixToTableApply(bmir2, aux2, function)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)

@@ -230,7 +230,7 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testMatrixFiltersWorkWithRandomness() {
     val range = MatrixTable.range(hc, 20, 20, Some(4)).ast
-    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0)
+    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0, TBoolean())
 
     val cols = Interpret(MatrixFilterCols(range, rand), ctx, optimize = true).toMatrixValue(range.typ.colKey).nCols
     val rows = Interpret(MatrixFilterRows(range, rand), ctx, optimize = true).rvd.count()
@@ -255,7 +255,7 @@ class MatrixIRSuite extends HailSuite {
     params.foreach { case (n, strat) =>
       val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false).rvd
       assert(rvd.getNumPartitions == n, n -> strat)
-      val values = rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
+      val values = rvd.collect().map(r => r.getAs[Int](0))
       assert(values.isSorted && values.length == 11, n -> strat)
     }
   }

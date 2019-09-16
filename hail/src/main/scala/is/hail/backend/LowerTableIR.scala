@@ -63,7 +63,7 @@ object LowerTableIR {
 
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
-      invoke("sum", stage.toIR(node => Cast(ArrayLen(node), TInt64())))
+      invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(node), TInt64())))
 
     case TableGetGlobals(child) =>
       val stage = lower(child)
@@ -104,12 +104,11 @@ object LowerTableIR {
           val globalsPath = r.spec.globalsComponent.absolutePath(path)
           val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
           val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
-          val gSpec = globalsSpec.codecSpec
-          val gEncType = globalsSpec.encodedType.virtualType
+          val gSpec = globalsSpec.codecSpec2
 
           if (dropRows) {
             TableStage(
-              MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gEncType, gType), 0))),
+              MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gType), 0))),
               globalRef,
               rvdType,
               RVDPartitioner.empty(rvdType),
@@ -120,19 +119,18 @@ object LowerTableIR {
             val rowsPath = r.spec.rowsComponent.absolutePath(path)
             val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
             val partitioner = rowsSpec.partitioner
-            val rSpec = rowsSpec.codecSpec
-            val rowEncType = rowsSpec.encodedType.virtualType
+            val rSpec = rowsSpec.codecSpec2
             val ctxType = TStruct("path" -> TString())
 
             if (rowsSpec.key startsWith typ.key) {
               TableStage(
-                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ToArray(ReadPartition(Str(gPath), gSpec, gEncType, gType)), 0))),
+                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ToArray(ReadPartition(Str(gPath), gSpec, gType)), 0))),
                 globalRef,
                 rvdType,
                 partitioner,
                 ctxType,
                 MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TArray(ctxType)),
-                ToArray(ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowEncType, rowType)))
+                ToArray(ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowType)))
             } else {
               throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
             }

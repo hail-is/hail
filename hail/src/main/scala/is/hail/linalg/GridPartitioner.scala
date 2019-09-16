@@ -36,6 +36,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
     throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${maybeBlocks.toIndexedSeq}")
 
+  val blockToPartitonMap = maybeBlocks.map(_.zipWithIndex.toMap.withDefaultValue(-1))
+
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
   
@@ -94,8 +96,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       pi
   }
   
-  def blockToPartition(blockId: Int): Int = maybeBlocks match {
-    case Some(bis) => bis.indexOf(blockId)
+  def blockToPartition(blockId: Int): Int = blockToPartitonMap match {
+    case Some(bpMap) => bpMap(blockId)
     case None =>  blockId
   }
   

@@ -18,7 +18,7 @@ def init_parser(parser):
                         help="Only download logs from the first N workers.")
 
 
-def main(args, pass_through_args):
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Diagnosing cluster '{}'...".format(args.name))
 
     is_local = not args.dest.startswith("gs://")
@@ -48,7 +48,7 @@ def main(args, pass_through_args):
         workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
     except KeyError:
         workers = config['workerConfig']['instanceNames']
-    zone = re.search('zones\/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri']).group('zone')
+    zone = re.search(r'zones/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri']).group('zone')
 
     if args.workers:
         invalid_workers = set(args.workers).difference(set(workers))
@@ -78,7 +78,7 @@ def main(args, pass_through_args):
         copy_tmp_cmds.append('sudo chmod -R 777 {tmp}'.format(tmp=tmp))
 
         if args.compress:
-            copy_tmp_cmds.append('sudo find ' + tmp + ' -type f ! -name \'*.gz\' -exec gzip "{}" \;')
+            copy_tmp_cmds.append('sudo find ' + tmp + ' -type f ! -name \'*.gz\' -exec gzip "{}" \\;')
 
         call(gcloud_ssh(remote, '; '.join(init_cmd + copy_tmp_cmds)), shell=True)
 
@@ -90,7 +90,7 @@ def main(args, pass_through_args):
         call(copy_dest_cmd, shell=True)
 
     if not args.no_diagnose:
-        diagnose_tar_path = re.search('Diagnostic results saved in: (?P<tarfile>gs:\/\/\S+diagnostic\.tar)',
+        diagnose_tar_path = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)',
                                       str(Popen('gcloud dataproc clusters diagnose {name}'.format(name=args.name),
                                                 shell=True,
                                                 stdout=PIPE,

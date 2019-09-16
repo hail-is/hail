@@ -1,6 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.TInterval
 import is.hail.sparkextras._
 import is.hail.utils.{Muple, fatal}
@@ -86,39 +87,45 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
   def orderedLeftIntervalJoin(
     right: KeyedRVD,
-    joiner: (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue],
-    joinedType: RVDType
+    joiner: PStruct => (RVDType, (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue])
   ): RVD = {
     checkLeftIntervalJoinCompatability(right)
 
     val lTyp = virtType
     val rTyp = right.virtType
 
-    rvd.intervalAlignAndZipPartitions(joinedType, right.rvd) {
-      (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-        joiner(
-          ctx,
-          OrderedRVIterator(lTyp, it, ctx)
-            .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx)))
+    rvd.intervalAlignAndZipPartitions(right.rvd) {
+      t: PStruct => {
+        val (newTyp, f) = joiner(t)
+
+        (newTyp, (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+          f(
+            ctx,
+            OrderedRVIterator(lTyp, it, ctx)
+              .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx))))
+      }
     }
   }
 
   def orderedLeftIntervalJoinDistinct(
     right: KeyedRVD,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType
+    joiner: PStruct => (RVDType, (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue])
   ): RVD = {
     checkLeftIntervalJoinCompatability(right)
 
     val lTyp = virtType
     val rTyp = right.virtType
 
-    rvd.intervalAlignAndZipPartitions(joinedType, right.rvd) {
-      (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-        joiner(
-          ctx,
-          OrderedRVIterator(lTyp, it, ctx)
-            .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx)))
+    rvd.intervalAlignAndZipPartitions(right.rvd) {
+      t: PStruct => {
+        val (newTyp, f) = joiner(t)
+
+        (newTyp, (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+          f(
+            ctx,
+            OrderedRVIterator(lTyp, it, ctx)
+              .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx))))
+      }
     }
   }
 

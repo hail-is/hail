@@ -1,3 +1,4 @@
+python/.eggs
 python/**/*.pyc
 python/README.md
 python/dist
@@ -21,3 +22,4 @@ src/test/resources/random-*.bgen.idx*
 src/test/resources/random.bgen.idx*
 src/test/resources/skip_invalid_loci.bgen.idx*
 env/
+www/docs

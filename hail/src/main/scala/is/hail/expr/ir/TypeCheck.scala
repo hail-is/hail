@@ -140,7 +140,7 @@ object TypeCheck {
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
       case x@MakeNDArray(data, shape, rowMajor) =>
-        assert(data.typ.isInstanceOf[TStreamable])
+        assert(data.typ.isInstanceOf[TArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayShape(nd) =>
@@ -161,7 +161,7 @@ object TypeCheck {
           t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
         })
       case x@NDArrayMap(_, _, body) =>
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
@@ -225,6 +225,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
+      case x@ArrayFold2(a, accum, valueName, seq, res) =>
+        assert(a.typ.isInstanceOf[TStreamable])
+        assert(x.typ == res.typ)
+        assert(accum.zip(seq).forall { case ((_, z), s) => s.typ == z.typ })
       case x@ArrayScan(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
@@ -316,7 +320,7 @@ object TypeCheck {
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
-        assert(x.implementation.unify(x.args.map(_.typ)))
+        assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
       case Uniroot(name, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
         assert(min.typ.isInstanceOf[TFloat64])
@@ -340,7 +344,7 @@ object TypeCheck {
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TArray])
-      case x@ReadPartition(path, _, _, rowType) =>
+      case x@ReadPartition(path, _, rowType) =>
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
     }

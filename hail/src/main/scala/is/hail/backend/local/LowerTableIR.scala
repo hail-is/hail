@@ -1,10 +1,9 @@
 package is.hail.backend.local
 
+import is.hail.backend.LowererUnsupportedOperation
 import is.hail.expr.ir._
-import is.hail.cxx
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import org.json4s.jackson.JsonMethods
 
 case class LocalBinding(name: String, value: IR)
 
@@ -154,7 +153,7 @@ object LowerTableIR {
               ArrayRange(I32(0), I32(n.toInt), I32(1)),
               i,
               ArrayRef(Ref(rows, p.rows.typ), Ref(i, TInt32()))))))
-    case _ => throw new cxx.CXXUnsupportedOperation(tir.toString)
+    case _ => throw new LowererUnsupportedOperation(tir.toString)
   }
 
   def lower(mir: MatrixIR): MatrixIR = ???

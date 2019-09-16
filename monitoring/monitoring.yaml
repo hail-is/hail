@@ -329,7 +329,7 @@ spec:
       serviceAccountName: prometheus
       containers:
        - name: prometheus
-         image: prom/prometheus:v2.10.0
+         image: prom/prometheus:v2.11.2
          imagePullPolicy: Always
          command:
           - "/bin/prometheus"
@@ -346,6 +346,10 @@ spec:
             name: etc-prometheus
           - mountPath: "/prometheus"
             name: prometheus-storage
+         resources:
+           requests:
+             cpu: "1"
+             memory: 20Gi
       volumes:
        - name: etc-prometheus
          configMap:

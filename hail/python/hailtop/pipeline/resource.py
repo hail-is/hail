@@ -54,7 +54,7 @@ class ResourceFile(Resource, str):
         raise NotImplementedError
 
     def _add_source(self, source):
-        from .task import Task
+        from .task import Task  # pylint: disable=cyclic-import
         assert isinstance(source, Task)
         self._source = source
         return self

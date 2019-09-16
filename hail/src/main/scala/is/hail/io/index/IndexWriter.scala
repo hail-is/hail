@@ -3,26 +3,75 @@ package is.hail.io.index
 import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
-import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.io.{CodecSpec, Encoder}
+import is.hail.io.fs.FS
+import is.hail.io._
+import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import is.hail.io.fs.FS
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
+
+trait AbstractIndexMetadata {
+  def fileVersion: Int
+
+  def branchingFactor: Int
+
+  def height: Int
+
+  def keyType: Type
+
+  def annotationType: Type
+
+  def nKeys: Long
+
+  def indexPath: String
+
+  def rootOffset: Long
+
+  def attributes: Map[String, Any]
+
+  def leafSpec: CodecSpec2
+
+  def intSpec: CodecSpec2
+}
+
+case class IndexMetadataUntypedJSON(
+  fileVersion: Int,
+  branchingFactor: Int,
+  height: Int,
+  nKeys: Long,
+  indexPath: String,
+  rootOffset: Long,
+  attributes: Map[String, Any]
+) {
+  def toMetadata(keyType: Type, annotationType: Type): IndexMetadata = IndexMetadata(
+    fileVersion, branchingFactor,
+    height, keyType, annotationType,
+    nKeys, indexPath, rootOffset, attributes)
+}
 
 case class IndexMetadata(
   fileVersion: Int,
   branchingFactor: Int,
   height: Int,
-  keyType: String,
-  annotationType: String,
+  keyType: Type,
+  annotationType: Type,
   nKeys: Long,
   indexPath: String,
   rootOffset: Long,
   attributes: Map[String, Any]
-)
+) extends AbstractIndexMetadata {
+  val baseSpec = LEB128BufferSpec(
+      BlockingBufferSpec(32 * 1024,
+        LZ4BlockBufferSpec(32 * 1024,
+          new StreamBlockBufferSpec)))
+
+  def leafSpec: CodecSpec2 = PackCodecSpec2(LeafNodeBuilder.legacyTyp(keyType.physicalType, annotationType.physicalType), baseSpec)
+
+  def intSpec: CodecSpec2 = PackCodecSpec2(InternalNodeBuilder.legacyTyp(keyType.physicalType, annotationType.physicalType), baseSpec)
+}
 
 case class IndexNodeInfo(
   indexFileOffset: Long,
@@ -36,22 +85,28 @@ object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
 
   def builder(
-    keyType: Type,
-    annotationType: Type,
+    keyType: PType,
+    annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (FS, String) => IndexWriter = {
-    val codecSpec = CodecSpec.default
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
-    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType);
-    { (fs, path) =>
+    val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
+    val makeLeafEnc = CodecSpec.default.makeCodecSpec2(leafPType).buildEncoder(leafPType)
+
+    val intPType = InternalNodeBuilder.typ(keyType, annotationType)
+    val makeIntEnc = CodecSpec.default.makeCodecSpec2(intPType).buildEncoder(intPType)
+
+
+    { (fs: FS, path: String) =>
       new IndexWriter(
         fs,
         path,
         keyType,
         annotationType,
-        makeLeafEncoder,
-        makeInternalEncoder,
+        makeLeafEnc,
+        makeIntEnc,
+        leafPType,
+        intPType,
         branchingFactor,
         attributes)
     }
@@ -62,10 +117,12 @@ object IndexWriter {
 class IndexWriter(
   fs: FS,
   path: String,
-  keyType: Type,
-  annotationType: Type,
+  keyType: PType,
+  annotationType: PType,
   makeLeafEncoder: (OutputStream) => Encoder,
   makeInternalEncoder: (OutputStream) => Encoder,
+  leafPType: PType,
+  intPType: PType,
   branchingFactor: Int = 4096,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
   require(branchingFactor > 1)
@@ -174,13 +231,13 @@ class IndexWriter(
         IndexWriter.version.rep,
         branchingFactor,
         height,
-        keyType.parsableString(),
-        annotationType.parsableString(),
+        keyType.virtualType,
+        annotationType.virtualType,
         elementIdx,
         "index",
         rootOffset,
         attributes)
-      implicit val formats: Formats = defaultJSONFormats
+      implicit val formats: Formats = AbstractRVDSpec.formats
       Serialization.write(metadata, out)
     }
   }

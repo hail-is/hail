@@ -1,0 +1,40 @@
+<div id="header">
+  <a class="home link-button" href="{{ notebook_base_url }}/">
+    <b>/</b>
+  </a>
+
+  <a href="{{ notebook_base_url }}/notebook" class="home link-button">
+    Notebook
+  </a>
+
+  <a href="{{ batch_base_url }}" class="home link-button">
+    Batch
+  </a>
+
+  {% if userdata['developer'] == 1 %}
+    <a href="{{ ci_base_url }}" class="home link-button">
+      CI
+    </a>
+
+    <a href="{{ scorecard_base_url }}" class="home link-button">
+      Scorecard
+    </a>
+  {% endif %}
+
+  <div id="profile-divider"></div>
+
+  {% if userdata %}
+  <a href="{{ notebook_base_url }}/user"
+    ><b id="user-name">{{ userdata["username"] }}</b></a
+  >
+  <form action="{{ auth_base_url }}/logout" method="POST">
+    <button class="link-button" type="submit">
+      Log out
+    </button>
+  </form>
+  {% else %}
+  <a class="link-button" href="{{ auth_base_url }}/login">
+    Login
+  </a>
+  {% endif %}
+</div>

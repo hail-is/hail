@@ -57,6 +57,7 @@ along the genome:
     | 20:16223957   | ["T","C"]  |        31 |           376 |
     +---------------+------------+-----------+---------------+
     showing top 10 rows
+    <BLANKLINE>
 
 Scans over column fields can be done in a similar manner.
 

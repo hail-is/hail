@@ -14,61 +14,61 @@ class StringFunctionsSuite extends TestNGSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def testRegexMatch() {
-    assertEvalsTo(invoke("~", Str("a"), NA(TString())), null)
-    assertEvalsTo(invoke("~", NA(TString()), Str("b")), null)
+    assertEvalsTo(invoke("~", TBoolean(), Str("a"), NA(TString())), null)
+    assertEvalsTo(invoke("~", TBoolean(), NA(TString()), Str("b")), null)
 
-    assertEvalsTo(invoke("~", Str("a"), Str("b")), false)
-    assertEvalsTo(invoke("~", Str("a"), Str("a")), true)
+    assertEvalsTo(invoke("~", TBoolean(), Str("a"), Str("b")), false)
+    assertEvalsTo(invoke("~", TBoolean(), Str("a"), Str("a")), true)
 
-    assertEvalsTo(invoke("~", Str("[a-z][0-9]"), Str("t7")), true)
-    assertEvalsTo(invoke("~", Str("[a-z][0-9]"), Str("3x")), false)
+    assertEvalsTo(invoke("~", TBoolean(), Str("[a-z][0-9]"), Str("t7")), true)
+    assertEvalsTo(invoke("~", TBoolean(), Str("[a-z][0-9]"), Str("3x")), false)
   }
 
   @Test def testConcat() {
-    assertEvalsTo(invoke("+", Str("a"), NA(TString())), null)
-    assertEvalsTo(invoke("+", NA(TString()), Str("b")), null)
+    assertEvalsTo(invoke("+", TString(), Str("a"), NA(TString())), null)
+    assertEvalsTo(invoke("+", TString(), NA(TString()), Str("b")), null)
 
-    assertEvalsTo(invoke("+", Str("a"), Str("b")), "ab")
+    assertEvalsTo(invoke("+", TString(), Str("a"), Str("b")), "ab")
   }
 
   @Test def testSplit() {
-    assertEvalsTo(invoke("split", NA(TString()), Str(",")), null)
-    assertEvalsTo(invoke("split", Str("a,b,c"), NA(TString())), null)
+    assertEvalsTo(invoke("split", TArray(TString()), NA(TString()), Str(",")), null)
+    assertEvalsTo(invoke("split", TArray(TString()), Str("a,b,c"), NA(TString())), null)
 
-    assertEvalsTo(invoke("split", Str("x"), Str("x")), FastIndexedSeq("", ""))
-    assertEvalsTo(invoke("split", Str("a,b,c"), Str(",")), FastIndexedSeq("a", "b", "c"))
+    assertEvalsTo(invoke("split", TArray(TString()), Str("x"), Str("x")), FastIndexedSeq("", ""))
+    assertEvalsTo(invoke("split", TArray(TString()), Str("a,b,c"), Str(",")), FastIndexedSeq("a", "b", "c"))
 
-    assertEvalsTo(invoke("split", NA(TString()), Str(","), I32(2)), null)
-    assertEvalsTo(invoke("split", Str("a,b,c"), NA(TString()), I32(2)), null)
-    assertEvalsTo(invoke("split", Str("a,b,c"), Str(","), NA(TInt32())), null)
+    assertEvalsTo(invoke("split", TArray(TString()), NA(TString()), Str(","), I32(2)), null)
+    assertEvalsTo(invoke("split", TArray(TString()), Str("a,b,c"), NA(TString()), I32(2)), null)
+    assertEvalsTo(invoke("split", TArray(TString()), Str("a,b,c"), Str(","), NA(TInt32())), null)
 
-    assertEvalsTo(invoke("split", Str("a,b,c"), Str(","), I32(2)), FastIndexedSeq("a", "b,c"))
+    assertEvalsTo(invoke("split", TArray(TString()), Str("a,b,c"), Str(","), I32(2)), FastIndexedSeq("a", "b,c"))
   }
 
   @Test def testReplace() {
-    assertEvalsTo(invoke("replace", NA(TString()), Str(","), Str(".")), null)
-    assertEvalsTo(invoke("replace", Str("a,b,c"), NA(TString()), Str(".")), null)
-    assertEvalsTo(invoke("replace", Str("a,b,c"), Str(","), NA(TString())), null)
+    assertEvalsTo(invoke("replace", TString(), NA(TString()), Str(","), Str(".")), null)
+    assertEvalsTo(invoke("replace", TString(), Str("a,b,c"), NA(TString()), Str(".")), null)
+    assertEvalsTo(invoke("replace", TString(), Str("a,b,c"), Str(","), NA(TString())), null)
 
-    assertEvalsTo(invoke("replace", Str("a,b,c"), Str(","), Str(".")), "a.b.c")
+    assertEvalsTo(invoke("replace", TString(), Str("a,b,c"), Str(","), Str(".")), "a.b.c")
   }
 
   @Test def testArrayMkString() {
-    assertEvalsTo(invoke("mkString", IRStringArray("a", "b", "c"), NA(TString())), null)
-    assertEvalsTo(invoke("mkString", NA(TArray(TString())), Str(",")), null)
-    assertEvalsTo(invoke("mkString", IRStringArray("a", "b", "c"), Str(",")), "a,b,c")
+    assertEvalsTo(invoke("mkString", TString(), IRStringArray("a", "b", "c"), NA(TString())), null)
+    assertEvalsTo(invoke("mkString", TString(), NA(TArray(TString())), Str(",")), null)
+    assertEvalsTo(invoke("mkString", TString(), IRStringArray("a", "b", "c"), Str(",")), "a,b,c")
 
     // FIXME matches current FunctionRegistry, but should be a,NA,c
-    assertEvalsTo(invoke("mkString", IRStringArray("a", null, "c"), Str(",")), "a,null,c")
+    assertEvalsTo(invoke("mkString", TString(), IRStringArray("a", null, "c"), Str(",")), "a,null,c")
   }
 
   @Test def testSetMkString() {
-    assertEvalsTo(invoke("mkString", IRStringSet("a", "b", "c"), NA(TString())), null)
-    assertEvalsTo(invoke("mkString", NA(TSet(TString())), Str(",")), null)
-    assertEvalsTo(invoke("mkString", IRStringSet("a", "b", "c"), Str(",")), "a,b,c")
+    assertEvalsTo(invoke("mkString", TString(), IRStringSet("a", "b", "c"), NA(TString())), null)
+    assertEvalsTo(invoke("mkString", TString(), NA(TSet(TString())), Str(",")), null)
+    assertEvalsTo(invoke("mkString", TString(), IRStringSet("a", "b", "c"), Str(",")), "a,b,c")
 
     // FIXME matches current FunctionRegistry, but should be a,NA,c
-    assertEvalsTo(invoke("mkString", IRStringSet("a", null, "c"), Str(",")), "a,c,null")
+    assertEvalsTo(invoke("mkString", TString(), IRStringSet("a", null, "c"), Str(",")), "a,c,null")
 
   }
 
@@ -84,13 +84,13 @@ class StringFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "str")
   def str(annotation: IR, typ: Type) {
-    assertEvalsTo(invoke("str", annotation), {
+    assertEvalsTo(invoke("str", TString(), annotation), {
       val a = eval(annotation); if (a == null) null else typ.str(a)
     })
   }
 
   @Test(dataProvider = "str")
   def json(annotation: IR, typ: Type) {
-    assertEvalsTo(invoke("json", annotation), JsonMethods.compact(typ.toJSON(eval(annotation))))
+    assertEvalsTo(invoke("json", TString(), annotation), JsonMethods.compact(typ.toJSON(eval(annotation))))
   }
 }

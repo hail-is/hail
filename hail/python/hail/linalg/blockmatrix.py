@@ -183,6 +183,9 @@ class BlockMatrix(object):
     - :meth:`sum` along an axis realizes those blocks for which at least one
       block summand is realized.
 
+    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
+      and :meth:`filter_cols`.
+
     These following methods always result in a block-dense matrix:
 
     - :meth:`fill`
@@ -190,9 +193,6 @@ class BlockMatrix(object):
     - Addition or subtraction of a scalar or broadcasted vector.
 
     - Matrix multiplication, ``@``.
-
-    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
-      and :meth:`filter_cols`.
 
     The following methods fail if any operand is block-sparse, but can be forced
     by first applying :meth:`densify`.
@@ -579,6 +579,30 @@ class BlockMatrix(object):
         writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
+    @typecheck_method(path=str,
+                      overwrite=bool,
+                      force_row_major=bool,
+                      stage_locally=bool)
+    def checkpoint(self, path, overwrite=False, force_row_major=False, stage_locally=False):
+        """Checkpoint the block matrix.
+
+        Parameters
+        ----------
+        path: :obj:`str`
+            Path for output file.
+        overwrite : :obj:`bool`
+            If ``True``, overwrite an existing file at the destination.
+        force_row_major: :obj:`bool`
+            If ``True``, transform blocks in column-major format
+            to row-major format before checkpointing.
+            If ``False``, checkpoint blocks in their current format.
+        stage_locally: :obj:`bool`
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``.
+        """
+        self.write(path, overwrite, force_row_major, stage_locally)
+        return BlockMatrix.read(path)
+
     @staticmethod
     @typecheck(entry_expr=expr_float64,
                path=str,
@@ -851,7 +875,7 @@ class BlockMatrix(object):
         Filter to a band from one below the diagonal to
         two above the diagonal and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()  # doctest: +NOTEST
+        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  0.],
                [ 5.,  6.,  7.,  8.],
                [ 0., 10., 11., 12.],
@@ -860,7 +884,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the diagonal to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()  # doctest: +NOTEST
+        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -925,7 +949,7 @@ class BlockMatrix(object):
 
         Filter to the upper triangle and collect to NumPy:
 
-        >>> bm.sparsify_triangle().to_numpy()  # doctest: +NOTEST
+        >>> bm.sparsify_triangle().to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  4.],
                [ 0.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -934,7 +958,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()  # doctest: +NOTEST
+        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -993,7 +1017,7 @@ class BlockMatrix(object):
 
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4])
-        ...    .to_numpy())  # doctest: +NOTEST
+        ...    .to_numpy())  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 0.,  2.,  0.,  0.],
                [ 0.,  0.,  0.,  0.],
                [ 0.,  0., 11.,  0.],
@@ -1005,7 +1029,7 @@ class BlockMatrix(object):
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4],
         ...                            blocks_only=True)
-        ...    .to_numpy())  # doctest: +NOTEST
+        ...    .to_numpy())  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -1805,7 +1829,7 @@ class BlockMatrix(object):
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
-        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()  # doctest: +NOTEST
+        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()  # doctest: +SKIP_OUTPUT_CHECK
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 9., 10.,  0.,  0.],
@@ -1880,7 +1904,7 @@ class BlockMatrix(object):
         >>> (BlockMatrix.from_numpy(nd)
         ...     .export_rectangles('output/example.bm', rectangles))
 
-        This produces three files in the folder ``output/example``.
+        This produces three files in the example folder.
 
         The first file is ``rect-0_0-1-0-1``:
 
@@ -1979,7 +2003,7 @@ class BlockMatrix(object):
 
         >>> BlockMatrix.from_numpy(nd, block_size=2).export_blocks('output/example')
 
-        This produces four files in the folder ``output/example``.
+        This produces four files in the example folder.
 
         The first file is ``rect-0_0-2-0-2``:
 

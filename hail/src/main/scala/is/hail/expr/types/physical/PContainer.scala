@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.cxx
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
 object PContainer {
@@ -95,18 +95,22 @@ abstract class PContainer extends PIterable {
     region.setBit(aoff + 4, i)
   }
 
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.setBit(aoff + 4L, i.toL)
-  }
+  def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    Region.setBit(aoff + 4L, i.toL)
+
+  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    setElementMissing(aoff, i)
 
   def setElementPresent(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
     region.clearBit(aoff + 4, i)
   }
 
-  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.clearBit(aoff + 4L, i.toL)
-  }
+  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    Region.clearBit(aoff + 4L, i.toL)
+
+  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    setElementPresent(aoff, i)
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
@@ -228,54 +232,37 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def cxxImpl: String = {
-    elementType match {
-      case _: PStruct | _: PTuple =>
-        s"ArrayAddrImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
-      case _ =>
-        s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], value: Code[Long], otherPT: PType, msg: String): Code[Long] = {
+    val otherPTA = otherPT.asInstanceOf[PArray]
+    assert(otherPTA.elementType.isPrimitive)
+    val oldOffset = value
+    val len = otherPTA.loadLength(oldOffset)
+    if (otherPTA.elementType.required == elementType.required) {
+      value
+    } else {
+      val newOffset = mb.newField[Long]
+      Code(
+        newOffset := allocate(r, len),
+        stagedInitialize(newOffset, len),
+        if (otherPTA.elementType.required) {
+          // convert from required to non-required
+          Code._empty
+        } else {
+          //  convert from non-required to required
+          val i = mb.newField[Int]
+          Code(
+            i := 0,
+            Code.whileLoop(i < len,
+              otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
+              i := i + 1
+            )
+          )
+        },
+        Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
+        newOffset
+      )
     }
   }
 
-  def cxxArrayBuilder: String = {
-    elementType match {
-      case _: PStruct | _: PTuple =>
-        s"ArrayAddrBuilder<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }, ${ alignment }>"
-      case _ =>
-        s"ArrayLoadBuilder<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize }, ${ elementType.alignment }, ${ alignment }>"
-    }
-  }
-
-  def cxxArraySorter(ltClass: String): String = s"ArraySorter<$cxxArrayBuilder, $ltClass>"
-
-  def cxxLoadLength(a: cxx.Code): cxx.Code = {
-    s"$cxxImpl::load_length($a)"
-  }
-
-  def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::is_element_missing($a, $i)"
-  }
-
-  def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
-    if (elementType.required)
-      "0"
-    else
-      s"(($len + 7) >> 3)"
-  }
-
-  def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
-    s"${ cxxElementsOffset(len) } + $len * ${ UnsafeUtils.arrayElementSize(elementType) }"
-  }
-
-  def cxxElementsOffset(len: cxx.Code): cxx.Code = {
-    s"$cxxImpl::elements_offset($len)"
-  }
-
-  def cxxElementAddress(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::element_address($a, $i)"
-  }
-
-  def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::load_element($a, $i)"
-  }
+  override def containsPointers: Boolean = true
 }

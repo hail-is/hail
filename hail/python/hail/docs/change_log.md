@@ -1,5 +1,72 @@
 # Change Log
 
+## 0.2.22
+
+Released 2019-09-12
+
+### New features
+- (hail#7013) Add `contig_recoding` to `import_bed` and `import_locus_intervals`.
+
+### Performance
+- (hail#6969) Improve performance of `hl.agg.mean`, `hl.agg.stats`, and `hl.agg.corr`.
+- (hail#6987) Improve performance of `import_matrix_table`.
+- (hail#7033)(hail#7049) Various improvements leading to overall 10-15%
+  improvement.
+
+### `hailctl dataproc`
+- (hail#7003) Pass through extra arguments for `hailctl dataproc list` and
+  `hailctl dataproc stop`.
+
+---
+
+## 0.2.21
+
+Released 2019-09-03
+
+### Bug fixes
+- (hail#6945) Fix `expand_types` to preserve ordering by key, also affects
+    `to_pandas` and `to_spark`.
+- (hail#6958) Fix stack overflow errors when counting the result of a `Table.union`.
+
+### New features
+- (hail#6856) Teach `hl.agg.counter` to weigh each value differently.
+- (hail#6903) Teach `hl.range` to treat a single argument as `0..N`.
+- (hail#6903) Teach `BlockMatrix` how to `checkpoint`.
+
+### Performance
+- (hail#6895) Improve performance of `hl.import_bgen(...).count()`.
+- (hail#6948) Fix performance bug in `BlockMatrix` filtering functions.
+- (hail#6943) Improve scaling of `Table.union`.
+- (hail#6980) Reduce compute time for `split_multi_hts` by as much as 40%.
+
+### `hailctl dataproc`
+- (hail#6904) Add `--dry-run` option to `submit`.
+- (hail#6951) Fix `--max-idle` and `--max-age` arguments to `start`.
+- (hail#6919) Add `--update-hail-version` to `modify`.
+
+---
+
+## 0.2.20
+
+Released 2019-08-19
+
+### Critical memory management fix
+
+- (hail#6824) Fixed memory management inside `annotate_cols` with
+  aggregations. This was causing memory leaks and segfaults.
+
+### Bug fixes
+- (hail#6769) Fix non-functional `hl.lambda_gc` method.
+- (hail#6847) Fix bug in handling of NaN in `hl.agg.min` and `hl.agg.max`.
+  These will now properly ignore NaN (the intended semantics). Note that
+  `hl.min` and `hl.max` propagate NaN; use `hl.nanmin` and  `hl.nanmax`
+  to ignore NaN.
+
+### New features
+- (hail#6847) Added `hl.nanmin` and `hl.nanmax` functions. 
+
+-----
+
 ## 0.2.19
 
 Released 2019-08-01

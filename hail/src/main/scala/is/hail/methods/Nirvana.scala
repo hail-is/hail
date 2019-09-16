@@ -8,7 +8,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -401,7 +401,7 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val localRowType = tv.typ.rowType.physicalType
+    val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
     val rowKeyOrd = tv.typ.keyType.ordering
@@ -449,7 +449,7 @@ object Nirvana {
           }
       }
 
-    val nirvanaRVDType = prev.typ.copy(rowType = (tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
+    val nirvanaRVDType = prev.typ.copy(rowType = PStruct.canonical(tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)))
 
     val nirvanaRowType = nirvanaRVDType.rowType
 

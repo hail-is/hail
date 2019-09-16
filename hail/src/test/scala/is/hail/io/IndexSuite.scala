@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
+import is.hail.expr.types.physical.{PInt32, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.index._
 import is.hail.utils._
@@ -33,14 +34,21 @@ class IndexSuite extends HailSuite {
   def writeIndex(file: String,
     data: Array[Any],
     annotations: Array[Annotation],
-    keyType: Type,
-    annotationType: Type,
+    keyType: PType,
+    annotationType: PType,
     branchingFactor: Int,
     attributes: Map[String, Any]) {
     val codecSpec = CodecSpec.default
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
-    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)
-    val iw = new IndexWriter(hc.sFS, file, keyType, annotationType, makeLeafEncoder, makeInternalEncoder, branchingFactor, attributes)
+
+    val leafType = LeafNodeBuilder.typ(keyType, annotationType)
+    val leafCodec = codecSpec.makeCodecSpec2(leafType)
+    val leafEnc = leafCodec.buildEncoder(leafType)
+
+    val intType = InternalNodeBuilder.typ(keyType, annotationType)
+    val intCodec = codecSpec.makeCodecSpec2(intType)
+    val intEnc = intCodec.buildEncoder(intType)
+
+    val iw = new IndexWriter(hc.sFS, file, keyType, annotationType, leafEnc, intEnc, leafType, intType, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
@@ -53,7 +61,7 @@ class IndexSuite extends HailSuite {
     annotationType: Type,
     branchingFactor: Int = 2,
     attributes: Map[String, Any] = Map.empty[String, Any]): Unit =
-    writeIndex(file, data.map(_.asInstanceOf[Any]), annotations, TString(), annotationType, branchingFactor, attributes)
+    writeIndex(file, data.map(_.asInstanceOf[Any]), annotations, PString(), PType.canonical(annotationType), branchingFactor, attributes)
 
   @Test(dataProvider = "elements")
   def writeReadGivesSameAsInput(data: Array[String]) {
@@ -238,13 +246,13 @@ class IndexSuite extends HailSuite {
 
   @Test def testIntervalIteratorWorksWithGeneralEndpoints() {
     for (branchingFactor <- 2 to 5) {
-      val keyType = TStruct("a" -> TString(), "b" -> TInt32())
+      val keyType = PStruct("a" -> PString(), "b" -> PInt32())
       val file = tmpDir.createTempFile("from", "idx")
       writeIndex(file,
         stringsWithDups.zipWithIndex.map { case (s, i) => Row(s, i) },
         stringsWithDups.indices.map(i => Row()).toArray,
         keyType,
-        TStruct(required = true),
+        +PStruct(),
         branchingFactor,
         Map.empty)
 

@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
 import is.hail.utils._
 
 object StagedArrayBuilder {
@@ -46,9 +46,9 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     )
   }
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>
-      val enc = codec.buildEmitEncoderF[Long](eltArray, eltArray, fb)
+      val enc = PackCodecSpec2(eltArray, codec).buildEmitEncoderF[Long](eltArray, fb)
 
       Code(
         ob.writeInt(size),
@@ -59,8 +59,9 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-    val dec = codec.buildEmitDecoderF[Long](eltArray, eltArray, fb)(_, _)
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+    val (decType, dec) = PackCodecSpec2(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, fb)
+    assert(decType == eltArray)
 
     { (ib: Code[InputBuffer]) =>
       Code(
@@ -85,14 +86,8 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     val dest = eltArray.elementOffset(data, capacity, size)
     Code(
       eltArray.setElementPresent(region, data, size),
-      eltType.fundamentalType match {
-        case _: PBoolean => Region.storeByte(dest, coerce[Boolean](elt).toI.toB)
-        case _: PInt32 => Region.storeInt(dest, coerce[Int](elt))
-        case _: PInt64 => Region.storeLong(dest, coerce[Long](elt))
-        case _: PFloat32 => Region.storeFloat(dest, coerce[Float](elt))
-        case _: PFloat64 => Region.storeDouble(dest, coerce[Double](elt))
-        case _ => StagedRegionValueBuilder.deepCopy(fb, region, eltType, coerce[Long](elt), dest)
-      }, incrementSize())
+      StagedRegionValueBuilder.deepCopy(fb, region, eltType, elt, dest),
+      incrementSize())
   }
 
   def initialize(): Code[Unit] = initialize(const(0), const(initialCapacity))

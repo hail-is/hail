@@ -18,32 +18,22 @@ object ArrayFunctions extends RegistryFunctions {
       ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
       ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
       ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2))),
-      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2))))
+      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2), TFloat64())),
+      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2), ir2.typ)))
 
-  def mean(a: IR): IR = {
+  def mean(args: Seq[IR]): IR = {
+    val Seq(a) = args
     val t = -coerce[TArray](a.typ).elementType
-    val tAccum = TStruct("sum" -> TFloat64(), "n" -> TInt32())
-    val accum = genUID()
-    val v = genUID()
-    val result = genUID()
-
-    def updateAccum(sum: IR, n: IR): IR =
-      MakeStruct(FastSeq("sum" -> sum, "n" -> n))
-
-    Let(
-      result,
-      ArrayFold(
-        a,
-        MakeStruct(FastSeq("sum" -> F64(0), "n" -> I32(0))),
-        accum,
-        v,
-        updateAccum(
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1)))),
-      ApplyBinaryPrimOp(FloatingPointDivide(),
-        GetField(Ref(result, tAccum), "sum"),
-        Cast(GetField(Ref(result, tAccum), "n"), TFloat64())))
+    val elt = genUID()
+    val n = genUID()
+    val sum = genUID()
+    ArrayFold2(
+      a,
+      FastIndexedSeq((n, I32(0)), (sum, zero(t))),
+      elt,
+      FastIndexedSeq(Ref(n, TInt32()) + I32(1), Ref(sum, t) + Ref(elt, t)),
+      Cast(Ref(sum, t), TFloat64()) / Cast(Ref(n, TInt32()), TFloat64())
+    )
   }
 
   def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
@@ -68,7 +58,7 @@ object ArrayFunctions extends RegistryFunctions {
       False(),
       "acc",
       "elt",
-      invoke("||",
+      invoke("||",TBoolean(),
         Ref("acc", TBoolean()),
         ApplyComparisonOp(
           EQWithNA(t, value.typ),
@@ -136,27 +126,29 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("product", TArray(tnum("T")), tv("T"))(product)
 
-    def makeMinMaxOp(op: String): IR => IR = {
-      { a =>
+    def makeMinMaxOp(op: String): Seq[IR] => IR = {
+      { case Seq(a) =>
         val t = -coerce[TArray](a.typ).elementType
-        val accum = genUID()
         val value = genUID()
-
-        val aUID = genUID()
-        val aRef = Ref(aUID, a.typ)
-        val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
-
-        val body = invoke(op, Ref(value, t), Ref(accum, t))
-        Let(aUID, a, ArrayFold(aRef, zVal, accum, value, body))
+        val first = genUID()
+        val acc = genUID()
+        ArrayFold2(a,
+          FastIndexedSeq((acc, NA(t)), (first, True())),
+          value,
+          FastIndexedSeq(
+            If(Ref(first, TBoolean()), Ref(value, t), invoke(op, t, Ref(acc, t), Ref(value, t))),
+            False()
+          ),
+          Ref(acc, t))
       }
     }
 
-    registerIR("min", TArray(tnum("T")), tv("T"))(makeMinMaxOp("min"))
-    registerIR("nanmin", TArray(tnum("T")), tv("T"))(makeMinMaxOp("nanmin"))
-    registerIR("max", TArray(tnum("T")), tv("T"))(makeMinMaxOp("max"))
-    registerIR("nanmax", TArray(tnum("T")), tv("T"))(makeMinMaxOp("nanmax"))
+    registerIR("min", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("min"))
+    registerIR("nanmin", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("nanmin"))
+    registerIR("max", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("max"))
+    registerIR("nanmax", Array(TArray(tnum("T"))), tv("T"), inline = true)(makeMinMaxOp("nanmax"))
 
-    registerIR("mean", TArray(tnum("T")), TFloat64())(mean)
+    registerIR("mean", Array(TArray(tnum("T"))), TFloat64(), inline = true)(mean)
 
     registerIR("median", TArray(tnum("T")), tv("T")) { array =>
       val t = -array.typ.asInstanceOf[TArray].elementType
@@ -175,7 +167,7 @@ object ArrayFunctions extends RegistryFunctions {
             ArrayLen(a),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", size, 2).cne(0),
+              If(invoke("%", TInt32(), size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }

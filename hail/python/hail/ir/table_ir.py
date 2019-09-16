@@ -131,6 +131,9 @@ class TableMapGlobals(TableIR):
                                self.child.typ.row_type,
                                self.child.typ.row_key)
 
+    def bindings(self, i, default_value=None):
+        return self.child.typ.global_env(default_value) if i == 1 else {}
+
 
 class TableExplode(TableIR):
     def __init__(self, child, path):
@@ -183,6 +186,12 @@ class TableMapRows(TableIR):
             self.child.typ.global_type,
             self.new_row.typ,
             self.child.typ.row_key)
+
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
+    def scan_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
 class TableRead(TableIR):
@@ -245,6 +254,9 @@ class TableFilter(TableIR):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
 
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
 
 class TableKeyByAndAggregate(TableIR):
     def __init__(self, child, expr, new_key, n_partitions, buffer_size):
@@ -268,6 +280,17 @@ class TableKeyByAndAggregate(TableIR):
                                self.new_key.typ._concat(self.expr.typ),
                                list(self.new_key.typ))
 
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            return self.child.typ.global_env(default_value)
+        elif i == 2:
+            return self.child.typ.row_env(default_value)
+        else:
+            return {}
+
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
 
 class TableAggregateByKey(TableIR):
     def __init__(self, child, expr):
@@ -281,6 +304,12 @@ class TableAggregateByKey(TableIR):
         self._type = hl.ttable(child_typ.global_type,
                                child_typ.key_type._concat(self.expr.typ),
                                child_typ.row_key)
+
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
 class MatrixColsTable(TableIR):
@@ -581,6 +610,32 @@ class MatrixToTableApply(TableIR):
                 hl.tstruct(),
                 child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
                 list(child_typ.row_key))
+
+
+class BlockMatrixToTableApply(TableIR):
+    def __init__(self, bm, aux, config):
+        super().__init__(bm, aux)
+        self.bm = bm
+        self.aux = aux
+        self.config = config
+
+    def head_str(self):
+        return dump_json(self.config)
+
+    def _eq(self, other):
+        return self.config == other.config
+
+    def _compute_type(self):
+        name = self.config['name']
+        assert name == 'PCRelate', name
+        self._type = hl.ttable(
+            hl.tstruct(),
+            hl.tstruct(i=hl.tint32, j=hl.tint32,
+                       kin=hl.tfloat64,
+                       ibd0=hl.tfloat64,
+                       ibd1=hl.tfloat64,
+                       ibd2=hl.tfloat64),
+            ['i', 'j'])
 
 
 class BlockMatrixToTable(TableIR):

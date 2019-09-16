@@ -404,6 +404,21 @@ object Interpret {
           }
           zeroValue
         }
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val aValue = interpret(a, env, args, aggArgs)
+        if (aValue == null)
+          null
+        else {
+          val accVals = accum.map { case (name, value) => (name, interpret(value, env, args, aggArgs)) }
+          var e = env.bindIterable(accVals)
+          aValue.asInstanceOf[IndexedSeq[Any]].foreach { elt =>
+            e = e.bind(valueName, elt)
+            accVals.indices.foreach { i =>
+              e = e.bind(accum(i)._1, interpret(seq(i), e, args, aggArgs))
+            }
+          }
+          interpret(res, e.delete(valueName), args, aggArgs)
+        }
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
@@ -456,9 +471,6 @@ object Interpret {
       case x@SeqOp(i, seqOpArgs, aggSig) =>
         assert(i == I32(0))
         aggSig.op match {
-          case Inbreeding() =>
-            val IndexedSeq(a, af) = seqOpArgs
-            aggregator.get.asInstanceOf[InbreedingAggregator].seqOp(interpret(a), interpret(af))
           case TakeBy() =>
             val IndexedSeq(a, ordering) = seqOpArgs
             aggregator.get.asInstanceOf[TakeByAggregator[_]].seqOp(interpret(a), interpret(ordering))
@@ -528,9 +540,6 @@ object Interpret {
             assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))
             new CallStatsAggregator(_ => nAlleles)
-          case Inbreeding() =>
-            assert(seqOpArgTypes == FastIndexedSeq(TCall(), TFloat64()))
-            new InbreedingAggregator(null)
           case Count() => new CountAggregator()
           case Collect() =>
             val IndexedSeq(aggType) = seqOpArgTypes
@@ -580,9 +589,6 @@ object Interpret {
             val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
-          case InfoScore() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
-            new InfoScoreAggregator(aggType.physicalType)
           case LinearRegression() =>
             val Seq(k, k0) = constructorArgs
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
@@ -661,7 +667,7 @@ object Interpret {
         fatal(if (message_ != null) message_ else "<exception message missing>")
       case ir@ApplyIR(function, functionArgs) =>
         interpret(ir.explicitNode, env, args, aggArgs)
-      case ApplySpecial("||", Seq(left_, right_)) =>
+      case ApplySpecial("||", Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -673,7 +679,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("&&", Seq(left_, right_)) =>
+      case ApplySpecial("&&", Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == false)
           false
@@ -720,7 +726,6 @@ object Interpret {
           null
         else
           stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
-
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
@@ -729,7 +734,7 @@ object Interpret {
         child.execute(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = child.execute(ctx)
-        Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.safeJavaValue)
+        Row(tv.rvd.collect().toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(_.execute(ctx))
         writer(tvs)
@@ -764,7 +769,7 @@ object Interpret {
                 SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
               }
             } else {
-              val spec = CodecSpec.defaultUncompressed
+              val spec = CodecSpec.defaultUncompressedBuffer
 
               val (_, initOp) = CompileWithAggregators2[Long, Unit](
                 extracted.aggs,

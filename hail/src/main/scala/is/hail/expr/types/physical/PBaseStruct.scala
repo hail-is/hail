@@ -2,14 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.check.Gen
-import is.hail.cxx
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
-import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
-
-import scala.reflect.{ClassTag, classTag}
 
 object PBaseStruct {
   def getMissingness(types: Array[PType], missingIdx: Array[Int]): Int = {
@@ -125,6 +118,8 @@ abstract class PBaseStruct extends PType {
     region.allocate(alignment, byteSize)
   }
 
+  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
+
   def setAllMissing(off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
     var i = 0
@@ -138,7 +133,7 @@ abstract class PBaseStruct extends PType {
   def clearMissingBits(region: Region, off: Long) {
     var i = 0
     while (i < nMissingBytes) {
-      region.storeByte(off + i, 0)
+      Region.storeByte(off + i, 0.toByte)
       i += 1
     }
   }
@@ -160,7 +155,12 @@ abstract class PBaseStruct extends PType {
     isFieldDefined(rv.region, rv.offset, fieldIdx)
 
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
-    fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
+    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
+    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldMissing(off: Long, fieldIdx: Int): Boolean = !isFieldDefined(off, fieldIdx)
 
   def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (fieldRequired(fieldIdx))
@@ -179,12 +179,12 @@ abstract class PBaseStruct extends PType {
 
   def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
+    Region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     assert(!fieldRequired(fieldIdx))
-    Region.setBit(offset, missingIdx(fieldIdx))
+    Region.setBit(offset, missingIdx(fieldIdx).toLong)
   }
 
   def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
@@ -192,7 +192,7 @@ abstract class PBaseStruct extends PType {
 
   def setFieldPresent(region: Region, offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
-    region.clearBit(offset, missingIdx(fieldIdx))
+    Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
@@ -214,7 +214,7 @@ abstract class PBaseStruct extends PType {
   def loadField(region: Region, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     types(fieldIdx).fundamentalType match {
-      case _: PArray | _: PBinary => region.loadAddress(off)
+      case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
   }
@@ -232,12 +232,5 @@ abstract class PBaseStruct extends PType {
     }
   }
 
-  def cxxIsFieldMissing(o: cxx.Code, fieldIdx: Int): cxx.Code = {
-    s"load_bit($o, ${ missingIdx(fieldIdx) })"
-  }
-
-  def cxxLoadField(o: cxx.Code, fieldIdx: Int): cxx.Code = {
-    val a = s"(((char *)$o) + (${ byteOffsets(fieldIdx) }))"
-    cxx.loadIRIntermediate(fields(fieldIdx).typ, a)
-  }
+  override def containsPointers: Boolean = types.exists(_.containsPointers)
 }

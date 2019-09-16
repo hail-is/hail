@@ -177,7 +177,7 @@ def main(args, pass_through_args):
     # command to start cluster
     cmd = conf.get_command(args.name)
 
-    if args.beta:
+    if args.beta or args.max_idle or args.max_age:
         cmd.insert(1, 'beta')
     if args.max_idle:
         cmd.append('--max-idle={}'.format(args.max_idle))

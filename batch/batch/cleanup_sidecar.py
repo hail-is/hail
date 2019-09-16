@@ -3,13 +3,13 @@ import os
 import subprocess as sp
 
 from aiohttp import web
-from hailtop import gear
+from gear import configure_logging
 
 from .stoppable_server import StoppableServer
 
 copy_output_cmd = os.environ.get('COPY_OUTPUT_CMD')
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('cleanup_sidecar')
 
 app = web.Application()
@@ -25,7 +25,8 @@ async def finish(request):
         try:
             copy_output = sp.check_output(copy_output_cmd, shell=True, stderr=sp.STDOUT)
             log.info(copy_output.decode('ascii'))
-        except sp.CalledProcessError:
+        except sp.CalledProcessError as err:
+            log.error(f'bad exit code {err.returncode}: {err.output}')
             log.exception(f'exiting 1 due to exception')
             server.stop(1)
     log.info(f'exiting cleanly')

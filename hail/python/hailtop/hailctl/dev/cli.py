@@ -2,6 +2,7 @@ import sys
 
 import argparse
 
+from . import config
 from . import deploy
 
 
@@ -15,6 +16,13 @@ def parser():
         'benchmark',
         help='Run Hail benchmarks.',
         description='Run Hail benchmarks.')
+
+    config_parser = subparsers.add_parser(
+        'config',
+        help='Configure deployment',
+        description='Configure deployment')
+
+    config.cli.init_parser(config_parser)
 
     deploy_parser = subparsers.add_parser(
         'deploy',
@@ -40,10 +48,14 @@ def main(args):
             cli.main(extra_args)
         elif module == 'deploy':
             from .deploy import cli
-            args, pass_through_args = p.parse_known_args(args=args)
+            args, _ = p.parse_known_args(args=args)
             cli.main(args)
-        elif module == '-h' or module == '--help' or module == 'help':
-            print_help()
+        elif module == 'config':
+            from .config import cli
+            args, _ = p.parse_known_args(args=args)
+            cli.main(args)
+        elif module in ('-h', '--help', 'help'):
+            p.print_help()
         else:
             sys.stderr.write(f"ERROR: no such module: {module!r}")
             p.print_help()

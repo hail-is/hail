@@ -314,8 +314,7 @@ case class Skat(
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
     val tableType = typ(mv.typ)
-
-    TableValue(tableType, BroadcastRow.empty(ctx), skatRdd)
+    TableValue(ctx, tableType.rowType, tableType.key, skatRdd)
   }
 
   def computeKeyGsWeightRdd(mv: MatrixValue,

@@ -88,8 +88,8 @@ class ValueIRTests(unittest.TestCase):
             ir.GetTupleElement(t, 1),
             ir.In(2, hl.tfloat64),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
-            ir.Apply('&&', b, c),
-            ir.Apply('toFloat64', i),
+            ir.Apply('&&', hl.tbool, b, c),
+            ir.Apply('toFloat64', hl.tfloat64, i),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
@@ -131,7 +131,9 @@ class ValueIRTests(unittest.TestCase):
 
     def test_copies(self):
         for x in self.value_irs():
-            self.assertEqual(x, x.copy(*x.children))
+            cp = x.copy(*x.children)
+            assert x == cp
+            assert hash(x) == hash(cp)
 
 
 class TableIRTests(unittest.TestCase):
@@ -145,6 +147,10 @@ class TableIRTests(unittest.TestCase):
         matrix_read = ir.MatrixRead(
             ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
             False, False)
+
+        block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader('fake_file_path'))
+
+        aa = hl.literal([[0.00],[0.01],[0.02]])._ir
 
         range = ir.TableRange(10, 4)
         table_irs = [
@@ -190,6 +196,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
             ir.MatrixToTableApply(matrix_read, {'name': 'LinearRegressionRowsSingle', 'yFields': ['col_m'], 'xField': 'entry_m', 'covFields': [], 'rowBlockSize': 10, 'passThrough': []}),
             ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.BlockMatrixToTableApply(block_matrix_read, aa, {'name': 'PCRelate', 'maf': 0.01, 'blockSize': 4096}),
             ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 

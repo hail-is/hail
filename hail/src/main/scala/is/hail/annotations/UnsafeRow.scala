@@ -6,7 +6,7 @@ import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.expr.types.physical._
 import is.hail.utils._
-import is.hail.variant.{Locus, RGBase}
+import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -95,6 +95,7 @@ object UnsafeRow {
         val includesStart = x.includesStart(region, offset)
         val includesEnd = x.includesEnd(region, offset)
         Interval(start, end, includesStart, includesEnd)
+      case nd: PNDArray => UnsafeRow.read(nd.representation, region, offset)
     }
   }
 }

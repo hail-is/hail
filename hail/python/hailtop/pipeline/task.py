@@ -262,35 +262,35 @@ class Task:
             Same task object with command appended.
         """
 
-        from .pipeline import Pipeline
-
         def handler(match_obj):
             groups = match_obj.groupdict()
             if groups['TASK']:
                 raise PipelineException(f"found a reference to a Task object in command '{command}'.")
-            elif groups['PIPELINE']:
+            if groups['PIPELINE']:
                 raise PipelineException(f"found a reference to a Pipeline object in command '{command}'.")
+
+            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
+            r_uid = match_obj.group()
+            r = self._pipeline._resource_map.get(r_uid)
+            if r is None:
+                raise PipelineException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                        f"Hint: resources must be from the same pipeline as the current task.")
+            if r._source != self:
+                self._add_inputs(r)
+                if r._source is not None:
+                    if r not in r._source._valid:
+                        name = r._source._resources_inverse[r]
+                        raise PipelineException(f"undefined resource '{name}'\n"
+                                                f"Hint: resources must be defined within "
+                                                "the task methods 'command' or 'declare_resource_group'")
+                    self._dependencies.add(r._source)
+                    r._source._add_internal_outputs(r)
             else:
-                assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
-                r_uid = match_obj.group()
-                r = self._pipeline._resource_map.get(r_uid)
-                if r is None:
-                    raise PipelineException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                            f"Hint: resources must be from the same pipeline as the current task.")
-                if r._source != self:
-                    self._add_inputs(r)
-                    if r._source is not None:
-                        if r not in r._source._valid:
-                            name = r._source._resources_inverse[r]
-                            raise PipelineException(f"undefined resource '{name}'\n"
-                                            f"Hint: resources must be defined within "
-                                            "the task methods 'command' or 'declare_resource_group'")
-                        self._dependencies.add(r._source)
-                        r._source._add_internal_outputs(r)
-                else:
-                    _add_resource_to_set(self._valid, r)
-                self._mentioned.add(r)
-                return f"${{{r_uid}}}"
+                _add_resource_to_set(self._valid, r)
+            self._mentioned.add(r)
+            return f"${{{r_uid}}}"
+
+        from .pipeline import Pipeline  # pylint: disable=cyclic-import
 
         subst_command = re.sub(f"({ResourceFile._regex_pattern})|({ResourceGroup._regex_pattern})"
                                f"|({Task._regex_pattern})|({Pipeline._regex_pattern})",

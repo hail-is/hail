@@ -192,11 +192,12 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   private[this] def encodeLiterals(): Array[Byte] = {
-    val spec = CodecSpec.defaultUncompressed
     val literals = literalsMap.toArray
     val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
+    val spec = CodecSpec.defaultUncompressed.makeCodecSpec2(litType)
 
-    val dec = spec.buildEmitDecoderF[Long](litType, litType, this)
+    val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
+    assert(litRType == litType)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
     val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]], typeInfo[Region]), typeInfo[Unit])
     val off = mb2.newLocal[Long]
@@ -432,7 +433,7 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
+  override def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"${prefix}_${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb

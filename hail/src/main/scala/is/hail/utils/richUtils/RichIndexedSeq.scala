@@ -1,5 +1,9 @@
 package is.hail.utils.richUtils
 
+import is.hail.utils._
+
+import scala.reflect.ClassTag
+
 /** Rich wrapper for an indexed sequence.
   *
   * Houses the generic binary search methods. All methods taking
@@ -152,5 +156,16 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
         return found(left, mid, right)
     }
     notFound(left)
+  }
+
+  def treeReduce(f: (T, T) => T)(implicit tct: ClassTag[T]): T = {
+    var is: IndexedSeq[T] = a
+    while (is.length > 1) {
+      is = is.iterator.grouped(2).map {
+        case Seq(x1, x2) => f(x1, x2)
+        case Seq(x1) => x1
+      }.toFastIndexedSeq
+    }
+    is.head
   }
 }

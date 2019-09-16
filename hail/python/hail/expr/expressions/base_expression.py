@@ -460,7 +460,7 @@ class Expression(object):
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
             op = ApplyComparisonOp(name, self._ir, other._ir)
         else:
-            op = Apply(name, self._ir, other._ir)
+            op = Apply(name, ret_type, self._ir, other._ir)
         return expressions.construct_expr(op, ret_type, indices, aggregations)
 
     def _bin_op_reverse(self, name, other, ret_type):
@@ -469,7 +469,7 @@ class Expression(object):
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
         indices, aggregations = unify_all(self, *args)
-        ir = Apply(name, self._ir, *(a._ir for a in args))
+        ir = Apply(name, ret_type, self._ir, *(a._ir for a in args))
         return expressions.construct_expr(ir, ret_type, indices, aggregations)
 
     def _index(self, ret_type, key):
@@ -593,74 +593,50 @@ class Expression(object):
         return self._compare_op("!=", other)
 
     def _to_table(self, name):
-        return self._to_relational(name, force_table=True)
+        name, ds = self._to_relational(name)
+        if isinstance(ds, hail.MatrixTable):
+            entries = ds.key_cols_by().entries()
+            entries = entries.order_by(*ds.row_key)
+            return name, entries.select(name)
+        else:
+            if len(ds.key) != 0:
+                ds = ds.order_by(*ds.key)
+            return name, ds.select(name)
 
-    def _to_relational(self, name, force_table=False):
+    def _to_relational(self, fallback_name):
         source = self._indices.source
         axes = self._indices.axes
         if not self._aggregations.empty():
             raise NotImplementedError('cannot convert aggregated expression to table')
+
         if source is None:
-            # scalar expression
-            df = Env.dummy_table()
-            df = df.select(**{name: self})
-            to_return = df
-        elif len(axes) == 0:
-            uid = Env.get_uid()
-            source = source.select_globals(**{uid: self})
-            df = Env.dummy_table()
-            df = df.select(**{name: source.index_globals()[uid]})
-            to_return = df
-        elif len(axes) == 1:
-            if isinstance(source, hail.Table):
-                df = source
-                field_name = source._fields_inverse.get(self)
-                if field_name is not None:
-                    if field_name in source.key:
-                        df = df.select()
-                    else:
-                        df = df.select(field_name)
-                    if field_name != name:
-                        df = df.rename({field_name: name})
-                else:
-                    df = df.select(**{name: self})
-                to_return = df.select_globals()
+            return fallback_name, Env.dummy_table().select(**{fallback_name: self})
+
+        name = source._fields_inverse.get(self)
+        top_level = name is not None
+        if not top_level:
+            name = fallback_name
+        named_self = {name: self}
+        if len(axes) == 0:
+            x = source.select_globals(**named_self)
+            ds = Env.dummy_table().select(**{name: x.index_globals()[name]})
+        elif isinstance(source, hail.Table):
+            if top_level and name in source.key:
+                named_self = {}
+            ds = source.select(**named_self).select_globals()
+        elif isinstance(source, hail.MatrixTable):
+            if self._indices == source._row_indices:
+                if top_level and name in source.row_key:
+                    named_self = {}
+                ds = source.select_rows(**named_self).select_globals().rows()
+            elif self._indices == source._col_indices:
+                if top_level and name in source.col_key:
+                    named_self = {}
+                ds = source.select_cols(**named_self).select_globals().key_cols_by().cols()
             else:
-                assert isinstance(source, hail.MatrixTable)
-                if self._indices == source._row_indices:
-                    field_name = source._fields_inverse.get(self)
-                    if field_name is not None:
-                        if field_name in source.row_key:
-                            m = source.select_rows()
-                        else:
-                            m = source.select_rows(field_name)
-                        m = m.rename({field_name: name})
-                    else:
-                        m = source.select_rows(**{name: self})
-                    to_return = m.rows().select_globals()
-                else:
-                    field_name = source._fields_inverse.get(self)
-                    if field_name is not None:
-                        if field_name in source.col_key:
-                            m = source.select_cols()
-                        else:
-                            m = source.select_cols(field_name)
-                        m = m.rename({field_name: name})
-                    else:
-                        m = source.select_cols(**{name: self})
-                    to_return = m.key_cols_by().cols().select_globals()
-        else:
-            assert len(axes) == 2
-            assert isinstance(source, hail.MatrixTable)
-            source = source.select_entries(**{name: self}).select_rows().select_cols()
-            if force_table:
-                to_return = source.key_cols_by().entries().select_globals()
-            else:
-                to_return = source.select_globals()
-        assert self.dtype == to_return[name].dtype, f'type mismatch:\n' \
-                                                    f'  Actual:    {self.dtype}\n' \
-                                                    f'  Should be: {to_return[name].dtype}'
-        return to_return
+                assert self._indices == source._entry_indices
+                ds = source.select_entries(**named_self).select_globals().select_cols().select_rows()
+        return name, ds
 
     @typecheck_method(n=nullable(int),
                       width=nullable(int),
@@ -725,34 +701,149 @@ class Expression(object):
         if kwargs.get('n_rows') is None:
             kwargs['n_rows'] = kwargs['n']
         del kwargs['n']
-        self._to_relational_preserving_rows_and_cols().show(
-            **{k: v for k, v in kwargs.items() if v is not None})
+        _, ds = self._to_relational_preserving_rows_and_cols('<expr>')
+        ds.show(**{k: v for k, v in kwargs.items() if v is not None})
 
-    def _to_relational_preserving_rows_and_cols(self):
-        name = '<expr>'
+    def _to_relational_preserving_rows_and_cols(self, fallback_name):
         source = self._indices.source
         if isinstance(source, hl.Table):
             if self is source.row:
-                return source
-            elif self is source.key:
-                return source.select()
-        elif isinstance(source, hl.MatrixTable):
+                return None, source
+            if self is source.key:
+                return None, source.select()
+        if isinstance(source, hl.MatrixTable):
             if self is source.row:
-                return source.rows()
-            elif self is source.row_key:
-                return source.rows().select()
+                return None, source.rows()
+            if self is source.row_key:
+                return None, source.rows().select()
             if self is source.col:
-                return source.cols()
-            elif self is source.col_key:
-                return source.cols().select()
+                return None, source.key_cols_by().cols()
+            if self is source.col_key:
+                return None, source.key_cols_by().cols().select()
             if self is source.entry:
-                return source.select_rows().select_cols()
-        if source is not None:
-            name = source._fields_inverse.get(self, name)
-        x = self._to_relational(name)
-        if isinstance(x, hl.Table) and name in x.key:
-            return x.order_by(*x.key).select(name)
-        return x
+                return None, source.select_rows().select_cols()
+        return self._to_relational(fallback_name)
+
+    @typecheck_method(path=str, delimiter=str, missing=str, header=bool)
+    def export(self, path, delimiter='\t', missing='NA', header=True):
+        """Export a field to a text file.
+
+        Examples
+        --------
+
+        >>> small_mt.GT.export('output/gt.tsv')
+        >>> with open('output/gt.tsv', 'r') as f:
+        ...     for line in f:
+        ...         print(line, end='')
+        locus	alleles	0	1	2	3
+        1:1	["A","C"]	0/1	0/1	0/0	0/0
+        1:2	["A","C"]	1/1	0/1	1/1	1/1
+        1:3	["A","C"]	1/1	0/1	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	1/1
+        <BLANKLINE>
+
+        >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
+        >>> with open('output/gt-no-header.tsv', 'r') as f:
+        ...     for line in f:
+        ...         print(line, end='')
+        1:1	["A","C"]	0/1	0/1	0/0	0/0
+        1:2	["A","C"]	1/1	0/1	1/1	1/1
+        1:3	["A","C"]	1/1	0/1	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	1/1
+        <BLANKLINE>
+
+        >>> small_mt.pop.export('output/pops.tsv')
+        >>> with open('output/pops.tsv', 'r') as f:
+        ...     for line in f:
+        ...         print(line, end='')
+        sample_idx	pop
+        0	2
+        1	2
+        2	0
+        3	2
+        <BLANKLINE>
+
+        >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
+        >>> with open('output/ancestral_af.tsv', 'r') as f:
+        ...     for line in f:
+        ...         print(line, end='')
+        locus	alleles	ancestral_af
+        1:1	["A","C"]	5.3905e-01
+        1:2	["A","C"]	8.6768e-01
+        1:3	["A","C"]	4.3765e-01
+        1:4	["A","C"]	7.6300e-01
+        <BLANKLINE>
+
+        >>> mt = small_mt
+        >>> small_mt.bn.export('output/bn.tsv')
+        >>> with open('output/bn.tsv', 'r') as f:
+        ...     for line in f:
+        ...         print(line, end='')
+        bn
+        {"n_populations":3,"n_samples":4,"n_variants":4,"n_partitions":8,"pop_dist":[1,1,1],"fst":[0.1,0.1,0.1],"mixture":false}
+        <BLANKLINE>
+
+
+        Notes
+        -----
+
+        For entry-indexed expressions, if there is one column key field, the
+        result of calling :func:`hl.str` on that field is used as the column
+        header. Otherwise, each compound column key is converted to JSON and
+        used as a column header. For example:
+
+        >>> small_mt = small_mt.key_cols_by(s=small_mt.sample_idx, family='fam1')
+        >>> small_mt.GT.export('output/gt-no-header.tsv')
+        >>> with open('output/gt-no-header.tsv', 'r') as f:
+        ...     for line in f:
+        ...         print(line, end='')
+        locus	alleles	{"s":0,"family":"fam1"}	{"s":1,"family":"fam1"}	{"s":2,"family":"fam1"}	{"s":3,"family":"fam1"}
+        1:1	["A","C"]	0/1	0/1	0/0	0/0
+        1:2	["A","C"]	1/1	0/1	1/1	1/1
+        1:3	["A","C"]	1/1	0/1	0/1	0/0
+        1:4	["A","C"]	1/1	0/1	1/1	1/1
+        <BLANKLINE>
+
+
+        Parameters
+        ----------
+        path : :obj:`str`
+            The path to which to export.
+        delimiter : :obj:`str`
+            The string for delimiting columns.
+        missing : :obj:`str`
+            The string to output for missing values.
+        header : :obj:`bool`
+            When ``True`` include a header line.
+        """
+        uid = Env.get_uid()
+        self_name, ds = self._to_relational_preserving_rows_and_cols(uid)
+        if isinstance(ds, hl.Table):
+            ds.export(output=path, delimiter=delimiter, header=header)
+        else:
+            assert len(self._indices.axes) == 2
+            entries, cols = Env.get_uid(), Env.get_uid()
+            t = ds.select_cols().localize_entries(entries, cols)
+            t = t.order_by(*t.key)
+            output_col_name = Env.get_uid()
+            entry_array = t[entries]
+            if self_name:
+                entry_array = hl.map(lambda x: x[self_name], entry_array)
+            entry_array = hl.map(lambda x: hl.cond(hl.is_missing(x), missing, hl.str(x)),
+                                 entry_array)
+            file_contents = t.select(
+                **{k: hl.str(t[k]) for k in ds.row_key},
+                **{output_col_name: hl.delimit(entry_array, delimiter)})
+            if header:
+                col_key = t[cols]
+                if len(ds.col_key) == 1:
+                    col_key = hl.map(lambda x: x[0], col_key)
+                column_names = hl.map(hl.str, col_key).collect(_localize=False)[0]
+                header_table = hl.utils.range_table(1).key_by().select(
+                    **{k: k for k in ds.row_key},
+                    **{output_col_name: hl.delimit(column_names, delimiter)})
+                file_contents = header_table.union(file_contents)
+            file_contents.export(path, delimiter=delimiter, header=False)
 
 
     @typecheck_method(n=int, _localize=bool)
@@ -781,11 +872,11 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        e = self._to_table(uid).take(n, _localize=False).map(lambda r: r[uid])
+        name, t = self._to_table(uid)
+        e = t.take(n, _localize=False).map(lambda r: r[name])
         if _localize:
             return hl.eval(e)
-        else:
-            return e
+        return e
 
     @typecheck_method(_localize=bool)
     def collect(self, _localize=True):
@@ -812,14 +903,11 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid)
-        t = t.order_by(*t.key).select(uid)
-
-        e = t.collect(_localize=False).map(lambda r: r[uid])
+        name, t = self._to_table(uid)
+        e = t.collect(_localize=False).map(lambda r: r[name])
         if _localize:
             return hl.eval(e)
-        else:
-            return e
+        return e
 
     def summarize(self):
         """Compute and print summary information about the expression.

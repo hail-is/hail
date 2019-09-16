@@ -10,7 +10,7 @@ object Contig {
 
 object VariantMethods {
 
-  def parse(str: String, rg: RGBase): (Locus, IndexedSeq[String]) = {
+  def parse(str: String, rg: ReferenceGenome): (Locus, IndexedSeq[String]) = {
     val elts = str.split(":")
     val size = elts.length
     if (size < 4)

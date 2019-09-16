@@ -54,7 +54,7 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseLocusInterval(input: String, rg: RGBase, invalidMissing: Boolean): Interval = {
+  def parseLocusInterval(input: String, rg: ReferenceGenome, invalidMissing: Boolean): Interval = {
     parseAll[Interval](locusInterval(rg, invalidMissing), input) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => fatal(
@@ -139,7 +139,7 @@ object Parser extends JavaTokenParsers {
       bounds ^^ { int => Interval(int._1, int._2, int._3, int._4) }
   }
 
-  def locusInterval(rgBase: RGBase, invalidMissing: Boolean): Parser[Interval] = {
+  def locusInterval(rgBase: ReferenceGenome, invalidMissing: Boolean): Parser[Interval] = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
     val contig = rg.contigParser
 
@@ -156,14 +156,13 @@ object Parser extends JavaTokenParsers {
         } |
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1), Locus(c2, rg.contigLength(c2)), true, true) } |
         contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c)), true, true) }
-
     intervalWithEndpoints(valueParser) ^^ { i => rg.toLocusInterval(i, invalidMissing) }
   }
 
-  def locusUnchecked(rg: RGBase): Parser[Locus] =
+  def locusUnchecked(rg: ReferenceGenome): Parser[Locus] =
     (rg.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(rg.contigLength(c))) }
 
-  def locus(rg: RGBase): Parser[Locus] =
+  def locus(rg: ReferenceGenome): Parser[Locus] =
     (rg.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(rg.contigLength(c)), rg) }
 
   def coerceInt(s: String): Int = try {

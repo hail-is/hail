@@ -34,6 +34,6 @@ def define_function(f, *param_types, _name=None):
     @typecheck(args=expr_any)
     def f(*args):
         indices, aggregations = unify_all(*args)
-        return construct_expr(Apply(mname, *(a._ir for a in args)), ret_type, indices, aggregations)
+        return construct_expr(Apply(mname, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
     return Function(f, param_types, ret_type, mname)

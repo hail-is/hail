@@ -3,8 +3,7 @@ import os
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
-
-from .blocking_to_async import blocking_to_async
+from hailtop.utils import blocking_to_async
 
 
 class GCS:

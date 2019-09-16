@@ -33,6 +33,8 @@ class PString(override val required: Boolean) extends PType {
     assert(this isOfType other)
     PBinary(required).codeOrdering(mb, PBinary(other.required))
   }
+
+  override def containsPointers: Boolean = true
 }
 
 object PString {
@@ -40,9 +42,14 @@ object PString {
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 
+  def loadString(boff: Long): String = {
+    val length = PBinary.loadLength(boff)
+    new String(Region.loadBytes(PBinary.bytesOffset(boff), length))
+  }
+
   def loadString(region: Region, boff: Long): String = {
     val length = PBinary.loadLength(region, boff)
-    new String(region.loadBytes(PBinary.bytesOffset(boff), length))
+    new String(Region.loadBytes(PBinary.bytesOffset(boff), length))
   }
 
   def loadString(boff: Code[Long]): Code[String] = {

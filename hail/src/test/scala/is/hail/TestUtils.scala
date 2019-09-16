@@ -5,9 +5,9 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.backend.spark.SparkBackend
-import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
+import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -18,12 +18,12 @@ import org.apache.spark.sql.Row
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile, LoweredJVMCompile = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile = Value
 
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
-  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
-  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile, CxxCompile)
+  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
 }
 
 object TestUtils {
@@ -142,71 +142,6 @@ object TestUtils {
       None
   }
 
-  def nativeExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
-    if (agg.isDefined)
-      throw new CXXUnsupportedOperation
-
-    if (env.m.isEmpty && args.isEmpty) {
-      try {
-        val (res, _) = HailContext.backend.cxxLowerAndExecute(x, optimize = false)
-        res
-      } catch {
-        case e: CXXUnsupportedOperation =>
-          throw e
-      }
-    } else {
-      val inputTypesB = new ArrayBuilder[Type]()
-      val inputsB = new ArrayBuilder[Any]()
-
-      args.foreach { case (v, t) =>
-        inputsB += v
-        inputTypesB += t
-      }
-
-      env.m.foreach { case (name, (v, t)) =>
-        inputsB += v
-        inputTypesB += t
-      }
-
-      val argsType = TTuple(inputTypesB.result(): _*)
-      val resultType = TTuple(x.typ)
-      val argsVar = genUID()
-
-      val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
-        (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
-      }
-
-      def rewrite(x: IR): IR = {
-        x match {
-          case In(i, t) =>
-            GetTupleElement(In(0, argsType), i)
-          case _ =>
-            MapIR(rewrite)(x)
-        }
-      }
-
-      val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
-      val f = cxx.Compile(
-        argsVar, argsType.physicalType,
-        MakeTuple.ordered(FastSeq(rewritten)), false)
-
-      Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(argsType.physicalType)
-        rvb.startTuple()
-        var i = 0
-        while (i < inputsB.length) {
-          rvb.addAnnotation(inputTypesB(i), inputsB(i))
-          i += 1
-        }
-        rvb.endTuple()
-        val argsOff = rvb.end()
-
-        val resultOff = f(region.get(), argsOff)
-        SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
-      }
-    }
-  }
 
   def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
@@ -247,23 +182,25 @@ object TestUtils {
       }
     }
 
+    val argsPType = PType.canonical(argsType)
     agg match {
       case Some((aggElements, aggType)) =>
         val aggVar = genUID()
         val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
+        val aggPType = PType.canonical(aggType)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          argsVar, argsType.physicalType,
-          argsVar, argsType.physicalType,
-          aggVar, aggType.physicalType,
+          argsVar, argsPType,
+          argsVar, argsPType,
+          aggVar, aggPType,
           MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
         val (resultType2, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
-          argsVar, argsType.physicalType,
+          argsVar, argsPType,
           postAggIR)
         assert(resultType2.virtualType == resultType)
 
@@ -271,7 +208,7 @@ object TestUtils {
           val rvb = new RegionValueBuilder(region)
 
           // copy args into region
-          rvb.start(argsType.physicalType)
+          rvb.start(argsPType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -288,7 +225,7 @@ object TestUtils {
           var seqOpF = seqOps(0, region)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
-            rvb.start(aggType.physicalType)
+            rvb.start(aggPType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -303,7 +240,7 @@ object TestUtils {
           seqOpF = seqOps(1, region)
           while (i < aggElements.length) {
             // FIXME use second region for elements
-            rvb.start(aggType.physicalType)
+            rvb.start(aggPType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -326,18 +263,18 @@ object TestUtils {
           val aggResultsOff = rvb.end()
 
           val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
-          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+          SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
         }
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
-          argsVar, argsType.physicalType,
+          argsVar, argsPType,
           MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)
-          rvb.start(argsType.physicalType)
+          rvb.start(argsPType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -348,7 +285,7 @@ object TestUtils {
           val argsOff = rvb.end()
 
           val resultOff = f(0, region)(region, argsOff, false)
-          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+          SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
         }
     }
   }
@@ -381,20 +318,11 @@ object TestUtils {
 
     assert(t.valuesSimilar(i, c), s"interpret $i vs compile $c")
     assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
-
-    try {
-      val c2 = nativeExecute(x, env, args, agg)
-      assert(t.typeCheck(c2))
-      assert(t.valuesSimilar(c2, c), s"native compile $c2 vs compile $c")
-    } catch {
-      case _: CXXUnsupportedOperation =>
-    }
   }
 
   def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit = {
     assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
   }
-
 
   def assertEvalsTo(x: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
@@ -439,7 +367,6 @@ object TestUtils {
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
               eval(x, env, args, agg)
-            case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
             case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
           }
           assert(t.typeCheck(res))

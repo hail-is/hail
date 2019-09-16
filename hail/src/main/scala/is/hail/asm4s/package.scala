@@ -201,6 +201,8 @@ package object asm4s {
 
   implicit def toCodeDouble(c: Code[Double]): CodeDouble = new CodeDouble(c)
 
+  implicit def toCodeChar(c: Code[Char]): CodeChar = new CodeChar(c)
+
   implicit def toCodeString(c: Code[String]): CodeString = new CodeString(c)
 
   implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
@@ -232,6 +234,10 @@ package object asm4s {
 
   implicit def toCodeDouble(f: Settable[Double]): CodeDouble = new CodeDouble(f.load())
 
+  implicit def toCodeChar(f: Settable[Char]): CodeChar = new CodeChar(f.load())
+
+  implicit def toCodeString(f: Settable[String]): CodeString = new CodeString(f.load())
+
   implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
 
   implicit def toCodeBoolean(f: Settable[Boolean]): CodeBoolean = new CodeBoolean(f.load())
@@ -253,6 +259,8 @@ package object asm4s {
   implicit def const(f: Float): Code[Float] = Code(new LdcInsnNode(f))
 
   implicit def const(d: Double): Code[Double] = Code(new LdcInsnNode(d))
+
+  implicit def const(c: Char): Code[Char] = Code(new LdcInsnNode(c))
 
   implicit def const(b: Byte): Code[Byte] = Code(new LdcInsnNode(b))
 }

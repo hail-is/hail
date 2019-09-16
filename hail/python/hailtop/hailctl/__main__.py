@@ -16,6 +16,9 @@ def print_help():
     subs.add_parser('dataproc',
                     help='Manage Google Dataproc clusters configured for Hail.',
                     description='Manage Google Dataproc clusters configured for Hail.')
+    subs.add_parser('auth',
+                    help='Manage Hail credentials.',
+                    description='Manage Hail credentials.')
     subs.add_parser('dev',
                     help='Manage Hail development utilities.',
                     description='Manage Hail development utilities.')
@@ -48,7 +51,7 @@ def check_for_update():
             import subprocess as sp
             try:
                 pip_out = sp.check_output(['pip', 'search', 'hail'], stderr=sp.STDOUT)
-            except:
+            except Exception:  # pylint: disable=broad-except
                 pip_out = sp.check_output(['pip3', 'search', 'hail'], stderr=sp.STDOUT)
 
             latest = re.search(r'hail \((\d+)\.(\d+)\.(\d+).*', pip_out.decode()).groups()
@@ -67,7 +70,7 @@ def check_for_update():
                                  f'  To upgrade to the latest version, please run:\n\n'
                                  f'    pip3 install -U hail\n\n'
                                  f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n')
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         pass
 
 
@@ -89,13 +92,16 @@ def main():
         elif module == 'dataproc':
             from hailtop.hailctl.dataproc import cli
             cli.main(args)
+        elif module == 'auth':
+            from hailtop.hailctl.auth import cli
+            cli.main(args)
         elif module == 'dev':
             from hailtop.hailctl.dev import cli
             cli.main(args)
         elif module == 'batch':
             from hailtop.hailctl.batch import cli
             cli.main(args)
-        elif module == '-h' or module == '--help' or module == 'help':
+        elif module in ('-h', '--help', 'help'):
             print_help()
         else:
             sys.stderr.write(f"ERROR: no such module: {module!r}")

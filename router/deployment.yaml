@@ -30,6 +30,34 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch2
+  labels:
+    app: batch2
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch2
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: ci
   labels:
     app: ci
@@ -84,6 +112,20 @@ spec:
   selector:
     app: notebook2
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 5000
+  selector:
+    app: auth
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -129,8 +171,10 @@ spec:
              memory: "1G"
              cpu: "1"
          env:
-          - name: DOMAIN
-            value: {{ default_ns.domain }}
+          - name: HAIL_DOMAIN
+            value: {{ global.domain }}
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: {{ default_ns.name }}
          ports:
           - containerPort: 80
          readinessProbe:
