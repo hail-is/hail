@@ -5,20 +5,20 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.utils._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer, EmitPackEncoder}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 
 class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
   val resultType = PArray(elemType, required = true)
 
   class State(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
-    override def regionSize: Int = Region.REGULAR
 
     val r = fb.newField[Region]
     val region = r.load
     val bll = new StagedBlockLinkedList(elemType, fb)
 
-    val isLoaded: Code[Boolean] = region.isValid
+    def storageType = bll.storageType
+    override def regionSize: Int = Region.REGULAR
 
     def createState: Code[Unit] =
       region.isNull.orEmpty(Code(
@@ -27,8 +27,6 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
     def newState: Code[Unit] =
       region.getNewRegion(regionSize)
-
-    val storageType = bll.storageType
 
     def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
       Code(
@@ -48,15 +46,15 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
         bll.initWithDeepCopy(region, copyBll))
     }
 
-    def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] =
+    def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] =
       bll.serialize(region, _)
 
-    def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-      { ob => Code(bll.init(region), bll.deserialize(region, ob)) }
+    def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+      { ib => Code(bll.init(region), bll.deserialize(region, ib)) }
     }
   }
 
-  def createState(fb: EmitFunctionBuilder[_]) =
+  def createState(fb: EmitFunctionBuilder[_]): State =
     new State(fb)
 
   def initOp(state: State, args: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
