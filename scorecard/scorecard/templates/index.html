@@ -15,7 +15,7 @@
             <tbody>
             {% for user, d in user_data.items() %}
             <tr>
-                <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
+                <td align="left"><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
                 <td align="left">
                     {% for pr in d['NEEDS_REVIEW'] %}
                     <a href="{{ pr.html_url }}">{{ pr.id }}</a>
@@ -56,7 +56,7 @@
             <tbody>
             {% for issue in urgent_issues %}
                 <tr>
-                    <td align="left"><a href="/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
+                    <td align="left"><a href="{{ base_path }}/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
                     <td align="left">{{ issue['AGE'] }}</td>
                     <td align="left">
                         <a href="{{ issue['ISSUE'].html_url }}">{{ issue['ISSUE'].title }}</a>
@@ -76,7 +76,7 @@
           {% for component, user in component_user.items() %}
 	  <tr>
             <td align="left">{{ component }}</td>
-            <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
+            <td align="left"><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
 	  </tr>
 	  {% endfor %}
 	</tbody>
