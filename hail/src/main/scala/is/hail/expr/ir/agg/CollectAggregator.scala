@@ -18,11 +18,11 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
     val bll = new StagedBlockLinkedList(elemType, fb)
 
     def storageType = bll.storageType
-    override def regionSize: Int = Region.REGULAR
+    override def regionSize: Region.Size = Region.REGULAR
 
     def createState: Code[Unit] =
       region.isNull.orEmpty(Code(
-        r := Code.newInstance[Region, Int](regionSize),
+        r := Region.stagedCreate(regionSize),
         region.invalidate()))
 
     def newState: Code[Unit] =
