@@ -15,31 +15,19 @@ from hail.matrixtable import MatrixTable
 class Backend(abc.ABC):
     @abc.abstractmethod
     def execute(self, ir, timed=False):
-        return
+        pass
 
     @abc.abstractmethod
     def value_type(self, ir):
-        return
+        pass
 
     @abc.abstractmethod
     def table_type(self, tir):
-        return
+        pass
 
     @abc.abstractmethod
     def matrix_type(self, mir):
-        return
-
-    def persist_table(self, t, storage_level):
-        return t
-
-    def unpersist_table(self, t):
-        return t
-
-    def persist_matrix_table(self, mt, storage_level):
-        return mt
-
-    def unpersist_matrix_table(self, mt):
-        return mt
+        pass
 
     @abc.abstractmethod
     def add_reference(self, config):
@@ -47,7 +35,7 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def load_references_from_dataset(self, path):
-        return []
+        pass
 
     @abc.abstractmethod
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
@@ -85,6 +73,18 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def fs(self):
         pass
+
+    def persist_table(self, t, storage_level):
+        return t
+
+    def unpersist_table(self, t):
+        return t
+
+    def persist_matrix_table(self, mt, storage_level):
+        return mt
+
+    def unpersist_matrix_table(self, mt):
+        return mt
 
 
 class SparkBackend(Backend):
@@ -314,6 +314,9 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
+
+    def load_references_from_dataset(self, path):
+        raise NotImplementedError
 
     def add_sequence(self, name, fasta_file, index_file):
         resp = requests.post(f'{self.url}/references/sequence/set',

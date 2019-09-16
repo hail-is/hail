@@ -68,9 +68,9 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         if _backend is None:
-            apiserver_url = os.environ.get('HAIL_APISERVER_URL')
-            if apiserver_url is not None:
-                _backend = ServiceBackend(apiserver_url)
+            #FIXME: either user HAIL_APISERVER_URL, or use another method to instantiate ServiceBackend
+            if os.environ.get('HAIL_APISERVER_URL') is not None:
+                _backend = ServiceBackend()
             else:
                 _backend = SparkBackend()
         self._backend = _backend
