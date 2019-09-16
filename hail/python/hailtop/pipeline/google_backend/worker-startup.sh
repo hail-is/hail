@@ -1,6 +1,8 @@
 #!/bin/bash
 set -x
 
+export HOME=/root
+
 for i in $(seq 1 30); do
     gsutil -m cp gs://hail-common/dev2/pipeline/run-worker.sh gs://hail-common/dev2/pipeline/worker.py /
     if [[ $? = 0 ]]; then
