@@ -22,6 +22,11 @@ spec:
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"
+        env:
+         - name: HAIL_DEPLOY_CONFIG_FILE
+           value: /deploy-config/deploy-config.json
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
         resources:
           requests:
             memory: "500M"
@@ -34,6 +39,9 @@ spec:
             name: scorecard-github-access-token
           - name: session-secret-key
             mountPath: /session-secret-key
+            readOnly: true
+          - name: deploy-config
+            mountPath: /deploy-config
             readOnly: true
         readinessProbe:
             httpGet:
@@ -49,6 +57,10 @@ spec:
           secret:
             optional: false
             secretName: session-secret-key
+        - name: deploy-config
+          secret:
+            optional: false
+            secretName: deploy-config
 ---
 apiVersion: v1
 kind: Service
