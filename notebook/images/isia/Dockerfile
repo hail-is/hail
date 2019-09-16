@@ -1,1 +1,1 @@
-FROM gcr.io/hail-vdc/isia:5cd7be9cc0fc1d6b9f1f23b0ed8233926f1e39dfce2b5c017898d6640e6f54da
+FROM gcr.io/hail-vdc/isia:6410922184dc4eb05d8e43e0d1a7cf43f5acb6a21cf9890320ffc5710926c6ad
