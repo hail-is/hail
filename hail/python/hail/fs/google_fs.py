@@ -32,7 +32,7 @@ class GoogleCloudStorageFS(FS):
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 2**18):
         if self._is_local(path):
-            if not os.path.exists(path) and mode.startswith('w'):
+            if mode.startswith('w') and not os.path.exists(path):
                 parts = os.path.split(path)
                 if not os.path.exists(parts[0]):
                     os.makedirs(parts[0])
