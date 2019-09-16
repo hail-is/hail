@@ -68,7 +68,6 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         if _backend is None:
-            #FIXME: either user HAIL_APISERVER_URL, or use another method to instantiate ServiceBackend
             if os.environ.get('HAIL_APISERVER_URL') is not None:
                 _backend = ServiceBackend()
             else:
