@@ -1,4 +1,4 @@
-FROM {{ base_image.image }}
+FROM {{ service_base_image.image }}
 
 COPY scorecard/setup.py /scorecard/
 COPY scorecard/scorecard /scorecard/scorecard/

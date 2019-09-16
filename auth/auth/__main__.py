@@ -4,7 +4,7 @@ configure_logging()
 
 
 def main():
-    from .scorecard import run
+    from .auth import run
     run()
 
 

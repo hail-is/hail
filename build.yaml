@@ -166,7 +166,7 @@ steps:
    contextPath: .
    publishAs: scorecard
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: check_scorecard
    image:
