@@ -42,7 +42,7 @@ timestamp = None
 @aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(deploy_config, userdata, 'notebook2')
+    context = base_context(deploy_config, userdata, 'scorecard')
     user_data, unassigned, urgent_issues, updated = get_users()
     component_random_user = {c: random.choice(us) for c, us in component_users.items()}
     context['unassigned'] = unassigned
@@ -57,7 +57,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('user.html')
 @web_maybe_authenticated_user
 async def html_get_user(request, userdata):
-    context = base_context(deploy_config, userdata, 'notebook2')
+    context = base_context(deploy_config, userdata, 'scorecard')
     user = request.match_info['user']
     user_data, updated = get_user(user)
     context['user'] = user
