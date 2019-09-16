@@ -3150,32 +3150,8 @@ class Tests(unittest.TestCase):
         assert(evaled.strides == np_equiv.strides)
 
 
-
     @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_shape_cxx(self):
-        np_e = np.array(3)
-        np_row = np.array([1, 2, 3])
-        np_col = np.array([[1], [2], [3]])
-        np_m = np.array([[1, 2], [3, 4]])
-        np_nd = np.arange(30).reshape((2, 5, 3))
-
-        e = hl._ndarray(np_e)
-        row = hl._ndarray(np_row)
-        col = hl._ndarray(np_col)
-        m = hl._ndarray(np_m)
-        nd = hl._ndarray(np_nd)
-
-        self.batch_assert_evals_to(
-            (e.shape, np_e.shape),
-            (row.shape, np_row.shape),
-            (m.shape, np_m.shape),
-            (nd.shape, np_nd.shape),
-            ((row + nd).shape, (np_row + np_nd).shape),
-            ((row + col).shape, (np_row + np_col).shape))
-
-    @skip_unless_spark_backend()
-    def test_ndarray_shape_jvm(self):
+    def test_ndarray_shape(self):
         np_e = np.array(3)
         np_row = np.array([1, 2, 3])
         np_col = np.array([[1], [2], [3]])
@@ -3195,7 +3171,8 @@ class Tests(unittest.TestCase):
             (m.shape, np_m.shape),
             (nd.shape, np_nd.shape),
             ((row + nd).shape, (np_row + np_nd).shape),
-            ((row + col).shape, (np_row + np_col).shape))
+            ((row + col).shape, (np_row + np_col).shape),
+            (m.transpose().shape, np_m.transpose().shape))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

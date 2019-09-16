@@ -115,7 +115,8 @@ object InferType {
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
       case NDArrayShape(nd) =>
-        TTuple(nd.typ.required, List.tabulate(nd.typ.asInstanceOf[TNDArray].nDims)(_ => TInt64()):_*)
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        ndType.representation.fieldType("shape").asInstanceOf[TTuple].setRequired(ndType.required)
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayMap(nd, _, body) =>

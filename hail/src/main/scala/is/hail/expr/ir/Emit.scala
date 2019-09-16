@@ -1393,7 +1393,6 @@ private class Emit(
         val shapeSrvb = new StagedRegionValueBuilder(mb, targetShapePType)
         val ndAddress = mb.newField[Long]
 
-
         def getShapeAtIdx(index: Int) = Region.loadLong(shapePType.loadField(shapet.value[Long], index))
 
         val setup = Code(
@@ -1417,10 +1416,9 @@ private class Emit(
         EmitTriplet(setup, false, ndAddress)
       case x@NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
-        val t = ndIR.pType.asInstanceOf[PNDArray].representation
-        val shape = t.loadField(region, ndt.value[Long], "shape")
+        val repr = ndIR.pType.asInstanceOf[PNDArray].representation
 
-        EmitTriplet(ndt.setup, false, shape)
+        EmitTriplet(ndt.setup, false, repr.loadField(region, ndt.value[Long], "shape"))
       case x@NDArrayReindex(child, indexExpr) =>
         val childt = emit(child)
         val childPType = child.pType.asInstanceOf[PNDArray]
