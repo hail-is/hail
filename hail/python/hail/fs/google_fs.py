@@ -33,11 +33,10 @@ class GoogleCloudStorageFS(FS):
         return "gs://" + path[first_idx:]
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 2**18):
-        if(self._is_local(path)):
-            if(not os.path.exists(path)):
+        if self._is_local(path):
+            if not os.path.exists(path) and mode.startswith('w'):
                 parts = os.path.split(path)
-                # FIXME: Check compliance with HadoopFS
-                if(not os.path.exists(parts[0])):
+                if not os.path.exists(parts[0]):
                     os.makedirs(parts[0])
 
             return open(path, mode, buffer_size)
