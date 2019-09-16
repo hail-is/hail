@@ -28,10 +28,15 @@ class Tests(unittest.TestCase):
 
         if bucket.startswith('gs://'):
             cls.remote_bucket = bucket
-            cls.local_dir = bucket[5:]
+            cls.local_dir = f"/tmp/{bucket[5:]}"
         else:
             cls.remote_bucket = f"gs://{bucket}"
-            cls.local_dir = bucket
+            cls.local_dir = f"/tmp/{bucket}"
+
+    @classmethod
+    def tearDownClass(cls):
+        import shutil
+        shutil.rmtree(cls.local_dir)
 
     def test_hadoop_methods(self, bucket=None):
         if bucket is None:
