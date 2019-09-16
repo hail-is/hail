@@ -211,7 +211,7 @@ private class Emit(
 
   val resultRegion: EmitRegion = EmitRegion.default(mb)
   val region: Code[Region] = mb.getArg[Region](1)
-  val methods: mutable.Map[String, Seq[(Seq[PType], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
+  val methods: mutable.Map[String, Seq[(Seq[PType], PType, EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.{E, F}
 
@@ -1322,12 +1322,15 @@ private class Emit(
 
         val argPTypes = args.map(_.pType)
         val meth =
-          methods(fn).filter { case (argt, _) => argt.zip(argPTypes).forall { case (t1, t2) => t1 == t2 } } match {
-            case Seq(f) =>
-              f._2
+          methods(fn).filter { case (argt, rtExpected, _) =>
+            argt.zip(argPTypes).forall { case (t1, t2) => t1 == t2 } &&
+              rtExpected == ir.pType
+          } match {
+            case Seq((_, _, funcMB)) =>
+              funcMB
             case Seq() =>
               val methodbuilder = impl.getAsMethod(mb.fb, rt, argPTypes: _*)
-              methods.update(fn, methods(fn) :+ (argPTypes -> methodbuilder))
+              methods.update(fn, methods(fn) :+ ((argPTypes, ir.pType, methodbuilder)))
               methodbuilder
           }
         val codeArgs = args.map(emit(_))
