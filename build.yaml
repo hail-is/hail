@@ -163,7 +163,7 @@ steps:
  - kind: buildImage
    name: scorecard_image
    dockerFile: scorecard/Dockerfile
-   contextPath: scorecard
+   contextPath: .
    publishAs: scorecard
    dependsOn:
      - base_image

@@ -13,8 +13,9 @@ from hailtop.config import get_deploy_config
 from gear import configure_logging, setup_aiohttp_session, web_maybe_authenticated_user
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
-configure_logging()
 log = logging.getLogger('scorecard')
+
+deploy_config = get_deploy_config()
 
 component_users = {
     'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231', 'iitalics'],
@@ -278,9 +279,7 @@ async def on_startup(app):
     asyncio.ensure_future(poll(gh_client))
 
 
-if __name__ == '__main__':
-    deploy_config = get_deploy_config()
-
+def run():
     app = web.Application()
     app.on_startup.append(on_startup)
 
