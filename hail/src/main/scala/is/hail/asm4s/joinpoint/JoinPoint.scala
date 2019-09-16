@@ -34,11 +34,18 @@ object JoinPoint {
   ) {
     private[joinpoint] def code: Code[Nothing] = withStackIndicator { si =>
       val jb = new JoinPointBuilder(si)
-      val ret = JoinPoint[A](new LabelNode, si)
+      val ret = new JoinPoint[A](si)
       val body = f(jb, ret)
-      Code(body, jb.define, ret.placeLabel)
+      Code(assignLabels(jb.joinPoints :+ ret), body, jb.define, ret.placeLabel)
     }
   }
+
+  private def assignLabels(js: Seq[JoinPoint[_]]): Code[Unit] =
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit =
+        for (j <- js)
+          j.label = new LabelNode
+    }
 
   /**
     * So-called "stack-indicators" (unique ints) are placed on the following `mutable.Stack` during
@@ -78,10 +85,11 @@ object JoinPoint {
       throw new EmitLongJumpError
 }
 
-case class JoinPoint[A] private[joinpoint](
-  label: LabelNode,
-  stackIndicator: Int
+class JoinPoint[A] private[joinpoint](
+  val stackIndicator: Int
 )(implicit p: ParameterPack[A]) extends (A => Code[Ctrl]) {
+
+  var label: LabelNode = null
 
   def apply(args: A): Code[Ctrl] = {
     JoinPoint.ensureStackIndicator(stackIndicator)
@@ -95,7 +103,7 @@ case class JoinPoint[A] private[joinpoint](
 class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
   args: ParameterStore[A],
   stackIndicator: Int
-) extends JoinPoint[A](new LabelNode, stackIndicator) {
+) extends JoinPoint[A](stackIndicator) {
 
   def define(f: A => Code[Ctrl]): Unit =
     body = Some(Code(args.store, f(args.load)))

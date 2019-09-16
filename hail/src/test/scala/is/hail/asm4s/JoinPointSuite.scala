@@ -177,4 +177,18 @@ class JoinPointSuite extends TestNGSuite {
       }
     }
   }
+
+  @Test def testDuplicateCallCC() {
+    val f = compile1[Int, Int] { (mb, arg) =>
+      val num: Code[Int] =
+        JoinPoint.CallCC[Code[Int]] { (jb, ret) =>
+          val j = jb.joinPoint()
+          j.define { _ => ret(arg) }
+          j(())
+        }
+      (num + num)
+    }
+    for (i <- 1 to 50)
+      assert(f(i) == i * 2)
+  }
 }
