@@ -16,13 +16,14 @@ object JoinPoint {
   def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
     implicit ap: ParameterPack[A]
   ): Code[Ctrl] = {
-    assert(j1.stackIndicator eq j2.stackIndicator)
-    ensureStackIndicator(j1.stackIndicator)(new Code[Ctrl] {
+    ensureStackIndicator(j1.stackIndicator)
+    ensureStackIndicator(j2.stackIndicator)
+    new Code[Ctrl] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         ap.push(arg).emit(il)
         cond.toConditional.emitConditional(il, j1.label, j2.label)
       }
-    })
+    }
   }
 
   def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
@@ -31,20 +32,17 @@ object JoinPoint {
   case class CallCC[A: ParameterPack](
     f: (JoinPointBuilder, JoinPoint[A]) => Code[Ctrl]
   ) {
-    private[joinpoint] def code: Code[Nothing] = {
-      val si = new Object()
+    private[joinpoint] def code: Code[Nothing] = withStackIndicator { si =>
       val jb = new JoinPointBuilder(si)
       val ret = JoinPoint[A](new LabelNode, si)
       val body = f(jb, ret)
-      withStackIndicator(si) {
-        Code(body, jb.define, ret.placeLabel)
-      }
+      Code(body, jb.define, ret.placeLabel)
     }
   }
 
   /**
-    * So-called "stack-indicators" are placed on the following `mutable.Stack` during the extent of
-    * a CallCC being emitted. Whenever a join-point is called, it checks that the stack-indicator at
+    * So-called "stack-indicators" (unique ints) are placed on the following `mutable.Stack` during
+    * the extent of a CallCC. Whenever a join-point is called, it checks that the stack-indicator at
     * the top of this stack is the same one associated with the CallCC from which the join-point
     * originated. This ensures that you cannot escape a CallCC by returning from an outer CallCC,
     * e.g.:
@@ -62,34 +60,33 @@ object JoinPoint {
 
   class EmitLongJumpError extends AssertionError("cannot jump out of nested CallCC")
 
-  private val stack: mutable.Stack[Object] = new mutable.Stack
+  private val stack: mutable.Stack[Int] = new mutable.Stack
+  private var scopeID: Int = 0
 
-  private def withStackIndicator[T](si: Object)(c: Code[T]): Code[T] = new Code[T] {
-    def emit(il: Growable[AbstractInsnNode]): Unit = {
-      stack.push(si)
-      try
-        c.emit(il)
-      finally
-        assert(stack.pop() eq si)
-    }
+  private def withStackIndicator[T](body: Int => T): T = {
+    val si = scopeID
+    scopeID += 1
+    stack.push(si)
+    try
+      body(si)
+    finally
+      assert(stack.pop() == si)
   }
 
-  private[joinpoint] def ensureStackIndicator[T](si: Object)(c: Code[T]): Code[T] = new Code[T] {
-    def emit(il: Growable[AbstractInsnNode]): Unit = {
-      if (stack.top ne si) throw new EmitLongJumpError
-      c.emit(il)
-    }
-  }
+  private[joinpoint] def ensureStackIndicator(si: Int): Unit =
+    if (stack.top != si)
+      throw new EmitLongJumpError
 }
 
 case class JoinPoint[A] private[joinpoint](
   label: LabelNode,
-  stackIndicator: Object
+  stackIndicator: Int
 )(implicit p: ParameterPack[A]) extends (A => Code[Ctrl]) {
-  def apply(args: A): Code[Ctrl] =
-    JoinPoint.ensureStackIndicator(stackIndicator) {
-      Code(p.push(args), gotoLabel)
-    }
+
+  def apply(args: A): Code[Ctrl] = {
+    JoinPoint.ensureStackIndicator(stackIndicator)
+    Code(p.push(args), gotoLabel)
+  }
 
   private[joinpoint] def placeLabel: Code[Nothing] = Code(label)
   private[joinpoint] def gotoLabel: Code[Ctrl] = Code(new JumpInsnNode(Opcodes.GOTO, label))
@@ -97,8 +94,8 @@ case class JoinPoint[A] private[joinpoint](
 
 class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
   args: ParameterStore[A],
-  _stackIndicator: Object
-) extends JoinPoint[A](new LabelNode, _stackIndicator) {
+  stackIndicator: Int
+) extends JoinPoint[A](new LabelNode, stackIndicator) {
 
   def define(f: A => Code[Ctrl]): Unit =
     body = Some(Code(args.store, f(args.load)))
@@ -107,7 +104,7 @@ class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
 }
 
 class JoinPointBuilder private[joinpoint](
-  stackIndicator: Object
+  stackIndicator: Int
 ) {
   private[joinpoint] val joinPoints: mutable.ArrayBuffer[DefinableJoinPoint[_]] =
     new mutable.ArrayBuffer()
