@@ -4,8 +4,8 @@ import is.hail.asm4s._
 
 object ParameterPack {
   implicit val unit: ParameterPack[Unit] = new ParameterPack[Unit] {
-    def push(u: Unit) = Code._empty
-    def newLocals(mb: MethodBuilder) = ParameterStore.unit
+    def push(u: Unit): Code[Unit] = Code._empty
+    def newLocals(mb: MethodBuilder): ParameterStore[Unit] = ParameterStore.unit
   }
 
   implicit def code[T](implicit tti: TypeInfo[T]): ParameterPack[Code[T]] =
@@ -17,10 +17,12 @@ object ParameterPack {
       }
     }
 
-  implicit def tuple2[A, B](implicit ap: ParameterPack[A], bp: ParameterPack[B]): ParameterPack[(A, B)] =
-    new ParameterPack[(A, B)] {
-      def push(v: (A, B)) = Code(ap.push(v._1), bp.push(v._2))
-      def newLocals(mb: MethodBuilder) = {
+  implicit def tuple2[A, B](
+    implicit ap: ParameterPack[A],
+    bp: ParameterPack[B]
+  ): ParameterPack[(A, B)] = new ParameterPack[(A, B)] {
+      def push(v: (A, B)): Code[Unit] = Code(ap.push(v._1), bp.push(v._2))
+      def newLocals(mb: MethodBuilder): ParameterStore[(A, B)] = {
         val as = ap.newLocals(mb)
         val bs = bp.newLocals(mb)
         ParameterStore(Code(bs.store, as.store), (as.load, bs.load))
@@ -32,8 +34,8 @@ object ParameterPack {
     bp: ParameterPack[B],
     cp: ParameterPack[C]
   ): ParameterPack[(A, B, C)] = new ParameterPack[(A, B, C)] {
-    def push(v: (A, B, C)) = Code(ap.push(v._1), bp.push(v._2), cp.push(v._3))
-    def newLocals(mb: MethodBuilder) = {
+    def push(v: (A, B, C)): Code[Unit] = Code(ap.push(v._1), bp.push(v._2), cp.push(v._3))
+    def newLocals(mb: MethodBuilder): ParameterStore[(A, B, C)] = {
       val as = ap.newLocals(mb)
       val bs = bp.newLocals(mb)
       val cs = cp.newLocals(mb)
@@ -43,7 +45,7 @@ object ParameterPack {
 }
 
 object ParameterStore {
-  def unit = ParameterStore[Unit](Code._empty, ())
+  def unit: ParameterStore[Unit] = ParameterStore(Code._empty, ())
 }
 
 trait ParameterPack[A] {

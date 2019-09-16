@@ -15,7 +15,7 @@ object JoinPoint {
   // equivalent but produces better bytecode than 'cond.mux(j1(arg), j2(arg))'
   def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
     implicit ap: ParameterPack[A]
-  ) = {
+  ): Code[Ctrl] = {
     assert(j1.stackIndicator eq j2.stackIndicator)
     ensureStackIndicator(j1.stackIndicator)(new Code[Ctrl] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -64,7 +64,7 @@ object JoinPoint {
 
   private val stack: mutable.Stack[Object] = new mutable.Stack
 
-  private def withStackIndicator[T](si: Object)(c: Code[T]) = new Code[T] {
+  private def withStackIndicator[T](si: Object)(c: Code[T]): Code[T] = new Code[T] {
     def emit(il: Growable[AbstractInsnNode]): Unit = {
       stack.push(si)
       try
@@ -74,7 +74,7 @@ object JoinPoint {
     }
   }
 
-  private[joinpoint] def ensureStackIndicator[T](si: Object)(c: Code[T]) = new Code[T] {
+  private[joinpoint] def ensureStackIndicator[T](si: Object)(c: Code[T]): Code[T] = new Code[T] {
     def emit(il: Growable[AbstractInsnNode]): Unit = {
       if (stack.top ne si) throw new EmitLongJumpError
       c.emit(il)
@@ -86,13 +86,13 @@ case class JoinPoint[A] private[joinpoint](
   label: LabelNode,
   stackIndicator: Object
 )(implicit p: ParameterPack[A]) extends (A => Code[Ctrl]) {
-  def apply(args: A) =
+  def apply(args: A): Code[Ctrl] =
     JoinPoint.ensureStackIndicator(stackIndicator) {
       Code(p.push(args), gotoLabel)
     }
 
-  private[joinpoint] def placeLabel = Code(label)
-  private[joinpoint] def gotoLabel = Code[Ctrl](new JumpInsnNode(Opcodes.GOTO, label))
+  private[joinpoint] def placeLabel: Code[Nothing] = Code(label)
+  private[joinpoint] def gotoLabel: Code[Ctrl] = Code(new JumpInsnNode(Opcodes.GOTO, label))
 }
 
 class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
