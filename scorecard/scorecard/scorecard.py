@@ -219,7 +219,8 @@ def get_issue_data(repo_name, issue):
 async def update_data(gh_client):
     global data, timestamp
 
-    log.info(f'rate_limit {await gh_client.getitem("/rate_limit")}')
+    rate_limit = await gh_client.getitem("/rate_limit")
+    log.info(f'rate_limit {rate_limit}')
     log.info('start updating_data')
 
     new_data = {}
