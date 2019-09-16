@@ -32,6 +32,9 @@ spec:
           - mountPath: /secrets
             readOnly: true
             name: scorecard-github-access-token
+          - name: session-secret-key
+            mountPath: /session-secret-key
+            readOnly: true
         readinessProbe:
             httpGet:
               path: /
@@ -42,6 +45,10 @@ spec:
         - name: scorecard-github-access-token
           secret:
             secretName: scorecard-github-access-token
+        - name: session-secret-key
+          secret:
+            optional: false
+            secretName: session-secret-key
 ---
 apiVersion: v1
 kind: Service
