@@ -3191,8 +3191,11 @@ class Tests(unittest.TestCase):
         self.batch_assert_evals_to(
             (e.shape, np_e.shape),
             (row.shape, np_row.shape),
+            (col.shape, np_col.shape),
             (m.shape, np_m.shape),
-            (nd.shape, np_nd.shape))
+            (nd.shape, np_nd.shape),
+            ((row + nd).shape, (np_row + np_nd).shape),
+            ((row + col).shape, (np_row + np_col).shape))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
