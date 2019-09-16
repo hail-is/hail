@@ -16,7 +16,7 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
   | tar xz --to-stdout ./docker-credential-gcr \
   | sudo tee /usr/bin/docker-credential-gcr > /dev/null && sudo chmod +x /usr/bin/docker-credential-gcr
 
-docker-credential-gcr docker-configure
-gcloud -q auth docker-configure
+docker-credential-gcr configure-docker
+gcloud -q auth configure-docker
 
 nohup /bin/bash run-worker.sh >run-worker.log 2>&1 &
