@@ -564,7 +564,8 @@ object Simplify {
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
 
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
-      if newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k)))
+      if (newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) ||
+        newKey == SelectFields(Ref("row", child.typ.rowType), child.typ.key))
         && child.typ.key.nonEmpty && canRepartition =>
       TableAggregateByKey(child, expr)
 
