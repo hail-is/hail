@@ -1,10 +1,7 @@
 import abc
 
-from typing import List, Tuple
-
 from hail.utils.java import Env
-from hail.expr.types import HailType
-from .renderer import Renderer, Renderable, RenderableStr
+from .renderer import Renderer, PlainRenderer, Renderable
 
 
 def _env_bind(env, bindings):
@@ -26,22 +23,25 @@ class BaseIR(Renderable):
         self.children = children
 
     def __str__(self):
-        r = Renderer(stop_at_jir=False)
+        r = PlainRenderer(stop_at_jir=False)
         return r(self)
 
-    def render_head(self, r):
+    def render_head(self, r: Renderer):
         head_str = self.head_str()
         if head_str != '':
             head_str = f' {head_str}'
-        return f'({self._ir_name()}{head_str}'
+        trailing_space = ''
+        if len(self.children) > 0:
+            trailing_space = ' '
+        return f'({self._ir_name()}{head_str}{trailing_space}'
 
-    def render_tail(self, r):
+    def render_tail(self, r: Renderer):
         return ')'
 
     def _ir_name(self):
         return self.__class__.__name__
 
-    def render_children(self, r):
+    def render_children(self, r: Renderer):
         return self.children
 
     def head_str(self):
@@ -89,6 +89,9 @@ class BaseIR(Renderable):
     def new_block(self, i: int) -> bool:
         ...
 
+    def renderable_new_block(self, i: int) -> bool:
+        return self.new_block(i)
+
     @staticmethod
     def is_effectful() -> bool:
         return False
@@ -113,8 +116,14 @@ class BaseIR(Renderable):
     def uses_agg_context(self, i: int) -> bool:
         return False
 
+    def renderable_uses_agg_context(self, i: int) -> bool:
+        return self.uses_agg_context(i)
+
     def uses_scan_context(self, i: int) -> bool:
         return False
+
+    def renderable_uses_scan_context(self, i: int) -> bool:
+        return self.uses_scan_context(i)
 
     def child_context_without_bindings(self, i: int, parent_context):
         (eval_c, agg_c, scan_c) = parent_context

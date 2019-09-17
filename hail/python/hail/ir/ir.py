@@ -1409,6 +1409,9 @@ class BaseApplyAggOp(IR):
         n = len(self.constructor_args)
         return self.init_op_args and i < n + len(self.init_op_args)
 
+    def renderable_new_block(self, i: int) -> bool:
+        return i <= 1
+
 
 class ApplyAggOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
@@ -1421,6 +1424,9 @@ class ApplyAggOp(BaseApplyAggOp):
     def uses_agg_context(self, i: int):
         return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
 
+    def renderable_uses_agg_context(self, i: int):
+        return i == 2
+
 
 class ApplyScanOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
@@ -1432,6 +1438,9 @@ class ApplyScanOp(BaseApplyAggOp):
 
     def uses_scan_context(self, i: int):
         return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
+
+    def renderable_uses_agg_context(self, i: int):
+        return i == 2
 
 
 class Begin(IR):
@@ -1503,13 +1512,13 @@ class InsertFields(IR):
             self.field = field
             self.child = child
 
-        def render_head(self, r: 'Renderer'):
+        def render_head(self, r: Renderer):
             return f'({self.field} '
 
-        def render_tail(self, r: 'Renderer'):
+        def render_tail(self, r: Renderer):
             return ')'
 
-        def render_children(self, r: 'Renderer'):
+        def render_children(self, r: Renderer):
             return [self.child]
 
     @staticmethod
