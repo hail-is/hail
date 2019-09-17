@@ -3,17 +3,20 @@ package is.hail.annotations
 import is.hail.utils._
 
 object RegionPool {
-  private val pools = new java.util.concurrent.ConcurrentHashMap[Long, RegionPool]()
+  private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
+    override def initialValue(): RegionPool = RegionPool()
+  }
 
-  def get: RegionPool = {
-    val makePool: java.util.function.Function[Long, RegionPool] = new java.util.function.Function[Long, RegionPool] {
-      def apply(id: Long): RegionPool = new RegionPool()
-    }
-    pools.computeIfAbsent(Thread.currentThread().getId(), makePool)
+  def get: RegionPool = thePool.get()
+
+  def apply(strictMemoryCheck: Boolean = false): RegionPool = {
+    val thread = Thread.currentThread()
+    new RegionPool(strictMemoryCheck, thread.getName, thread.getId)
   }
 }
 
-final class RegionPool(strictMemoryCheck: Boolean = false) extends AutoCloseable {
+final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
+  log.info(s"RegionPool: initialized for thread $threadID: $threadName")
   protected[annotations] val freeBlocks: Array[ArrayBuilder[Long]] = Array.fill[ArrayBuilder[Long]](4)(new ArrayBuilder[Long])
   protected[annotations] val regions = new ArrayBuilder[RegionMemory]()
   private val freeRegions = new ArrayBuilder[RegionMemory]()
@@ -96,8 +99,10 @@ final class RegionPool(strictMemoryCheck: Boolean = false) extends AutoCloseable
          |       used: ${ usedBlockCounts.mkString(", ") }""".stripMargin)
   }
 
+  override def finalize(): Unit = close()
+
   def close(): Unit = {
-    log.info(s"freeing RegionPool with $totalAllocatedBytes bytes allocated")
+    log.info(s"freeing RegionPool with $totalAllocatedBytes bytes (${ readableBytes(totalAllocatedBytes) } allocated")
 
     var i = 0
     while (i < regions.size) {
