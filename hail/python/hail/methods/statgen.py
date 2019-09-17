@@ -1877,8 +1877,9 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
 @typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
-           left_aligned=bool)
-def split_multi(ds, keep_star=False, left_aligned=False):
+           left_aligned=bool,
+           permit_shuffle=bool)
+def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False):
     """Split multiallelic variants.
 
     The resulting dataset will be keyed by the split locus and alleles.
@@ -1943,6 +1944,10 @@ def split_multi(ds, keep_star=False, left_aligned=False):
         If ``True``, variants are assumed to be left aligned and have unique
         loci. This avoids a shuffle. If the assumption is violated, an error
         is generated.
+    permit_shuffle : :obj:`bool`
+        If ``True``, permit a data shuffle to sort out-of-order split results.
+        This will only be required if input data has duplicate loci, one of
+        which contains more than one alternate allele.
 
     Returns
     -------
@@ -2027,15 +2032,16 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             return hl.sorted(kept_alleles.flatmap(lambda i: make_struct(i, cond)))
 
         left = split_rows(make_array(lambda locus: locus == ds['locus']), False)
-        moved = split_rows(make_array(lambda locus: locus != ds['locus']), True)
+        moved = split_rows(make_array(lambda locus: locus != ds['locus']), not permit_shuffle)
     return left.union(moved) if is_table else left.union_rows(moved, _check_cols=False)
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
            left_aligned=bool,
-           vep_root=str)
-def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
+           vep_root=str,
+           permit_shuffle=bool)
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, permit_shuffle=False):
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
@@ -2177,6 +2183,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         (intergenic_consequences, motif_feature_consequences,
         regulatory_feature_consequences, and transcript_consequences)
         will be split properly (i.e. a_index corresponding to the VEP allele_num).
+    permit_shuffle : :obj:`bool`
+        If ``True``, permit a data shuffle to sort out-of-order split results.
+        This will only be required if input data has duplicate loci, one of
+        which contains more than one alternate allele.
 
     Returns
     -------
