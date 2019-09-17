@@ -165,6 +165,7 @@ def table_aggregate_take_by_strings():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.aggregate(hl.tuple([hl.agg.take(ht['f18'], 25, ordering=ht[f'f{i}']) for i in range(18)]))
 
+
 @benchmark
 def table_take():
     ht = hl.read_table(resource('many_strings_table.ht'))
