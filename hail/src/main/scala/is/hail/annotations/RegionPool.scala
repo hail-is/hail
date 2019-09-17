@@ -20,12 +20,19 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   protected[annotations] val freeBlocks: Array[ArrayBuilder[Long]] = Array.fill[ArrayBuilder[Long]](4)(new ArrayBuilder[Long])
   protected[annotations] val regions = new ArrayBuilder[RegionMemory]()
   private val freeRegions = new ArrayBuilder[RegionMemory]()
-
-  private val nBlocksAllocated: Array[Long] = Array(0L, 0L, 0L, 0L)
-
+  private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private var totalAllocatedBytes: Long = 0L
+  private var allocationEchoThreshold: Long = 8 * 1024 * 1024
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
+
+  private def incrementAllocatedBytes(toAdd: Long): Unit = {
+    totalAllocatedBytes += toAdd
+    if (totalAllocatedBytes >= allocationEchoThreshold) {
+      report("REPORT_THRESHOLD")
+      allocationEchoThreshold *= 2
+    }
+  }
 
   protected[annotations] def reclaim(memory: RegionMemory): Unit = {
     freeRegions += memory
@@ -36,7 +43,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     if (pool.size > 0) {
       pool.pop()
     } else {
-      nBlocksAllocated(size) += 1
+      blocks(size) += 1
       val blockByteSize = Region.SIZES(size)
       totalAllocatedBytes += blockByteSize
       Memory.malloc(blockByteSize)
@@ -90,7 +97,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     val nBlocks = pool.numFreeBlocks()
 
     val freeBlockCounts = freeBlocks.map(_.size)
-    val usedBlockCounts = nBlocksAllocated.zip(freeBlockCounts).map { case (tot, free) => tot - free }
+    val usedBlockCounts = blocks.zip(freeBlockCounts).map { case (tot, free) => tot - free }
     info(
       s"""Region count for $context
          |    regions: $nRegions active, $nFree free
@@ -99,10 +106,22 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
          |       used: ${ usedBlockCounts.mkString(", ") }""".stripMargin)
   }
 
+  def report(context: String): Unit = {
+    var inBlocks = 0L
+    var i = 0
+    while (i < 4) {
+      inBlocks += blocks(i) * Region.SIZES(i)
+      i += 1
+    }
+
+    log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
+      s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), thread $threadID: $threadName")
+  }
+
   override def finalize(): Unit = close()
 
   def close(): Unit = {
-    log.info(s"freeing RegionPool with $totalAllocatedBytes bytes (${ readableBytes(totalAllocatedBytes) } allocated")
+    report("FREE")
 
     var i = 0
     while (i < regions.size) {
