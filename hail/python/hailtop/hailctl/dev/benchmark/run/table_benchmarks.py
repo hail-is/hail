@@ -1,4 +1,3 @@
-
 from os import path
 from tempfile import TemporaryDirectory
 import hail as hl
@@ -299,6 +298,7 @@ def join_p100_p10():
     ht1 = hl.read_table(resource('table_10M_par_100.ht'))
     ht2 = hl.read_table(resource('table_10M_par_10.ht'))
     ht1.join(ht2)._force_count()
+
 
 @benchmark
 def group_by_collect_per_row():
