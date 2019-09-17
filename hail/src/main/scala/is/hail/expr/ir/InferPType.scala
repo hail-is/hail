@@ -5,7 +5,7 @@ import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
 
 object InferPType {
-  private def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
+  def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
     ptypes.head match {
       case x: PStreamable => {
         val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStreamable].elementType))
