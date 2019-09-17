@@ -92,7 +92,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     Code(
       size := size + 1,
-      region.setNumParents(size * (nStates + 1)),
+      region.setNumParents((size + 1) * nStates),
       keyed.initValue(_elt, km, kv, size * nStates),
       container.newStates)
   }
