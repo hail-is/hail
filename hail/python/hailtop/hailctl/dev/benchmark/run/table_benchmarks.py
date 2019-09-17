@@ -299,3 +299,8 @@ def join_p100_p10():
     ht1 = hl.read_table(resource('table_10M_par_100.ht'))
     ht2 = hl.read_table(resource('table_10M_par_10.ht'))
     ht1.join(ht2)._force_count()
+
+@benchmark
+def group_by_collect_per_row():
+    ht = hl.read_matrix_table(resource('gnomad_dp_simulation.mt')).localize_entries('e', 'c')
+    ht.group_by(*ht.key).aggregate(value=hl.agg.collect(ht.row_value))._force_count()
