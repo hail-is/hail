@@ -125,6 +125,20 @@ class IRSuite extends HailSuite {
     assertPType(False(), PBoolean(true))
   }
 
+  @Test def testRefInferPtype() {
+    val env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PDict(PInt32(true), PString(true), true))
+    )
+
+    var ir = Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())))
+
+    assertPType(ir, PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), env)
+
+    ir = Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())))
+    assertPType(ir, PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PDict(PInt32(true), PString(true), true)), env)
+  }
+
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast() {
