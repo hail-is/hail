@@ -16,10 +16,15 @@ object StagedRegionValueBuilder {
       else {
         val fix = f.typ.fundamentalType match {
           case t@(_: PBinary | _: PArray) =>
-            region.storeAddress(typ.fieldOffset(value, f.index),
-              deepCopyFromOffset(fb, region, t, typ.loadField(region, value, f.index)))
+            val off = fb.newField[Long]
+            Code(
+              off := typ.fieldOffset(value, f.index),
+              Region.storeAddress(off, deepCopyFromOffset(fb, region, t, coerce[Long](Region.loadIRIntermediate(t)(off))))
+            )
           case t: PBaseStruct =>
-              fixupStruct(fb, region, t, typ.loadField(region, value, f.index))
+            val off = fb.newField[Long]
+            Code(off := typ.fieldOffset(value, f.index),
+              fixupStruct(fb, region, t, off))
         }
         typ.isFieldDefined(region, value, f.index).mux(fix, Code._empty)
       }
@@ -35,14 +40,15 @@ object StagedRegionValueBuilder {
 
     val perElt = typ.elementType.fundamentalType match {
       case t@(_: PBinary | _: PArray) =>
-        region.storeAddress(typ.elementOffset(value, len, i),
-          deepCopyFromOffset(fb, region, t, typ.loadElement(region, value, i)))
+        val off = fb.newField[Long]
+        Code(
+          off := typ.elementOffset(value, len, i),
+          Region.storeAddress(off, deepCopyFromOffset(fb, region, t, coerce[Long](Region.loadIRIntermediate(t)(off)))))
       case t: PBaseStruct =>
         val off = fb.newField[Long]
         Code(off := typ.elementOffset(value, len, i),
           fixupStruct(fb, region, t, off))
     }
-
     Code(
       i := 0,
       len := typ.loadLength(region, value),
@@ -57,7 +63,7 @@ object StagedRegionValueBuilder {
       case t@(_: PBinary | _: PArray) =>
         region.storeAddress(dest, deepCopyFromOffset(fb, region, t, coerce[Long](value)))
       case t: PBaseStruct =>
-        Code(region.copyFrom(region, coerce[Long](value), dest, t.byteSize),
+        Code(Region.copyFrom(coerce[Long](value), dest, t.byteSize),
           fixupStruct(fb, region, t, dest))
       case t => fatal(s"unknown type $t")
     }
@@ -70,11 +76,11 @@ object StagedRegionValueBuilder {
       case _: PBinary =>
         Code(
           offset := PBinary.allocate(region, PBinary.loadLength(region, value)),
-          region.copyFrom(region, value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
+          Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
       case t: PArray =>
         Code(
           offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(region, value))),
-          region.copyFrom(region, value, offset, t.contentsByteSize(t.loadLength(region, value))),
+          Region.copyFrom(value, offset, t.contentsByteSize(t.loadLength(region, value))),
           fixupArray(fb, region, t, offset))
       case t =>
         Code(
@@ -112,7 +118,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     this(mb, rowType, r, null)
   }
 
-  def this (er: ir.EmitRegion, rowType: PType) = {
+  def this(er: ir.EmitRegion, rowType: PType) = {
     this(er.mb, rowType, er.region, null)
   }
 
@@ -176,7 +182,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def start(init: Boolean): Code[Unit] = {
     val t = ftype.asInstanceOf[PBaseStruct]
     var c = if (pOffset == null)
-        startOffset.store(region.allocate(t.alignment, t.byteSize))
+      startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
       startOffset.store(pOffset)
     staticIdx = 0
@@ -273,8 +279,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
     case _: PFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
     case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
-    case _: PBaseStruct => v =>
-      region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
+    case _: PBaseStruct => v => Region.copyFrom(v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
     case _: PArray => v => addAddress(v.asInstanceOf[Code[Long]])
     case _: PBinary => v => addAddress(v.asInstanceOf[Code[Long]])
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)

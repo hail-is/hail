@@ -5,7 +5,7 @@ import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 object TakeByRVAS {
@@ -24,14 +24,14 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private val maxIndex = fb.newField[Long]("max_index")
   private val maxSize = fb.newField[Int]("max_size")
   private val staging = fb.newField[Long]("staging")
-  private val keyStage = fb.newField[Long]("keyStage")
+  private val keyStage = fb.newField[Long]("key_stage")
   private val tempPtr = fb.newField[Long]("tmp_ptr")
 
   private val canHaveGarbage = eltTuple.containsPointers
   private val (garbage, maxGarbage) = if (canHaveGarbage) (fb.newField[Int], fb.newField[Int]) else (null, null)
 
   private val garbageFields: IndexedSeq[(String, PType)] = if (canHaveGarbage)
-    FastIndexedSeq(("currentGarbage", PInt32Required), ("maxGarbage", PInt32Required))
+    FastIndexedSeq(("current_garbage", PInt32Required), ("max_garbage", PInt32Required))
   else
     FastIndexedSeq()
 
@@ -39,9 +39,9 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     PStruct(true,
       Array(("state", ab.stateType),
         ("staging", PInt64Required),
-        ("keyStage", PInt64Required),
-        ("maxIndex", PInt64Required),
-        ("maxSize", PInt32Required)) ++ garbageFields: _*
+        ("key_stage", PInt64Required),
+        ("max_index", PInt64Required),
+        ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
   private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
@@ -68,7 +68,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
     val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType.virtualType)
-    val cmp = fb.newMethod("compare", Array[TypeInfo[_]](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
+    val cmp = fb.newMethod("take_by_compare", Array[TypeInfo[_]](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
     val ord = indexedKeyType.codeOrdering(cmp)
     val k1 = cmp.getArg(1)(indexedkeyTypeTypeInfo)
     val k2 = cmp.getArg(2)(indexedkeyTypeTypeInfo)
@@ -86,7 +86,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   def newState: Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(Code(r := Code.newInstance[Region, Int](regionSize), region.invalidate()), Code._empty)
+  def createState: Code[Unit] = region.isNull.mux(Code(r := Region.stagedCreate(regionSize), region.invalidate()), Code._empty)
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(
@@ -155,7 +155,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ))
   }
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>
       maybeGCCode(
         ob.writeLong(maxIndex),
@@ -168,7 +168,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     { (ib: Code[InputBuffer]) =>
       maybeGCCode(
         maxIndex := ib.readLong(),
@@ -304,6 +304,28 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.invoke(_)
   }
 
+  private val gc: Code[Unit] = {
+    if (canHaveGarbage) {
+      val mb = fb.newMethod("take_by_garbage_collect", Array[TypeInfo[_]](), UnitInfo)
+      val oldRegion = mb.newLocal[Region]("old_region")
+      mb.emit(
+        Code(
+          garbage := garbage + 1,
+          (garbage >= maxGarbage).orEmpty(Code(
+            oldRegion := region,
+            r := Region.stagedCreate(regionSize),
+            ab.reallocateData(),
+            initStaging(),
+            garbage := 0,
+            oldRegion.invoke[Unit]("invalidate")
+          ))
+        ))
+      mb.invoke()
+    } else
+      Code._empty
+  }
+
+
   private def stageAndIndexKey(km: Code[Boolean], k: Code[_]): Code[Unit] = Code(
     if (keyType.required)
       Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
@@ -353,7 +375,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   val seqOp: (Code[Boolean], Code[_], Code[Boolean], Code[_]) => Code[Unit] = {
     val ki = typeToTypeInfo(keyType)
     val vi = typeToTypeInfo(valueType)
-    val mb = fb.newMethod("seqOp",
+    val mb = fb.newMethod("take_by_seqop",
       Array[TypeInfo[_]](BooleanInfo, vi, BooleanInfo, ki),
       UnitInfo)
 
@@ -377,7 +399,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                   stageAndIndexKey(keyM, key),
                   copyToStaging(value, valueM, keyStage),
                   swapStaging(),
-                  gc()
+                  gc
                 )))
           )
         ))
@@ -387,7 +409,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def combine(other: TakeByRVAS, dummy: Boolean): Code[Unit] = {
-    val mb = fb.newMethod("combOp", Array[TypeInfo[_]](), UnitInfo)
+    val mb = fb.newMethod("take_by_combop", Array[TypeInfo[_]](), UnitInfo)
 
     val i = mb.newLocal[Int]("combine_i")
     val offset = mb.newLocal[Long]("combine_offset")
@@ -411,7 +433,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                   .orEmpty(Code(
                     copyElementToStaging(offset),
                     swapStaging(),
-                    gc()
+                    gc
                   )))
             )
           )),
@@ -424,7 +446,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {
-    val mb = fb.newMethod("pq_result", Array[TypeInfo[_]](new ClassInfo[Region]), LongInfo)
+    val mb = fb.newMethod("take_by_result", Array[TypeInfo[_]](new ClassInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
       val mb = fb.newMethod("result_quicksort", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), UnitInfo)
@@ -539,25 +561,6 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.invoke(_r)
   }
 
-  private def gc(): Code[Unit] = {
-    if (canHaveGarbage) {
-      val mb = fb.newMethod("gc", Array[TypeInfo[_]](), UnitInfo)
-      val oldRegion = mb.newLocal[Region]("old_region")
-      mb.emit(
-        Code(
-          garbage := garbage + 1,
-          (garbage >= maxGarbage).orEmpty(Code(
-            oldRegion := region,
-            r := Code.newInstance[Region, Int](regionSize),
-            ab.reallocateData(),
-            garbage := 0,
-            oldRegion.invoke[Unit]("invalidate")
-          ))
-        ))
-      mb.invoke()
-    } else
-      Code._empty
-  }
 }
 
 class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregator {

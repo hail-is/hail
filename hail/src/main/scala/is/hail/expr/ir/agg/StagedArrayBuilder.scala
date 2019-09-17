@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
 import is.hail.utils._
 
 object StagedArrayBuilder {
@@ -122,9 +122,8 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
           capacity := capacity * 2,
           newDataOffset := eltArray.allocate(region, capacity),
           eltArray.stagedInitialize(newDataOffset, capacity, setMissing = true),
-          region.copyFrom(region, data + 4L, newDataOffset + 4L, eltArray.nMissingBytes(size)),
-          region.copyFrom(region,
-            data + eltArray.elementsOffset(size),
+          Region.copyFrom(data + 4L, newDataOffset + 4L, eltArray.nMissingBytes(size)),
+          Region.copyFrom(data + eltArray.elementsOffset(size),
             newDataOffset + eltArray.elementsOffset(capacity.load()),
             size.toL * const(eltArray.elementByteSize)),
           data := newDataOffset

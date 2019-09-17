@@ -1,17 +1,11 @@
 package is.hail.utils.richUtils
 
-import is.hail.expr._
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
-import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
-  def copyFrom(other: Code[Region], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
-    region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
-  }
-
   def storeBoolean(off: Code[Long], v: Code[Boolean]): Code[Unit] = {
     region.invoke[Long, Boolean, Unit]("storeBoolean", off, v)
   }
