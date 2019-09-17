@@ -25,7 +25,7 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
       if (typ.isPrimitive)
         Region.storeIRIntermediate(typ)(storageType.fieldOffset(dest, 0), v)
       else
-        Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopy(fb, region, typ, coerce[Long](v)))
+        Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopyFromOffset(fb, region, typ, coerce[Long](v)))
     }
     if (!typ.required)
       m.mux(
@@ -42,7 +42,7 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
     if (inline)
       StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
     else
-      Region.storeAddress(dest, StagedRegionValueBuilder.deepCopy(er, storageType, src))
+      Region.storeAddress(dest, StagedRegionValueBuilder.deepCopyFromOffset(er, storageType, src))
   }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
