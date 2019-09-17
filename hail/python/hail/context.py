@@ -53,9 +53,9 @@ class HailContext(object):
                 SparkContext._ensure_initialized(conf=conf)
             else:
                 raise FatalError(
-                    'pip-installed Hail is incompatible with an already'
-                    'constructed SparkContext. You must either build hail'
-                    'from source or not create a SparkContext yourself.'
+                    'pip-installed Hail is incompatible with an already '
+                    'constructed SparkContext. You must either build hail '
+                    'from source or not create a SparkContext yourself.')
         else:
             SparkContext._ensure_initialized()
 
