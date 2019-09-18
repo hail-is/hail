@@ -102,7 +102,6 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   def construct(flags: Code[Int], offset: Code[Int], shape: Code[Long], strides: Code[Long], data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
-    val shapeP = this.representation.fieldType("shape").asInstanceOf[PTuple]
 
     coerce[Long](Code(
       srvb.start(),
@@ -112,7 +111,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("shape"))(shape),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("strides"))(this.makeDefaultStrides(shapeP, shape, mb)),
+      srvb.addIRIntermediate(this.representation.fieldType("strides"))(strides),
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("data"))(data),
       srvb.end()

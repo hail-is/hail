@@ -1447,8 +1447,9 @@ private class Emit(
           if (childIndex < nChildDims) {
             Code(
               shapeSrvb.addLong(getShapeAtIdx(childIndex)),
-              stridesSrvb.addLong(getStrideAtIdx(childIndex)),
               shapeSrvb.advance(),
+              stridesSrvb.addLong(getStrideAtIdx(childIndex)),
+
               stridesSrvb.advance()
             )
           }
@@ -2091,45 +2092,45 @@ private class Emit(
           }
         }
 
-      case x@NDArrayReindex(child, indexExpr) =>
-        val childEmitter = deforest(child)
-        val childPType = child.pType.asInstanceOf[PNDArray]
-        val childShapePType = childPType.representation.fieldType("shape").asInstanceOf[PTuple]
-        val nChildDims = childPType.nDims
-
-        val outputPType = x.pType.asInstanceOf[PNDArray]
-        val outputShapePType = outputPType.representation.fieldType("shape").asInstanceOf[PTuple]
-
-        val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
-
-        def getShapeAtIdx(index: Int) = region.loadLong(childShapePType.loadField(childEmitter.outputShape, index))
-
-        val reindexShape = indexExpr.map {childIndex =>
-          if (childIndex < nChildDims) {
-            Code(
-              shapeSrvb.addLong(getShapeAtIdx(childIndex)),
-              shapeSrvb.advance()
-            )
-          }
-          else {
-            Code(
-              shapeSrvb.addLong(1L),
-              shapeSrvb.advance()
-            )
-          }
-        }
-
-        val setup = Code(childEmitter.setup, shapeSrvb.start(), reindexShape)
-
-        new NDArrayEmitter(mb, indexExpr.length, shapeSrvb.end(), outputShapePType, outputPType.elementType, setup) {
-          override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
-            val concreteIdxsForChild = Seq.tabulate(childEmitter.nDims) { childDim =>
-              val parentDim = indexExpr.indexOf(childDim)
-              idxVars(parentDim)
-            }
-            childEmitter.outputElement(concreteIdxsForChild)
-          }
-        }
+//      case x@NDArrayReindex(child, indexExpr) =>
+//        val childEmitter = deforest(child)
+//        val childPType = child.pType.asInstanceOf[PNDArray]
+//        val childShapePType = childPType.representation.fieldType("shape").asInstanceOf[PTuple]
+//        val nChildDims = childPType.nDims
+//
+//        val outputPType = x.pType.asInstanceOf[PNDArray]
+//        val outputShapePType = outputPType.representation.fieldType("shape").asInstanceOf[PTuple]
+//
+//        val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
+//
+//        def getShapeAtIdx(index: Int) = region.loadLong(childShapePType.loadField(childEmitter.outputShape, index))
+//
+//        val reindexShape = indexExpr.map {childIndex =>
+//          if (childIndex < nChildDims) {
+//            Code(
+//              shapeSrvb.addLong(getShapeAtIdx(childIndex)),
+//              shapeSrvb.advance()
+//            )
+//          }
+//          else {
+//            Code(
+//              shapeSrvb.addLong(1L),
+//              shapeSrvb.advance()
+//            )
+//          }
+//        }
+//
+//        val setup = Code(childEmitter.setup, shapeSrvb.start(), reindexShape)
+//
+//        new NDArrayEmitter(mb, indexExpr.length, shapeSrvb.end(), outputShapePType, outputPType.elementType, setup) {
+//          override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
+//            val concreteIdxsForChild = Seq.tabulate(childEmitter.nDims) { childDim =>
+//              val parentDim = indexExpr.indexOf(childDim)
+//              idxVars(parentDim)
+//            }
+//            childEmitter.outputElement(concreteIdxsForChild)
+//          }
+//        }
 
       case _ =>
         val ndt = emit(x, env, er, None)

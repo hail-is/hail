@@ -303,11 +303,11 @@ def test_ndarray_transpose():
     cube = hl._ndarray(np_cube)
 
     batch_assert_evals_to(
-        (v.T, np_v.T))
-        # (v.T, np_v),
-        # (m.T, np_m.T),
-        # (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
-        # (cube.T, np_cube.T))
+        (v.T, np_v.T),
+        (v.T, np_v),
+        (m.T, np_m.T),
+        (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
+        (cube.T, np_cube.T))
 
     with pytest.raises(ValueError) as excinfo:
         v.transpose((1,))
