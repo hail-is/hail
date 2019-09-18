@@ -81,10 +81,12 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val fb = EmitFunctionBuilder[Region, Long, Long]
       val sbll = new StagedBlockLinkedList(elemPType, fb)
 
-      val r = fb.getArg[Region](1).load
+      val rArg = fb.getArg[Region](1).load
       val ptr = fb.getArg[Long](2).load
-      val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, r), arrayPType)
+      val rField = fb.newField[Region]
+      val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, rField), arrayPType)
       fb.emit(Code(
+        rField := rArg,
         sbll.load(ptr),
         sbll.writeToSRVB(srvb),
         srvb.end()))
