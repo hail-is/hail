@@ -87,17 +87,17 @@ a {
 
 .data-table {
     min-width: 480px;
-    table-spacing: 3px;
-    td {
+    border-spacing: 3px;
+    th {
         white-space: nowrap;
     }
     tr {
         &:nth-child(even) {
             background-color: #f2f2f2;
         }
-        &:hover {
-            background-color: #ddd;
-        }
+    }
+    tbody tr:hover {
+        background-color: #ddd;
     }
 }
 

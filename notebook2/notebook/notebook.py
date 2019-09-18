@@ -137,7 +137,7 @@ def container_status_for_ui(container_statuses):
     state = container_statuses[0].state
 
     if state.running:
-        return {"running": {"started_at": str(state.running.started_at)}}
+        return {"running": {"started_at": state.running.started_at.strftime("%Y-%m-%-d %H:%M:%S")}
 
     if state.waiting:
         return {"waiting": {"reason": state.waiting.reason}}
@@ -145,8 +145,8 @@ def container_status_for_ui(container_statuses):
     if state.terminated:
         return {"terminated": {
             "exit_code": state.terminated.exit_code,
-            "finished_at": str(state.terminated.finished_at),
-            "started_at": str(state.terminated.started_at),
+            "finished_at": state.terminated.finished_at.strftime("%Y-%m-%-d %H:%M:%S"),
+            "started_at": state.terminated.started_at.strftime("%Y-%m-%-d %H:%M:%S"),
             "reason": state.terminated.reason
         }}
 
@@ -177,7 +177,7 @@ def pod_to_ui_dict(pod):
         'pod_status': pod.status.phase,
         'pod_uuid': pod.metadata.labels['uuid'],
         'pod_ip': pod.status.pod_ip,
-        'creation_date': str(pod.metadata.creation_timestamp),
+        'creation_date': pod.metadata.creation_timestamp.strftime("%Y-%m-%-d %H:%M:%S"),
         'jupyter_token': pod.metadata.labels['jupyter-token'],
         'container_status': container_status_for_ui(pod.status.container_statuses),
         'condition': pod_condition_for_ui(pod.status.conditions)
