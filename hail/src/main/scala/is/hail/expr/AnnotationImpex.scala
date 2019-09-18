@@ -7,6 +7,7 @@ import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.json4s
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -69,6 +70,8 @@ case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractCo
 }
 
 object JSONAnnotationImpex {
+  implicit val serializationFormats: json4s.Formats = Serialization.formats(NoTypeHints)
+
   def exportType(t: Type): Type = t
 
   val doubleConv = Map(
@@ -134,8 +137,6 @@ object JSONAnnotationImpex {
     importAnnotation(jv, t, "<root>", padNulls)
 
   def importAnnotation(jv: JValue, t: Type, parent: String, padNulls: Boolean): Annotation = {
-    implicit val formats = Serialization.formats(NoTypeHints)
-
     (jv, t) match {
       case (JNull | JNothing, _) =>
         if (t.required)
