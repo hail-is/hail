@@ -1,5 +1,4 @@
-@import "variables/colors.scss";
-@import "variables/margins.scss";
+@import "variables.scss";
 
 html {
     box-sizing: border-box;
@@ -30,15 +29,12 @@ button {
     margin: 0;
 }
 
-tr:nth-child(even) { background-color: #f2f2f2; }
-
 a {
-    color: $black;
-    /* remove underline */
+    color: #3d7e9a;
     text-decoration: none;
     &:active,
     &:hover {
-        color: $devil-gray;
+        text-decoration: underline;
     }
 }
 
@@ -78,6 +74,22 @@ a {
     flex-direction: column;
     align-items: flex-start;
     margin: 0 8px 8px 8px;
+}
+
+.data-table {
+    min-width: 480px;
+    table-spacing: 3px;
+    td {
+        white-space: nowrap;
+    }
+    tr {
+        &:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        &:hover {
+            background-color: #ddd;
+        }
+    }
 }
 
 .searchbar-table {

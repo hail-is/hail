@@ -5,7 +5,7 @@
     {% if batch is defined %}
     <h2>Batch {{ batch['id'] }} Jobs</h2>
     <p>artifacts: {{ artifacts }}</p>
-    <table>
+    <table class="data-table">
       <thead>
         <tr>
           <th align="right">id</th>
@@ -70,7 +70,7 @@
 
     <h2>Build History</h2>
     {% if history %}
-    <table>
+    <table class="data-table">
       <thead>
         <tr>
           <th align="right">id</th>

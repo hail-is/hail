@@ -27,7 +27,7 @@
 
         <h2>Needs Review</h2>
         {% if user_data['NEEDS_REVIEW'] %}
-        <table>
+        <table class="data-table">
             <tbody>
             {% for pr in user_data['NEEDS_REVIEW'] %}
             <tr>
@@ -44,7 +44,7 @@
 
         <h2>Changes Requested</h2>
         {% if user_data['CHANGES_REQUESTED'] %}
-        <table>
+        <table class="data-table">
             <tbody>
             {% for pr in user_data['CHANGES_REQUESTED'] %}
             <tr>
