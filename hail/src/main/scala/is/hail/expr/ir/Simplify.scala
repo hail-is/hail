@@ -258,36 +258,64 @@ object Simplify {
           MakeStruct(finalFields)
       }
 
-
     case InsertFields(struct, Seq(), _) => struct
 
-    case Let(x, InsertFields(parentRef: Ref, insFields, ord1), InsertFields(Ref(x2, _), fields, ord2)) if x2 == x && {
-      val insFieldSet = insFields.map(_._1).toSet
+    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if {
+      val r = Ref(name, x.typ)
+      val nfSet = newFields.map(_._1).toSet
 
-      def allRefsCanBePassedThrough(ir1: IR, newBindingEnv: BindingEnv[Type]): Boolean = ir1 match {
-        case GetField(Ref(`x`, _), fd) if !insFieldSet.contains(fd) => true
-        case Ref(`x`, _) => newBindingEnv.eval.lookupOption(x).isDefined
+      def allRefsCanBePassedThrough(ir1: IR): Boolean = ir1 match {
+        case GetField(`r`, fd) => true
+        case InsertFields(`r`, _, _) => true
+        case SelectFields(`r`, fds) => fds.forall(f => !nfSet.contains(f))
+        case `r` => false // if the binding is referenced in any other context, don't rewrite
         case _: TableAggregate => true
         case _: MatrixAggregate => true
         case _ => ir1.children
           .iterator
           .zipWithIndex
           .forall {
-            case (child: IR, idx) =>
-              allRefsCanBePassedThrough(child, ChildBindings(ir1, idx, newBindingEnv))
+            case (child: IR, idx) => Binds(ir1, name, idx) || allRefsCanBePassedThrough(child)
             case _ => true
           }
       }
 
-      val baseEnv = BindingEnv(Env.empty[Type], Some(Env.empty[Type]), Some(Env.empty[Type]))
-      fields.forall { case (_, ir) =>
-        allRefsCanBePassedThrough(ir, baseEnv)
-      }
+      allRefsCanBePassedThrough(body)
     } =>
-      val e = Env[IR]((x, parentRef))
-      Subst(
-        InsertFields(InsertFields(parentRef, insFields, ord1), fields, ord2),
-        BindingEnv(e, Some(e), Some(e)))
+      val r = Ref(name, x.typ)
+      val newFieldMap = newFields.toMap
+      val newFieldRefs = newFieldMap.map { case (k, ir) =>
+        (k, Ref(genUID(), ir.typ))
+      } // cannot be mapValues, or genUID() gets run for every usage!
+      def copiedNewFieldRefs(): Array[(String, IR)] = newFieldRefs.toArray
+        .map { case (str, ref) => (str, ref.copy(FastSeq())) }
+
+      def rewrite(ir1: IR): IR = ir1 match {
+        case GetField(`r`, fd) => newFieldRefs.get(fd) match {
+          case Some(r) => r.copy(FastSeq())
+          case None => GetField(Ref(name, old.typ), fd)
+        }
+        case ins@InsertFields(`r`, fields, _) =>
+          InsertFields(Ref(name, old.typ),
+            copiedNewFieldRefs() ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
+            Some(ins.typ.fieldNames))
+        case SelectFields(`r`, fds) =>
+          SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames)), fds)
+        case ta: TableAggregate => ta
+        case ma: MatrixAggregate => ma
+        case _ => ir1.copy(ir1.children
+          .iterator
+          .zipWithIndex
+          .map {
+            case (child: IR, idx) => if (Binds(ir1, name, idx)) child else rewrite(child)
+            case (child, _) => child
+          }.toFastIndexedSeq)
+      }
+
+      val rw = newFieldRefs.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, (str, ref)) =>
+        Let(ref.name, newFieldMap(str), comb)
+      }
+      Optimize(rw, noisy = false, canGenerateLiterals = false, context = None).asInstanceOf[IR]
 
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
