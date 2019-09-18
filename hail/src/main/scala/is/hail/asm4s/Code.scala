@@ -159,19 +159,14 @@ object Code {
     }
   }
 
-  def whileLoop(condition: Code[Boolean], body: Code[_]*): Code[Unit] = {
-    new Code[Unit] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        val l1 = new LabelNode
-        val l2 = new LabelNode
-        val l3 = new LabelNode
-        il += l1
-        condition.toConditional.emitConditional(il, l2, l3)
-        il += l2
-        body.foreach(_.emit(il))
-        il += new JumpInsnNode(GOTO, l1)
-        il += l3
-      }
+  def whileLoop(cond: Code[Boolean], body: Code[_]*): Code[Unit] = {
+    import is.hail.asm4s.joinpoint._
+    JoinPoint.CallCC[Unit] { (jb, break) =>
+      val continue = jb.joinPoint()
+      val loopBody = jb.joinPoint()
+      continue.define { _ => JoinPoint.mux(cond, loopBody, break) }
+      loopBody.define { _ => Code(Code(body: _*), continue(())) }
+      continue(())
     }
   }
 
