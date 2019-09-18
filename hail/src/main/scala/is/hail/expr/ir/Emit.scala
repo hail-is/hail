@@ -1422,8 +1422,8 @@ private class Emit(
       case x@NDArrayReindex(child, indexExpr) =>
         val childt = emit(child)
         val childPType = child.pType.asInstanceOf[PNDArray]
-        val childShapePType = childPType.representation.fieldType("shape").asInstanceOf[PTuple]
-        val childStridesPType = childPType.representation.fieldType("strides").asInstanceOf[PTuple]
+        val childShapePType = childPType.shape.pType
+        val childStridesPType = childPType.strides.pType
         val childFlags = region.loadInt(childPType.representation.loadField(region, childt.value[Long], "flags"))
         val childOffset = region.loadInt(childPType.representation.loadField(region, childt.value[Long], "offset"))
         val childShapeAddress = childPType.representation.loadField(region, childt.value[Long], "shape")
@@ -1432,8 +1432,8 @@ private class Emit(
         val nChildDims = childPType.nDims
 
         val outputPType = x.pType.asInstanceOf[PNDArray]
-        val outputShapePType = outputPType.representation.fieldType("shape")
-        val outputStridesPType = outputPType.representation.fieldType("strides")
+        val outputShapePType = outputPType.shape.pType
+        val outputStridesPType = outputPType.strides.pType
 
         def getShapeAtIdx(index: Int) = region.loadLong(childShapePType.loadField(childShapeAddress, index))
         def getStrideAtIdx(index: Int): Code[Long] = region.loadLong(childStridesPType.loadField(childStridesAddress, index))
@@ -2032,7 +2032,7 @@ private class Emit(
         val setup = Code(childEmitter.setup)
 
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
-          childP.representation.field("shape").typ.asInstanceOf[PTuple],
+          childP.shape.pType,
           body.pType, setup) {
           override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
             Code(
@@ -2074,7 +2074,7 @@ private class Emit(
         val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup, unifiedShapeSetup, lBroadcastFlagsSetup, rBroadcastFlagsSetup)
 
         new NDArrayEmitter(mb, unifiedShapePType.size, unifiedShape,
-          lP.representation.field("shape").typ.asInstanceOf[PTuple], body.pType, setup) {
+          lP.shape.pType, body.pType, setup) {
           override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
             val (lIdxVarsSetup, lIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, lBroadcastFlags, idxVars)
             val (rIdxVarsSetup, rIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, rBroadcastFlags, idxVars)

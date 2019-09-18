@@ -5,6 +5,8 @@ import is.hail.asm4s.{ClassFieldRef, Code, MethodBuilder, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitMethodBuilder, coerce}
 import is.hail.expr.types.virtual.TNDArray
+import is.hail.utils._
+
 
 final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
@@ -14,13 +16,32 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
+  val flags = new StaticallyKnownField(PInt32Required, (r, off) => Region.loadInt(representation.loadField(r, off, "flags")))
+  val offset = new StaticallyKnownField(
+    PInt32Required,
+    (r, off) => Region.loadInt(representation.loadField(r, off, "offset"))
+  )
+  val shape = new StaticallyKnownField(
+    PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
+    (r, off) => representation.loadField(r, off, "shape")
+  )
+  val strides = new StaticallyKnownField(
+    PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
+    (r, off) => representation.loadField(r, off, "strides")
+  )
+
+  val data = new StaticallyKnownField(
+    PArray(elementType, required = true),
+    (r, off) => representation.loadField(r, off, "data")
+  )
+
   val representation: PStruct = {
     PStruct(required,
-      ("flags", PInt32Required),
-      ("offset", PInt32Required),
-      ("shape", PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*)),
-      ("strides", PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*)),
-      ("data", PArray(elementType, required = true)))
+      ("flags", flags.pType),
+      ("offset", offset.pType),
+      ("shape", shape.pType),
+      ("strides", strides.pType),
+      ("data", data.pType))
   }
 
   override def byteSize: Long = representation.byteSize
