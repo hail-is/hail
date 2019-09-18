@@ -40,6 +40,7 @@ a {
 
 .header-link {
     padding: 15px 15px;
+    color: $black;
 }
 
 .button-header-link {
@@ -50,6 +51,7 @@ a {
     color: $black;
     &:active,
     &:hover {
+        text-decoration: none;
         color: $devil-gray;
     }
     padding: 15px 15px;
@@ -74,6 +76,13 @@ a {
     flex-direction: column;
     align-items: flex-start;
     margin: 0 8px 8px 8px;
+}
+
+.text-icon {
+    /* baseline of material icons is messed up, see:
+       https://github.com/google/material-design-icons/issues/206 */
+    vertical-align: middle;
+    font-size: 0.8rem;
 }
 
 .data-table {
