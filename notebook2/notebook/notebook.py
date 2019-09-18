@@ -137,7 +137,7 @@ def container_status_for_ui(container_statuses):
     state = container_statuses[0].state
 
     if state.running:
-        return {"running": {"started_at": state.running.started_at.strftime("%Y-%m-%-d %H:%M:%S")}
+        return {"running": {"started_at": state.running.started_at.strftime("%Y-%m-%-d %H:%M:%S")}}
 
     if state.waiting:
         return {"waiting": {"reason": state.waiting.reason}}
