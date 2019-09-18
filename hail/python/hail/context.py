@@ -46,8 +46,15 @@ class HailContext(object):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             conf = SparkConf()
-            conf.set('spark.jars', hail_jar_path)
-            conf.set('spark.driver.extraClassPath', hail_jar_path)
+            jars = [hail_jar_path]
+
+            if os.environ.get('HAIL_SPARK_MONITOR'):
+                import sparkmonitor
+                jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
+                conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
+
+            conf.set('spark.jars', ','.join(jars))
+            conf.set('spark.driver.extraClassPath', ','.join(jars))
             conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             SparkContext._ensure_initialized(conf=conf)
         else:
