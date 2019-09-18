@@ -129,7 +129,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
       EmitArrayTriplet(Code(et.setup, setup), et.m, et.addElements)
     })
 
-  def toEmitTriplet(mb: MethodBuilder, aTyp: PStreamable): EmitTriplet = {
+  def toEmitTriplet(mb: MethodBuilder, aTyp: PArray): EmitTriplet = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp)
 
     length match {
@@ -325,7 +325,7 @@ private class Emit(
         None, region, container)
   }
 
-  private def emit(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion, container: Option[AggContainer]): EmitTriplet = {
+  private[ir] def emit(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion, container: Option[AggContainer]): EmitTriplet = {
 
     def emit(ir: IR, env: E = env, rvas: Emit.RVAS = rvas, er: EmitRegion = er, container: Option[AggContainer] = container): EmitTriplet =
       this.emit(ir, env, rvas, er, container)
@@ -1791,11 +1791,19 @@ private class Emit(
     f
   }
 
-  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
+  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet =
+    Streamify(ir) match {
+      case ToStream(x) =>
+        println(s"falling back: ${Pretty(x)}")
+        emitOldArrayIterator(x, env, rvas, er, container)
+      case x => EmitStream(this, x, env, rvas, er, container).toArrayIterator(mb)
+    }
 
+  private def emitOldArrayIterator(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
     def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas, er, container)
 
-    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas, er, container)
+    def emitArrayIterator(ir: IR, env: E = env) =
+      this.emitOldArrayIterator(ir, env, rvas, er, container)
 
     ir match {
       case x@ArrayRange(startir, stopir, stepir) =>
