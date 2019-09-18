@@ -266,7 +266,7 @@ object Simplify {
 
       def allRefsCanBePassedThrough(ir1: IR): Boolean = ir1 match {
         case GetField(`r`, fd) => true
-        case InsertFields(`r`, _, _) => true
+        case InsertFields(`r`, inserted, _) => inserted.forall { case (_, toInsert) => allRefsCanBePassedThrough(toInsert) }
         case SelectFields(`r`, fds) => fds.forall(f => !nfSet.contains(f))
         case `r` => false // if the binding is referenced in any other context, don't rewrite
         case _: TableAggregate => true
@@ -283,12 +283,12 @@ object Simplify {
       allRefsCanBePassedThrough(body)
     } =>
       val r = Ref(name, x.typ)
+      val fieldNames = newFields.map(_._1).toArray
       val newFieldMap = newFields.toMap
       val newFieldRefs = newFieldMap.map { case (k, ir) =>
         (k, Ref(genUID(), ir.typ))
       } // cannot be mapValues, or genUID() gets run for every usage!
-      def copiedNewFieldRefs(): Array[(String, IR)] = newFieldRefs.toArray
-        .map { case (str, ref) => (str, ref.copy(FastSeq())) }
+      def copiedNewFieldRefs(): Array[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).copy(FastSeq())))
 
       def rewrite(ir1: IR): IR = ir1 match {
         case GetField(`r`, fd) => newFieldRefs.get(fd) match {
@@ -312,8 +312,8 @@ object Simplify {
           }.toFastIndexedSeq)
       }
 
-      val rw = newFieldRefs.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, (str, ref)) =>
-        Let(ref.name, newFieldMap(str), comb)
+      val rw = fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
+        Let(newFieldRefs(fieldName).name, newFieldMap(fieldName), comb)
       }
       Optimize(rw, noisy = false, canGenerateLiterals = false, context = None).asInstanceOf[IR]
 
