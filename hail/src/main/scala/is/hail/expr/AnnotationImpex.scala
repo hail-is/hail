@@ -125,9 +125,7 @@ object JSONAnnotationImpex {
         case TTuple(types, _) =>
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
-        case t@TNDArray(elementType, nDims, required)  =>
-          val row = a.asInstanceOf[UnsafeRow]
-          log.info(s"UNSAFE ROW NDARRAY: ${row.toString()}")
+        case t: TNDArray =>
           exportAnnotation(a, t.representation)
       }
     }
