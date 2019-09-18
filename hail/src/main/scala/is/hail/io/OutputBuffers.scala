@@ -156,12 +156,18 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = out.writeDoubles(from, fromOff, n)
 }
 
-final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
-  private val buf: Array[Byte] = new Array[Byte](blockSize)
+final class BlockingOutputBuffer(
+  private val buf: Array[Byte],
+  out: OutputBlockBuffer
+) extends OutputBuffer {
+  def this(blockSize: Int, out: OutputBlockBuffer) {
+    this(new Array[Byte](blockSize), out)
+  }
+
   private var off: Int = 0
 
   def indexOffset(): Long = {
-    if (off == blockSize)
+    if (off == buf.size)
       writeBlock()
     (out.getPos() << 16) | off
   }
