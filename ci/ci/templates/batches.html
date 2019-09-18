@@ -6,17 +6,18 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">type</th>
-          <th align="left">state</th>
+          <th class="numeric-cell">id</th>
+          <th>type</th>
+          <th>state</th>
         </tr>
       </thead>
       <tbody>
 	{% for batch in batches %}
         <tr>
-          <td align="right">
-            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
-          <td align="left">
+          <td class="numeric-cell">
+            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+          </td>
+          <td>
             {% if 'attributes' in batch %}
             {% if 'deploy' in batch['attributes'] %}
             deploy
@@ -27,7 +28,7 @@
             {% endif %}
             {% endif %}
           </td>
-          <td align="left">
+          <td>
             {% if 'state' in batch and batch['state'] %}
             {{ batch['state'] }}
             {% endif %}

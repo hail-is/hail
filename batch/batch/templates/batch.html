@@ -16,7 +16,7 @@
     <table class="data-table" id="batch">
       <thead>
         <tr>
-          <th>ID</th>
+          <th class="numeric-cell">ID</th>
           <th>Name</th>
           <th>State</th>
           <th>Exit Code</th>
@@ -28,7 +28,7 @@
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td>{{ job['job_id'] }}</td>
+          <td class="numeric-cell">{{ job['job_id'] }}</td>
           <td>
             {% if 'attributes' in job and 'name' in job['attributes'] and job['attributes']['name'] is not none %}
             {{ job['attributes']['name'] }}

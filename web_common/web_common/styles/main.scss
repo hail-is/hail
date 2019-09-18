@@ -30,17 +30,20 @@ button {
 }
 
 a {
-    color: #3d7e9a;
+    color: #07c;
     text-decoration: none;
     &:active,
     &:hover {
         text-decoration: underline;
+        /* color: #3af */
+        
     }
 }
 
 .header-link {
     padding: 15px 15px;
     color: $black;
+    white-space: nowrap;
     &:active,
     &:hover {
         text-decoration: none;
@@ -54,6 +57,7 @@ a {
     font-size: 1rem;
     cursor: pointer;
     color: $black;
+    white-space: nowrap;
     &:active,
     &:hover {
         color: $devil-gray;
@@ -103,6 +107,10 @@ a {
     tbody tr:hover {
         background-color: #ddd;
     }
+}
+
+.numeric-cell {
+    text-align: right;
 }
 
 .searchbar-table {

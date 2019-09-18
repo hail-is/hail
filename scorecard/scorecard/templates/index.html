@@ -6,27 +6,27 @@
         <table class="data-table">
             <thead>
             <tr>
-                <th align="left">user</th>
-                <th align="left">needs review</th>
-                <th align="left">changes requested</th>
-                <th align="left">issues</th>
+                <th>user</th>
+                <th>needs review</th>
+                <th>changes requested</th>
+                <th>issues</th>
             </tr>
             </thead>
             <tbody>
             {% for user, d in user_data.items() %}
             <tr>
-                <td align="left"><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
-                <td align="left">
+                <td><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
+                <td>
                     {% for pr in d['NEEDS_REVIEW'] %}
                     <a href="{{ pr.html_url }}">{{ pr.id }}</a>
                     {% endfor %}
                 </td>
-                <td align="left">
+                <td>
                     {% for pr in d['CHANGES_REQUESTED'] %}
                     <a href="{{ pr.html_url }}">{{ pr.id }}</a>
                     {% endfor %}
                 </td>
-                <td align="left">
+                <td>
                     {% for issue in d['ISSUES'] %}
                     <a href="{{ issue.html_url }}">{{ issue.id }}</a>
                     {% endfor %}
@@ -48,17 +48,17 @@
         <table>
             <thead>
                 <tr>
-                    <th align="left">assignee</th>
-                    <th align="left">time outstanding</th>
-                    <th align="left">issue</th>
+                    <th>assignee</th>
+                    <th>time outstanding</th>
+                    <th>issue</th>
                 </tr>
             </thead>
             <tbody>
             {% for issue in urgent_issues %}
                 <tr>
-                    <td align="left"><a href="{{ base_path }}/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
-                    <td align="left">{{ issue['AGE'] }}</td>
-                    <td align="left">
+                    <td><a href="{{ base_path }}/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
+                    <td>{{ issue['AGE'] }}</td>
+                    <td>
                         <a href="{{ issue['ISSUE'].html_url }}">{{ issue['ISSUE'].title }}</a>
                     </td>
                 </tr>
@@ -69,14 +69,14 @@
 
     <table class="data-table">
       <thead>
-        <th align="left">component</th>
-        <th align="left">reviewers</th>
+        <th>component</th>
+        <th>reviewer</th>
       </thead>
       <tbody>
         {% for component, user in component_user.items() %}
         <tr>
-          <td align="left">{{ component }}</td>
-          <td align="left"><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
+          <td>{{ component }}</td>
+          <td><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
         </tr>
         {% endfor %}
       </tbody>

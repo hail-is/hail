@@ -10,7 +10,7 @@
     <table class="data-table" id="batches">
       <thead>
         <tr>
-          <th>ID</th>
+          <th class="numeric-cell">ID</th>
           <th>Name</th>
           <th>State</th>
         </tr>
@@ -18,7 +18,7 @@
       <tbody>
         {% for batch in batch_list %}
         <tr>
-          <td><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td class="numeric-cell"><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
           <td>
             {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
             {{ batch['attributes']['name'] }}
