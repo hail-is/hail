@@ -1443,7 +1443,7 @@ private class Emit(
 
         val ndAddress = mb.newField[Long]
 
-        val reindexShapeAndStrides = indexExpr.map {childIndex =>
+        val reindexShapeAndStrides = indexExpr.map { childIndex =>
           if (childIndex < nChildDims) {
             Code(
               shapeSrvb.addLong(getShapeAtIdx(childIndex)),
@@ -2064,7 +2064,7 @@ private class Emit(
         val rightChildEmitter = deforest(rChild)
 
         val (unifiedShapeSetup, unifiedShape, unifiedShapePType) = NDArrayEmitter.unifyShapes(mb, leftChildEmitter.outputShape, leftChildEmitter.outputShapePType,
-          rightChildEmitter.outputShape,rightChildEmitter.outputShapePType, region)
+          rightChildEmitter.outputShape, rightChildEmitter.outputShapePType, region)
 
         val (lBroadcastFlagsSetup, lBroadcastFlags) = NDArrayEmitter.broadcastFlags(mb, nDims,
           leftChildEmitter.outputShape, leftChildEmitter.outputShapePType)
@@ -2178,12 +2178,12 @@ object NDArrayEmitter {
     def getShapeAtIdx(shape: Code[Long], idx: Int): Code[Long] = Region.loadLong(unifiedPType.loadField(shape, idx))
     val unifiedShapeAddress = mb.newField[Long]
 
-    val setupList = (0 until unifiedPType.size).map { idx =>
+    val setupList = IndexedSeq.tabulate(unifiedPType.size) { idx =>
       val left = getShapeAtIdx(leftShape, idx)
       val right = getShapeAtIdx(rightShape, idx)
-      val invalidityCheck = !((left ceq right) || (left ceq const(1L)) || (right ceq const(1L)))
+      val notSameAndNotBroadcastable = !((left ceq right) || (left ceq const(1L)) || (right ceq const(1L)))
       Code(
-        invalidityCheck.mux(
+         notSameAndNotBroadcastable.mux(
           Code._fatal("Incompatible NDArray shapes"),
           Region.storeLong(unifiedPType.loadField(unifiedShapeAddress, idx),
             (left > right).mux(left, right)))

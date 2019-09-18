@@ -35,12 +35,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     def getShapeAtIdx(idx: Int): Code[Long] = Region.loadLong(this.representation.fieldType("shape").asInstanceOf[PTuple]
       .loadField(shape, idx))
 
-    if (nDims == 0) {
-      1L
-    }
-    else {
       Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * getShapeAtIdx(idx) }
-    }
   }
 
   def makeDefaultStrides(sourceShapePType: PTuple, sourceShape: Code[Long], mb: MethodBuilder): Code[Long] = {
