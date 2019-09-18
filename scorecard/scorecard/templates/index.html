@@ -67,20 +67,20 @@
         </table>
     {% endif %}
 
-      <table>
-	<thead>
-          <th align="left">component</th>
-          <th align="left">reviewers</th>
-	</thead>
-	<tbody>
-          {% for component, user in component_user.items() %}
-	  <tr>
-            <td align="left">{{ component }}</td>
-            <td align="left"><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
-	  </tr>
-	  {% endfor %}
-	</tbody>
-      </table>
-    
-      <p><small>last updated {{ updated }}</small></p>
+    <table class="data-table">
+      <thead>
+        <th align="left">component</th>
+        <th align="left">reviewers</th>
+      </thead>
+      <tbody>
+        {% for component, user in component_user.items() %}
+        <tr>
+          <td align="left">{{ component }}</td>
+          <td align="left"><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p><small>last updated {{ updated }}</small></p>
 {% endblock %}

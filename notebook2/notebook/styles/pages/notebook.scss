@@ -25,6 +25,10 @@
         flex-direction: column;
         display: flex;
         color: $black;
+        &:hover {
+            text-decoration: none;
+            color: $devil-gray;
+        }
     }
 
     .nb-close {

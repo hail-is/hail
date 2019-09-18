@@ -41,7 +41,11 @@ a {
 .header-link {
     padding: 15px 15px;
     color: $black;
-    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
 }
 
 .button-header-link {
@@ -52,7 +56,6 @@ a {
     color: $black;
     &:active,
     &:hover {
-        text-decoration: none;
         color: $devil-gray;
     }
     padding: 15px 15px;
