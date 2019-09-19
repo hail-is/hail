@@ -67,6 +67,9 @@ spec:
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
+          - name: sql-config
+            mountPath: /sql-config
+            readOnly: true
       volumes:
        - name: deploy-config
          secret:
@@ -76,6 +79,10 @@ spec:
          secret:
            optional: false
            secretName: session-secret-key
+       - name: sql-config
+         secret:
+           optional: false
+           secretName: "{{ notebook_database.user_secret_name }}"
 ---
 apiVersion: v1
 kind: Service
