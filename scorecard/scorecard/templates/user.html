@@ -1,37 +1,31 @@
-<html lang="en">
-<head>
-    <title>Scorecard: User {{ user }}</title>
-    <style type="text/css">
-      td { padding: 0 20px 0 0; }
-      th { padding: 0 20px 0 0; }
-
-      #avatar {
-          float: left;
-          width: 44px;
-          height: 44px;
-          margin: 0 8px 0 0;
-          border-radius: 3px;
-      }
-      .grid-container {
-          display: inline-grid;
-          grid-template-columns: auto auto;
-      }
-    body {
-        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-    }
-
-    </style>
-</head>
-<body>
-<div class="grid-container">
-    <div class="grid-item">
+{% extends "layout.html" %}
+{% block title %}Scorecard {{ user }}{% endblock %}
+{% block head %}
+<style>
+  #avatar {
+      float: left;
+      width: 44px;
+      height: 44px;
+      margin: 0 8px 0 0;
+      border-radius: 3px;
+  }
+  #user-cols {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+  }
+</style>
+{% endblock %}
+{% block content %}
+  <div id="user-cols">
+    <div>
         <p><img id="avatar" src="https://github.com/{{ user }}.png?s=88"></p>
     </div>
 
-    <div class="grid-item">
-        <p>Welcome to Scorecard, {{ user }}!</p>
+    <div>
+        <h1>Welcome to Scorecard, {{ user }}!</h1>
 
-        <h3>Needs Review</h3>
+        <h2>Needs Review</h2>
         {% if user_data['NEEDS_REVIEW'] %}
         <table>
             <tbody>
@@ -48,7 +42,7 @@
         <p>No reviews needed.</p>
         {% endif %}
 
-        <h3>Changes Requested</h3>
+        <h2>Changes Requested</h2>
         {% if user_data['CHANGES_REQUESTED'] %}
         <table>
             <tbody>
@@ -64,7 +58,7 @@
         <p>No changes requested.</p>
         {% endif %}
 
-        <h3>Failing tests</h3>
+        <h2>Failing tests</h2>
         {% if user_data['FAILING'] %}
         <table>
             <tbody>
@@ -81,7 +75,7 @@
         {% endif %}
 
 
-        <h3>Issues</h3>
+        <h2>Issues</h2>
         {% if user_data['ISSUES'] %}
         <table>
             <tbody>
@@ -100,8 +94,5 @@
         <p>
             <small>last updated {{ updated }}</small>
         </p>
-    </div>
-</div>
-
-</body>
-</html>
+      </div>
+{% endblock %}

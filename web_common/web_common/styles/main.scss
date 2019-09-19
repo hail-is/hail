@@ -1,68 +1,95 @@
 @import "variables/colors.scss";
 @import "variables/margins.scss";
-@import "buttons.scss";
-@import "typography.scss";
-@import "input.scss";
-@import "spinkit-mod.scss";
 
 html {
-  box-sizing: border-box;
-  font-size: 16px;
+    box-sizing: border-box;
 }
-
-button,
-input {
-  margin: 0px;
-  font-size: 0.875rem;
-}
-
 *,
 *:before,
 *:after {
-  box-sizing: inherit;
+    box-sizing: inherit;
 }
 
 body {
-  margin: 0px;
-}
-
-#theme-site {
-  font-size: 0.875rem;
-  background-color: $white;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  font-family: "Open Sans", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-font-smmothing: grayscale;
-  input::placeholder {
+    font-family: "Open Sans", Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-font-smmothing: grayscale;
-  }
-  #main {
+    input::placeholder {
+        -webkit-font-smoothing: antialiased;
+        -moz-font-smmothing: grayscale;
+    }
+    margin: 0;
+}
+
+button {
+    font-family: inherit;
+    font-size: 1rem;
+    background: none;
+    border: 1px solid $black;
+    border-radius: 3px;
+    margin: 0;
+}
+
+tr:nth-child(even) { background-color: #f2f2f2; }
+
+a {
+    color: $black;
+    /* remove underline */
+    text-decoration: none;
+    &:active,
+    &:hover {
+        color: $devil-gray;
+    }
+}
+
+.header-link {
+    padding: 15px 15px;
+}
+
+.button-header-link {
+    /* remove button styling, add link, header-link styling */
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: $black;
+    &:active,
+    &:hover {
+        color: $devil-gray;
+    }
+    padding: 15px 15px;
+}
+
+#main {
     display: flex;
     flex-direction: column;
-    padding: $margin;
-    min-height: calc(100vh - 50px * 2);
-    .centered {
-      margin: auto;
-    }
-  }
-  #footer {
-    height: 50px;
+}
+
+#header {
     display: flex;
-    padding: 0 $margin;
-    align-content: center;
     align-items: center;
-  }
-  .material-icons {
-    font-size: 1.75rem;
-  }
-  &.dark {
-    background-color: $black;
-    color: $white;
-  }
-  table {
-    border-collapse: collapse;
-  }
+}
+
+#header-flex {
+    flex-grow: 1;
+}
+
+#content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0 8px 8px 8px;
+}
+
+.searchbar-table {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+/* viewport centered */
+.vcentered {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    transform: translate(-50%, -50%);
 }

@@ -1,4 +1,3 @@
-
 <div class="nb">
     {% set ready = notebook.pod_status == 'Running'
                    and notebook.condition.status == 'True'
@@ -6,19 +5,14 @@
     %}
 
     {% if ready %}
-        <i
-        class="material-icons ready-icon"
-        >
-        done
-        </i>
+        <i class="material-icons ready-icon">done</i>
     {% else %}
-        <div class="spinner" ></div>
+        <div class="spinner"></div>
     {% endif %}
     <a target="_blank" class="nb-state-container" href={{ notebook['url'] }}>
         <b>{{notebook.name}}</b>
         <span class="small">
         Condition:
-
             {% if notebook.condition is not defined %}
                 <b>Initializing</b>
             {% elif notebook.condition.status != "True" %}

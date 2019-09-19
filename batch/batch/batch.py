@@ -8,7 +8,6 @@ import json
 import uuid
 from shlex import quote as shq
 
-import jinja2
 import aiohttp_jinja2
 import aiohttp
 from aiohttp import web
@@ -19,12 +18,14 @@ import uvloop
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
-
 from hailtop.utils import unzip, blocking_to_async
+from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token
+# sass_compile,
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
@@ -76,6 +77,8 @@ log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'BATCH_IMAGE = {BATCH_IMAGE}')
 log.info(f'MAX_PODS = {MAX_PODS}')
 log.info(f'QUEUE_SIZE = {QUEUE_SIZE}')
+
+deploy_config = get_deploy_config()
 
 STORAGE_CLASS_NAME = 'batch'
 
@@ -1135,8 +1138,9 @@ async def ui_batch(request, userdata):
     params = request.query
     limit = params.get('limit')
     offset = params.get('offset')
-    batch = await _get_batch(batch_id, user, limit=limit, offset=offset)
-    return {'batch': batch}
+    context = base_context(deploy_config, userdata, 'batch')
+    context['batch'] = await _get_batch(batch_id, user, limit=limit, offset=offset)
+    return context
 
 
 @routes.post('/batches/{batch_id}/cancel')
@@ -1160,8 +1164,9 @@ async def ui_batches(request, userdata):
     user = userdata['username']
     batches = await _get_batches_list(params, user)
     token = new_csrf_token()
-    context = {'batch_list': batches[::-1], 'token': token}
-
+    context = base_context(deploy_config, userdata, 'batch')
+    context['batch_list'] = batches[::-1]
+    context['token'] = token
     response = aiohttp_jinja2.render_template('batches.html',
                                               request,
                                               context)
@@ -1174,11 +1179,14 @@ async def ui_batches(request, userdata):
 @aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
+    context = base_context(deploy_config, userdata, 'batch')
     batch_id = int(request.match_info['batch_id'])
+    context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
+    context['job_id'] = job_id
     user = userdata['username']
-    job_log = await _get_job_log(batch_id, job_id, user)
-    return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
+    context['job_log'] = await _get_job_log(batch_id, job_id, user)
+    return context
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -1186,14 +1194,15 @@ async def ui_get_job_log(request, userdata):
 @aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
+    context = base_context(deploy_config, userdata, 'batch')
     batch_id = int(request.match_info['batch_id'])
+    context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
+    context['job_id'] = job_id
     user = userdata['username']
-    pod_status = await _get_pod_status(batch_id, job_id, user)
-    return {'batch_id': batch_id,
-            'job_id': job_id,
-            'pod_status': json.dumps(json.loads(pod_status),
-                                     indent=2)}
+    context['pod_status'] = json.dumps(
+        json.loads(await _get_pod_status(batch_id, job_id, user)), indent=2)
+    return context
 
 
 @routes.get('')
@@ -1421,11 +1430,12 @@ async def db_cleanup_event_loop():
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-batch_root = os.path.dirname(os.path.abspath(__file__))
-aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
-routes.static('/static', os.path.join(batch_root, 'static'))
-routes.static('/js', os.path.join(batch_root, 'js'))
+setup_aiohttp_jinja2(app, 'batch')
+
+setup_common_static_routes(routes)
+
 app.add_routes(routes)
+
 app.router.add_get("/metrics", server_stats)
 
 

@@ -10,6 +10,7 @@ steps:
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
     - auth-oauth2-client-secret
+    - scorecard-github-access-token
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -65,6 +66,8 @@ steps:
      set -ex
      python3 -m flake8 gear
      python3 -m pylint --rcfile pylintrc gear
+     python3 -m flake8 web_common
+     python3 -m pylint --rcfile pylintrc web_common
    dependsOn:
      - service_base_image
  - kind: createDatabase
@@ -160,10 +163,20 @@ steps:
  - kind: buildImage
    name: scorecard_image
    dockerFile: scorecard/Dockerfile
-   contextPath: scorecard
+   contextPath: .
    publishAs: scorecard
    dependsOn:
-     - base_image
+     - service_base_image
+ - kind: runImage
+   name: check_scorecard
+   image:
+     valueFrom: scorecard_image.image
+   script: |
+     set -ex
+     python3 -m flake8 scorecard
+     python3 -m pylint --rcfile pylintrc scorecard
+   dependsOn:
+     - scorecard_image
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
@@ -403,8 +416,6 @@ steps:
      valueFrom: notebook2_image.image
    script: |
      set -ex
-     python3 -m flake8 web_common
-     python3 -m pylint --rcfile pylintrc web_common
      python3 -m flake8 notebook
      python3 -m pylint --rcfile pylintrc notebook
    dependsOn:
@@ -517,6 +528,7 @@ steps:
    config: scorecard/deployment.yaml
    scopes:
     - deploy
+    - dev
    dependsOn:
     - default_ns
     - scorecard_image

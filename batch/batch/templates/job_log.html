@@ -1,23 +1,20 @@
-<html lang="en">
-  <head>
-    <title>Batch {{ batch_id }}, Job {{ job_id }} Log</title>
-  </head>
-  <body>
-    <h1>Batch {{ batch_id }}, Job {{ job_id }} Log</h1>
-    
-    {% if 'setup' in job_log %}
+{% extends "layout.html" %}
+{% block title %}Batch {{ batch_id }} Job {{ job_id }} Log{% endblock %}
+{% block content %}
+  <h1>Batch {{ batch_id }} Job {{ job_id }} Log</h1>
+
+  {% if 'setup' in job_log %}
     <h2>Setup</h2>
     <pre>{{ job_log['setup'] }}</pre>
-    {% endif %}
+  {% endif %}
     
-    {% if 'main' in job_log %}
+  {% if 'main' in job_log %}
     <h2>Main</h2>
     <pre>{{ job_log['main'] }}</pre>
-    {% endif %}
+  {% endif %}
     
-    {% if 'cleanup' in job_log %}
+  {% if 'cleanup' in job_log %}
     <h2>Cleanup</h2>
     <pre>{{ job_log['cleanup'] }}</pre>
-    {% endif %}
-  </body>
-</html>
+  {% endif %}
+{% endblock %}
