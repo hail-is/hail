@@ -790,7 +790,7 @@ steps:
    name: create_notebook_tables
    namespace:
      valueFrom: default_ns.name
-   config: notebook/create-notebook-tables-pod.yaml
+   config: notebook2/create-notebook-tables-pod.yaml
    wait:
     - kind: Pod
       name: create-notebook-tables
