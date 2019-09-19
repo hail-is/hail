@@ -810,6 +810,7 @@ steps:
     - create_session_key
     - notebook2_image
     - deploy_router
+    - deploy_auth
     - create_notebook_tables
     - notebook_database
  - kind: runImage
