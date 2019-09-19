@@ -61,7 +61,7 @@ object StagedRegionValueBuilder {
     typ.fundamentalType match {
       case t if t.isPrimitive => Region.storePrimitive(t, dest)(value)
       case t@(_: PBinary | _: PArray) =>
-        region.storeAddress(dest, deepCopyFromOffset(fb, region, t, coerce[Long](value)))
+        Region.storeAddress(dest, deepCopyFromOffset(fb, region, t, coerce[Long](value)))
       case t: PBaseStruct =>
         Code(Region.copyFrom(coerce[Long](value), dest, t.byteSize),
           fixupStruct(fb, region, t, dest))
@@ -171,7 +171,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     val t = ftype.asInstanceOf[PArray]
     var c = startOffset.store(region.allocate(t.contentsAlignment, t.contentsByteSize(length)))
     if (pOffset != null) {
-      c = Code(c, region.storeAddress(pOffset, startOffset))
+      c = Code(c, Region.storeAddress(pOffset, startOffset))
     }
     if (init)
       c = Code(c, t.stagedInitialize(startOffset, length))
@@ -217,38 +217,38 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def addBoolean(v: Code[Boolean]): Code[Unit] = {
     checkType(TBoolean())
-    region.storeByte(currentOffset, v.toI.toB)
+    Region.storeByte(currentOffset, v.toI.toB)
   }
 
   def addInt(v: Code[Int]): Code[Unit] = {
     checkType(TInt32())
-    region.storeInt(currentOffset, v)
+    Region.storeInt(currentOffset, v)
   }
 
   def addLong(v: Code[Long]): Code[Unit] = {
     checkType(TInt64())
-    region.storeLong(currentOffset, v)
+    Region.storeLong(currentOffset, v)
   }
 
   def addFloat(v: Code[Float]): Code[Unit] = {
     checkType(TFloat32())
-    region.storeFloat(currentOffset, v)
+    Region.storeFloat(currentOffset, v)
   }
 
   def addDouble(v: Code[Double]): Code[Unit] = {
     checkType(TFloat64())
-    region.storeDouble(currentOffset, v)
+    Region.storeDouble(currentOffset, v)
   }
 
   def allocateBinary(n: Code[Int]): Code[Long] = {
     val boff = mb.newField[Long]
     Code(
       boff := PBinary.allocate(region, n),
-      region.storeInt(boff, n),
+      Region.storeInt(boff, n),
       ftype match {
         case _: PBinary => startOffset := boff
         case _ =>
-          region.storeAddress(currentOffset, boff)
+          Region.storeAddress(currentOffset, boff)
       },
       boff)
   }
@@ -263,7 +263,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
 
-  def addAddress(v: Code[Long]): Code[Unit] = region.storeAddress(currentOffset, v)
+  def addAddress(v: Code[Long]): Code[Unit] = Region.storeAddress(currentOffset, v)
 
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 

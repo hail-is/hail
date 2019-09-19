@@ -188,7 +188,7 @@ object EmitPackDecoder {
       length := in.readInt(),
       srvb.start(length, init = false),
       aoff := srvb.offset,
-      srvb.region.storeInt(aoff, length),
+      Region.storeInt(aoff, length),
       if (t.elementType.required)
         Code._empty
       else

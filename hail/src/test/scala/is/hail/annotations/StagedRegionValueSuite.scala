@@ -486,7 +486,7 @@ class StagedRegionValueSuite extends HailSuite {
 
           //clear old stuff
           val len = srcRegion.allocate(0) - src
-          srcRegion.storeBytes(src, Array.fill(len.toInt)(0.toByte))
+          Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
           newOff
         }
         SafeRow(t, region, copyOff)

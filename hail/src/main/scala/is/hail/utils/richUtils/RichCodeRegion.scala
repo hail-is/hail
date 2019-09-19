@@ -6,38 +6,6 @@ import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
-  def storeBoolean(off: Code[Long], v: Code[Boolean]): Code[Unit] = {
-    region.invoke[Long, Boolean, Unit]("storeBoolean", off, v)
-  }
-
-  def storeInt(off: Code[Long], v: Code[Int]): Code[Unit] = {
-    region.invoke[Long,Int,Unit]("storeInt", off, v)
-  }
-
-  def storeLong(off: Code[Long], v: Code[Long]): Code[Unit] = {
-    region.invoke[Long,Long,Unit]("storeLong", off, v)
-  }
-
-  def storeFloat(off: Code[Long], v: Code[Float]): Code[Unit] = {
-    region.invoke[Long,Float,Unit]("storeFloat", off, v)
-  }
-
-  def storeDouble(off: Code[Long], v: Code[Double]): Code[Unit] = {
-    region.invoke[Long,Double,Unit]("storeDouble", off, v)
-  }
-
-  def storeAddress(off: Code[Long], a: Code[Long]): Code[Unit] = {
-    region.invoke[Long,Long,Unit]("storeAddress", off, a)
-  }
-
-  def storeByte(off: Code[Long], b: Code[Byte]): Code[Unit] = {
-    region.invoke[Long, Byte, Unit]("storeByte", off, b)
-  }
-
-  def storeBytes(off: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = {
-    region.invoke[Long, Array[Byte], Unit]("storeBytes", off, bytes)
-  }
-
   def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] = {
     region.invoke[Long, Long, Long]("allocate", alignment, n)
   }
@@ -100,22 +68,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     case _: TFloat32 => loadFloat
     case _: TFloat64 => loadDouble
     case _ => off => off
-  }
-
-  def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
-    region.invoke[Long, Long, Unit]("setBit", byteOff, bitOff)
-  }
-
-  def setBit(byteOff: Code[Long], bitOff: Long): Code[Unit] = {
-    region.invoke[Long, Long, Unit]("setBit", byteOff, bitOff)
-  }
-
-  def clearBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
-    region.invoke[Long, Long, Unit]("clearBit", byteOff, bitOff)
-  }
-
-  def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean]): Code[Unit] = {
-    region.invoke[Long, Long, Boolean, Unit]("setBit", byteOff, bitOff, b)
   }
 
   def clear(): Code[Unit] = { region.invoke[Unit]("clear") }

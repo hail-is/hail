@@ -44,7 +44,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
     Code(
       region.setNumParents((lenRef + 1) * nStates),
       aoff := region.allocate(arrayType.contentsAlignment, arrayType.contentsByteSize(lenRef)),
-      region.storeAddress(typ.fieldOffset(off, 1), aoff),
+      Region.storeAddress(typ.fieldOffset(off, 1), aoff),
       arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(region, off, 1))
 

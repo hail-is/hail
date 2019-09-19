@@ -92,7 +92,7 @@ abstract class PContainer extends PIterable {
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    region.setBit(aoff + 4, i)
+    Region.setBit(aoff + 4, i)
   }
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
@@ -103,7 +103,7 @@ abstract class PContainer extends PIterable {
 
   def setElementPresent(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    region.clearBit(aoff + 4, i)
+    Region.clearBit(aoff + 4, i)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
@@ -179,7 +179,7 @@ abstract class PContainer extends PIterable {
   }
 
   def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
-    region.storeInt(aoff, length)
+    Region.storeInt(aoff, length)
     if (setMissing)
       setAllMissingBits(region, aoff, length)
     else

@@ -295,42 +295,14 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def loadByte(addr: Long): Byte = Region.loadByte(addr)
 
-  def storeInt(addr: Long, v: Int): Unit = Region.storeInt(addr, v)
-
-  def storeLong(addr: Long, v: Long): Unit = Region.storeLong(addr, v)
-
-  def storeFloat(addr: Long, v: Float): Unit = Region.storeFloat(addr, v)
-
-  def storeDouble(addr: Long, v: Double): Unit = Region.storeDouble(addr, v)
-
-  def storeAddress(addr: Long, v: Long): Unit = Region.storeAddress(addr, v)
-
-  def storeByte(addr: Long, v: Byte): Unit = Region.storeByte(addr, v)
-
   def loadBoolean(addr: Long): Boolean = Region.loadBoolean(addr)
-
-  def storeBoolean(addr: Long, v: Boolean): Unit = Region.storeBoolean(addr, v)
 
   def loadBytes(addr: Long, n: Int): Array[Byte] = Region.loadBytes(addr, n)
 
   def loadBytes(addr: Long, dst: Array[Byte], dstOff: Long, n: Long): Unit =
     Region.loadBytes(addr, dst, dstOff, n)
 
-  def storeBytes(addr: Long, src: Array[Byte]): Unit = Region.storeBytes(addr, src)
-
-  def storeBytes(addr: Long, src: Array[Byte], srcOff: Long, n: Long): Unit =
-    Region.storeBytes(addr, src, srcOff, n)
-
-  def copyFrom(src: Region, srcOff: Long, dstOff: Long, n: Long) =
-    Region.copyFrom(srcOff, dstOff, n)
-
   def loadBit(byteOff: Long, bitOff: Long): Boolean = Region.loadBit(byteOff, bitOff)
-
-  def setBit(byteOff: Long, bitOff: Long): Unit = Region.setBit(byteOff, bitOff)
-
-  def clearBit(byteOff: Long, bitOff: Long): Unit = Region.clearBit(byteOff, bitOff)
-
-  def storeBit(byteOff: Long, bitOff: Long, b: Boolean): Unit = Region.storeBit(byteOff, bitOff, b)
 
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
