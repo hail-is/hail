@@ -254,16 +254,14 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
+    val b = mb.newField[Array[Byte]]
     val boff = mb.newField[Long]
     Code(
-      boff := region.appendBinary(bytes),
-      ftype match {
-        case _: PBinary =>
-          startOffset := boff
-        case _ =>
-          region.storeAddress(currentOffset, boff)
-      })
+      b := bytes,
+      boff := PBinary.allocate(region, b.length()),
+      PBinary.store(boff, b))
   }
+
 
   def addAddress(v: Code[Long]): Code[Unit] = region.storeAddress(currentOffset, v)
 

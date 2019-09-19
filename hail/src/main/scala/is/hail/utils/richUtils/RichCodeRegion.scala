@@ -118,50 +118,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Long, Boolean, Unit]("setBit", byteOff, bitOff, b)
   }
 
-  def appendInt(i: Code[Int]): Code[Long] = {
-    region.invoke[Int, Long]("appendInt", i)
-  }
-
-  def appendLong(l: Code[Long]): Code[Long] = {
-    region.invoke[Long, Long]("appendLong", l)
-  }
-
-  def appendFloat(f: Code[Float]): Code[Long] = {
-    region.invoke[Float, Long]("appendFloat", f)
-  }
-
-  def appendDouble(d: Code[Double]): Code[Long] = {
-    region.invoke[Double, Long]("appendDouble", d)
-  }
-
-  def appendByte(b: Code[Byte]): Code[Long] = {
-    region.invoke[Byte, Long]("appendByte", b)
-  }
-
-  def appendBinary(bytes: Code[Array[Byte]]): Code[Long] = {
-    region.invoke[Array[Byte], Long]("appendBinary", bytes)
-  }
-
-  def appendBinarySlice(
-    fromRegion: Code[Region],
-    fromOff: Code[Long],
-    start: Code[Int],
-    n: Code[Int]
-  ): Code[Long] =
-    region.invoke[Region, Long, Int, Int, Long]("appendBinarySlice", fromRegion, fromOff, start, n)
-
-  def appendString(string: Code[String]): Code[Long] = {
-    region.invoke[String, Long]("appendString", string)
-  }
-
-  def appendStringSlice(
-    fromRegion: Code[Region],
-    fromOff: Code[Long],
-    start: Code[Int],
-    n: Code[Int]
-  ): Code[Long] =
-    region.invoke[Region, Long, Int, Int, Long]("appendStringSlice", fromRegion, fromOff, start, n)
-
   def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
 
   def reference(other: Code[Region]): Code[Unit] =

@@ -283,15 +283,6 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.releaseReferenceAtIndex(idx)
   }
 
-  def appendBinary(v: Array[Byte]): Long = {
-    val len: Int = v.length
-    val grain = if (PBinary.contentAlignment < 4) 4 else PBinary.contentAlignment
-    val addr = allocate(grain, grain + len) + (grain - 4)
-    Region.storeInt(addr, len)
-    Region.storeBytes(addr + 4, v)
-    addr
-  }
-
   def loadInt(addr: Long): Int = Region.loadInt(addr)
 
   def loadLong(addr: Long): Long = Region.loadLong(addr)
@@ -340,40 +331,6 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   def clearBit(byteOff: Long, bitOff: Long): Unit = Region.clearBit(byteOff, bitOff)
 
   def storeBit(byteOff: Long, bitOff: Long, b: Boolean): Unit = Region.storeBit(byteOff, bitOff, b)
-
-  // Use of appendXXX methods is deprecated now that Region uses absolute
-  // addresses and non-contiguous memory allocation.  You can't assume any
-  // relationships between the addresses returned by appendXXX methods -
-  // and to make it even more confusing, there may be long sequences of
-  // ascending addresses (within a buffer) followed by an arbitrary jump
-  // to an address in a different buffer.
-
-  def appendInt(v: Int): Long = {
-    val a = allocate(4, 4)
-    Memory.storeInt(a, v)
-    a
-  }
-
-  def appendLong(v: Long): Long = {
-    val a = allocate(8, 8)
-    Memory.storeLong(a, v)
-    a
-  }
-
-  def appendDouble(v: Double): Long = {
-    val a = allocate(8, 8)
-    Memory.storeDouble(a, v)
-    a
-  }
-
-  def appendByte(v: Byte): Long = {
-    val a = allocate(1)
-    Memory.storeByte(a, v)
-    a
-  }
-
-  def appendString(v: String): Long =
-    appendBinary(v.getBytes)
 
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {

@@ -109,4 +109,11 @@ object PBinary {
     region.allocate(const(contentAlignment), contentByteSize(length))
   }
 
+  def store(addr: Long, bytes: Array[Byte]): Unit = {
+    Region.storeInt(addr, bytes.length)
+    Region.storeBytes(bytesOffset(addr), bytes)
+  }
+
+  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
+    Code.invokeScalaObject[Long, Array[Byte], Unit](PBinary.getClass, "store", addr, bytes)
 }

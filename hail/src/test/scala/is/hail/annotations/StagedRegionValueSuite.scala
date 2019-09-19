@@ -41,7 +41,11 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.appendString(input))
+    val bytes = input.getBytes()
+    val boff = PBinary.allocate(region2, bytes.length)
+    Region.storeInt(boff, bytes.length)
+    Region.storeBytes(PBinary.bytesOffset(boff), bytes)
+    rv2.setOffset(boff)
 
     if (showRVInfo) {
       printRegion(region2, "string")
@@ -79,7 +83,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.appendInt(input))
+    rv2.setOffset(region2.allocate(4, 4))
+    Region.storeInt(rv2.offset, input)
 
     if (showRVInfo) {
       printRegion(region2, "int")

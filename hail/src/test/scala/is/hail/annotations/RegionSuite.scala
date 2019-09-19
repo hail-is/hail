@@ -8,12 +8,23 @@ class RegionSuite extends TestNGSuite {
   @Test def testRegionAppending() {
     val buff = Region()
 
-    val addrA = buff.appendLong(124L)
-    val addrB = buff.appendByte(2)
-    val addrC = buff.appendByte(1)
-    val addrD = buff.appendByte(4)
-    val addrE = buff.appendInt(1234567)
-    val addrF = buff.appendDouble(1.1)
+    val addrA = buff.allocate(8, 8)
+    Region.storeLong(addrA, 124L)
+
+    val addrB = buff.allocate(1, 1)
+    Region.storeByte(addrB, 2.toByte)
+
+    val addrC = buff.allocate(1, 1)
+    Region.storeByte(addrC, 1.toByte)
+
+    val addrD = buff.allocate(1, 1)
+    Region.storeByte(addrD, 1.toByte)
+
+    val addrE = buff.allocate(4, 4)
+    Region.storeInt(addrE, 1234567)
+
+    val addrF = buff.allocate(4, 4)
+    Region.storeDouble(addrF, 1.1)
 
     assert(buff.loadLong(addrA) == 124L)
     assert(buff.loadByte(addrB) == 2)
