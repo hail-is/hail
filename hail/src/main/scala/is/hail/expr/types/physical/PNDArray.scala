@@ -62,16 +62,15 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   def makeDefaultStrides(sourceShapePType: PTuple, sourceShape: Code[Long], mb: MethodBuilder): Code[Long] = {
     def getShapeAtIdx(index: Int) = Region.loadLong(sourceShapePType.loadField(sourceShape, index))
 
-    val stridesPType = this.representation.fieldType("strides").asInstanceOf[PTuple]
     val tupleStartAddress = mb.newField[Long]
     val runningProduct = mb.newLocal[Long]
     val region = mb.getArg[Region](1)
 
     Code(
-      tupleStartAddress := stridesPType.allocate(region),
+      tupleStartAddress := strides.pType.allocate(region),
       runningProduct := elementType.byteSize,
       Code.foreach((nDims - 1) to 0 by -1) { idx =>
-        val fieldOffset = stridesPType.fieldOffset(tupleStartAddress, idx)
+        val fieldOffset = strides.pType.fieldOffset(tupleStartAddress, idx)
         Code(
           Region.storeLong(fieldOffset, runningProduct),
           runningProduct := runningProduct * getShapeAtIdx(idx))
@@ -81,22 +80,19 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   }
 
   def getElementPosition(indices: Seq[Settable[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
-    val rep = this.representation
-    val strides = rep.loadField(region, nd, "strides")
-    val dataCode = rep.loadField(region, nd, "data")
-    val dataP = rep.fieldType("data").asInstanceOf[PArray]
-    def getStrideAtIdx(idx: Int): Code[Long] = Region.loadLong(rep.fieldType("strides").asInstanceOf[PTuple].loadField(strides, idx))
+    val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
     val bytesAway = mb.newLocal[Long]
-    val data = mb.newLocal[Long]
+    val dataStore = mb.newLocal[Long]
+
     coerce[Long](Code(
-      data := dataCode,
+      dataStore := data.load(region, nd),
       bytesAway := 0L,
       indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Settable[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
-          bytesAway := bytesAway + requestedIndex * getStrideAtIdx(strideIndex))
+          bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
       },
-      bytesAway + dataP.elementOffset(data, dataP.loadLength(data), 0)
+      bytesAway + data.pType.elementOffset(dataStore, data.pType.loadLength(dataStore), 0)
     ))
   }
 
