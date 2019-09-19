@@ -339,7 +339,7 @@ async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
 @routes.get('/error')
 @aiohttp_jinja2.template('error.html')
 @web_maybe_authenticated_user
-async def error_page(request, userdata):  # pylint: disable=unused-argument
+async def error_page(request, userdata):
     context = base_context(deploy_config, userdata, 'notebook2')
     context['error'] = request.args.get('err')
     return context
@@ -348,7 +348,7 @@ async def error_page(request, userdata):  # pylint: disable=unused-argument
 @routes.get('/user')
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only()
-async def user_page(request, userdata):  # pylint: disable=unused-argument
+async def user_page(request, userdata):
     context = base_context(deploy_config, userdata, 'notebook2')
     return context
 
@@ -371,7 +371,7 @@ async def workshop_admin(request, userdata):
 
 @routes.post('/workshop/create')
 @web_authenticated_developers_only()
-async def create_workshop(request, userdata):
+async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
 
@@ -390,7 +390,7 @@ INSERT INTO sessions (name, image, password, active) VALUES (%s, %s, %s, %s)';
 
 @routes.patch('/workshop/update')
 @web_authenticated_developers_only()
-async def update_workshop(request, userdata):
+async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
 
