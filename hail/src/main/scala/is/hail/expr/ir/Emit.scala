@@ -1425,23 +1425,18 @@ private class Emit(
         val childPointer = mb.newField[Long]
 
         val childPType = child.pType.asInstanceOf[PNDArray]
-        val childShapePType = childPType.shape.pType
-        val childStridesPType = childPType.strides.pType
         val childFlags = childPType.flags.load(region, childPointer)
         val childOffset = childPType.offset.load(region, childPointer)
         val childShapeAddress = childPType.shape.load(region, childPointer)
         val childStridesAddress = childPType.strides.load(region, childPointer)
         val childDataAddress = childPType.data.load(region, childPointer)
-        val nChildDims = childPType.nDims
 
         val outputPType = x.pType.asInstanceOf[PNDArray]
         val outputShapePType = outputPType.shape.pType
         val outputStridesPType = outputPType.strides.pType
 
-        val shapeTuple = new CodePTuple(childShapePType, region, childShapeAddress)
-
-        def getShapeAtIdx(index: Int) = shapeTuple.apply(index)
-        def getStrideAtIdx(index: Int): Code[Long] = region.loadLong(childStridesPType.loadField(childStridesAddress, index))
+        val shapeTuple = new CodePTuple(childPType.shape.pType, region, childShapeAddress)
+        val stridesTuple = new CodePTuple(childPType.strides.pType, region, childStridesAddress)
 
         val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
         val stridesSrvb = new StagedRegionValueBuilder(mb, outputStridesPType)
@@ -1449,11 +1444,11 @@ private class Emit(
         val ndAddress = mb.newField[Long]
 
         val reindexShapeAndStrides = indexExpr.map { childIndex =>
-          if (childIndex < nChildDims) {
+          if (childIndex < childPType.nDims) {
             Code(
-              shapeSrvb.addLong(getShapeAtIdx(childIndex)),
+              shapeSrvb.addLong(shapeTuple.apply(childIndex)),
               shapeSrvb.advance(),
-              stridesSrvb.addLong(getStrideAtIdx(childIndex)),
+              stridesSrvb.addLong(stridesTuple.apply(childIndex)),
               stridesSrvb.advance()
             )
           }
