@@ -782,7 +782,7 @@ steps:
     - default_ns
  - kind: buildImage
    name: create_notebook_tables_image
-   dockerFile: notebook/Dockerfile.create-tables
+   dockerFile: notebook2/Dockerfile.create-tables
    contextPath: notebook
    dependsOn:
     - base_image
