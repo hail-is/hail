@@ -290,7 +290,7 @@ object InferPType {
 
           assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
           
-          if(allRequired == true && idxIR.pType2.required == false) {
+          if (allRequired == true && idxIR.pType2.required == false) {
             allRequired = false
           }
         }
@@ -352,7 +352,7 @@ object InferPType {
           v._2.pType2
       }):_*)
       case MakeArray(irs, t) => {
-        if(irs.length == 0) {
+        if (irs.length == 0) {
           PType.canonical(t, true).deepInnerRequired(true)
         } else {
           val elementTypes = irs.map { elt =>
