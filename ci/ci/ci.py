@@ -9,15 +9,15 @@ import aiohttp
 from aiohttp import web
 import aiomysql
 import uvloop
-import jinja2
 import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.config import get_deploy_config
-from gear import configure_logging, setup_aiohttp_session, \
+from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
     new_csrf_token, check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
@@ -25,18 +25,16 @@ from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
-configure_logging()
 log = logging.getLogger('ci')
 
 uvloop.install()
+
+deploy_config = get_deploy_config()
 
 watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
     for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
-
-app = web.Application()
-setup_aiohttp_session(app)
 
 routes = web.RouteTableDef()
 
@@ -86,11 +84,10 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
     token = new_csrf_token()
 
-    context = {
-        'watched_branches': wb_configs,
-        'age': humanize.naturaldelta(datetime.datetime.now() - start_time),
-        'token': token
-    }
+    context = base_context(deploy_config, userdata, 'ci')
+    context['watched_branches'] = wb_configs
+    context['age'] = humanize.naturaldelta(datetime.datetime.now() - start_time)
+    context['token'] = token
 
     response = aiohttp_jinja2.render_template('index.html',
                                               request,
@@ -114,7 +111,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
 
-    config = {}
+    config = base_context(deploy_config, userdata, 'ci')
     config['repo'] = wb.branch.repo.short_str()
     config['number'] = pr.number
     # FIXME
@@ -152,9 +149,9 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
     statuses = [await b.status() for b in batches]
-    return {
-        'batches': statuses
-    }
+    context = base_context(deploy_config, userdata, 'ci')
+    context['batches'] = statuses
+    return context
 
 
 @routes.get('/batches/{batch_id}')
@@ -168,9 +165,9 @@ async def get_batch(request, userdata):  # pylint: disable=unused-argument
     for j in status['jobs']:
         j['duration'] = humanize.naturaldelta(Job.total_duration(j))
         j['exit_code'] = Job.exit_code(j)
-    return {
-        'batch': status
-    }
+    context = base_context(deploy_config, userdata, 'ci')
+    context['batch'] = status
+    return context
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
@@ -181,11 +178,11 @@ async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
     job = await batch_client.get_job(batch_id, job_id)
-    return {
-        'batch_id': batch_id,
-        'job_id': job_id,
-        'job_log': await job.log()
-    }
+    context = base_context(deploy_config, userdata, 'ci')
+    context['batch_id'] = batch_id
+    context['job_id'] = job_id
+    context['job_log'] = await job.log()
+    return context
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -196,12 +193,12 @@ async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argum
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
     job = await batch_client.get_job(batch_id, job_id)
-    return {
-        'batch_id': batch_id,
-        'job_id': job_id,
-        'job_pod_status': json.dumps(json.loads(await job.pod_status()),
-                                     indent=2)
-    }
+    context = base_context(deploy_config, userdata, 'ci')
+    context['batch_id'] = batch_id
+    context['job_id'] = job_id
+    context['job_pod_status'] = json.dumps(json.loads(await job.pod_status()),
+                                           indent=2)
+    return context
 
 
 @routes.post('/authorize_source_sha')
@@ -285,6 +282,7 @@ async def batch_callback_handler(request):
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
+    app = request.app
     params = await request.json()
     branch = FQBranch.from_short_str(params['branch'])
     steps = params['steps']
@@ -321,9 +319,6 @@ async def update_loop(app):
         await asyncio.sleep(300)
 
 
-aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
-
-
 async def on_startup(app):
     session = aiohttp.ClientSession(
         raise_for_status=True,
@@ -356,10 +351,14 @@ async def on_cleanup(app):
 
 
 def run():
+    app = web.Application()
+    setup_aiohttp_jinja2(app, 'ci')
+    setup_aiohttp_session(app)
+
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-    app.add_routes(routes)
-    routes.static('/static', 'ci/static')
 
-    deploy_config = get_deploy_config()
+    setup_common_static_routes(routes)
+    app.add_routes(routes)
+
     web.run_app(deploy_config.prefix_application(app, 'ci'), host='0.0.0.0', port=5000)

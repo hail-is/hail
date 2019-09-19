@@ -11,7 +11,7 @@ CI_LATEST = gcr.io/$(PROJECT)/ci:latest
 CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hail/python python3
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hail/python:../gear:../web_common python3
 
 PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
