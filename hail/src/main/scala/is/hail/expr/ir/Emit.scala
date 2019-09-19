@@ -1378,7 +1378,7 @@ private class Emit(
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
-        val xP = x.pType.asInstanceOf[PNDArray]
+        val xP = x.pType
         val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
         val dataPType = xP.data.pType
@@ -1414,14 +1414,13 @@ private class Emit(
           )
         )
         EmitTriplet(setup, false, ndAddress)
-      case x@NDArrayShape(ndIR) =>
+      case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
         EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
       case x@NDArrayReindex(child, indexExpr) =>
         val childt = emit(child)
-
         val childPointer = mb.newField[Long]
 
         val childPType = child.pType.asInstanceOf[PNDArray]
@@ -1431,9 +1430,8 @@ private class Emit(
         val childStridesAddress = childPType.strides.load(region, childPointer)
         val childDataAddress = childPType.data.load(region, childPointer)
 
-        val outputPType = x.pType.asInstanceOf[PNDArray]
-        val outputShapePType = outputPType.shape.pType
-        val outputStridesPType = outputPType.strides.pType
+        val outputShapePType = x.pType.shape.pType
+        val outputStridesPType = x.pType.strides.pType
 
         val shapeTuple = new CodePTuple(childPType.shape.pType, region, childShapeAddress)
         val stridesTuple = new CodePTuple(childPType.strides.pType, region, childStridesAddress)
@@ -1468,7 +1466,7 @@ private class Emit(
           childt.setup,
           childPointer := childt.value[Long],
           reindexShapeAndStrides,
-          ndAddress := outputPType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
+          ndAddress := x.pType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
         )
         EmitTriplet(setup, false, ndAddress)
       case _: NDArrayMap | _: NDArrayMap2 =>
