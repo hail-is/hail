@@ -1378,17 +1378,16 @@ private class Emit(
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val xP = x.pType.asInstanceOf[PNDArray]
-        val repr = xP.representation
         val dataContainer = dataIR.pType.asInstanceOf[PArray]
         val shapePType = shapeIR.pType.asInstanceOf[PTuple]
-        val dataPType = repr.fieldType("data").asInstanceOf[PArray]
+        val dataPType = xP.data.pType
         val nDims = shapePType.size
 
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val targetShapePType = repr.fieldType("shape").asInstanceOf[PBaseStruct]
+        val targetShapePType = xP.shape.pType
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")
         val shapeSrvb = new StagedRegionValueBuilder(mb, targetShapePType)
         val ndAddress = mb.newField[Long]
@@ -1416,19 +1415,19 @@ private class Emit(
         EmitTriplet(setup, false, ndAddress)
       case x@NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
-        val repr = ndIR.pType.asInstanceOf[PNDArray].representation
+        val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
-        EmitTriplet(ndt.setup, false, repr.loadField(region, ndt.value[Long], "shape"))
+        EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
       case x@NDArrayReindex(child, indexExpr) =>
         val childt = emit(child)
         val childPType = child.pType.asInstanceOf[PNDArray]
         val childShapePType = childPType.shape.pType
         val childStridesPType = childPType.strides.pType
-        val childFlags = region.loadInt(childPType.representation.loadField(region, childt.value[Long], "flags"))
-        val childOffset = region.loadInt(childPType.representation.loadField(region, childt.value[Long], "offset"))
-        val childShapeAddress = childPType.representation.loadField(region, childt.value[Long], "shape")
-        val childStridesAddress = childPType.representation.loadField(region, childt.value[Long], "strides")
-        val childDataAddress = childPType.representation.loadField(region, childt.value[Long], "data")
+        val childFlags = childPType.flags.load(region, childt.value[Long])
+        val childOffset = childPType.offset.load(region, childt.value[Long])
+        val childShapeAddress = childPType.shape.load(region, childt.value[Long])
+        val childStridesAddress = childPType.strides.load(region, childt.value[Long])
+        val childDataAddress = childPType.data.load(region, childt.value[Long])
         val nChildDims = childPType.nDims
 
         val outputPType = x.pType.asInstanceOf[PNDArray]
@@ -1449,7 +1448,6 @@ private class Emit(
               shapeSrvb.addLong(getShapeAtIdx(childIndex)),
               shapeSrvb.advance(),
               stridesSrvb.addLong(getStrideAtIdx(childIndex)),
-
               stridesSrvb.advance()
             )
           }
