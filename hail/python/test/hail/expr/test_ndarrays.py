@@ -49,23 +49,20 @@ def test_ndarray_ref():
     with pytest.raises(ValueError) as excinfo:
         hl._ndarray([[4], [1, 2, 3], 5])
 
-# def assert_ndarrays(self, asserter, exprs_and_expecteds):
-#     exprs, expecteds = zip(*exprs_and_expecteds)
-#
-#     from hail.ir import NDArrayWrite, Begin
-#     # tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
-#     # write_irs = [NDArrayWrite(expr._ir, hl.str(tmp_file)._ir) for (expr, tmp_file) in zip(exprs, tmp_files)]
-#     # hl.utils.java.Env.backend().execute(Begin(write_irs))
-#
-#
-#     for (expr, expected) in zip(exprs, expecteds):
-#         assertTrue(asserter(hl.eval(expr), expected))
 
-# def ndarrays_eq(self, *expr_and_expected):
-#     assert_ndarrays(np.array_equal, expr_and_expected)
-#
-# def ndarrays_almost_eq(self, *expr_and_expected):
-#     assert_ndarrays(np.allclose, expr_and_expected)
+def assert_ndarrays(asserter, exprs_and_expecteds):
+    exprs, expecteds = zip(*exprs_and_expecteds)
+
+    for (expr, expected) in zip(exprs, expecteds):
+        assert (asserter(hl.eval(expr), expected))
+
+
+def ndarrays_eq(*expr_and_expected):
+    assert_ndarrays(np.array_equal, expr_and_expected)
+
+
+def ndarrays_almost_eq(*expr_and_expected):
+    assert_ndarrays(np.allclose, expr_and_expected)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
@@ -239,19 +236,19 @@ def test_ndarray_ops():
         (nrow_vec // ncube1, row_vec // cube1))
 
     # Division
-    # ndarrays_almost_eq(
-    #     (na / na, np.array(a / a)),
-    #     (nx / nx, x / x),
-    #     (nx / na, x / a),
-    #     (na / nx, a / x),
-    #     (ncube1 / ncube2, cube1 / cube2),
-    #     # Broadcasting
-    #     (ncube1 / na, cube1 / a),
-    #     (na / ncube1, a / cube1),
-    #     (ncube1 / ny, cube1 / y),
-    #     (ny / ncube1, y / cube1),
-    #     (ncube1 / nrow_vec, cube1 / row_vec),
-    #     (nrow_vec / ncube1, row_vec / cube1))
+    ndarrays_almost_eq(
+        (na / na, np.array(a / a)),
+        (nx / nx, x / x),
+        (nx / na, x / a),
+        (na / nx, a / x),
+        (ncube1 / ncube2, cube1 / cube2),
+        # Broadcasting
+        (ncube1 / na, cube1 / a),
+        (na / ncube1, a / cube1),
+        (ncube1 / ny, cube1 / y),
+        (ny / ncube1, y / cube1),
+        (ncube1 / nrow_vec, cube1 / row_vec),
+        (nrow_vec / ncube1, row_vec / cube1))
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
