@@ -17,6 +17,7 @@ class TakeByAggregatorSuite extends HailSuite {
         val argR = fb.getArg[Region](1).load()
         val i = fb.newField[Long]
         val off = fb.newField[Long]
+        val bytes = fb.newField[Array[Byte]]
         val rt = tba.resultType
 
         fb.emit(Code(
@@ -26,10 +27,11 @@ class TakeByAggregatorSuite extends HailSuite {
           i := 0L,
           Code.whileLoop(i < n.toLong,
             argR.invoke[Unit]("clear"),
-            off := argR.appendBinary(const("str").concat(i.toS).invoke[Array[Byte]]("getBytes")),
+            bytes := const("str").concat(i.toS).invoke[Array[Byte]]("getBytes"),
+            off := PBinary.allocate(argR, bytes.length()),
+            PBinary.store(off, bytes),
             tba.seqOp(false, off, false, -i),
-            i := i + 1L
-          ),
+            i := i + 1L),
           tba.result(argR, rt)
         ))
 
