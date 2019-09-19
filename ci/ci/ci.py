@@ -358,8 +358,6 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    root = os.path.dirname(os.path.abspath(__file__))
-    routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
     app.add_routes(routes)
 
