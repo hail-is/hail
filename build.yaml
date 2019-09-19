@@ -783,7 +783,7 @@ steps:
  - kind: buildImage
    name: create_notebook_tables_image
    dockerFile: notebook2/Dockerfile.create-tables
-   contextPath: notebook
+   contextPath: notebook2
    dependsOn:
     - base_image
  - kind: deploy
