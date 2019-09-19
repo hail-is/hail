@@ -4,6 +4,9 @@ import java.io.PrintStream
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
+import is.hail.annotations.Region
+import is.hail.expr.types.physical.PTuple
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -932,4 +935,15 @@ class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)
+}
+
+class CodePTuple(
+  val typ: PTuple,
+  val region: Code[Region],
+  val offset: Code[Long]
+) {
+  def apply[T](i: Int): Code[T] =
+    region.loadIRIntermediate(typ.types(i))(
+      typ.loadField(offset, i)
+    ).asInstanceOf[Code[T]]
 }

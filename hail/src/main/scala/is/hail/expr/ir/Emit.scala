@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s.{Code, _}
+import is.hail.asm4s.CodePTuple
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -1420,21 +1421,26 @@ private class Emit(
         EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
       case x@NDArrayReindex(child, indexExpr) =>
         val childt = emit(child)
+
+        val childPointer = mb.newField[Long]
+
         val childPType = child.pType.asInstanceOf[PNDArray]
         val childShapePType = childPType.shape.pType
         val childStridesPType = childPType.strides.pType
-        val childFlags = childPType.flags.load(region, childt.value[Long])
-        val childOffset = childPType.offset.load(region, childt.value[Long])
-        val childShapeAddress = childPType.shape.load(region, childt.value[Long])
-        val childStridesAddress = childPType.strides.load(region, childt.value[Long])
-        val childDataAddress = childPType.data.load(region, childt.value[Long])
+        val childFlags = childPType.flags.load(region, childPointer)
+        val childOffset = childPType.offset.load(region, childPointer)
+        val childShapeAddress = childPType.shape.load(region, childPointer)
+        val childStridesAddress = childPType.strides.load(region, childPointer)
+        val childDataAddress = childPType.data.load(region, childPointer)
         val nChildDims = childPType.nDims
 
         val outputPType = x.pType.asInstanceOf[PNDArray]
         val outputShapePType = outputPType.shape.pType
         val outputStridesPType = outputPType.strides.pType
 
-        def getShapeAtIdx(index: Int) = region.loadLong(childShapePType.loadField(childShapeAddress, index))
+        val shapeTuple = new CodePTuple(childShapePType, region, childShapeAddress)
+
+        def getShapeAtIdx(index: Int) = shapeTuple.apply(index)
         def getStrideAtIdx(index: Int): Code[Long] = region.loadLong(childStridesPType.loadField(childStridesAddress, index))
 
         val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
@@ -1465,6 +1471,7 @@ private class Emit(
           shapeSrvb.start(),
           stridesSrvb.start(),
           childt.setup,
+          childPointer := childt.value[Long],
           reindexShapeAndStrides,
           ndAddress := outputPType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
         )
