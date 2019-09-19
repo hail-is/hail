@@ -136,10 +136,10 @@ object JSONAnnotationImpex {
     }
 
   def importAnnotation(jv: JValue, t: Type, padNulls: Boolean = true, warnContext: mutable.HashSet[String] = null): Annotation =
-    importAnnotation(jv, t, "<root>", padNulls, if (warnContext == null) new mutable.HashSet[String] else warnContext)
+    importAnnotationInternal(jv, t, "<root>", padNulls, if (warnContext == null) new mutable.HashSet[String] else warnContext)
 
-  def importAnnotation(jv: JValue, t: Type, parent: String, padNulls: Boolean, warnContext: mutable.HashSet[String]): Annotation = {
-    def imp(jv: JValue, t: Type, parent: String): Annotation = importAnnotation(jv, t, parent, padNulls, warnContext)
+  private def importAnnotationInternal(jv: JValue, t: Type, parent: String, padNulls: Boolean, warnContext: mutable.HashSet[String]): Annotation = {
+    def imp(jv: JValue, t: Type, parent: String): Annotation = importAnnotationInternal(jv, t, parent, padNulls, warnContext)
     def warnOnce(msg: String, path: String): Unit = {
       if (!warnContext.contains(path)) {
         warn(msg)

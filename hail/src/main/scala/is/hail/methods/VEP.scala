@@ -186,7 +186,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
                 } else {
                   try {
                     val jv = JsonMethods.parse(s)
-                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature, context = warnContext)
+                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature, warnContext = warnContext)
                     val variantString = inputQuery(a).asInstanceOf[String]
                     if (variantString == null)
                       fatal(s"VEP generated null variant string" +
