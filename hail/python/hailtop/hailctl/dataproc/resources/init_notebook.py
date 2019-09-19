@@ -98,6 +98,7 @@ if role == 'Master':
     hail_jar = '/opt/conda/default/lib/python3.6/site-packages/hail/hail-all-spark.jar'
     conf_to_set = [
         'spark.executorEnv.PYTHONHASHSEED=0',
+        'spark.app.name=Hail',
         # the below are necessary to make 'submit' work
         'spark.jars={}'.format(hail_jar),
         'spark.driver.extraClassPath={}'.format(hail_jar),
@@ -145,8 +146,8 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     print('copying spark monitor')
-    spark_monitor_gs = 'gs://hail-common/sparkmonitor-0a390b1d3cff6d632a770c729eef9ed31a4eb3cf/' \
-                       'sparkmonitor-0.0.10-py3-none-any.whl'
+    spark_monitor_gs = 'gs://hail-common/sparkmonitor-e50375290749a7e9b360fbd22efd5782d8732148' \
+                       '/sparkmonitor-0.0.10-py3-none-any.whl'
     spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
     safe_call('gsutil', 'cp', spark_monitor_gs, spark_monitor_wheel)
     safe_call('pip', 'install', spark_monitor_wheel)
