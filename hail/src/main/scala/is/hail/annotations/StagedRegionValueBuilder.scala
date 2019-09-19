@@ -259,6 +259,11 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     Code(
       b := bytes,
       boff := PBinary.allocate(region, b.length()),
+      ftype match {
+        case _: PBinary => startOffset := boff
+        case _ =>
+          Region.storeAddress(currentOffset, boff)
+      },
       PBinary.store(boff, b))
   }
 
