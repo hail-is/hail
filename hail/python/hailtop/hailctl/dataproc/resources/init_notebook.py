@@ -49,7 +49,6 @@ if role == 'Master':
         'google-cloud==0.32.0',
         'ipython<7',
         'jgscm<0.2',
-        'sparkmonitor'
     ]
 
     # add user-requested packages
@@ -87,6 +86,7 @@ if role == 'Master':
         'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
         'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
         'HAIL_SPARK_MONITOR': '1',
+        'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
     }
 
     print('setting environment')
@@ -143,6 +143,13 @@ if role == 'Master':
             'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
         ]
         f.write('\n'.join(opts) + '\n')
+
+    print('copying spark monitor')
+    spark_monitor_gs = 'gs://hail-common/sparkmonitor-0a390b1d3cff6d632a770c729eef9ed31a4eb3cf/' \
+                       'sparkmonitor-0.0.10-py3-none-any.whl'
+    spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
+    safe_call('gsutil', 'cp', spark_monitor_gs, spark_monitor_wheel)
+    safe_call('pip', 'install', spark_monitor_wheel)
 
     # setup jupyter-spark extension
     safe_call('/opt/conda/default/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'sparkmonitor')
