@@ -300,6 +300,9 @@ private class Emit(
 
     def emitArrayIterator(ir: IR, env: E = env, rvas: Emit.RVAS = rvas, container: Option[AggContainer] = container) = this.emitArrayIterator(ir, env, rvas, er, container)
 
+    def emitDeforestedNDArray(ir: NDArrayIR) =
+      deforestNDArray(resultRegion, ir, env).emit(ir.pType)
+
     val region = er.region
 
     (ir: @unchecked) match {
@@ -1469,9 +1472,8 @@ private class Emit(
           ndAddress := x.pType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
         )
         EmitTriplet(setup, false, ndAddress)
-      case _: NDArrayMap | _: NDArrayMap2 =>
-        val emitter = emitDeforestedNDArray(resultRegion, ir, env)
-        emitter.emit(ir.pType.asInstanceOf[PNDArray])
+      case x: NDArrayMap  =>  emitDeforestedNDArray(x)
+      case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
@@ -2012,8 +2014,8 @@ private class Emit(
     1 + nSpecialArguments + idx * 2
   }
 
-  def emitDeforestedNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
-    def deforest(nd: IR): NDArrayEmitter = emitDeforestedNDArray(er, nd, env)
+  def deforestNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
+    def deforest(nd: IR): NDArrayEmitter = deforestNDArray(er, nd, env)
 
     val xType = x.pType.asInstanceOf[PNDArray]
     val nDims = xType.nDims
