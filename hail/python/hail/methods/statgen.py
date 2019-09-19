@@ -2018,7 +2018,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
                         .or_error("Found non-left-aligned variant in split_multi"))
             return hl.bind(error_on_moved,
                            hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
-        return split_rows(hl.sorted(kept_alleles.map(make_struct)), False)
+        return split_rows(hl.sorted(kept_alleles.map(make_struct)), permit_shuffle)
     else:
         def make_struct(i, cond):
             def struct_or_empty(v):
@@ -2031,8 +2031,8 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
         def make_array(cond):
             return hl.sorted(kept_alleles.flatmap(lambda i: make_struct(i, cond)))
 
-        left = split_rows(make_array(lambda locus: locus == ds['locus']), False)
-        moved = split_rows(make_array(lambda locus: locus != ds['locus']), not permit_shuffle)
+        left = split_rows(make_array(lambda locus: locus == ds['locus']), permit_shuffle)
+        moved = split_rows(make_array(lambda locus: locus != ds['locus']), True)
     return left.union(moved) if is_table else left.union_rows(moved, _check_cols=False)
 
 
