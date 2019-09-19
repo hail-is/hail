@@ -8,12 +8,12 @@ from subprocess import check_output
 assert sys.version_info > (3, 0), sys.version_info
 
 if sys.version_info >= (3, 7):
-    def safe_call(*args):
-        sp.run(args, capture_output=True, check=True)
+    def safe_call(*args, **kwargs):
+        sp.run(args, capture_output=True, check=True, **kwargs)
 else:
-    def safe_call(*args):
+    def safe_call(*args, **kwargs):
         try:
-            sp.check_output(args, stderr=sp.STDOUT)
+            sp.check_output(args, stderr=sp.STDOUT, **kwargs)
         except sp.CalledProcessError as e:
             print(e.output).decode()
             raise e
@@ -49,7 +49,6 @@ if role == 'Master':
         'google-cloud==0.32.0',
         'ipython<7',
         'jgscm<0.2',
-        'jupyter-spark',
     ]
 
     # add user-requested packages
@@ -85,7 +84,9 @@ if role == 'Master':
         'PYTHONPATH': ':'.join(files_to_add),
         'SPARK_HOME': '/usr/lib/spark/',
         'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
-        'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python'
+        'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
+        'HAIL_SPARK_MONITOR': '1',
+        'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
     }
 
     print('setting environment')
@@ -97,6 +98,7 @@ if role == 'Master':
     hail_jar = '/opt/conda/default/lib/python3.6/site-packages/hail/hail-all-spark.jar'
     conf_to_set = [
         'spark.executorEnv.PYTHONHASHSEED=0',
+        'spark.app.name=Hail',
         # the below are necessary to make 'submit' work
         'spark.jars={}'.format(hail_jar),
         'spark.driver.extraClassPath={}'.format(hail_jar),
@@ -143,11 +145,18 @@ if role == 'Master':
         ]
         f.write('\n'.join(opts) + '\n')
 
+    print('copying spark monitor')
+    spark_monitor_gs = 'gs://hail-common/sparkmonitor-dcfd9305bab0228487cc8bae7fbee84e63fbffac/sparkmonitor-0.0.10-py3-none-any.whl'
+    spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
+    safe_call('gsutil', 'cp', spark_monitor_gs, spark_monitor_wheel)
+    safe_call('pip', 'install', spark_monitor_wheel)
+
     # setup jupyter-spark extension
-    safe_call('/opt/conda/default/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'jupyter_spark')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/default/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'sparkmonitor')
+    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'sparkmonitor')
+    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'sparkmonitor')
     safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
+    safe_call("""ipython profile create && echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >> $(ipython profile locate default)/ipython_kernel_config.py""", shell=True)
 
     # create systemd service file for Jupyter notebook server process
     with open('/lib/systemd/system/jupyter.service', 'w') as f:
