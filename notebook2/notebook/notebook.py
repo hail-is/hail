@@ -12,7 +12,7 @@ import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
-    web_authenticated_users_only, web_maybe_authenticated_user
+    web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 log = logging.getLogger('notebook2')
@@ -375,6 +375,7 @@ async def create_workshop(request, userdata):
     app = request.app
     dbpool = app['dbpool']
 
+    post = await request.post()
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
@@ -393,16 +394,17 @@ async def update_workshop(request, userdata):
     app = request.app
     dbpool = app['dbpool']
 
+    post = await request.post()
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             n = await cursor.execute('''
 UPDATE sessions SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
 ''',
-                                 (post['name'],
-                                  post['image'],
-                                  post['password'],
-                                  post.get('active') == 'on',
-                                  post['id']))
+                                     (post['name'],
+                                      post['image'],
+                                      post['password'],
+                                      post.get('active') == 'on',
+                                      post['id']))
             if n == 0:
                 raise web.HTTPNotFound()
             assert n == 1
