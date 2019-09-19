@@ -810,7 +810,7 @@ steps:
     - create_session_key
     - notebook2_image
     - deploy_router
-    - notebook_notebook_tables
+    - create_notebook_tables
     - notebook_database
  - kind: runImage
    name: test_scheduler
