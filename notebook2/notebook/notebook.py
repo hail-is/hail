@@ -379,7 +379,7 @@ async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
-INSERT INTO sessions (name, image, password, active) VALUES (%s, %s, %s, %s)';
+INSERT INTO workshops (name, image, password, active) VALUES (%s, %s, %s, %s);
 ''',
                                  (post['name'],
                                   post['image'],
@@ -388,7 +388,7 @@ INSERT INTO sessions (name, image, password, active) VALUES (%s, %s, %s, %s)';
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
 
-@routes.patch('/workshop/update')
+@routes.post('/workshop/update')
 @web_authenticated_developers_only()
 async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -398,7 +398,7 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             n = await cursor.execute('''
-UPDATE sessions SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
+UPDATE workshop SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
 ''',
                                      (post['name'],
                                       post['image'],

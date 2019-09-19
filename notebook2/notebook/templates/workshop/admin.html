@@ -3,64 +3,62 @@
 {% block content %}
   <div id="workshops">
     <h1>Workshops</h1>
-    {% if workshops|length > 0 %}
-      <table>
-        <thead>
-          <tr>
-            <td>Name</td>
-            <td>Image</td>
-            <td>Password</td>
-            <td>Active</td>
-            <td></td>
-          </tr>
-        </thead>
-        <tbody>
-          {% for workshop in workshops %}
-            <form action="{{ base_path }}/workshop/update" method="PATCH">
-              <tr>
-                <td>{{ workshop['name'] }}</td>
-                <td>
-                  <input name="image" value="{{ workshop['image'] }}" />
-                </td>
-                <td>
-                  <input name="password" value="{{ workshop['password'] }}" />
-                </td>
-                <td>
-                  <input type="checkbox" name="active" value="{{ workshop['password'] }}" />
-                </td>
-                <td>
-                  <button>
-                    Update
-                  </button>
-                </td>
-                <input type="hidden" name="id" value="{{ workshop['id'] }}" />
-                <input type="hidden" name="_csrf" value="{{ token }}"/>
-              </tr>
-            </form>
-          {% endblock %}
-          <form action="{{ base_path }}/workshop/create" method="POST">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Image</th>
+          <th>Password</th>
+          <th>Active</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for workshop in workshops %}
+          <form action="{{ base_path }}/workshop/update" method="POST">
             <tr>
+              <td>{{ workshop['name'] }}</td>
               <td>
-                <input name="image" />
-              <td>
-                <input name="image" />
+                <input name="image" value="{{ workshop['image'] }}" />
               </td>
               <td>
-                <input name="password" />
+                <input name="password" value="{{ workshop['password'] }}" />
               </td>
               <td>
-                <input type="checkbox" name="active" />
+                <input type="checkbox" name="active" value="{{ workshop['password'] }}" />
               </td>
               <td>
                 <button>
-                  Add
+                  Update
                 </button>
               </td>
+              <input type="hidden" name="id" value="{{ workshop['id'] }}" />
               <input type="hidden" name="_csrf" value="{{ token }}"/>
             </tr>
           </form>
-        </tbody>
-      </table>
-    {% endif %}
+        {% endfor %}
+        <form action="{{ base_path }}/workshop/create" method="POST">
+          <tr>
+            <td>
+              <input name="name" />
+            <td>
+              <input name="image" />
+            </td>
+            <td>
+              <input name="password" />
+            </td>
+            <td>
+              <input type="checkbox" name="active" />
+            </td>
+            <td>
+              <button>
+                Add
+              </button>
+            </td>
+            <input type="hidden" name="_csrf" value="{{ token }}"/>
+          </tr>
+        </form>
+      </tbody>
+    </table>
   </div>
 {% endblock %}
