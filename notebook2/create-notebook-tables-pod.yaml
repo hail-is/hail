@@ -12,18 +12,16 @@ spec:
      - |
        set -ex
        # index creation isn't idempotent, don't create if a table exists
-       USER_DATA=$(echo "SHOW TABLES LIKE 'user_data';" | mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf -s)
-       if [ "$USER_DATA" != "user_data" ]; then
-         mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf < ./create-notebook-tables.sql
+       TABLE=$(echo "SHOW TABLES LIKE 'workshops';" | mysql --defaults-extra-file=/sql-config/sql-config.cnf -s)
+       if [ "$TABLE" != "workshops" ]; then
+         mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-notebook-tables.sql
        fi
-       echo 'show tables;' | mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf
-       echo 'show grants;' | mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf
     volumeMounts:
-      - mountPath: /notebook-admin-secret
+      - mountPath: /sql-config
         readOnly: true
-        name: notebook-admin-secret
+        name: sql-config
   volumes:
-    - name: notebook-admin-secret
+    - name: sql-config
       secret:
         secretName: "{{ notebook_database.admin_secret_name }}"
   restartPolicy: Never
