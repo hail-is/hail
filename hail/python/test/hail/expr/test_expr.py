@@ -2705,11 +2705,10 @@ class Tests(unittest.TestCase):
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
 
     def assert_evals_to(self, e, v):
-        self.assertEqual(hl.eval(e), v)
+        assert_evals_to(e, v)
 
     def batch_assert_evals_to(self, *expr_and_expected):
-        exprs, expecteds = zip(*expr_and_expected)
-        self.assert_evals_to(hl.eval(hl.tuple(exprs)), expecteds)
+        batch_assert_evals_to(expr_and_expected)
 
     def test_set_functions(self):
         s = hl.set([1, 3, 7])

@@ -4,21 +4,23 @@ from ..helpers import *
 import tempfile
 import pytest
 
-def equals_including_numpy(a, b):
-    if isinstance(a, np.ndarray):
-        return np.array_equal(a, b)
-    elif isinstance(a, tuple) and isinstance(b, tuple):
-        return all([equals_including_numpy(a, b) for a, b in zip(a, b)])
-    else:
-        return a == b
 
-def assert_evals_to(e, v):
-    evaled = hl.eval(e)
-    assert (equals_including_numpy(evaled, v))
+def assert_ndarrays(asserter, exprs_and_expecteds):
+    exprs, expecteds = zip(*exprs_and_expecteds)
 
-def batch_assert_evals_to(*expr_and_expected):
-    exprs, expecteds = zip(*expr_and_expected)
-    assert_evals_to((hl.tuple(exprs)), expecteds)
+    expr_tuple = hl.tuple(exprs)
+    evaled_exprs = hl.eval(expr_tuple)
+
+    for (evaled, expected) in zip(evaled_exprs, expecteds):
+        assert (asserter(evaled, expected))
+
+
+def assert_ndarrays_eq(*expr_and_expected):
+    assert_ndarrays(np.array_equal, expr_and_expected)
+
+
+def assert_ndarrays_almost_eq(*expr_and_expected):
+    assert_ndarrays(np.allclose, expr_and_expected)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
@@ -49,21 +51,6 @@ def test_ndarray_ref():
     with pytest.raises(ValueError) as excinfo:
         hl._ndarray([[4], [1, 2, 3], 5])
 
-
-def assert_ndarrays(asserter, exprs_and_expecteds):
-    exprs, expecteds = zip(*exprs_and_expecteds)
-
-    for (expr, expected) in zip(exprs, expecteds):
-        assert (asserter(hl.eval(expr), expected))
-
-
-def ndarrays_eq(*expr_and_expected):
-    assert_ndarrays(np.array_equal, expr_and_expected)
-
-
-def ndarrays_almost_eq(*expr_and_expected):
-    assert_ndarrays(np.allclose, expr_and_expected)
-
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
 def test_ndarray_slice():
@@ -78,7 +65,7 @@ def test_ndarray_slice():
                        [5, 6, 7, 8]])
     mat = hl._ndarray(np_mat)
 
-    batch_assert_evals_to(
+    assert_ndarrays_eq(
         (arr[:, :, :], np_arr[:, :, :]),
         (arr[:, :, 1], np_arr[:, :, 1]),
         (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
@@ -135,7 +122,7 @@ def test_ndarray_reshape():
     cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
     np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
 
-    batch_assert_evals_to(
+    assert_ndarrays_eq(
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),
         (cube_to_rect, np_cube_to_rect),
@@ -147,7 +134,7 @@ def test_ndarray_map_jvm():
     b = hl.map(lambda x: -x, a)
     c = hl.map(lambda x: True, a)
 
-    batch_assert_evals_to(
+    assert_ndarrays_eq(
         (b, [[-2, -3, -4], [-5, -6, -7]]),
         (c, [[True, True, True],
              [True, True, True]]))
@@ -176,7 +163,7 @@ def test_ndarray_ops():
     ncube1 = hl._ndarray(cube1)
     ncube2 = hl._ndarray(cube2)
 
-    batch_assert_evals_to(
+    assert_ndarrays_eq(
         # with lists/numerics
         (na + b, np.array(a + b)),
         (b + na, np.array(a + b)),
@@ -236,7 +223,7 @@ def test_ndarray_ops():
         (nrow_vec // ncube1, row_vec // cube1))
 
     # Division
-    ndarrays_almost_eq(
+    assert_ndarrays_almost_eq(
         (na / na, np.array(a / a)),
         (nx / nx, x / x),
         (nx / na, x / a),
@@ -299,17 +286,17 @@ def test_ndarray_transpose():
     m = hl._ndarray(np_m)
     cube = hl._ndarray(np_cube)
 
-    batch_assert_evals_to(
+    assert_ndarrays_eq(
         (v.T, np_v.T),
         (v.T, np_v),
         (m.T, np_m.T),
         (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
         (cube.T, np_cube.T))
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError):
         v.transpose((1,))
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError):
         cube.transpose((1, 1))
 
 @skip_unless_spark_backend()
@@ -336,7 +323,7 @@ def test_ndarray_matmul():
 
     assert(hl.eval(v @ v) == np_v @ np_v)
 
-    batch_assert_evals_to(
+    assert_ndarrays_eq(
         (m @ m, np_m @ np_m),
         (m @ m.T, np_m @ np_m.T),
         (v @ m, np_v @ np_m),
@@ -351,6 +338,11 @@ def test_ndarray_matmul():
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
         (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism))
 
-    # assertRaises(ValueError, lambda: m @ 5)
-    # assertRaises(ValueError, lambda: m @ hl._ndarray(5))
-    # assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
+    with pytest.raises(ValueError):
+        m @ 5
+
+    with pytest.raises(ValueError):
+        m @ hl._ndarray(5)
+
+    with pytest.raises(ValueError):
+        cube @ hl._ndarray(5)
