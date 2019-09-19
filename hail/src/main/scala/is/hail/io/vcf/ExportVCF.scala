@@ -23,22 +23,22 @@ object ExportVCF {
   def strVCF(sb: StringBuilder, elementType: PType, m: Region, offset: Long) {
     elementType match {
       case PInt32(_) =>
-        val x = m.loadInt(offset)
+        val x = Region.loadInt(offset)
         sb.append(x)
       case PInt64(_) =>
-        val x = m.loadLong(offset)
+        val x = Region.loadLong(offset)
         if (x > Int.MaxValue || x < Int.MinValue)
           fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) " +
             s"or less than Int.MinValue (-2^31). Found $x.")
         sb.append(x)
       case PFloat32(_) =>
-        val x = m.loadFloat(offset)
+        val x = Region.loadFloat(offset)
         if (x.isNaN)
           sb += '.'
         else
           sb.append(x.formatted("%.5e"))
       case PFloat64(_) =>
-        val x = m.loadDouble(offset)
+        val x = Region.loadDouble(offset)
         if (x.isNaN)
           sb += '.'
         else
@@ -46,7 +46,7 @@ object ExportVCF {
       case PString(_) =>
         sb.append(PString.loadString(m, offset))
       case PCall(_) =>
-        val c = m.loadInt(offset)
+        val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
       case _ =>
         fatal(s"VCF does not support type $elementType")
@@ -85,7 +85,7 @@ object ExportVCF {
           true
         }
       case PBoolean(_) =>
-        if (m.loadBoolean(offset)) {
+        if (Region.loadBoolean(offset)) {
           if (wroteLast)
             sb += ';'
           sb.append(f.name)
@@ -418,7 +418,7 @@ object ExportVCF {
 
         if (qualExists && fullRowType.isFieldDefined(rv, qualIdx)) {
           val qualOffset = fullRowType.loadField(rv, qualIdx)
-          sb.append(m.loadDouble(qualOffset).formatted("%.2f"))
+          sb.append(Region.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
 

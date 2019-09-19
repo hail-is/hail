@@ -148,7 +148,7 @@ class BimAnnotationView(rowType: PStruct) extends View {
   }
 
   def cmPosition(): Double =
-    region.loadDouble(cmPosOffset)
+    Region.loadDouble(cmPosOffset)
 
   def varid(): String = {
     if (cachedVarid == null)

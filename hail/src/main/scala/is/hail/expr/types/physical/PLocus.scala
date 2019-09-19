@@ -57,7 +57,7 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
 
         val posOff1 = repr.loadField(r1, o1, 1)
         val posOff2 = repr.loadField(r2, o2, 1)
-        java.lang.Integer.compare(r1.loadInt(posOff1), r2.loadInt(posOff2))
+        java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
       }
     }
   }
@@ -94,5 +94,5 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
 
   def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
   
-  def position(region: Code[Region], off: Code[Long]): Code[Int] = region.loadInt(representation.loadField(region, off, 1))
+  def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
 }

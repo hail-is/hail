@@ -50,7 +50,7 @@ final class ArrayGenotypeView(rvType: PStruct) {
 
   def getGT: Call = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    m.loadInt(callOffset)
+    Region.loadInt(callOffset)
   }
 
   def getGP(idx: Int): Double = {
@@ -60,7 +60,7 @@ final class ArrayGenotypeView(rvType: PStruct) {
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(gpType.isElementDefined(m, gpOffset, idx))
     val elementOffset = gpType.elementOffset(gpOffset, length, idx)
-    m.loadDouble(elementOffset)
+    Region.loadDouble(elementOffset)
   }
 
   def getGPLength(): Int = {
@@ -120,7 +120,7 @@ final class HardCallView(rvType: PStruct, callField: String) {
   def getGT: Call = {
     assert(gtExists && gIsDefined)
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    m.loadInt(callOffset)
+    Region.loadInt(callOffset)
   }
 
   def getLength: Int = gsLength

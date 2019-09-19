@@ -26,12 +26,12 @@ class RegionSuite extends TestNGSuite {
     val addrF = buff.allocate(4, 4)
     Region.storeDouble(addrF, 1.1)
 
-    assert(buff.loadLong(addrA) == 124L)
-    assert(buff.loadByte(addrB) == 2)
-    assert(buff.loadByte(addrC) == 1)
-    assert(buff.loadByte(addrD) == 4)
-    assert(buff.loadInt(addrE) == 1234567)
-    assert(buff.loadDouble(addrF) == 1.1)
+    assert(Region.loadLong(addrA) == 124L)
+    assert(Region.loadByte(addrB) == 2)
+    assert(Region.loadByte(addrC) == 1)
+    assert(Region.loadByte(addrD) == 4)
+    assert(Region.loadInt(addrE) == 1234567)
+    assert(Region.loadDouble(addrF) == 1.1)
   }
 
   @Test def testRegionSizes() {

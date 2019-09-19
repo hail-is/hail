@@ -1862,7 +1862,7 @@ class WriteBlocksRDD(path: String,
                 val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
                 if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
                   val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-                  data(j) = region.loadDouble(fieldOffset)
+                  data(j) = Region.loadDouble(fieldOffset)
                 } else {
                   val rowIdx = blockRow * blockSize + i
                   fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")

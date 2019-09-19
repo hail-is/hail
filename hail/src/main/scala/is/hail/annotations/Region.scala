@@ -283,41 +283,20 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.releaseReferenceAtIndex(idx)
   }
 
-  def loadInt(addr: Long): Int = Region.loadInt(addr)
-
-  def loadLong(addr: Long): Long = Region.loadLong(addr)
-
-  def loadFloat(addr: Long): Float = Region.loadFloat(addr)
-
-  def loadDouble(addr: Long): Double = Region.loadDouble(addr)
-
-  def loadAddress(addr: Long): Long = Region.loadLong(addr)
-
-  def loadByte(addr: Long): Byte = Region.loadByte(addr)
-
-  def loadBoolean(addr: Long): Boolean = Region.loadBoolean(addr)
-
-  def loadBytes(addr: Long, n: Int): Array[Byte] = Region.loadBytes(addr, n)
-
-  def loadBytes(addr: Long, dst: Array[Byte], dstOff: Long, n: Long): Unit =
-    Region.loadBytes(addr, dst, dstOff, n)
-
-  def loadBit(byteOff: Long, bitOff: Long): Boolean = Region.loadBit(byteOff, bitOff)
-
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
-      case _: PBoolean => v.visitBoolean(loadBoolean(off))
-      case _: PInt32 => v.visitInt32(loadInt(off))
-      case _: PInt64 => v.visitInt64(loadLong(off))
-      case _: PFloat32 => v.visitFloat32(loadFloat(off))
-      case _: PFloat64 => v.visitFloat64(loadDouble(off))
+      case _: PBoolean => v.visitBoolean(Region.loadBoolean(off))
+      case _: PInt32 => v.visitInt32(Region.loadInt(off))
+      case _: PInt64 => v.visitInt64(Region.loadLong(off))
+      case _: PFloat32 => v.visitFloat32(Region.loadFloat(off))
+      case _: PFloat64 => v.visitFloat64(Region.loadDouble(off))
       case _: PString =>
         val boff = off
         v.visitString(PString.loadString(this, boff))
       case _: PBinary =>
         val boff = off
         val length = PBinary.loadLength(this, boff)
-        val b = loadBytes(PBinary.bytesOffset(boff), length)
+        val b = Region.loadBytes(PBinary.bytesOffset(boff), length)
         v.visitBinary(b)
       case t: PContainer =>
         val aoff = off
