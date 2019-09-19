@@ -204,7 +204,8 @@ abstract class RegistryFunctions {
       Code(
         bytes := coerce[String](c).invoke[Array[Byte]]("getBytes"),
         v := PBinary.allocate(r.region, bytes.length()),
-        PBinary.store(v, bytes))
+        PBinary.store(v, bytes),
+        v)
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
       val srvb = new StagedRegionValueBuilder(r, t)
