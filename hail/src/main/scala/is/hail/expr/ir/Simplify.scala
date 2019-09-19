@@ -296,8 +296,10 @@ object Simplify {
           case None => GetField(Ref(name, old.typ), fd)
         }
         case ins@InsertFields(`r`, fields, _) =>
+          val newFieldSet = fields.map(_._1).toSet
           InsertFields(Ref(name, old.typ),
-            copiedNewFieldRefs() ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
+            copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
+              ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
             Some(ins.typ.fieldNames))
         case SelectFields(`r`, fds) =>
           SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames)), fds)
