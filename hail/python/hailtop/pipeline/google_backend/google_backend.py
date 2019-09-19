@@ -924,7 +924,7 @@ class GRunner:
 
                         log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores} ready {len(self.ready)} qsize {self.pool.queue.qsize()}')
                         t.schedule(inst, self)
-                        await self.pool.call(self.execute_task, t, inst)
+                        asyncio.ensure_future(self.pool.call(self.execute_task, t, inst))
 
     async def enqueue_roots(self):
         for t in self.tasks:
