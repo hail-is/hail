@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: create-notebook-tables
+spec:
+  containers:
+  - name: create-notebook-tables
+    image: "{{ create_notebook_tables_image.image }}"
+    command:
+     - /bin/bash
+     - -c
+     - |
+       set -ex
+       # index creation isn't idempotent, don't create if a table exists
+       USER_DATA=$(echo "SHOW TABLES LIKE 'user_data';" | mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf -s)
+       if [ "$USER_DATA" != "user_data" ]; then
+         mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf < ./create-notebook-tables.sql
+       fi
+       echo 'show tables;' | mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf
+       echo 'show grants;' | mysql --defaults-extra-file=/notebook-admin-secret/sql-config.cnf
+    volumeMounts:
+      - mountPath: /notebook-admin-secret
+        readOnly: true
+        name: notebook-admin-secret
+  volumes:
+    - name: notebook-admin-secret
+      secret:
+        secretName: "{{ notebook_database.admin_secret_name }}"
+  restartPolicy: Never

@@ -773,6 +773,33 @@ steps:
    dependsOn:
     - default_ns
     - hail_test_base_image
+ - kind: createDatabase
+   name: notebook_database
+   databaseName: notebook
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: buildImage
+   name: create_notebook_tables_image
+   dockerFile: notebook/Dockerfile.create-tables
+   contextPath: notebook
+   dependsOn:
+    - base_image
+ - kind: deploy
+   name: create_notebook_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: notebook/create-notebook-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-notebook-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - create_notebook_tables_image
+     - notebook_database
  - kind: deploy
    name: deploy_notebook2
    namespace:
@@ -783,6 +810,8 @@ steps:
     - create_session_key
     - notebook2_image
     - deploy_router
+    - notebook_notebook_tables
+    - notebook_database
  - kind: runImage
    name: test_scheduler
    image:

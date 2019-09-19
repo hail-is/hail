@@ -11,7 +11,7 @@ from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
-from gear import setup_aiohttp_session, \
+from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
@@ -353,12 +353,71 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
     return context
 
 
+@routes.get('/workshop/admin')
+@aiohttp_jinja2.template('workshop/admin.html')
+@web_authenticated_developers_only()
+async def workshop_admin(request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
+    context = base_context(deploy_config, userdata, 'notebook2')
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM workshops')
+            workshops = await cursor.fetchall()
+    context['workshops'] = workshops
+    return context
+
+
+@routes.post('/workshop/create')
+@web_authenticated_developers_only()
+async def create_workshop(request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('''
+INSERT INTO sessions (name, image, password, active) VALUES (%s, %s, %s, %s)';
+''',
+                                 (post['name'],
+                                  post['image'],
+                                  post['password'],
+                                  post.get('active') == 'on'))
+    return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
+
+
+@routes.patch('/workshop/update')
+@web_authenticated_developers_only()
+async def update_workshop(request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            n = await cursor.execute('''
+UPDATE sessions SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
+''',
+                                 (post['name'],
+                                  post['image'],
+                                  post['password'],
+                                  post.get('active') == 'on',
+                                  post['id']))
+            if n == 0:
+                raise web.HTTPNotFound()
+            assert n == 1
+
+    return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
+
+
 async def on_startup(app):
     if 'BATCH_USE_KUBE_CONFIG' in os.environ:
         await config.load_kube_config()
     else:
         config.load_incluster_config()
     app['k8s_client'] = client.CoreV1Api()
+
+    app['dbpool'] = await create_database_pool()
 
 
 def run():
