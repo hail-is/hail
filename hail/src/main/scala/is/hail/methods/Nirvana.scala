@@ -19,6 +19,7 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 
 object Nirvana {
@@ -417,6 +418,8 @@ object Nirvana {
         if (path.orNull != null)
           env.put("PATH", path.get)
 
+        val warnContext = new mutable.HashSet[String]
+
         val rvv = new RegionValueVariant(localRowType)
 
         it.map { rv =>
@@ -431,7 +434,7 @@ object Nirvana {
               _ => ())
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
-              val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
+              val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature, warnContext = warnContext)
               val locus = Locus(contigQuery(a).asInstanceOf[String],
                 startQuery(a).asInstanceOf[Int])
               val alleles = refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[IndexedSeq[String]]
