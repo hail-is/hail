@@ -272,6 +272,7 @@ object Extract {
       CountAggregator
     case AggSignature2(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
     case AggSignature2(CallStats(), _, Seq(tCall: TCall), _) => new CallStatsAggregator(tCall.physicalType)
+    case AggSignature2(TakeBy(), _, Seq(value, key), _) => new TakeByAggregator(value.physicalType, key.physicalType)
     case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
       val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
@@ -281,6 +282,8 @@ object Extract {
       new PrevNonNullAggregator(t.physicalType)
     case AggSignature2(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
       new GroupedAggregator(PType.canonical(kt), nestedAggs.map(getAgg).toArray)
+    case AggSignature2(CollectAsSet(), _, Seq(t), _) =>
+      new CollectAsSetAggregator(PType.canonical(t))
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 

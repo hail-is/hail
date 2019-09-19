@@ -1,3 +1,4 @@
+from .base_ir import *
 from .ir import *
 from .register_functions import *
 from .register_aggregators import *

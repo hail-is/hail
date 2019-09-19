@@ -46,7 +46,7 @@ def read_string(f):
         return f.read().strip()
 
 
-app.secret_key = read_string('/notebook-secrets/secret-key')
+SECRET_KEY = read_string('/notebook-secrets/secret-key').encode('utf-8')
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
@@ -92,6 +92,7 @@ async def start_pod(jupyter_token, image):
                 command=[
                     'jupyter',
                     'notebook',
+                    '--ip=0.0.0.0',
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
                 ],
@@ -132,12 +133,13 @@ async def root(request):
         log.info(f'no svc_name found in session {session.keys()}')
         return {'form_action_url': str(request.app.router['new'].url_for()),
                 'images': list(WORKER_IMAGES),
-                'default': 'gew2019'}
+                'default': 'isia'}
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     # str(request.app.router['root'].url_for()) +
-    url = request.url.with_path(f'instance/{svc_name}/?token={jupyter_token}')
-    log.info('redirecting to ' + url)
+    url = request.url.with_path(f'instance/{svc_name}/')
+    url = url.with_query(token=jupyter_token)
+    log.info('redirecting to ' + str(url))
     raise aiohttp.web.HTTPFound(url)
 
 
@@ -182,7 +184,7 @@ async def auth(request):
     session = await aiohttp_session.get_session(request)
     requested_svc_name = request.match_info['requested_svc_name']
     approved_svc_name = session.get('svc_name')
-    if approved_svc_name and approved_svc_name == requested_svc_name:
+    if approved_svc_name is not None and approved_svc_name == requested_svc_name:
         return aiohttp.web.Response()
     raise aiohttp.web.HTTPForbidden()
 
@@ -313,9 +315,9 @@ async def wait_websocket(request):
         await asyncio.sleep(1)
     notebook_url_scheme = request.url.scheme.replace('ws', 'http')
     notebook_url = request.url.with_scheme(notebook_url_scheme)
-    notebook_url = notebook_url.with_path(
-        f'instance/{svc_name}/?token={jupyter_token}')
-    await ws.send_str(notebook_url)
+    notebook_url = notebook_url.with_path(f'instance/{svc_name}/')
+    notebook_url = notebook_url.with_query(token=jupyter_token)
+    await ws.send_str(str(notebook_url))
     await ws.close()
     log.info(f'notification sent to user for {svc_name} {pod_name}')
     return ws
@@ -340,9 +342,9 @@ if __name__ == '__main__':
     app.on_startup.append(setup_k8s)
     app['client_session'] = aiohttp.ClientSession()
     app.on_cleanup.append(cleanup)
-    fernet_key = fernet.Fernet.generate_key()
-    secret_key = base64.urlsafe_b64decode(fernet_key)
     aiohttp_session.setup(
         app,
-        aiohttp_session.cookie_storage.EncryptedCookieStorage(secret_key))
+        aiohttp_session.cookie_storage.EncryptedCookieStorage(
+            SECRET_KEY,
+            cookie_name="NOTEBOOK_AIOHTTP_SESSION"))
     aiohttp.web.run_app(app, host='0.0.0.0', port=5000)

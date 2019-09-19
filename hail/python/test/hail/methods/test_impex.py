@@ -133,7 +133,7 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_no_reference_specified(self):
         vcf = hl.import_vcf(resource('sample2.vcf'),
                             reference_genome=None)
-        self.assertTrue(vcf.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(vcf.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(vcf.count_rows(), 735)
 
     def test_import_vcf_bad_reference_allele(self):
@@ -198,7 +198,7 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_skip_invalid_loci(self):
         mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',
                            skip_invalid_loci=True)
-        self.assertTrue(mt._force_count_rows() == 3)
+        self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
             hl.import_vcf(resource('skip_invalid_loci.vcf')).count()
@@ -470,8 +470,8 @@ class PLINKTests(unittest.TestCase):
         bfile = resource('fastlmmTest')
         plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
                                 reference_genome=None)
-        self.assertTrue(
-            plink.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(plink.locus.dtype,
+                         hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_plink_skip_invalid_loci(self):
         mt = hl.import_plink(resource('skip_invalid_loci.bed'),
@@ -479,7 +479,7 @@ class PLINKTests(unittest.TestCase):
                              resource('skip_invalid_loci.fam'),
                              reference_genome='GRCh37',
                              skip_invalid_loci=True)
-        self.assertTrue(mt._force_count_rows() == 3)
+        self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
             (hl.import_plink(resource('skip_invalid_loci.bed'),
@@ -705,7 +705,7 @@ class BGENTests(unittest.TestCase):
         mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                             entry_fields=[],
                             sample_file=resource('skip_invalid_loci.sample'))
-        self.assertTrue(mt.rows().count() == 3)
+        self.assertEqual(mt.rows().count(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
             hl.index_bgen(resource('skip_invalid_loci.bgen'))
@@ -829,13 +829,13 @@ class BGENTests(unittest.TestCase):
                                 ['GT'],
                                 n_partitions=1, # forcing seek to be called
                                 variants=desired_variants)
-        self.assertTrue(part_1.rows().key_by('locus', 'alleles').select().collect() == expected_result)
+        self.assertEqual(part_1.rows().key_by('locus', 'alleles').select().collect(), expected_result)
 
         part_199 = hl.import_bgen(bgen_file,
                                 ['GT'],
                                 n_partitions=199, # forcing each variant to be its own partition for testing duplicates work properly
                                 variants=desired_variants)
-        self.assertTrue(part_199.rows().key_by('locus', 'alleles').select().collect() == expected_result)
+        self.assertEqual(part_199.rows().key_by('locus', 'alleles').select().collect(), expected_result)
 
         everything = hl.import_bgen(bgen_file, ['GT'])
         self.assertEqual(everything.count(), (199, 500))
@@ -860,7 +860,8 @@ class BGENTests(unittest.TestCase):
         locus_struct = hl.import_bgen(bgen_file,
                                       ['GT'],
                                       variants=desired_loci)
-        self.assertTrue(locus_struct.rows().key_by('locus', 'alleles').select().collect() == expected_result)
+        self.assertEqual(locus_struct.rows().key_by('locus', 'alleles').select().collect(),
+                         expected_result)
 
         # Test with Locus object
         desired_loci = [hl.Locus('1', 10000)]
@@ -868,7 +869,8 @@ class BGENTests(unittest.TestCase):
         locus_object = hl.import_bgen(bgen_file,
                                       ['GT'],
                                       variants=desired_loci)
-        self.assertTrue(locus_object.rows().key_by('locus', 'alleles').select().collect() == expected_result)
+        self.assertEqual(locus_object.rows().key_by('locus', 'alleles').select().collect(),
+                         expected_result)
 
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
@@ -938,7 +940,8 @@ class BGENTests(unittest.TestCase):
                                 ['GT'],
                                 variants=desired_loci)
 
-        self.assertTrue(result.rows().key_by('locus', 'alleles').select().collect() == expected_result)
+        self.assertEqual(result.rows().key_by('locus', 'alleles').select().collect(),
+                        expected_result)
 
     def test_import_bgen_empty_variant_filter(self):
         bgen_file = resource('example.8bits.bgen')
@@ -1135,7 +1138,8 @@ class GENTests(unittest.TestCase):
                             sample_file=resource('example.sample'),
                             reference_genome=None)
 
-        self.assertTrue(gen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(gen.locus.dtype,
+                         hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
     def test_import_gen_skip_invalid_loci(self):
@@ -1143,7 +1147,8 @@ class GENTests(unittest.TestCase):
                            resource('skip_invalid_loci.sample'),
                            reference_genome='GRCh37',
                            skip_invalid_loci=True)
-        self.assertTrue(mt._force_count_rows() == 3)
+        self.assertEqual(mt._force_count_rows(),
+                         3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
             hl.import_gen(resource('skip_invalid_loci.gen'),
@@ -1220,16 +1225,24 @@ class LocusIntervalTests(unittest.TestCase):
     def test_import_locus_intervals_no_reference_specified(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome=None)
-        self.assertTrue(t.count() == 2)
+        self.assertEqual(t.count(), 2)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
+    def test_import_locus_intervals_recoding(self):
+        interval_file = resource('annotinterall.grch38.no.chr.interval_list')
+        t = hl.import_locus_intervals(interval_file,
+                                      contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']},
+                                      reference_genome='GRCh38')
+        self.assertEqual(t._force_count(), 3)
+        self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
     def test_import_locus_intervals_badly_defined_intervals(self):
         interval_file = resource('example3.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37', skip_invalid_intervals=True)
-        self.assertTrue(t.count() == 21)
+        self.assertEqual(t.count(), 21)
 
         t = hl.import_locus_intervals(interval_file, reference_genome=None, skip_invalid_intervals=True)
-        self.assertTrue(t.count() == 22)
+        self.assertEqual(t.count(), 22)
 
     def test_import_bed(self):
         bed_file = resource('example1.bed')
@@ -1252,8 +1265,8 @@ class LocusIntervalTests(unittest.TestCase):
         bed_file = resource('example2.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37')
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
-        self.assertTrue(list(t.key.dtype) == ['interval'])
-        self.assertTrue(list(t.row.dtype) == ['interval','target'])
+        self.assertEqual(list(t.key.dtype), ['interval'])
+        self.assertEqual(list(t.row.dtype), ['interval','target'])
 
         expected = [hl.interval(hl.locus('20', 1), hl.locus('20', 11), True, False),   # 20    0 10      gene0
                     hl.interval(hl.locus('20', 2), hl.locus('20', 14000001), True, False),  # 20    1          14000000  gene1
@@ -1263,10 +1276,18 @@ class LocusIntervalTests(unittest.TestCase):
 
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
+    def test_import_bed_recoding(self):
+        bed_file = resource('some-missing-chr-grch38.bed')
+        bed = hl.import_bed(bed_file,
+                            reference_genome='GRCh38',
+                            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']})
+        self.assertEqual(bed._force_count(), 5)
+        self.assertEqual(bed.interval.dtype.point_type, hl.tlocus('GRCh38'))
+
     def test_import_bed_no_reference_specified(self):
         bed_file = resource('example1.bed')
         t = hl.import_bed(bed_file, reference_genome=None)
-        self.assertTrue(t.count() == 3)
+        self.assertEqual(t.count(), 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_bed_kwargs_to_import_table(self):
@@ -1277,10 +1298,10 @@ class LocusIntervalTests(unittest.TestCase):
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
-        self.assertTrue(t.count() == 3)
+        self.assertEqual(t.count(), 3)
 
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
-        self.assertTrue(t.count() == 4)
+        self.assertEqual(t.count(), 4)
 
     def test_pass_through_args(self):
         interval_file = resource('example3.interval_list')
@@ -1314,12 +1335,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                row_fields=row_fields,
                                no_header=True,
                                row_key=[]).count()
-        self.assertRaises(hl.utils.FatalError,
-                          hl.import_matrix_table,
-                          doctest_resource('matrix3.tsv'),
-                          row_fields=row_fields,
-                          no_header=True,
-                          row_key=['foo'])
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1330,6 +1345,142 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         self.assertEqual(mt.count_cols(), 0)
         self.assertTrue(t._same(mt.rows()))
+
+    def test_headers_not_identical(self):
+        self.assertRaisesRegex(
+            hl.utils.FatalError,
+            "invalid header",
+            hl.import_matrix_table,
+            resource("sampleheader*.txt"),
+            row_fields={'f0': hl.tstr},
+            row_key=['f0'])
+
+    def test_too_few_entries(self):
+        def boom():
+            hl.import_matrix_table(resource("samplesmissing.txt"),
+                                   row_fields={'f0': hl.tstr},
+                                   row_key=['f0']
+            )._force_count_rows()
+        self.assertRaisesRegex(
+            hl.utils.FatalError,
+            "unexpected end of line while reading entry 3",
+            boom)
+
+    def test_round_trip(self):
+        for missing in ['.', '9']:
+            for delimiter in [',', ' ']:
+                for header in [True, False]:
+                    for entry_type, entry_fun in [(hl.tstr, hl.str),
+                                                  (hl.tint32, hl.int32),
+                                                  (hl.tfloat64, hl.float64)]:
+                        try:
+                            self._test_round_trip(missing, delimiter, header, entry_type, entry_fun)
+                        except Exception as e:
+                            raise ValueError(
+                                f'missing {missing!r} delimiter {delimiter!r} '
+                                f'header {header!r} entry_type {entry_type!r}'
+                            ) from e
+
+    def _test_round_trip(self, missing, delimiter, header, entry_type, entry_fun):
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
+        mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
+        mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
+        mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
+
+        path = new_temp_file(suffix='tsv')
+        mt.key_rows_by(*mt.row).x.export(path,
+                                         missing=missing,
+                                         delimiter=delimiter,
+                                         header=header)
+
+        row_fields = {f: mt.row[f].dtype for f in mt.row}
+        row_key = 'row_idx'
+
+        if not header:
+            pseudonym = {'row_idx': 'f0',
+                         'row_str': 'f1',
+                         'row_float': 'f2'}
+            row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
+            row_key = pseudonym[row_key]
+            mt = mt.rename(pseudonym)
+        else:
+            mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        actual = hl.import_matrix_table(
+            path,
+            row_fields=row_fields,
+            row_key=row_key,
+            entry_type=entry_type,
+            missing=missing,
+            no_header=not header,
+            sep=delimiter)
+        actual = actual.rename({'col_id': 'col_idx'})
+
+        row_key = mt.row_key
+        col_key = mt.col_key
+        mt = mt.key_rows_by()
+        mt = mt.annotate_entries(
+            x = hl.cond(hl.str(mt.x) == missing,
+                        hl.null(entry_type),
+                        mt.x))
+        mt = mt.annotate_rows(**{
+            f: hl.cond(hl.str(mt[f]) == missing,
+                       hl.null(mt[f].dtype),
+                       mt[f])
+            for f in mt.row})
+        mt = mt.key_rows_by(*row_key)
+        assert mt._same(actual)
+
+    def test_key_by_after_empty_key_import(self):
+        fields = {'Chromosome':hl.tstr,
+                  'Position': hl.tint32,
+                  'Ref': hl.tstr,
+                  'Alt': hl.tstr}
+        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'),
+                                    row_fields=fields,
+                                    row_key=[],
+                                    entry_type=hl.tfloat)
+        mt = mt.key_rows_by('Chromosome', 'Position')
+        assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
+
+    def test_key_by_after_empty_key_import(self):
+        fields = {'Chromosome':hl.tstr,
+                  'Position': hl.tint32,
+                  'Ref': hl.tstr,
+                  'Alt': hl.tstr}
+        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'),
+                                    row_fields=fields,
+                                    row_key=[],
+                                    entry_type=hl.tfloat)
+        mt = mt.key_rows_by('Chromosome', 'Position')
+        mt._force_count_rows()
+
+    def test_devlish_nine_separated_eight_missing_file(self):
+        fields = {'chr': hl.tstr,
+                  '': hl.tint32,
+                  'ref': hl.tstr,
+                  'alt': hl.tstr}
+        mt = hl.import_matrix_table(resource('import_matrix_table_devlish.ninesv'),
+                                    row_fields=fields,
+                                    row_key=['chr', ''],
+                                    sep='9',
+                                    missing='8')
+        actual = mt.x.collect()
+        expected = [
+            1, 2, 3, 4,
+            11, 12, 13, 14,
+            21, 22, 23, 24,
+            31, None, None, 34]
+        assert actual == expected
+
+        actual = mt.chr.collect()
+        assert actual == ['chr1', 'chr1', 'chr1', None]
+        actual = mt[''].collect()
+        assert actual == [1, 10, 101, None]
+        actual = mt.ref.collect()
+        assert actual == ['A', 'AGT', None, 'CTA']
+        actual = mt.alt.collect()
+        assert actual == ['T', 'TGG', 'A', None]
 
 
 class ImportTableTests(unittest.TestCase):

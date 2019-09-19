@@ -21,8 +21,8 @@ object IRFunctionRegistry {
     userAddedFunctions.clear()
   }
 
-  val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)] =
-    new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)]
+  val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Boolean, Seq[IR] => IR)] =
+    new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Boolean, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Boolean, Seq[IR] => IR)]
 
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
@@ -30,8 +30,8 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction): Unit =
     codeRegistry.addBinding(f.name, f)
 
-  def addIR(name: String, argTypes: Seq[Type], retType: Type, f: Seq[IR] => IR): Unit =
-    irRegistry.addBinding(name, (argTypes, retType, f))
+  def addIR(name: String, argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit =
+    irRegistry.addBinding(name, (argTypes, retType, alwaysInline, f))
 
   def pyRegisterIR(mname: String,
     argNames: java.util.ArrayList[String],
@@ -40,7 +40,7 @@ object IRFunctionRegistry {
     val argTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
     userAddedFunctions += ((mname, (body.typ, argTypes)))
     addIR(mname,
-      argTypes, IRParser.parseType(retType), { args =>
+      argTypes, IRParser.parseType(retType), false, { args =>
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
@@ -68,18 +68,19 @@ object IRFunctionRegistry {
     lookupInRegistry(codeRegistry, name, rt, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
 
   def lookupConversion(name: String, rt: Type, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    type Conversion = (Seq[Type], Type, Seq[IR] => IR)
+    type Conversion = (Seq[Type], Type, Boolean, Seq[IR] => IR)
     val findIR: (Conversion, Seq[Type]) => Boolean = {
-      case ((ts, _, _), t2s) =>
+      case ((ts, _, _, _), t2s) =>
         ts.length == args.length && {
           ts.foreach(_.clear())
           (ts, t2s).zipped.forall(_.unify(_))
         }
     }
     val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, rt, args, findIR).map {
-      case (_, _, conversion) => args =>
+      case (_, _, inline, conversion) => args =>
         val x = ApplyIR(name, args)
         x.conversion = conversion
+        x.inline = inline
         x
     }
 
@@ -122,7 +123,7 @@ object IRFunctionRegistry {
     def dtype(t: Type): String = s"""dtype("${ StringEscapeUtils.escapeString(t.toString) }\")"""
 
     irRegistry.foreach { case (name, fns) =>
-        fns.foreach { case (argTypes, retType, f) =>
+        fns.foreach { case (argTypes, retType, _, f) =>
           println(s"""register_function("${ StringEscapeUtils.escapeString(name) }", (${ argTypes.map(dtype).mkString(",") }), ${ dtype(retType) })""")
         }
     }
@@ -321,8 +322,8 @@ abstract class RegistryFunctions {
     }
   }
 
-  def registerIR(mname: String, argTypes: Array[Type], retType: Type)(f: Seq[IR] => IR) {
-    IRFunctionRegistry.addIR(mname, argTypes, retType, f)
+  def registerIR(mname: String, argTypes: Array[Type], retType: Type, inline: Boolean = false)(f: Seq[IR] => IR) {
+    IRFunctionRegistry.addIR(mname, argTypes, retType, inline, f)
   }
 
   def registerCode(mname: String, rt: Type, pType: PType)(impl: EmitRegion => Code[_]): Unit =

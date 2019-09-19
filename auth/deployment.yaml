@@ -1,0 +1,110 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: auth
+  labels:
+    app: auth
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: auth
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: auth
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      priorityClassName: infrastructure
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - auth
+              topologyKey: "kubernetes.io/hostname"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      containers:
+       - name: auth
+         image: "{{ auth_image.image }}"
+         env:
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
+         resources:
+           requests:
+             memory: "250M"
+             cpu: "100m"
+           limits:
+             memory: "1G"
+             cpu: "1"
+         volumeMounts:
+          - name: deploy-config
+            mountPath: /deploy-config
+            readOnly: true
+          - name: auth-oauth2-client-secret
+            mountPath: /auth-oauth2-client-secret
+            readOnly: true
+          - name: session-secret-key
+            mountPath: /session-secret-key
+            readOnly: true
+          - name: sql-config
+            mountPath: /sql-config
+            readOnly: true
+         ports:
+          - containerPort: 5000
+      volumes:
+       - name: deploy-config
+         secret:
+           optional: false
+           secretName: deploy-config
+       - name: auth-oauth2-client-secret
+         secret:
+           optional: false
+           secretName: auth-oauth2-client-secret
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
+       - name: sql-config
+         secret:
+           optional: false
+           secretName: "{{ users_database.user_secret_name }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 5000
+  selector:
+    app: auth
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80

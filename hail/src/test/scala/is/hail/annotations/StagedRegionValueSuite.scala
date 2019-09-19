@@ -471,7 +471,7 @@ class StagedRegionValueSuite extends HailSuite {
 
           val fb = EmitFunctionBuilder[Region, Long, Long]
           fb.emit(
-            StagedRegionValueBuilder.deepCopy(
+            StagedRegionValueBuilder.deepCopyFromOffset(
               EmitRegion.default(fb.apply_method),
               t,
               fb.getArg[Long](2).load()))

@@ -189,7 +189,7 @@ object Simplify {
 
     case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean(), x, element)
 
-    case x: ApplyIR if x.body.size < 10 => x.explicitNode
+    case x: ApplyIR if x.inline || x.body.size < 10 => x.explicitNode
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
@@ -564,7 +564,8 @@ object Simplify {
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
 
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
-      if newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k)))
+      if (newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) ||
+        newKey == SelectFields(Ref("row", child.typ.rowType), child.typ.key))
         && child.typ.key.nonEmpty && canRepartition =>
       TableAggregateByKey(child, expr)
 

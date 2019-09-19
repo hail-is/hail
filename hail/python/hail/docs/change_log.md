@@ -1,5 +1,24 @@
 # Change Log
 
+## 0.2.22
+
+Released 2019-09-12
+
+### New features
+- (hail#7013) Add `contig_recoding` to `import_bed` and `import_locus_intervals`.
+
+### Performance
+- (hail#6969) Improve performance of `hl.agg.mean`, `hl.agg.stats`, and `hl.agg.corr`.
+- (hail#6987) Improve performance of `import_matrix_table`.
+- (hail#7033)(hail#7049) Various improvements leading to overall 10-15%
+  improvement.
+
+### `hailctl dataproc`
+- (hail#7003) Pass through extra arguments for `hailctl dataproc list` and
+  `hailctl dataproc stop`.
+
+---
+
 ## 0.2.21
 
 Released 2019-09-03

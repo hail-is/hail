@@ -37,6 +37,21 @@ trait AbstractIndexMetadata {
   def intSpec: CodecSpec2
 }
 
+case class IndexMetadataUntypedJSON(
+  fileVersion: Int,
+  branchingFactor: Int,
+  height: Int,
+  nKeys: Long,
+  indexPath: String,
+  rootOffset: Long,
+  attributes: Map[String, Any]
+) {
+  def toMetadata(keyType: Type, annotationType: Type): IndexMetadata = IndexMetadata(
+    fileVersion, branchingFactor,
+    height, keyType, annotationType,
+    nKeys, indexPath, rootOffset, attributes)
+}
+
 case class IndexMetadata(
   fileVersion: Int,
   branchingFactor: Int,

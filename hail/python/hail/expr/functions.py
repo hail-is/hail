@@ -3581,7 +3581,7 @@ def mean(collection, filter_missing: bool = True) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return collection._filter_missing_method(filter_missing, "mean", tfloat64)
+    return array(collection)._filter_missing_method(filter_missing, "mean", tfloat64)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
@@ -3641,7 +3641,7 @@ def product(collection, filter_missing: bool = True) -> NumericExpression:
     -------
     :class:`.NumericExpression`
     """
-    return collection._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
+    return array(collection)._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
@@ -3672,7 +3672,7 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
     -------
     :class:`.NumericExpression`
     """
-    return collection._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
+    return array(collection)._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
 
 
 @typecheck(a=expr_array(expr_numeric),

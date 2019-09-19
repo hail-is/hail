@@ -1,0 +1,16 @@
+FROM {{ base_image.image }}
+
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN python3 -m pip install --no-deps --no-cache-dir /hailtop \
+  && rm -rf /hailtop
+
+COPY gear/setup.py /gear/setup.py
+COPY gear/gear /gear/gear/
+RUN python3 -m pip install --no-deps --no-cache-dir /gear \
+  && rm -rf /gear
+
+COPY web_common/setup.py web_common/MANIFEST.in /web_common/
+COPY web_common/web_common /web_common/web_common/
+RUN pip3 install --no-cache-dir /web_common && \
+  rm -rf /web_common

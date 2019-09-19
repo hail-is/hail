@@ -103,6 +103,7 @@ object InferType {
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
+      case ArrayFold2(_, _, _, _, result) => result.typ
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         coerce[TStreamable](a.typ).copyStreamable(zero.typ)

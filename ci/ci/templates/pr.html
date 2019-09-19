@@ -1,11 +1,6 @@
-<html lang="en">
-  <head>
-    <title>CI | PR {{ number }}</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-  </head>
-  <body>
-    <p><a href="/">ci</a> : <a href="https://github.com/{{ repo }}/pull/{{ number }}">pr #{{ number }}</a></p>
-
+{% extends "layout.html" %}
+{% block title %}PR {{ number }}{% endblock %}
+{% block content %}
     <h1>PR {{ number }}</h1>
     {% if batch is defined %}
     <h2>Batch {{ batch['id'] }} Jobs</h2>
@@ -103,5 +98,4 @@
     {% else %}
     No builds.
     {% endif %}
-  </body>
-</html>
+{% endblock %}

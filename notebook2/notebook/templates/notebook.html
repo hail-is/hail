@@ -2,11 +2,11 @@
 {% block title %}Notebook{% endblock %}
 {% block head %}
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link rel="stylesheet" type="text/css" href="/static/css/pages/notebook.css">
+  <link rel="stylesheet" type="text/css" href="{{ base_path }}/static/css/pages/notebook.css">
 {% endblock %}
 {% block content %}
-  <div id="notebook" class="centered">
-    {% if notebook is not defined %}
+  <div id="notebook" class="vcentered">
+    {% if notebook is none %}
         {% include 'notebook-form.html' %}
     {% else %}
         {% include 'notebook-state.html' %}

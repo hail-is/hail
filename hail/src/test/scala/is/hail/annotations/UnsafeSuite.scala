@@ -270,23 +270,6 @@ class UnsafeSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testRegion() {
-    val buff = Region()
-
-    val addrA = buff.appendLong(124L)
-    val addrB = buff.appendByte(2)
-    val addrC = buff.appendByte(1)
-    val addrD = buff.appendByte(4)
-    val addrE = buff.appendInt(1234567)
-    val addrF = buff.appendDouble(1.1)
-
-    assert(buff.loadLong(addrA) == 124L)
-    assert(buff.loadByte(addrB) == 2)
-    assert(buff.loadByte(addrC) == 1)
-    assert(buff.loadByte(addrD) == 4)
-    assert(buff.loadInt(addrE) == 1234567)
-    assert(buff.loadDouble(addrF) == 1.1)
-  }
 
   val g = (for {
     s <- Gen.size
@@ -396,92 +379,4 @@ class UnsafeSuite extends HailSuite {
     }
     p.check()
   }
-
-  @Test def testRegionAllocation() {
-    val pool = RegionPool.get
-
-    case class Counts(regions: Int, freeRegions: Int) {
-      def allocate(n: Int): Counts =
-        copy(regions = regions + math.max(0, n - freeRegions),
-          freeRegions = math.max(0, freeRegions - n))
-
-      def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
-        copy(freeRegions = freeRegions + nRegions)
-    }
-
-    var before: Counts = null
-    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
-
-    def assertAfterEquals(c: => Counts): Unit = {
-      before = after
-      after = Counts(pool.numRegions(), pool.numFreeRegions())
-      assert(after == c)
-    }
-
-    Region.scoped { region =>
-      assertAfterEquals(before.allocate(1))
-
-      Region.scoped { region2 =>
-        assertAfterEquals(before.allocate(1))
-        region.reference(region2)
-      }
-      assertAfterEquals(before)
-    }
-    assertAfterEquals(before.free(2))
-
-    Region.scoped { region =>
-      Region.scoped { region2 => region.reference(region2) }
-      Region.scoped { region2 => region.reference(region2) }
-      assertAfterEquals(before.allocate(3))
-    }
-    assertAfterEquals(before.free(3))
-  }
-
-  @Test def testRegionReferences() {
-    def offset(region: Region) = region.allocate(0)
-    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
-    def assertUsesRegions[T](n: Int)(f: => T): T = {
-      val usedRegionCount = numUsed()
-      val res = f
-      assert(usedRegionCount == numUsed() - n)
-      res
-    }
-
-    val region = Region()
-    region.setNumParents(5)
-
-    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.SMALL) }) { r =>
-      offset(r)
-    }
-
-    val off2 = Region.tinyScoped { r =>
-      region.setParentReference(r, 2)
-      offset(r)
-    }
-
-    using(region.getParentReference(2, Region.TINY)) { r =>
-      assert(offset(r) == off2)
-    }
-
-    using(region.getParentReference(4, Region.SMALL)) { r =>
-      assert(offset(r) == off4)
-    }
-
-    assertUsesRegions(-1) { region.clearParentReference(2) }
-    assertUsesRegions(-1) { region.clearParentReference(4) }
-  }
-
-  @Test def testRegionSizes() {
-    Region.smallScoped { region =>
-      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
-    }
-
-    Region.tinyScoped { region =>
-      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
-    }
-  }
-
-  // Tests for Region serialization have been removed since an off-heap Region
-  // contains absolute addresses and can't be serialized/deserialized without 
-  // knowing the RegionValue Type.
 }

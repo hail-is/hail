@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, HailContext, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
@@ -1696,6 +1697,19 @@ class IRSuite extends HailSuite {
     assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => I32(5) + I32(5)), 10)
   }
 
+  @Test def testArrayFold2() {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+
+    val af = ArrayFold2(In(0, TArray(TInt32())),
+      FastIndexedSeq(("x", I32(0)), ("y", NA(TInt32()))),
+      "val",
+      FastIndexedSeq(Ref("val", TInt32()) + Ref("x", TInt32()), Coalesce(FastSeq(Ref("y", TInt32()), Ref("val", TInt32())))),
+      MakeStruct(FastSeq(("x", Ref("x", TInt32())), ("y", Ref("y", TInt32()))))
+    )
+
+    assertEvalsTo(af, FastIndexedSeq((FastIndexedSeq(1, 2, 3), TArray(TInt32()))), Row(6, 1))
+  }
+
   @Test def testArrayScan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1726,7 +1740,7 @@ class IRSuite extends HailSuite {
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
   @Test def testNDArrayShape() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
     assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
@@ -1734,7 +1748,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayRef() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
     assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
@@ -1760,7 +1774,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayReshape() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
     val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple.ordered(Seq(I64(2), I64(2))))
 
@@ -1771,7 +1785,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val data = 0 until 10
     val shape = FastSeq(2L, 5L)
@@ -1797,7 +1811,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap2() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
     val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())), shape, True())
@@ -1812,7 +1826,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayReindex() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val transpose = NDArrayReindex(matrixRowMajor, FastIndexedSeq(1, 0))
     val identity = NDArrayReindex(matrixRowMajor, FastIndexedSeq(0, 1))
@@ -1835,7 +1849,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayBroadcasting() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val scalarWithMatrix = NDArrayMap2(
       NDArrayReindex(scalarRowMajor, FastIndexedSeq(1, 0)),
@@ -1866,7 +1880,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayAgg() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
     assertEvalsTo(three, 3.0)
@@ -1884,7 +1898,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMatMul() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
     val zero = makeNDArrayRef(dotProduct, IndexedSeq())
@@ -1905,7 +1919,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArraySlice() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val rightCol = NDArraySlice(matrixRowMajor, MakeTuple.ordered(Seq(MakeTuple.ordered(Seq(I64(0), I64(2), I64(1))), I64(1))))
     assertEvalsTo(NDArrayShape(rightCol), Row(2L))
@@ -1920,14 +1934,6 @@ class IRSuite extends HailSuite {
 
     val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple.ordered(FastSeq()))
     assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
-  }
-
-  @Test def testNDArrayWrite() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
-
-    val path = tmpDir.createLocalTempFile()
-    val write = NDArrayWrite(threeTensorRowMajor, Str(path))
-    nativeExecute(write, Env.empty, FastIndexedSeq.empty, None)
   }
 
   @Test def testLeftJoinRightDistinct() {
@@ -2186,7 +2192,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testLiteral() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
     val types = Array(
       TTuple(TInt32(), TString(), TArray(TInt32())),
@@ -2211,7 +2217,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testTableCount() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
@@ -2369,6 +2375,7 @@ class IRSuite extends HailSuite {
       ArrayFilter(a, "v", b),
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
+      ArrayFold2(ArrayFold(a, I32(0), "x", "v", v)),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),

@@ -161,7 +161,7 @@ class RegionValueBuilder(var region: Region) {
 
     if (typestk.nonEmpty) {
       val off = currentOffset()
-      region.storeAddress(off, aoff)
+      Region.storeAddress(off, aoff)
     } else
       start = aoff
 
@@ -232,7 +232,7 @@ class RegionValueBuilder(var region: Region) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
-    region.storeByte(off, b.toByte)
+    Region.storeByte(off, b.toByte)
     advance()
   }
 
@@ -241,7 +241,7 @@ class RegionValueBuilder(var region: Region) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
-    region.storeInt(off, i)
+    Region.storeInt(off, i)
     advance()
   }
 
@@ -250,7 +250,7 @@ class RegionValueBuilder(var region: Region) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
-    region.storeLong(off, l)
+    Region.storeLong(off, l)
     advance()
   }
 
@@ -259,7 +259,7 @@ class RegionValueBuilder(var region: Region) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
-    region.storeFloat(off, f)
+    Region.storeFloat(off, f)
     advance()
   }
 
@@ -268,7 +268,7 @@ class RegionValueBuilder(var region: Region) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
-    region.storeDouble(off, d)
+    Region.storeDouble(off, d)
     advance()
   }
 
@@ -279,7 +279,7 @@ class RegionValueBuilder(var region: Region) {
 
     if (typestk.nonEmpty) {
       val off = currentOffset()
-      region.storeAddress(off, boff)
+      Region.storeAddress(off, boff)
     } else
       start = boff
 
@@ -304,7 +304,7 @@ class RegionValueBuilder(var region: Region) {
   def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
     val length = PBinary.loadLength(fromRegion, fromBOff)
     val toBOff = PBinary.allocate(region, length)
-    region.copyFrom(fromRegion, fromBOff, toBOff, PBinary.contentByteSize(length))
+    Region.copyFrom(fromBOff, toBOff, PBinary.contentByteSize(length))
     toBOff
   }
 
@@ -320,7 +320,7 @@ class RegionValueBuilder(var region: Region) {
     val length = t.loadLength(fromRegion, fromAOff)
     val toAOff = t.allocate(region, length)
 
-    region.copyFrom(fromRegion, fromAOff, toAOff, t.contentsByteSize(length))
+    Region.copyFrom(fromAOff, toAOff, t.contentsByteSize(length))
 
     if (region.ne(fromRegion) && requiresFixup(t.elementType)) {
       var i = 0
@@ -332,11 +332,11 @@ class RegionValueBuilder(var region: Region) {
 
             case t2: PArray =>
               val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
-              region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
+              Region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
 
             case _: PBinary =>
               val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
-              region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
+              Region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
 
             case _ =>
           }
@@ -360,11 +360,11 @@ class RegionValueBuilder(var region: Region) {
 
           case _: PBinary =>
             val toBOff = fixupBinary(fromRegion, t.loadField(fromRegion, fromOff, i))
-            region.storeAddress(t.fieldOffset(toOff, i), toBOff)
+            Region.storeAddress(t.fieldOffset(toOff, i), toBOff)
 
           case t2: PArray =>
             val toAOff = fixupArray(t2, fromRegion, t.loadField(fromRegion, fromOff, i))
-            region.storeAddress(t.fieldOffset(toOff, i), toAOff)
+            Region.storeAddress(t.fieldOffset(toOff, i), toAOff)
 
           case _ =>
         }
@@ -464,33 +464,33 @@ class RegionValueBuilder(var region: Region) {
 
     t.fundamentalType match {
       case t: PBaseStruct =>
-        region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
+        Region.copyFrom(fromOff, toOff, t.byteSize)
         if (region.ne(fromRegion))
           fixupStruct(t, toOff, fromRegion, fromOff)
       case t: PArray =>
         if (region.eq(fromRegion)) {
           assert(!typestk.isEmpty)
-          region.storeAddress(toOff, fromOff)
+          Region.storeAddress(toOff, fromOff)
         } else {
           val toAOff = fixupArray(t, fromRegion, fromOff)
           if (typestk.nonEmpty)
-            region.storeAddress(toOff, toAOff)
+            Region.storeAddress(toOff, toAOff)
           else
             start = toAOff
         }
       case _: PBinary =>
         if (region.eq(fromRegion)) {
           assert(!typestk.isEmpty)
-          region.storeAddress(toOff, fromOff)
+          Region.storeAddress(toOff, fromOff)
         } else {
           val toBOff = fixupBinary(fromRegion, fromOff)
           if (typestk.nonEmpty)
-            region.storeAddress(toOff, toBOff)
+            Region.storeAddress(toOff, toBOff)
           else
             start = toBOff
         }
       case _ =>
-        region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
+        Region.copyFrom(fromOff, toOff, t.byteSize)
     }
     advance()
   }

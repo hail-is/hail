@@ -225,6 +225,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
+      case x@ArrayFold2(a, accum, valueName, seq, res) =>
+        assert(a.typ.isInstanceOf[TStreamable])
+        assert(x.typ == res.typ)
+        assert(accum.zip(seq).forall { case ((_, z), s) => s.typ == z.typ })
       case x@ArrayScan(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)

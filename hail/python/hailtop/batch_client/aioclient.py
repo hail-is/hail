@@ -2,11 +2,12 @@ import math
 import random
 import asyncio
 import aiohttp
+from asyncinit import asyncinit
 
-import hailtop.gear.auth as hj
+from hailtop.config import get_deploy_config
+from hailtop.auth import async_get_userinfo, service_auth_headers
 
 from .globals import complete_states
-
 
 job_array_size = 50
 max_job_submit_attempts = 3
@@ -55,17 +56,14 @@ class Job:
             return None
 
         durations = job_status['duration']
-        durations = [durations[task] for task in ['setup', 'main', 'cleanup'] if task in durations]
 
-        i = 0
-        duration = 0
-        while i < len(durations):
-            d = durations[i]
-            if d is None:
-                return None
-            duration += d
-            i += 1
-        return duration
+        setup_duration = durations.get('setup', 0)
+        main_duration = durations.get('main', 0)
+        cleanup_duration = durations.get('cleanup', 0)
+        if setup_duration is None or main_duration is None or cleanup_duration is None:
+            return None
+
+        return setup_duration + max(main_duration, cleanup_duration)
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
@@ -427,46 +425,48 @@ class BatchBuilder:
         return batch
 
 
+@asyncinit
 class BatchClient:
-    def __init__(self, session=None, url=None, token_file=None, token=None, headers=None):
-        if url is None:
-            url = 'http://batch.default'
-        self.url = url
+    async def __init__(self, deploy_config=None, session=None, headers=None, _token=None):
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+
+        self.url = deploy_config.base_url('batch')
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
                                             timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
 
-        if token is None:
-            token = hj.find_token(token_file)
-        userdata = hj.JWTClient.unsafe_decode(token)
-        assert "bucket_name" in userdata
-        self.bucket = userdata["bucket_name"]
-        self._cookies = None
+        userinfo = await async_get_userinfo(deploy_config)
+        self.bucket = userinfo['bucket_name']
 
-        if headers is None:
-            headers = {}
-        headers['Authorization'] = f'Bearer {token}'
-        self._headers = headers
+        h = {}
+        if headers:
+            h.update(headers)
+        if _token:
+            h['Authorization'] = f'Bearer {_token}'
+        else:
+            h.update(service_auth_headers(deploy_config, 'batch'))
+        self._headers = h
 
     async def _get(self, path, params=None):
         response = await self._session.get(
-            self.url + path, params=params, cookies=self._cookies, headers=self._headers)
+            self.url + path, params=params, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):
         response = await self._session.post(
-            self.url + path, json=json, cookies=self._cookies, headers=self._headers)
+            self.url + path, json=json, headers=self._headers)
         return await response.json()
 
     async def _patch(self, path):
         await self._session.patch(
-            self.url + path, cookies=self._cookies, headers=self._headers)
+            self.url + path, headers=self._headers)
 
     async def _delete(self, path):
         await self._session.delete(
-            self.url + path, cookies=self._cookies, headers=self._headers)
+            self.url + path, headers=self._headers)
 
     async def _refresh_k8s_state(self):
         await self._post('/refresh_k8s_state')

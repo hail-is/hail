@@ -84,4 +84,11 @@ package object ir {
   implicit def floatToIR(f: Float): IR = F32(f)
   implicit def doubleToIR(d: Double): IR = F64(d)
   implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
+
+  def zero(t: Type): IR = t match {
+    case _: TInt32 => I32(0)
+    case _: TInt64 => I64(0L)
+    case _: TFloat32 => F32(0f)
+    case _: TFloat64 => F64(0d)
+  }
 }

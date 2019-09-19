@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.{Field, TStruct}
+import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -34,6 +34,9 @@ object PStruct {
 
     PStruct(required, sNames.zip(sTypes): _*)
   }
+
+  def canonical(t: Type): PStruct = PType.canonical(t).asInstanceOf[PStruct]
+  def canonical(t: PType): PStruct = PType.canonical(t).asInstanceOf[PStruct]
 }
 
 final case class PStruct(fields: IndexedSeq[PField], override val required: Boolean = false) extends PBaseStruct {
@@ -262,10 +265,14 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
-    val f = field(fieldName)
-    loadField(region, fieldOffset(offset, f.index), f.index)
-  }
+  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] =
+    loadField(region, offset, fieldIdx(fieldName))
+
+  def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean] =
+    isFieldMissing(offset, fieldIdx(fieldName))
+
+  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
+    fieldOffset(offset, fieldIdx(fieldName))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new ArrayBuilder[PField](fields.length)

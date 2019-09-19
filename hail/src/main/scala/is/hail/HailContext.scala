@@ -16,7 +16,7 @@ import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
 import is.hail.io.index._
 import is.hail.io.vcf._
-import is.hail.io.{CodecSpec, Decoder, CodecSpec2, LoadMatrix}
+import is.hail.io.{CodecSpec, Decoder, CodecSpec2}
 import is.hail.rvd.{IndexSpec, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
@@ -904,42 +904,11 @@ class HailContext private(
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }
-
-  def importMatrix(files: java.util.List[String],
-    rowFields: java.util.Map[String, String],
-    keyNames: java.util.List[String],
-    cellType: String,
-    missingVal: String,
-    minPartitions: Option[Int],
-    noHeader: Boolean,
-    forceBGZ: Boolean,
-    sep: String = "\t"): MatrixIR =
-    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
-      IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
-
-  def importMatrices(files: Seq[String],
-    rowFields: Map[String, Type],
-    keyNames: Array[String],
-    cellType: Type,
-    missingVal: String = "NA",
-    nPartitions: Option[Int],
-    noHeader: Boolean,
-    forceBGZ: Boolean,
-    sep: String = "\t"): MatrixIR = {
-    assert(sep.length == 1)
-
-    val inputs = sFS.globAll(files)
-
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
-    }
-  }
 }
 
 class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
-      "cpp" -> null,
       "lower" -> null,
       "newaggs" -> "1",
       "max_leader_scans" -> "1000"

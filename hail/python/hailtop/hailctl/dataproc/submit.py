@@ -6,7 +6,7 @@ import zipfile
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('script', type=str)
+    parser.add_argument('script', type=str, help="Path to script.")
     parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
     parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')

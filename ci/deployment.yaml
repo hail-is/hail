@@ -27,45 +27,44 @@ spec:
               memory: "1G"
               cpu: "1"
           env:
-            - name: HAIL_CI_OAUTH_TOKEN
-              value: /secrets/oauth-token/oauth-token
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_CI_OAUTH_TOKEN
+             value: /secrets/oauth-token/oauth-token
 {% if deploy %}
-            - name: HAIL_WATCHED_BRANCHES
-              value: '[["hail-is/hail:master",true]]'
+           - name: HAIL_WATCHED_BRANCHES
+             value: '[["hail-is/hail:master",true]]'
 {% else %}
-            - name: HAIL_WATCHED_BRANCHES
-              value: '[]'
+           - name: HAIL_WATCHED_BRANCHES
+             value: '[]'
 {% endif %}
-            - name: BATCH_SERVER_URL
-              value: http://batch.{{ default_ns.name }}
-            - name: HAIL_GCP_PROJECT
-              value: "{{ global.project }}"
-            - name: HAIL_CI_UTILS_IMAGE
-              value: "{{ ci_utils_image.image }}"
-            - name: HAIL_IP
-              value: "{{ global.ip }}"
-            - name: HAIL_DOMAIN
-              value: "{{ global.domain }}"
-            - name: HAIL_TOKEN_FILE
-              value: '/ci-jwt/jwt'
-            - name: HAIL_SELF_HOSTNAME
-              value: ci
-            - name: HAIL_JWT_SECRET_KEY_FILE
-              value: /jwt-secret-key/secret-key
+           - name: HAIL_GCP_PROJECT
+             value: "{{ global.project }}"
+           - name: HAIL_CI_UTILS_IMAGE
+             value: "{{ ci_utils_image.image }}"
+           - name: HAIL_IP
+             value: "{{ global.ip }}"
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_SELF_HOSTNAME
+             value: ci
           ports:
             - containerPort: 5000
           volumeMounts:
+           - mountPath: /deploy-config
+             name: deploy-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
            - mountPath: /ci-user-secret
              name: ci-user-secret
              readOnly: true
            - mountPath: /secrets/oauth-token
              name: hail-ci-0-1-github-oauth-token
              readOnly: true
-           - mountPath: /ci-jwt
-             name: ci-jwt
-             readOnly: true
-           - mountPath: /jwt-secret-key
-             name: jwt-secret-key
+           - mountPath: /user-tokens
+             name: ci-tokens
              readOnly: true
           livenessProbe:
             httpGet:
@@ -80,6 +79,13 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
        - name: ci-user-secret
          secret:
            optional: false
@@ -87,13 +93,9 @@ spec:
        - name: hail-ci-0-1-github-oauth-token
          secret:
            secretName: hail-ci-0-1-github-oauth-token
-       - name: ci-jwt
+       - name: ci-tokens
          secret:
-           secretName: ci-jwt
-       - name: jwt-secret-key
-         secret:
-           optional: false
-           secretName: jwt-secret-key
+           secretName: ci-tokens
       tolerations:
       - key: "preemptible"
         operator: "Equal"

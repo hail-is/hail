@@ -32,8 +32,8 @@ class PBinary(override val required: Boolean) extends PType {
       var i = 0
 
       while (i < lim) {
-        val b1 = java.lang.Byte.toUnsignedInt(r1.loadByte(bOff1 + i))
-        val b2 = java.lang.Byte.toUnsignedInt(r2.loadByte(bOff2 + i))
+        val b1 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff1 + i))
+        val b2 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff2 + i))
         if (b1 != b2)
           return java.lang.Integer.compare(b1, b2)
 
@@ -87,8 +87,10 @@ object PBinary {
 
   def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
 
+  def loadLength(boff: Long): Int = Region.loadInt(boff)
+
   def loadLength(region: Region, boff: Long): Int =
-    region.loadInt(boff)
+    Region.loadInt(boff)
 
   def loadLength(boff: Code[Long]): Code[Int] =
     Region.loadInt(boff)

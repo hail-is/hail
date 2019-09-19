@@ -147,9 +147,22 @@ def table_aggregate_int_stats():
 
 
 @benchmark
+def table_range_means():
+    ht = hl.utils.range_table(10_000_000, 16)
+    ht = ht.annotate(m=hl.mean(hl.range(0, ht.idx % 1111)))
+    ht._force_count()
+
+
+@benchmark
 def table_aggregate_counter():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
+
+
+@benchmark
+def table_aggregate_take_by_strings():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht.aggregate(hl.tuple([hl.agg.take(ht['f18'], 25, ordering=ht[f'f{i}']) for i in range(18)]))
 
 
 @benchmark
@@ -291,3 +304,9 @@ def join_p100_p10():
     ht1 = hl.read_table(resource('table_10M_par_100.ht'))
     ht2 = hl.read_table(resource('table_10M_par_10.ht'))
     ht1.join(ht2)._force_count()
+
+
+@benchmark
+def group_by_collect_per_row():
+    ht = hl.read_matrix_table(resource('gnomad_dp_simulation.mt')).localize_entries('e', 'c')
+    ht.group_by(*ht.key).aggregate(value=hl.agg.collect(ht.row_value))._force_count()

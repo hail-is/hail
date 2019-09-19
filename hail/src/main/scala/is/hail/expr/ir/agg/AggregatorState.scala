@@ -38,7 +38,7 @@ trait PointerBasedRVAState extends AggregatorState {
 
   def newState: Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(Code(r := Code.newInstance[Region, Int](regionSize), region.invalidate()), Code._empty)
+  def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
   def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(regionLoader(r), off := Region.loadAddress(src))
@@ -55,7 +55,7 @@ class TypedRVAState(val valueType: PType, val fb: EmitFunctionBuilder[_]) extend
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     super.load(r => r.invalidate(), src)
 
-  def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(fb, region, valueType, src)
+  def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, valueType, src)
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val enc = PackCodecSpec2(valueType, codec).buildEmitEncoderF[Long](valueType, fb)

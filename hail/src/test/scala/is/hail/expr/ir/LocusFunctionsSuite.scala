@@ -71,4 +71,14 @@ class LocusFunctionsSuite extends HailSuite {
     val globalPosition = 2824183054L
     assertEvalsTo(invoke("globalPosToLocus", tlocus, I64(globalPosition)), grch38.globalPosToLocus(globalPosition))
   }
+
+  @Test def testMultipleReferenceGenomes() {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+
+    val ir = MakeTuple.ordered(FastSeq(
+      invoke("Locus", TLocus(ReferenceGenome.GRCh37), Str("1"), I32(1)),
+      invoke("Locus", TLocus(ReferenceGenome.GRCh38), Str("chr1"), I32(1))))
+
+    assertEvalsTo(ir, Row(Locus("1", 1, ReferenceGenome.GRCh37), Locus("chr1", 1, ReferenceGenome.GRCh38)))
+  }
 }
