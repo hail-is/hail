@@ -18,7 +18,7 @@
           {% for workshop in workshops %}
             <form action="{{ base_path }}/workshop/update" method="PATCH">
               <tr>
-                <td>{{ workshop['name'] %}</td>
+                <td>{{ workshop['name'] }}</td>
                 <td>
                   <input name="image" value="{{ workshop['image'] }}" />
                 </td>
