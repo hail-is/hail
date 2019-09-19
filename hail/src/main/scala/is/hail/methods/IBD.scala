@@ -29,10 +29,10 @@ object IBDInfo {
     fromRegionValue(rv.region, rv.offset)
 
   def fromRegionValue(region: Region, offset: Long): IBDInfo = {
-    val Z0 = region.loadDouble(pType.loadField(region, offset, 0))
-    val Z1 = region.loadDouble(pType.loadField(region, offset, 1))
-    val Z2 = region.loadDouble(pType.loadField(region, offset, 2))
-    val PI_HAT = region.loadDouble(pType.loadField(region, offset, 3))
+    val Z0 = Region.loadDouble(pType.loadField(region, offset, 0))
+    val Z1 = Region.loadDouble(pType.loadField(region, offset, 1))
+    val Z2 = Region.loadDouble(pType.loadField(region, offset, 2))
+    val PI_HAT = Region.loadDouble(pType.loadField(region, offset, 3))
     IBDInfo(Z0, Z1, Z2, PI_HAT)
   }
 }
@@ -62,9 +62,9 @@ object ExtendedIBDInfo {
 
   def fromRegionValue(region: Region, offset: Long): ExtendedIBDInfo = {
     val ibd = IBDInfo.fromRegionValue(region, pType.loadField(region, offset, 0))
-    val ibs0 = region.loadLong(pType.loadField(region, offset, 1))
-    val ibs1 = region.loadLong(pType.loadField(region, offset, 2))
-    val ibs2 = region.loadLong(pType.loadField(region, offset, 3))
+    val ibs0 = Region.loadLong(pType.loadField(region, offset, 1))
+    val ibs1 = Region.loadLong(pType.loadField(region, offset, 2))
+    val ibs2 = Region.loadLong(pType.loadField(region, offset, 3))
     ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
   }
 }
@@ -316,9 +316,9 @@ object IBD {
       val i = PString.loadString(region, ibdPType.loadField(rv, 0))
       val j = PString.loadString(region, ibdPType.loadField(rv, 1))
       val ibd = IBDInfo.fromRegionValue(region, ibdPType.loadField(rv, 2))
-      val ibs0 = region.loadLong(ibdPType.loadField(rv, 3))
-      val ibs1 = region.loadLong(ibdPType.loadField(rv, 4))
-      val ibs2 = region.loadLong(ibdPType.loadField(rv, 5))
+      val ibs0 = Region.loadLong(ibdPType.loadField(rv, 3))
+      val ibs1 = Region.loadLong(ibdPType.loadField(rv, 4))
+      val ibs2 = Region.loadLong(ibdPType.loadField(rv, 5))
       val eibd = ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
       ((i, j), eibd)
     }
@@ -336,7 +336,7 @@ object IBD {
 
     (rv: RegionValue) => {
       val isDefined = rvRowPType.isFieldDefined(rv, idx)
-      val maf = rv.region.loadDouble(rvRowPType.loadField(rv, idx))
+      val maf = Region.loadDouble(rvRowPType.loadField(rv, idx))
       if (!isDefined) {
         val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")

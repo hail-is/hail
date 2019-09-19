@@ -5,23 +5,6 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RegionSuite extends TestNGSuite {
-  @Test def testRegionAppending() {
-    val buff = Region()
-
-    val addrA = buff.appendLong(124L)
-    val addrB = buff.appendByte(2)
-    val addrC = buff.appendByte(1)
-    val addrD = buff.appendByte(4)
-    val addrE = buff.appendInt(1234567)
-    val addrF = buff.appendDouble(1.1)
-
-    assert(buff.loadLong(addrA) == 124L)
-    assert(buff.loadByte(addrB) == 2)
-    assert(buff.loadByte(addrC) == 1)
-    assert(buff.loadByte(addrD) == 4)
-    assert(buff.loadInt(addrE) == 1234567)
-    assert(buff.loadDouble(addrF) == 1.1)
-  }
 
   @Test def testRegionSizes() {
     Region.smallScoped { region =>

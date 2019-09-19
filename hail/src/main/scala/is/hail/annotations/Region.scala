@@ -283,112 +283,20 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.releaseReferenceAtIndex(idx)
   }
 
-  def appendBinary(v: Array[Byte]): Long = {
-    val len: Int = v.length
-    val grain = if (PBinary.contentAlignment < 4) 4 else PBinary.contentAlignment
-    val addr = allocate(grain, grain + len) + (grain - 4)
-    Region.storeInt(addr, len)
-    Region.storeBytes(addr + 4, v)
-    addr
-  }
-
-  def loadInt(addr: Long): Int = Region.loadInt(addr)
-
-  def loadLong(addr: Long): Long = Region.loadLong(addr)
-
-  def loadFloat(addr: Long): Float = Region.loadFloat(addr)
-
-  def loadDouble(addr: Long): Double = Region.loadDouble(addr)
-
-  def loadAddress(addr: Long): Long = Region.loadLong(addr)
-
-  def loadByte(addr: Long): Byte = Region.loadByte(addr)
-
-  def storeInt(addr: Long, v: Int): Unit = Region.storeInt(addr, v)
-
-  def storeLong(addr: Long, v: Long): Unit = Region.storeLong(addr, v)
-
-  def storeFloat(addr: Long, v: Float): Unit = Region.storeFloat(addr, v)
-
-  def storeDouble(addr: Long, v: Double): Unit = Region.storeDouble(addr, v)
-
-  def storeAddress(addr: Long, v: Long): Unit = Region.storeAddress(addr, v)
-
-  def storeByte(addr: Long, v: Byte): Unit = Region.storeByte(addr, v)
-
-  def loadBoolean(addr: Long): Boolean = Region.loadBoolean(addr)
-
-  def storeBoolean(addr: Long, v: Boolean): Unit = Region.storeBoolean(addr, v)
-
-  def loadBytes(addr: Long, n: Int): Array[Byte] = Region.loadBytes(addr, n)
-
-  def loadBytes(addr: Long, dst: Array[Byte], dstOff: Long, n: Long): Unit =
-    Region.loadBytes(addr, dst, dstOff, n)
-
-  def storeBytes(addr: Long, src: Array[Byte]): Unit = Region.storeBytes(addr, src)
-
-  def storeBytes(addr: Long, src: Array[Byte], srcOff: Long, n: Long): Unit =
-    Region.storeBytes(addr, src, srcOff, n)
-
-  def copyFrom(src: Region, srcOff: Long, dstOff: Long, n: Long) =
-    Region.copyFrom(srcOff, dstOff, n)
-
-  def loadBit(byteOff: Long, bitOff: Long): Boolean = Region.loadBit(byteOff, bitOff)
-
-  def setBit(byteOff: Long, bitOff: Long): Unit = Region.setBit(byteOff, bitOff)
-
-  def clearBit(byteOff: Long, bitOff: Long): Unit = Region.clearBit(byteOff, bitOff)
-
-  def storeBit(byteOff: Long, bitOff: Long, b: Boolean): Unit = Region.storeBit(byteOff, bitOff, b)
-
-  // Use of appendXXX methods is deprecated now that Region uses absolute
-  // addresses and non-contiguous memory allocation.  You can't assume any
-  // relationships between the addresses returned by appendXXX methods -
-  // and to make it even more confusing, there may be long sequences of
-  // ascending addresses (within a buffer) followed by an arbitrary jump
-  // to an address in a different buffer.
-
-  def appendInt(v: Int): Long = {
-    val a = allocate(4, 4)
-    Memory.storeInt(a, v)
-    a
-  }
-
-  def appendLong(v: Long): Long = {
-    val a = allocate(8, 8)
-    Memory.storeLong(a, v)
-    a
-  }
-
-  def appendDouble(v: Double): Long = {
-    val a = allocate(8, 8)
-    Memory.storeDouble(a, v)
-    a
-  }
-
-  def appendByte(v: Byte): Long = {
-    val a = allocate(1)
-    Memory.storeByte(a, v)
-    a
-  }
-
-  def appendString(v: String): Long =
-    appendBinary(v.getBytes)
-
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
-      case _: PBoolean => v.visitBoolean(loadBoolean(off))
-      case _: PInt32 => v.visitInt32(loadInt(off))
-      case _: PInt64 => v.visitInt64(loadLong(off))
-      case _: PFloat32 => v.visitFloat32(loadFloat(off))
-      case _: PFloat64 => v.visitFloat64(loadDouble(off))
+      case _: PBoolean => v.visitBoolean(Region.loadBoolean(off))
+      case _: PInt32 => v.visitInt32(Region.loadInt(off))
+      case _: PInt64 => v.visitInt64(Region.loadLong(off))
+      case _: PFloat32 => v.visitFloat32(Region.loadFloat(off))
+      case _: PFloat64 => v.visitFloat64(Region.loadDouble(off))
       case _: PString =>
         val boff = off
         v.visitString(PString.loadString(this, boff))
       case _: PBinary =>
         val boff = off
         val length = PBinary.loadLength(this, boff)
-        val b = loadBytes(PBinary.bytesOffset(boff), length)
+        val b = Region.loadBytes(PBinary.bytesOffset(boff), length)
         v.visitBinary(b)
       case t: PContainer =>
         val aoff = off

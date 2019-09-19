@@ -506,7 +506,7 @@ private class Emit(
                     .concat(irString))))))
 
         EmitTriplet(setup, xmv, Code(
-          region.loadIRIntermediate(typ)(pArray.elementOffset(xa, len, xi))))
+          Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(PContainer.loadLength(coerce[Long](codeA.v)), codeA)
@@ -614,10 +614,10 @@ private class Emit(
         val i = mb.newLocal[Int]
 
         def loadKey(n: Code[Int]): Code[_] =
-          region.loadIRIntermediate(ktyp)(etyp.fieldOffset(coerce[Long](eab(n)), 0))
+          Region.loadIRIntermediate(ktyp)(etyp.fieldOffset(coerce[Long](eab(n)), 0))
 
         def loadValue(n: Code[Int]): Code[_] =
-          region.loadIRIntermediate(vtyp)(etyp.fieldOffset(coerce[Long](eab(n)), 1))
+          Region.loadIRIntermediate(vtyp)(etyp.fieldOffset(coerce[Long](eab(n)), 1))
 
         val srvb = new StagedRegionValueBuilder(mb, ir.pType)
 
@@ -1170,7 +1170,7 @@ private class Emit(
               val i = oldt.fieldIdx(name)
               val t = oldt.types(i)
               val fieldMissing = oldt.isFieldMissing(region, oldv, i)
-              val fieldValue = region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
+              val fieldValue = Region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
               Code(
                 fieldMissing.mux(
                   srvb.setMissing(),
@@ -1227,7 +1227,7 @@ private class Emit(
                         Code(
                           oldtype.isFieldMissing(region, xo, oldField.index).mux(
                             srvb.setMissing(),
-                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))),
+                            srvb.addIRIntermediate(f.typ)(Region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))),
                           srvb.advance())
                     }
                 }
@@ -1256,7 +1256,7 @@ private class Emit(
           xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
+          Region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
 
       case x@MakeTuple(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
@@ -1280,7 +1280,7 @@ private class Emit(
           xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, idx),
-          region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
+          Region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
       case In(i, typ) =>
         EmitTriplet(Code._empty,
@@ -1394,7 +1394,7 @@ private class Emit(
         val ndAddress = mb.newField[Long]
 
 
-        def getShapeAtIdx(index: Int) = region.loadLong(shapePType.loadField(shapet.value[Long], index))
+        def getShapeAtIdx(index: Int) = Region.loadLong(shapePType.loadField(shapet.value[Long], index))
 
         val setup = Code(
           shapet.setup,
@@ -1473,9 +1473,9 @@ private class Emit(
             ctxOff := cDec(bodyFB.getArg[Region](1), cCodec.buildCodeInputBuffer(ctxIS)),
             gOff := gDec(bodyFB.getArg[Region](1), gCodec.buildCodeInputBuffer(gIS)),
             bOff := bodyMB.invoke[Long](bodyFB.getArg[Region](1),
-              region.loadIRIntermediate(ctxType.virtualType)(ctxTypeTuple.fieldOffset(ctxOff, 0)),
+              Region.loadIRIntermediate(ctxType)(ctxTypeTuple.fieldOffset(ctxOff, 0)),
               ctxTypeTuple.isFieldMissing(region, ctxOff, 0),
-              region.loadIRIntermediate(gType.virtualType)(gTypeTuple.fieldOffset(gOff, 0)),
+              Region.loadIRIntermediate(gType)(gTypeTuple.fieldOffset(gOff, 0)),
               gTypeTuple.isFieldMissing(region, gOff, 0)),
             bOS := Code.newInstance[ByteArrayOutputStream](),
             bOB := bCodec.buildCodeOutputBuffer(bOS),
@@ -1541,7 +1541,7 @@ private class Emit(
               eltTupled := bDec(region, bCodec.buildCodeInputBuffer(bais)),
               bTypeTuple.isFieldMissing(region, eltTupled, 0).mux(
                 sab.setMissing(),
-                sab.addIRIntermediate(bType)(region.loadIRIntermediate(bType)(bTypeTuple.fieldOffset(eltTupled, 0)))),
+                sab.addIRIntermediate(bType)(Region.loadIRIntermediate(bType)(bTypeTuple.fieldOffset(eltTupled, 0)))),
               sab.advance()),
             sab.end())
         }
@@ -1942,7 +1942,7 @@ private class Emit(
             i := 0,
             Code.whileLoop(i < len,
               continuation(t.isElementMissing(region, aoff, i),
-                region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
+                Region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
               i := i + 1)))
         })
     }
@@ -2003,7 +2003,7 @@ private class Emit(
           xP.representation.fieldType("shape").asInstanceOf[PTuple], xP.elementType, setup) {
           override def outputElement(idxVars: Seq[ClassFieldRef[Long]]): Code[_] = {
             val elementLocation = xP.getElementPosition(idxVars, ndt.value[Long], er.region, mb)
-            region.loadIRIntermediate(outputElementPType)(elementLocation)
+            Region.loadIRIntermediate(outputElementPType)(elementLocation)
           }
         }
     }

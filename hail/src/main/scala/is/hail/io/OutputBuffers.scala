@@ -73,7 +73,7 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
     out.write(buf, 0, 8)
   }
 
-  def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(region.loadBytes(off, n))
+  def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(Region.loadBytes(off, n))
 
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
     var i = 0
@@ -214,14 +214,14 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
     while (off + n > buf.length) {
       val p = buf.length - off
-      fromRegion.loadBytes(fromOff, buf, off, p)
+      Region.loadBytes(fromOff, buf, off, p)
       off += p
       fromOff += p
       n -= p
       assert(off == buf.length)
       writeBlock()
     }
-    fromRegion.loadBytes(fromOff, buf, off, n)
+    Region.loadBytes(fromOff, buf, off, n)
     off += n
   }
 

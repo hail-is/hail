@@ -141,7 +141,7 @@ object EmitPackDecoder {
                 if (f.typ.required)
                   readElement
                 else {
-                  region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+                  Region.loadBit(moff, t.missingIdx(f.index).toLong).mux(
                     srvb.setMissing(),
                     readElement)
                 },
@@ -157,7 +157,7 @@ object EmitPackDecoder {
               if (f.typ.required)
                 skipField
               else {
-                region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+                Region.loadBit(moff, t.missingIdx(f.index).toLong).mux(
                   Code._empty,
                   skipField)
               }
@@ -188,7 +188,7 @@ object EmitPackDecoder {
       length := in.readInt(),
       srvb.start(length, init = false),
       aoff := srvb.offset,
-      srvb.region.storeInt(aoff, length),
+      Region.storeInt(aoff, length),
       if (t.elementType.required)
         Code._empty
       else
@@ -219,7 +219,7 @@ object EmitPackDecoder {
           if (f.typ.required)
             skipField
           else
-            region.loadBit(moff, const(t.missingIdx(f.index))).mux(
+            Region.loadBit(moff, t.missingIdx(f.index).toLong).mux(
               Code._empty,
               skipField)
         }
@@ -259,7 +259,7 @@ object EmitPackDecoder {
         in.readBytes(region, moff, nMissing),
         i := 0,
         Code.whileLoop(i < length,
-          region.loadBit(moff, i.toL).mux(
+          Region.loadBit(moff, i.toL).mux(
             Code._empty,
             skip(t.elementType, mb, in, region)),
           i := i + const(1)))
@@ -461,7 +461,7 @@ object EmitPackEncoder {
     out: Code[OutputBuffer],
     prefixLength: Code[Int]
   ): Code[Unit] = {
-    val actualLength = region.loadInt(aoff)
+    val actualLength = Region.loadInt(aoff)
 
     val writeLen = out.writeInt(prefixLength)
     val writeMissingBytes =
@@ -494,7 +494,7 @@ object EmitPackEncoder {
     emitArray(t, requestedType, mb, region, aoff, out, t.loadLength(region, aoff))
 
   def writeBinary(mb: MethodBuilder, region: Code[Region], boff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
-    val length = region.loadInt(boff)
+    val length = Region.loadInt(boff)
     Code(
       out.writeInt(length),
       out.writeBytes(region, boff + const(4), length))

@@ -199,7 +199,13 @@ abstract class RegistryFunctions {
     case _: TFloat32 => identity[Code[_]]
     case _: TFloat64 => identity[Code[_]]
     case _: TString => c =>
-      r.region.appendString(coerce[String](c))
+      val bytes = r.mb.newLocal[Array[Byte]]
+      val v = r.mb.newLocal[Long]
+      Code(
+        bytes := coerce[String](c).invoke[Array[Byte]]("getBytes"),
+        v := PBinary.allocate(r.region, bytes.length()),
+        PBinary.store(v, bytes),
+        v)
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
       val srvb = new StagedRegionValueBuilder(r, t)

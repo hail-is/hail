@@ -143,7 +143,7 @@ case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region
   def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = toCode((i, _) =>
-    topRegion.storeAddress(typ.fieldOffset(off, i), 0L))
+    Region.storeAddress(typ.fieldOffset(off, i), 0L))
 
   def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))

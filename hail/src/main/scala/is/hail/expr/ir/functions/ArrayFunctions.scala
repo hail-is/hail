@@ -1,5 +1,6 @@
 package is.hail.expr.ir.functions
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.coerce
@@ -354,10 +355,10 @@ object ArrayFunctions extends RegistryFunctions {
               Code(
                 (t1.isElementDefined(region, a1, i) && t2.isElementDefined(region, a2, i)).mux(
                   Code(
-                    x := region.loadDouble(t1.loadElement(region, a1, i)),
+                    x := Region.loadDouble(t1.loadElement(region, a1, i)),
                     xSum := xSum + x,
                     xSqSum := xSqSum + x * x,
-                    y := region.loadDouble(t2.loadElement(region, a2, i)),
+                    y := Region.loadDouble(t2.loadElement(region, a2, i)),
                     ySum := ySum + y,
                     ySqSum := ySqSum + y * y,
                     xySum := xySum + x * y,

@@ -41,7 +41,7 @@ class UnsafeIndexedSeq(
 object UnsafeRow {
   def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] = {
     val binLength = PBinary.loadLength(region, boff)
-    region.loadBytes(PBinary.bytesOffset(boff), binLength)
+    Region.loadBytes(PBinary.bytesOffset(boff), binLength)
   }
 
   def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
@@ -57,7 +57,7 @@ object UnsafeRow {
     val ft = t.representation.asInstanceOf[PStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0), ft.types(0).asInstanceOf[PString]),
-      region.loadInt(ft.loadField(region, offset, 1)))
+      Region.loadInt(ft.loadField(region, offset, 1)))
   }
 
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
@@ -65,11 +65,11 @@ object UnsafeRow {
   def read(t: PType, region: Region, offset: Long): Any = {
     t match {
       case _: PBoolean =>
-        region.loadBoolean(offset)
-      case _: PInt32 | _: PCall => region.loadInt(offset)
-      case _: PInt64 => region.loadLong(offset)
-      case _: PFloat32 => region.loadFloat(offset)
-      case _: PFloat64 => region.loadDouble(offset)
+        Region.loadBoolean(offset)
+      case _: PInt32 | _: PCall => Region.loadInt(offset)
+      case _: PInt64 => Region.loadLong(offset)
+      case _: PFloat32 => Region.loadFloat(offset)
+      case _: PFloat64 => Region.loadDouble(offset)
       case t: PArray =>
         readArray(t, region, offset)
       case t: PSet =>
@@ -136,32 +136,32 @@ class UnsafeRow(var t: PBaseStruct,
 
   override def getInt(i: Int): Int = {
     assertDefined(i)
-    region.loadInt(t.loadField(region, offset, i))
+    Region.loadInt(t.loadField(region, offset, i))
   }
 
   override def getLong(i: Int): Long = {
     assertDefined(i)
-    region.loadLong(t.loadField(region, offset, i))
+    Region.loadLong(t.loadField(region, offset, i))
   }
 
   override def getFloat(i: Int): Float = {
     assertDefined(i)
-    region.loadFloat(t.loadField(region, offset, i))
+    Region.loadFloat(t.loadField(region, offset, i))
   }
 
   override def getDouble(i: Int): Double = {
     assertDefined(i)
-    region.loadDouble(t.loadField(region, offset, i))
+    Region.loadDouble(t.loadField(region, offset, i))
   }
 
   override def getBoolean(i: Int): Boolean = {
     assertDefined(i)
-    region.loadBoolean(t.loadField(region, offset, i))
+    Region.loadBoolean(t.loadField(region, offset, i))
   }
 
   override def getByte(i: Int): Byte = {
     assertDefined(i)
-    region.loadByte(t.loadField(region, offset, i))
+    Region.loadByte(t.loadField(region, offset, i))
   }
 
   override def isNullAt(i: Int): Boolean = {

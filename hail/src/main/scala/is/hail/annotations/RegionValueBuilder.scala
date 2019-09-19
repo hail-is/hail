@@ -275,7 +275,8 @@ class RegionValueBuilder(var region: Region) {
   def addBinary(bytes: Array[Byte]) {
     assert(currentType().isInstanceOf[PBinary])
 
-    val boff = region.appendBinary(bytes)
+    val boff = PBinary.allocate(region, bytes.length)
+    PBinary.store(boff, bytes)
 
     if (typestk.nonEmpty) {
       val off = currentOffset()
