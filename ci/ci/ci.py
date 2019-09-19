@@ -15,7 +15,7 @@ import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.config import get_deploy_config
-from gear import configure_logging, setup_aiohttp_session, \
+from gear import setup_aiohttp_session, setup_common_static_routes, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
     new_csrf_token, check_csrf_token
 
@@ -25,7 +25,6 @@ from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
-configure_logging()
 log = logging.getLogger('ci')
 
 uvloop.install()
@@ -34,9 +33,6 @@ watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
     for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
-
-app = web.Application()
-setup_aiohttp_session(app)
 
 routes = web.RouteTableDef()
 
@@ -321,9 +317,6 @@ async def update_loop(app):
         await asyncio.sleep(300)
 
 
-aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
-
-
 async def on_startup(app):
     session = aiohttp.ClientSession(
         raise_for_status=True,
@@ -356,10 +349,18 @@ async def on_cleanup(app):
 
 
 def run():
+    app = web.Application()
+    setup_aiohttp_jinja2(app, 'ci')
+    setup_aiohttp_session(app)
+
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+
+    # sass_compile('ci')
+    root = os.path.dirname(os.path.abspath(__file__))
+    routes.static('/static', f'{root}/static')
+    setup_common_static_routes(routes)
     app.add_routes(routes)
-    routes.static('/static', 'ci/static')
 
     deploy_config = get_deploy_config()
     web.run_app(deploy_config.prefix_application(app, 'ci'), host='0.0.0.0', port=5000)

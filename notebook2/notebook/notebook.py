@@ -370,9 +370,7 @@ def run():
     sass_compile('notebook')
     root = os.path.dirname(os.path.abspath(__file__))
     routes.static('/static', f'{root}/static')
-
     setup_common_static_routes(routes)
-
     app.add_routes(routes)
 
     app.on_startup.append(on_startup)
