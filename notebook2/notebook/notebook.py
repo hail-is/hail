@@ -348,7 +348,7 @@ async def error_page(request, userdata):
 @routes.get('/user')
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only()
-async def user_page(request, userdata):
+async def user_page(request, userdata):  # pylint: disable=unused-argument
     context = base_context(deploy_config, userdata, 'notebook2')
     return context
 
