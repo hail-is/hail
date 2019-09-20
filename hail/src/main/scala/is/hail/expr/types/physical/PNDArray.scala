@@ -1,9 +1,9 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder, UnsafeOrdering}
-import is.hail.asm4s.{ClassFieldRef, Code, MethodBuilder, _}
+import is.hail.asm4s.{Code, MethodBuilder, _}
 import is.hail.expr.Nat
-import is.hail.expr.ir.{EmitMethodBuilder, coerce}
+import is.hail.expr.ir.{EmitMethodBuilder}
 import is.hail.expr.types.virtual.TNDArray
 import is.hail.utils._
 
