@@ -441,7 +441,7 @@ async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
-DELETE FROM workshops WHERE name = %s'
+DELETE FROM workshops WHERE name = %s;
 ''',
                                  post['name'])
 
