@@ -4,27 +4,29 @@
     <h1>PR {{ number }}</h1>
     {% if batch is defined %}
     <h2>Batch {{ batch['id'] }} Jobs</h2>
-    <div>artifacts: {{ artifacts }}</div>
+    <div class="attributes">
+      <div>artifacts: {{ artifacts }}</div>
+    </div>
     <table class="data-table">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">name</th>
-          <th align="left">state</th>
-          <th align="right">exit_code</th>
-          <th align="right">duration</th>
-          <th align="left">log</th>
-          <th align="left">pod status</th>
-          <th align="left">links</th>
+          <th>id</th>
+          <th>name</th>
+          <th>state</th>
+          <th>exit_code</th>
+          <th>duration</th>
+          <th>log</th>
+          <th>pod status</th>
+          <th>links</th>
         </tr>
       </thead>
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td align="right">{{ job['job_id'] }}</td>
-          <td align="left">{{ job['attributes']['name'] }}</td>
-          <td align="left">{{ job['state'] }}</td>
-          <td align="right">
+          <td>{{ job['job_id'] }}</td>
+          <td>{{ job['attributes']['name'] }}</td>
+          <td>{{ job['state'] }}</td>
+          <td>
             {% if 'exit_code' in job and job['exit_code'] is not none %}
             {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
@@ -37,15 +39,15 @@
               </span>
               {% endif %}
           </td>
-          <td align="right">
+          <td>
             {% if 'duration' in job and job['duration'] %}
             {{ job['duration'] }}
             {% endif %}
           </td>
-          <td align="left">
+          <td>
             <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
           </td>
-          <td align="left">
+          <td>
             <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
           </td>
           <td>
@@ -73,17 +75,17 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">state</th>
+          <th>id</th>
+          <th>state</th>
         </tr>
       </thead>
       <tbody>
         {% for batch in history %}
         <tr>
-          <td align="right">
+          <td>
             <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
           </td>
-          <td align="left">
+          <td>
             {% if 'state' in batch and batch['state'] %}
             {{ batch['state'] }}
             {% endif %}
