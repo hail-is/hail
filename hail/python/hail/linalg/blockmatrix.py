@@ -2154,8 +2154,6 @@ class BlockMatrix(object):
 
             return [start_row, end_row, start_col, end_col]
 
-        #n_block_rows = (self.n_rows + self.block_size - 1) // self.block_size
-        #n_block_cols = (self.n_cols + self.block_size - 1) // self.block_size
         block_indices = itertools.product(range(self._n_block_rows), range(self._n_block_cols))
         rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
 
