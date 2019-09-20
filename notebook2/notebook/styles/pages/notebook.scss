@@ -1,5 +1,4 @@
-@import "variables/margins.scss";
-@import "variables/colors.scss";
+@import "variables.scss";
 
 #notebook {
     display: flex;
@@ -25,6 +24,11 @@
     .nb-state-container {
         flex-direction: column;
         display: flex;
+        color: $black;
+        &:hover {
+            text-decoration: none;
+            color: $devil-gray;
+        }
     }
 
     .nb-close {

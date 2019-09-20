@@ -13,7 +13,7 @@
   <h2>Jobs</h2>
   <div class="searchbar-table">
     <input size=30 type="text" id="searchBar" onkeyup="searchTable('batch', 'searchBar')" placeholder="Search terms...">
-    <table style="min-width:480px;" id="batch">
+    <table class="data-table" id="batch">
       <thead>
         <tr>
           <th>ID</th>
@@ -28,7 +28,7 @@
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td>{{ job['job_id'] }}</td>
+          <td class="numeric-cell">{{ job['job_id'] }}</td>
           <td>
             {% if 'attributes' in job and 'name' in job['attributes'] and job['attributes']['name'] is not none %}
             {{ job['attributes']['name'] }}

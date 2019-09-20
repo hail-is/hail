@@ -6,52 +6,50 @@
 {% block content %}
     <h1>CI</h1>
     {% for wb in watched_branches %}
-    <h2>{{ wb.branch }}</h2>
-    <p>SHA:
-      {% if wb.sha is not none %}
-      {{ wb.sha }}
-      {% else %}
-      unknown
-      {% endif %}
-    </p>
-    <p>Deploy State:
-      {% if wb.deploy_state is not none %}
-      {{ wb.deploy_state }}
-      {% endif %}
-    </p>
-    <p>Deploy Batch:
-      {% if wb.deploy_batch_id is not none %}
-      <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
-      {% endif %}
-    </p>
+    <h2 class="stacked-header">{{ wb.branch }}</h2>
+    <div class="attributes">
+      <div>SHA:
+	{% if wb.sha is not none %}
+	{{ wb.sha }}
+	{% else %}
+	unknown
+	{% endif %}
+      </div>
+      <div>Deploy State:
+	{% if wb.deploy_state is not none %}
+	{{ wb.deploy_state }}
+	{% endif %}
+      </div>
+      <div>Deploy Batch:
+	{% if wb.deploy_batch_id is not none %}
+	<a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+	{% endif %}
+      </div>
+    </div>
 
     <h2>PRs</h2>
     {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
     <div class="searchbar-table">
-      <input size=30 type="text" id="searchBar" onkeyup="searchTable()" placeholder="Search terms...">
-      <table id="statuses">
+      <input type="text" id="searchBar" onkeyup="searchTable('prs', 'searchBar')" placeholder="Search terms...">
+      <table id="prs" class="data-table">
         <thead>
           <tr>
-            <th align="left">Number</th>
-            <th align="left">Title</th>
-            <th align="left">Build State</th>
-            <th align="left">Review State</th>
-            <th align="left">Author</th>
+            <th>PR</th>
+            <th>Build State</th>
+            <th>Review State</th>
+            <th>Author</th>
           </tr>
         </thead>
         <tbody>
           {% for pr in wb.prs %}
           <tr>
-            <td align="left">
+            <td>
               <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
-                {{ pr.number }}
+                {{ pr.title }} <span class="gh-number">#{{ pr.number }}</a>
               </a>
             </td>
-            <td align="left">
-              {{ pr.title }}
-            </td>
-            <td align="left">
+            <td>
               {% if pr.build_state is not none %}
                 <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
               {% else %}
@@ -61,12 +59,12 @@
                 *
               {% endif %}
             </td>
-            <td align="left">
+            <td>
               {% if pr.review_state %}
               {{ pr.review_state }}
               {% endif %}
             </td>
-            <td align="left">
+            <td>
               {{ pr.author }}
             </td>
           </tr>
