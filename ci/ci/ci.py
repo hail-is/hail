@@ -125,7 +125,8 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 if 'link' in attrs:
                     attrs['link'] = attrs['link'].split(',')
             config['batch'] = status
-            config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
+            # [4:] strips off gs:/
+            config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
         else:
             config['exception'] = '\n'.join(
                 traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))

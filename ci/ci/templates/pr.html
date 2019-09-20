@@ -3,10 +3,16 @@
 {% block content %}
     <h1>PR {{ number }}</h1>
     {% if batch is defined %}
-    <h2>Batch {{ batch['id'] }} Jobs</h2>
     <div class="attributes">
-      <div>artifacts: {{ artifacts }}</div>
+      <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
+      <div>artifacts:
+	<a  target="_blank" href="https://console.cloud.google.com/storage/browser{{ artifacts }}">gs:/{{ artifacts }}</a><i class="material-icons text-icon">open_in_new</i>
+      </div>
+      {% for name, value in batch['attributes'].items() %}
+      <div>{{ name }}: {{ value }}</div>
+      {% endfor %}
     </div>
+    <h2>Jobs</h2>
     <table class="data-table">
       <thead>
         <tr>
@@ -23,7 +29,7 @@
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td>{{ job['job_id'] }}</td>
+          <td class="numeric-cell">{{ job['job_id'] }}</td>
           <td>{{ job['attributes']['name'] }}</td>
           <td>{{ job['state'] }}</td>
           <td>
@@ -82,7 +88,7 @@
       <tbody>
         {% for batch in history %}
         <tr>
-          <td>
+          <td class="numeric-cell">
             <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
           </td>
           <td>
