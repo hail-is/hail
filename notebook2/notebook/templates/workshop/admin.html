@@ -61,5 +61,11 @@
         </form>
       </tbody>
     </table>
+    <h2>Delete Workshop</h2>
+    <form action="{{ base_path }}/workshop/delete" method=">
+      <label for="name">Workshop name:</label>
+      <input type="text" name="name">
+      <button class="dangerous" type="submit">Delete</button>
+    </form>
   </div>
 {% endblock %}

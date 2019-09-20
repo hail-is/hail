@@ -81,7 +81,7 @@
     {% endfor %}
 
     <h2>Authorize SHA</h2>
-    <form action="/authorize_source_sha" method="post">
+    <form action="{{ base_path }}/authorize_source_sha" method="post">
       <label for="sha">SHA:</label>
       <input type="hidden" name="_csrf" value="{{ token }}"/>
       <input type="text" name="sha" id="sha">

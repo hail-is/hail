@@ -1,6 +1,6 @@
 PY_FILES = $(shell find notebook -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 flake8-stmp: $(PY_FILES)

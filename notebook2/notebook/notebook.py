@@ -412,6 +412,23 @@ UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
 
+@routes.post('/workshop/delete')
+@web_authenticated_developers_only()
+async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    dbpool = app['dbpool']
+
+    post = await request.post()
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('''
+DELETE FROM workshops WHERE name = %s'
+''',
+                                 post['name'])
+
+    return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
+
+
 async def on_startup(app):
     if 'BATCH_USE_KUBE_CONFIG' in os.environ:
         await config.load_kube_config()
