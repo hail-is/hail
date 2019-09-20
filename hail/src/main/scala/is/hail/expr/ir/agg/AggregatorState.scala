@@ -133,17 +133,14 @@ class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_])
   }
 }
 
-case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region]) {
+case class States(states: Array[AggregatorState]) {
   val nStates: Int = states.length
   val typ: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
 
   def apply(i: Int): AggregatorState = states(i)
-  private def getRegion(rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
-    r.setFromParentReference(topRegion, rOffset + i, states(i).regionSize) }
-  private def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
-
-  def setAllMissing(off: Code[Long]): Code[Unit] = toCode((i, _) =>
-    Region.storeAddress(typ.fieldOffset(off, i), 0L))
+  private def getRegion(region: Code[Region], rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
+    r.setFromParentReference(region, rOffset + i, states(i).regionSize) }
+  private def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(off, i)
 
   def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
@@ -154,12 +151,31 @@ case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region
   def newStates: Code[Unit] =
     toCode((_, s) => s.newState)
 
-  def load(rOffset: Code[Int], stateOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.load(getRegion(rOffset, i), getStateOffset(stateOffset, i)))
+  def load(region: Code[Region], rOffset: Code[Int], stateOffset: Code[Long]): Code[Unit] =
+    toCode((i, s) => s.load(getRegion(region, rOffset, i), getStateOffset(stateOffset, i)))
 
-  def store(rOffset: Code[Int], statesOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.store(r => topRegion.setParentReference(r, rOffset + i), getStateOffset(statesOffset, i)))
+  def store(region: Code[Region], rOffset: Code[Int], statesOffset: Code[Long]): Code[Unit] =
+    toCode((i, s) => s.store(r => region.setParentReference(r, rOffset + i), getStateOffset(statesOffset, i)))
 
   def copyFrom(statesOffset: Code[Long]): Code[Unit] =
     toCode((i, s) => s.copyFrom(getStateOffset(statesOffset, i)))
+}
+
+case class StateContainer(states: States, topRegion: Code[Region], var off: Code[Long], var rOff: Code[Int] = 0) {
+  def nStates: Int = states.nStates
+  def typ: PTuple = states.typ
+
+  def withOffsets(newOff: Code[Long], rOff: Code[Int]): StateContainer = this.copy(off = newOff, rOff = rOff)
+
+  def apply(i: Int): AggregatorState = states(i)
+
+  def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] = states.toCode(f)
+
+  def newStates: Code[Unit] = states.newStates
+
+  def load: Code[Unit] = states.load(topRegion, rOff, off)
+
+  def store: Code[Unit] = states.store(topRegion, rOff, off)
+
+  def copyFrom(srcOffset: Code[Long]): Code[Unit] = states.copyFrom(srcOffset)
 }

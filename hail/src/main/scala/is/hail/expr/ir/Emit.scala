@@ -57,15 +57,21 @@ object Emit {
 }
 
 case class AggContainer(aggs: Array[AggSignature2], container: agg.StateContainer, off: Code[Long]) {
-  def nested(i: Int): Option[AggContainer] = {
+  def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
       aggs(i).op match {
         case AggElements() | AggElementsLengthCheck() =>
           val state = container(i).asInstanceOf[agg.ArrayElementState]
-          AggContainer(n.toArray, state.container, state.off)
+          if (init)
+            AggContainer(n.toArray, state.initContainer, state.initContainer.off)
+          else
+            AggContainer(n.toArray, state.container, state.container.off)
         case Group() =>
           val state = container(i).asInstanceOf[agg.DictState]
-          AggContainer(n.toArray, state.container, state.off)
+          if (init)
+            AggContainer(n.toArray, state.keyed.container, state.keyed.container.off)
+          else
+            AggContainer(n.toArray, state.initContainer, state.initContainer.off)
       }
     }
   }
@@ -1057,7 +1063,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
+        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = true)))).toArray
         void(
           sc(i).newState,
           rvAgg.initOp(sc(i), argVars))
@@ -1067,7 +1073,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
+        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = false)))).toArray
         void(rvAgg.seqOp(sc(i), argVars))
 
       case CombOp2(i1, i2, aggSig) =>
@@ -1095,7 +1101,7 @@ private class Emit(
           newRegion := region,
           srvb.start(),
           addFields,
-          sc.store(0, aggOff),
+          sc.store,
           srvb.offset))
 
       case SerializeAggs(start, sIdx, spec, aggSigs) =>
@@ -1113,14 +1119,14 @@ private class Emit(
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"),
           mb.fb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
-          sc.store(0, aggOff))
+          sc.store)
 
       case DeserializeAggs(start, sIdx, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         val ib = mb.newField[InputBuffer]
         val bais = mb.newField[ByteArrayInputStream]
 
-        val deserializers = sc.states
+        val deserializers = sc.states.states
           .slice(start, start + aggSigs.length)
           .map(sc => sc.deserialize(CodecSpec.defaultUncompressedBuffer))
 

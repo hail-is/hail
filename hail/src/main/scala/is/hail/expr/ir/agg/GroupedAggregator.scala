@@ -7,7 +7,7 @@ import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 
-class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region], container: StateContainer) extends BTreeKey {
+class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region], val offset: Code[Long], states: States) extends BTreeKey {
   val storageType: PStruct = PStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
@@ -15,6 +15,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
   val compType: PType = kt
   private val kcomp = fb.getCodeOrdering[Int](kt, CodeOrdering.compare, ignoreMissingness = false)
+  val container = new StateContainer(states, region, containerAddress(offset), regionIdx(offset))
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -33,8 +34,14 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     Code(
       storeK,
       storeRegionIdx(dest, rIdx),
-      Region.storeAddress(containerOffset(dest), region.allocate(container.typ.alignment, container.typ.byteSize)))
+      Region.storeAddress(containerOffset(dest), region.allocate(container.typ.alignment, container.typ.byteSize)),
+      container.newStates)
   }
+
+  def load: Code[Unit] = container.load
+  def store: Code[Unit] = container.store
+  def copyStatesFrom(srcOff: Code[Long]) = container.copyFrom(srcOff)
+  def forAllStates(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] = container.toCode(f)
 
   def regionIdx(off: Code[Long]): Code[Int] =
     Region.loadInt(storageType.fieldOffset(off, 1))
@@ -59,7 +66,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
     Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
       container.copyFrom(containerAddress(src)),
-      container.store(regionIdx(dest), containerAddress(dest)))
+      container.store)
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     kcomp(k1, k2)
@@ -71,29 +78,30 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
 class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: Array[AggregatorState]) extends PointerBasedRVAState {
   val nStates: Int = nested.length
-  val container: StateContainer = new StateContainer(nested, region)
-  val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> container.typ)
+  val states: States = States(nested)
+  val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> states.typ)
   val root: ClassFieldRef[Long] = fb.newField[Long]
   val size: ClassFieldRef[Int] = fb.newField[Int]
-  val keyed = new GroupedBTreeKey(keyType, fb, region, container)
-  val tree = new AppendOnlyBTree(fb, keyed, region, root)
 
   val typ: PStruct = PStruct(
     required = true,
-    "inits" -> container.typ,
+    "inits" -> states.typ,
     "size" -> PInt32(true),
     "tree" -> PInt64(true))
 
-  private val initStatesOffset: Code[Long] = typ.fieldOffset(off, 0)
-
   private val _elt = fb.newField[Long]
+  val initContainer: StateContainer = new StateContainer(states, region, typ.fieldOffset(off, 0), 0)
+
+  val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, states)
+  val tree = new AppendOnlyBTree(fb, keyed, region, root)
+
+  private val initStatesOffset: Code[Long] = typ.fieldOffset(off, 0)
 
   def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     Code(
       size := size + 1,
       region.setNumParents((size + 1) * nStates),
-      keyed.initValue(_elt, km, kv, size * nStates),
-      container.newStates)
+      keyed.initValue(_elt, km, kv, size * nStates))
   }
 
   def loadContainer(km: Code[Boolean], kv: Code[_]): Code[Unit] =
@@ -101,15 +109,13 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
       _elt := tree.getOrElseInitialize(km, km.mux(defaultValue(keyType), kv)),
       keyed.isEmpty(_elt).mux(Code(
         initElement(_elt, km, kv),
-        container.copyFrom(initStatesOffset)),
-        container.load(keyed.regionIdx(_elt), keyed.containerAddress(_elt))))
+        keyed.copyStatesFrom(initStatesOffset)),
+        keyed.load))
 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
-    Code(loadContainer(km, kv), seqOps, container.store(keyed.regionIdx(_elt), keyed.containerAddress(_elt)))
+    Code(loadContainer(km, kv), seqOps, keyed.store)
 
-  override def createState: Code[Unit] = Code(
-    super.createState,
-    container.toCode((_, s) => s.createState))
+  override def createState: Code[Unit] = Code(super.createState, states.createStates)
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -129,9 +135,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   def init(initOps: Code[Unit]): Code[Unit] = Code(
     region.setNumParents(nStates),
     off := region.allocate(typ.alignment, typ.byteSize),
-    container.newStates,
+    initContainer.newStates,
     initOps,
-    container.store(0, initStatesOffset),
+    initContainer.store,
     size := 0,
     tree.init)
 
@@ -142,15 +148,13 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   def foreach(f: (Code[Boolean], Code[_]) => Code[Unit]): Code[Unit] =
     tree.foreach { kvOff =>
       Code(
-        container.load(
-          keyed.regionIdx(kvOff),
-          keyed.containerAddress(kvOff)),
-        f(keyed.isKeyMissing(kvOff), keyed.loadKey(kvOff)))
+        _elt := kvOff, keyed.load,
+        f(keyed.isKeyMissing(_elt), keyed.loadKey(_elt)))
     }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
     Code(
-      init(container.copyFrom(typ.loadField(src, 0))),
+      init(initContainer.copyFrom(typ.loadField(src, 0))),
       size := Region.loadInt(typ.loadField(src, 1)),
       tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
 
@@ -162,18 +166,17 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
     { ob: Code[OutputBuffer] =>
       Code(
-        container.load(0, initStatesOffset),
-        container.toCode((i, _) => serializers(i)(ob)),
+        initContainer.load,
+        initContainer.toCode((i, _) => serializers(i)(ob)),
         tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
           Code(
-            km := keyed.isKeyMissing(kvOff),
-            kv.storeAny(keyed.loadKey(kvOff)),
+            _elt := kvOff,
+            km := keyed.isKeyMissing(_elt),
+            kv.storeAny(keyed.loadKey(_elt)),
             ob.writeBoolean(km),
             (!km).orEmpty(kEnc.invoke(region, kv, ob)),
-            container.load(
-              keyed.regionIdx(kvOff),
-              keyed.containerAddress(kvOff)),
-            container.toCode((i, _) => serializers(i)(ob)))
+            keyed.load,
+            keyed.forAllStates((i, _) => serializers(i)(ob)))
         })
     }
   }
@@ -186,15 +189,15 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
     { ib: Code[InputBuffer] =>
       Code(
-        init(container.toCode((i, _) => deserializers(i)(ib))),
+        init(initContainer.toCode((i, _) => deserializers(i)(ib))),
         tree.bulkLoad(ib) { (ib, koff) =>
           Code(
             _elt := koff,
             km := ib.readBoolean(),
             (!km).orEmpty(kv := kDec.invoke(region, ib)),
             initElement(_elt, km, kv),
-            container.toCode((i, _) => deserializers(i)(ib)),
-            container.store(keyed.regionIdx(_elt), keyed.containerAddress(_elt)))
+            keyed.forAllStates((i, _) => deserializers(i)(ib)),
+            keyed.store)
         })
     }
   }
@@ -219,7 +222,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    state.combine(other, state.container.toCode((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+    state.combine(other, state.keyed.forAllStates((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -237,7 +240,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
                 ssb.advance(),
                 ssb.addBaseStruct(resultEltType, { svb =>
                   Code(svb.start(),
-                    state.container.toCode { (i, s) =>
+                    state.keyed.forAllStates { (i, s) =>
                       Code(nestedAggs(i).result(s, svb), svb.advance())
                     })
                 }))),

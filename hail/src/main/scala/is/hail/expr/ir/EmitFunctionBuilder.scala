@@ -250,7 +250,8 @@ class EmitFunctionBuilder[F >: Null](
     _aggSigs = aggSigs
     _aggRegion = newField[Region]("agg_top_region")
     _aggOff = newField[Long]("agg_off")
-    _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray, _aggRegion)
+    val states = agg.States(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray)
+    _aggState = agg.StateContainer(states, _aggRegion, _aggOff, 0)
     _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
@@ -270,19 +271,19 @@ class EmitFunctionBuilder[F >: Null](
     newF.emit(
       Code(_aggRegion := newF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
-        _aggState.toCode((i, s) => s.createState),
         _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize),
+        states.createStates,
         _aggState.newStates))
 
     setF.emit(
       Code(
         _aggRegion := setF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
-        _aggState.toCode((i, s) => s.createState),
+        states.createStates,
         _aggOff := setF.getArg[Long](2),
-        _aggState.load(0, _aggOff)))
+        _aggState.load))
 
-    getF.emit(Code(_aggState.store(0, _aggOff), _aggOff))
+    getF.emit(Code(_aggState.store, _aggOff))
 
     setNSer.emit(_aggSerialized := Code.newArray[Array[Byte]](setNSer.getArg[Int](1)))
 
