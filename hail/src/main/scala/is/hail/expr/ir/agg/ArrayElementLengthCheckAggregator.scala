@@ -10,13 +10,12 @@ import is.hail.utils._
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[AggregatorState]) extends PointerBasedRVAState {
-  val states: States = States(nested)
-  val arrayType: PArray = PArray(states.typ)
-  private val nStates: Int = nested.length
+class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) extends PointerBasedRVAState {
+  val arrayType: PArray = PArray(nested.storageType)
+  private val nStates: Int = nested.nStates
   override val regionSize: Int = Region.SMALL
 
-  val typ: PTuple = PTuple(states.typ, arrayType)
+  val typ: PTuple = PTuple(nested.storageType, arrayType)
 
   val lenRef: ClassFieldRef[Int] = fb.newField[Int]("arrayrva_lenref")
   val idx: ClassFieldRef[Int] = fb.newField[Int]("arrayrva_idx")
@@ -25,12 +24,11 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
   private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(region, typ.loadField(region, off, 1), eltIdx)
 
-  val initContainer: StateContainer = StateContainer(states, region, typ.loadField(region, off, 0))
-  val container: StateContainer = StateContainer(states, region, statesOffset(idx), regionOffset(idx))
+  val initContainer: TupleAggregatorState = TupleAggregatorState(nested, region, typ.loadField(region, off, 0))
+  val container: TupleAggregatorState = TupleAggregatorState(nested, region, statesOffset(idx), regionOffset(idx))
 
   override def createState: Code[Unit] = Code(
-    super.createState,
-    container.toCode((_, s) => s.createState))
+    super.createState, nested.createStates)
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -58,10 +56,10 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
         idx := idx + 1))
 
   def seq(seqOp: Code[Unit]): Code[Unit] =
-    seq(initArray, container.newStates, seqOp)
+    seq(initArray, container.newState, seqOp)
 
   def initLength(len: Code[Int]): Code[Unit] = {
-    Code(lenRef := len, seq(container.copyFrom(initContainer.off)))
+    Code(lenRef := len, seq(nested.copyFrom(initContainer.off)))
   }
 
   def checkLength(len: Code[Int]): Code[Unit] = {
@@ -73,7 +71,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
       Code(
         region.setNumParents(nStates),
         off := region.allocate(typ.alignment, typ.byteSize),
-        container.newStates,
+        container.newState,
         initOp,
         initContainer.store,
         if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
@@ -88,29 +86,29 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
     container.store
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    val serializers = nested.map(_.serialize(codec));
+    val serializers = nested.states.map(_.serialize(codec));
     { ob: Code[OutputBuffer] =>
       Code(
         loadInit,
-        container.toCode((i, _) => serializers(i)(ob)),
+        nested.toCode((i, _) => serializers(i)(ob)),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
           load,
-          container.toCode((i, _) => serializers(i)(ob)),
+          nested.toCode((i, _) => serializers(i)(ob)),
           idx := idx + 1))
     }
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    val deserializers = nested.map(_.deserialize(codec));
+    val deserializers = nested.states.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
         Code(
-          init(container.toCode((i, _) => deserializers(i)(ib)), initLen = false),
+          init(nested.toCode((i, _) => deserializers(i)(ib)), initLen = false),
           lenRef := ib.readInt(),
           (lenRef < 0).mux(
             typ.setFieldMissing(off, 1),
-            seq(container.toCode((i, _) => deserializers(i)(ib)))))
+            seq(nested.toCode((i, _) => deserializers(i)(ib)))))
     }
   }
 
@@ -121,13 +119,13 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
 
     Code(
       srcOff := src,
-      init(container.copyFrom(initOffset), initLen = false),
+      init(nested.copyFrom(initOffset), initLen = false),
       typ.isFieldMissing(srcOff, 1).mux(
         Code(typ.setFieldMissing(off, 1),
           lenRef := -1),
         Code(
           lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
-          seq(container.copyFrom(eltOffset)))))
+          seq(nested.copyFrom(eltOffset)))))
   }
 }
 
@@ -137,7 +135,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PArray(resultEltType)
 
-  def createState(fb: EmitFunctionBuilder[_]): State = new ArrayElementState(fb, nestedAggs.map(_.createState(fb)))
+  def createState(fb: EmitFunctionBuilder[_]): State = new ArrayElementState(fb, StateTuple(nestedAggs.map(_.createState(fb))))
 
   // inits all things
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
@@ -171,7 +169,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         other.initLength(state.lenRef)),
       check),
       Code(other.idx := state.idx, other.load, state.load),
-      state.container.toCode((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+      state.nested.toCode((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -186,7 +184,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
                 ssb.start(),
                 state.idx := sab.arrayIdx,
                 state.load,
-                state.container.toCode { (i, s) =>
+                state.nested.toCode { (i, s) =>
                   Code(nestedAggs(i).result(s, ssb), ssb.advance())
                 })
             }),

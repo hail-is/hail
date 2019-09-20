@@ -56,18 +56,18 @@ object Emit {
   }
 }
 
-case class AggContainer(aggs: Array[AggSignature2], container: agg.StateContainer, off: Code[Long]) {
+case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregatorState, off: Code[Long]) {
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
       aggs(i).op match {
         case AggElements() | AggElementsLengthCheck() =>
-          val state = container(i).asInstanceOf[agg.ArrayElementState]
+          val state = container.states(i).asInstanceOf[agg.ArrayElementState]
           if (init)
             AggContainer(n.toArray, state.initContainer, state.initContainer.off)
           else
             AggContainer(n.toArray, state.container, state.container.off)
         case Group() =>
-          val state = container(i).asInstanceOf[agg.DictState]
+          val state = container.states(i).asInstanceOf[agg.DictState]
           if (init)
             AggContainer(n.toArray, state.keyed.container, state.keyed.container.off)
           else
@@ -1065,8 +1065,8 @@ private class Emit(
 
         val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = true)))).toArray
         void(
-          sc(i).newState,
-          rvAgg.initOp(sc(i), argVars))
+          sc.states(i).newState,
+          rvAgg.initOp(sc.states(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1074,7 +1074,7 @@ private class Emit(
         val rvAgg = agg.Extract.getAgg(aggSig)
 
         val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = false)))).toArray
-        void(rvAgg.seqOp(sc(i), argVars))
+        void(rvAgg.seqOp(sc.states(i), argVars))
 
       case CombOp2(i1, i2, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1082,7 +1082,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        void(rvAgg.combOp(sc(i1), sc(i2)))
+        void(rvAgg.combOp(sc.states(i1), sc.states(i2)))
 
       case x@ResultOp2(start, aggSigs) =>
         val newRegion = mb.newField[Region]
@@ -1093,7 +1093,7 @@ private class Emit(
           assert(aggSigs(j) == aggs(idx))
           val rvAgg = agg.Extract.getAgg(aggSigs(j))
           Code(
-            rvAgg.result(sc(idx), srvb),
+            rvAgg.result(sc.states(idx), srvb),
             srvb.advance())
         }: _*))
 
@@ -1110,7 +1110,7 @@ private class Emit(
         val baos = mb.newField[ByteArrayOutputStream]
 
         val serialize = Array.range(start, start + aggSigs.length)
-          .map { idx => sc(idx).serialize(spec)(ob) }
+          .map { idx => sc.states(idx).serialize(spec)(ob) }
 
         void(
           baos := Code.newInstance[ByteArrayOutputStream](),
@@ -1131,7 +1131,7 @@ private class Emit(
           .map(sc => sc.deserialize(CodecSpec.defaultUncompressedBuffer))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => sc(i).newState): _*))
+          .map(i => sc.states(i).newState): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)

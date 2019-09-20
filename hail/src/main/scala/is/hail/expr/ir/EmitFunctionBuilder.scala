@@ -237,11 +237,11 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _aggSigs: Array[AggSignature2] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
-  private[this] var _aggState: agg.StateContainer = _
+  private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggSignature2]): (agg.StateContainer, Code[Long]) = {
+  def addAggStates(aggSigs: Array[AggSignature2]): (agg.TupleAggregatorState, Code[Long]) = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState -> _aggOff
@@ -250,8 +250,8 @@ class EmitFunctionBuilder[F >: Null](
     _aggSigs = aggSigs
     _aggRegion = newField[Region]("agg_top_region")
     _aggOff = newField[Long]("agg_off")
-    val states = agg.States(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray)
-    _aggState = agg.StateContainer(states, _aggRegion, _aggOff, 0)
+    val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray)
+    _aggState = agg.TupleAggregatorState(states, _aggRegion, _aggOff, 0)
     _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
@@ -271,9 +271,9 @@ class EmitFunctionBuilder[F >: Null](
     newF.emit(
       Code(_aggRegion := newF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
-        _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize),
+        _aggOff := _aggRegion.load().allocate(states.storageType.alignment, states.storageType.byteSize),
         states.createStates,
-        _aggState.newStates))
+        _aggState.newState))
 
     setF.emit(
       Code(
