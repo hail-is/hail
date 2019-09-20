@@ -12,7 +12,8 @@ import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
-    web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only
+    web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
+    new_csrf_token, check_csrf_token
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
 log = logging.getLogger('notebook2')
@@ -232,6 +233,8 @@ async def notebook_page(request, userdata):
     k8s = request.app['k8s_client']
 
     notebook = await get_live_notebook(k8s, userdata)
+    token = new_csrf_token()
+
     session = await aiohttp_session.get_session(request)
     if notebook:
         session['notebook'] = notebook
@@ -240,11 +243,17 @@ async def notebook_page(request, userdata):
             del session['notebook']
 
     context = base_context(deploy_config, userdata, 'notebook2')
+    context['token'] = token
     context['notebook'] = notebook
-    return context
+    response = aiohttp_jinja2.render_template('notebook.html',
+                                              request,
+                                              context)
+    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    return response
 
 
 @routes.post('/notebook/delete')
+@check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def notebook_delete(request, userdata):  # pylint: disable=unused-argument
     k8s = request.app['k8s_client']
@@ -258,6 +267,7 @@ async def notebook_delete(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/notebook')
+@check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def notebook_post(request, userdata):
     k8s = request.app['k8s_client']
@@ -354,22 +364,29 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/workshop/admin')
-@aiohttp_jinja2.template('workshop/admin.html')
 @web_authenticated_developers_only()
 async def workshop_admin(request, userdata):
     app = request.app
     dbpool = app['dbpool']
-    context = base_context(deploy_config, userdata, 'notebook2')
+    token = new_csrf_token()
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('SELECT * FROM workshops')
             workshops = await cursor.fetchall()
+
+    context = base_context(deploy_config, userdata, 'notebook2')
+    context['token'] = token
     context['workshops'] = workshops
-    return context
+    response = aiohttp_jinja2.render_template('workshop/admin.html',
+                                              request,
+                                              context)
+    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    return response
 
 
 @routes.post('/workshop/create')
+@check_csrf_token
 @web_authenticated_developers_only()
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -389,6 +406,7 @@ INSERT INTO workshops (name, image, password, active) VALUES (%s, %s, %s, %s);
 
 
 @routes.post('/workshop/update')
+@check_csrf_token
 @web_authenticated_developers_only()
 async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -413,6 +431,7 @@ UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id 
 
 
 @routes.post('/workshop/delete')
+@check_csrf_token
 @web_authenticated_developers_only()
 async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app

@@ -24,7 +24,7 @@
               <td>
                 <input name="password" value="{{ workshop['password'] }}" />
               </td>
-              <td>
+              <td style="text-align:center;">
                 <input type="checkbox" name="active" value="{{ workshop['password'] }}" />
               </td>
               <td>
@@ -48,7 +48,7 @@
             <td>
               <input name="password" />
             </td>
-            <td>
+            <td style="text-align:center;">
               <input type="checkbox" name="active" />
             </td>
             <td>
@@ -62,9 +62,10 @@
       </tbody>
     </table>
     <h2>Delete Workshop</h2>
-    <form action="{{ base_path }}/workshop/delete" method=">
+    <form action="{{ base_path }}/workshop/delete" method="POST">
       <label for="name">Workshop name:</label>
       <input type="text" name="name">
+      <input type="hidden" name="_csrf" value="{{ token }}"/>
       <button class="dangerous" type="submit">Delete</button>
     </form>
   </div>
