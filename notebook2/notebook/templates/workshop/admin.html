@@ -25,7 +25,11 @@
                 <input name="password" value="{{ workshop['password'] }}" />
               </td>
               <td style="text-align:center;">
-                <input type="checkbox" name="active" value="{{ workshop['active'] }}" />
+                <input type="checkbox" name="active"
+		       {% if workshop['active'] == 1 %}
+		       checked
+		       {% endif %}
+		       />
               </td>
               <td>
                 <button>
