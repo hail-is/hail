@@ -3148,6 +3148,8 @@ class Tests(unittest.TestCase):
         assert(evaled.tolist() == np_equiv.tolist())
         assert(evaled.strides == np_equiv.strides)
 
+        assert hl.eval(hl._ndarray([[], []])).strides == (8, 8)
+        assert np.array_equal(hl.eval(hl._ndarray([])), np.array([]))
 
 
     @skip_unless_spark_backend()
