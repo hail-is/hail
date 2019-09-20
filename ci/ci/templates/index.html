@@ -7,23 +7,24 @@
     <h1>CI</h1>
     {% for wb in watched_branches %}
     <h2>{{ wb.branch }}</h2>
-    <p>SHA:
-      {% if wb.sha is not none %}
-      {{ wb.sha }}
-      {% else %}
-      unknown
-      {% endif %}
-    </p>
-    <p>Deploy State:
-      {% if wb.deploy_state is not none %}
-      {{ wb.deploy_state }}
-      {% endif %}
-    </p>
-    <p>Deploy Batch:
+    <div>
+      <div>SHA:
+	{% if wb.sha is not none %}
+	{{ wb.sha }}
+	{% else %}
+	unknown
+	{% endif %}
+      </div>
+      <div>Deploy State:
+	{% if wb.deploy_state is not none %}
+	{{ wb.deploy_state }}
+	{% endif %}
+      </div>
+    <div>Deploy Batch:
       {% if wb.deploy_batch_id is not none %}
       <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
       {% endif %}
-    </p>
+    </div>
 
     <h2>PRs</h2>
     {% if wb.prs is not none %}

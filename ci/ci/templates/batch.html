@@ -4,7 +4,7 @@
     <h1>Batch {{ batch['id'] }}</h1>
     {% if 'attributes' in batch %}
     {% for name, value in batch['attributes'].items() %}
-    <p>{{ name }}: {{ value }}</p>
+    <div>{{ name }}: {{ value }}</div>
     {% endfor %}
     {% endif %}
     <h2>Jobs</h2>
