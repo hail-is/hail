@@ -81,7 +81,7 @@ def test_ndarray_eval():
     nd_expr = hl._ndarray(data_list)
     evaled = hl.eval(nd_expr)
     np_equiv = np.array(data_list, dtype=np.int32)
-    assert(evaled.tolist() == np_equiv.tolist())
+    assert(np.array_equal(evaled, np_equiv))
     assert(evaled.strides == np_equiv.strides)
 
 
