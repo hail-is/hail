@@ -65,6 +65,7 @@ def concordance():
     r._force_count()
     c._force_count()
 
+
 @benchmark
 def genetics_pipeline():
     mt = get_mt()
