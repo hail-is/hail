@@ -78,7 +78,7 @@
             <tbody>
             {% for issue in user_data['ISSUES'] %}
             <tr>
-              <td><a href="{{ issue.html_url }}">{{ issue.title }} <span class="gh-number">{{ issue.id }}</span></a></td>
+              <td><a href="{{ issue.html_url }}">{{ issue.title }} <span class="gh-number">#{{ issue.id }}</span></a></td>
             </tr>
             {% endfor %}
             </tbody>

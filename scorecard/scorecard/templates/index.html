@@ -38,7 +38,7 @@
 
         <p>Unassigned:
             {% for pr in unassigned %}
-            <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+            <a href="{{ pr.html_url }}">#{{ pr.id }}</a>
             {% endfor %}
         </p>
 

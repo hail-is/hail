@@ -28,6 +28,9 @@ button {
     border-radius: 3px;
     margin: 0;
     cursor: pointer;
+    &:focus {
+	outline: 0;
+    }
     &:active,
     &:hover {
 	outline: 0;
@@ -98,6 +101,10 @@ a {
 .data-table {
     min-width: 480px;
     border-spacing: 3px;
+    thead {
+	color: $white;
+	background-color: #888;
+    }
     th {
         white-space: nowrap;
     }
