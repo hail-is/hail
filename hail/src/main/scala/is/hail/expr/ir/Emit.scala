@@ -2067,24 +2067,18 @@ private class Emit(
         val (unifiedShapeSetup, unifiedShape, unifiedShapePType) = NDArrayEmitter.unifyShapes(mb, leftChildEmitter.outputShape, leftChildEmitter.outputShapePType,
           rightChildEmitter.outputShape, rightChildEmitter.outputShapePType, region)
 
-        val (lBroadcastFlagsSetup, lBroadcastFlags) = NDArrayEmitter.broadcastFlags(mb, nDims,
-          leftChildEmitter.outputShape, leftChildEmitter.outputShapePType)
-        val (rBroadcastFlagsSetup, rBroadcastFlags) = NDArrayEmitter.broadcastFlags(mb, nDims,
-          rightChildEmitter.outputShape, rightChildEmitter.outputShapePType)
-
-        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup, unifiedShapeSetup, lBroadcastFlagsSetup, rBroadcastFlagsSetup)
+        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup, unifiedShapeSetup)
 
         new NDArrayEmitter(mb, unifiedShapePType.size, unifiedShape,
           lP.shape.pType, body.pType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val (lIdxVarsSetup, lIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, lBroadcastFlags, idxVars)
-            val (rIdxVarsSetup, rIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, rBroadcastFlags, idxVars)
+
+            val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, leftChildEmitter.outputShape, leftChildEmitter.outputShapePType)
+            val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, rightChildEmitter.outputShape, rightChildEmitter.outputShapePType)
 
             Code(
-              lIdxVarsSetup,
-              rIdxVarsSetup,
-              lElemRef := leftChildEmitter.outputElement(lIdxVars),
-              rElemRef := rightChildEmitter.outputElement(rIdxVars),
+              lElemRef := leftChildEmitter.outputElement(lIdxVars2),
+              rElemRef := rightChildEmitter.outputElement(rIdxVars2),
               bodyt.setup,
               bodyt.m.orEmpty(Code._fatal("NDArray map body cannot be missing")),
               bodyt.v
@@ -2096,7 +2090,7 @@ private class Emit(
         val childEmitter = deforest(child)
         val childPType = child.pType.asInstanceOf[PNDArray]
 
-        val outputPType = x.pType.asInstanceOf[PNDArray]
+        val outputPType = x.pType
         val outputShapePType = outputPType.representation.fieldType("shape").asInstanceOf[PTuple]
 
         val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
@@ -2147,26 +2141,13 @@ private class Emit(
 }
 
 object NDArrayEmitter {
-  def broadcastFlags(mb: MethodBuilder, nDims: Int, shape: Code[Long], shapePType: PTuple): (Code[_], Seq[Settable[Long]]) = {
+
+  def zeroBroadcastedDims2(mb: MethodBuilder, loopVars: Array[Code[Long]], nDims: Int, shape: Code[Long], shapePType: PTuple): Array[Code[Long]] = {
     val broadcasted = 0L
     val notBroadcasted = 1L
     def getShapeAtIdx(i: Int): Code[Long] = Region.loadLong(shapePType.loadField(shape, i))
 
-    val (setup, flags) = Array.tabulate(nDims) { dim =>
-      val flag = mb.newLocal[Long]
-      val setup = (flag := (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted))
-      (setup, flag)
-    }.unzip
-    (Code(setup:_*), flags)
-  }
-
-  def zeroBroadcastedDims(mb: MethodBuilder, broadcastFlags: Seq[Settable[Long]], loopVars: Array[Code[Long]]): (Code[_], Array[Code[Long]]) = {
-    val (newLoopsVars, setup) = broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
-        val newLoopVar = mb.newLocal[Long]
-        val setup = (newLoopVar := flag * loopVar)
-      (newLoopVar.load(), setup)
-    }.unzip
-    (Code(setup:_*), newLoopsVars.toArray)
+    Array.tabulate(nDims)(dim => (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
   }
 
   def unifyShapes(mb: MethodBuilder, leftShape: Code[Long], leftShapePType: PTuple, rightShape: Code[Long],
