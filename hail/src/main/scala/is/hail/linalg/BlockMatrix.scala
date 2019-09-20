@@ -337,7 +337,6 @@ object BlockMatrix {
 
     val fs = HailContext.sFS
     def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
-    def partitionURI(matrixIdx: Int, partitionIdx: Int) = s"{$prefix}{$matrixIdx}/$partitionIdx"
 
     bms.zipWithIndex.foreach{ case (bm, bIdx) => {
       val uri = blockMatrixURI(bIdx)
