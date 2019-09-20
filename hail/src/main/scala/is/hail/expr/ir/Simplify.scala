@@ -260,6 +260,8 @@ object Simplify {
 
     case InsertFields(struct, Seq(), _) => struct
 
+    case top@Let(x, Let(y, yVal, yBody), xBody) if (x != y) => Let(y, yVal, Let(x, yBody, xBody))
+
     case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if {
       val r = Ref(name, x.typ)
       val nfSet = newFields.map(_._1).toSet
