@@ -2122,7 +2122,7 @@ private class Emit(
 
         new NDArrayEmitter(mb, indexExpr.length, shapeSrvb.end(), outputShapePType, outputPType.elementType, setup) {
           override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
-            val concreteIdxsForChild = Seq.tabulate(childEmitter.nDims) { childDim =>
+            val concreteIdxsForChild = Array.tabulate(childEmitter.nDims) { childDim =>
               val parentDim = indexExpr.indexOf(childDim)
               idxVars(parentDim)
             }
@@ -2226,7 +2226,7 @@ abstract class NDArrayEmitter(
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
-    val idxVars = Seq.tabulate(nDims) {i => mb.newField[Long]}
+    val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
     val body =
       Code(
