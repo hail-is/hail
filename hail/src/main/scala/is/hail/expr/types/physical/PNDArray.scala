@@ -5,6 +5,7 @@ import is.hail.asm4s.{ClassFieldRef, Code, MethodBuilder, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitMethodBuilder, coerce}
 import is.hail.expr.types.virtual.TNDArray
+import is.hail.asm4s._
 
 final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
@@ -50,6 +51,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val tupleStartAddress = mb.newField[Long]
     val runningProduct = mb.newLocal[Long]
     val region = mb.getArg[Region](1)
+    val tempShapeStorage = mb.newLocal[Long]
 
     Code(
       tupleStartAddress := stridesPType.allocate(region),
@@ -58,7 +60,8 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
         val fieldOffset = stridesPType.fieldOffset(tupleStartAddress, idx)
         Code(
           Region.storeLong(fieldOffset, runningProduct),
-          runningProduct := runningProduct * getShapeAtIdx(idx))
+          tempShapeStorage := getShapeAtIdx(idx),
+          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L))
       },
       tupleStartAddress
     )
