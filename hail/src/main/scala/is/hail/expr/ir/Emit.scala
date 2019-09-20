@@ -2152,12 +2152,12 @@ object NDArrayEmitter {
     val notBroadcasted = 1L
     def getShapeAtIdx(i: Int): Code[Long] = Region.loadLong(shapePType.loadField(shape, i))
 
-    val (setup, flags) = IndexedSeq.tabulate(nDims) { dim =>
+    val (setup, flags) = Array.tabulate(nDims) { dim =>
       val flag = mb.newLocal[Long]
       val setup = (flag := (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted))
       (setup, flag)
     }.unzip
-    (Code(setup), flags)
+    (Code(setup:_*), flags)
   }
 
   def zeroBroadcastedDims(mb: MethodBuilder, broadcastFlags: Seq[Settable[Long]], loopVars: Seq[Settable[Long]]): (Code[_], Seq[Settable[Long]]) = {
@@ -2177,7 +2177,7 @@ object NDArrayEmitter {
     def getShapeAtIdx(shape: Code[Long], idx: Int): Code[Long] = Region.loadLong(unifiedPType.loadField(shape, idx))
     val unifiedShapeAddress = mb.newField[Long]
 
-    val setupList = IndexedSeq.tabulate(unifiedPType.size) { idx =>
+    val setupList = Array.tabulate(unifiedPType.size) { idx =>
       val left = getShapeAtIdx(leftShape, idx)
       val right = getShapeAtIdx(rightShape, idx)
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq const(1L)) || (right ceq const(1L)))
@@ -2191,7 +2191,7 @@ object NDArrayEmitter {
 
     val setup = Code(
       unifiedShapeAddress := unifiedPType.allocate(region),
-      Code(setupList))
+      Code(setupList:_*))
     (setup, unifiedShapeAddress, unifiedPType)
   }
 }
