@@ -2035,7 +2035,7 @@ private class Emit(
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
           childP.shape.pType,
           body.pType, setup) {
-          override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             Code(
               elemRef := childEmitter.outputElement(idxVars),
               bodyt.setup,
@@ -2076,7 +2076,7 @@ private class Emit(
 
         new NDArrayEmitter(mb, unifiedShapePType.size, unifiedShape,
           lP.shape.pType, body.pType, setup) {
-          override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val (lIdxVarsSetup, lIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, lBroadcastFlags, idxVars)
             val (rIdxVarsSetup, rIdxVars) = NDArrayEmitter.zeroBroadcastedDims(mb, rBroadcastFlags, idxVars)
 
@@ -2121,7 +2121,7 @@ private class Emit(
         val setup = Code(childEmitter.setup, shapeSrvb.start(), reindexShape)
 
         new NDArrayEmitter(mb, indexExpr.length, shapeSrvb.end(), outputShapePType, outputPType.elementType, setup) {
-          override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val concreteIdxsForChild = Array.tabulate(childEmitter.nDims) { childDim =>
               val parentDim = indexExpr.indexOf(childDim)
               idxVars(parentDim)
@@ -2137,7 +2137,7 @@ private class Emit(
 
         new NDArrayEmitter(mb, nDims, xP.representation.loadField(er.region, ndt.value[Long], "shape"),
           xP.representation.fieldType("shape").asInstanceOf[PTuple], xP.elementType, setup) {
-          override def outputElement(idxVars: Seq[Settable[Long]]): Code[_] = {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val elementLocation = xP.getElementPosition(idxVars, ndt.value[Long], er.region, mb)
             Region.loadIRIntermediate(outputElementPType)(elementLocation)
           }
@@ -2160,13 +2160,13 @@ object NDArrayEmitter {
     (Code(setup:_*), flags)
   }
 
-  def zeroBroadcastedDims(mb: MethodBuilder, broadcastFlags: Seq[Settable[Long]], loopVars: Seq[Settable[Long]]): (Code[_], Seq[Settable[Long]]) = {
+  def zeroBroadcastedDims(mb: MethodBuilder, broadcastFlags: Seq[Settable[Long]], loopVars: Array[Code[Long]]): (Code[_], Array[Code[Long]]) = {
     val (newLoopsVars, setup) = broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
         val newLoopVar = mb.newLocal[Long]
         val setup = (newLoopVar := flag * loopVar)
-      (newLoopVar, setup)
+      (newLoopVar.load(), setup)
     }.unzip
-    (Code(setup), newLoopsVars)
+    (Code(setup:_*), newLoopsVars.toArray)
   }
 
   def unifyShapes(mb: MethodBuilder, leftShape: Code[Long], leftShapePType: PTuple, rightShape: Code[Long],
@@ -2204,7 +2204,7 @@ abstract class NDArrayEmitter(
    val outputElementPType: PType,
    val setup: Code[_]) {
 
-  def outputElement(idxVars: Seq[Settable[Long]]): Code[_]
+  def outputElement(idxVars: Array[Code[Long]]): Code[_]
 
   def emit(targetType: PNDArray): EmitTriplet = {
     val dataSrvb = new StagedRegionValueBuilder(mb, targetType.representation.fieldType("data").asInstanceOf[PArray])
@@ -2227,10 +2227,11 @@ abstract class NDArrayEmitter(
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
     val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
+    val loadedIdxVars = idxVars.map(_.load())
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
     val body =
       Code(
-        storeElement := outputElement(idxVars).asInstanceOf[Code[Double]],
+        storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Double]],
         srvb.addIRIntermediate(outputElementPType)(storeElement),
         srvb.advance()
       )

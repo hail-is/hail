@@ -79,7 +79,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def getElementPosition(indices: Seq[Settable[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def getElementPosition(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
@@ -87,7 +87,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     coerce[Long](Code(
       dataStore := data.load(region, nd),
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Settable[Long], strideIndex: Int)) =>
+      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
