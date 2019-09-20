@@ -1589,28 +1589,4 @@ object RVD {
 
     partCounts
   }
-
-//  def coscheduleActions[T: ClassTag](
-//    rvds: IndexedSeq[RVD],
-//    actions: IndexedSeq[(Int, Iterator[RegionValue]) => Iterator[T]]
-//  ): Array[Array[T]] =
-//    coscheduleActions(rvds, (i, pi, it) => actions(i)(pi, it))
-//
-//  def coscheduleActions[T: ClassTag](
-//    rvds: IndexedSeq[RVD],
-//    actions: (Int, Int, Iterator[RegionValue]) => Iterator[T]
-//  ): Array[Array[T]] = {
-//    assert(rvds.length == actions.length)
-//    if (rvds.isEmpty)
-//      return Array.empty[Array[T]]
-//    val first = rvds(0)
-//    val crdd = new ContextRDD(
-//      new OriginUnionRDD[RVDContext => Iterator[RegionValue], RVDContext => Iterator[(Int, T)]](
-//        first.crdd.rdd.sparkContext,
-//        rvds.map(_.crdd.rdd),
-//        (i, pi, it) => Iterator.single { (ctx: RVDContext) =>
-//          actions(i)(pi, singletonElement(it)(ctx)).map(x => (i, x)) }),
-//      first.crdd.mkc)
-//    return crdd.collect().groupBy(_._1).values.map(_.map(_._2)).toArray
-//  }
 }
