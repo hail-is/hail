@@ -398,7 +398,7 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             n = await cursor.execute('''
-UPDATE workshop SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
+UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
 ''',
                                      (post['name'],
                                       post['image'],
