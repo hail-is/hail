@@ -5,8 +5,6 @@ import is.hail.io.bgen.MatrixBGENReader
 import is.hail.table.Ascending
 import is.hail.utils._
 
-import scala.annotation.tailrec
-
 object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply.
@@ -262,45 +260,30 @@ object Simplify {
 
     case InsertFields(struct, Seq(), _) => struct
 
-    case Let(name, value, body) if {
-      @tailrec def getNestedInsertFields(x: IR): Option[InsertFields] = x match {
-        case ins: InsertFields => Some(ins)
-        case Let(_, _, body) => getNestedInsertFields(body)
-        case _ => None
-      }
+    case Let(x, Let(y, yVal, yBody), xBody) => Let(y, yVal, Let(x, yBody, xBody))
 
-      getNestedInsertFields(value) match {
-        case Some(x@InsertFields(old, newFields, _)) =>
-          val r = Ref(name, x.typ)
-          val nfSet = newFields.map(_._1).toSet
+    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if {
+      val r = Ref(name, x.typ)
+      val nfSet = newFields.map(_._1).toSet
 
-          def allRefsCanBePassedThrough(ir1: IR): Boolean = ir1 match {
-            case GetField(`r`, fd) => true
-            case InsertFields(`r`, inserted, _) => inserted.forall { case (_, toInsert) => allRefsCanBePassedThrough(toInsert) }
-            case SelectFields(`r`, fds) => fds.forall(f => !nfSet.contains(f))
-            case `r` => false // if the binding is referenced in any other context, don't rewrite
-            case _: TableAggregate => true
-            case _: MatrixAggregate => true
-            case _ => ir1.children
-              .iterator
-              .zipWithIndex
-              .forall {
-                case (child: IR, idx) => Binds(ir1, name, idx) || allRefsCanBePassedThrough(child)
-                case _ => true
-              }
+      def allRefsCanBePassedThrough(ir1: IR): Boolean = ir1 match {
+        case GetField(`r`, fd) => true
+        case InsertFields(`r`, inserted, _) => inserted.forall { case (_, toInsert) => allRefsCanBePassedThrough(toInsert) }
+        case SelectFields(`r`, fds) => fds.forall(f => !nfSet.contains(f))
+        case `r` => false // if the binding is referenced in any other context, don't rewrite
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case _ => ir1.children
+          .iterator
+          .zipWithIndex
+          .forall {
+            case (child: IR, idx) => Binds(ir1, name, idx) || allRefsCanBePassedThrough(child)
+            case _ => true
           }
-
-          allRefsCanBePassedThrough(body)
-        case None => false
       }
+
+      allRefsCanBePassedThrough(body)
     } =>
-      @tailrec def getNestedInsertFields(x: IR): InsertFields = x match {
-        case ins: InsertFields => ins
-        case Let(_, _, body) => getNestedInsertFields(body)
-      }
-
-      val x@InsertFields(old, newFields, _) = getNestedInsertFields(value)
-
       val r = Ref(name, x.typ)
       val fieldNames = newFields.map(_._1).toArray
       val newFieldMap = newFields.toMap
@@ -336,15 +319,7 @@ object Simplify {
       val rw = fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
         Let(newFieldRefs(fieldName).name, newFieldMap(fieldName), comb)
       }
-
-      def copyInCorrectPlace(x: IR): IR = x match {
-        case xIdentity: InsertFields =>
-          assert(x.eq(xIdentity))
-          rw
-        case Let(name, value, body) => Let(name, value, copyInCorrectPlace(body))
-      }
-
-      FoldConstants(ForwardLets(copyInCorrectPlace(value))).asInstanceOf[IR]
+      FoldConstants(ForwardLets(rw)).asInstanceOf[IR]
 
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
