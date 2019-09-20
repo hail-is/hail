@@ -133,7 +133,7 @@ object BlockMatrix {
   
   // uniform or Gaussian
   def random(hc: HailContext, nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
-    seed: Int = 0, gaussian: Boolean): M =
+    seed: Long = 0, gaussian: Boolean): M =
     BlockMatrix(hc.sc, GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
       val blockSeed = seed + 15485863 * pi // millionth prime

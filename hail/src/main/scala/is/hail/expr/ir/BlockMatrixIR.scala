@@ -553,7 +553,7 @@ case class ValueToBlockMatrix(
 }
 
 case class BlockMatrixRandom(
-  seed: Int,
+  seed: Long,
   gaussian: Boolean,
   shape: IndexedSeq[Long],
   blockSize: Int) extends BlockMatrixIR {
