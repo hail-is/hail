@@ -21,7 +21,11 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    margin: 0;
+    margin: 0.5rem;
+}
+
+.stacked-header {
+    margin: 0 0 0.5rem 0;
 }
 
 button {
@@ -39,6 +43,7 @@ button {
     &:hover {
 	outline: 0;
         color: $devil-gray;
+	border-color: $devil-gray;
     }
 }
 
@@ -139,6 +144,10 @@ a {
 
 .gh-number {
     color: #6a737d;
+}
+
+.attributes {
+    margin-left: 1rem;
 }
 
 /* viewport centered */
