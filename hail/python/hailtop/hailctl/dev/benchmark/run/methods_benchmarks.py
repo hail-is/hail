@@ -1,5 +1,4 @@
 import hail as hl
-
 from .utils import benchmark, resource, get_mt
 
 
@@ -65,3 +64,15 @@ def concordance():
     _, r, c = hl.methods.qc.concordance(mt, mt, _localize_global_statistics=False)
     r._force_count()
     c._force_count()
+
+
+@benchmark
+def genetics_pipeline():
+    mt = get_mt()
+    mt = mt.split_multi_hts(mt)
+    mt = hl.variant_qc(mt)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate > 0.95)
+    mt = mt.filter_rows(mt.variant_qc.AC[1] > 5)
+    mt = mt.filter_entries(hl.case().when(hl.is_indel(mt.alleles[0], mt.alleles[1]), mt.GQ > 20).default(mt.GQ > 10))
+    mt.write('/tmp/genetics_pipeline.mt', overwrite=True)
