@@ -1626,9 +1626,7 @@ def or_else(a, b):
         raise TypeError(f"'or_else' requires the 'a' and 'b' arguments to have the same type\n"
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
-    assert a.dtype == b.dtype
-    indices, aggregations = unify_all(a, b)
-    return construct_expr(Coalesce(a._ir, b._ir), a.dtype, indices, aggregations)
+    return coalesce(a, b)
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
