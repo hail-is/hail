@@ -3867,13 +3867,16 @@ def _ndarray(collection, row_major=None):
     def list_shape(x):
         if isinstance(x, list):
             dim_len = builtins.len(x)
-            first, rest = x[0], x[1:]
-            inner_shape = list_shape(first)
-            for e in rest:
-                other_inner_shape = list_shape(e)
-                if inner_shape != other_inner_shape:
-                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
-            return [dim_len] + inner_shape
+            if dim_len != 0:
+                first, rest = x[0], x[1:]
+                inner_shape = list_shape(first)
+                for e in rest:
+                    other_inner_shape = list_shape(e)
+                    if inner_shape != other_inner_shape:
+                        raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+                return [dim_len] + inner_shape
+            else:
+                return [dim_len]
         else:
             return []
 
