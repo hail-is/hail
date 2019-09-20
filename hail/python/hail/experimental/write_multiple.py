@@ -42,7 +42,7 @@ def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool =
 
 
 @typecheck(bms=sequenceof(BlockMatrix), path_prefix=str, overwrite=bool, force_row_major=bool)
-def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False, force_row_major: bool = False):
+def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False, force_row_major: bool = False, stage_locally: bool = False):
     """Writes a sequence of block matrices to disk in the same format as BlockMatrix.write.
 
     :param bms: :obj:`list` of :class:`BlockMatrix`
@@ -55,7 +55,9 @@ def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bo
         If ``True``, transform blocks in column-major format
         to row-major format before writing.
         If ``False``, write blocks in their current format.
-    :return:
+    :param stage_locally: :obj:`bool`
+        If ``True``, major output will be written to temporary local storage
+        before being copied to ``output``.
     """
     writer = BlockMatrixNativeMultiWriter(path_prefix, overwrite, force_row_major)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
