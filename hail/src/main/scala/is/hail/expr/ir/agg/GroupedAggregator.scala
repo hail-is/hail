@@ -58,7 +58,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
     Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-      container.toCode((i, s) => s.copyFrom(container.getStateOffset(containerAddress(src), i))),
+      container.copyFrom(containerAddress(src)),
       container.store(regionIdx(dest), containerAddress(dest)))
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
@@ -85,7 +85,6 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     "tree" -> PInt64(true))
 
   private val initStatesOffset: Code[Long] = typ.fieldOffset(off, 0)
-  private def initStateOffset(idx: Int): Code[Long] = container.getStateOffset(initStatesOffset, idx)
 
   private val _elt = fb.newField[Long]
 
@@ -102,7 +101,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
       _elt := tree.getOrElseInitialize(km, km.mux(defaultValue(keyType), kv)),
       keyed.isEmpty(_elt).mux(Code(
         initElement(_elt, km, kv),
-        container.toCode((i, s) => s.copyFrom(initStateOffset(i)))),
+        container.copyFrom(initStatesOffset)),
         container.load(keyed.regionIdx(_elt), keyed.containerAddress(_elt))))
 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
@@ -151,7 +150,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
     Code(
-      init(container.toCode((i, s) => s.copyFrom(container.getStateOffset(typ.loadField(src, 0), i)))),
+      init(container.copyFrom(typ.loadField(src, 0))),
       size := Region.loadInt(typ.loadField(src, 1)),
       tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
 

@@ -25,7 +25,6 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
 
   private val initStatesOffset = typ.loadField(region, off, 0)
-  private def initStateOffset(idx: Int): Code[Long] = container.getStateOffset(initStatesOffset, idx)
 
   private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(region, typ.loadField(region, off, 1), eltIdx)
 
@@ -48,21 +47,21 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
       arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(region, off, 1))
 
-  def seq(init: Code[Unit], initPerElt: Code[Unit], seqOp: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
+  def seq(init: Code[Unit], initPerElt: Code[Unit], seqOp: Code[Unit]): Code[Unit] =
     Code(
       init,
       idx := 0,
       Code.whileLoop(idx < lenRef,
         initPerElt,
-        container.toCode(seqOp),
+        seqOp,
         store(idx),
         idx := idx + 1))
 
-  def seq(seqOp: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
+  def seq(seqOp: Code[Unit]): Code[Unit] =
     seq(initArray, container.newStates, seqOp)
 
   def initLength(len: Code[Int]): Code[Unit] = {
-    Code(lenRef := len, seq((i, s) => s.copyFrom(initStateOffset(i))))
+    Code(lenRef := len, seq(container.copyFrom(initStatesOffset)))
   }
 
   def checkLength(len: Code[Int]): Code[Unit] = {
@@ -112,7 +111,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
           lenRef := ib.readInt(),
           (lenRef < 0).mux(
             typ.setFieldMissing(off, 1),
-            seq((i, _) => deserializers(i)(ib))))
+            seq(container.toCode((i, _) => deserializers(i)(ib)))))
     }
   }
 
@@ -123,13 +122,13 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: Array[Aggreg
 
     Code(
       srcOff := src,
-      init(container.toCode((i, s) => s.copyFrom(container.getStateOffset(initOffset, i))), initLen = false),
+      init(container.copyFrom(initOffset), initLen = false),
       typ.isFieldMissing(srcOff, 1).mux(
         Code(typ.setFieldMissing(off, 1),
           lenRef := -1),
         Code(
           lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
-          seq((i, s) => s.copyFrom(container.getStateOffset(eltOffset, i))))))
+          seq(container.copyFrom(eltOffset)))))
   }
 }
 
@@ -173,7 +172,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         other.initLength(state.lenRef)),
       check),
       Code(other.load(state.idx), state.load(state.idx)),
-      (i, s) => nestedAggs(i).combOp(s, other.nested(i)))
+      state.container.toCode((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =

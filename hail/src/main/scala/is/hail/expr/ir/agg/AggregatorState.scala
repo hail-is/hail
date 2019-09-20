@@ -138,9 +138,9 @@ case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region
   val typ: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
 
   def apply(i: Int): AggregatorState = states(i)
-  def getRegion(rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
+  private def getRegion(rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
     r.setFromParentReference(topRegion, rOffset + i, states(i).regionSize) }
-  def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
+  private def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = toCode((i, _) =>
     Region.storeAddress(typ.fieldOffset(off, i), 0L))
@@ -159,4 +159,7 @@ case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region
 
   def store(rOffset: Code[Int], statesOffset: Code[Long]): Code[Unit] =
     toCode((i, s) => s.store(r => topRegion.setParentReference(r, rOffset + i), getStateOffset(statesOffset, i)))
+
+  def copyFrom(statesOffset: Code[Long]): Code[Unit] =
+    toCode((i, s) => s.copyFrom(getStateOffset(statesOffset, i)))
 }
