@@ -12,7 +12,7 @@ def assert_ndarrays(asserter, exprs_and_expecteds):
     evaled_exprs = hl.eval(expr_tuple)
 
     for (evaled, expected) in zip(evaled_exprs, expecteds):
-        assert (asserter(evaled, expected))
+        assert (asserter(evaled, expected)), f"{evaled} != {asserter}"
 
 
 def assert_ndarrays_eq(*expr_and_expected):

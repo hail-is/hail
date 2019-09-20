@@ -943,7 +943,7 @@ class CodePTuple(
   val offset: Code[Long]
 ) {
   def apply[T](i: Int): Code[T] =
-    region.loadIRIntermediate(pType.types(i))(
+    Region.loadIRIntermediate(pType.types(i))(
       pType.loadField(offset, i)
     ).asInstanceOf[Code[T]]
 }
