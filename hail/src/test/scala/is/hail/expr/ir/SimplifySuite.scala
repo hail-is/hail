@@ -104,4 +104,35 @@ class SimplifySuite extends HailSuite {
 
     assert(Simplify(shouldNotRewrite) == shouldNotRewrite)
   }
+
+  @Test def testNestedInsertsSimplifyAcrossLets() {
+    val l = Let("a",
+      Let("b",
+        I32(1) + Ref("OTHER_1", TInt32()),
+        InsertFields(
+          Ref("TOP", TStruct("foo" -> TInt32())),
+          FastSeq(
+            ("field0", Ref("b", TInt32())),
+            ("field1", I32(1) + Ref("b", TInt32()))))),
+      InsertFields(
+        Ref("a", TStruct("foo" -> TInt32(), "field0" -> TInt32(), "field1" -> TInt32())),
+        FastSeq(
+          ("field2", I32(1) + GetField(Ref("a", TStruct("foo" -> TInt32(), "field0" -> TInt32(), "field1" -> TInt32())), "field1"))
+        )
+      )
+    )
+    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(l))
+    val expected = Let("1",
+      I32(1) + Ref("OTHER_1", TInt32()),
+      Let("2", I32(1) + Ref("1", TInt32()),
+        InsertFields(Ref("TOP", TStruct("foo" -> TInt32())),
+          FastSeq(
+            ("field0", Ref("1", TInt32())),
+            ("field1", Ref("2", TInt32())),
+            ("field2", I32(1) + Ref("2", TInt32()))
+          ),
+          Some(FastSeq("foo", "field0", "field1", "field2")))))
+
+    assert(simplified == expected)
+  }
 }
