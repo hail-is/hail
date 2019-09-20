@@ -339,7 +339,6 @@ object BlockMatrix {
     def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
     def partitionURI(matrixIdx: Int, partitionIdx: Int) = s"{$prefix}{$matrixIdx}/$partitionIdx"
 
-    // Deal with overwrite, make the folders
     bms.zipWithIndex.foreach{ case (bm, bIdx) => {
       val uri = blockMatrixURI(bIdx)
       if (overwrite)
@@ -348,7 +347,6 @@ object BlockMatrix {
         fatal(s"file already exists: $uri")
 
       fs.mkDir(uri)
-      // Need a parts folder inside.
       fs.mkDir(uri + "/parts")
     }}
 
@@ -357,7 +355,6 @@ object BlockMatrix {
       val (_, lm) = it.next()
       assert(!it.hasNext)
 
-      // TODO Replace false with forceRowMajor
       lm.write(os, forceRowMajor, bufferSpec)
       os.close()
 
