@@ -3911,7 +3911,7 @@ def _ndarray(collection, row_major=None):
         row_major = True
 
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-    data_expr = hl.array(data)
+    data_expr = hl.array(data) if data else hl.empty_array("float64")
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
 
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
