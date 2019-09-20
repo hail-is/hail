@@ -61,7 +61,6 @@ object ContainsAgg {
   def apply(root: IR): Boolean = IsAggResult(root) || (root match {
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case ArrayAgg(a, _, _) => ContainsAgg(a)
     case _ => root.children.exists {
       case child: IR => ContainsAgg(child)
       case _ => false
@@ -73,7 +72,6 @@ object ContainsScan {
   def apply(root: IR): Boolean = IsScanResult(root) || (root match {
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case ArrayAggScan(a, _, _) => ContainsScan(a)
     case _ => root.children.exists {
       case child: IR => ContainsScan(child)
       case _ => false
