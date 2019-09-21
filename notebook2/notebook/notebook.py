@@ -246,11 +246,10 @@ def get_config(workshop):
             'session_key': 'workshop_notebook',
             'notebook_base_path': deploy_config.base_path('notebook2', '/workshop/notebook')
         }
-    else:
-        return {
-            'session_key': 'notebook',
-            'notebook_base_path': deploy_config.base_path('notebook2', '/notebook')
-        }
+    return {
+        'session_key': 'notebook',
+        'notebook_base_path': deploy_config.base_path('notebook2', '/notebook')
+    }
 
 
 async def _get_notebook(request, userdata, workshop=False):
