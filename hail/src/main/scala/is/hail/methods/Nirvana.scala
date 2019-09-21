@@ -8,7 +8,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -19,6 +19,7 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 
 object Nirvana {
@@ -401,7 +402,7 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val localRowType = tv.typ.rowType.physicalType
+    val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
     val rowKeyOrd = tv.typ.keyType.ordering
@@ -417,6 +418,8 @@ object Nirvana {
         if (path.orNull != null)
           env.put("PATH", path.get)
 
+        val warnContext = new mutable.HashSet[String]
+
         val rvv = new RegionValueVariant(localRowType)
 
         it.map { rv =>
@@ -431,7 +434,7 @@ object Nirvana {
               _ => ())
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
-              val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
+              val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature, warnContext = warnContext)
               val locus = Locus(contigQuery(a).asInstanceOf[String],
                 startQuery(a).asInstanceOf[Int])
               val alleles = refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[IndexedSeq[String]]
@@ -449,7 +452,7 @@ object Nirvana {
           }
       }
 
-    val nirvanaRVDType = prev.typ.copy(rowType = (tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
+    val nirvanaRVDType = prev.typ.copy(rowType = PStruct.canonical(tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)))
 
     val nirvanaRowType = nirvanaRVDType.rowType
 

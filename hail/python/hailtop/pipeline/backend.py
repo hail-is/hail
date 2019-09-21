@@ -3,7 +3,6 @@ import os
 import subprocess as sp
 import uuid
 from shlex import quote as shq
-import aiohttp
 from hailtop.batch_client.client import BatchClient, Job
 
 from .resource import InputResourceFile, TaskResourceFile
@@ -187,11 +186,8 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self, url):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self._batch_client = BatchClient(session, url)
+    def __init__(self):
+        self._batch_client = BatchClient()
 
     def close(self):
         self._batch_client.close()

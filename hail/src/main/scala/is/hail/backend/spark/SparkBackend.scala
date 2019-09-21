@@ -1,13 +1,8 @@
 package is.hail.backend.spark
 
-import is.hail.{HailContext, cxx}
-import is.hail.annotations.{Region, SafeRow}
-import is.hail.backend.{Backend, BroadcastValue, LowerTableIR, LowererUnsupportedOperation}
-import is.hail.cxx.CXXUnsupportedOperation
+import is.hail.HailContext
+import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.PTuple
-import is.hail.expr.types.virtual.TVoid
-import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 

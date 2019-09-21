@@ -516,8 +516,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
            skip_invalid_intervals=bool,
+           contig_recoding=nullable(dictof(str, str)),
            kwargs=anytype)
-def import_locus_intervals(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
+def import_locus_intervals(path,
+                           reference_genome='default',
+                           skip_invalid_intervals=False,
+                           contig_recoding=None,
+                           **kwargs) -> Table:
     """Import a locus interval list as a :class:`.Table`.
 
     Examples
@@ -576,6 +581,10 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+        Mapping from contig name in file to contig name in loaded dataset.
+        All contigs must be present in the `reference_genome`, so this is
+        useful for mapping differently-formatted data onto known references.
     **kwargs
         Additional optional arguments to :func:`import_table` are valid
         arguments here except: `no_header`, `comment`, `impute`, and
@@ -586,6 +595,14 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     :class:`.Table`
         Interval-keyed table.
     """
+
+    if contig_recoding is not None:
+        contig_recoding = hl.literal(contig_recoding)
+
+    def recode_contig(x):
+        if contig_recoding is None:
+            return x
+        return contig_recoding.get(x, x)
 
     t = import_table(path, comment="@", impute=False, no_header=True,
                      types={'f0': tstr, 'f1': tint32, 'f2': tint32,
@@ -601,7 +618,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
             def checked_match_interval_expr(match):
                 return hl.or_missing(hl.len(match) == 3,
-                                     locus_interval_expr(match[0],
+                                     locus_interval_expr(recode_contig(match[0]),
                                                          hl.int32(match[1]),
                                                          hl.int32(match[2]),
                                                          True,
@@ -613,7 +630,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
                 hl.bind(t['f0'].first_match_in(interval_regex),
                         lambda match: hl.cond(hl.bool(skip_invalid_intervals),
                                               checked_match_interval_expr(match),
-                                              locus_interval_expr(match[0],
+                                              locus_interval_expr(recode_contig(match[0]),
                                                                   hl.int32(match[1]),
                                                                   hl.int32(match[2]),
                                                                   True,
@@ -624,7 +641,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
             t = t.select(interval=expr)
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'],
                                                   t['f2'],
                                                   True,
@@ -633,7 +650,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
                                                   skip_invalid_intervals))
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr, f4=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'],
                                                   t['f2'],
                                                   True,
@@ -657,8 +674,13 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
            skip_invalid_intervals=bool,
+           contig_recoding=nullable(dictof(str, str)),
            kwargs=anytype)
-def import_bed(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
+def import_bed(path,
+               reference_genome='default',
+               skip_invalid_intervals=False,
+               contig_recoding=None,
+               **kwargs) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
@@ -731,6 +753,10 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+        Mapping from contig name in BED to contig name in loaded dataset.
+        All contigs must be present in the `reference_genome`, so this is
+        useful for mapping differently-formatted data onto known references.
     **kwargs
         Additional optional arguments to :func:`import_table` are valid arguments here except:
         `no_header`, `delimiter`, `impute`, `skip_blank_lines`, `types`, and `comment` as these
@@ -752,8 +778,16 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
                               r"""^\w+=("[\w\d ]+"|\d+).*"""],
                      **kwargs)
 
+    if contig_recoding is not None:
+        contig_recoding = hl.literal(contig_recoding)
+
+    def recode_contig(x):
+        if contig_recoding is None:
+            return x
+        return contig_recoding.get(x, x)
+
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'] + 1,
                                                   t['f2'] + 1,
                                                   True,
@@ -762,7 +796,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
-        t = t.select(interval=locus_interval_expr(t['f0'],
+        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'] + 1,
                                                   t['f2'] + 1,
                                                   True,
@@ -1470,8 +1504,7 @@ def import_matrix_table(paths,
                         no_header=False,
                         force_bgz=False,
                         sep='\t') -> MatrixTable:
-    """
-    Import tab-delimited file(s) as a :class:`.MatrixTable`.
+    """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
@@ -1563,7 +1596,7 @@ def import_matrix_table(paths,
           of all row fields must be specified in the `row_fields` argument.
         * The row key is taken from the `row_key` argument, and must be a
           subset of row fields. If left empty, the row key will be a new row field
-          `row_idx` of type :obj:`int`, whose values 0, 1, ... index the original
+          `row_id` of type :obj:`int`, whose values 0, 1, ... index the original
           rows of the matrix.
         * There is one column field, **col_id**, which is a key field of type
           :obj:str or :obj:int. By default, its values are the strings given by
@@ -1583,6 +1616,9 @@ def import_matrix_table(paths,
     The header information for row fields is allowed to be missing, if the
     column IDs are present, but the header must then consist only of tab-delimited
     column IDs (no row field names).
+
+    The column IDs will never be missing, even if the `missing` string appears
+    in the column IDs.
 
     Parameters
     ----------
@@ -1614,23 +1650,39 @@ def import_matrix_table(paths,
         MatrixTable constructed from imported data
     """
 
-    paths = wrap_to_list(paths)
-    jrow_fields = {k: v._parsable_string() for k, v in row_fields.items()}
+    add_row_id = False
+    if isinstance(row_key, list) and len(row_key) == 0:
+        add_row_id = True
+        row_key = ['row_id']
+
+    if 'row_id' in row_fields and add_row_id:
+        raise FatalError(
+            f"import_matrix_table reserves the field name 'row_id' for"
+            f'its own use, please use a different name')
+
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-            raise FatalError("""import_matrix_table expects field types to be one of:
-            'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
-    row_key = wrap_to_list(row_key)
+            raise FatalError(
+                f'import_matrix_table expects field types to be one of:'
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'")
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
-
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    return MatrixTable._from_java(
-        Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                   no_header, force_bgz, sep))
+    reader = TextMatrixReader(paths,
+                              min_partitions,
+                              row_fields,
+                              entry_type,
+                              missing,
+                              not no_header,
+                              sep,
+                              force_bgz,
+                              add_row_id)
+
+    mt = MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
+    return mt
 
 
 @typecheck(bed=str,
@@ -1802,6 +1854,9 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     -------
     :class:`.MatrixTable`
     """
+    for rg_config in Env.backend().load_references_from_dataset(path):
+        hl.ReferenceGenome._from_config(rg_config)
+
     return MatrixTable(MatrixRead(MatrixNativeReader(path, _intervals, _filter_intervals),
                        _drop_cols, _drop_rows))
 
@@ -2192,6 +2247,9 @@ def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
     -------
     :class:`.Table`
     """
+    for rg_config in Env.backend().load_references_from_dataset(path):
+        hl.ReferenceGenome._from_config(rg_config)
+
     tr = TableNativeReader(path, _intervals, _filter_intervals)
     return Table(TableRead(tr, False))
 

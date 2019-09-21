@@ -37,6 +37,16 @@ class BlockMatrixMap(BlockMatrixIR):
     def _compute_type(self):
         self._type = self.child.typ
 
+    def bindings(self, i: int, default_value=None):
+        if i == 1:
+            value = self.child.typ.element_type if default_value is None else default_value
+            return {'element': value}
+        else:
+            return {}
+
+    def binds(self, i):
+        return {'element'} if i == 1 else {}
+
 
 class BlockMatrixMap2(BlockMatrixIR):
     @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, f=IR)
@@ -49,6 +59,20 @@ class BlockMatrixMap2(BlockMatrixIR):
     def _compute_type(self):
         self.right.typ  # Force
         self._type = self.left.typ
+
+    def bindings(self, i: int, default_value=None):
+        if i == 2:
+            if default_value is None:
+                l_value = self.left.typ.element_type
+                r_value = self.right.typ.element_type
+            else:
+                (l_value, r_value) = (default_value, default_value)
+            return {'l': l_value, 'r': r_value}
+        else:
+            return {}
+
+    def binds(self, i):
+        return {'l', 'r'} if i == 2 else {}
 
 
 class BlockMatrixDot(BlockMatrixIR):

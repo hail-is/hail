@@ -202,7 +202,7 @@ class EmitFunctionBuilder[F >: Null](
     val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]], typeInfo[Region]), typeInfo[Unit])
     val off = mb2.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
-      f.storeAny(mb2.getArg[Region](2).load().loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
+      f.storeAny(Region.loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
     }
 
     mb2.emit(Code(
@@ -248,10 +248,10 @@ class EmitFunctionBuilder[F >: Null](
     }
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithAggRegion].iname)
     _aggSigs = aggSigs
-    _aggRegion = newField[Region]
-    _aggOff = newField[Long]
+    _aggRegion = newField[Region]("agg_top_region")
+    _aggOff = newField[Long]("agg_off")
     _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray, _aggRegion)
-    _aggSerialized = newField[Array[Array[Byte]]]
+    _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
     val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
@@ -433,7 +433,7 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
+  override def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"${prefix}_${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb

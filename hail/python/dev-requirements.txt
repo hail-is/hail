@@ -2,7 +2,7 @@ pytest==4.5
 pytest-html==1.20.0
 pytest-xdist==1.28
 pytest-instafail==0.4.1
-sphinx==2.0.1
+sphinx==1.7.9
 nbsphinx==0.4
 sphinx_rtd_theme==0.4.2
 jupyter==1.0.0

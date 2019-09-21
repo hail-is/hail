@@ -87,30 +87,6 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("difference", TSet(TInt32()), IRSet(3, null, 7), IRSet(3, 8, null)), Set(7))
   }
 
-  @Test def sum() {
-    assertEvalsTo(invoke("sum", TInt32(), IRSet(3, 7)), 10)
-    assertEvalsTo(invoke("sum", TInt32(), IRSet(3, null, 7)), null)
-    assertEvalsTo(invoke("sum", TInt32(), IRSet()), 0)
-    assertEvalsTo(invoke("sum", TInt32(), IRSet(null)), null)
-    assertEvalsTo(invoke("sum", TInt32(), nas), null)
-  }
-
-  @Test def product() {
-    assertEvalsTo(invoke("product", TInt32(), IRSet(3, 7)), 21)
-    assertEvalsTo(invoke("product", TInt32(), IRSet(3, null, 7)), null)
-    assertEvalsTo(invoke("product", TInt32(), IRSet()), 1)
-    assertEvalsTo(invoke("product", TInt32(), IRSet(null)), null)
-    assertEvalsTo(invoke("product", TInt32(), nas), null)
-  }
-
-  @Test def mean() {
-    assertEvalsTo(invoke("mean", TFloat64(), IRSet(3, 7)), 5.0)
-    assertEvalsTo(invoke("mean", TFloat64(), IRSet(3, null, 7)), null)
-    assertEvalsTo(invoke("mean", TFloat64(), IRSet()), Double.NaN)
-    assertEvalsTo(invoke("mean", TFloat64(), IRSet(null)), null)
-    assertEvalsTo(invoke("mean", TFloat64(), nas), null)
-  }
-
   @Test def median() {
     assertEvalsTo(invoke("median", TInt32(), IRSet(5)), 5)
     assertEvalsTo(invoke("median", TInt32(), IRSet(5, null)), 5)

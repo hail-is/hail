@@ -34,11 +34,13 @@ object TableValue {
         RVD.coerce(tt.canonicalRVDType, rdd))
   }
 
-  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue =
-    apply(ctx, rowType, key, ContextRDD.weaken[RVDContext](rdd).toRegionValues(rowType))
-
-  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue =
-    TableValue(typ, globals, RVD.coerce(typ.canonicalRVDType, ContextRDD.weaken[RVDContext](rdd).toRegionValues(typ.rowType)))
+  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue = {
+    val canonicalRowType = PStruct.canonical(rowType)
+    val tt = TableType(rowType, key, TStruct.empty())
+    TableValue(tt,
+      BroadcastRow.empty(ctx),
+      RVD.coerce(RVDType(canonicalRowType, key), ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType)))
+  }
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {

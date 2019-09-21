@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: create-notebook-tables
+spec:
+  containers:
+  - name: create-notebook-tables
+    image: "{{ create_notebook_tables_image.image }}"
+    command:
+     - /bin/bash
+     - -c
+     - |
+       set -ex
+       # index creation isn't idempotent, don't create if a table exists
+       TABLE=$(echo "SHOW TABLES LIKE 'workshops';" | mysql --defaults-extra-file=/sql-config/sql-config.cnf -s)
+       if [ "$TABLE" != "workshops" ]; then
+         mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-notebook-tables.sql
+       fi
+    volumeMounts:
+      - mountPath: /sql-config
+        readOnly: true
+        name: sql-config
+  volumes:
+    - name: sql-config
+      secret:
+        secretName: "{{ notebook_database.admin_secret_name }}"
+  restartPolicy: Never

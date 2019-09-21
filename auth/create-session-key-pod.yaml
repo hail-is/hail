@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: create-session-key
+spec:
+  serviceAccount: admin
+  containers:
+  - name: create-session-key
+    image: "{{ base_image.image }}"
+    command:
+     - /bin/bash
+     - -c
+     - |
+       set -ex
+       # create session keys
+       N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers session-secret-key | wc -l | tr -d '[:space:]')
+       if [[ $N != 0 ]]; then
+         exit
+       fi
+       mkdir /session-secret-key
+       cat > generate-session-key.py <<EOF
+       import base64
+       from cryptography import fernet
+       with open('/session-secret-key/session-secret-key', 'wb') as f:
+           f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))
+       EOF
+       python3 generate-session-key.py
+       kubectl -n {{ default_ns.name }} create secret generic session-secret-key --from-file=/session-secret-key/session-secret-key
+  restartPolicy: Never

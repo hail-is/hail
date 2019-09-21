@@ -87,7 +87,7 @@ def table_aggregate_array_sum():
 def table_annotate_many_flat():
     n = 1_000_000
     m = 100
-    ht = hl.utils.range_table(n)
+    ht = hl.utils.range_table(n, 16)
     ht = ht.annotate(**{f'x{i}': i + ht.idx for i in range(m)})
     ht._force_count()
 
@@ -96,9 +96,19 @@ def table_annotate_many_flat():
 def table_annotate_many_nested_no_dependence():
     n = 1_000_000
     m = 100
-    ht = hl.utils.range_table(n)
+    ht = hl.utils.range_table(n, 16)
     for i in range(m):
         ht = ht.annotate(**{f'x{i}': i + ht.idx})
+    ht._force_count()
+
+
+@benchmark
+def table_annotate_many_nested_dependence_constants():
+    n = 1_000_000
+    m = 100
+    ht = hl.utils.range_table(n, 16).annotate(x0=1)
+    for i in range(1, m):
+        ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()
 
 
@@ -106,7 +116,8 @@ def table_annotate_many_nested_no_dependence():
 def table_annotate_many_nested_dependence():
     n = 1_000_000
     m = 100
-    ht = hl.utils.range_table(n).annotate(x0=1)
+    ht = hl.utils.range_table(n, 16)
+    ht = ht.annotate(x0=ht.idx)
     for i in range(1, m):
         ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()
@@ -147,9 +158,22 @@ def table_aggregate_int_stats():
 
 
 @benchmark
+def table_range_means():
+    ht = hl.utils.range_table(10_000_000, 16)
+    ht = ht.annotate(m=hl.mean(hl.range(0, ht.idx % 1111)))
+    ht._force_count()
+
+
+@benchmark
 def table_aggregate_counter():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
+
+
+@benchmark
+def table_aggregate_take_by_strings():
+    ht = hl.read_table(resource('many_strings_table.ht'))
+    ht.aggregate(hl.tuple([hl.agg.take(ht['f18'], 25, ordering=ht[f'f{i}']) for i in range(18)]))
 
 
 @benchmark
@@ -291,3 +315,9 @@ def join_p100_p10():
     ht1 = hl.read_table(resource('table_10M_par_100.ht'))
     ht2 = hl.read_table(resource('table_10M_par_10.ht'))
     ht1.join(ht2)._force_count()
+
+
+@benchmark
+def group_by_collect_per_row():
+    ht = hl.read_matrix_table(resource('gnomad_dp_simulation.mt')).localize_entries('e', 'c')
+    ht.group_by(*ht.key).aggregate(value=hl.agg.collect(ht.row_value))._force_count()

@@ -1626,9 +1626,7 @@ def or_else(a, b):
         raise TypeError(f"'or_else' requires the 'a' and 'b' arguments to have the same type\n"
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
-    assert a.dtype == b.dtype
-    indices, aggregations = unify_all(a, b)
-    return construct_expr(Coalesce(a._ir, b._ir), a.dtype, indices, aggregations)
+    return coalesce(a, b)
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
@@ -3581,7 +3579,7 @@ def mean(collection, filter_missing: bool = True) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return collection._filter_missing_method(filter_missing, "mean", tfloat64)
+    return array(collection)._filter_missing_method(filter_missing, "mean", tfloat64)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
@@ -3641,7 +3639,7 @@ def product(collection, filter_missing: bool = True) -> NumericExpression:
     -------
     :class:`.NumericExpression`
     """
-    return collection._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
+    return array(collection)._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
@@ -3672,7 +3670,7 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
     -------
     :class:`.NumericExpression`
     """
-    return collection._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
+    return array(collection)._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
 
 
 @typecheck(a=expr_array(expr_numeric),
@@ -3869,13 +3867,16 @@ def _ndarray(collection, row_major=None):
     def list_shape(x):
         if isinstance(x, list):
             dim_len = builtins.len(x)
-            first, rest = x[0], x[1:]
-            inner_shape = list_shape(first)
-            for e in rest:
-                other_inner_shape = list_shape(e)
-                if inner_shape != other_inner_shape:
-                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
-            return [dim_len] + inner_shape
+            if dim_len != 0:
+                first, rest = x[0], x[1:]
+                inner_shape = list_shape(first)
+                for e in rest:
+                    other_inner_shape = list_shape(e)
+                    if inner_shape != other_inner_shape:
+                        raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+                return [dim_len] + inner_shape
+            else:
+                return [dim_len]
         else:
             return []
 
@@ -3910,7 +3911,7 @@ def _ndarray(collection, row_major=None):
         row_major = True
 
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-    data_expr = hl.array(data)
+    data_expr = hl.array(data) if data else hl.empty_array("float64")
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
 
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))

@@ -1,0 +1,53 @@
+<div id="header">
+  <a href="{{ notebook_base_url }}/" class="header-link">
+    <b>/</b>
+  </a>
+
+  <a class="header-link" href="{{ notebook_base_url }}/notebook">
+    Notebook
+  </a>
+
+  <a class="header-link" href="{{ batch_base_url }}">
+    Batch
+  </a>
+
+  {% if userdata['developer'] == 1 %}
+    <a class="header-link" href="{{ ci_base_url }}">
+      CI
+    </a>
+
+    <a class="header-link" href="{{ scorecard_base_url }}">
+      Scorecard
+    </a>
+
+    <a target="_blank" class="header-link" href="https://internal.hail.is/monitoring/grafana/">
+      Grafana<i class="material-icons text-icon">open_in_new</i>
+    </a>
+
+    <a target="_blank" class="header-link" href="https://internal.hail.is/monitoring/prometheus/">
+      Prometheus<i class="material-icons text-icon">open_in_new</i>
+    </a>
+
+    <a target="_blank" class="header-link" href="https://internal.hail.is/monitoring/kibana/">
+      Kibana<i class="material-icons text-icon">open_in_new</i>
+    </a>
+  {% endif %}
+
+  <div id="header-flex"></div>
+
+  {% if userdata %}
+    <a href="{{ notebook_base_url }}/user" class="header-link">
+      <b>{{ userdata["username"] }}</b>
+    </a>
+    |
+    <form action="{{ auth_base_url }}/logout" method="POST">
+      <button class="button-header-link" type="submit">
+        Log out
+      </button>
+    </form>
+  {% else %}
+    <a class="header-link" href="{{ auth_base_url }}/login">
+      Login
+    </a>
+  {% endif %}
+</div>

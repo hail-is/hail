@@ -35,7 +35,7 @@ object RelationalSpec {
     new TableTypeSerializer +
     new MatrixTypeSerializer
 
-  def read(hc: HailContext, path: String): RelationalSpec = {
+  def readMetadata(hc: HailContext, path: String): JValue = {
     if (!hc.sFS.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
@@ -52,14 +52,30 @@ object RelationalSpec {
 
     if (!FileFormat.version.supports(fileVersion))
       fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
+    jv
+  }
 
+  def read(hc: HailContext, path: String): RelationalSpec = {
+    val jv = readMetadata(hc, path)
+    val references = readReferences(hc, path, jv)
+
+    references.foreach { rg =>
+      if (!ReferenceGenome.hasReference(rg.name))
+        ReferenceGenome.addReference(rg)
+    }
+
+    jv.extract[RelationalSpec]
+  }
+
+  def readReferences(hc: HailContext, path: String): Array[ReferenceGenome] =
+    readReferences(hc, path, readMetadata(hc, path))
+
+  def readReferences(hc: HailContext, path: String, jv: JValue): Array[ReferenceGenome] = {
     // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    ReferenceGenome.importReferences(hc.sFS, path + "/" + referencesRelPath)
-
-    jv.extract[RelationalSpec]
+    ReferenceGenome.readReferences(hc.sFS, path + "/" + referencesRelPath)
   }
 }
 

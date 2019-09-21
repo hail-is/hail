@@ -56,7 +56,7 @@ Genetics Methods
 
 .. toctree::
 
-    ldscsim: a statistical genetics phenotype simulation framework <ldscsim>
+   ldscsim: a statistical genetics phenotype simulation framework <ldscsim>
 
 .. autofunction:: load_dataset
 .. autofunction:: ld_score

@@ -6,6 +6,7 @@ import traceback
 import numpy as np
 import argparse
 
+
 async def run(i, times, class_key, image):
     try:
         async with aiohttp.ClientSession() as session:
@@ -18,29 +19,35 @@ async def run(i, times, class_key, image):
             data.add_field(name='password', value=class_key)
             data.add_field(name='image', value=image)
             print(f'{i}: new')
-            async with session.post('https://notebook.hail.is/new', data=data) as resp:
-                assert resp.status == 200, await resp.text()
-                await resp.text()
-            print(f'{i}: wait')
-            redirected_url = None
-            async with session.ws_connect('wss://notebook.hail.is/waitws') as ws:
-                async for msg in ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        print(f'{i}: received message {msg}')
-                        redirected_url = msg.data
-                        await ws.close()
-                        break
-                    elif msg.type == aiohttp.WSMsgType.ERROR:
-                        raise ValueError(f'{i}: failure! {msg.data}')
-                    else:
-                        raise ValueError(f'{i}: {msg}')
-            print(f'{i}: redirect: {redirected_url}')
-            async with session.get(redirected_url, max_redirects=30) as resp:
-                assert resp.status == 200, await resp.text()
-                await resp.text()
-            elapsed = timeit.default_timer() - start
-            print(f'{i}: done {elapsed}')
-            times.append(elapsed)
+            try:
+                async with session.post('https://notebook.hail.is/new', data=data) as resp:
+                    assert resp.status == 200, await resp.text()
+                    await resp.text()
+                print(f'{i}: wait')
+                redirected_url = None
+                async with session.ws_connect('wss://notebook.hail.is/waitws') as ws:
+                    async for msg in ws:
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            print(f'{i}: received message {msg}')
+                            redirected_url = msg.data
+                            await ws.close()
+                            break
+                        elif msg.type == aiohttp.WSMsgType.ERROR:
+                            raise ValueError(f'{i}: failure! {msg.data}')
+                        else:
+                            raise ValueError(f'{i}: {msg}')
+                print(f'{i}: redirect: {redirected_url}')
+                async with session.get(redirected_url, max_redirects=30) as resp:
+                    assert resp.status == 200, await resp.text()
+                    await resp.text()
+                elapsed = timeit.default_timer() - start
+                print(f'{i}: done {elapsed}')
+                times.append(elapsed)
+            finally:
+                async with session.get('https://notebook.hail.is/new') as resp:
+                    assert resp.status == 200, await resp.text()
+                    await resp.text()
+                print(f'{i}: destroyed')
     except aiohttp.client_exceptions.TooManyRedirects as e:
         print(f'{i}: failed due to {e} {e.request_info} {repr(traceback.format_exc())} {e.history}')
     except Exception as e:

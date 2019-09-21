@@ -131,6 +131,9 @@ class TableMapGlobals(TableIR):
                                self.child.typ.row_type,
                                self.child.typ.row_key)
 
+    def bindings(self, i, default_value=None):
+        return self.child.typ.global_env(default_value) if i == 1 else {}
+
 
 class TableExplode(TableIR):
     def __init__(self, child, path):
@@ -183,6 +186,12 @@ class TableMapRows(TableIR):
             self.child.typ.global_type,
             self.new_row.typ,
             self.child.typ.row_key)
+
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
+    def scan_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
 class TableRead(TableIR):
@@ -245,6 +254,9 @@ class TableFilter(TableIR):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
 
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
 
 class TableKeyByAndAggregate(TableIR):
     def __init__(self, child, expr, new_key, n_partitions, buffer_size):
@@ -268,6 +280,17 @@ class TableKeyByAndAggregate(TableIR):
                                self.new_key.typ._concat(self.expr.typ),
                                list(self.new_key.typ))
 
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            return self.child.typ.global_env(default_value)
+        elif i == 2:
+            return self.child.typ.row_env(default_value)
+        else:
+            return {}
+
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
 
 class TableAggregateByKey(TableIR):
     def __init__(self, child, expr):
@@ -281,6 +304,12 @@ class TableAggregateByKey(TableIR):
         self._type = hl.ttable(child_typ.global_type,
                                child_typ.key_type._concat(self.expr.typ),
                                child_typ.row_key)
+
+    def bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
+
+    def agg_bindings(self, i, default_value=None):
+        return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
 class MatrixColsTable(TableIR):

@@ -1,24 +1,19 @@
-<html lang="en">
-  <head>
-    <title>Job {{ job_id }} Log</title>
-  </head>
-  <body>
-    <p><a href="/">ci</a> : <a href="/batches/{{ batch_id }}">Batch {{ batch_id }}</a> : job {{ job_id }} log</p>
-
+{% extends "layout.html" %}
+{% block title %}Job {{ job_id }} Log{% endblock %}
+{% block content %}
     <h1>Job {{ job_id }} Log</h1>
     {% if 'setup' in job_log %}
-    <h3>Setup</h3>
+    <h2 class="stacked-header">Setup</h2>
     <pre>{{ job_log['setup'] }}</pre>
     {% endif %}
 
     {% if 'main' in job_log %}
-    <h3>Main</h3>
+    <h2>Main</h2>
     <pre>{{ job_log['main'] }}</pre>
     {% endif %}
 
     {% if 'cleanup' in job_log %}
-    <h3>Cleanup</h3>
+    <h2>Cleanup</h2>
     <pre>{{ job_log['cleanup'] }}</pre>
     {% endif %}
-  </body>
-</html>
+{% endblock %}

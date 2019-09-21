@@ -1,0 +1,159 @@
+@import "variables.scss";
+
+html {
+    box-sizing: border-box;
+}
+*,
+*:before,
+*:after {
+    box-sizing: inherit;
+}
+
+body {
+    font-family: "Open Sans", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-font-smmothing: grayscale;
+    input::placeholder {
+        -webkit-font-smoothing: antialiased;
+        -moz-font-smmothing: grayscale;
+    }
+    margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin: 0.5rem 0;
+}
+
+.stacked-header {
+    margin: 0 0 0.5rem 0;
+}
+
+button {
+    font-family: inherit;
+    font-size: 1rem;
+    background: none;
+    border: 1px solid $black;
+    border-radius: 3px;
+    margin: 0;
+    cursor: pointer;
+    &:focus {
+	outline: 0;
+    }
+    &:active,
+    &:hover {
+	outline: 0;
+        color: $devil-gray;
+	border-color: $devil-gray;
+    }
+}
+
+a {
+    color: #07c;
+    text-decoration: none;
+    &:active,
+    &:hover {
+        text-decoration: underline;
+        /* color: #3af */
+        
+    }
+}
+
+.header-link {
+    padding: 15px 15px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
+.button-header-link {
+    /* remove button styling, add link, header-link styling */
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: $black;
+    white-space: nowrap;
+    padding: 15px 15px;
+}
+
+#main {
+    display: flex;
+    flex-direction: column;
+}
+
+#header {
+    display: flex;
+    align-items: center;
+}
+
+#header-flex {
+    flex-grow: 1;
+}
+
+#content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0 8px 8px 8px;
+}
+
+.text-icon {
+    /* baseline of material icons is messed up, see:
+       https://github.com/google/material-design-icons/issues/206 */
+    vertical-align: middle;
+    font-size: 0.8rem;
+}
+
+.data-table {
+    min-width: 480px;
+    border-spacing: 2px;
+    thead {
+	color: $white;
+	background-color: #888;
+    }
+    th {
+        white-space: nowrap;
+	padding: 3px 10px;
+    }
+    tr {
+        &:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    }
+    tbody tr:hover {
+        background-color: #ddd;
+    }
+}
+
+.numeric-cell {
+    text-align: right;
+}
+
+.searchbar {
+    width: 40%;
+}
+
+.searchbar-table {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.gh-number {
+    color: #6a737d;
+}
+
+.attributes {
+    margin-left: 1rem;
+}
+
+/* viewport centered */
+.vcentered {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    transform: translate(-50%, -50%);
+}

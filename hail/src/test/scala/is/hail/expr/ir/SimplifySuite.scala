@@ -93,11 +93,46 @@ class SimplifySuite extends HailSuite {
     val r2 = Ref("row2", TStruct(("x", TInt32()), ("y", TFloat64())))
 
     val ir1 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD))))
-    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "y").toI))))
+    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
     val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct()), FastSeq(("z", GetField(r2, "y").toI))))
 
-    assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD))))
-    assert(Simplify(ir2) == ir2)
-    assert(Simplify(ir3) == ir3)
+    assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ir3) == InsertFields(Ref("something_else", TStruct()), FastSeq(("z", I32(0)))))
+
+    val shouldNotRewrite = Let("row2", InsertFields(r, FastSeq(("y", Ref("other", TFloat64())))), InsertFields(r2, FastSeq(("z", invoke("str", TString(), r2)))))
+
+    assert(Simplify(shouldNotRewrite) == shouldNotRewrite)
+  }
+
+  @Test def testNestedInsertsSimplifyAcrossLets() {
+    val l = Let("a",
+      Let("b",
+        I32(1) + Ref("OTHER_1", TInt32()),
+        InsertFields(
+          Ref("TOP", TStruct("foo" -> TInt32())),
+          FastSeq(
+            ("field0", Ref("b", TInt32())),
+            ("field1", I32(1) + Ref("b", TInt32()))))),
+      InsertFields(
+        Ref("a", TStruct("foo" -> TInt32(), "field0" -> TInt32(), "field1" -> TInt32())),
+        FastSeq(
+          ("field2", I32(1) + GetField(Ref("a", TStruct("foo" -> TInt32(), "field0" -> TInt32(), "field1" -> TInt32())), "field1"))
+        )
+      )
+    )
+    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(l))
+    val expected = Let("1",
+      I32(1) + Ref("OTHER_1", TInt32()),
+      Let("2", I32(1) + Ref("1", TInt32()),
+        InsertFields(Ref("TOP", TStruct("foo" -> TInt32())),
+          FastSeq(
+            ("field0", Ref("1", TInt32())),
+            ("field1", Ref("2", TInt32())),
+            ("field2", I32(1) + Ref("2", TInt32()))
+          ),
+          Some(FastSeq("foo", "field0", "field1", "field2")))))
+
+    assert(simplified == expected)
   }
 }

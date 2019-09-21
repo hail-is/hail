@@ -1235,6 +1235,24 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10).annotate(x = 'a')
         self.assertEqual(ht.aggregate(agg.take(ht.x, 2)), ['a', 'a'])
 
+    def test_agg_take_by(self):
+        ht = hl.utils.range_table(10, 3)
+        data1 = hl.literal([str(i) for i in range(10)])
+        data2 = hl.literal([i**2 for i in range(10)])
+        ht = ht.annotate(d1 = data1[ht.idx], d2=data2[ht.idx])
+
+        tb1, tb2, tb3, tb4 = ht.aggregate((hl.agg.take(ht.d1, 5, ordering=-ht.idx),
+                                           hl.agg.take(ht.d2, 5, ordering=-ht.idx),
+                                           hl.agg.take(ht.idx, 7, ordering=ht.idx // 5), # stable sort
+                                           hl.agg.array_agg(
+                                               lambda elt: hl.agg.take(hl.str(elt) + "_" + hl.str(ht.idx), 4,
+                                                                       ordering=ht.idx), hl.range(0, 2))))
+
+        assert tb1 == ['9', '8', '7', '6', '5']
+        assert tb2 == [81, 64, 49, 36, 25]
+        assert tb3 == [0, 1, 2, 3, 4, 5, 6]
+        assert tb4 == [['0_0', '0_1', '0_2', '0_3'], ['1_0', '1_1', '1_2', '1_3']]
+
     def test_agg_minmax(self):
         nan = float('nan')
         na = hl.null(hl.tfloat32)
@@ -3130,6 +3148,8 @@ class Tests(unittest.TestCase):
         assert(evaled.tolist() == np_equiv.tolist())
         assert(evaled.strides == np_equiv.strides)
 
+        assert hl.eval(hl._ndarray([[], []])).strides == (8, 8)
+        assert np.array_equal(hl.eval(hl._ndarray([])), np.array([]))
 
 
     @skip_unless_spark_backend()
@@ -3196,7 +3216,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
-    def test_ndarray_map(self):
+    def test_ndarray_map_cxx(self):
         a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
         b = hl.map(lambda x: -x, a)
         c = hl.map(lambda x: True, a)
@@ -3205,6 +3225,17 @@ class Tests(unittest.TestCase):
             (b, [[-2, -3, -4], [-5, -6, -7]]),
             (c, [[True, True, True],
                  [True, True, True]]))
+
+    @skip_unless_spark_backend()
+    def test_ndarray_map_jvm(self):
+        a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
+        b = hl.map(lambda x: -x, a)
+        c = hl.map(lambda x: True, a)
+
+        assert(np.array_equal(hl.eval(b), [[-2, -3, -4],
+                                           [-5, -6, -7]]))
+        assert(np.array_equal(hl.eval(c), [[True, True, True],
+                                           [True, True, True]]))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

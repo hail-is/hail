@@ -4,6 +4,7 @@ import collections
 from hailtop.batch_client.client import BatchClient
 import json
 import os
+import base64
 import pkg_resources
 import secrets
 import time
@@ -12,7 +13,7 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-import hailtop.gear.auth as hj
+from hailtop.config import get_deploy_config
 
 from .serverthread import ServerThread
 
@@ -32,10 +33,7 @@ def poll_until(p, max_polls=None):
 
 class Test(unittest.TestCase):
     def setUp(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
+        self.client = BatchClient()
 
     def tearDown(self):
         self.client.close()
@@ -314,74 +312,34 @@ class Test(unittest.TestCase):
         self.assertTrue(j.is_complete())
 
     def test_authorized_users_only(self):
+        deploy_config = get_deploy_config()
         endpoints = [
-            (requests.get, '/api/v1alpha/batches/0/jobs/0'),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status'),
-            (requests.get, '/api/v1alpha/batches'),
-            (requests.post, '/api/v1alpha/batches/create'),
-            (requests.post, '/api/v1alpha/batches/0/jobs/create'),
-            (requests.get, '/api/v1alpha/batches/0'),
-            (requests.delete, '/api/v1alpha/batches/0'),
-            (requests.patch, '/api/v1alpha/batches/0/close'),
-            (requests.get, '/batches'),
-            (requests.get, '/batches/0'),
-            (requests.get, '/batches/0/jobs/0/log')]
-        for f, url in endpoints:
-            r = f(os.environ.get('BATCH_URL')+url)
+            (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status', 401),
+            (requests.get, '/api/v1alpha/batches', 401),
+            (requests.post, '/api/v1alpha/batches/create', 401),
+            (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),
+            (requests.get, '/api/v1alpha/batches/0', 401),
+            (requests.delete, '/api/v1alpha/batches/0', 401),
+            (requests.patch, '/api/v1alpha/batches/0/close', 401),
+            # redirect to auth/login
+            (requests.get, '/batches', 302),
+            (requests.get, '/batches/0', 302),
+            (requests.get, '/batches/0/jobs/0/log', 302)]
+        for f, url, expected in endpoints:
+            r = f(deploy_config.url('batch', url))
             assert r.status_code == 401, r
 
-    def test_bad_jwt_key(self):
-        fname = pkg_resources.resource_filename(
-            __name__,
-            'jwt-test-user.json')
-        with open(fname) as f:
-            userdata = json.loads(f.read())
-        token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata)
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        bc = BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
+    def test_bad_token(self):
+        token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
+        bc = BatchClient(_token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
             b.submit()
             assert False, j
         except aiohttp.ClientResponseError as e:
-            if e.status == 401:
-                pass
-            else:
-                assert False, e
+            assert e.status == 401, e
         finally:
             bc.close()
-
-    def test_ui_batches(self):
-        with open(os.environ['HAIL_TOKEN_FILE']) as f:
-            token = f.read()
-        # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)
-
-    def test_ui_batch_and_job_log(self):
-        b = self.client.create_batch()
-        j = b.create_job('alpine', ['true'])
-        b = b.submit()
-        status = j.wait()
-
-        with open(os.environ['HAIL_TOKEN_FILE']) as f:
-            token = f.read()
-
-        # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{b.id}',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)
-
-        # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/log',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)
-
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/pod_status',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)

@@ -53,7 +53,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
-          region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv))
+          Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv))
         )
     }
 
@@ -64,7 +64,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
-          region.loadIRIntermediate(tv("T").t)(intervalT.endOffset(iv))
+          Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv))
         )
     }
 
@@ -138,9 +138,9 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   def storeToLocal: Code[Unit] = ref := value
 
   def start: (Code[Boolean], Code[_]) =
-    (!typ.startDefined(ref), region.getIRIntermediate(typ.pointType)(typ.startOffset(ref)))
+    (!typ.startDefined(ref), Region.getIRIntermediate(typ.pointType)(typ.startOffset(ref)))
   def end: (Code[Boolean], Code[_]) =
-    (!typ.endDefined(ref), region.getIRIntermediate(typ.pointType)(typ.endOffset(ref)))
+    (!typ.endDefined(ref), Region.getIRIntermediate(typ.pointType)(typ.endOffset(ref)))
   def includeStart: Code[Boolean] = typ.includeStart(ref)
   def includeEnd: Code[Boolean] = typ.includeEnd(ref)
 

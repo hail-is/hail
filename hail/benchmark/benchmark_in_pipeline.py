@@ -14,7 +14,7 @@ if __name__ == '__main__':
     N_ITERS = int(sys.argv[5])
 
     p = pl.Pipeline(name='benchmark',
-                    backend=pl.BatchBackend(url='https://batch.hail.is'),
+                    backend=pl.BatchBackend(),
                     default_image=BENCHMARK_IMAGE,
                     default_storage='10G',
                     default_memory='7G',
@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     make_resources = p.new_task('create_resources').cpu(4)
     make_resources.command('hailctl dev benchmark create-resources --data-dir benchmark-resources')
-    make_resources.command("time tar -czvf benchmark-resources.tar.gz benchmark-resources --exclude='*.crc'")
+    make_resources.command("time tar -czf benchmark-resources.tar.gz benchmark-resources --exclude='*.crc'")
     make_resources.command('ls -lh benchmark-resources.tar.gz')
     make_resources.command(f'mv benchmark-resources.tar.gz {make_resources.ofile}')
 
@@ -38,7 +38,7 @@ if __name__ == '__main__':
         for replicate in range(N_REPLICATES):
             t = p.new_task(name=f'{name}_{replicate}')
             t.command(f'mv {make_resources.ofile} benchmark-resources.tar.gz')
-            t.command('time tar -xvf benchmark-resources.tar.gz')
+            t.command('time tar -xf benchmark-resources.tar.gz')
             t.command(f'hailctl dev benchmark run '
                       f'-v -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
             all_output.append(t.ofile)

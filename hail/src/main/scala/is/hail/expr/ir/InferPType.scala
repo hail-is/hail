@@ -233,6 +233,15 @@ object InferPType {
 
         zero.pType2.setRequired(body.pType2.required)
       }
+      case ArrayFold2(a, acc, valueName, seq, res) =>
+        InferPType(a, env)
+        acc.foreach { case (_, accIR) => InferPType(accIR, env) }
+        InferPType(a, env)
+        val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2)}: _*)
+        val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PArray].elementType)
+        seq.foreach(InferPType(_, seqEnv))
+        InferPType(res, resEnv)
+        res.pType2.setRequired(res.pType2.required && a.pType2.required)
       case ArrayScan(a, zero, accumName, valueName, body) => {
         InferPType(zero, env)
 
@@ -280,7 +289,7 @@ object InferPType {
       }
       case NDArrayRef(nd, idxs) => {
         InferPType(nd, env)
-        
+
         var allRequired = nd.pType2.required
         val it = idxs.iterator
         while(it.hasNext) {
@@ -289,7 +298,7 @@ object InferPType {
           InferPType(idxIR, env)
 
           assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
-          
+
           if(allRequired == true && idxIR.pType2.required == false) {
             allRequired = false
           }

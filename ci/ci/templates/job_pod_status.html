@@ -1,11 +1,6 @@
-<html lang="en">
-  <head>
-    <title>Job {{ job_id }} Pod Status</title>
-  </head>
-  <body>
-    <p><a href="/">ci</a> : <a href="/batches/{{ batch_id }}">Batch {{ batch_id }}</a> : job {{ job_id }} pod status</p>
-
+{% extends "layout.html" %}
+{% block title %}Job {{ job_id }} Pod Status{% endblock %}
+{% block content %}
     <h1>Job {{ job_id }} Pod Status</h1>
     <pre>{{ job_pod_status }}</pre>
-  </body>
-</html>
+{% endblock %}

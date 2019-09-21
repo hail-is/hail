@@ -235,6 +235,16 @@ final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
 }
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
+object ArrayFold2 {
+  def apply(a: ArrayFold): ArrayFold2 = {
+    ArrayFold2(a.a, FastIndexedSeq((a.accumName, a.zero)), a.valueName, FastSeq(a.body), Ref(a.accumName, a.zero.typ))
+  }
+}
+
+final case class ArrayFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
+  assert(accum.length == seq.length)
+}
+
 final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
@@ -361,6 +371,7 @@ final case class Die(message: IR, _typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
   var conversion: Seq[IR] => IR = _
+  var inline: Boolean = _
 
   private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
   lazy val body: IR = conversion(refs).deepCopy()

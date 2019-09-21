@@ -1253,7 +1253,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     .. include: _templates/experimental.rst
 
     Parameters
-    ---------
+    ----------
     x : :class:`.NumericExpression`
         X-values to be downsampled.
     y : :class:`.NumericExpression`

@@ -27,7 +27,7 @@ object GenotypeFunctions extends RegistryFunctions {
           tPL.isElementDefined(region, pl, i).mux(
             Code._empty,
             Code._fatal("PL cannot have missing elements.")),
-          pli := region.loadInt(tPL.loadElement(region, pl, len, i)),
+          pli := Region.loadInt(tPL.loadElement(region, pl, len, i)),
           (pli < m).mux(
             Code(m2 := m, m := pli),
             (pli < m2).mux(
@@ -48,8 +48,8 @@ object GenotypeFunctions extends RegistryFunctions {
         gp := gpOff,
         len.cne(3).mux(
           Code._fatal(const("length of gp array must be 3, got ").concat(len.toS)),
-          region.loadDouble(pArray.elementOffset(gp, 3, 1)) +
-            region.loadDouble(pArray.elementOffset(gp, 3, 2)) * 2.0))
+          Region.loadDouble(pArray.elementOffset(gp, 3, 1)) +
+            Region.loadDouble(pArray.elementOffset(gp, 3, 2)) * 2.0))
     }
 
     // FIXME: remove when SkatSuite is moved to Python
@@ -64,9 +64,9 @@ object GenotypeFunctions extends RegistryFunctions {
         len.cne(3).mux(
           Code._fatal(const("length of pl array must be 3, got ").concat(len.toS)),
           Code.invokeScalaObject[Int, Int, Int, Double](Genotype.getClass, "plToDosage",
-            region.loadInt(pArray.elementOffset(pl, 3, 0)),
-            region.loadInt(pArray.elementOffset(pl, 3, 1)),
-            region.loadInt(pArray.elementOffset(pl, 3, 2)))))
+            Region.loadInt(pArray.elementOffset(pl, 3, 0)),
+            Region.loadInt(pArray.elementOffset(pl, 3, 1)),
+            Region.loadInt(pArray.elementOffset(pl, 3, 2)))))
     }
   }
 }

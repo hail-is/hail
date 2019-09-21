@@ -2,8 +2,7 @@ import logging
 
 import kubernetes as kube
 import prometheus_client as pc
-
-from .blocking_to_async import blocking_to_async
+from hailtop.utils import blocking_to_async
 
 log = logging.getLogger('batch.k8s')
 
