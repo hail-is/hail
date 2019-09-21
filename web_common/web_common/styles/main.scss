@@ -149,16 +149,20 @@ a {
 #message {
     border: 1px solid;
     border-radius: 3px;
+    padding: 10px;
+    bottom-margin: 1rem;
 }
 
 .message-error {
     color: red;
     border-color: red;
+    background-color: #ffeaea;
 }
 
 .message-info {
     color: green;
     border-color: green;
+    background-color: #eaffea;
 }
 
 .dangerous {
