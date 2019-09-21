@@ -14,7 +14,8 @@ from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
     new_csrf_token, check_csrf_token
-from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, base_context
+from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, \
+    set_message, base_context
 
 log = logging.getLogger('notebook2')
 
@@ -222,7 +223,8 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(deploy_config, userdata, 'notebook2')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook2')
     return context
 
 
@@ -242,7 +244,7 @@ async def notebook_page(request, userdata):
         if 'notebook' in session:
             del session['notebook']
 
-    context = base_context(deploy_config, userdata, 'notebook2')
+    context = base_context(deploy_config, session, userdata, 'notebook2')
     context['token'] = token
     context['notebook'] = notebook
     response = aiohttp_jinja2.render_template('notebook.html',
@@ -350,7 +352,8 @@ async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('error.html')
 @web_maybe_authenticated_user
 async def error_page(request, userdata):
-    context = base_context(deploy_config, userdata, 'notebook2')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook2')
     context['error'] = request.args.get('err')
     return context
 
@@ -359,7 +362,8 @@ async def error_page(request, userdata):
 @aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only()
 async def user_page(request, userdata):  # pylint: disable=unused-argument
-    context = base_context(deploy_config, userdata, 'notebook2')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook2')
     return context
 
 
@@ -368,10 +372,7 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
 @web_maybe_authenticated_user
 async def workshop_login(request, userdata):
     session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, userdata, 'notebook2')
-    if 'message' in session:
-        context['message'] = session.pop('message')
-    return context
+    return base_context(deploy_config, session, userdata, 'notebook2')
 
 
 @routes.post('/workshop')
@@ -389,10 +390,10 @@ async def workshop_login_post(request):
             workshops = await cursor.fetchall()
 
     def forbidden():
-        session['message'] = {
-            'text': 'No such workshop.',
-            'type': 'error'
-        }
+        set_message(
+            session,
+            'No such workshop.  Check the workshop name and password and try again.',
+            'error')
         raise web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop'))
 
     if len(workshops) != 1:
@@ -422,7 +423,8 @@ async def workshop_admin(request, userdata):
             await cursor.execute('SELECT * FROM workshops')
             workshops = await cursor.fetchall()
 
-    context = base_context(deploy_config, userdata, 'notebook2')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook2')
     context['token'] = token
     context['workshops'] = workshops
     response = aiohttp_jinja2.render_template('workshop/admin.html',
@@ -440,15 +442,20 @@ async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = app['dbpool']
 
     post = await request.post()
+    name = post['name']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
 INSERT INTO workshops (name, image, password, active) VALUES (%s, %s, %s, %s);
 ''',
-                                 (post['name'],
+                                 (name,
                                   post['image'],
                                   post['password'],
                                   post.get('active') == 'on'))
+
+    session = await aiohttp_session.get_session(request)
+    set_message(session, f'Created workshop {name}.', 'info')
+
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
 
@@ -460,12 +467,13 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = app['dbpool']
 
     post = await request.post()
+    name = post['name']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             n = await cursor.execute('''
 UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id = %s;
 ''',
-                                     (post['name'],
+                                     (name,
                                       post['image'],
                                       post['password'],
                                       post.get('active') == 'on',
@@ -473,6 +481,9 @@ UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id 
             if n == 0:
                 raise web.HTTPNotFound()
             assert n == 1
+
+    session = await aiohttp_session.get_session(request)
+    set_message(session, f'Updated workshop {name}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
@@ -485,12 +496,15 @@ async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = app['dbpool']
 
     post = await request.post()
+    name = post['name']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
 DELETE FROM workshops WHERE name = %s;
-''',
-                                 post['name'])
+''', name)
+
+    session = await aiohttp_session.get_session(request)
+    set_message(session, f'Deleted workshop {name}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 

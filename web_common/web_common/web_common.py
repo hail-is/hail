@@ -33,8 +33,16 @@ def setup_common_static_routes(routes):
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
 
-def base_context(deploy_config, userdata, service):
-    return {
+def set_message(session, text, type):
+    assert type in ('info', 'error')
+    session['message'] = {
+        'text': text,
+        'type': type
+    }
+
+
+def base_context(deploy_config, session, userdata, service):
+    context = {
         'base_path': deploy_config.base_path(service),
         'base_url': deploy_config.external_url(service, ''),
         'notebook_base_url': deploy_config.external_url('notebook2', ''),
@@ -44,3 +52,6 @@ def base_context(deploy_config, userdata, service):
         'scorecard_base_url': deploy_config.external_url('scorecard', ''),
         'userdata': userdata
     }
+    if 'message' in session:
+        context['message'] = session.pop('message')
+    return context
