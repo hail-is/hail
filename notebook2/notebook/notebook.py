@@ -239,7 +239,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     return context
 
 
-def _get_notebook(request, userdata, workshop=False):
+async def _get_notebook(request, userdata, workshop=False):
     notebook_session_key = 'workshop_notebook' if workshop else 'notebook'
     notebook_base_path = '/workshop/notebook' if workshop else '/notebook'
 
@@ -267,7 +267,7 @@ def _get_notebook(request, userdata, workshop=False):
     return response
 
 
-def _post_notebook(request, userdata, workshop=False):
+async def _post_notebook(request, userdata, workshop=False):
     notebook_session_key = 'workshop_notebook' if workshop else 'notebook'
     notebook_base_path = '/workshop/notebook' if workshop else '/notebook'
 
@@ -278,7 +278,7 @@ def _post_notebook(request, userdata, workshop=False):
     return web.HTTPFound(location=deploy_config.external_url('notebook2', notebook_base_path))
 
 
-def _delete_notebook(request, workshop=False):
+async def _delete_notebook(request, workshop=False):
     notebook_session_key = 'workshop_notebook' if workshop else 'notebook'
     notebook_base_path = '/workshop/notebook' if workshop else '/notebook'
 
@@ -295,21 +295,21 @@ def _delete_notebook(request, workshop=False):
 @routes.get('/notebook')
 @web_authenticated_users_only()
 async def get_notebook(request, userdata):
-    return _get_notebook(request, userdata)
+    return await _get_notebook(request, userdata)
 
 
 @routes.post('/notebook/delete')
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def delete_notebook(request, userdata):  # pylint: disable=unused-argument
-    return _delete_notebook(request)
+    return await _delete_notebook(request)
 
 
 @routes.post('/notebook')
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def post_notebook(request, userdata):
-    return _post_notebook(request, userdata)
+    return await _post_notebook(request, userdata)
 
 
 @routes.get('/auth/{requested_pod_uuid}')
@@ -636,21 +636,21 @@ async def workshop_login_post(request):
 @routes.get('/workshop/notebook')
 @web_authenticated_workshop_guest()
 def get_workshop_notebook(request, userdata):
-    return _get_notebook(request, userdata, workshop=True)
+    return await _get_notebook(request, userdata, workshop=True)
 
 
 @routes.post('/workshop/notebook')
 @check_csrf_token
 @web_authenticated_workshop_guest(redirect=False)
 async def post_workshop_notebook(request, userdata):
-    return _post_notebook(request, userdata, workshop=True)
+    return await _post_notebook(request, userdata, workshop=True)
 
 
 @routes.post('/workshop/notebook/delete')
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused-argument
-    return _delete_notebook(request, workshop=True)
+    return await _delete_notebook(request, workshop=True)
 
 
 async def on_startup(app):
