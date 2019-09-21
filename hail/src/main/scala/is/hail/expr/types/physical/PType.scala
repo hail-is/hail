@@ -276,17 +276,19 @@ abstract class PType extends BaseType with Serializable {
     t.physicalType
   }
 
-  def deepOptional(): PType =
+  def deepInnerRequired(required: Boolean): PType =
     this match {
-      case t: PArray => PArray(t.elementType.deepOptional())
-      case t: PSet => PSet(t.elementType.deepOptional())
-      case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
+      case t: PArray =>  PArray(t.elementType.deepInnerRequired(true), required)
+      case t: PSet => PSet(t.elementType.deepInnerRequired(true), required)
+      case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
+        PStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
       case t: PTuple =>
-        PTuple(t.types.map(_.deepOptional()): _*)
+        PTuple(required, t.types.map(_.deepInnerRequired(true)): _*)
+      case t: PInterval =>
+        PInterval(t.pointType.deepInnerRequired(true), required)
       case t =>
-        t.setRequired(false)
+        t.setRequired(required)
     }
 
   def unify(concrete: PType): Boolean = {
