@@ -243,12 +243,12 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 def get_config(workshop):
     if workshop:
         return {
-            'session_key': 'workshop_notebook'
+            'session_key': 'workshop_notebook',
             'notebook_base_path': deploy_config.base_path('notebook2', '/workshop/notebook')
         }
     else:
         return {
-            'session_key': 'notebook'
+            'session_key': 'notebook',
             'notebook_base_path': deploy_config.base_path('notebook2', '/notebook')
         }
 
@@ -263,10 +263,10 @@ async def _get_notebook(request, userdata, workshop=False):
     session = await aiohttp_session.get_session(request)
     session_key = config['session_key']
     if notebook:
-        session[notebook_session_key] = notebook
+        session[session_key] = notebook
     else:
-        if notebook_session_key in session:
-            del session[notebook_session_key]
+        if session_key in session:
+            del session[session_key]
 
     context = base_context(deploy_config, session, userdata, 'notebook2')
     context['token'] = token
