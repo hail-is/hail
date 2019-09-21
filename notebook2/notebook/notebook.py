@@ -369,9 +369,8 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
 async def workshop_login(request, userdata):
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, userdata, 'notebook2')
-    message = session.pop('message')
-    if message:
-        context['message'] = message
+    if 'message' in session:
+        context['message'] = session.pop('message')
     return context
 
 
