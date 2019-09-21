@@ -69,7 +69,7 @@ def concordance():
 @benchmark
 def genetics_pipeline():
     mt = get_mt()
-    mt = mt.split_multi_hts(mt)
+    mt = hl.split_multi_hts(mt)
     mt = hl.variant_qc(mt)
     mt = hl.sample_qc(mt)
     mt = mt.filter_cols(mt.sample_qc.call_rate > 0.95)

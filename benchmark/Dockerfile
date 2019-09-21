@@ -2,7 +2,8 @@ FROM ubuntu:18.04
 
 ENV LANG C.UTF-8
 
-ARG WHEEL
+ARG BENCHMARK_WHEEL
+ARG HAIL_WHEEL
 
 RUN apt-get update && \
   apt-get -y install \
@@ -26,5 +27,8 @@ RUN pip3 install -r requirements.txt
 
 RUN pip3 install aiomysql
 
-COPY $WHEEL .
-RUN pip3 install $WHEEL
+COPY $BENCHMARK_WHEEL .
+RUN pip3 install $BENCHMARK_WHEEL
+
+COPY $HAIL_WHEEL .
+RUN pip3 install $HAIL_WHEEL
