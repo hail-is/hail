@@ -69,6 +69,12 @@ a {
     }
 }
 
+.disabled-header-item {
+    padding: 15px 15px;
+    color: $devil-gray;
+    white-space: nowrap;
+}
+
 .button-header-link {
     /* remove button styling, add link, header-link styling */
     border: none;

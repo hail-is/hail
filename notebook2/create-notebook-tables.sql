@@ -4,6 +4,7 @@ CREATE TABLE `workshops` (
   `image` varchar(255),
   `password` varchar(255),
   `active` tinyint(1) DEFAULT 0,
+  `token` varchar(255),
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
 ) ENGINE=InnoDB;

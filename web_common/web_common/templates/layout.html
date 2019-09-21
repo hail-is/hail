@@ -11,7 +11,11 @@
   </head>
   <body>
     <div id="main">
-      {% include 'header.html' %}
+      {% if workshop is defined and workshop %}
+        {% include 'workshop/header.html' %}
+      {% else %}
+        {% include 'header.html' %}
+      {% endif %}
       <div id="content">
 	{% if message is defined %}
 	  <div id="message" class="message-{{ message['type'] }}">
