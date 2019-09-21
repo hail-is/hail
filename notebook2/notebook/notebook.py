@@ -551,8 +551,8 @@ async def get_workshop_userdata(request):
 
 def web_maybe_authenticated_workshop_guest(fun):
     @wraps(fun)
-    def wrapped(request, *args, **kwargs):
-        return fun(request, await get_workshop_userdata(request), *args, **kwargs)
+    async def wrapped(request, *args, **kwargs):
+        return await fun(request, await get_workshop_userdata(request), *args, **kwargs)
     return wrapped
 
 
@@ -560,11 +560,11 @@ def web_authenticated_workshop_guest(redirect=True):  # pylint: disable=unused-a
     def wrap(fun):
         @web_maybe_authenticated_workshop_guest
         @wraps(fun)
-        def wrapped(request, userdata, *args, **kwargs):
+        async def wrapped(request, userdata, *args, **kwargs):
             if not userdata:
                 # FIXME redirect
                 raise web.HTTPUnauthorized()
-            return fun(request, userdata, *args, **kwargs)
+            return await fun(request, userdata, *args, **kwargs)
         return wrapped
     return wrap
 
@@ -579,7 +579,7 @@ async def get_workshop_index(request, userdata):  # pylint: disable=unused-argum
 
 @routes.get('/workshop/login')
 @web_maybe_authenticated_workshop_guest
-def workshop_login(request, userdata):
+async def workshop_login(request, userdata):
     if userdata:
         return web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
 
@@ -638,7 +638,7 @@ async def workshop_login_post(request):
 
 @routes.get('/workshop/notebook')
 @web_authenticated_workshop_guest()
-def get_workshop_notebook(request, userdata):
+async def get_workshop_notebook(request, userdata):
     return await _get_notebook(request, userdata, workshop=True)
 
 
