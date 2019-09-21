@@ -189,9 +189,9 @@ object InferPType {
         val elt = coerce[PBaseStruct](coerce[PIterable](a.pType2).elementType)
         // Dict key/value types don't depend on PIterable's requiredeness because we have an interface guarantee that
         // null PIterables are filtered out before dict construction
-        val typeRequired = elt.types(0).required
+        val keyRequired = elt.types(0).required
         val valRequired =  elt.types(1).required
-        PDict(elt.types(0).setRequired(typeRequired), elt.types(1).setRequired(valRequired), a.pType2.required)
+        PDict(elt.types(0).setRequired(keyRequired), elt.types(1).setRequired(valRequired), a.pType2.required)
       }
       case ToArray(a) => {
         InferPType(a, env)
@@ -299,7 +299,7 @@ object InferPType {
 
           assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
 
-          if(allRequired == true && idxIR.pType2.required == false) {
+          if (allRequired == true && idxIR.pType2.required == false) {
             allRequired = false
           }
         }
@@ -361,7 +361,7 @@ object InferPType {
           v._2.pType2
       }):_*)
       case MakeArray(irs, t) => {
-        if(irs.length == 0) {
+        if (irs.length == 0) {
           PType.canonical(t, true).deepInnerRequired(true)
         } else {
           val elementTypes = irs.map { elt =>
