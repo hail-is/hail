@@ -1411,7 +1411,7 @@ class IRSuite extends HailSuite {
       PSet(PSet(PInt32(false), true), true)
     )
     res = InferPType.getNestedElementPTypes(types)
-    assert(res == PSet(PSet(PInt32(false), false), true))
+    assert(res == PSet(PSet(PInt32(false), true), true))
 
     types = Seq(
       PSet(PSet(PInt32(true), false), true),
@@ -1457,7 +1457,7 @@ class IRSuite extends HailSuite {
       PInterval(PInt32(true), false)
     )
     res = InferPType.getNestedElementPTypes(types)
-    assert(res == PInterval(PInt32(false), true))
+    assert(res == PInterval(PInt32(true), false))
 
     types = Seq(
       PInterval(PInt32(false), true),
