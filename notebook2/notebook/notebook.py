@@ -244,11 +244,11 @@ def get_config(workshop):
     if workshop:
         return {
             'session_key': 'workshop_notebook',
-            'notebook_base_path': deploy_config.base_path('notebook2', '/workshop/notebook')
+            'notebook_base_path': deploy_config.base_path('notebook2') + '/workshop/notebook'
         }
     return {
         'session_key': 'notebook',
-        'notebook_base_path': deploy_config.base_path('notebook2', '/notebook')
+        'notebook_base_path': deploy_config.base_path('notebook2') + '/notebook'
     }
 
 
