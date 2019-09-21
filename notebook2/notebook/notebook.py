@@ -418,7 +418,7 @@ async def workshop_admin(request, userdata):
     context = base_context(deploy_config, session, userdata, 'notebook2')
     context['token'] = token
     context['workshops'] = workshops
-    response = aiohttp_jinja2.render_template('workshop/admin.html',
+    response = aiohttp_jinja2.render_template('workshop-admin.html',
                                               request,
                                               context)
     response.set_cookie('_csrf', token, secure=True, httponly=True)
@@ -579,7 +579,7 @@ async def get_workshop_index(request, userdata):  # pylint: disable=unused-argum
 
 @routes.get('/workshop/login')
 @web_maybe_authenticated_workshop_guest
-async def workshop_login(request, userdata):
+async def get_workshop_login(request, userdata):
     if userdata:
         return web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
 
@@ -598,7 +598,7 @@ async def workshop_login(request, userdata):
 
 @routes.post('/workshop/login')
 @check_csrf_token
-async def workshop_login_post(request):
+async def post_workshop_login(request):
     session = await aiohttp_session.get_session(request)
     dbpool = request.app['dbpool']
 
