@@ -28,9 +28,9 @@ def main(args_):
     parser.add_argument("--log", "-l",
                         type=str,
                         help='Log file path')
-    parser.add_argument("--verbose", "-v",
+    parser.add_argument("--quiet", "-q",
                         action="store_true",
-                        help="Print testing information to stderr in real time.")
+                        help="Do not print testing information to stderr in real time.")
     parser.add_argument("--output", "-o",
                         type=str,
                         help="Output file path.")
@@ -52,7 +52,7 @@ def main(args_):
     def handler(stats):
         records.append(stats)
 
-    config = RunConfig(args.n_iter, handler, args.verbose)
+    config = RunConfig(args.n_iter, handler, not args.quiet)
     if args.tests:
         run_list(args.tests.split(','), config)
     if args.pattern:

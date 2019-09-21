@@ -27,7 +27,12 @@ def fmt_time(x, size):
     return f'{x:.3f}'.rjust(size)
 
 
-def compare(run1, run2):
+def compare(args):
+    run1 = args.run1
+    run2 = args.run2
+
+    min_time_for_inclusion = args.min_time
+
     data1 = load_file(run1)
     data2 = load_file(run2)
 
@@ -39,6 +44,14 @@ def compare(run1, run2):
 
     if diff:
         sys.stderr.write(f"Found non-overlapping benchmarks:" + ''.join(f'\n    {t}' for t in diff) + '\n')
+
+    if args.metric == 'best':
+        metric_f = min
+    elif args.metric == 'median':
+        metric_f = np.median
+
+    def get_metric(data):
+        return metric_f(data['times'])
 
     failed_1 = []
     failed_2 = []
@@ -54,9 +67,12 @@ def compare(run1, run2):
             failed_2.append(name)
         if d1_failed or d2_failed:
             continue
-        run1_med = d1['median']
-        run2_med = d2['median']
-        comparison.append((name, run1_med, run2_med))
+        run1_metric = get_metric(d1)
+        run2_metric = get_metric(d2)
+        if run1_metric < min_time_for_inclusion and run2_metric < min_time_for_inclusion:
+            continue
+
+        comparison.append((name, run1_metric, run2_metric))
 
     if failed_1:
         sys.stderr.write(f"Failed benchmarks in run 1:" + ''.join(f'\n    {t}' for t in failed_1) + '\n')
