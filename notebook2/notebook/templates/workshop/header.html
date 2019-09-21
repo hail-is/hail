@@ -1,0 +1,17 @@
+<div id="header">
+  <a class="header-link" href="{{ notebook_base_url }}/workshop/notebook">
+    Notebook
+  </a>
+
+  <div id="header-flex"></div>
+
+  <span class="disabled-header-item">
+    <b>{{ workshop }}</b>
+  </span>
+  |
+  <form action="{{ base_url }}/workshop/logout" method="POST">
+    <button class="button-header-link" type="submit">
+      Log out
+    </button>
+  </form>
+</div>
