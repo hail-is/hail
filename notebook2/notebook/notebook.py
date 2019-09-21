@@ -367,7 +367,49 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
 @aiohttp_jinja2.template('workshop/index.html')
 @web_maybe_authenticated_user
 async def workshop_login(request, userdata):
-    return base_context(deploy_config, userdata, 'notebook2')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, userdata, 'notebook2')
+    message = session.pop('message')
+    if message:
+        context['message'] = message
+    return context
+
+
+@routes.post('/workshop')
+async def workshop_login_post(request):
+    session = await aiohttp_session.get_session(request)
+    dbpool = request.app['dbpool']
+
+    post = await request.post()
+    name = post['name']
+    password = post['password']
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM workshops where name = %s', name)
+            workshops = await cursor.fetchall()
+
+    def forbidden():
+        session['message'] = {
+            'text': 'No such workshop.',
+            'type': 'error'
+        }
+        raise web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop'))
+
+    if len(workshops) != 1:
+        forbidden()
+    workshop = workshops[0]
+
+    if workshop['password'] != password:
+        forbidden()
+
+    session['message'] = {
+        'text': 'Joined workshop.',
+        'type': 'info'
+    }
+
+    raise web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop'))
+
 
 @routes.get('/workshop/admin')
 @web_authenticated_developers_only()

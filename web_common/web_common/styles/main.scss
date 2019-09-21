@@ -146,6 +146,26 @@ a {
     color: #6a737d;
 }
 
+#message {
+    border: 1px solid;
+    border-radius: 3px;
+}
+
+.message-error {
+    color: red;
+    border-color: red;
+}
+
+.message-info {
+    color: green;
+    border-color: green;
+}
+
+.dangerous {
+    color: red;
+    border-color: red;
+}
+
 .attributes {
     margin-left: 1rem;
 }

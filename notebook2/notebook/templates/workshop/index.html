@@ -1,8 +1,14 @@
 {% extends "layout.html" %}
 {% block title %}Join Workshop{% endblock %}
 {% block content %}
+  {% if message is defined %}
+    <div id="message" class="message-{{ message['type'] }}">
+      {{ message['text'] }}
+    </div>
+  {% endif %}
+
   <div id="workshop-login" class="vcenter">
-    <form action="{{ base_path }}/workshop/join" method="POST">
+    <form action="{{ base_path }}/workshop" method="POST">
       <table>
 	<tr>
 	  <td align="right">Workshop name:</td>
@@ -17,6 +23,7 @@
 	    Join
 	  </button>
 	</tr>
-    </table>
+      </table>
+    </form>
   </div>
 {% endblock %}
