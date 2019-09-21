@@ -240,15 +240,28 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     return context
 
 
+def get_config(workshop):
+    if workshop:
+        return {
+            'session_key': 'workshop_notebook'
+            'notebook_base_path': deploy_config.base_path('notebook2', '/workshop/notebook')
+        }
+    else:
+        return {
+            'session_key': 'notebook'
+            'notebook_base_path': deploy_config.base_path('notebook2', '/notebook')
+        }
+
+
 async def _get_notebook(request, userdata, workshop=False):
-    notebook_session_key = 'workshop_notebook' if workshop else 'notebook'
-    notebook_base_path = '/workshop/notebook' if workshop else '/notebook'
+    config = get_config(workshop)
 
     k8s = request.app['k8s_client']
     notebook = await get_live_notebook(k8s, userdata)
     token = new_csrf_token()
 
     session = await aiohttp_session.get_session(request)
+    session_key = config['session_key']
     if notebook:
         session[notebook_session_key] = notebook
     else:
@@ -258,7 +271,7 @@ async def _get_notebook(request, userdata, workshop=False):
     context = base_context(deploy_config, session, userdata, 'notebook2')
     context['token'] = token
     context['notebook'] = notebook
-    context['notebook_base_path'] = notebook_base_path
+    context['notebook_base_path'] = config['notebook_base_path']
     if workshop:
         context['workshop'] = workshop
     response = aiohttp_jinja2.render_template('notebook.html',
@@ -269,28 +282,26 @@ async def _get_notebook(request, userdata, workshop=False):
 
 
 async def _post_notebook(request, userdata, workshop=False):
-    notebook_session_key = 'workshop_notebook' if workshop else 'notebook'
-    notebook_base_path = '/workshop/notebook' if workshop else '/notebook'
-
+    config = get_config(workshop)
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
     pod = await start_pod(k8s, userdata)
-    session[notebook_session_key] = pod_to_ui_dict(pod)
-    return web.HTTPFound(location=deploy_config.external_url('notebook2', notebook_base_path))
+    session[config['session_key']] = pod_to_ui_dict(pod)
+    return web.HTTPFound(
+        location=deploy_config.external_url('notebook2', config['notebook_base_path']))
 
 
 async def _delete_notebook(request, workshop=False):
-    notebook_session_key = 'workshop_notebook' if workshop else 'notebook'
-    notebook_base_path = '/workshop/notebook' if workshop else '/notebook'
-
+    config = get_config(workshop)
     k8s = request.app['k8s_client']
     session = await aiohttp_session.get_session(request)
-    notebook = session.get(notebook_session_key)
+    session_key = config['session_key']
+    notebook = session.get(session_key)
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
-        del session[notebook_session_key]
+        del session[session_key]
 
-    return web.HTTPFound(location=deploy_config.external_url('notebook2', notebook_base_path))
+    return web.HTTPFound(location=deploy_config.external_url('notebook2', config['notebook_base_path']))
 
 
 @routes.get('/notebook')
