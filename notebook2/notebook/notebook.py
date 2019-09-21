@@ -363,6 +363,12 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
     return context
 
 
+@routes.get('/workshop')
+@aiohttp_jinja2.template('workshop/index.html')
+@web_maybe_authenticated_user
+async def workshop_login(request, userdata):
+    return base_context(deploy_config, userdata, 'notebook2')
+
 @routes.get('/workshop/admin')
 @web_authenticated_developers_only()
 async def workshop_admin(request, userdata):

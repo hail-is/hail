@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block title %}Join Workshop{% endblock %}
+{% block content %}
+  <div id="workshop-login" class="vcenter">
+    <form action="{{ base_path }}/workshop/join" method="POST">
+      <table>
+	<tr>
+	  <td align="right">Workshop name:</td>
+	  <td><input name="name" /></td>
+	</tr>
+	<tr>
+	  <td align="right">Password:</td>
+	  <td><input name="password" /></td>
+	</tr>
+	<tr align="center" colspan="2">
+	  <button>
+	    Join
+	  </button>
+	</tr>
+    </table>
+  </div>
+{% endblock %}
