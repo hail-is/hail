@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+from functools import wraps
 import asyncio
 import pymysql
 import aiohttp
@@ -476,6 +477,7 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             active = (post.get('active') == 'on')
+            # FIXME don't set token unless re-activating
             if active:
                 token = uuid.uuid4().hex
             else:
@@ -523,7 +525,7 @@ DELETE FROM workshops WHERE name = %s;
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop-admin'))
 
 
-def get_workshop_userdata(request):
+async def get_workshop_userdata(request):
     session = await aiohttp_session.get_session(request)
 
     if 'workshop_session' not in session:
@@ -548,18 +550,19 @@ def get_workshop_userdata(request):
 
 
 def web_maybe_authenticated_workshop_guest(fun):
+    @wraps(fun)
     def wrapped(request, *args, **kwargs):
-        userdata = get_workshop_userdata(request)
-        fun(request, userdata, *args, **kwargs)
+        return fun(request, await get_workshop_userdata(request), *args, **kwargs)
     return wrapped
 
 
-# FIXME
 def web_authenticated_workshop_guest(redirect=True):  # pylint: disable=unused-argument
     def wrap(fun):
-        def wrapped(request, *args, **kwargs):
-            userdata = get_workshop_userdata(request)
+        @web_maybe_authenticated_workshop_guest
+        @wraps(fun)
+        def wrapped(request, userdata, *args, **kwargs):
             if not userdata:
+                # FIXME redirect
                 raise web.HTTPUnauthorized()
             return fun(request, userdata, *args, **kwargs)
         return wrapped
