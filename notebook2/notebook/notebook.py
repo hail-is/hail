@@ -480,7 +480,6 @@ UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id 
                                       post['id']))
             if n == 0:
                 raise web.HTTPNotFound()
-            assert n == 1
 
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Updated workshop {name}.', 'info')
@@ -499,12 +498,15 @@ async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     name = post['name']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('''
+            n = await cursor.execute('''
 DELETE FROM workshops WHERE name = %s;
 ''', name)
 
     session = await aiohttp_session.get_session(request)
-    set_message(session, f'Deleted workshop {name}.', 'info')
+    if n == 1:
+        set_message(session, f'Deleted workshop {name}.', 'info')
+    else:
+        set_message(session, f'Worksohp {name} not found.', 'error')
 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 

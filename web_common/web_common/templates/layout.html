@@ -12,12 +12,12 @@
   <body>
     <div id="main">
       {% include 'header.html' %}
-      {% if message is defined %}
-	<div id="message" class="message-{{ message['type'] }}">
-	  {{ message['text'] }}
-	</div>
-      {% endif %}
       <div id="content">
+	{% if message is defined %}
+	  <div id="message" class="message-{{ message['type'] }}">
+	    {{ message['text'] }}
+	  </div>
+	{% endif %}
         {%block content %}{% endblock %}
       </div>
     </div>
