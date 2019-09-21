@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 import asyncio
+import pymysql
 import aiohttp
 from aiohttp import web
 import aiohttp_session
@@ -403,10 +404,7 @@ async def workshop_login_post(request):
     if workshop['password'] != password:
         forbidden()
 
-    session['message'] = {
-        'text': 'Joined workshop.',
-        'type': 'info'
-    }
+    set_message(session, 'Joined workshop.', 'info')
 
     raise web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop'))
 
@@ -440,21 +438,28 @@ async def workshop_admin(request, userdata):
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
+    session = await aiohttp_session.get_session(request)
 
     post = await request.post()
     name = post['name']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('''
+            try:
+                await cursor.execute('''
 INSERT INTO workshops (name, image, password, active) VALUES (%s, %s, %s, %s);
 ''',
-                                 (name,
-                                  post['image'],
-                                  post['password'],
-                                  post.get('active') == 'on'))
-
-    session = await aiohttp_session.get_session(request)
-    set_message(session, f'Created workshop {name}.', 'info')
+                                     (name,
+                                      post['image'],
+                                      post['password'],
+                                      post.get('active') == 'on'))
+                set_message(session, f'Created workshop {name}.', 'info')
+            except pymysql.err.IntegrityError as e:
+                if e.args[0] == 1062:  # duplicate error
+                    set_message(session,
+                                f'Cannot create workshop {name}: duplicate name.',
+                                'error')
+                else:
+                    raise
 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
@@ -468,6 +473,8 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
 
     post = await request.post()
     name = post['name']
+    id = post['id']
+    session = await aiohttp_session.get_session(request)
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             n = await cursor.execute('''
@@ -477,12 +484,13 @@ UPDATE workshops SET name = %s, image = %s, password = %s, active = %s WHERE id 
                                       post['image'],
                                       post['password'],
                                       post.get('active') == 'on',
-                                      post['id']))
+                                      id))
             if n == 0:
-                raise web.HTTPNotFound()
-
-    session = await aiohttp_session.get_session(request)
-    set_message(session, f'Updated workshop {name}.', 'info')
+                set_message(session,
+                            f'Internal error: cannot update workshop: workshop ID {id} not found.',
+                            'error')
+            else:
+                set_message(session, f'Updated workshop {name}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
@@ -506,7 +514,7 @@ DELETE FROM workshops WHERE name = %s;
     if n == 1:
         set_message(session, f'Deleted workshop {name}.', 'info')
     else:
-        set_message(session, f'Worksohp {name} not found.', 'error')
+        set_message(session, f'Workshop {name} not found.', 'error')
 
     return web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/admin'))
 
