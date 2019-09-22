@@ -11,7 +11,7 @@ import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
     rest_authenticated_users_only, \
-    web_maybe_authenticated_user, create_session
+    web_maybe_authenticated_user, create_session, check_csrf_token
 
 log = logging.getLogger('auth')
 

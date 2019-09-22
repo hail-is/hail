@@ -276,7 +276,7 @@ async def _get_notebook(request, userdata, workshop=False):
     response = aiohttp_jinja2.render_template('notebook.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 
@@ -438,7 +438,7 @@ async def workshop_admin(request, userdata):
     response = aiohttp_jinja2.render_template('workshop-admin.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 
@@ -606,7 +606,7 @@ async def get_workshop_login(request, userdata):
     response = aiohttp_jinja2.render_template('workshop/login.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 
