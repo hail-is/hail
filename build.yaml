@@ -403,22 +403,22 @@ steps:
     - hail_base_image
     - default_ns
  - kind: buildImage
-   name: notebook2_image
-   dockerFile: notebook2/Dockerfile
+   name: notebook_image
+   dockerFile: notebook/Dockerfile
    contextPath: .
-   publishAs: notebook2
+   publishAs: notebook
    dependsOn:
     - service_base_image
  - kind: runImage
-   name: check_notebook2
+   name: check_notebook
    image:
-     valueFrom: notebook2_image.image
+     valueFrom: notebook_image.image
    script: |
      set -ex
      python3 -m flake8 notebook
      python3 -m pylint --rcfile pylintrc notebook
    dependsOn:
-     - notebook2_image
+     - notebook_image
  - kind: runImage
    name: test_hail_python
    image:
@@ -506,7 +506,7 @@ steps:
    config: router/deployment.yaml
    link:
     - www
-    - notebook2
+    - notebook
     - ci
    dependsOn:
     - default_ns
@@ -781,15 +781,15 @@ steps:
     - default_ns
  - kind: buildImage
    name: create_notebook_tables_image
-   dockerFile: notebook2/Dockerfile.create-tables
-   contextPath: notebook2
+   dockerFile: notebook/Dockerfile.create-tables
+   contextPath: notebook
    dependsOn:
     - base_image
  - kind: deploy
    name: create_notebook_tables
    namespace:
      valueFrom: default_ns.name
-   config: notebook2/create-notebook-tables-pod.yaml
+   config: notebook/create-notebook-tables-pod.yaml
    wait:
     - kind: Pod
       name: create-notebook-tables
@@ -800,14 +800,14 @@ steps:
      - create_notebook_tables_image
      - notebook_database
  - kind: deploy
-   name: deploy_notebook2
+   name: deploy_notebook
    namespace:
      valueFrom: default_ns.name
-   config: notebook2/deployment.yaml
+   config: notebook/deployment.yaml
    dependsOn:
     - default_ns
     - create_session_key
-    - notebook2_image
+    - notebook_image
     - deploy_router
     - deploy_auth
     - create_notebook_tables

@@ -27,19 +27,19 @@ roleRef:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: notebook2
+  name: notebook
   labels:
-    app: notebook2
+    app: notebook
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: notebook2
+      app: notebook
   replicas: 1
   template:
     metadata:
       labels:
-        app: notebook2
+        app: notebook
         hail.is/sha: "{{ code.sha }}"
     spec:
       serviceAccountName: notebook
@@ -47,8 +47,8 @@ spec:
       priorityClassName: production
 {% endif %}
       containers:
-       - name: notebook2
-         image: "{{ notebook2_image.image }}"
+       - name: notebook
+         image: "{{ notebook_image.image }}"
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
@@ -56,7 +56,7 @@ spec:
             value: "{{ global.domain }}"
           - name: HAIL_NOTEBOOK_NAMESPACE
             value: "{{ default_ns.name }}"
-          - name: HAIL_NOTEBOOK2_WORKER_IMAGE
+          - name: HAIL_NOTEBOOK_WORKER_IMAGE
             value: gcr.io/hail-vdc/hail-jupyter:latest
          ports:
           - containerPort: 5000
@@ -87,13 +87,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: notebook2
+  name: notebook
   labels:
-    app: notebook2
+    app: notebook
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: notebook2
+    app: notebook

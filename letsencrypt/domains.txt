@@ -1,7 +1,6 @@
 @domain@
 ci.@domain@
 notebook.@domain@
-notebook2.@domain@
 scorecard.@domain@
 www.@domain@
 batch.@domain@

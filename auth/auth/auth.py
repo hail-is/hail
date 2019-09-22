@@ -48,7 +48,7 @@ async def get_index(request):  # pylint: disable=unused-argument
 @routes.get('/login')
 @web_maybe_authenticated_user
 async def login(request, userdata):
-    next = request.query.get('next', deploy_config.external_url('notebook2', ''))
+    next = request.query.get('next', deploy_config.external_url('notebook', ''))
     if userdata:
         return aiohttp.web.HTTPFound(next)
 
@@ -106,7 +106,7 @@ async def callback(request):
 @web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('notebook2', ''))
+        return web.HTTPFound(deploy_config.external_url('notebook', ''))
 
     dbpool = request.app['dbpool']
     session_id = userdata['session_id']
@@ -118,7 +118,7 @@ async def logout(request, userdata):
     if 'session_id' in session:
         del session['session_id']
 
-    return web.HTTPFound(deploy_config.external_url('notebook2', ''))
+    return web.HTTPFound(deploy_config.external_url('notebook', ''))
 
 
 @routes.get('/api/v1alpha/login')
