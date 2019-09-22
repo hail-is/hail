@@ -5,7 +5,6 @@ steps:
    public: true
    secrets:
     - hail-vdc-sa-key
-    - notebook-secrets
     - gcr-pull-key
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
