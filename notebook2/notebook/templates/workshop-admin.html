@@ -38,7 +38,7 @@
               </td>
               <input type="hidden" name="id" value="{{ workshop['id'] }}" />
               <input type="hidden" name="name" value="{{ workshop['name'] }}" />
-              <input type="hidden" name="_csrf" value="{{ token }}"/>
+              <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
             </tr>
           </form>
         {% endfor %}
@@ -60,7 +60,7 @@
                 Add
               </button>
             </td>
-            <input type="hidden" name="_csrf" value="{{ token }}"/>
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
           </tr>
         </form>
       </tbody>
@@ -69,7 +69,7 @@
     <form action="{{ base_path }}/workshop-admin-delete" method="POST">
       <label for="name">Workshop name:</label>
       <input type="text" name="name">
-      <input type="hidden" name="_csrf" value="{{ token }}"/>
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button class="dangerous" type="submit">Delete</button>
     </form>
   </div>

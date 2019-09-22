@@ -83,13 +83,13 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         }
         wb_configs.append(wb_config)
 
-    token = new_csrf_token()
+    csrf_token = new_csrf_token()
 
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'ci')
     context['watched_branches'] = wb_configs
     context['age'] = humanize.naturaldelta(datetime.datetime.now() - start_time)
-    context['token'] = token
+    context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template('index.html',
                                               request,

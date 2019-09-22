@@ -257,7 +257,7 @@ async def _get_notebook(request, userdata, workshop=False):
 
     k8s = request.app['k8s_client']
     notebook = await get_live_notebook(k8s, userdata)
-    token = new_csrf_token()
+    csrf_token = new_csrf_token()
 
     session = await aiohttp_session.get_session(request)
     session_key = config['session_key']
@@ -268,7 +268,7 @@ async def _get_notebook(request, userdata, workshop=False):
             del session[session_key]
 
     context = base_context(deploy_config, session, userdata, 'notebook2')
-    context['token'] = token
+    context['csrf_token'] = csrf_token
     context['notebook'] = notebook
     context['notebook_path'] = config['notebook_path']
     if workshop:
@@ -424,7 +424,7 @@ async def user_page(request, userdata):  # pylint: disable=unused-argument
 async def workshop_admin(request, userdata):
     app = request.app
     dbpool = app['dbpool']
-    token = new_csrf_token()
+    csrf_token = new_csrf_token()
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
@@ -433,7 +433,7 @@ async def workshop_admin(request, userdata):
 
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'notebook2')
-    context['token'] = token
+    context['csrf_token'] = csrf_token
     context['workshops'] = workshops
     response = aiohttp_jinja2.render_template('workshop-admin.html',
                                               request,
@@ -597,11 +597,11 @@ async def get_workshop_login(request, userdata):
     if userdata:
         return web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
 
-    token = new_csrf_token()
+    csrf_token = new_csrf_token()
 
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'notebook2')
-    context['token'] = token
+    context['csrf_token'] = csrf_token
     context['workshop'] = True
     response = aiohttp_jinja2.render_template('workshop/login.html',
                                               request,

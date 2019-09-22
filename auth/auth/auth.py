@@ -102,6 +102,7 @@ async def callback(request):
 
 
 @routes.post('/logout')
+@check_csrf_token
 @web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:

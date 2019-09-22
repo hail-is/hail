@@ -31,7 +31,7 @@
         <span class="small">Created on: {{notebook.creation_date}}</span>
     </a>
     <form action="{{ base_path }}{{ notebook_path }}/delete" method="POST">
-        <input type="hidden" name="_csrf" value="{{ token }}"/>
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
         <button type="submit" class="material-icons nb-close">
             close
         </button>

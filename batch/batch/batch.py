@@ -1165,11 +1165,11 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(params, user)
-    token = new_csrf_token()
+    csrf_token = new_csrf_token()
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'batch')
     context['batch_list'] = batches[::-1]
-    context['token'] = token
+    context['csrf_token'] = csrf_token
     response = aiohttp_jinja2.render_template('batches.html',
                                               request,
                                               context)
