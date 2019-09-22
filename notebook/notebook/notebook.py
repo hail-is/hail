@@ -303,6 +303,60 @@ async def _delete_notebook(request, workshop=False):
     return web.HTTPFound(location=deploy_config.external_url('notebook', config['notebook_path']))
 
 
+async def _wait_websocket(request, workshop=False):
+    config = get_config(workshop)
+    session_key = config['session_key']
+    session = await aiohttp_session.get_session(request)
+    notebook = session.get(session_key)
+
+    if not notebook:
+        return web.HTTPNotFound()
+
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    pod_name = notebook['pod_name']
+    if notebook['pod_ip']:
+        ready_url = deploy_config.external_url('notebook', f'/instance/{notebook["pod_uuid"]}/?token={notebook["jupyter_token"]}')
+        attempts = 0
+        while attempts < 10:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                    async with session.get(ready_url, cookies=request.cookies) as resp:
+                        if resp.status >= 200 and resp.status < 300:
+                            log.info(f'HEAD on jupyter pod {pod_name} succeeded: {resp}')
+                            break
+                        else:
+                            log.info(f'HEAD on jupyter pod {pod_name} failed: {resp}')
+            except aiohttp.ServerTimeoutError:
+                log.info(f'HEAD on jupyter pod {pod_name} timed out')
+
+            await asyncio.sleep(1)
+            attempts += 1
+    else:
+        k8s = request.app['k8s_client']
+
+        log.info(f'jupyter pod {pod_name} no IP')
+        attempts = 0
+        while attempts < 10:
+            try:
+                pod = await k8s.read_namespaced_pod(
+                    name=pod_name,
+                    namespace=NOTEBOOK_NAMESPACE,
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+                if pod.status.pod_ip:
+                    log.info(f'jupyter pod {pod_name} IP {pod.status.pod_ip}')
+                    break
+            except Exception:  # pylint: disable=broad-except
+                log.exception('while getting jupyter pod {pod_name} status')
+            await asyncio.sleep(1)
+            attempts += 1
+
+    await ws.send_str("1")
+
+    return ws
+
+
 @routes.get('/notebook')
 @web_authenticated_users_only()
 async def get_notebook(request, userdata):
@@ -353,51 +407,7 @@ async def worker_image(request):  # pylint: disable=unused-argument
 @routes.get('/wait')
 @web_authenticated_users_only(redirect=False)
 async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
-    k8s = request.app['k8s_client']
-    session = await aiohttp_session.get_session(request)
-    notebook = session.get('notebook')
-
-    if not notebook:
-        return web.HTTPNotFound()
-
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-
-    pod_name = notebook['pod_name']
-    if notebook['pod_ip']:
-        ready_url = deploy_config.external_url('notebook', f'/instance-ready/{notebook["pod_uuid"]}')
-        attempts = 0
-        while attempts < 10:
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
-                    async with session.head(ready_url, cookies=request.cookies) as resp:
-                        if resp.status == 405:
-                            log.info(f'HEAD on jupyter pod {pod_name} succeeded: {resp}')
-                            break
-                        else:
-                            log.info(f'HEAD on jupyter pod {pod_name} failed: {resp}')
-            except aiohttp.ServerTimeoutError:
-                log.info(f'HEAD on jupyter pod {pod_name} timed out')
-
-            await asyncio.sleep(1)
-            attempts += 1
-    else:
-        log.info(f'jupyter pod {pod_name} no IP')
-        attempts = 0
-        while attempts < 10:
-            pod = await k8s.read_namespaced_pod(
-                name=pod_name,
-                namespace=NOTEBOOK_NAMESPACE,
-                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            if pod.status.pod_ip:
-                log.info(f'jupyter pod {pod_name} IP {pod.status.pod_ip}')
-                break
-            await asyncio.sleep(1)
-            attempts += 1
-
-    await ws.send_str("1")
-
-    return ws
+    return _wait_websocket(request)
 
 
 @routes.get('/error')
@@ -642,6 +652,7 @@ async def post_workshop_login(request):
     session['workshop_session'] = {
         'workshop_name': name,
         'workshop_token': workshop['token'],
+        'workshop_image': workshop['workshop_image'],
         'id': uuid.uuid4().hex
     }
 
@@ -660,6 +671,7 @@ async def post_workshop_logout(request):
     # Notebook is inaccessible since login creates a new random user
     # id, so delete it.
     if 'workshop_notebook' in session:
+        k8s = request.app['k8s_client']
         notebook = session['workshop_notebook']
         await delete_worker_pod(k8s, notebook['pod_name'])
         del session['workshop_session']
@@ -685,6 +697,12 @@ async def post_workshop_notebook(request, userdata):
 @web_authenticated_users_only(redirect=False)
 async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused-argument
     return await _delete_notebook(request, workshop=True)
+
+
+@routes.post('/workshop/wait')
+@web_authenticated_workshop_guest
+async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
+    return _wait_websocket(request, workshop=True)
 
 
 async def on_startup(app):

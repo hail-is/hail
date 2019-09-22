@@ -115,14 +115,6 @@ server {
         return 307 $updated_scheme://$updated_host/error$args;
     }
 
-    location ~ @notebook_base_path@/instance-ready/([^/]+) {
-        set $pod_uuid $1;
-        auth_request /auth;
-        auth_request_set $auth_pod_ip $upstream_http_pod_ip;
-
-        proxy_pass http://$auth_pod_ip@notebook_base_path@/instance/$1;
-    }
-
     location / {
         proxy_pass http://notebook;
 
