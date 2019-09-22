@@ -40,7 +40,7 @@
 {% if not ready %}
     <script>
         let protocol = location.protocol.replace("http", "ws")
-        let sock = new WebSocket(protocol + location.host + "{{ base_path }}/wait");
+        let sock = new WebSocket(protocol + location.host + "{{ base_path }}{{ notebook_path }}/wait");
         sock.onmessage = function (event) {
             window.location.reload()
         }
