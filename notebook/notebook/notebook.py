@@ -407,7 +407,7 @@ async def worker_image(request):  # pylint: disable=unused-argument
 @routes.get('/wait')
 @web_authenticated_users_only(redirect=False)
 async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
-    return _wait_websocket(request)
+    return await _wait_websocket(request)
 
 
 @routes.get('/error')
@@ -702,7 +702,7 @@ async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused
 @routes.post('/workshop/wait')
 @web_authenticated_workshop_guest
 async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
-    return _wait_websocket(request, workshop=True)
+    return await _wait_websocket(request, workshop=True)
 
 
 async def on_startup(app):
