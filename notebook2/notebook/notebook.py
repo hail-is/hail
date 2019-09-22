@@ -641,7 +641,7 @@ async def post_workshop_login(request):
         'id': uuid.uuid4().hex
     }
 
-    set_message(session, 'Welcome to the {name} workshop!', 'info')
+    set_message(session, f'Welcome to the {name} workshop!', 'info')
 
     raise web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
 
