@@ -324,12 +324,12 @@ async def _wait_websocket(request, workshop=False):
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
                     async with session.get(ready_url, cookies=request.cookies) as resp:
                         if resp.status >= 200 and resp.status < 300:
-                            log.info(f'HEAD on jupyter pod {pod_name} succeeded: {resp}')
+                            log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
                             break
                         else:
-                            log.info(f'HEAD on jupyter pod {pod_name} failed: {resp}')
+                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
-                log.info(f'HEAD on jupyter pod {pod_name} timed out')
+                log.info(f'GET on jupyter pod {pod_name} timed out')
 
             await asyncio.sleep(1)
             attempts += 1
