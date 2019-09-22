@@ -699,7 +699,7 @@ async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused
     return await _delete_notebook(request, workshop=True)
 
 
-@routes.post('/workshop/notebook/wait')
+@routes.get('/workshop/notebook/wait')
 @web_authenticated_workshop_guest
 async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
     return await _wait_websocket(request, workshop=True)
