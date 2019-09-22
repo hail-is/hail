@@ -404,7 +404,7 @@ async def worker_image(request):  # pylint: disable=unused-argument
     return web.Response(text=DEFAULT_WORKER_IMAGE)
 
 
-@routes.get('/wait')
+@routes.get('/notebook/wait')
 @web_authenticated_users_only(redirect=False)
 async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
     return await _wait_websocket(request)
@@ -699,7 +699,7 @@ async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused
     return await _delete_notebook(request, workshop=True)
 
 
-@routes.post('/workshop/wait')
+@routes.post('/workshop/notebook/wait')
 @web_authenticated_workshop_guest
 async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
     return await _wait_websocket(request, workshop=True)
