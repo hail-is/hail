@@ -328,10 +328,17 @@ async def post_notebook(request, userdata):
 async def auth(request, userdata):  # pylint: disable=unused-argument
     request_pod_uuid = request.match_info['requested_pod_uuid']
     session = await aiohttp_session.get_session(request)
+
     notebook = session.get('notebook')
     if notebook and notebook['pod_uuid'] == request_pod_uuid:
         return web.Response(headers={
             'pod_ip': f"{notebook['pod_ip']}:{POD_PORT}"
+        })
+
+    workshop_notebook = session.get('workshop_notebook')
+    if workshop_notebook and workshop_notebook['pod_uuid'] == request_pod_uuid:
+        return web.Response(headers={
+            'pod_ip': f"{workshop_notebook['pod_ip']}:{POD_PORT}"
         })
 
     return web.HTTPNotFound()
@@ -566,17 +573,14 @@ def web_maybe_authenticated_workshop_guest(fun):
     return wrapped
 
 
-def web_authenticated_workshop_guest(redirect=True):  # pylint: disable=unused-argument
-    def wrap(fun):
-        @web_maybe_authenticated_workshop_guest
-        @wraps(fun)
-        async def wrapped(request, userdata, *args, **kwargs):
-            if not userdata:
-                # FIXME redirect
-                raise web.HTTPUnauthorized()
-            return await fun(request, userdata, *args, **kwargs)
-        return wrapped
-    return wrap
+def web_authenticated_workshop_guest(fun):
+    @web_maybe_authenticated_workshop_guest
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        if not userdata:
+            raise web.HTTPFound(deploy_config.external_url('notebook2', '/workshop/login'))
+        return await fun(request, userdata, *args, **kwargs)
+    return wrapped
 
 
 @routes.get('/workshop')
@@ -643,18 +647,28 @@ async def post_workshop_login(request):
 
     set_message(session, f'Welcome to the {name} workshop!', 'info')
 
-    raise web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
+    return web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
+
+
+@routes.post('/workshop/logout')
+@check_csrf_token
+async def post_workshop_logout(request):
+    session = await aiohttp_session.get_session(request)
+    if 'workshop_notebook' in session:
+        del session['workshop_notebook']
+
+    return web.HTTPFound(location=deploy_config.external_url('notebook2', '/workshop/notebook'))
 
 
 @routes.get('/workshop/notebook')
-@web_authenticated_workshop_guest()
+@web_authenticated_workshop_guest
 async def get_workshop_notebook(request, userdata):
     return await _get_notebook(request, userdata, workshop=True)
 
 
 @routes.post('/workshop/notebook')
 @check_csrf_token
-@web_authenticated_workshop_guest(redirect=False)
+@web_authenticated_workshop_guest
 async def post_workshop_notebook(request, userdata):
     return await _post_notebook(request, userdata, workshop=True)
 
