@@ -652,7 +652,7 @@ async def post_workshop_login(request):
     session['workshop_session'] = {
         'workshop_name': name,
         'workshop_token': workshop['token'],
-        'workshop_image': workshop['workshop_image'],
+        'workshop_image': workshop['image'],
         'id': uuid.uuid4().hex
     }
 
