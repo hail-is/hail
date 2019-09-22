@@ -1089,7 +1089,7 @@ def inbreeding(expr, prior) -> StructExpression:
                     ), _ctx=_agg_func.context)
 
 
-@typecheck(call=expr_call, alleles=expr_array(expr_str))
+@typecheck(call=expr_call, alleles=expr_oneof(expr_int32, expr_array(expr_str)))
 def call_stats(call, alleles) -> StructExpression:
     """Compute useful call statistics.
 
@@ -1138,15 +1138,18 @@ def call_stats(call, alleles) -> StructExpression:
     Parameters
     ----------
     call : :class:`.CallExpression`
-    alleles : :class:`.ArrayStringExpression`
-        Variant alleles.
+    alleles : :class:`.ArrayStringExpression` or :class:`.Int32Expression`
+        Variant alleles array, or number of alleles (including reference).
 
     Returns
     -------
     :class:`.StructExpression`
         Struct expression with fields `AC`, `AF`, `AN`, and `homozygote_count`.
     """
-    n_alleles = hl.len(alleles)
+    if alleles.dtype == tint32:
+        n_alleles = alleles
+    else:
+        n_alleles = hl.len(alleles)
     t = tstruct(AC=tarray(tint32),
                 AF=tarray(tfloat64),
                 AN=tint32,
