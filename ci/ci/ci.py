@@ -94,7 +94,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     response = aiohttp_jinja2.render_template('index.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 
