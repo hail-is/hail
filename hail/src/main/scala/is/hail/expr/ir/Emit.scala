@@ -58,14 +58,13 @@ object Emit {
 }
 
 object AggContainer {
-  def fromFunctionBuilder(aggs: Array[AggSignature2], fb: EmitFunctionBuilder[_], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) = {
-    val region = fb.newField[Region](s"${varPrefix}_top_region")
-    val off = fb.newField[Long](s"${varPrefix}_off")
+  def fromVars(aggs: Array[AggSignature2], fb: EmitFunctionBuilder[_], region: ClassFieldRef[Region], off: ClassFieldRef[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
     val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a).createState(fb)).toArray)
     val aggState = agg.TupleAggregatorState(states, region, off)
 
     val setup = Code(
       region := Region.stagedCreate(Region.REGULAR),
+      region.load().setNumParents(aggs.length),
       off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize),
       states.createStates,
       aggState.newState)
@@ -76,6 +75,8 @@ object AggContainer {
 
     (AggContainer(aggs, aggState), setup, cleanup)
   }
+  def fromFunctionBuilder(aggs: Array[AggSignature2], fb: EmitFunctionBuilder[_], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+    fromVars(aggs, fb, fb.newField[Region](s"${varPrefix}_top_region"), fb.newField[Long](s"${varPrefix}_off"))
 }
 
 case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregatorState) {
