@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderSelfLike, PruneDeadFields}
+import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.nativecode._
@@ -15,22 +16,22 @@ case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   def makeCodecSpec2(pType: PType) = PackCodecSpec2(pType, child)
 }
 
-final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSpec2 {
-  def encodedType: Type = eType.virtualType
+final case class PackCodecSpec2(typ: PType, child: BufferSpec) extends CodecSpec2 {
+  val encodedType: EType = EType.defaultFromPType(typ)
+  def encodedVirtualType: Type = typ.virtualType
 
   def computeSubsetPType(requestedType: Type): PType = {
-    assert(PruneDeadFields.isSupertype(requestedType, eType.virtualType))
+    assert(PruneDeadFields.isSupertype(requestedType, typ.virtualType))
     PType.canonical(requestedType)
   }
 
-  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder = {
-    val f = EmitPackEncoder(t, requestedType)
+  def buildEncoder(t: PType): (OutputStream) => Encoder = {
+    val f = EType.buildEncoder(encodedType, t)
     out: OutputStream => new CompiledEncoder(child.buildOutputBuffer(out), f)
   }
 
   def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder) = {
-    val rt = computeSubsetPType(requestedType)
-    val f = EmitPackDecoder(eType, rt)
+    val (rt, f) = EType.buildDecoder(encodedType, requestedType)
     (rt, (in: InputStream) => new CompiledDecoder(child.buildInputBuffer(in), f))
   }
 
@@ -39,14 +40,14 @@ final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSp
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = child.buildCodeOutputBuffer(os)
 
   def buildEmitDecoderF[T](requestedType: Type, fb: EmitFunctionBuilder[_]): (PType, StagedDecoderF[T]) = {
-    val rt = computeSubsetPType(requestedType)
-    val mb = EmitPackDecoder.buildMethod(eType, rt, fb)
+    val rt = encodedType.decodedPType(requestedType)
+    val mb = encodedType.buildDecoderMethod(rt, fb)
     (rt, (region: Code[Region], buf: Code[InputBuffer]) => mb.invoke[T](region, buf))
   }
 
   def buildEmitEncoderF[T](t: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T] = {
-    val mb = EmitPackEncoder.buildMethod(t, eType, fb)
-    (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
+    val mb = encodedType.buildEncoderMethod(t, fb)
+    (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](off, buf)
   }
 }
 

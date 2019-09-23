@@ -763,8 +763,8 @@ class HailContext private(
       require(annotationType.asInstanceOf[TStruct].hasField(f))
       require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
     }
-    val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(indexSpec.leafCodec.encodedType)
-    val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(indexSpec.internalNodeCodec.encodedType)
+    val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(indexSpec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
     new RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)](sc, Nil) {

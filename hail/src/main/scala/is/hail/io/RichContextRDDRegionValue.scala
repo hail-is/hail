@@ -209,7 +209,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       stageLocally,
       IndexWriter.builder(t.kType, +PStruct()),
       RichContextRDDRegionValue.writeRowsPartition(
-        encoding.buildEncoder(t.rowType, t.rowType),
+        encoding.buildEncoder(t.rowType),
         t.kFieldIdx,
         t.rowType))
   }

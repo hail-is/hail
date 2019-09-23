@@ -112,7 +112,7 @@ class UnsafeSuite extends HailSuite {
 
         val codec2 = codecSpec.makeCodecSpec2(PType.canonical(requestedType))
         val aos2 = new ByteArrayOutputStream()
-        val en2 = codec.buildEncoder(pt, prt)(aos2)
+        val en2 = codec2.buildEncoder(pt)(aos2)
         en2.writeRegionValue(region, offset)
         en2.flush()
 
