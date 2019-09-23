@@ -288,7 +288,7 @@ async def _wait_websocket(request, userdata):
                 async with conn.cursor() as cursor:
                     await cursor.execute(
                         'UPDATE notebooks SET state = %s, pod_ip = %s WHERE user_id = %s;',
-                        (status['state'], status['pod_ip']))
+                        (status['state'], status['pod_ip'], userdata['id']))
             break
         await asyncio.sleep(1)
 
