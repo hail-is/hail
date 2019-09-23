@@ -242,7 +242,7 @@ async def _post_notebook(request, userdata, workshop=False):
             await cursor.execute(
                 '''
 DELETE FROM notebooks WHERE user_id = %s;
-INSERT INTO notebooks (user_id, pod_name, state, pod_ip, jupyter_token) VALUES (%s, %s, %s, %s, %s);
+INSERT INTO notebooks (user_id, notebook_token, pod_name, state, pod_ip, jupyter_token) VALUES (%s, %s, %s, %s, %s);
 ''',
                 (user_id, notebook_token, pod.metadata.name, state, pod.status.pod_ip, jupyter_token))
 

@@ -1,7 +1,7 @@
 CREATE TABLE `notebooks` (
   `user_id` varchar(255) NOT NULL,
   `pod_name` varchar(255) NOT NULL,
-  `pod_token` varchar(255) NOT NULL,
+  `notebook_token` varchar(255) NOT NULL,
   # Scheduling, Initializing, Running, Ready
   `state` varchar(255) NOT NULL,
   `pod_ip` varchar(255),
