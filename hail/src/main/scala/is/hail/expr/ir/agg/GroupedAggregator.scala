@@ -17,7 +17,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   private val kcomp = fb.getCodeOrdering[Int](kt, CodeOrdering.compare, ignoreMissingness = false)
 
   val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
-  val container = new TupleAggregatorState(states, region, containerAddress(offset), regionIdx)
+  val container = TupleAggregatorState(states, region, containerAddress(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -88,7 +88,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   private val _elt = fb.newField[Long]
   private val initStatesOffset: Code[Long] = typ.loadField(off, 0)
-  val initContainer: TupleAggregatorState = new TupleAggregatorState(nested, region, initStatesOffset, 0)
+  val initContainer: TupleAggregatorState = TupleAggregatorState(nested, region, initStatesOffset)
 
   val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
   val tree = new AppendOnlyBTree(fb, keyed, region, root)

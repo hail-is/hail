@@ -43,8 +43,8 @@ object Emit {
     aggs: Option[Array[AggSignature2]]): EmitTriplet = {
     TypeCheck(ir)
     val container = aggs.map { a =>
-      val (c, off) = fb.addAggStates(a)
-      Some(AggContainer(a, c, off))
+      val c = fb.addAggStates(a)
+      Some(AggContainer(a, c))
     }.getOrElse(None)
 
     val baseTriplet = new Emit(fb.apply_method, nSpecialArguments).emit(ir, env, EmitRegion.default(fb.apply_method), container = container)
@@ -56,22 +56,22 @@ object Emit {
   }
 }
 
-case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregatorState, off: Code[Long]) {
+case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregatorState) {
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
       aggs(i).op match {
         case AggElements() | AggElementsLengthCheck() =>
           val state = container.states(i).asInstanceOf[agg.ArrayElementState]
           if (init)
-            AggContainer(n.toArray, state.initContainer, state.initContainer.off)
+            AggContainer(n.toArray, state.initContainer)
           else
-            AggContainer(n.toArray, state.container, state.container.off)
+            AggContainer(n.toArray, state.container)
         case Group() =>
           val state = container.states(i).asInstanceOf[agg.DictState]
           if (init)
-            AggContainer(n.toArray, state.initContainer, state.initContainer.off)
+            AggContainer(n.toArray, state.initContainer)
           else
-            AggContainer(n.toArray, state.keyed.container, state.keyed.container.off)
+            AggContainer(n.toArray, state.keyed.container)
       }
     }
   }
@@ -1059,7 +1059,7 @@ private class Emit(
         }
 
       case InitOp2(i, args, aggSig) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
@@ -1069,7 +1069,7 @@ private class Emit(
           rvAgg.initOp(sc.states(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
@@ -1077,7 +1077,7 @@ private class Emit(
         void(rvAgg.seqOp(sc.states(i), argVars))
 
       case CombOp2(i1, i2, aggSig) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
@@ -1086,7 +1086,7 @@ private class Emit(
 
       case x@ResultOp2(start, aggSigs) =>
         val newRegion = mb.newField[Region]
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)
         val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
           val idx = start + j
@@ -1105,7 +1105,7 @@ private class Emit(
           srvb.offset))
 
       case SerializeAggs(start, sIdx, spec, aggSigs) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         val ob = mb.newField[OutputBuffer]
         val baos = mb.newField[ByteArrayOutputStream]
 
@@ -1122,7 +1122,7 @@ private class Emit(
           sc.store)
 
       case DeserializeAggs(start, sIdx, spec, aggSigs) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         val ib = mb.newField[InputBuffer]
         val bais = mb.newField[ByteArrayInputStream]
 
