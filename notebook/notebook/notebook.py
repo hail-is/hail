@@ -4,7 +4,6 @@ import secrets
 from functools import wraps
 import asyncio
 import pymysql
-import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
@@ -267,7 +266,7 @@ async def _delete_notebook(request, userdata, workshop=False):
     return web.HTTPFound(location=deploy_config.external_url('notebook', notebook_path(workshop)))
 
 
-async def _wait_websocket(request, userdata, workshop=False):
+async def _wait_websocket(request, userdata):
     app = request.app
     notebook = await get_user_notebook(app, userdata['id'])
     if not notebook:
@@ -342,8 +341,8 @@ async def worker_image(request):  # pylint: disable=unused-argument
 
 @routes.get('/notebook/wait')
 @web_authenticated_users_only(redirect=False)
-async def wait_websocket(request, userdata):  # pylint: disable=unused-argument
-    return await _wait_websocket(request)
+async def wait_websocket(request, userdata):
+    return await _wait_websocket(request, userdata)
 
 
 @routes.get('/error')
@@ -639,7 +638,7 @@ async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused
 @routes.get('/workshop/notebook/wait')
 @web_authenticated_workshop_guest
 async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
-    return await _wait_websocket(request, workshop=True)
+    return await _wait_websocket(request, userdata)
 
 
 async def on_startup(app):
