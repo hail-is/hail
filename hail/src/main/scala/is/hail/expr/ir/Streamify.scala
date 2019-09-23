@@ -1,9 +1,17 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.virtual._
+import scala.annotation.tailrec
 
 object Streamify {
-  def apply(ir0: IR): IR = MapIR(apply)(ir0) match {
+
+  @tailrec
+  private def expandFunctions(ir: IR): IR = ir match {
+    case air: ApplyIR => expandFunctions(air.explicitNode)
+    case _ => ir
+  }
+
+  def apply(ir0: IR): IR = MapIR(apply)(expandFunctions(ir0)) match {
     case ArrayRange(i, j, k) =>
       ToArray(StreamRange(i, j, k))
     case MakeArray(xs, t) =>
@@ -33,7 +41,6 @@ object Streamify {
     case ToArray(a) => ToArray(toStream(a))
     case ToDict(a) => ToDict(toStream(a))
     case ToSet(a) => ToSet(toStream(a))
-    case app: ApplyIR => apply(app.explicitNode)
     case ir => ir
   }
 
