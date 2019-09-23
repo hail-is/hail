@@ -37,7 +37,6 @@ def main(args):
         sys.exit(0)
     else:
         module = args[0]
-        extra_args = args[1:]
         if module == 'deploy':
             from .deploy import cli
             args, _ = p.parse_known_args(args=args)
