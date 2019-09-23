@@ -72,7 +72,7 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
       Region.copyFrom(off, dest, storageType.byteSize))),
       super.store(regionStorer, dest))
 
-  def storeMissing(): Code[Unit] = Code(Code._println(RegionUtils.printAddr(off, "off")), storageType.setFieldMissing(off, 0))
+  def storeMissing(): Code[Unit] = storageType.setFieldMissing(off, 0)
   def storeNonmissing(v: Code[_]): Code[Unit] = Code(
     region.getNewRegion(regionSize),
     storageType.setFieldPresent(off, 0),

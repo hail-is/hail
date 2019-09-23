@@ -34,7 +34,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
     Code(
       t.setup,
       t.m.mux(Code._empty,
-        Code(v := t.value, Code._println(RegionUtils.printBytes(coerce[Long](v), 16, "")), state.storeNonmissing(v))))
+        Code(v := t.value, state.storeNonmissing(v))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
