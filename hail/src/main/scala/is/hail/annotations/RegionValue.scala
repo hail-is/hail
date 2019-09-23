@@ -4,7 +4,7 @@ import java.io._
 
 import is.hail.expr.types.physical.PType
 import is.hail.utils.{using, RestartableByteArrayInputStream}
-import is.hail.io.{Decoder, Encoder}
+import is.hail.io._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object RegionValue {
@@ -18,13 +18,11 @@ object RegionValue {
     makeDec: InputStream => Decoder,
     r: Region,
     carrierRv: RegionValue
-  )(bytes: Iterator[Array[Byte]]
+  )(byteses: Iterator[Array[Byte]]
   ): Iterator[RegionValue] = {
-    val bais = new RestartableByteArrayInputStream()
-    val dec = makeDec(bais)
-    bytes.map { bytes =>
-      bais.restart(bytes)
-      carrierRv.setOffset(dec.readRegionValue(r))
+    val bad = new ByteArrayDecoder(makeDec)
+    byteses.map { bytes =>
+      carrierRv.setOffset(bad.regionValueFromBytes(r, bytes))
       carrierRv
     }
   }
@@ -32,25 +30,17 @@ object RegionValue {
   def fromBytes(
     makeDec: InputStream => Decoder,
     r: Region,
-    bytes: Iterator[Array[Byte]]
+    byteses: Iterator[Array[Byte]]
   ): Iterator[Long] = {
-    val bais = new RestartableByteArrayInputStream(null)
-    val dec = makeDec(bais)
-    bytes.map { bytes =>
-      bais.restart(bytes)
-      dec.readRegionValue(r)
+    val bad = new ByteArrayDecoder(makeDec)
+    byteses.map { bytes =>
+      bad.regionValueFromBytes(r, bytes)
     }
   }
 
   def toBytes(makeEnc: OutputStream => Encoder, rvs: Iterator[RegionValue]): Iterator[Array[Byte]] = {
-    val baos = new ByteArrayOutputStream()
-    val enc = makeEnc(baos)
-    rvs.map { rv =>
-      baos.reset()
-      enc.writeRegionValue(rv.region, rv.offset)
-      enc.flush()
-      baos.toByteArray
-    }
+    val bae = new ByteArrayEncoder(makeEnc)
+    rvs.map(rv => bae.regionValueToBytes(rv.region, rv.offset))
   }
 }
 
