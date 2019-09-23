@@ -1,15 +1,40 @@
 # Change Log
 
-## 0.2.22
+## Version 0.2.23
+
+Released 2019-09-23
+
+### `hailctl dataproc`
+- (hail#7087) Added back progress bar to notebooks, with links to the correct Spark UI url.
+- (hail#7104) Increased disk requested when using `--vep` to address the "colony collapse" cluster error mode.
+
+### Bug fixes
+- (hail#7066) Fixed generated code when methods from multiple reference genomes appear together.
+- (hail#7077) Fixed crash in `hl.agg.group_by`.
+ 
+### New features
+- (hail#7009) Introduced analysis pass in Python that mostly obviates the `hl.bind` and `hl.rbind` operators; idiomatic Python that generates Hail expressions will perform much better.
+- (hail#7076) Improved memory management in generated code, add additional log statements about allocated memory to improve debugging.
+- (hail#7085) Warn only once about schema mismatches during JSON import (used in VEP, Nirvana, and sometimes `import_table`.
+- (hail#7106) `hl.agg.call_stats` can now accept a number of alleles for its `alleles` parameter, useful when dealing with biallelic calls without the alleles array at hand.
+ 
+### Performance
+- (hail#7086) Improved performance of JSON import.
+- (hail#6981) Improved performance of Hail min/max/mean operators. Improved performance of `split_multi_hts` by an additional 33%.
+- (hail#7082)(hail#7096)(hail#7098) Improved performance of large pipelines involving many `annotate` calls.
+
+---
+
+## Version 0.2.22
 
 Released 2019-09-12
 
 ### New features
-- (hail#7013) Add `contig_recoding` to `import_bed` and `import_locus_intervals`.
+- (hail#7013) Added `contig_recoding` to `import_bed` and `import_locus_intervals`.
 
 ### Performance
-- (hail#6969) Improve performance of `hl.agg.mean`, `hl.agg.stats`, and `hl.agg.corr`.
-- (hail#6987) Improve performance of `import_matrix_table`.
+- (hail#6969) Improved performance of `hl.agg.mean`, `hl.agg.stats`, and `hl.agg.corr`.
+- (hail#6987) Improved performance of `import_matrix_table`.
 - (hail#7033)(hail#7049) Various improvements leading to overall 10-15%
   improvement.
 
@@ -19,14 +44,14 @@ Released 2019-09-12
 
 ---
 
-## 0.2.21
+## Version 0.2.21
 
 Released 2019-09-03
 
 ### Bug fixes
-- (hail#6945) Fix `expand_types` to preserve ordering by key, also affects
+- (hail#6945) Fixed `expand_types` to preserve ordering by key, also affects
     `to_pandas` and `to_spark`.
-- (hail#6958) Fix stack overflow errors when counting the result of a `Table.union`.
+- (hail#6958) Fixed stack overflow errors when counting the result of a `Table.union`.
 
 ### New features
 - (hail#6856) Teach `hl.agg.counter` to weigh each value differently.
@@ -34,19 +59,19 @@ Released 2019-09-03
 - (hail#6903) Teach `BlockMatrix` how to `checkpoint`.
 
 ### Performance
-- (hail#6895) Improve performance of `hl.import_bgen(...).count()`.
-- (hail#6948) Fix performance bug in `BlockMatrix` filtering functions.
-- (hail#6943) Improve scaling of `Table.union`.
-- (hail#6980) Reduce compute time for `split_multi_hts` by as much as 40%.
+- (hail#6895) Improved performance of `hl.import_bgen(...).count()`.
+- (hail#6948) Fixed performance bug in `BlockMatrix` filtering functions.
+- (hail#6943) Improved scaling of `Table.union`.
+- (hail#6980) Reduced compute time for `split_multi_hts` by as much as 40%.
 
 ### `hailctl dataproc`
-- (hail#6904) Add `--dry-run` option to `submit`.
-- (hail#6951) Fix `--max-idle` and `--max-age` arguments to `start`.
-- (hail#6919) Add `--update-hail-version` to `modify`.
+- (hail#6904) Added `--dry-run` option to `submit`.
+- (hail#6951) Fixed `--max-idle` and `--max-age` arguments to `start`.
+- (hail#6919) Added `--update-hail-version` to `modify`.
 
 ---
 
-## 0.2.20
+## Version 0.2.20
 
 Released 2019-08-19
 
@@ -56,8 +81,8 @@ Released 2019-08-19
   aggregations. This was causing memory leaks and segfaults.
 
 ### Bug fixes
-- (hail#6769) Fix non-functional `hl.lambda_gc` method.
-- (hail#6847) Fix bug in handling of NaN in `hl.agg.min` and `hl.agg.max`.
+- (hail#6769) Fixed non-functional `hl.lambda_gc` method.
+- (hail#6847) Fixed bug in handling of NaN in `hl.agg.min` and `hl.agg.max`.
   These will now properly ignore NaN (the intended semantics). Note that
   `hl.min` and `hl.max` propagate NaN; use `hl.nanmin` and  `hl.nanmax`
   to ignore NaN.
@@ -67,7 +92,7 @@ Released 2019-08-19
 
 -----
 
-## 0.2.19
+## Version 0.2.19
 
 Released 2019-08-01
 
@@ -103,7 +128,7 @@ Released 2019-08-01
 
 -----
 
-## 0.2.18
+## Version 0.2.18
 
 Released 2019-07-12
     
@@ -124,7 +149,7 @@ Released 2019-07-12
 
 -----
 
-## 0.2.17
+## Version 0.2.17
 
 Released 2019-07-10
 
@@ -146,7 +171,7 @@ Released 2019-07-10
 
 ### Bug fixes
 
-- (hail#6404) `n_rows` and `n_cols` parameters added to `Expression.show` for
+- (hail#6404) Added `n_rows` and `n_cols` parameters to `Expression.show` for
   consistency with other `show` methods.
 - (hail#6408)(hail#6419) Fixed an issue where the `filter_intervals` optimization
   could make scans return incorrect results.
@@ -168,7 +193,7 @@ Released 2019-07-10
 
 -----
 
-## 0.2.16
+## Version 0.2.16
 
 Released 2019-06-19
 
@@ -182,7 +207,7 @@ Released 2019-06-19
 
 -----
 
-## 0.2.15
+## Version 0.2.15
 
 Released 2019-06-14
 
@@ -240,7 +265,7 @@ for more information.
 
 -----
 
-## 0.2.14
+## Version 0.2.14
 
 Released 2019-04-24
 
@@ -256,7 +281,7 @@ upgrade to the latest version of Hail.
 
 -----
 
-## 0.2.13
+## Version 0.2.13
 
 Released 2019-04-18
 
@@ -318,7 +343,7 @@ accordingly.
 
 -----
 
-## 0.2.12
+## Version 0.2.12
 
 Released 2019-03-28
 
@@ -343,7 +368,7 @@ Released 2019-03-28
 
 -----
 
-## 0.2.11
+## Version 0.2.11
 
 Released 2019-03-06
 
@@ -367,7 +392,7 @@ Released 2019-03-06
 
 -----
 
-## 0.2.10
+## Version 0.2.10
 
 Released 2019-02-15
 
@@ -395,7 +420,7 @@ Released 2019-02-15
 
 -----
 
-## 0.2.9
+## Version 0.2.9
 
 Released 2019-01-30
 
@@ -420,7 +445,7 @@ Released 2019-01-30
  
 -----
 
-## 0.2.8
+## Version 0.2.8
 
 Released 2019-01-15
 
@@ -442,7 +467,7 @@ Released 2019-01-15
 
 -----
 
-## 0.2.7
+## Version 0.2.7
 
 Released 2019-01-03
 
@@ -456,7 +481,7 @@ Released 2019-01-03
 
 -----
 
-## 0.2.6
+## Version 0.2.6
 
 Released 2018-12-17
 
@@ -479,7 +504,7 @@ Released 2018-12-17
  
 -----
 
-## 0.2.5 
+## Version 0.2.5 
 
 Released 2018-12-07
 
@@ -506,7 +531,7 @@ Released 2018-12-07
 
 -----
 
-## 0.2.4: Beginning of history!
+## Version 0.2.4: Beginning of history!
 
 We didn't start manually curating information about user-facing changes until version 0.2.4.
 
