@@ -43,8 +43,8 @@ object Emit {
     aggs: Option[Array[AggSignature2]]): EmitTriplet = {
     TypeCheck(ir)
     val container = aggs.map { a =>
-      val (c, off) = fb.addAggStates(a)
-      Some(AggContainer(a, c, off))
+      val c = fb.addAggStates(a)
+      Some(AggContainer(a, c))
     }.getOrElse(None)
 
     val baseTriplet = new Emit(fb.apply_method, nSpecialArguments).emit(ir, env, EmitRegion.default(fb.apply_method), container = container)
@@ -56,16 +56,22 @@ object Emit {
   }
 }
 
-case class AggContainer(aggs: Array[AggSignature2], container: agg.StateContainer, off: Code[Long]) {
-  def nested(i: Int): Option[AggContainer] = {
+case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregatorState) {
+  def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
       aggs(i).op match {
         case AggElements() | AggElementsLengthCheck() =>
-          val state = container(i).asInstanceOf[agg.ArrayElementState]
-          AggContainer(n.toArray, state.container, state.off)
+          val state = container.states(i).asInstanceOf[agg.ArrayElementState]
+          if (init)
+            AggContainer(n.toArray, state.initContainer)
+          else
+            AggContainer(n.toArray, state.container)
         case Group() =>
-          val state = container(i).asInstanceOf[agg.DictState]
-          AggContainer(n.toArray, state.container, state.off)
+          val state = container.states(i).asInstanceOf[agg.DictState]
+          if (init)
+            AggContainer(n.toArray, state.initContainer)
+          else
+            AggContainer(n.toArray, state.keyed.container)
       }
     }
   }
@@ -1053,41 +1059,41 @@ private class Emit(
         }
 
       case InitOp2(i, args, aggSig) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
+        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = true)))).toArray
         void(
-          sc(i).newState,
-          rvAgg.initOp(sc(i), argVars))
+          sc.newState(i),
+          rvAgg.initOp(sc.states(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
-        void(rvAgg.seqOp(sc(i), argVars))
+        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = false)))).toArray
+        void(rvAgg.seqOp(sc.states(i), argVars))
 
       case CombOp2(i1, i2, aggSig) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        void(rvAgg.combOp(sc(i1), sc(i2)))
+        void(rvAgg.combOp(sc.states(i1), sc.states(i2)))
 
       case x@ResultOp2(start, aggSigs) =>
         val newRegion = mb.newField[Region]
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)
         val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
           val idx = start + j
           assert(aggSigs(j) == aggs(idx))
           val rvAgg = agg.Extract.getAgg(aggSigs(j))
           Code(
-            rvAgg.result(sc(idx), srvb),
+            rvAgg.result(sc.states(idx), srvb),
             srvb.advance())
         }: _*))
 
@@ -1095,16 +1101,16 @@ private class Emit(
           newRegion := region,
           srvb.start(),
           addFields,
-          sc.store(0, aggOff),
+          sc.store,
           srvb.offset))
 
       case SerializeAggs(start, sIdx, spec, aggSigs) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         val ob = mb.newField[OutputBuffer]
         val baos = mb.newField[ByteArrayOutputStream]
 
         val serialize = Array.range(start, start + aggSigs.length)
-          .map { idx => sc(idx).serialize(spec)(ob) }
+          .map { idx => sc.states(idx).serialize(spec)(ob) }
 
         void(
           baos := Code.newInstance[ByteArrayOutputStream](),
@@ -1113,19 +1119,19 @@ private class Emit(
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"),
           mb.fb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
-          sc.store(0, aggOff))
+          sc.store)
 
       case DeserializeAggs(start, sIdx, spec, aggSigs) =>
-        val AggContainer(aggs, sc, aggOff) = container.get
+        val AggContainer(aggs, sc) = container.get
         val ib = mb.newField[InputBuffer]
         val bais = mb.newField[ByteArrayInputStream]
 
-        val deserializers = sc.states
+        val deserializers = sc.states.states
           .slice(start, start + aggSigs.length)
           .map(sc => sc.deserialize(CodecSpec.defaultUncompressedBuffer))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => sc(i).newState): _*))
+          .map(i => sc.newState(i)): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)

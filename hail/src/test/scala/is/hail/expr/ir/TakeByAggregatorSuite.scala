@@ -22,7 +22,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
         fb.emit(Code(
           tba.createState,
-          tba.newState,
+          tba.newState(0L),
           tba.initialize(size),
           i := 0L,
           Code.whileLoop(i < n.toLong,
@@ -55,7 +55,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
       fb.emit(Code(
         tba.createState,
-        tba.newState,
+        tba.newState(0L),
         tba.initialize(7),
         tba.seqOp(true, 0, true, 0),
         tba.seqOp(true, 0, true, 0),
@@ -93,7 +93,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
         fb.emit(Code(
           tba.createState,
-          tba.newState,
+          tba.newState(0L),
           tba.initialize(nToTake),
           ab.initialize(),
           i := 0,

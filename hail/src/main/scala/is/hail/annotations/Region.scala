@@ -357,6 +357,9 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 }
 
 object RegionUtils {
+  def printAddr(off: Long, name: String): String = s"$name: ${"%016x".format(off)}"
+  def printAddr(off: Code[Long], name: String): Code[String] = Code.invokeScalaObject[Long, String, String](RegionUtils.getClass, "printAddr", off, name)
+
   def printBytes(off: Long, n: Int, header: String): String = {
     Region.loadBytes(off, n).zipWithIndex
       .grouped(16)

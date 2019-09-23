@@ -17,7 +17,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
-  def newState: Code[Unit] = region.getNewRegion(regionSize)
+  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
