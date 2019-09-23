@@ -12,6 +12,8 @@ object Streamify {
   }
 
   def apply(ir0: IR): IR = MapIR(apply)(expandFunctions(ir0)) match {
+    case ir@ReadPartition(path, spec, t) =>
+      ToArray(ir)
     case ArrayRange(i, j, k) =>
       ToArray(StreamRange(i, j, k))
     case MakeArray(xs, t) =>
@@ -24,6 +26,10 @@ object Streamify {
       ToArray(ArrayFlatMap(toStream(a), n, toStream(c)))
     case ArrayScan(a, z, an, vn, b) =>
       ToArray(ArrayScan(toStream(a), z, an, vn, b))
+    case ArrayAggScan(a, n, q) =>
+      ToArray(ArrayAggScan(toStream(a), n, q))
+    case ArrayLeftJoinDistinct(l, r, ln, rn, key, join) =>
+      ToArray(ArrayLeftJoinDistinct(toStream(l), toStream(r), ln, rn, key, join))
     case ArraySort(a, ln, rn, cmp) =>
       ArraySort(toStream(a), ln, rn, cmp)
     case ArrayFold(a, z, an, vn, b) =>
@@ -34,10 +40,9 @@ object Streamify {
       ArrayFor(toStream(a), n, b)
     case ArrayAgg(a, n, q) =>
       ArrayAgg(toStream(a), n, q)
-    case ArrayAggScan(a, n, q) =>
-      ArrayAggScan(toStream(a), n, q) // TODO: deforest me
-    case ArrayLeftJoinDistinct(l, r, ln, rn, key, join) =>
-      ArrayLeftJoinDistinct(toStream(l), r, ln, rn, key, join) // TODO: deforest me
+    case CollectDistributedArray(ctxs, gs, cn, gn, b) =>
+      CollectDistributedArray(toStream(ctxs), gs, cn, gn, b)
+    case GroupByKey(a) => GroupByKey(toStream(a))
     case ToArray(a) => ToArray(toStream(a))
     case ToDict(a) => ToDict(toStream(a))
     case ToSet(a) => ToSet(toStream(a))
@@ -46,8 +51,9 @@ object Streamify {
 
   def toStream(ir: IR): IR = ir match {
     // case If(c, thn, els) => If(c, toStream(thn), toStream(els))  <- not supported
-    case ToArray(s) => assert(s.typ.isInstanceOf[TStreamable]); s
     case Let(n, v, b) => Let(n, v, toStream(b))
-    case a => ToStream(a)
+    case ToArray(s) => assert(s.typ.isInstanceOf[TStream]); s
+    case ToStream(a) => assert(a.typ.isInstanceOf[TContainer]); ir
+    case a => assert(a.typ.isInstanceOf[TContainer]); ToStream(a)
   }
 }
