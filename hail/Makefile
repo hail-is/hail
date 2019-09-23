@@ -139,7 +139,9 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	cp ../README.md build/deploy/
 	rsync -rv \
 	    --exclude '__pycache__/' \
+	    --exclude 'benchmark_hail/' \
 	    --exclude 'docs/' \
+	    --exclude 'dist/' \
 	    --exclude 'test/' \
 	    --exclude '*.log' \
 	    python/ build/deploy/
@@ -259,34 +261,9 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
-PROJECT = $(shell gcloud config get-value project)
-BENCHMARK_LATEST = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG):latest
-
-.PHONY: build-benchmark-image
-build-benchmark-image: wheel
-	cp $(WHEEL) benchmark
-	cp python/requirements.txt benchmark
-	cd benchmark && docker build -t $(BENCHMARK_DOCKER_TAG) . --build-arg WHEEL=$(notdir $(WHEEL))
-	rm benchmark/$(notdir $(WHEEL))
-	rm benchmark/requirements.txt
-
-.PHONY: push-benchmark-image
-push-benchmark-image: build-benchmark-image
-	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
-	docker push $(BENCHMARK_LATEST)
-
-BENCHMARK_ITERS ?= 5
-BENCHMARK_REPLICATES ?= 5
 .PHONY: benchmark
-benchmark: push-benchmark-image install
-	$(HAIL_PYTHON3) benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
-
-clean: clean-env clean-docs native-lib-clean
-	./gradlew clean $(GRADLE_ARGS)
-	rm -rf build/
-	rm -rf python/hail/hail-all-spark.jar
-	rm -rf python/README.md
+benchmark: install
+	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
 .PHONY: clean-docs
 clean-docs:

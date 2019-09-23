@@ -5,7 +5,7 @@ import argparse
 
 def print_help():
     main_parser = argparse.ArgumentParser(
-        prog='hailctl dev benchmark',
+        prog='hail-bench',
         description='Run and analyze Hail benchmarks.')
     subparsers = main_parser.add_subparsers()
 
@@ -33,12 +33,12 @@ def print_help():
 
 
 def main(args):
-    if not args:
+    if len(args) < 2:
         print_help()
         sys.exit(0)
     else:
-        module = args[0]
-        args = args[1:]
+        module = args[1]
+        args = args[2:]
         if module == 'run':
             from .run import cli
             cli.main(args)

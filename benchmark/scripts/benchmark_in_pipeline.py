@@ -2,7 +2,7 @@ import os
 import sys
 
 from hailtop import pipeline as pl
-from hailtop.hailctl.dev.benchmark.run.utils import list_benchmarks
+from benchmark_hail.run.utils import list_benchmarks
 
 if __name__ == '__main__':
     if len(sys.argv) != 6:
@@ -21,7 +21,7 @@ if __name__ == '__main__':
                     default_cpu=2)
 
     make_resources = p.new_task('create_resources').cpu(4)
-    make_resources.command('hailctl dev benchmark create-resources --data-dir benchmark-resources')
+    make_resources.command('hail-bench create-resources --data-dir benchmark-resources')
     make_resources.command("time tar -czf benchmark-resources.tar.gz benchmark-resources --exclude='*.crc'")
     make_resources.command('ls -lh benchmark-resources.tar.gz')
     make_resources.command(f'mv benchmark-resources.tar.gz {make_resources.ofile}')
@@ -39,12 +39,12 @@ if __name__ == '__main__':
             t = p.new_task(name=f'{name}_{replicate}')
             t.command(f'mv {make_resources.ofile} benchmark-resources.tar.gz')
             t.command('time tar -xf benchmark-resources.tar.gz')
-            t.command(f'hailctl dev benchmark run '
+            t.command(f'hail-bench run '
                       f'-v -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
             all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')
-    combine.command(f'hailctl dev benchmark combine -o {combine.ofile} ' + ' '.join(all_output))
+    combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
 
     output_file = os.path.join(BUCKET_BASE, f'{SHA}.json')
     print(f'writing output to {output_file}')
