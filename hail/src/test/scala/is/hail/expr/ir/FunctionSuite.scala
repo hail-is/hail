@@ -95,4 +95,21 @@ class FunctionSuite extends HailSuite {
       FastIndexedSeq(0 -> TInt32()),
       Call2.fromUnphasedDiploidGtIndex(0))
   }
+
+  @Test
+  def testFunctionBuilderGetOrDefine() {
+    val fb = EmitFunctionBuilder[Int]()
+    val i = fb.newField[Int]
+    val mb1 = fb.getOrDefineMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
+      mb.emit(i := i + 1)
+    }
+    val mb2 = fb.getOrDefineMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
+      mb.emit(i := i - 100)
+    }
+    fb.emit(Code(i := 0, mb1.invoke(), mb2.invoke(), i))
+    Region.scoped { r =>
+
+     assert(fb.resultWithIndex().apply(0, r)() == 2)
+    }
+  }
 }
