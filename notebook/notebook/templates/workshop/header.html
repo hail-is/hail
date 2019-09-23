@@ -5,14 +5,20 @@
 
   <div id="header-flex"></div>
 
-  <span class="disabled-header-item">
-    <b>guest</b>
-  </span>
-  |
-  <form action="{{ base_url }}/workshop/logout" method="POST">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-    <button class="button-header-link" type="submit">
-      Log out
-    </button>
-  </form>
+  {% if userdata %}
+    <span class="disabled-header-item">
+      <b>guest</b>
+    </span>
+    |
+    <form action="{{ base_url }}/workshop/logout" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button class="button-header-link" type="submit">
+	Log out
+      </button>
+    </form>
+    {% else %}
+	<a class="header-link" href="{{ base_url }}/workshop/login">
+	  Login
+	</a>
+    {% endif %}
 </div>

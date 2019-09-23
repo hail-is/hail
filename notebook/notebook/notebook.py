@@ -616,17 +616,24 @@ async def post_workshop_login(request):
 
 @routes.post('/workshop/logout')
 @check_csrf_token
-async def post_workshop_logout(request):
+@web_authenticated_workshop_guest
+async def post_workshop_logout(request, userdata):
+    app = request.app
+    user_id = userdata['id']
+    notebook = await get_user_notebook(app, user_id)
+    if notebook:
+        # Notebook is inaccessible since login creates a new random
+        # user id, so delete it.
+        dbpool = app['dbpool']
+        k8s = app['k8s_client']
+        await delete_worker_pod(k8s, notebook['pod_name'])
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'DELETE FROM notebooks WHERE user_id = %s;', user_id)
+
     session = await aiohttp_session.get_session(request)
     if 'workshop_session' in session:
-        del session['workshop_session']
-
-    # Notebook is inaccessible since login creates a new random user
-    # id, so delete it.
-    if 'workshop_notebook' in session:
-        k8s = request.app['k8s_client']
-        notebook = session['workshop_notebook']
-        await delete_worker_pod(k8s, notebook['pod_name'])
         del session['workshop_session']
 
     return web.HTTPFound(location=deploy_config.external_url('notebook', '/workshop/notebook'))
