@@ -35,6 +35,12 @@ class InstancePool:
         self.pool_size = POOL_SIZE
         self.max_instances = MAX_INSTANCES
 
+        log.info(f'WORKER_CORES={WORKER_CORES}')
+        log.info(f'WORKER_TYPE={WORKER_TYPE}')
+        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
+        log.info(f'POOL_SIZE={POOL_SIZE}')
+        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
+
         self.token = new_token()
         self.machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
 
@@ -59,6 +65,7 @@ class InstancePool:
 
     async def initialize(self):
         log.info('initializing instance pool')
+
         for record in await db.instances.get_all_records():
             inst = Instance.from_record(self, record)
             self.token_inst[inst.token] = inst
