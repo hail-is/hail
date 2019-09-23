@@ -615,15 +615,14 @@ case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends Mat
 
 case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   require(children.length > 1)
-  require(canUnionTypes, children.map(_.typ))
+  require(children.tail.forall(c => compatible(c.typ, children.head.typ)), children.map(_.typ))
   val typ: MatrixType = children.head.typ
 
-  def canUnionTypes: Boolean = {
-    val types = children.map(_.typ)
-    types.map(_.colKeyStruct).toSet.size == 1 &&
-      types.map(_.rowType).toSet.size == 1 &&
-      types.map(_.rowKey).toSet.size == 1 &&
-      types.map(_.entryType).toSet.size == 1
+  def compatible(t1: MatrixType, t2: MatrixType): Boolean = {
+    t1.colKeyStruct == t2.colKeyStruct &&
+      t1.rowType == t2.rowType &&
+      t1.rowKey == t2.rowKey &&
+      t1.entryType == t2.entryType
   }
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
