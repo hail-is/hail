@@ -385,32 +385,29 @@ async def post_notebook(request, userdata):
 
 @routes.get('/auth/{requested_notebook_token}')
 async def auth(request):
-    log.info('in /auth')
+    app = request.app
+    requested_notebook_token = request.match_info['requested_notebook_token']
 
     # allow either authorized user or workshop guest
     userdata = await userdata_from_web_request(request)
-    if not userdata:
-        userdata = await workshop_userdata_from_web_request(request)
-    if not userdata:
-        raise web.HTTPUnauthorized()
+    if userdata:
+        notebook = await get_user_notebook(app, userdata['id'])
+        if notebook and notebook['notebook_token'] == requested_notebook_token:
+            pod_ip = notebook['pod_ip']
+            if pod_ip:
+                return web.Response(headers={
+                    'pod_ip': f'{pod_ip}:{POD_PORT}'
+                })
 
-    log.info('userdata {userdata}')
-
-    requested_notebook_token = request.match_info['requested_notebook_token']
-
-    notebook = await get_user_notebook(request.app, userdata['id'])
-
-    log.info(f'in /auth: {requested_notebook_token} {notebook}')
-
-    if notebook and notebook['notebook_token'] == requested_notebook_token:
-        log.info('/auth: notebook tokens match')
-
-        pod_ip = notebook['pod_ip']
-        return web.Response(headers={
-            'pod_ip': f'{pod_ip}:{POD_PORT}'
-        })
-
-    log.info('/auth: not found')
+    userdata = await workshop_userdata_from_web_request(request)
+    if userdata:
+        notebook = await get_user_notebook(request.app, userdata['id'])
+        if notebook and notebook['notebook_token'] == requested_notebook_token:
+            pod_ip = notebook['pod_ip']
+            if pod_ip:
+                return web.Response(headers={
+                    'pod_ip': f'{pod_ip}:{POD_PORT}'
+                })
 
     return web.HTTPNotFound()
 

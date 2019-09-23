@@ -24,6 +24,12 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0.5rem 0;
 }
 
+input {
+    /* Not sure why, input elements in tables sometimes don't display
+       border without this, see workshop.hail.is/login page. */
+    padding: 1px;
+}
+
 .stacked-header {
     margin: 0 0 0.5rem 0;
 }
