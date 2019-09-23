@@ -24,7 +24,7 @@ def shuffle__order_by_10m_int():
 
 @benchmark
 def shuffle__key_rows_by_4096_byte_rows():
-    mt = hl.utils.range_matrix_table(10_000, (1 << 12) // 4)
+    mt = hl.utils.range_matrix_table(100_000, (1 << 12) // 4)
     mt = mt.annotate_entries(entry=mt.row_idx * mt.col_idx)
     mt = mt.key_rows_by(backward_rows_idx=-mt.row_idx)
     mt._force_count_rows()
