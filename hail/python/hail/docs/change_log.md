@@ -21,7 +21,7 @@ Released 2019-09-23
 ### Performance
 - (hail#7086) Improved performance of JSON import.
 - (hail#6981) Improved performance of Hail min/max/mean operators. Improved performance of `split_multi_hts` by an additional 33%.
-- (hail#7082)(hail#7096)(#7098) Improved performance of large pipelines involving many `annotate` calls.
+- (hail#7082)(hail#7096)(hail#7098) Improved performance of large pipelines involving many `annotate` calls.
 
 ---
 
