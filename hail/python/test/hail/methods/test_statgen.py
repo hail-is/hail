@@ -1280,8 +1280,8 @@ class Tests(unittest.TestCase):
 
     def test_split_multi_shuffle(self):
         ht = hl.utils.range_table(1)
-        ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'T']),
-                               hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'G'])])
+        ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
+                               hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'G'])])
         ht = ht.explode(ht.keys)
         ht = ht.key_by(**ht.keys).drop('keys')
         alleles = hl.split_multi(ht, permit_shuffle=True).alleles.collect()
