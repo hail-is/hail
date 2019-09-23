@@ -190,5 +190,5 @@ case class TupleAggregatorState(states: StateTuple, topRegion: Code[Region], off
   def load: Code[Unit] = states.toCode((i, s) => s.load(getRegion(i), getStateOffset(i)))
   def store: Code[Unit] = states.toCode((i, s) => s.store(setRegion(i), getStateOffset(i)))
   def copyFrom(statesOffset: Code[Long]): Code[Unit] =
-    states.toCode((i, s) => s.copyFrom(getStateOffset(i)))
+    states.toCode((i, s) => s.copyFrom(storageType.loadField(statesOffset, i)))
 }
