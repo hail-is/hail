@@ -342,7 +342,14 @@ async def _wait_websocket(request, userdata):
     count = 0
     while count < 12:
         status = await notebook_status_from_notebook(k8s, request.cookies, notebook)
-        if not status or (status['state'] != notebook['state']):
+        if not status:
+            async with dbpool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        'DELETE FROM notebooks WHERE user_id = %s;',
+                        userdata['id'])
+            break
+        if status['state'] != notebook['state']:
             async with dbpool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(
@@ -386,9 +393,9 @@ async def auth(request):
         raise web.HTTPUnauthorized()
 
     requested_notebook_token = request.match_info['requested_notebook_token']
-    app = request.app
 
-    notebook = await get_user_notebook(app, userdata['id'])
+    notebook = await get_user_notebook(request.app, userdata['id'])
+    log.info(f'tokens {requested_notebook_token} {notebook["notebook_token"]}'
     if notebook and notebook['notebook_token'] == requested_notebook_token:
         pod_ip = notebook['pod_ip']
         return web.Response(headers={
