@@ -31,7 +31,7 @@ class StoppableServer:
         exit_code = 2
         try:
             exit_code = loop.run_until_complete(self.start())
-        except:  # pylint: disable=W0702
+        except Exception:  # pylint: disable=broad-except
             self.log.exception(f'caught server exception')
         finally:
             self.log.info(f'shutting down loop')

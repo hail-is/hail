@@ -37,6 +37,47 @@ DEFAULT_WORKER_IMAGE = os.environ['HAIL_NOTEBOOK_WORKER_IMAGE']
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 
 
+async def workshop_userdata_from_web_request(request):
+    session = await aiohttp_session.get_session(request)
+    if 'workshop_session' not in session:
+        return None
+    userdata = session['workshop_session']
+
+    # verify this workshop is active
+    name = userdata['workshop_name']
+    token = userdata['workshop_token']
+
+    dbpool = request.app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                'SELECT * FROM workshops WHERE name = %s AND token = %s',
+                (name, token))
+            workshops = await cursor.fetchall()
+
+    if len(workshops) != 1:
+        return None
+
+    return userdata
+
+
+def web_maybe_authenticated_workshop_guest(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        return await fun(request, await workshop_userdata_from_web_request(request), *args, **kwargs)
+    return wrapped
+
+
+def web_authenticated_workshop_guest_only(fun):
+    @web_maybe_authenticated_workshop_guest
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        if not userdata:
+            raise web.HTTPFound(deploy_config.external_url('notebook', '/workshop/login'))
+        return await fun(request, userdata, *args, **kwargs)
+    return wrapped
+
+
 def notebook_path(workshop):
     if workshop:
         return '/workshop/notebook'
@@ -335,8 +376,14 @@ async def post_notebook(request, userdata):
 
 
 @routes.get('/auth/{requested_notebook_token}')
-@web_authenticated_users_only()
-async def auth(request, userdata):
+async def auth(request):
+    # allow either authorized user or workshop guest
+    userdata = workshop_userdata_from_web_request(request)
+    if not userdata:
+        userdata = workshop_userdata_from_web_request(request)
+    if not userdata:
+        raise web.HTTPUnauthorized()
+
     requested_notebook_token = request.match_info['requested_notebook_token']
     app = request.app
 
@@ -504,47 +551,6 @@ DELETE FROM workshops WHERE name = %s;
     return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
 
 
-async def get_workshop_userdata(request):
-    session = await aiohttp_session.get_session(request)
-
-    if 'workshop_session' not in session:
-        return None
-    userdata = session['workshop_session']
-
-    name = userdata['workshop_name']
-    token = userdata['workshop_token']
-
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                'SELECT * FROM workshops WHERE name = %s AND token = %s',
-                (name, token))
-            workshops = await cursor.fetchall()
-
-    if len(workshops) != 1:
-        return None
-
-    return userdata
-
-
-def web_maybe_authenticated_workshop_guest(fun):
-    @wraps(fun)
-    async def wrapped(request, *args, **kwargs):
-        return await fun(request, await get_workshop_userdata(request), *args, **kwargs)
-    return wrapped
-
-
-def web_authenticated_workshop_guest(fun):
-    @web_maybe_authenticated_workshop_guest
-    @wraps(fun)
-    async def wrapped(request, userdata, *args, **kwargs):
-        if not userdata:
-            raise web.HTTPFound(deploy_config.external_url('notebook', '/workshop/login'))
-        return await fun(request, userdata, *args, **kwargs)
-    return wrapped
-
-
 @routes.get('/workshop')
 @web_maybe_authenticated_workshop_guest
 async def get_workshop_index(request, userdata):  # pylint: disable=unused-argument
@@ -616,7 +622,7 @@ async def post_workshop_login(request):
 
 @routes.post('/workshop/logout')
 @check_csrf_token
-@web_authenticated_workshop_guest
+@web_authenticated_workshop_guest_only
 async def post_workshop_logout(request, userdata):
     app = request.app
     user_id = userdata['id']
@@ -640,27 +646,27 @@ async def post_workshop_logout(request, userdata):
 
 
 @routes.get('/workshop/notebook')
-@web_authenticated_workshop_guest
+@web_authenticated_workshop_guest_only
 async def get_workshop_notebook(request, userdata):
     return await _get_notebook(request, userdata, workshop=True)
 
 
 @routes.post('/workshop/notebook')
 @check_csrf_token
-@web_authenticated_workshop_guest
+@web_authenticated_workshop_guest_only
 async def post_workshop_notebook(request, userdata):
     return await _post_notebook(request, userdata, workshop=True)
 
 
 @routes.post('/workshop/notebook/delete')
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
+@web_authenticated_workshop_guest_only
 async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused-argument
     return await _delete_notebook(request, userdata, workshop=True)
 
 
 @routes.get('/workshop/notebook/wait')
-@web_authenticated_workshop_guest
+@web_authenticated_workshop_guest_only
 async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
     return await _wait_websocket(request, userdata)
 

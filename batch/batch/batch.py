@@ -1173,7 +1173,7 @@ async def ui_batches(request, userdata):
     response = aiohttp_jinja2.render_template('batches.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 

@@ -3,6 +3,7 @@ import aiohttp_session
 import aiohttp_session.cookie_storage
 from hailtop.config import get_deploy_config
 
+
 def setup_aiohttp_session(app):
     deploy_config = get_deploy_config()
     with open('/session-secret-key/session-secret-key', 'rb') as f:
