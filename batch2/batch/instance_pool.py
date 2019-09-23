@@ -36,7 +36,7 @@ class InstancePool:
         self.max_instances = MAX_INSTANCES
 
         self.token = new_token()
-        self.machine_name_prefix = f'batch2-agent-{BATCH_NAMESPACE}-'
+        self.machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
 
         self.worker_logs_directory = f'gs://{self.driver.batch_bucket}/{BATCH_NAMESPACE}/{INSTANCE_ID}'
         log.info(f'writing worker logs to {self.worker_logs_directory}')
