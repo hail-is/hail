@@ -1,6 +1,6 @@
 # Change Log
 
-## v0.2.23
+## Version 0.2.23
 
 Released 2019-09-23
 
@@ -25,7 +25,7 @@ Released 2019-09-23
 
 ---
 
-## v0.2.22
+## Version 0.2.22
 
 Released 2019-09-12
 
@@ -44,7 +44,7 @@ Released 2019-09-12
 
 ---
 
-## v0.2.21
+## Version 0.2.21
 
 Released 2019-09-03
 
@@ -71,7 +71,7 @@ Released 2019-09-03
 
 ---
 
-## v0.2.20
+## Version 0.2.20
 
 Released 2019-08-19
 
@@ -92,7 +92,7 @@ Released 2019-08-19
 
 -----
 
-## v0.2.19
+## Version 0.2.19
 
 Released 2019-08-01
 
@@ -128,7 +128,7 @@ Released 2019-08-01
 
 -----
 
-## v0.2.18
+## Version 0.2.18
 
 Released 2019-07-12
     
@@ -149,7 +149,7 @@ Released 2019-07-12
 
 -----
 
-## v0.2.17
+## Version 0.2.17
 
 Released 2019-07-10
 
@@ -193,7 +193,7 @@ Released 2019-07-10
 
 -----
 
-## v0.2.16
+## Version 0.2.16
 
 Released 2019-06-19
 
@@ -207,7 +207,7 @@ Released 2019-06-19
 
 -----
 
-## v0.2.15
+## Version 0.2.15
 
 Released 2019-06-14
 
@@ -265,7 +265,7 @@ for more information.
 
 -----
 
-## v0.2.14
+## Version 0.2.14
 
 Released 2019-04-24
 
@@ -281,7 +281,7 @@ upgrade to the latest version of Hail.
 
 -----
 
-## v0.2.13
+## Version 0.2.13
 
 Released 2019-04-18
 
@@ -343,7 +343,7 @@ accordingly.
 
 -----
 
-## v0.2.12
+## Version 0.2.12
 
 Released 2019-03-28
 
@@ -368,7 +368,7 @@ Released 2019-03-28
 
 -----
 
-## v0.2.11
+## Version 0.2.11
 
 Released 2019-03-06
 
@@ -392,7 +392,7 @@ Released 2019-03-06
 
 -----
 
-## v0.2.10
+## Version 0.2.10
 
 Released 2019-02-15
 
@@ -420,7 +420,7 @@ Released 2019-02-15
 
 -----
 
-## v0.2.9
+## Version 0.2.9
 
 Released 2019-01-30
 
@@ -445,7 +445,7 @@ Released 2019-01-30
  
 -----
 
-## v0.2.8
+## Version 0.2.8
 
 Released 2019-01-15
 
@@ -467,7 +467,7 @@ Released 2019-01-15
 
 -----
 
-## v0.2.7
+## Version 0.2.7
 
 Released 2019-01-03
 
@@ -481,7 +481,7 @@ Released 2019-01-03
 
 -----
 
-## v0.2.6
+## Version 0.2.6
 
 Released 2018-12-17
 
@@ -504,7 +504,7 @@ Released 2018-12-17
  
 -----
 
-## v0.2.5 
+## Version 0.2.5 
 
 Released 2018-12-07
 
@@ -531,7 +531,7 @@ Released 2018-12-07
 
 -----
 
-## v0.2.4: Beginning of history!
+## Version 0.2.4: Beginning of history!
 
 We didn't start manually curating information about user-facing changes until version 0.2.4.
 
