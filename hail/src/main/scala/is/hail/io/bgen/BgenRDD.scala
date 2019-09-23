@@ -1,7 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.annotations._
-import is.hail.asm4s.AsmFunction4
+import is.hail.asm4s.{AsmFunction4, AsmFunction5}
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
@@ -91,17 +91,17 @@ private class BgenRDD(
       split match {
         case p: IndexBgenPartition =>
           assert(keys == null)
-          new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
+          new IndexBgenRecordIterator(ctx, p, settings, f(p.partitionIndex, ctx.freshRegion)).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.bcFS.value, p.indexPath, 8)
           context.addTaskCompletionListener { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
-            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(), index).flatten
+            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(p.partitionIndex, ctx.freshRegion), index).flatten
           else {
             val keyIterator = keys.iterator(p.filterPartition, context)
-            new BgenRecordIteratorWithFilter(ctx, p, settings, f(), index, keyIterator).flatten
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(p.partitionIndex, ctx.freshRegion), index, keyIterator).flatten
           }
       }
     }
