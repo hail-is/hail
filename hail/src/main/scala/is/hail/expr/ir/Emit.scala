@@ -489,6 +489,7 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
+/*
       case x@MakeArray(args, typ) =>
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
@@ -500,6 +501,8 @@ private class Emit(
             srvb.advance())
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
+ */
+
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
@@ -593,14 +596,11 @@ private class Emit(
             distinct,
             sorter.toRegion()))
 
-      case ToArray(a) =>
-        emit(a)
-
-      case ToStream(a) =>
-        emit(a)
+      case ToArray(s) =>
+        emitArrayIterator(s).toEmitTriplet(mb, PArray(coerce[PStream](s.pType).elementType))
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
+        val typ = coerce[PContainer](orderedCollection.pType)
         val a = emit(orderedCollection)
         val e = emit(elem)
         val bs = new BinarySearch(mb, typ, keyOnly = onKey)
@@ -718,8 +718,10 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: ArrayAggScan | _: ReadPartition =>
-        emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
+      case _: ArrayRange | _: MakeArray | _: ArrayMap | _: ArrayFilter |
+          _: StreamRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct |
+          _: ArrayAggScan | _: ReadPartition | _: ToStream =>
+        fatal(s"Stream node should have been transformed by streamify pass: ${Pretty.short(ir)}")
 
       case ArrayFold(a, zero, name1, name2, body) =>
         val typ = ir.typ
@@ -1514,7 +1516,7 @@ private class Emit(
         emitter.emit(x.pType.asInstanceOf[PNDArray])
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
-        val ctxType = coerce[PArray](contexts.pType).elementType
+        val ctxType = coerce[PStreamable](contexts.pType).elementType
         val gType = globals.pType
         val bType = body.pType
 
@@ -1708,13 +1710,14 @@ private class Emit(
   }
 
   private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
+    assert(ir.typ.isInstanceOf[TStream])
 
     def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas, er, container)
 
     def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas, er, container)
 
     ir match {
-      case x@ArrayRange(startir, stopir, stepir) =>
+      case x@StreamRange(startir, stopir, stepir) =>
         val codeStart = emit(startir)
         val codeStop = emit(stopir)
         val codeStep = emit(stepir)
@@ -1855,7 +1858,7 @@ private class Emit(
           xvaccum := xmaccum.mux(defaultValue(zero.typ), z.v),
           it.calcLength), length = it.length.map(_ + 1))
 
-      case MakeArray(args, _) =>
+      case MakeStream(args, _) =>
         val f = { cont: F =>
           EmitArrayTriplet(Code._empty[Unit], None, coerce[Unit](Code(
             for (elt <- args) yield {
@@ -2052,12 +2055,12 @@ private class Emit(
               cont(false, rowDec(region, rowBuf)))))
         })
 
-      case _ =>
-        val t: PArray = coerce[PStreamable](ir.pType).asPArray
+      case ToStream(a) =>
+        val t = coerce[PContainer](a.pType)
         val i = mb.newField[Int]("i")
         val len = mb.newField[Int]("len")
         val aoff = mb.newField[Long]("aoff")
-        val codeV = emit(ir, env)
+        val codeV = emit(a, env)
         val calcLength = Code(
           aoff := coerce[Long](codeV.v),
           len := t.loadLength(region, aoff))
@@ -2069,6 +2072,9 @@ private class Emit(
                 Region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
               i := i + 1)))
         })
+
+      case _ =>
+        fatal(s"Node not streamable: ${Pretty.short(ir)}")
     }
   }
 
@@ -2182,5 +2188,3 @@ abstract class NDArrayEmitter(
     }
   }
 }
-
-

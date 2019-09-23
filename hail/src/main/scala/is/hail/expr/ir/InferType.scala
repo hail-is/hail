@@ -109,11 +109,10 @@ object InferType {
         coerce[TStreamable](a.typ).copyStreamable(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
-      case ArrayAggScan(_, _, query) =>
-        TArray(query.typ)
+      case ArrayAggScan(a, _, query) =>
+        coerce[TStreamable](a.typ).copyStreamable(query.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
-        TArray(join.typ)
       case NDArrayShape(nd) =>
         TTuple(nd.typ.required, List.tabulate(nd.typ.asInstanceOf[TNDArray].nDims)(_ => TInt64()):_*)
       case NDArrayReshape(nd, shape) =>
