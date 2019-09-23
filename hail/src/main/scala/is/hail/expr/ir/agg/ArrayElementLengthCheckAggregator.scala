@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
@@ -71,7 +71,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
       Code(
         region.setNumParents(nStates),
         off := region.allocate(typ.alignment, typ.byteSize),
-        container.newState,
+        initContainer.newState,
         initOp,
         initContainer.store,
         if (initLen) typ.setFieldMissing(off, 1) else Code._empty)

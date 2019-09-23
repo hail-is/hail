@@ -12,7 +12,6 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
   val resultType = PArray(elemType, required = true)
 
   class State(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
-
     val r = fb.newField[Region]
     val region = r.load
     val bll = new StagedBlockLinkedList(elemType, fb)
@@ -25,7 +24,7 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
         r := Region.stagedCreate(regionSize),
         region.invalidate()))
 
-    def newState: Code[Unit] =
+    def newState(off: Code[Long]): Code[Unit] =
       region.getNewRegion(regionSize)
 
     def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =

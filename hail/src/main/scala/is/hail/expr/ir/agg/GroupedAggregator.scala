@@ -87,12 +87,11 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     "tree" -> PInt64(true))
 
   private val _elt = fb.newField[Long]
-  val initContainer: TupleAggregatorState = new TupleAggregatorState(nested, region, typ.fieldOffset(off, 0), 0)
+  private val initStatesOffset: Code[Long] = typ.loadField(off, 0)
+  val initContainer: TupleAggregatorState = new TupleAggregatorState(nested, region, initStatesOffset, 0)
 
   val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
   val tree = new AppendOnlyBTree(fb, keyed, region, root)
-
-  private val initStatesOffset: Code[Long] = typ.fieldOffset(off, 0)
 
   def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     Code(

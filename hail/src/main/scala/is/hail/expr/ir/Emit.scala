@@ -69,9 +69,9 @@ case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregat
         case Group() =>
           val state = container.states(i).asInstanceOf[agg.DictState]
           if (init)
-            AggContainer(n.toArray, state.keyed.container, state.keyed.container.off)
-          else
             AggContainer(n.toArray, state.initContainer, state.initContainer.off)
+          else
+            AggContainer(n.toArray, state.keyed.container, state.keyed.container.off)
       }
     }
   }
@@ -1065,7 +1065,7 @@ private class Emit(
 
         val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = true)))).toArray
         void(
-          sc.states(i).newState,
+          sc.newState(i),
           rvAgg.initOp(sc.states(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
@@ -1131,7 +1131,7 @@ private class Emit(
           .map(sc => sc.deserialize(CodecSpec.defaultUncompressedBuffer))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => sc.states(i).newState): _*))
+          .map(i => sc.newState(i)): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)

@@ -81,6 +81,8 @@ class Aggregators2Suite extends HailSuite {
         }
       }
 
+      println("tested expected init")
+
       val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
         val init = initF(0, region)
         val seq = withArgs(Begin(seqs))(0, region)
@@ -89,14 +91,22 @@ class Aggregators2Suite extends HailSuite {
           init.newAggState(aggRegion)
           init(region, argOff, false)
           val ioff = init.getAggOffset()
+          println("tested init")
           seq.setAggState(aggRegion, ioff)
           seq(region, argOff, false)
           val soff = seq.getAggOffset()
+          println("tested seq")
           write.setAggState(aggRegion, soff)
           write(region)
+          println("tested write")
           write.getSerializedAgg(0)
         }
       }.toArray
+      println("collected serialized aggs")
+
+      serializedParts.foreach { s =>
+        println(s.map("%02x".format(_)).mkString(" "))
+      }
 
       Region.smallScoped { aggRegion =>
         val combOp = combAndDuplicate(0, region)
@@ -105,6 +115,7 @@ class Aggregators2Suite extends HailSuite {
           combOp.setSerializedAgg(i, s)
         }
         combOp(region)
+        println("tested comb op")
         val res = resF(0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, region, res(region))

@@ -84,7 +84,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     asm4s.coerce[Unit](Code(allCode: _*))
   }
 
-  def newState: Code[Unit] = region.getNewRegion(regionSize)
+  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
   def createState: Code[Unit] = region.isNull.mux(Code(r := Region.stagedCreate(regionSize), region.invalidate()), Code._empty)
 
