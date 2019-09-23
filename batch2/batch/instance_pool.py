@@ -5,7 +5,9 @@ import time
 import math
 
 from .utils import new_token
-from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, PROJECT, ZONE
+from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
+    PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
+    POOL_SIZE, MAX_INSTANCES
 from .instance import Instance
 from .globals import get_db
 
@@ -14,25 +16,24 @@ db = get_db()
 
 
 class InstancePool:
-    def __init__(self, driver, worker_type, worker_cores,
-                 worker_disk_size_gb, pool_size, max_instances):
+    def __init__(self, driver):
         self.driver = driver
-        self.worker_type = worker_type
-        self.worker_cores = worker_cores
+        self.worker_type = WORKER_TYPE
+        self.worker_cores = WORKER_CORES
 
-        if worker_type == 'standard':
+        if WORKER_TYPE == 'standard':
             m = 3.75
-        elif worker_type == 'highmem':
+        elif WORKER_TYPE == 'highmem':
             m = 6.5
         else:
-            assert worker_type == 'highcpu', worker_type
+            assert WORKER_TYPE == 'highcpu', WORKER_TYPE
             m = 0.9
         self.worker_memory = 0.9 * m
 
-        self.worker_capacity = 2 * worker_cores
-        self.worker_disk_size_gb = worker_disk_size_gb
-        self.pool_size = pool_size
-        self.max_instances = max_instances
+        self.worker_capacity = 2 * WORKER_CORES
+        self.worker_disk_size_gb = WORKER_DISK_SIZE_GB
+        self.pool_size = POOL_SIZE
+        self.max_instances = MAX_INSTANCES
 
         self.token = new_token()
         self.machine_name_prefix = f'batch2-agent-{BATCH_NAMESPACE}-'

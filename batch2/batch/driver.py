@@ -259,8 +259,7 @@ class Pod:
 
 
 class Driver:
-    def __init__(self, k8s, batch_bucket, batch_gsa_key=None, worker_type='standard', worker_cores=1,
-                 worker_disk_size_gb=10, pool_size=1, max_instances=2):
+    def __init__(self, k8s, batch_bucket, batch_gsa_key=None):
         self.k8s = k8s
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
@@ -276,8 +275,7 @@ class Driver:
 
         self.base_url = deploy_config.base_url('batch2')
 
-        self.inst_pool = InstancePool(self, worker_type, worker_cores,
-                                      worker_disk_size_gb, pool_size, max_instances)
+        self.inst_pool = InstancePool(self)
 
         if batch_gsa_key is None:
             batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')

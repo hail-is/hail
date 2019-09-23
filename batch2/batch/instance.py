@@ -23,7 +23,7 @@ class Instance:
                         ip_address=ip_address, pending=pending,
                         active=active, deleted=deleted)
 
-        inst_pool.free_cores += inst_pool.worker_capacity
+        inst_pool.free_cores += inst_pool.worker_capacity  # FIXME: this should get cores from db in future
 
         if active:
             inst_pool.n_active_instances += 1
