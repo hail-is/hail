@@ -90,7 +90,7 @@ class Pod:
             if volume['secret'] is not None:
                 name = volume['secret']['secret_name']
                 secret_names.append(name)
-                future_secrets.append(self.driver.k8s.read_secret(name, namespace=BATCH_NAMESPACE))
+                future_secrets.append(self.driver.k8s.read_secret(name))
         results = await asyncio.gather(*future_secrets)
 
         secrets = {}
@@ -282,10 +282,6 @@ class Driver:
         credentials = google.oauth2.service_account.Credentials.from_service_account_file(batch_gsa_key)
 
         self.gservices = GServices(self.inst_pool.machine_name_prefix, credentials)
-
-    async def get_secret(self, name):
-        secret = self.k8s.read_secret(name)
-        return secret.data
 
     async def activate_worker(self, request):
         body = await request.json()

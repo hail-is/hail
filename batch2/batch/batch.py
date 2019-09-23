@@ -33,7 +33,7 @@ from .database import JobsBuilder
 from .datetime_json import JSON_ENCODER
 from .globals import states, complete_states, valid_state_transitions, tasks, get_db
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
+    POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, BATCH_NAMESPACE
 from .driver import Driver
 from .k8s import K8s
 
@@ -1184,7 +1184,7 @@ app.router.add_get("/metrics", server_stats)
 
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
-    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, v1)
+    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, v1)
 
     userinfo = await async_get_userinfo()
     bucket_name = userinfo['bucket_name']
