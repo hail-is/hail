@@ -1,6 +1,6 @@
 import logging
 import os
-import uuid
+import secrets
 from functools import wraps
 import asyncio
 import pymysql
@@ -37,17 +37,20 @@ DEFAULT_WORKER_IMAGE = os.environ['HAIL_NOTEBOOK_WORKER_IMAGE']
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 
 
-async def start_pod(k8s, userdata):
-    notebook_base_path = deploy_config.base_path('notebook')
+def notebook_path(workshop):
+    if workshop:
+        return '/workshop/notebook'
+    return '/notebook'
 
-    jupyter_token = uuid.uuid4().hex
-    pod_id = uuid.uuid4().hex
+
+async def start_pod(k8s, userdata, notebook_token, jupyter_token):
+    notebook_base_path = deploy_config.base_path('notebook')
 
     command = [
         'jupyter',
         'notebook',
         f'--NotebookApp.token={jupyter_token}',
-        f'--NotebookApp.base_url={notebook_base_path}/instance/{pod_id}/',
+        f'--NotebookApp.base_url={notebook_base_path}/instance/{notebook_token}/',
         "--ip", "0.0.0.0", "--no-browser", "--allow-root"
     ]
     if 'workshop_image' in userdata:
@@ -121,8 +124,6 @@ async def start_pod(k8s, userdata):
             generate_name='notebook-worker-',
             labels={
                 'app': 'notebook-worker',
-                'uuid': pod_id,
-                'jupyter-token': jupyter_token,
                 'user_id': str(user_id)
             }),
         spec=pod_spec)
@@ -134,85 +135,48 @@ async def start_pod(k8s, userdata):
     return pod
 
 
-def container_status_for_ui(container_statuses):
-    """
-        Summarize the container status based on its most recent state
+def _get_notebook_pod_status(pod, old_state):
+    pod_ip = pod.status.pod_ip
+    if not pod_ip:
+        state = 'Scheduling'
+    else:
+        state = 'Initializing'
+        if pod.status and pod.status.conditions:
+            for c in pod.status.conditions:
+                if c.type == 'Ready' and c.status == 'True':
+                    state = 'Running'
 
-        Parameters
-        ----------
-        container_statuses : list[V1ContainerStatus]
-            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ContainerStatus.md
-    """
-    if container_statuses is None:
-        return None
-
-    assert len(container_statuses) == 1
-
-    state = container_statuses[0].state
-
-    if state.running:
-        return {"running": {"started_at": state.running.started_at.strftime("%Y-%m-%-d %H:%M:%S")}}
-
-    if state.waiting:
-        return {"waiting": {"reason": state.waiting.reason}}
-
-    if state.terminated:
-        return {"terminated": {
-            "exit_code": state.terminated.exit_code,
-            "finished_at": state.terminated.finished_at.strftime("%Y-%m-%-d %H:%M:%S"),
-            "started_at": state.terminated.started_at.strftime("%Y-%m-%-d %H:%M:%S"),
-            "reason": state.terminated.reason
-        }}
-
-    # FIXME
-    return None
-
-
-def pod_condition_for_ui(conds):
-    """
-        Return the most recent status=="True" V1PodCondition or None
-        Parameters
-        ----------
-        conds : list[V1PodCondition]
-            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodCondition.md
-    """
-    if conds is None:
-        return None
-
-    maxCond = max(conds, key=lambda c: (c.last_transition_time, c.status == 'True'))
-
-    return {"status": maxCond.status, "type": maxCond.type}
-
-
-def pod_to_ui_dict(pod):
-    notebook = {
-        'name': 'a_notebook',
-        'pod_name': pod.metadata.name,
-        'pod_status': pod.status.phase,
-        'pod_uuid': pod.metadata.labels['uuid'],
-        'pod_ip': pod.status.pod_ip,
-        'creation_date': pod.metadata.creation_timestamp.strftime("%Y-%m-%-d %H:%M:%S"),
-        'jupyter_token': pod.metadata.labels['jupyter-token'],
-        'container_status': container_status_for_ui(pod.status.container_statuses),
-        'condition': pod_condition_for_ui(pod.status.conditions)
+        if state == 'Running' and old_state == 'Ready':
+            state = 'Ready'
+    return {
+        'pod_ip': pod_ip,
+        'state': state
     }
 
-    notebook_base_path = deploy_config.base_path('notebook')
-    notebook['url'] = f"{notebook_base_path}/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
 
-    return notebook
+async def get_notebook_pod_status(k8s, pod_name, old_state):
+    try:
+        pod = await k8s.read_namespaced_pod(
+            name=pod_name,
+            namespace=NOTEBOOK_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        return _get_notebook_pod_status(pod, old_state)
+    except kube.client.rest.ApiException as e:
+        if e.status == 404:
+            return None
+        raise
 
 
-async def get_live_notebook(k8s, userdata):
-    user_id = userdata['id']
-    pods = await k8s.list_namespaced_pod(
-        namespace=NOTEBOOK_NAMESPACE,
-        label_selector=f"user_id={user_id}",
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+async def get_user_notebook(app, user_id):
+    dbpool = app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM notebooks WHERE user_id = %s;', user_id)
+            notebooks = cursor.fetchall()
 
-    for pod in pods.items:
-        if pod.metadata.deletion_timestamp is None:
-            return pod_to_ui_dict(pod)
+    if len(notebooks) == 1:
+        return notebooks[0]
+    return None
 
 
 async def delete_worker_pod(k8s, pod_name):
@@ -240,37 +204,16 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     return context
 
 
-def get_config(workshop):
-    if workshop:
-        return {
-            'session_key': 'workshop_notebook',
-            'notebook_path': '/workshop/notebook'
-        }
-    return {
-        'session_key': 'notebook',
-        'notebook_path': '/notebook'
-    }
-
-
 async def _get_notebook(request, userdata, workshop=False):
-    config = get_config(workshop)
+    app = request.app
 
-    k8s = request.app['k8s_client']
-    notebook = await get_live_notebook(k8s, userdata)
     csrf_token = new_csrf_token()
 
     session = await aiohttp_session.get_session(request)
-    session_key = config['session_key']
-    if notebook:
-        session[session_key] = notebook
-    else:
-        if session_key in session:
-            del session[session_key]
-
     context = base_context(deploy_config, session, userdata, 'notebook')
     context['csrf_token'] = csrf_token
-    context['notebook'] = notebook
-    context['notebook_path'] = config['notebook_path']
+    context['notebook'] = get_user_notebook(app, userdata['id'])
+    context['notebook_path'] = notebook_path(workshop)
     if workshop:
         context['workshop'] = workshop
     response = aiohttp_jinja2.render_template('notebook.html',
@@ -281,76 +224,74 @@ async def _get_notebook(request, userdata, workshop=False):
 
 
 async def _post_notebook(request, userdata, workshop=False):
-    config = get_config(workshop)
-    k8s = request.app['k8s_client']
-    session = await aiohttp_session.get_session(request)
-    pod = await start_pod(k8s, userdata)
-    session[config['session_key']] = pod_to_ui_dict(pod)
+    app = request.app
+    dbpool = app['dbpool']
+    k8s = app['k8s_client']
+
+    notebook_token = secrets.token_urlsafe(32)
+    jupyter_token = secrets.token_hex(16)
+
+    pod = await start_pod(k8s, userdata, notebook_token, jupyter_token)
+    if pod.status.pod_ip:
+        state = 'Initializing'
+    else:
+        state = 'Scheduling'
+
+    user_id = userdata['id']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+DELETE FROM notebooks WHERE user_id = %s;
+INSERT INTO notebooks (user_id, pod_name, state, pod_ip, jupyter_token) VALUES (%s, %s, %s, %s, %s);
+''',
+                (user_id, notebook_token, pod.metadata.name, state, pod.status.pod_ip, jupyter_token))
+
     return web.HTTPFound(
-        location=deploy_config.external_url('notebook', config['notebook_path']))
+        location=deploy_config.external_url('notebook', notebook_path(workshop)))
 
 
-async def _delete_notebook(request, workshop=False):
-    config = get_config(workshop)
-    k8s = request.app['k8s_client']
-    session = await aiohttp_session.get_session(request)
-    session_key = config['session_key']
-    notebook = session.get(session_key)
+async def _delete_notebook(request, userdata, workshop=False):
+    app = request.app
+    dbpool = app['dbpool']
+    k8s = app['k8s_client']
+
+    notebook = get_user_notebook(app, userdata['id'])
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
-        del session[session_key]
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'DELETE FROM notebooks WHERE user_id = %s;', userdata['id'])
 
-    return web.HTTPFound(location=deploy_config.external_url('notebook', config['notebook_path']))
+    return web.HTTPFound(location=deploy_config.external_url('notebook', notebook_path(workshop)))
 
 
-async def _wait_websocket(request, workshop=False):
-    config = get_config(workshop)
-    session_key = config['session_key']
-    session = await aiohttp_session.get_session(request)
-    notebook = session.get(session_key)
-
+async def _wait_websocket(request, userdata, workshop=False):
+    app = request.app
+    notebook = get_user_notebook(app, userdata['id'])
     if not notebook:
         return web.HTTPNotFound()
+
+    k8s = request.app['k8s_client']
+    dbpool = request.app['dbpool']
+    pod_name = notebook['pod_name']
+    old_state = notebook['state']
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    pod_name = notebook['pod_name']
-    if notebook['pod_ip']:
-        ready_url = deploy_config.external_url('notebook', f'/instance/{notebook["pod_uuid"]}/?token={notebook["jupyter_token"]}')
-        attempts = 0
-        while attempts < 10:
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
-                    async with session.get(ready_url, cookies=request.cookies) as resp:
-                        if resp.status >= 200 and resp.status < 300:
-                            log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
-                            break
-                        else:
-                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
-            except aiohttp.ServerTimeoutError:
-                log.info(f'GET on jupyter pod {pod_name} timed out')
-
-            await asyncio.sleep(1)
-            attempts += 1
-    else:
-        k8s = request.app['k8s_client']
-
-        log.info(f'jupyter pod {pod_name} no IP')
-        attempts = 0
-        while attempts < 10:
-            try:
-                pod = await k8s.read_namespaced_pod(
-                    name=pod_name,
-                    namespace=NOTEBOOK_NAMESPACE,
-                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-                if pod.status.pod_ip:
-                    log.info(f'jupyter pod {pod_name} IP {pod.status.pod_ip}')
-                    break
-            except Exception:  # pylint: disable=broad-except
-                log.exception('while getting jupyter pod {pod_name} status')
-            await asyncio.sleep(1)
-            attempts += 1
+    count = 0
+    while count < 12:
+        status = get_notebook_pod_status(k8s, pod_name, old_state)
+        if not status or (status['state'] != old_state):
+            async with dbpool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        'UPDATE notebooks SET state = %s, pod_ip = %s WHERE user_id = %s;',
+                        (status['state'], status['pod_ip']))
+            break
+        await asyncio.sleep(1)
 
     await ws.send_str("1")
 
@@ -367,7 +308,7 @@ async def get_notebook(request, userdata):
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def delete_notebook(request, userdata):  # pylint: disable=unused-argument
-    return await _delete_notebook(request)
+    return await _delete_notebook(request, userdata)
 
 
 @routes.post('/notebook')
@@ -377,22 +318,17 @@ async def post_notebook(request, userdata):
     return await _post_notebook(request, userdata)
 
 
-@routes.get('/auth/{requested_pod_uuid}')
+@routes.get('/auth/{requested_notebook_token}')
 @web_authenticated_users_only()
-async def auth(request, userdata):  # pylint: disable=unused-argument
-    request_pod_uuid = request.match_info['requested_pod_uuid']
-    session = await aiohttp_session.get_session(request)
+async def auth(request, userdata):
+    requested_notebook_token = request.match_info['requested_notebook_token']
+    app = request.app
 
-    notebook = session.get('notebook')
-    if notebook and notebook['pod_uuid'] == request_pod_uuid:
+    notebook = get_user_notebook(app, userdata['id'])
+    if notebook and notebook['notebook_token'] == requested_notebook_token:
+        pod_ip = notebook['pod_ip']
         return web.Response(headers={
-            'pod_ip': f"{notebook['pod_ip']}:{POD_PORT}"
-        })
-
-    workshop_notebook = session.get('workshop_notebook')
-    if workshop_notebook and workshop_notebook['pod_uuid'] == request_pod_uuid:
-        return web.Response(headers={
-            'pod_ip': f"{workshop_notebook['pod_ip']}:{POD_PORT}"
+            'pod_ip': f'{pod_ip}:{POD_PORT}'
         })
 
     return web.HTTPNotFound()
@@ -467,7 +403,7 @@ async def create_workshop(request, userdata):  # pylint: disable=unused-argument
             try:
                 active = (post.get('active') == 'on')
                 if active:
-                    token = uuid.uuid4().hex
+                    token = secrets.token_urlsafe(32)
                 else:
                     token = None
                 await cursor.execute('''
@@ -506,7 +442,7 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
             active = (post.get('active') == 'on')
             # FIXME don't set token unless re-activating
             if active:
-                token = uuid.uuid4().hex
+                token = secrets.token_urlsafe(32)
             else:
                 token = None
             n = await cursor.execute('''
@@ -649,11 +585,12 @@ async def post_workshop_login(request):
     if workshop['password'] != password:
         forbidden()
 
+    user_id = secrets.token_urlsafe(16)
     session['workshop_session'] = {
         'workshop_name': name,
         'workshop_token': workshop['token'],
         'workshop_image': workshop['image'],
-        'id': uuid.uuid4().hex
+        'id': user_id
     }
 
     set_message(session, f'Welcome to the {name} workshop!', 'info')
@@ -696,7 +633,7 @@ async def post_workshop_notebook(request, userdata):
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def delete_workshop_notebook(request, userdata):  # pylint: disable=unused-argument
-    return await _delete_notebook(request, workshop=True)
+    return await _delete_notebook(request, userdata, workshop=True)
 
 
 @routes.get('/workshop/notebook/wait')
