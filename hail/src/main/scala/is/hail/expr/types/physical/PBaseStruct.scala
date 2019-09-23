@@ -65,6 +65,21 @@ abstract class PBaseStruct extends PType {
     sb.result()
   }
 
+  def asIdent: String = {
+    val sb = new StringBuilder
+    this match {
+      case t: PStruct => sb.append("struct_of_")
+      case t: PTuple => sb.append("tuple_of_")
+    }
+    types.foreachBetween { ty =>
+      sb.append(ty.asIdent)
+    } {
+      sb.append("AND")
+    }
+    sb.append("END")
+    sb.result()
+  }
+
   def isIsomorphicTo(other: PBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)
 

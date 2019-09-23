@@ -29,6 +29,7 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
 
+  def asIdent = "locus"
   def _toPretty = s"Locus($rg)"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -93,6 +94,6 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
   val representation: PStruct = PLocus.representation(required)
 
   def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
-  
+
   def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
 }

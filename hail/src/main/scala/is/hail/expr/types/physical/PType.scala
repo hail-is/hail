@@ -182,6 +182,8 @@ abstract class PType extends BaseType with Serializable {
       (signature, (a, toIns) => toIns)
   }
 
+  def asIdent: String
+
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
       sb.append("+")

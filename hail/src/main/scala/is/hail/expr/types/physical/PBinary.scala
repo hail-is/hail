@@ -18,6 +18,7 @@ case object PBinaryRequired extends PBinary(true)
 class PBinary(override val required: Boolean) extends PType {
   lazy val virtualType: TBinary = TBinary(required)
 
+  def asIdent = "binary"
   def _toPretty = "Binary"
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
