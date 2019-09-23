@@ -11,6 +11,12 @@ object PContainer {
 
   def loadLength(aoff: Code[Long]): Code[Int] =
     Region.loadInt(aoff)
+
+  def storeLength(aoff: Long, length: Int): Unit =
+    Region.storeInt(aoff, length)
+
+  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    Region.storeInt(aoff, length)
 }
 
 abstract class PContainer extends PIterable {
@@ -29,6 +35,15 @@ abstract class PContainer extends PIterable {
 
   final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     loadLength(aoff)
+
+  final def storeLength(region: Region, aoff: Long, length: Int): Unit =
+    PContainer.storeLength(aoff, length)
+
+  final def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    PContainer.storeLength(aoff, length)
+
+  final def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    storeLength(aoff, length)
 
 
   def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3

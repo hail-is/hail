@@ -34,6 +34,10 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
     out.invoke[Region, Long, Int, Unit]("writeBytes", region, off, n)
   }
 
+  def writeBytes(off: Code[Long], n: Code[Int]): Code[Unit] = {
+    out.invoke[Long, Int, Unit]("writeBytes", off, n)
+  }
+
   def writePrimitive(typ: PType): Code[_] => Code[Unit] = typ.fundamentalType match {
     case _: PBoolean => v => writeBoolean(coerce[Boolean](v))
     case _: PInt32 => v => writeInt(coerce[Int](v))
