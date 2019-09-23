@@ -212,7 +212,7 @@ class Job:
                          f'due to {err}')
             return task_name, pod_log
 
-        async def _read_log_from_agent(task_name):
+        async def _read_log_from_worker(task_name):
             pod_log, err = await app['driver'].read_pod_log(self._pod_name, container=task_name)
             if err is not None:
                 # traceback.print_tb(err.__traceback__)
@@ -221,7 +221,7 @@ class Job:
             return task_name, pod_log
 
         if self._state == 'Running':
-            future_logs = asyncio.gather(*[_read_log_from_agent(task) for task in tasks])
+            future_logs = asyncio.gather(*[_read_log_from_worker(task) for task in tasks])
             return {k: v for k, v in await future_logs}
         else:
             assert self._state in ('Error', 'Failed', 'Success')
@@ -241,7 +241,7 @@ class Job:
                 return None
             return task_name, status
 
-        async def _read_status_from_agent(task_name):
+        async def _read_status_from_worker(task_name):
             status, err = await app['driver'].read_container_status(self._pod_name, container=task_name)
             if err is not None:
                 # traceback.print_tb(err.__traceback__)
@@ -250,7 +250,7 @@ class Job:
             return task_name, status
 
         if self._state == 'Running':
-            future_statuses = asyncio.gather(*[_read_status_from_agent(task) for task in tasks])
+            future_statuses = asyncio.gather(*[_read_status_from_worker(task) for task in tasks])
             return {k: v for k, v in await future_statuses}
         else:
             assert self._state in ('Error', 'Failed', 'Success')
@@ -914,6 +914,13 @@ async def _cancel_batch(batch_id, user):
     if not batch:
         abort(404)
     asyncio.ensure_future(batch.cancel())
+
+
+async def _get_job(batch_id, job_id, user):
+    job = await Job.from_db(batch_id, job_id, user)
+    if not job:
+        abort(404)
+    return job.to_dict()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
