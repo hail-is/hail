@@ -171,7 +171,7 @@ async def get_user_notebook(app, user_id):
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('SELECT * FROM notebooks WHERE user_id = %s;', user_id)
-            notebooks = cursor.fetchall()
+            notebooks = await cursor.fetchall()
 
     if len(notebooks) == 1:
         return notebooks[0]
