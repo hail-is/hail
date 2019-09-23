@@ -40,7 +40,7 @@ def base_context(deploy_config, userdata, service):
         'notebook_base_url': deploy_config.external_url('notebook2', ''),
         'auth_base_url': deploy_config.external_url('auth', ''),
         'batch_base_url': deploy_config.external_url('batch', ''),
-        'batch2_base_url': deploy_config.external_url('batch2', ''),        
+        'batch2_base_url': deploy_config.external_url('batch2', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
         'scorecard_base_url': deploy_config.external_url('scorecard', ''),
         'userdata': userdata
