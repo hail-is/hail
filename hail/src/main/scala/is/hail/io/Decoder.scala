@@ -32,7 +32,7 @@ final class CompiledDecoder(in: InputBuffer, f: () => AsmFunction2[Region, Input
 
 final class ByteArrayDecoder(
   makeDec: InputStream => Decoder
-) extends Decoder {
+) extends Closeable {
   private[this] val bais = new RestartableByteArrayInputStream()
   private[this] val enc = makeDec(bais)
 
@@ -41,16 +41,8 @@ final class ByteArrayDecoder(
     bais.close()
   }
 
-  override def readRegionValue(region: Region): Long = enc.readRegionValue(region)
-
-  override def readByte(): Byte = enc.readByte()
-
-  override def seek(offset: Long): Unit = enc.seek(offset)
-
-  def restart(bytes: Array[Byte]) = bais.restart(bytes)
-
   def regionValueFromBytes(region: Region, bytes: Array[Byte]): Long = {
-    restart(bytes)
-    readRegionValue(region)
+    bais.restart(bytes)
+    enc.readRegionValue(region)
   }
 }
