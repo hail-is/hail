@@ -395,7 +395,7 @@ async def auth(request):
     requested_notebook_token = request.match_info['requested_notebook_token']
 
     notebook = await get_user_notebook(request.app, userdata['id'])
-    log.info(f'tokens {requested_notebook_token} {notebook["notebook_token"]}'
+    log.info(f'tokens {requested_notebook_token} {notebook["notebook_token"]}')
     if notebook and notebook['notebook_token'] == requested_notebook_token:
         pod_ip = notebook['pod_ip']
         return web.Response(headers={
