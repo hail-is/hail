@@ -4,7 +4,7 @@
     {% else %}
         <div class="spinner"></div>
     {% endif %}
-    <a target="_blank" class="nb-state-container" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}">
+    <a target="_blank" class="nb-state-container" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
         <b>a_notebook</b>
         <span class="small">
         Status: <b>{{ notebook['state'] }}</b>
