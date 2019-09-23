@@ -4,6 +4,7 @@ import secrets
 from functools import wraps
 import asyncio
 import pymysql
+import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
@@ -134,7 +135,7 @@ async def start_pod(k8s, userdata, notebook_token, jupyter_token):
     return pod
 
 
-def _get_notebook_pod_status(pod, old_state):
+def notebook_status_from_pod(pod):
     pod_ip = pod.status.pod_ip
     if not pod_ip:
         state = 'Scheduling'
@@ -144,26 +145,44 @@ def _get_notebook_pod_status(pod, old_state):
             for c in pod.status.conditions:
                 if c.type == 'Ready' and c.status == 'True':
                     state = 'Running'
-
-        if state == 'Running' and old_state == 'Ready':
-            state = 'Ready'
     return {
         'pod_ip': pod_ip,
         'state': state
     }
 
 
-async def get_notebook_pod_status(k8s, pod_name, old_state):
+async def notebook_status_from_notebook(k8s, cookies, notebook):
     try:
         pod = await k8s.read_namespaced_pod(
-            name=pod_name,
+            name=notebook['pod_name'],
             namespace=NOTEBOOK_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        return _get_notebook_pod_status(pod, old_state)
     except kube.client.rest.ApiException as e:
         if e.status == 404:
             return None
         raise
+
+    status = notebook_status_from_pod(pod)
+
+    if status['state'] == 'Running':
+        if notebook['state'] == 'Ready':
+            status['state'] = 'Ready'
+        else:
+            pod_name = notebook['pod_name']
+            ready_url = deploy_config.external_url(
+                'notebook2', f'/instance-ready/{notebook["notebook_token"]}')
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1)) as session:
+                    async with session.get(ready_url, cookies=cookies) as resp:
+                        if resp.status >= 200 and resp.status < 300:
+                            log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
+                            status['state'] = 'Ready'
+                        else:
+                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
+            except aiohttp.ServerTimeoutError:
+                log.info(f'GET on jupyter pod {pod_name} timed out: {resp}')
+
+    return status
 
 
 async def get_user_notebook(app, user_id):
@@ -274,16 +293,14 @@ async def _wait_websocket(request, userdata):
 
     k8s = request.app['k8s_client']
     dbpool = request.app['dbpool']
-    pod_name = notebook['pod_name']
-    old_state = notebook['state']
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     count = 0
     while count < 12:
-        status = await get_notebook_pod_status(k8s, pod_name, old_state)
-        if not status or (status['state'] != old_state):
+        status = await notebook_status_from_notebook(k8s, request.cookies, notebook)
+        if not status or (status['state'] != notebook['state']):
             async with dbpool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(
