@@ -263,7 +263,7 @@ install-deps:
 
 .PHONY: benchmark
 benchmark: install
-	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) make -C ../benchmark benchmark
+	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
 .PHONY: clean-docs
 clean-docs:

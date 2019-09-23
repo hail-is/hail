@@ -17,6 +17,9 @@ setup(
         "License :: OSI Approved :: MIT License",
     ],
     python_requires=">=3.6",
+    install_requires=[
+        'hail>=0.2',
+    ],
     entry_points={
         'console_scripts': ['hail-bench = benchmark_hail.__main__:main']
     },

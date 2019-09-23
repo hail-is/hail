@@ -10,7 +10,8 @@ endif
 
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 
-HAIL_PYTHON3 := python3
+HAIL_PYTHON3 ?= python3
+PIP := $(HAIL_PYTHON3) -m pip
 
 BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_VERSION)-py3-none-any.whl
 .PHONY: wheel
@@ -19,8 +20,8 @@ wheel:
 
 .PHONY: install
 install: wheel
-	-pip uninstall -y benchmark_hail
-	pip install $(BENCHMARK_WHEEL)
+	-$(PIP) uninstall -y benchmark_hail
+	(PIP) install $(BENCHMARK_WHEEL)
 
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 PROJECT = $(shell gcloud config get-value project)
