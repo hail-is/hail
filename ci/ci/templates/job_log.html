@@ -3,7 +3,7 @@
 {% block content %}
     <h1>Job {{ job_id }} Log</h1>
     {% if 'setup' in job_log %}
-    <h2>Setup</h2>
+    <h2 class="stacked-header">Setup</h2>
     <pre>{{ job_log['setup'] }}</pre>
     {% endif %}
 

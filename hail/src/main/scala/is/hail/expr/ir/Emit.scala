@@ -1237,12 +1237,14 @@ private class Emit(
                 }
               }
 
-              EmitTriplet(codeOld.setup, codeOld.m, Code(
-                srvb.start(init = true),
-                codeOld.setup,
-                xo := coerce[Long](codeOld.v),
-                EmitUtils.wrapToMethod(items, new EmitMethodBuilderLike(this)),
-                srvb.offset))
+              EmitTriplet(
+                codeOld.setup, 
+                codeOld.m,
+                Code(
+                  srvb.start(init = true),
+                  xo := coerce[Long](codeOld.v),
+                  EmitUtils.wrapToMethod(items, new EmitMethodBuilderLike(this)),
+                  srvb.offset))
             case _ =>
               val newIR = MakeStruct(fields)
               emit(newIR)

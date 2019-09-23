@@ -1411,7 +1411,7 @@ object IRParser {
         val child = ir_value_expr(env)(it)
         ValueToBlockMatrix(child, shape, blockSize)
       case "BlockMatrixRandom" =>
-        val seed = int32_literal(it)
+        val seed = int64_literal(it)
         val gaussian = boolean_literal(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)

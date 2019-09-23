@@ -27,13 +27,12 @@
 
         <h2>Needs Review</h2>
         {% if user_data['NEEDS_REVIEW'] %}
-        <table>
+        <table class="data-table">
             <tbody>
             {% for pr in user_data['NEEDS_REVIEW'] %}
             <tr>
-                <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
-                <td><a href="https://github.com/{{ pr.user }}">{{ pr.user }}</a></td>
-                <td>{{ pr.title }}</td>
+              <td><a href="https://github.com/{{ pr.user }}">{{ pr.user }}</a></td>
+              <td><a href="{{ pr.html_url }}">{{ pr.title }} <span class="gh-number">#{{ pr.id }}</a></a></td>
             </tr>
             {% endfor %}
             </tbody>
@@ -44,12 +43,11 @@
 
         <h2>Changes Requested</h2>
         {% if user_data['CHANGES_REQUESTED'] %}
-        <table>
+        <table class="data-table">
             <tbody>
             {% for pr in user_data['CHANGES_REQUESTED'] %}
             <tr>
-                <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
-                <td>{{ pr.title }}</td>
+              <td><a href="{{ pr.html_url }}">{{ pr.title }} <span class="gh-number">#{{ pr.id }}</span></a></td>
             </tr>
             {% endfor %}
             </tbody>
@@ -60,12 +58,11 @@
 
         <h2>Failing tests</h2>
         {% if user_data['FAILING'] %}
-        <table>
+        <table class="data-table">
             <tbody>
             {% for pr in user_data['FAILING'] %}
             <tr>
-                <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
-                <td>{{ pr.title }}</td>
+              <td><a href="{{ pr.html_url }}">{{ pr.title }} <span class="gh-number">#{{ pr.id }}</span></a></td>
             </tr>
             {% endfor %}
             </tbody>
@@ -77,12 +74,11 @@
 
         <h2>Issues</h2>
         {% if user_data['ISSUES'] %}
-        <table>
+        <table class="data-table">
             <tbody>
             {% for issue in user_data['ISSUES'] %}
             <tr>
-                <td><a href="{{ issue.html_url }}">{{ issue.id }}</a></td>
-                <td>{{ issue.title }}</td>
+              <td><a href="{{ issue.html_url }}">{{ issue.title }} <span class="gh-number">#{{ issue.id }}</span></a></td>
             </tr>
             {% endfor %}
             </tbody>

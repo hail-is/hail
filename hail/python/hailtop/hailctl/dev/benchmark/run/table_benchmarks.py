@@ -87,7 +87,7 @@ def table_aggregate_array_sum():
 def table_annotate_many_flat():
     n = 1_000_000
     m = 100
-    ht = hl.utils.range_table(n)
+    ht = hl.utils.range_table(n, 16)
     ht = ht.annotate(**{f'x{i}': i + ht.idx for i in range(m)})
     ht._force_count()
 
@@ -96,9 +96,19 @@ def table_annotate_many_flat():
 def table_annotate_many_nested_no_dependence():
     n = 1_000_000
     m = 100
-    ht = hl.utils.range_table(n)
+    ht = hl.utils.range_table(n, 16)
     for i in range(m):
         ht = ht.annotate(**{f'x{i}': i + ht.idx})
+    ht._force_count()
+
+
+@benchmark
+def table_annotate_many_nested_dependence_constants():
+    n = 1_000_000
+    m = 100
+    ht = hl.utils.range_table(n, 16).annotate(x0=1)
+    for i in range(1, m):
+        ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()
 
 
@@ -106,7 +116,8 @@ def table_annotate_many_nested_no_dependence():
 def table_annotate_many_nested_dependence():
     n = 1_000_000
     m = 100
-    ht = hl.utils.range_table(n).annotate(x0=1)
+    ht = hl.utils.range_table(n, 16)
+    ht = ht.annotate(x0=ht.idx)
     for i in range(1, m):
         ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()

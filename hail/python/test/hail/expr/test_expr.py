@@ -2594,6 +2594,11 @@ class Tests(unittest.TestCase):
                     hl.is_defined(group_rows_agg.call_stats)
                     & (group_rows_agg.call_stats == hl.struct(AC=[7, 7], AF=[0.5, 0.5], AN=14, homozygote_count=[0, 0])))))
 
+    def test_call_stats_init(self):
+        ht = hl.utils.range_table(3)
+        ht = ht.annotate(GT = hl.unphased_diploid_gt_index_call(ht.idx))
+        assert ht.aggregate(hl.agg.call_stats(ht.GT, 2).AC) == [3, 3]
+
     def test_mendel_error_code(self):
         locus_auto = hl.Locus('2', 20000000)
         locus_x_par = hl.get_reference('default').par[0].start

@@ -56,7 +56,13 @@ class HailContext(object):
             conf.set('spark.jars', ','.join(jars))
             conf.set('spark.driver.extraClassPath', ','.join(jars))
             conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
-            SparkContext._ensure_initialized(conf=conf)
+            if sc is None:
+                SparkContext._ensure_initialized(conf=conf)
+            else:
+                raise FatalError(
+                    'pip-installed Hail is incompatible with an already '
+                    'constructed SparkContext. You must either build hail '
+                    'from source or not create a SparkContext yourself.')
         else:
             SparkContext._ensure_initialized()
 
