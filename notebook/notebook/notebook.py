@@ -212,7 +212,7 @@ async def _get_notebook(request, userdata, workshop=False):
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'notebook')
     context['csrf_token'] = csrf_token
-    context['notebook'] = get_user_notebook(app, userdata['id'])
+    context['notebook'] = await get_user_notebook(app, userdata['id'])
     context['notebook_path'] = notebook_path(workshop)
     if workshop:
         context['workshop'] = workshop
@@ -256,7 +256,7 @@ async def _delete_notebook(request, userdata, workshop=False):
     dbpool = app['dbpool']
     k8s = app['k8s_client']
 
-    notebook = get_user_notebook(app, userdata['id'])
+    notebook = await get_user_notebook(app, userdata['id'])
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
         async with dbpool.acquire() as conn:
@@ -269,7 +269,7 @@ async def _delete_notebook(request, userdata, workshop=False):
 
 async def _wait_websocket(request, userdata, workshop=False):
     app = request.app
-    notebook = get_user_notebook(app, userdata['id'])
+    notebook = await get_user_notebook(app, userdata['id'])
     if not notebook:
         return web.HTTPNotFound()
 
@@ -283,7 +283,7 @@ async def _wait_websocket(request, userdata, workshop=False):
 
     count = 0
     while count < 12:
-        status = get_notebook_pod_status(k8s, pod_name, old_state)
+        status = await get_notebook_pod_status(k8s, pod_name, old_state)
         if not status or (status['state'] != old_state):
             async with dbpool.acquire() as conn:
                 async with conn.cursor() as cursor:
@@ -324,7 +324,7 @@ async def auth(request, userdata):
     requested_notebook_token = request.match_info['requested_notebook_token']
     app = request.app
 
-    notebook = get_user_notebook(app, userdata['id'])
+    notebook = await get_user_notebook(app, userdata['id'])
     if notebook and notebook['notebook_token'] == requested_notebook_token:
         pod_ip = notebook['pod_ip']
         return web.Response(headers={
