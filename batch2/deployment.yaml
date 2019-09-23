@@ -48,7 +48,7 @@ spec:
 {% endif %}
 {% if not deploy %}
          - name: WORKER_TYPE
-           value: "standard"
+           value: standard
          - name: WORKER_CORES
            value: 1
          - name: WORKER_DISK_SIZE_GB
