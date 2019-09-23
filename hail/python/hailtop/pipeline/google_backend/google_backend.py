@@ -154,7 +154,7 @@ class PagedIterator:
 
 class GClients:
     def __init__(self):
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1')
+        self.compute_client = googleapiclient.discovery.build('compute', 'v1', cache_discovery=False)
 
 
 class GServices:

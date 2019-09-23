@@ -41,7 +41,7 @@ image: cleanup-image
 	gcloud -q compute --project $(PROJECT) images create pipeline --source-disk=pipeline-image-builder --source-disk-zone=$(ZONE)
 
 driver:
-	gcloud -q compute --project $(PROJECT) instances create pipeline-driver --zone=$(ZONE) --machine-type=n1-standard-8 --network=default --network-tier=PREMIUM --metadata=startup-script-url=gs://hail-common/dev2/pipeline/driver-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=pipeline --image-project=broad-ctsa --boot-disk-size=20GB --boot-disk-type=pd-ssd
+	gcloud -q compute --project $(PROJECT) instances create pipeline-driver --zone=$(ZONE) --machine-type=n1-standard-2 --network=default --network-tier=PREMIUM --metadata=startup-script-url=gs://hail-common/dev2/pipeline/driver-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=pipeline --image-project=broad-ctsa --boot-disk-size=20GB --boot-disk-type=pd-ssd
 
 copy-all:
 	gsutil -h "Cache-Control:no-cache,max-age=0" -m cp image-builder-startup.sh driver-startup.sh worker-startup.sh run-worker.sh worker.py gs://hail-common/dev2/pipeline/
