@@ -3,73 +3,44 @@ package is.hail.expr.ir
 import is.hail.expr.types.virtual._
 
 object Streamify {
-
-  private[this] def streamify(streamableNode: IR): IR = streamableNode match {
-    case _: MakeStream | _: StreamRange | _: ReadPartition => Copy(streamableNode, Children(streamableNode).map { case c: IR => apply(c) } )
-    case ArrayRange(start, stop, step) => StreamRange(apply(start), apply(stop), apply(step))
-    case MakeArray(args, t) => MakeStream(args.map(apply), TStream(t.elementType, t.required))
+  def apply(ir0: IR): IR = MapIR(apply)(ir0) match {
+    case ArrayRange(i, j, k) =>
+      ToArray(StreamRange(i, j, k))
+    case MakeArray(xs, t) =>
+      ToArray(MakeStream(xs, TStream(t.elementType, t.required)))
     case ArrayMap(a, n, b) =>
-      if (a.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayMap(streamify(a), n, apply(b))
-    case ArrayFilter(a, n, b) =>
-      if (a.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayFilter(streamify(a), n, apply(b))
-    case ArrayFlatMap(a, n, b) =>
-      if (a.typ.isInstanceOf[TStream] && b.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayFlatMap(streamify(a), n, streamify(b))
-    case ArrayScan(a, zero, zn, an, body) =>
-      if (a.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayScan(streamify(a), apply(zero), zn, an, apply(body))
-    case ToArray(a) =>
-      a.typ match {
-        case _: TStream => a
-        case _: TArray => streamify(a)
-        case _ => ToStream(apply(streamableNode))
-      }
-    case ToStream(a) =>
-      a.typ match {
-        case _: TStream => a
-        case _ => ToStream(apply(a))
-      }
-    case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
-      ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, apply(keyf), apply(joinf))
-    case Let(n, v, b) =>
-      Let(n, apply(v), streamify(b))
-    case _ =>
-      ToStream(Copy(streamableNode, Children(streamableNode).map { case c: IR => apply(c) } ))
+      ToArray(ArrayMap(toStream(a), n, b))
+    case ArrayFilter(a, n, c) =>
+      ToArray(ArrayFilter(toStream(a), n, c))
+    case ArrayFlatMap(a, n, c) =>
+      ToArray(ArrayFlatMap(toStream(a), n, toStream(c)))
+    case ArrayScan(a, z, an, vn, b) =>
+      ToArray(ArrayScan(toStream(a), z, an, vn, b))
+    case ArraySort(a, ln, rn, cmp) =>
+      ArraySort(toStream(a), ln, rn, cmp)
+    case ArrayFold(a, z, an, vn, b) =>
+      ArrayFold(toStream(a), z, an, vn, b)
+    case ArrayFold2(a, acc, vn, seq, res) =>
+      ArrayFold2(toStream(a), acc, vn, seq, res)
+    case ArrayFor(a, n, b) =>
+      ArrayFor(toStream(a), n, b)
+    case ArrayAgg(a, n, q) =>
+      ArrayAgg(toStream(a), n, q)
+    case ArrayAggScan(a, n, q) =>
+      ArrayAggScan(toStream(a), n, q) // TODO: deforest me
+    case ArrayLeftJoinDistinct(l, r, ln, rn, key, join) =>
+      ArrayLeftJoinDistinct(toStream(l), r, ln, rn, key, join) // TODO: deforest me
+    case ToArray(a) => ToArray(toStream(a))
+    case ToDict(a) => ToDict(toStream(a))
+    case ToSet(a) => ToSet(toStream(a))
+    case app: ApplyIR => apply(app.explicitNode)
+    case ir => ir
   }
 
-  private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
-    case ToArray(a) =>
-      a.typ match {
-        case _: TArray => ToArray(streamify(a))
-        case _ => streamableNode
-      }
-    case ToStream(a) =>
-      a.typ match {
-        case _: TStream => ToArray(a)
-        case _ => a
-      }
-    case If(cond, cnsq, altr) =>
-      If(cond, unstreamify(cnsq), unstreamify(altr))
-    case Let(n, v, b) =>
-      Let(n, v, unstreamify(b))
-    case _ =>
-      streamify(streamableNode) match {
-        case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
-        case s => ToArray(s)
-      }
-  }
-
-  def apply(node: IR): IR = node match {
-    case ArraySort(a, l, r, comp) => ArraySort(streamify(a), l, r, comp)
-    case ToSet(a) => ToSet(streamify(a))
-    case ToDict(a) => ToDict(streamify(a))
-    case ArrayFold(a, zero, zn, an, body) => ArrayFold(streamify(a), zero, zn, an, body)
-    case ArrayFold2(a, acc, vn, seq, res) => ArrayFold2(streamify(a), acc, vn, seq, res)
-    case ArrayFor(a, n, b) => ArrayFor(streamify(a), n, b)
-    case x: ApplyIR => apply(x.explicitNode)
-    case _ if node.typ.isInstanceOf[TStreamable] => unstreamify(node)
-    case _ => Copy(node, Children(node).map { case c: IR => apply(c) })
+  def toStream(ir: IR): IR = ir match {
+    // case If(c, thn, els) => If(c, toStream(thn), toStream(els))  <- not supported
+    case ToArray(s) => assert(s.typ.isInstanceOf[TStreamable]); s
+    case Let(n, v, b) => Let(n, v, toStream(b))
+    case a => ToStream(a)
   }
 }
