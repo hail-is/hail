@@ -84,6 +84,8 @@ def test_ndarray_eval():
     assert(np.array_equal(evaled, np_equiv))
     assert(evaled.strides == np_equiv.strides)
 
+    assert hl.eval(hl._ndarray([[], []])).strides == (8, 8)
+    assert np.array_equal(hl.eval(hl._ndarray([])), np.array([]))
 
 @skip_unless_spark_backend()
 def test_ndarray_shape():
