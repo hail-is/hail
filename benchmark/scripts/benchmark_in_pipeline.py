@@ -16,7 +16,7 @@ if __name__ == '__main__':
     p = pl.Pipeline(name='benchmark',
                     backend=pl.BatchBackend(),
                     default_image=BENCHMARK_IMAGE,
-                    default_storage='10G',
+                    default_storage='100G',
                     default_memory='7G',
                     default_cpu=2)
 
@@ -39,8 +39,7 @@ if __name__ == '__main__':
             t = p.new_task(name=f'{name}_{replicate}')
             t.command(f'mv {make_resources.ofile} benchmark-resources.tar.gz')
             t.command('time tar -xf benchmark-resources.tar.gz')
-            t.command(f'hail-bench run '
-                      f'-v -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
+            t.command(f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
             all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')

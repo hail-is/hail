@@ -266,6 +266,10 @@ install-deps:
 benchmark: install
 	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
+.PHONY: install-benchmark
+install-benchmark:
+	HAIL_WHEEL=DUMMY HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark install
+
 .PHONY: clean-docs
 clean-docs:
 	$(MAKE) -C www clean
