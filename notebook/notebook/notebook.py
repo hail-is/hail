@@ -14,6 +14,7 @@ import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
+    userdata_from_web_request, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
     new_csrf_token, check_csrf_token
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, \
@@ -378,9 +379,9 @@ async def post_notebook(request, userdata):
 @routes.get('/auth/{requested_notebook_token}')
 async def auth(request):
     # allow either authorized user or workshop guest
-    userdata = workshop_userdata_from_web_request(request)
+    userdata = await userdata_from_web_request(request)
     if not userdata:
-        userdata = workshop_userdata_from_web_request(request)
+        userdata = await workshop_userdata_from_web_request(request)
     if not userdata:
         raise web.HTTPUnauthorized()
 
