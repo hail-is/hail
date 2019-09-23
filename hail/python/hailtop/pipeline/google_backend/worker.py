@@ -242,6 +242,7 @@ class Worker:
         input_ec = await docker_run(scratch_dir, task_token, task_name, 1, 0.81, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
 
         status = {
+            'inst_token': self.token,
             'task_token': task_token,
             'attempt_token': attempt_token,
             'input': input_ec

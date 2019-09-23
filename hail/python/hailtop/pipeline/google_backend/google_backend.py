@@ -230,6 +230,8 @@ class GTask:
         else:
             self.cores = 1
 
+        self.fail_count = 0
+
     def unschedule(self):
         if not self.active_inst:
             return
@@ -811,6 +813,7 @@ class GRunner:
     async def handle_task_complete2(self, request):
         status = await request.json()
 
+        inst_token = status['inst_token']
         task_token = status['task_token']
         attempt_token = status['attempt_token']
         t = self.token_task.get(task_token)
@@ -828,6 +831,10 @@ class GRunner:
 
         await t.set_state(self, state, attempt_token)
 
+        inst = self.inst_pool.token_inst.get(inst_token)
+        if not inst:
+            inst.fail_count = 0
+
         return web.Response()
 
     async def execute_task(self, t, inst):
@@ -838,14 +845,18 @@ class GRunner:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                 async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body):
+                    log.info(f'submitted {t} attempt {config["attempt_token"]} on {inst}')
+                    inst.fail_count = 0
                     inst.update_timestamp()
-
-            log.info(f'executed {t} attempt {config["attempt_token"]} on {inst}')
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:  # pylint: disable=broad-except
-            log.exception(f'failed to execute {t} on {inst}, rescheduling"')
+            log.exception(f'failed to execute {t} on {inst} {inst.fail_count}, rescheduling"')
             await t.put_on_ready(self)
+            inst.fail_count += 1
+            if inst.fail_count >= 3:
+                log.info(f'deleting failing instance {inst} fail_count {inst.fail_count}')
+                await inst.delete()
 
     def get_task_config(self, t):
         attempt_token = new_token()
