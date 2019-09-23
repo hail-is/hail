@@ -170,7 +170,7 @@ async def notebook_status_from_notebook(k8s, cookies, notebook):
         else:
             pod_name = notebook['pod_name']
             ready_url = deploy_config.external_url(
-                'notebook', f'/instance-ready/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
+                'notebook', f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1)) as session:
                     async with session.get(ready_url, cookies=cookies) as resp:
