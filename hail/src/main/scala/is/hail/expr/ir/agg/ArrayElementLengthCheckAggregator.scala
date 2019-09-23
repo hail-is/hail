@@ -59,7 +59,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
     seq(initArray, container.newState, seqOp)
 
   def initLength(len: Code[Int]): Code[Unit] = {
-    Code(lenRef := len, seq(nested.copyFrom(initContainer.off)))
+    Code(lenRef := len, seq(container.copyFrom(initContainer.off)))
   }
 
   def checkLength(len: Code[Int]): Code[Unit] = {
@@ -119,13 +119,13 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
 
     Code(
       srcOff := src,
-      init(nested.copyFrom(initOffset), initLen = false),
+      init(initContainer.copyFrom(initOffset), initLen = false),
       typ.isFieldMissing(srcOff, 1).mux(
         Code(typ.setFieldMissing(off, 1),
           lenRef := -1),
         Code(
           lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
-          seq(nested.copyFrom(eltOffset)))))
+          seq(container.copyFrom(eltOffset)))))
   }
 }
 

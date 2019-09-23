@@ -42,7 +42,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
   def loadStates: Code[Unit] = container.load
   def storeStates: Code[Unit] = container.store
-  def copyStatesFrom(srcOff: Code[Long]): Code[Unit] = states.copyFrom(srcOff)
+  def copyStatesFrom(srcOff: Code[Long]): Code[Unit] = container.copyFrom(srcOff)
 
   def storeRegionIdx(off: Code[Long], idx: Code[Int]): Code[Unit] =
     Region.storeInt(storageType.fieldOffset(off, 1), idx)
@@ -63,7 +63,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
     Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-      states.copyFrom(containerAddress(src)),
+      container.copyFrom(containerAddress(src)),
       container.store)
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
@@ -150,7 +150,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
     Code(
-      init(nested.copyFrom(typ.loadField(src, 0))),
+      init(initContainer.copyFrom(typ.loadField(src, 0))),
       size := Region.loadInt(typ.loadField(src, 1)),
       tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
 

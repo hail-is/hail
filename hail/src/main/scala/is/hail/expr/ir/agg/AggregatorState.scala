@@ -165,37 +165,30 @@ case class StateTuple(states: Array[AggregatorState]) {
   val storageType: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
 
   def apply(i: Int): AggregatorState = states(i)
-  private def getRegion(region: Code[Region], rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
-    r.setFromParentReference(region, rOffset + i, states(i).regionSize) }
-  private def getStateOffset(off: Code[Long], i: Int): Code[Long] = storageType.loadField(off, i)
 
   def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
 
   def createStates: Code[Unit] =
     toCode((i, s) => s.createState)
-
-  def newStates(stateOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.newState(getStateOffset(stateOffset, i)))
-
-  def load(region: Code[Region], rOffset: Code[Int], stateOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.load(getRegion(region, rOffset, i), getStateOffset(stateOffset, i)))
-
-  def store(region: Code[Region], rOffset: Code[Int], statesOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.store(r => region.setParentReference(r, rOffset + i), getStateOffset(statesOffset, i)))
-
-  def copyFrom(statesOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.copyFrom(getStateOffset(statesOffset, i)))
 }
 
 case class TupleAggregatorState(states: StateTuple, topRegion: Code[Region], off: Code[Long], rOff: Code[Int] = 0) {
   val storageType: PTuple = states.storageType
   private def getRegion(i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
     r.setFromParentReference(topRegion, rOff + i, states(i).regionSize) }
+  private def setRegion(i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
+    topRegion.setParentReference(r, rOff + i)
+  }
   private def getStateOffset(i: Int): Code[Long] = storageType.loadField(off, i)
 
+  def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
+    coerce[Unit](Code(Array.tabulate(states.nStates)(i => f(i, states(i))): _*))
+
   def newState(i: Int): Code[Unit] = states(i).newState(getStateOffset(i))
-  def newState: Code[Unit] = states.newStates(off)
+  def newState: Code[Unit] = states.toCode((i, s) => s.newState(getStateOffset(i)))
   def load: Code[Unit] = states.toCode((i, s) => s.load(getRegion(i), getStateOffset(i)))
-  def store: Code[Unit] = states.store(topRegion, rOff, off)
+  def store: Code[Unit] = states.toCode((i, s) => s.store(setRegion(i), getStateOffset(i)))
+  def copyFrom(statesOffset: Code[Long]): Code[Unit] =
+    states.toCode((i, s) => s.copyFrom(getStateOffset(i)))
 }
