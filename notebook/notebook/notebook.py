@@ -354,10 +354,13 @@ async def _wait_websocket(request, userdata):
     if 'X-Hail-Internal-Authorization' in request.headers:
         headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
 
+    log.info(f'cookies {request.cookies} {type(request.cookies)}')
+
     cookies = {}
-    for cookie in request.cookies:
-        if cookie.key in ('session', 'sesh'):
-            cookies[cookie.key] = cookie.value
+    if 'session' in request.cookies:
+        cookies['session'] = request.cookies['session']
+    if 'sesh' in request.cookies:
+        cookies['sesh'] = request.cookies['sesh']
 
     ready = (notebook['state'] == 'Ready')
     count = 0
