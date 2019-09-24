@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s.{Code, _}
@@ -56,7 +57,30 @@ object Emit {
   }
 }
 
+object AggContainer {
+  def fromVars(aggs: Array[AggSignature2], fb: EmitFunctionBuilder[_], region: ClassFieldRef[Region], off: ClassFieldRef[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+    val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a).createState(fb)).toArray)
+    val aggState = agg.TupleAggregatorState(states, region, off)
+
+    val setup = Code(
+      region := Region.stagedCreate(Region.REGULAR),
+      region.load().setNumParents(aggs.length),
+      off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize),
+      states.createStates,
+      aggState.newState)
+
+    val cleanup = Code(
+      region.load().invalidate(),
+      region := Code._null)
+
+    (AggContainer(aggs, aggState), setup, cleanup)
+  }
+  def fromFunctionBuilder(aggs: Array[AggSignature2], fb: EmitFunctionBuilder[_], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+    fromVars(aggs, fb, fb.newField[Region](s"${varPrefix}_top_region"), fb.newField[Long](s"${varPrefix}_off"))
+}
+
 case class AggContainer(aggs: Array[AggSignature2], container: agg.TupleAggregatorState) {
+
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
       aggs(i).op match {
@@ -98,6 +122,12 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
 
   def wrapContinuation(contMap: (Emit.F, Code[Boolean], Code[_]) => Code[Unit]): ArrayIteratorTriplet =
     copy(calcLength = calcLength, length = length, arrayEmitter = { cont: Emit.F => arrayEmitter(contMap(cont, _, _)) })
+
+  def addSetup(setup: Code[Unit]): ArrayIteratorTriplet =
+    copy(calcLength = calcLength, length = length, arrayEmitter = { cont: Emit.F =>
+      val et = arrayEmitter(cont)
+      EmitArrayTriplet(Code(et.setup, setup), et.m, et.addElements)
+    })
 
   def toEmitTriplet(mb: MethodBuilder, aTyp: PStreamable): EmitTriplet = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp)
@@ -825,6 +855,63 @@ private class Emit(
           Code._empty)
 
       case ArrayAgg(a, name, query) =>
+        val tarray = coerce[TStreamable](a.typ)
+        val eti = typeToTypeInfo(tarray.elementType)
+        val xmv = mb.newField[Boolean]()
+        val xvv = coerce[Any](mb.newField(name)(eti))
+        val perEltEnv = env.bind(
+          (name, (eti, xmv.load(), xvv.load())))
+
+        if (HailContext.getFlag("newaggs") != null) {
+          try {
+            val res = genUID()
+            val extracted = agg.Extract(query, res)
+
+            val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg")
+
+            val init = Optimize(extracted.init, noisy = true, canGenerateLiterals = true,
+              context = Some("ArrayAgg/agg.Extract/init"))
+            val perElt = Optimize(extracted.seqPerElt, noisy = true, canGenerateLiterals = true,
+              context = Some("ArrayAgg/agg.Extract/perElt"))
+            val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true, canGenerateLiterals = true,
+              context = Some("ArrayAgg/agg.Extract/postAggIR"))
+
+            val codeInit = emit(init, env = env, container = Some(newContainer))
+            val codePerElt = emit(perElt, env = perEltEnv, container = Some(newContainer))
+            val postAgg = emit(postAggIR, env = env, container = Some(newContainer))
+
+            val resm = mb.newField[Boolean]()
+            val resv = mb.newField(name)(typeToTypeInfo(query.pType))
+
+            val aBase = emitArrayIterator(a)
+            val cont = { (m: Code[Boolean], v: Code[_]) =>
+              Code(xmv := m,
+                xvv := xmv.mux(defaultValue(tarray.elementType), v),
+                codePerElt.setup)
+            }
+            val processAElts = aBase.arrayEmitter(cont)
+            val ma = processAElts.m.getOrElse(const(false))
+
+            val aggregation = Code(
+              aggSetup,
+              codeInit.setup,
+              processAElts.setup,
+              ma.mux(
+                Code._empty,
+                Code(aBase.calcLength, processAElts.addElements)),
+              postAgg.setup,
+              resm := postAgg.m,
+              resv.storeAny(resm.mux(defaultValue(query.pType), postAgg.value)),
+              aggCleanup)
+
+            return EmitTriplet(aggregation, resm, resv)
+
+          } catch {
+            case e: agg.UnsupportedExtraction =>
+              log.info(s"couldn't lower ArrayAgg: $e")
+          }
+        }
+
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = ExtractAggregators.staged(mb.fb, query)
         val postAggIR = Optimize(postAggIR_, noisy = true, canGenerateLiterals = false,
           context = Some("ArrayAgg/StagedExtractAggregators/postAggIR"))
@@ -836,13 +923,6 @@ private class Emit(
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
 
         val codeInit = emit(init, rvas = Some(rvas))
-
-        val tarray = coerce[TStreamable](a.typ)
-        val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean]()
-        val xvv = coerce[Any](mb.newField(name)(eti))
-        val perEltEnv = env.bind(
-          (name, (eti, xmv.load(), xvv.load())))
         val codePerElt = emit(perElt, env = perEltEnv, rvas = Some(rvas))
 
         val aBase = emitArrayIterator(a)
@@ -1869,6 +1949,52 @@ private class Emit(
         ArrayIteratorTriplet(larray.calcLength, larray.length, ae)
 
       case ArrayAggScan(a, name, query) =>
+        val elt = coerce[TStreamable](a.typ).elementType
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
+        val xmv = mb.newField[Boolean]()
+        val xvv = mb.newField(name)(elementTypeInfoA)
+        val bodyEnv = env.bind(name, (elementTypeInfoA, xmv.load(), xvv.load()))
+
+        if (HailContext.getFlag("newaggs") != null) {
+          try {
+            val res = genUID()
+            val extracted = agg.Extract(CompileWithAggregators.liftScan(query), res)
+            val aggSigs = extracted.aggs
+
+            val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggSigs, mb.fb, "array_agg_scan")
+
+            val init = Optimize(extracted.init, noisy = true, canGenerateLiterals = true,
+              context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+            val perElt = Optimize(extracted.seqPerElt, noisy = true, canGenerateLiterals = false,
+              context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+            val postAgg = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true, canGenerateLiterals = false,
+              context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+
+            val codeInit = this.emit(init, env, None, er, Some(newContainer))
+            val codeSeq = this.emit(perElt, bodyEnv, None, er, Some(newContainer))
+            val newElt = this.emit(postAgg, bodyEnv, None, er, Some(newContainer))
+
+            val it = emitArrayIterator(a)
+            val ae = { cont: Emit.F =>
+              val aet = it.arrayEmitter { (m, v) =>
+                Code(
+                  xmv := m,
+                  xvv := v,
+                  newElt.setup,
+                  cont(newElt.m, newElt.v),
+                  codeSeq.setup)
+              }
+
+              EmitArrayTriplet(aet.setup, aet.m, Code(aggSetup, codeInit.setup, aet.addElements, aggCleanup))
+            }
+
+            return ArrayIteratorTriplet(it.calcLength, it.length, ae)
+          } catch {
+            case e: agg.UnsupportedExtraction =>
+              log.info(s"couldn't lower ArrayAggScan: $e")
+          }
+        }
+
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) =
           ExtractAggregators.staged(mb.fb, CompileWithAggregators.liftScan(query))
 
@@ -1881,12 +2007,6 @@ private class Emit(
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
         val aggInit = this.emit(init, env, Some(rvas), er, container)
-
-        val elt = coerce[TStreamable](a.typ).elementType
-        val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
-        val xmv = mb.newField[Boolean]()
-        val xvv = mb.newField(name)(elementTypeInfoA)
-        val bodyEnv = env.bind(name, (elementTypeInfoA, xmv.load(), xvv.load()))
         val accumulate = this.emit(perElt, bodyEnv, Some(rvas), er, container)
 
         val aggr = mb.newField[Long]("AGGR")
@@ -1916,11 +2036,7 @@ private class Emit(
           )
         }
 
-        val it = emitArrayIterator(a).wrapContinuation(scanCont)
-        it.copy(calcLength = Code(
-          rvas := makeRVAggs,
-          aggInit.setup,
-          it.calcLength))
+        emitArrayIterator(a).wrapContinuation(scanCont).addSetup(Code(rvas := makeRVAggs, aggInit.setup))
 
       case ReadPartition(path, spec, rowType) =>
         val p = emit(path)
