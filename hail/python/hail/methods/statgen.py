@@ -2195,7 +2195,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
 
     """
 
-    split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
+    split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned, permit_shuffle=permit_shuffle)
 
     row_fields = set(ds.row)
     update_rows_expression = {}
