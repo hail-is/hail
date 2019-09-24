@@ -72,7 +72,7 @@ class DeployConfig:
         return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
 
     def url_via_router(service, path, base_scheme='http'):
-        return f'{self.scheme(base_scheme)://{self.domain("router")}{self.base_path(service)}'
+        return f'{self.scheme(base_scheme)}://{self.domain("router")}{self.base_path(service)}'
 
     def auth_session_cookie_name(self):
         auth_ns = self.service_ns('auth')
