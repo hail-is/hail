@@ -286,6 +286,8 @@ object Extract {
       new CollectAsSetAggregator(PType.canonical(t))
     case AggSignature2(Collect(), _, Seq(t), _) =>
       new CollectAggregator(t.physicalType)
+    case AggSignature2(LinearRegression2(), _, _, _) =>
+      LinearRegressionAggregator
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 

@@ -1912,7 +1912,7 @@ private class Emit(
 
         val fenv = env.bind(
           (l, (typeToTypeInfo(lelt), lm.load(), lv.load())),
-          (r, (typeToTypeInfo(relt), rm.load() || rtyp.isElementMissing(region, rv, ri), rtyp.loadElement(region, rv, ri))))
+          (r, (typeToTypeInfo(relt), rm.load() || rtyp.isElementMissing(region, rv, ri), rtyp.loadElement(rv, ri))))
 
         val compKeyF = mb.fb.newMethod(typeInfo[Region], typeInfo[Int])
         val et = new Emit(compKeyF, 1).emit(compKey, fenv, er, container)
@@ -1931,7 +1931,7 @@ private class Emit(
               cont(
                 lm.load(),
                 ((ri < rlen) && coerce[Int](compKeyF.invoke(region)).ceq(0)).mux(
-                  joinF.invoke(region, rtyp.loadElement(region, rv, ri), rm.load() || rtyp.isElementMissing(region, rv, ri)),
+                  joinF.invoke(region, rtyp.loadElement(rv, ri), rm.load() || rtyp.isElementMissing(region, rv, ri)),
                   joinF.invoke(region, defaultValue(relt), true))))
           }
           val setup = Code(

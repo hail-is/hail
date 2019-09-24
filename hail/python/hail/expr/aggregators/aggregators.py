@@ -4,7 +4,7 @@ from functools import wraps, update_wrapper
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-from hail.expr.functions import rbind, float32, _quantile_from_cdf
+from hail.expr.functions import rbind, float32, _quantile_from_cdf, pT, pF
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
@@ -1508,13 +1508,65 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
 
     hl.methods.statgen._warn_if_no_intercept('linreg', x)
 
-    if weight is None:
-        return _linreg(y, x, nested_dim)
-    else:
-        return _linreg(hl.sqrt(weight) * y,
-                       [hl.sqrt(weight) * xi for xi in x],
-                       nested_dim)
+    if weight is not None:
+        y = hl.sqrt(weight) * y
+        x = [hl.sqrt(weight) * xi for xi in x]
+    temp = _linreg(y, x, nested_dim)
 
+    k = len(x)
+    k0 = nested_dim
+    n = hl.agg.count_where(hl.all(lambda x: hl.is_defined(x), x) & hl.is_defined(y))
+    yty = hl.agg.filter(hl.is_defined(x), hl.agg.sum(y*y))
+    xty = temp.xty
+    beta = temp.beta
+    diag_inv = temp.diag_inv
+    beta0 = temp.beta0
+
+    def dot(a, b):
+        return hl.sum(a * b)
+    d = n - k
+    rss = yty - dot(xty, beta)
+    rse2 = rss / d
+    se = (rse2 * diag_inv) ** 0.5
+    t = beta / se
+    p = t.map(lambda ti: 2 * hl.pT(-hl.abs(ti), d, True, False))
+    rse = hl.sqrt(rse2)
+
+    d0 = k - k0
+    xty0 = xty[:k0]
+    rss0 = yty - dot(xty0, beta0)
+    r2 = 1 - rss / rss0
+    r2adj = 1 - (1 - r2) * (n - k0) / d
+    f = (rss0 - rss) * d / (rss * d0)
+    p0 = hl.pF(f, d0, d, False, False)
+
+    return hl.struct(
+        beta=beta,
+        standard_error=se,
+        t_stat=t,
+        p_value=p,
+        multiple_standard_error=rse,
+        multiple_r_squared=r2,
+        adjusted_r_squared=r2adj,
+        f_stat=f,
+        multiple_p_value=p0,
+        n=n,
+        yty=yty,
+        _yty=temp.yty,
+        _xty=xty,
+        _diag_inv=diag_inv,
+        _beta0=temp.beta0,
+        _se=temp.standard_error,
+        _t_stat=temp.t_stat,
+        _p_value=temp.p_value,
+        _multiple_standard_error=temp.multiple_standard_error,
+        _multiple_r_squared=temp.multiple_r_squared,
+        _adjusted_r_squared=temp.adjusted_r_squared,
+        _f_stat=temp.f_stat,
+        _multiple_p_value=temp.multiple_p_value,
+        _n=temp.n,
+        _k=k
+    )
 
 def _linreg(y, x, nested_dim):
     k = len(x)
@@ -1523,16 +1575,25 @@ def _linreg(y, x, nested_dim):
         raise ValueError("linreg: `nested_dim` must be between 0 and the number "
                          f"of covariates ({k}), inclusive")
 
-    t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
-                   standard_error=hl.tarray(hl.tfloat64),
-                   t_stat=hl.tarray(hl.tfloat64),
-                   p_value=hl.tarray(hl.tfloat64),
-                   multiple_standard_error=hl.tfloat64,
-                   multiple_r_squared=hl.tfloat64,
-                   adjusted_r_squared=hl.tfloat64,
-                   f_stat=hl.tfloat64,
-                   multiple_p_value=hl.tfloat64,
-                   n=hl.tint64)
+    t0 = hl.tstruct(xty=hl.tarray(hl.tfloat64),
+                    beta=hl.tarray(hl.tfloat64),
+                    diag_inv=hl.tarray(hl.tfloat64),
+                    beta0=hl.tarray(hl.tfloat64))
+    t = hl.tstruct(
+        yty=hl.tfloat64,
+        xty=hl.tarray(hl.tfloat64),
+        diag_inv=hl.tarray(hl.tfloat64),
+        beta0=hl.tarray(hl.tfloat64),
+        beta=hl.tarray(hl.tfloat64),
+        standard_error=hl.tarray(hl.tfloat64),
+        t_stat=hl.tarray(hl.tfloat64),
+        p_value=hl.tarray(hl.tfloat64),
+        multiple_standard_error=hl.tfloat64,
+        multiple_r_squared=hl.tfloat64,
+        adjusted_r_squared=hl.tfloat64,
+        f_stat=hl.tfloat64,
+        multiple_p_value=hl.tfloat64,
+        n=hl.tint64)
 
     x = hl.array(x)
     k = hl.int32(k)

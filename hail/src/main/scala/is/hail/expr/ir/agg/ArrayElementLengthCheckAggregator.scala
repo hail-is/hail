@@ -22,7 +22,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   private val aoff: ClassFieldRef[Long] = fb.newField[Long]("arrayrva_aoff")
 
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
-  private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(region, typ.loadField(region, off, 1), eltIdx)
+  private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(typ.loadField(region, off, 1), eltIdx)
 
   val initContainer: TupleAggregatorState = TupleAggregatorState(nested, region, typ.loadField(region, off, 0))
   val container: TupleAggregatorState = TupleAggregatorState(nested, region, statesOffset(idx), regionOffset(idx))

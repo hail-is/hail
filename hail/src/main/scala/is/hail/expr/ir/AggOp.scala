@@ -28,6 +28,7 @@ final case class CollectAsSet() extends AggOp
 final case class Count() extends AggOp
 final case class Downsample() extends AggOp
 final case class LinearRegression() extends AggOp
+final case class LinearRegression2() extends AggOp
 final case class Max() extends AggOp
 final case class Min() extends AggOp
 final case class Product() extends AggOp
@@ -178,6 +179,12 @@ object AggOp {
         constrArgTypes = Array(classOf[Int], classOf[Int], classOf[Type]),
         seqOpArgTypes = Array(classOf[Double], classOf[Long]))
 
+    case (LinearRegression2(), constArgs@Seq(_: TInt32, _: TInt32), None, seqOpArgs@(Seq(_: TFloat64, TArray(_: TFloat64, _)))) =>
+      CodeAggregator[RegionValueLinearRegressionAggregator](
+        RegionValueLinearRegressionAggregator.typ,
+        constrArgTypes = Array(classOf[Int], classOf[Int], classOf[Type]),
+        seqOpArgTypes = Array(classOf[Double], classOf[Long]))
+
     case (PrevNonnull(), Seq(), None, Seq(in)) => CodeAggregator[RegionValuePrevNonnullAnnotationAggregator2](in, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
   }
 
@@ -200,6 +207,7 @@ object AggOp {
     case "takeBy" | "TakeBy" => TakeBy()
     case "callStats" | "CallStats" => CallStats()
     case "linreg" | "LinearRegression" => LinearRegression()
+    case "linreg2" => LinearRegression2()
     case "downsample" | "Downsample" => Downsample()
     case "prevnonnull" | "PrevNonnull" => PrevNonnull()
   }

@@ -139,6 +139,9 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("pnorm", Array(TFloat64()), TFloat64(), null)(statsPackageClass, "pnorm")
     registerScalaFunction("qnorm", Array(TFloat64()), TFloat64(), null)(statsPackageClass, "qnorm")
 
+    registerScalaFunction("pT", Array(TFloat64(), TFloat64(), TBoolean(), TBoolean()), TFloat64(), null)(statsPackageClass, "pT")
+    registerScalaFunction("pF", Array(TFloat64(), TFloat64(), TFloat64(), TBoolean(), TBoolean()), TFloat64(), null)(statsPackageClass, "pF")
+
     registerScalaFunction("dpois", Array(TFloat64(), TFloat64()), TFloat64(), null)(statsPackageClass, "dpois")
     registerScalaFunction("dpois", Array(TFloat64(), TFloat64(), TBoolean()), TFloat64(), null)(statsPackageClass, "dpois")
 

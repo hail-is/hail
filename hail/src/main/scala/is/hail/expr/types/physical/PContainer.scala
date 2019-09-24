@@ -121,6 +121,9 @@ abstract class PContainer extends PIterable {
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     aoff + elementsOffset(length) + i.toL * const(elementByteSize)
 
+  def firstElementOffset(aoff: Code[Long]): Code[Long] =
+    aoff + elementsOffset(loadLength(aoff))
+
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
 
@@ -132,7 +135,7 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -144,15 +147,9 @@ abstract class PContainer extends PIterable {
     loadElement(region, aoff, Region.loadInt(aoff), i)
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = {
-    val off = elementOffset(aoff, Region.loadInt(aoff), i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
+    val length = loadLength(aoff)
+    loadElement(aoff, length, i)
   }
-
-  def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    loadElement(aoff, i)
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))
@@ -193,6 +190,12 @@ abstract class PContainer extends PIterable {
       Code(
         Region.storeInt(aoff, length),
         Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
+  }
+
+  def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
+    val i = mb.newLocal[Int]
+    val n = mb.newLocal[Int]
+    Code.whileLoop(i < n, body(loadElement(aoff, n, i)))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =

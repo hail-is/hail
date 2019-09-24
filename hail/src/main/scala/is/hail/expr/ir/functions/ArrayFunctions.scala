@@ -355,10 +355,10 @@ object ArrayFunctions extends RegistryFunctions {
               Code(
                 (t1.isElementDefined(region, a1, i) && t2.isElementDefined(region, a2, i)).mux(
                   Code(
-                    x := Region.loadDouble(t1.loadElement(region, a1, i)),
+                    x := Region.loadDouble(t1.loadElement(a1, i)),
                     xSum := xSum + x,
                     xSqSum := xSqSum + x * x,
-                    y := Region.loadDouble(t2.loadElement(region, a2, i)),
+                    y := Region.loadDouble(t2.loadElement(a2, i)),
                     ySum := ySum + y,
                     ySqSum := ySqSum + y * y,
                     xySum := xySum + x * y,

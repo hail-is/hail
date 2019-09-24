@@ -326,6 +326,13 @@ package object stats {
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
   def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
 
+  // Returns the p for which p = Prob(Z < x) with Z a RV having the T distribution with n degrees of freedom
+  def pT(x: Double, n: Double, lower_tail: Boolean, log_p: Boolean): Double =
+    net.sourceforge.jdistlib.T.cumulative(x, n, lower_tail, log_p)
+
+  def pF(x: Double, df1: Double, df2: Double, lower_tail: Boolean, log_p: Boolean): Double =
+    net.sourceforge.jdistlib.F.cumulative(x, df1, df2, lower_tail, log_p)
+
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def chiSquaredTail(x: Double, df: Double): Double = ChiSquare.cumulative(x, df, false, false)
 

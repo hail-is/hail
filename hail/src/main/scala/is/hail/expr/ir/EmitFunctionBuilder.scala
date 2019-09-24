@@ -469,11 +469,33 @@ class EmitFunctionBuilder[F >: Null](
   override def newMethod[R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](), typeInfo[R])
 
+  def newMethod[R: TypeInfo](prefix: String)(body: MethodBuilder => Code[R]): Code[R] = {
+    val mb = newMethod(prefix, Array[TypeInfo[_]](), typeInfo[R])
+    mb.emit(body(mb))
+    mb.invoke[R]()
+  }
+
   override def newMethod[A: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
 
+  def newMethod[A: TypeInfo, R: TypeInfo](prefix: String)(
+    body: (MethodBuilder, Code[A]) => Code[R]
+  ): Code[A] => Code[R] = {
+    val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    mb.emit(body(mb, mb.getArg[A](0)))
+    a => mb.invoke[R](a)
+  }
+
   override def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+
+  def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String)(
+    body: (MethodBuilder, Code[A], Code[B]) => Code[R]
+  ): (Code[A], Code[B]) => Code[R] = {
+    val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+    mb.emit(body(mb, mb.getArg[A](0), mb.getArg[B](1)))
+    (a, b) => mb.invoke[R](a, b)
+  }
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])

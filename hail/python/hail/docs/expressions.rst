@@ -37,7 +37,7 @@ Expressions
 
 .. autoclass:: ArrayNumericExpression
     :show-inheritance:
-    :special-members: __add__, __sub__, __mul__, __div__, __floordiv__, __pow__, __mod__, __neg__
+    :special-members: __add__, __sub__, __mul__, __truediv__, __floordiv__, __pow__, __mod__, __neg__
 
 .. autoclass:: BooleanExpression
     :show-inheritance:
