@@ -50,7 +50,7 @@ object Streamify {
   }
 
   def toStream(ir: IR): IR = ir match {
-    // case If(c, thn, els) => If(c, toStream(thn), toStream(els))  <- not supported
+    case If(c, thn, els) => If(c, toStream(thn), toStream(els))
     case Let(n, v, b) => Let(n, v, toStream(b))
     case ToArray(s) => assert(s.typ.isInstanceOf[TStream]); s
     case ToStream(a) => assert(a.typ.isInstanceOf[TContainer]); ir
