@@ -37,9 +37,9 @@ spec:
          secret:
            secretName: deploy-config
        - name: docksock
-	 hostPath:
-	   path: /var/run/docker.sock
+         hostPath:
+           path: /var/run/docker.sock
        - name: gcr-pull-key
-	 secret:
-	   optional: False
-	   secretName: gcr-pull-key
+         secret:
+           optional: False
+           secretName: gcr-pull-key
