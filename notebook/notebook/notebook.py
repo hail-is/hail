@@ -211,9 +211,10 @@ async def notebook_status_from_notebook(k8s, notebook):
             status['state'] = 'Ready'
         else:
             pod_name = notebook['pod_name']
+
             # don't have dev credentials to connect through internal.hail.is
-            ready_url = deploy_config.url(
-                'router',
+            ready_url = deploy_config.url_via_router(
+                'notebook',
                 f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1)) as session:
