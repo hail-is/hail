@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name = 'batch',
+    name = 'batch2',
     version = '0.0.2',
     url = 'https://github.com/hail-is/hail.git',
     author = 'Hail Team',

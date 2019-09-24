@@ -8,7 +8,7 @@ export INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google
 export WORKER_LOGS_DIRECTORY=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_directory")
 export INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 
-python3 -u -m "batch.worker" > worker.log 2>&1
+python3 -u -m "batch2.worker" > worker.log 2>&1
 
 gsutil -m cp worker.log $WORKER_LOGS_DIRECTORY/$INST_TOKEN/
 
