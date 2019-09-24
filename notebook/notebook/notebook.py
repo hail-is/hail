@@ -193,7 +193,7 @@ def notebook_status_from_pod(pod):
     }
 
 
-async def notebook_status_from_notebook(k8s, notebook):
+async def notebook_status_from_notebook(k8s, headers, cookies, notebook):
     try:
         pod = await k8s.read_namespaced_pod(
             name=notebook['pod_name'],
@@ -213,11 +213,14 @@ async def notebook_status_from_notebook(k8s, notebook):
             pod_name = notebook['pod_name']
 
             # don't have dev credentials to connect through internal.hail.is
-            ready_url = deploy_config.url_via_router(
+            ready_url = deploy_config.url(
                 'notebook',
                 f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
             try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1)) as session:
+                async with aiohttp.ClientSession(
+                        timeout=aiohttp.ClientTimeout(total=1),
+                        headers=headers,
+                        cookies=cookies) as session:
                     async with session.get(
                             ready_url,
                             headers={'Host': 'notebook.internal'}) as resp:
@@ -344,10 +347,22 @@ async def _wait_websocket(request, userdata):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
+    # forward authorization
+    headers = {}
+    if 'Authorization' in request.headers:
+        headers['Authorization'] = request.headers['Authorization']
+    if 'X-Hail-Internal-Authorization' in request.headers:
+        headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
+
+    cookies = {}
+    for cookie in request.cookies:
+        if cookie.key in ('session', 'sesh'):
+            cookies[cookie.key] = cookie.value
+
     ready = (notebook['state'] == 'Ready')
     count = 0
     while count < 10:
-        status = await notebook_status_from_notebook(k8s, notebook)
+        status = await notebook_status_from_notebook(k8s, headers, cookies, notebook)
         if not status:
             async with dbpool.acquire() as conn:
                 async with conn.cursor() as cursor:
