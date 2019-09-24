@@ -85,5 +85,11 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
           Seq(TString(), TInt32())).get
         If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString()))
     }
+
+    registerRGCode("contigLength", TString(), TInt32(), null) {
+      case (r, rt, (contigT, contig: Code[long])) =>
+        val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
+        rgCode(r.mb).invoke[String, Int]("contigLength", scontig)
+    }
   }
 }
