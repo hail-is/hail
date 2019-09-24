@@ -633,7 +633,8 @@ async def post_workshop_login(request):
     if workshop['password'] != password:
         forbidden()
 
-    user_id = secrets.token_urlsafe(16)
+    # use hex since K8s labels can't start or end with _ or -
+    user_id = secrets.token_hex(16)
     session['workshop_session'] = {
         'workshop_name': name,
         'workshop_token': workshop['token'],
