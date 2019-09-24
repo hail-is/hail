@@ -988,20 +988,6 @@ async def ui_batch(request, userdata):
     return context
 
 
-# @routes.get('/batches/{batch_id}')
-# @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
-# @aiohttp_jinja2.template('batch.html')
-# @web_authenticated_users_only()
-# async def ui_batch(request, userdata):
-#     batch_id = int(request.match_info['batch_id'])
-#     user = userdata['username']
-#     params = request.query
-#     limit = params.get('limit')
-#     offset = params.get('offset')
-#     batch = await _get_batch(batch_id, user, limit=limit, offset=offset)
-#     return {'batch': batch}
-
-
 @routes.post('/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @aiohttp_jinja2.template('batches.html')
@@ -1033,23 +1019,6 @@ async def ui_batches(request, userdata):
     return response
 
 
-# @routes.get('/batches', name='batches')
-# @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
-# @web_authenticated_users_only()
-# async def ui_batches(request, userdata):
-#     params = request.query
-#     user = userdata['username']
-#     batches = await _get_batches_list(params, user)
-#     token = new_csrf_token()
-#     context = {'batch_list': batches, 'token': token}
-#
-#     response = aiohttp_jinja2.render_template('batches.html',
-#                                               request,
-#                                               context)
-#     response.set_cookie('_csrf', token, secure=True, httponly=True)
-#     return response
-
-
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
 @aiohttp_jinja2.template('job_log.html')
@@ -1063,18 +1032,6 @@ async def ui_get_job_log(request, userdata):
     user = userdata['username']
     context['job_log'] = await _get_job_log(batch_id, job_id, user)
     return context
-
-
-# @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-# @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
-# @aiohttp_jinja2.template('job_log.html')
-# @web_authenticated_users_only()
-# async def ui_get_job_log(request, userdata):
-#     batch_id = int(request.match_info['batch_id'])
-#     job_id = int(request.match_info['job_id'])
-#     user = userdata['username']
-#     job_log = await _get_job_log(batch_id, job_id, user)
-#     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -1093,22 +1050,10 @@ async def ui_get_pod_status(request, userdata):
     return context
 
 
-# @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
-# @prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
-# @aiohttp_jinja2.template('pod_status.html')
-# @web_authenticated_users_only()
-# async def ui_get_pod_status(request, userdata):
-#     batch_id = int(request.match_info['batch_id'])
-#     job_id = int(request.match_info['job_id'])
-#     user = userdata['username']
-#     pod_status = await _get_pod_status(batch_id, job_id, user)
-#     return {'batch_id': batch_id, 'job_id': job_id, 'pod_status': pod_status}
-
-
 @routes.get('')
 @routes.get('/')
-@web_authenticated_users_only
-async def batch_id(request, userdata):
+@web_authenticated_users_only()
+async def index(request, userdata):
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
