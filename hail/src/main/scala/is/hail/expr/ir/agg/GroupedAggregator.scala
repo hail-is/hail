@@ -12,13 +12,12 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   val storageType: PStruct = PStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
-    "container" -> PInt64(true))
-
+    "container" -> states.storageType)
   val compType: PType = kt
   private val kcomp = fb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
 
   val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
-  val container = new TupleAggregatorState(fb, states, region, containerAddress(offset), regionIdx)
+  val container = new TupleAggregatorState(fb, states, region, containerOffset(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -37,7 +36,6 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     Code(
       storeK,
       storeRegionIdx(dest, rIdx),
-      Region.storeAddress(containerOffset(dest), region.allocate(states.storageType.alignment, states.storageType.byteSize)),
       container.newState)
   }
 
@@ -51,20 +49,17 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   def containerOffset(off: Code[Long]): Code[Long] =
     storageType.fieldOffset(off, 2)
 
-  def containerAddress(off: Code[Long]): Code[Long] =
-    Region.loadAddress(containerOffset(off))
-
   def isEmpty(off: Code[Long]): Code[Boolean] =
-    Region.loadAddress(containerOffset(off)).ceq(0L)
+    Region.loadInt(storageType.fieldOffset(off, 1)) < 0
   def initializeEmpty(off: Code[Long]): Code[Unit] =
-    Region.storeAddress(containerOffset(off), 0L)
+    Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
     Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-      container.copyFrom(containerAddress(src)),
+      container.copyFrom(containerOffset(src)),
       container.store)
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
