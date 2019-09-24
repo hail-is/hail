@@ -213,7 +213,7 @@ async def notebook_status_from_notebook(k8s, headers, cookies, notebook):
             pod_name = notebook['pod_name']
 
             # don't have dev credentials to connect through internal.hail.is
-            ready_url = deploy_config.url(
+            ready_url = deploy_config.external_url(
                 'notebook',
                 f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
             try:
