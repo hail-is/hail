@@ -21,21 +21,29 @@ wheel:
 .PHONY: install
 install: wheel
 	-$(PIP) uninstall -y benchmark_hail
-	(PIP) install $(BENCHMARK_WHEEL)
+	$(PIP) install $(BENCHMARK_WHEEL)
 
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 PROJECT = $(shell gcloud config get-value project)
 BENCHMARK_LATEST = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG):latest
 
+ifndef HAIL_WHEEL
+.PHONY: build-benchmark-image
+build-benchmark-image:
+	@echo the build-benchmark-image target requires the HAIL_WHEEL variable to be set.
+	exit 1
+else
 .PHONY: build-benchmark-image
 build-benchmark-image: wheel
 	cp $(HAIL_WHEEL) .
 	cp $(BENCHMARK_WHEEL) .
+	# it's possible that the HAIL_WHEEL installs different dependencies, but this generally creates less work for docker
 	cp ../hail/python/requirements.txt .
 	docker build -t $(BENCHMARK_DOCKER_TAG) . --build-arg HAIL_WHEEL=$(notdir $(HAIL_WHEEL)) --build-arg BENCHMARK_WHEEL=$(notdir $(BENCHMARK_WHEEL))
 	rm $(notdir $(HAIL_WHEEL))
 	rm $(notdir $(BENCHMARK_WHEEL))
 	rm requirements.txt
+endif
 
 .PHONY: push-benchmark-image
 push-benchmark-image: build-benchmark-image
@@ -44,11 +52,12 @@ push-benchmark-image: build-benchmark-image
 
 BENCHMARK_ITERS ?= 5
 BENCHMARK_REPLICATES ?= 3
+HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_VERSION)-$(SHORT_REVISION)
 .PHONY: benchmark
 benchmark: push-benchmark-image install
-	$(HAIL_PYTHON3) scripts/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
+	$(HAIL_PYTHON3) scripts/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_WHEEL_DESCRIPTOR) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
-clean: clean-env clean-docs native-lib-clean
+clean:
 	rm -rf python/dist/*
 	rm -rf python/build/*
 	rm -f $(notdir $(HAIL_WHEEL))
