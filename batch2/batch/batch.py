@@ -982,7 +982,7 @@ async def ui_batch(request, userdata):
     params = request.query
     limit = params.get('limit')
     offset = params.get('offset')
-    context = base_context(deploy_config, userdata, 'batch')
+    context = base_context(deploy_config, userdata, 'batch2')
     context['batch'] = await _get_batch(batch_id, user, limit=limit, offset=offset)
     return context
 
@@ -1008,7 +1008,7 @@ async def ui_batches(request, userdata):
     user = userdata['username']
     batches = await _get_batches_list(params, user)
     token = new_csrf_token()
-    context = base_context(deploy_config, userdata, 'batch')
+    context = base_context(deploy_config, userdata, 'batch2')
     context['batch_list'] = batches[::-1]
     context['token'] = token
     response = aiohttp_jinja2.render_template('batches.html',
@@ -1023,7 +1023,7 @@ async def ui_batches(request, userdata):
 @aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch')
+    context = base_context(deploy_config, userdata, 'batch2')
     batch_id = int(request.match_info['batch_id'])
     context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
@@ -1038,7 +1038,7 @@ async def ui_get_job_log(request, userdata):
 @aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch')
+    context = base_context(deploy_config, userdata, 'batch2')
     batch_id = int(request.match_info['batch_id'])
     context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
@@ -1193,7 +1193,7 @@ async def pod_complete(request):
     return await asyncio.shield(app['driver'].pod_complete(request))
 
 
-setup_aiohttp_jinja2(app, 'batch2')
+setup_aiohttp_jinja2(app, 'batch')
 
 setup_common_static_routes(routes)
 
