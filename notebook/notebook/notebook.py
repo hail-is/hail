@@ -221,9 +221,7 @@ async def notebook_status_from_notebook(k8s, headers, cookies, notebook):
                         timeout=aiohttp.ClientTimeout(total=1),
                         headers=headers,
                         cookies=cookies) as session:
-                    async with session.get(
-                            ready_url,
-                            headers={'Host': 'notebook.internal'}) as resp:
+                    async with session.get(ready_url) as resp:
                         if resp.status >= 200 and resp.status < 300:
                             log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
                             status['state'] = 'Ready'
