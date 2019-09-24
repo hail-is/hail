@@ -93,7 +93,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, initStatesOffset)
 
   val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
-  val tree = new AppendOnlyBTree(fb, keyed, region, root)
+  val tree = new AppendOnlyBTree(fb, keyed, region, root, maxElements = 6)
 
   def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     Code(
