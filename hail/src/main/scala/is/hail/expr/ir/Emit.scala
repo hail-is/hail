@@ -123,10 +123,10 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
   def wrapContinuation(contMap: (Emit.F, Code[Boolean], Code[_]) => Code[Unit]): ArrayIteratorTriplet =
     copy(calcLength = calcLength, length = length, arrayEmitter = { cont: Emit.F => arrayEmitter(contMap(cont, _, _)) })
 
-  def addSetup(setup: Code[Unit]): ArrayIteratorTriplet =
+  def addSetup(setupBefore: Code[Unit], setupAfter: Code[Unit]): ArrayIteratorTriplet =
     copy(calcLength = calcLength, length = length, arrayEmitter = { cont: Emit.F =>
       val et = arrayEmitter(cont)
-      EmitArrayTriplet(Code(et.setup, setup), et.m, et.addElements)
+      EmitArrayTriplet(Code(setupBefore, et.setup, setupAfter), et.m, et.addElements)
     })
 
   def toEmitTriplet(mb: MethodBuilder, aTyp: PStreamable): EmitTriplet = {
@@ -1322,7 +1322,7 @@ private class Emit(
               }
 
               EmitTriplet(
-                codeOld.setup, 
+                codeOld.setup,
                 codeOld.m,
                 Code(
                   srvb.start(init = true),
@@ -2039,7 +2039,9 @@ private class Emit(
           )
         }
 
-        emitArrayIterator(a).wrapContinuation(scanCont).addSetup(Code(rvas := makeRVAggs, aggInit.setup))
+        emitArrayIterator(a).wrapContinuation(scanCont).addSetup(
+          Code._empty,
+          Code(rvas := makeRVAggs, aggInit.setup))
 
       case ReadPartition(path, spec, rowType) =>
         val p = emit(path)
@@ -2072,6 +2074,19 @@ private class Emit(
                 Region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
               i := i + 1)))
         })
+
+      case Let(name, value, a) =>
+        val vti = typeToTypeInfo(value.typ)
+        val mx = mb.newField[Boolean]()
+        val x = coerce[Any](mb.newField(name)(vti))
+        val codeV = emit(value)
+        val bodyenv = env.bind(name, (vti, mx.load(), x.load()))
+        emitArrayIterator(a, bodyenv).addSetup(
+          Code(
+            codeV.setup,
+            mx := codeV.m,
+            x := mx.mux(defaultValue(value.typ), codeV.v)),
+          Code._empty)
 
       case _ =>
         fatal(s"Node not streamable: ${Pretty.short(ir)}")
