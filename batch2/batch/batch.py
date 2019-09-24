@@ -8,7 +8,6 @@ import json
 import uuid
 from shlex import quote as shq
 
-import jinja2
 import aiohttp_jinja2
 from aiohttp import web
 import cerberus
@@ -1194,7 +1193,7 @@ async def pod_complete(request):
     return await asyncio.shield(app['driver'].pod_complete(request))
 
 
-setup_aiohttp_jinja2(app, 'batch')
+setup_aiohttp_jinja2(app, 'batch2')
 
 setup_common_static_routes(routes)
 
