@@ -1,6 +1,10 @@
+import math
+import time
+import argparse
 import asyncio
 import logging
 import aiohttp
+import numpy as np
 from gear import configure_logging
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
@@ -18,7 +22,7 @@ def get_cookie(session, name):
     return None
 
 
-async def main():
+async def run(args, i):
     headers = service_auth_headers(deploy_config, 'notebook', authorize_target=False)
 
     async with aiohttp.ClientSession(raise_for_status=True) as session:
@@ -28,7 +32,7 @@ async def main():
                 headers=headers) as resp:
             await resp.text()
 
-        log.info('loaded notebook home page')
+        log.info(f'{i} loaded notebook home page')
 
         # log in as workshop guest
         # get csrf token
@@ -38,8 +42,8 @@ async def main():
             pass
 
         data = aiohttp.FormData()
-        data.add_field(name='name', value='p')
-        data.add_field(name='password', value='q')
+        data.add_field(name='name', value=args.workshop)
+        data.add_field(name='password', value=args.password)
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
         async with session.post(
                 deploy_config.url('notebook', '/workshop/login'),
@@ -47,7 +51,7 @@ async def main():
                 headers=headers) as resp:
             pass
 
-        log.info('logged in')
+        log.info(f'{i} logged in')
 
         # create notebook
         # get csrf token
@@ -64,23 +68,27 @@ async def main():
                 headers=headers) as resp:
             pass
 
-        log.info('created notebook')
+        log.info(f'{i} created notebook')
+
+        start = time.time()
 
         # wait for notebook ready
         ready = False
         attempt = 0
-        while attempt < 5:
+        # 5 attempts overkill, should only take 2: Scheduling => Running => Ready
+        while not ready and attempt < 5:
             async with session.ws_connect(
                     deploy_config.url('notebook', '/workshop/notebook/wait', base_scheme='ws'),
                     headers=headers) as ws:
                 async for msg in ws:
-                    print(msg.data)
                     if msg.data == '1':
                         ready = True
-                        break
             attempt += 1
 
-        log.info(f'notebook state: {ready}')
+        end = time.time()
+        duration = end - start
+
+        log.info(f'{i} notebook state {ready} duration {duration}')
 
         # delete notebook
         # get csrf token
@@ -97,7 +105,32 @@ async def main():
                 headers=headers) as resp:
             pass
 
-        log.info('notebook delete, done.')
+        log.info(f'{i} notebook delete, done.')
+
+    return duration, ready
+
+
+async def main():
+    parser = argparse.ArgumentParser(
+        description='Notebook scale test.')
+    parser.add_argument('n', type=int, help='number of notebooks to start')
+    parser.add_argument('workshop', type=str, help='workshop name')
+    parser.add_argument('password', type=str, help='workshop password')
+    args = parser.parse_args()
+
+    n = args.n
+    d = int(math.log10(n)) + 1
+    outcomes = await asyncio.gather(
+        *[run(args, str(i).zfill(d)) for i in range(n)])
+
+    times = []
+    for duration, ready in outcomes:
+        if ready:
+            times.append(duration)
+
+    print(f'successes: {len(times)} / {n} = {len(times) / n}')
+    print(f'mean time: {sum(times) / n}')
+    print(f'histogram:\n{np.histogram(times, density=True)}')
 
 
 loop = asyncio.get_event_loop()
