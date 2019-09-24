@@ -5,6 +5,3 @@ PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
-
-scale-test:
-	$(PYTHON) scale-test.py
