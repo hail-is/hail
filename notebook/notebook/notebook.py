@@ -339,6 +339,7 @@ async def _wait_websocket(request, userdata):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
+    ready = (notebook['state'] == 'Ready')
     count = 0
     while count < 12:
         status = await notebook_status_from_notebook(k8s, request.cookies, notebook)
@@ -348,6 +349,7 @@ async def _wait_websocket(request, userdata):
                     await cursor.execute(
                         'DELETE FROM notebooks WHERE user_id = %s;',
                         userdata['id'])
+            ready = False
             break
         if status['state'] != notebook['state']:
             async with dbpool.acquire() as conn:
@@ -355,10 +357,12 @@ async def _wait_websocket(request, userdata):
                     await cursor.execute(
                         'UPDATE notebooks SET state = %s, pod_ip = %s WHERE user_id = %s;',
                         (status['state'], status['pod_ip'], userdata['id']))
+            ready = (status['state'] == 'Ready')
             break
         await asyncio.sleep(1)
 
-    await ws.send_str("1")
+    # 0/1 ready
+    await ws.send_str(str(int(ready)))
 
     return ws
 
