@@ -193,7 +193,7 @@ def notebook_status_from_pod(pod):
     }
 
 
-async def notebook_status_from_notebook(k8s, cookies, notebook):
+async def notebook_status_from_notebook(k8s, notebook):
     try:
         pod = await k8s.read_namespaced_pod(
             name=notebook['pod_name'],
@@ -211,11 +211,14 @@ async def notebook_status_from_notebook(k8s, cookies, notebook):
             status['state'] = 'Ready'
         else:
             pod_name = notebook['pod_name']
-            ready_url = deploy_config.external_url(
-                'notebook', f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
+            # don't have dev credentials to connect through internal.hail.is
+            ready_url = deploy_config.url(
+                'router',
+                f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}',
+                headers={'Host': 'notebook.internal'})
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1)) as session:
-                    async with session.get(ready_url, cookies=cookies) as resp:
+                    async with session.get(ready_url, cookies=cookies, headers=headres) as resp:
                         if resp.status >= 200 and resp.status < 300:
                             log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
                             status['state'] = 'Ready'
@@ -341,8 +344,8 @@ async def _wait_websocket(request, userdata):
 
     ready = (notebook['state'] == 'Ready')
     count = 0
-    while count < 12:
-        status = await notebook_status_from_notebook(k8s, request.cookies, notebook)
+    while count < 10:
+        status = await notebook_status_from_notebook(k8s, notebook)
         if not status:
             async with dbpool.acquire() as conn:
                 async with conn.cursor() as cursor:
@@ -359,7 +362,9 @@ async def _wait_websocket(request, userdata):
                         (status['state'], status['pod_ip'], userdata['id']))
             ready = (status['state'] == 'Ready')
             break
+
         await asyncio.sleep(1)
+        count += 1
 
     # 0/1 ready
     await ws.send_str(str(int(ready)))
