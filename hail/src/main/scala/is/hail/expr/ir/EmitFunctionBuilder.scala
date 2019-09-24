@@ -173,6 +173,8 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val compareMap: mutable.Map[(PType, PType, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
     mutable.Map[(PType, PType, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
 
+  private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder] = mutable.HashMap.empty
+
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
@@ -438,6 +440,21 @@ class EmitFunctionBuilder[F >: Null](
       )
     }
     m
+  }
+
+  def getOrDefineMethod(prefix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
+    (f: EmitMethodBuilder => Unit): EmitMethodBuilder = {
+    methodMemo.get(key) match {
+      case Some(mb) =>
+        assert(mb.parameterTypeInfo.sameElements(argsInfo))
+        assert(mb.returnTypeInfo == returnInfo)
+        mb
+      case None =>
+        val mb = newMethod(prefix, argsInfo, returnInfo)
+        f(mb)
+        methodMemo(key) = mb
+        mb
+    }
   }
 
   override def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
