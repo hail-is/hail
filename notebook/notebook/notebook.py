@@ -439,10 +439,20 @@ async def auth(request):
     return web.HTTPNotFound()
 
 
-@routes.get('/worker-image')
-async def worker_image(request):  # pylint: disable=unused-argument
-    # FIXME return active workshop images
-    return web.Response(text=DEFAULT_WORKER_IMAGE)
+@routes.get('/images')
+async def get_images(request):
+    images = [DEFAULT_WORKER_IMAGE]
+
+    app = request.app
+    dbpool = app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT image FROM workshops WHERE active = 1;')
+            workshops = await cursor.fetchall()
+    for workshop in workshops:
+        images.append(workshop.image)
+
+    return web.Response(text=' '.join(images))
 
 
 @routes.get('/notebook/wait')

@@ -682,14 +682,6 @@ steps:
     - default_ns
     - batch2_image
  - kind: deploy
-   name: deploy_image_fetcher
-   namespace:
-     valueFrom: default_ns.name
-   config: image-fetcher/deployment.yaml
-   dependsOn:
-    - default_ns
-    - image_fetcher_image
- - kind: deploy
    name: test_batch
    namespace:
      valueFrom: batch_pods_ns.name
@@ -812,6 +804,15 @@ steps:
     - deploy_auth
     - create_notebook_tables
     - notebook_database
+ - kind: deploy
+   name: deploy_image_fetcher
+   namespace:
+     valueFrom: default_ns.name
+   config: image-fetcher/deployment.yaml
+   dependsOn:
+    - default_ns
+    - image_fetcher_image
+    - deploy_notebook
  - kind: runImage
    name: test_scheduler
    image:
