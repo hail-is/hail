@@ -1551,21 +1551,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
         f_stat=f,
         multiple_p_value=p0,
         n=n,
-        yty=yty,
-        _yty=temp.yty,
-        _xty=xty,
-        _diag_inv=diag_inv,
-        _beta0=temp.beta0,
-        _se=temp.standard_error,
-        _t_stat=temp.t_stat,
-        _p_value=temp.p_value,
-        _multiple_standard_error=temp.multiple_standard_error,
-        _multiple_r_squared=temp.multiple_r_squared,
-        _adjusted_r_squared=temp.adjusted_r_squared,
-        _f_stat=temp.f_stat,
-        _multiple_p_value=temp.multiple_p_value,
-        _n=temp.n,
-        _k=k
+        yty=yty
     )
 
 def _linreg(y, x, nested_dim):
@@ -1599,7 +1585,7 @@ def _linreg(y, x, nested_dim):
     k = hl.int32(k)
     k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', [y, x], t, [k, k0])
+    return _agg_func('linreg2', [y, x], t0, [k, k0])
 
 @typecheck(x=expr_float64, y=expr_float64)
 def corr(x, y) -> Float64Expression:

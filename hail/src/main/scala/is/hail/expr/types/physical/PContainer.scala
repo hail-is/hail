@@ -121,8 +121,11 @@ abstract class PContainer extends PIterable {
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     aoff + elementsOffset(length) + i.toL * const(elementByteSize)
 
+  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+    aoff + elementsOffset(length)
+
   def firstElementOffset(aoff: Code[Long]): Code[Long] =
-    aoff + elementsOffset(loadLength(aoff))
+    firstElementOffset(aoff, loadLength(aoff))
 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
@@ -190,6 +193,22 @@ abstract class PContainer extends PIterable {
       Code(
         Region.storeInt(aoff, length),
         Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
+  }
+
+  def zeroes(region: Region, length: Int): Long = {
+    val aoff = region.allocate(contentsAlignment, contentsByteSize(length))
+    initialize(region, aoff, length)
+    Region.setMemory(aoff + elementsOffset(length), length * elementByteSize, 0.toByte)
+    aoff
+  }
+
+  def zeroes(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long] = {
+    val aoff = mb.newLocal[Long]
+    Code(
+      aoff := region.allocate(contentsAlignment, contentsByteSize(length)),
+      stagedInitialize(aoff, length),
+      Region.setMemory(aoff + elementsOffset(length), length.toL * elementByteSize, 0.toByte),
+      aoff)
   }
 
   def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {

@@ -9,20 +9,10 @@ import net.sourceforge.jdistlib.{F, T}
 
 object LinearRegressionCombiner {
   val typ: Type = TStruct(
-    "yty" -> TFloat64(),
     "xty" -> TArray(TFloat64()),
-    "diag_inv" -> TArray(TFloat64()),
-    "beta0" -> TArray(TFloat64()),
     "beta" -> TArray(TFloat64()),
-    "standard_error" -> TArray(TFloat64()),
-    "t_stat" -> TArray(TFloat64()),
-    "p_value" -> TArray(TFloat64()),
-    "multiple_standard_error" -> TFloat64(),
-    "multiple_r_squared" -> TFloat64(),
-    "adjusted_r_squared" -> TFloat64(),
-    "f_stat" -> TFloat64(),
-    "multiple_p_value" -> TFloat64(),
-    "n" -> TInt64())
+    "diag_inv" -> TArray(TFloat64()),
+    "beta0" -> TArray(TFloat64()))
 }
 
 class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
@@ -92,27 +82,25 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
     yty += other.yty
   }
 
-  def computeResult(): Option[(Double, DenseVector[Double], DenseVector[Double], DenseVector[Double], DenseVector[Double], DenseVector[Double], DenseVector[Double], Double, Double, Double, Double)] = {
+  def computeResult(): Option[(DenseVector[Double], DenseVector[Double], DenseVector[Double], DenseVector[Double])] = {
     if (n > k)      
       try {
-        val d = n - k
+        println("xty")
+        println(xty)
+        println("xtx")
+        println(xtx)
         val b = xtx \ xty
-        val rss = yty - (xty dot b)
-        val rse2 = rss / d // residual standard error squared
+        println("b")
+        println(b)
         val diagInv = diag(inv(xtx))
-        val se = sqrt(rse2 * diagInv)
-        val t = b /:/ se
+        println("diagInv")
+        println(diagInv)
 
         val xtx0 = xtx(0 until k0, 0 until k0)
         val xty0 = xty(0 until k0)
         val b0 = xtx0 \ xty0
-        val rss0 = yty - (xty0 dot b0)
-                
-        val rse = math.sqrt(rse2)
-        val r2 = 1 - rss / rss0
-        val r2adj = 1 - (1 - r2) * (n - k0) / d
-        val f = ((rss0 - rss) * d) / (rss * (k - k0))
-        Some((yty, xty, diagInv, b0, b, se, t, rse, r2, r2adj, f))
+
+        Some((xty, b, diagInv, b0))
       } catch {
         case e: breeze.linalg.MatrixSingularException => None
         case e: breeze.linalg.NotConvergedException => None
@@ -127,13 +115,19 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
     rvb.startStruct()
 
     result match {
-      case Some((yty, xty, diagInv, b0, b, se, t, rse, r2, r2adj, f)) =>
-        rvb.addDouble(yty)
-
+      case Some((xty, b, diagInv, b0)) =>
         rvb.startArray(k) // xty
         var i = 0
         while (i < k) {
           rvb.addDouble(xty(i))
+          i += 1
+        }
+        rvb.endArray()
+
+        rvb.startArray(k) // beta
+        i = 0
+        while (i < k) {
+          rvb.addDouble(b(i))
           i += 1
         }
         rvb.endArray()
@@ -154,62 +148,12 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
         }
         rvb.endArray()
 
-        rvb.startArray(k) // beta
-        i = 0
-        while (i < k) {
-          rvb.addDouble(b(i))
-          i += 1
-        }
-        rvb.endArray()
-
-        rvb.startArray(k) // standard_error
-        i = 0
-        while (i < k) {
-          rvb.addDouble(se(i))
-          i += 1
-        }
-        rvb.endArray()
-
-        rvb.startArray(k) // t_stat
-        i = 0
-        while (i < k) {
-          rvb.addDouble(t(i))
-          i += 1
-        }
-        rvb.endArray()
-
-        rvb.startArray(k) // p_value
-        i = 0
-        while (i < k) {
-          rvb.addDouble(2 * T.cumulative(-math.abs(t(i)), n - k, true, false))
-          i += 1
-        }
-        rvb.endArray()
-        
-        rvb.addDouble(rse)
-        rvb.addDouble(r2)
-        rvb.addDouble(r2adj)
-        rvb.addDouble(f)
-        rvb.addDouble(F.cumulative(f, k - k0, n - k, false, false))
-        
       case None =>
         rvb.setMissing()
         rvb.setMissing()
         rvb.setMissing()
         rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
-        rvb.setMissing()
     }
-
-    rvb.addLong(n)
-
     rvb.endStruct()
   }
 
@@ -217,24 +161,14 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
     val result = computeResult()
 
     result match {
-      case Some((yty, xty, diagInv, b0, b, se, t, rse, r2, r2adj, f)) =>
+      case Some((xty, b, diagInv, b0)) =>
         Annotation(
-          yty,
           xty.toArray: IndexedSeq[Double],
-          diagInv.toArray: IndexedSeq[Double],
-          b0.toArray: IndexedSeq[Double],
           b.toArray: IndexedSeq[Double],
-          se.toArray: IndexedSeq[Double],
-          t.toArray: IndexedSeq[Double],
-          t.map(ti => 2 * T.cumulative(-math.abs(ti), n - k, true, false)).toArray: IndexedSeq[Double],
-          rse,
-          r2,
-          r2adj,
-          f,
-          F.cumulative(f, k - k0, n - k, false, false),
-          n)
+          diagInv.toArray: IndexedSeq[Double],
+          b0.toArray: IndexedSeq[Double])
       case None =>
-        Annotation(null, null, null, null, null, null, null, null, null, null, null, null, null, n)
+        Annotation(null, null, null, null)
     }
   }
 

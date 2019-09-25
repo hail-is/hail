@@ -482,7 +482,7 @@ class EmitFunctionBuilder[F >: Null](
     body: (MethodBuilder, Code[A]) => Code[R]
   ): Code[A] => Code[R] = {
     val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
-    mb.emit(body(mb, mb.getArg[A](0)))
+    mb.emit(body(mb, mb.getArg[A](1)))
     a => mb.invoke[R](a)
   }
 
@@ -493,7 +493,7 @@ class EmitFunctionBuilder[F >: Null](
     body: (MethodBuilder, Code[A], Code[B]) => Code[R]
   ): (Code[A], Code[B]) => Code[R] = {
     val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
-    mb.emit(body(mb, mb.getArg[A](0), mb.getArg[B](1)))
+    mb.emit(body(mb, mb.getArg[A](1).load(), mb.getArg[B](2).load()))
     (a, b) => mb.invoke[R](a, b)
   }
 

@@ -865,7 +865,7 @@ class Tests(unittest.TestCase):
             {"y": -0.43881935, "x": 1.6590146},
             {"y": -0.99106171, "x": -1.1688806},
             {"y": 2.12823289, "x": 0.5587043}
-        ], hl.tstruct(y=hl.tfloat64, x=hl.tfloat64), n_partitions=3)
+        ], hl.tstruct(y=hl.tfloat64, x=hl.tfloat64), n_partitions=1)
         r = t.aggregate(hl.struct(linreg=hl.agg.linreg(t.y, [1, t.x]))).linreg
         self.assertAlmostEqual(r.beta[0], 0.14069227)
         self.assertAlmostEqual(r.beta[1], 0.32744807)

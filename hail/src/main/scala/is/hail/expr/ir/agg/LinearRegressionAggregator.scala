@@ -13,7 +13,8 @@ object LinearRegressionAggregator extends StagedAggregator {
   val vector = PArray(PFloat64(true), true)
   val scalar = PFloat64(true)
   val stateType: PTuple = PTuple(true, vector, vector, PInt32())
-  def resultType = PStruct(true, "xty" -> vector, "beta" -> vector, "diag_inv" -> vector, "beta0" -> vector)
+  val nrVec = PArray(PFloat64())
+  def resultType = PStruct("xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
 
   def createState(fb: EmitFunctionBuilder[_]): State =
     new TypedRVAState(stateType, fb)
@@ -22,22 +23,14 @@ object LinearRegressionAggregator extends StagedAggregator {
     state.off := stateType.allocate(state.region),
     Region.storeAddress(
       stateType.fieldOffset(state.off, 0),
-      vector.allocate(state.region, k)),
-    Region.setMemory(
-      stateType.loadField(state.off, 0),
-      coerce[Long](k)*scalar.byteSize,
-      0: Byte),
+      vector.zeroes(mb, state.region, k)),
     Region.storeAddress(
       stateType.fieldOffset(state.off, 1),
-      vector.allocate(state.region, k*k)
-    ),
-    Region.setMemory(
-      stateType.loadField(state.off, 1),
-      coerce[Long](k)*coerce[Long](k)*scalar.byteSize,
-      0: Byte),
+      vector.zeroes(mb, state.region, k*k)),
     Region.storeInt(
       stateType.loadField(state.off, 2),
-      k0)
+      k0),
+    Code._println(Code.boxDouble(Region.loadDouble(vector.loadElement(stateType.loadField(state.off, 1), 0))))
   )
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
@@ -58,11 +51,11 @@ object LinearRegressionAggregator extends StagedAggregator {
     val xty = stateType.loadField(state.off, 0)
     val xtx = stateType.loadField(state.off, 1)
 
-    Code(
+    coerce[Unit](Code(
       n := vector.loadLength(xty),
       i := 0,
-      sptr := vector.firstElementOffset(xty),
-      xptr := vector.firstElementOffset(x),
+      sptr := vector.firstElementOffset(xty, n),
+      xptr := vector.firstElementOffset(x, n),
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr)
           + (Region.loadDouble(xptr) * y)),
@@ -73,10 +66,10 @@ object LinearRegressionAggregator extends StagedAggregator {
 
       i := 0,
       sptr := vector.firstElementOffset(xtx),
-      xptr := vector.firstElementOffset(x),
+      xptr := vector.firstElementOffset(x, n),
       Code.whileLoop(i < n, Code(
         j := 0,
-        xptr2 := vector.firstElementOffset(x),
+        xptr2 := vector.firstElementOffset(x, n),
         Code.whileLoop(j < n, Code(
           Region.storeDouble(sptr, Region.loadDouble(sptr)
             + (Region.loadDouble(xptr) * Region.loadDouble(xptr2))),
@@ -84,8 +77,9 @@ object LinearRegressionAggregator extends StagedAggregator {
           sptr := sptr + scalar.byteSize,
           xptr2 := xptr2 + scalar.byteSize)),
         i += 1,
-        sptr := sptr + scalar.byteSize,
-        xptr := xptr + scalar.byteSize)))
+        xptr := xptr + scalar.byteSize)),
+
+      Code._println(Code.boxDouble(Region.loadDouble(vector.loadElement(xtx, 0))))))
   }
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
@@ -109,8 +103,8 @@ object LinearRegressionAggregator extends StagedAggregator {
     Code(
       n := vector.loadLength(xty),
       i := 0,
-      sptr := vector.firstElementOffset(xty),
-      optr := vector.firstElementOffset(oxty),
+      sptr := vector.firstElementOffset(xty, n),
+      optr := vector.firstElementOffset(oxty, n),
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
@@ -119,8 +113,8 @@ object LinearRegressionAggregator extends StagedAggregator {
 
       n := vector.loadLength(xtx),
       i := 0,
-      sptr := vector.firstElementOffset(xtx),
-      optr := vector.firstElementOffset(oxtx),
+      sptr := vector.firstElementOffset(xtx, n),
+      optr := vector.firstElementOffset(oxtx, n),
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
@@ -133,11 +127,20 @@ object LinearRegressionAggregator extends StagedAggregator {
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
     // FIXME: are the toArrays necessary?
-    val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr).asInstanceOf[IndexedSeq[Double]].toArray[Double])
+    val ur = UnsafeRow.readArray(vector, null, xtyPtr)
+    val xty = DenseVector(ur.asInstanceOf[IndexedSeq[Double]].toArray[Double])
     val k = xty.length
     val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, null, xtxPtr).asInstanceOf[IndexedSeq[Double]].toArray[Double])
+    println("xty")
+    println(xty)
+    println("xtx")
+    println(xtx)
     val b = xtx \ xty
+    println("b")
+    println(b)
     val diagInv = diag(inv(xtx))
+    println("diagInv")
+    println(diagInv)
 
     val xtx0 = xtx(0 until k0, 0 until k0)
     val xty0 = xty(0 until k0)
@@ -173,7 +176,7 @@ object LinearRegressionAggregator extends StagedAggregator {
 
     rvb.startArray(k0)
     i = 0
-    while (i < k) {
+    while (i < k0) {
       rvb.addDouble(b0(i))
       i += 1
     }
@@ -184,11 +187,14 @@ object LinearRegressionAggregator extends StagedAggregator {
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-    Code.invokeScalaObject[Region, Long, Long, Int, Unit](getClass, "computeResult",
-      srvb.region,
-      stateType.loadField(state.off, 0),
-      stateType.loadField(state.off, 1),
-      Region.loadInt(stateType.loadField(state.off, 2))
-    )
+    val res = state.fb.newField[Long]
+    coerce[Unit](Code(
+      res := Code.invokeScalaObject[Region, Long, Long, Int, Long](getClass, "computeResult",
+        srvb.region,
+        stateType.loadField(state.off, 0),
+        stateType.loadField(state.off, 1),
+        Region.loadInt(stateType.loadField(state.off, 2))),
+      srvb.addIRIntermediate(resultType)(res)
+    ))
   }
 }
