@@ -25,10 +25,11 @@ RUN pip3 install -r requirements.txt
 
 RUN pip3 install aiomysql
 
-ARG BENCHMARK_WHEEL
-COPY $BENCHMARK_WHEEL .
-RUN pip3 install --no-dependencies $BENCHMARK_WHEEL
 
 ARG HAIL_WHEEL
 COPY $HAIL_WHEEL .
 RUN pip3 install $HAIL_WHEEL
+
+ARG BENCHMARK_WHEEL
+COPY $BENCHMARK_WHEEL .
+RUN pip3 install $BENCHMARK_WHEEL
