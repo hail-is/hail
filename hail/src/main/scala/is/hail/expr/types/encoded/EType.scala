@@ -129,7 +129,7 @@ abstract class EType extends BaseType with Serializable {
 object EType {
   // The 'entry point' for building an encoder from an EType and a PType
   def buildEncoder(et: EType, pt: PType): () => AsmFunction2[Long, OutputBuffer, Unit] = {
-    val fb = new Function2Builder[Long, OutputBuffer, Unit](s"ETYPE_ENCODE")
+    val fb = new Function2Builder[Long, OutputBuffer, Unit]("etypeEncode")
     val mb = fb.apply_method
     val f = et.buildEncoder(pt, mb)
 
@@ -143,7 +143,7 @@ object EType {
   }
 
   def buildDecoder(et: EType, t: Type): (PType, () => AsmFunction2[Region, InputBuffer, Long]) = {
-    val fb = new Function2Builder[Region, InputBuffer, Long]("ETYPE_DECODE")
+    val fb = new Function2Builder[Region, InputBuffer, Long]("etypeDecode")
     val mb = fb.apply_method
     val pt = et.decodedPType(t)
     val f = et.buildDecoder(pt, mb)

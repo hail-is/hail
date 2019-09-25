@@ -98,6 +98,10 @@ object PBinary {
 
   def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
 
+  def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
+
+  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
+
   def bytesOffset(boff: Long): Long = boff + 4
 
   def bytesOffset(boff: Code[Long]): Code[Long] = boff + 4L
