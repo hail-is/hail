@@ -461,7 +461,7 @@ async def wait_websocket(request, userdata):
 @routes.get('/error')
 @web_maybe_authenticated_user
 async def get_error(request, userdata):
-    return _get_error('notebook', request, userdata)
+    return await _get_error('notebook', request, userdata)
 
 
 @routes.get('/user')
@@ -730,7 +730,7 @@ async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-
 @workshop_routes.get('/error')
 @web_maybe_authenticated_user
 async def workshop_get_error(request, userdata):
-    return _get_error('workshop', request, userdata)
+    return await _get_error('workshop', request, userdata)
 
 
 async def on_startup(app):
