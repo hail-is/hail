@@ -41,6 +41,8 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
+  def identBase: String = "tuple"
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")
     types.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

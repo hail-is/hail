@@ -204,6 +204,8 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     PStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
   }
 
+  def identBase: String = "tuple"
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("struct{")
     fields.foreachBetween({ field =>

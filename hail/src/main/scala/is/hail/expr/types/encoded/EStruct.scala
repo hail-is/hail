@@ -167,6 +167,7 @@ final case class EStruct(fields: IndexedSeq[EField], override val required: Bool
       Code._empty[Unit])
   }
 
+  def identBase: String = "struct"
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
       sb.append("Struct{")

@@ -137,6 +137,7 @@ final case class ETuple(_types: IndexedSeq[ETupleField], override val required: 
       Code._empty[Unit])
   }
 
+  def identBase: String = "tuple"
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")
     types.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

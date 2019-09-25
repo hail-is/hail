@@ -50,12 +50,11 @@ abstract class EBaseStruct extends EType {
       Code._empty)
   }
 
+  def identBase: String
   def asIdent: String = {
     val sb = new StringBuilder
-    this match {
-      case t: EStruct => sb.append("struct_of_")
-      case t: ETuple => sb.append("tuple_of_")
-    }
+    sb.append(identBase)
+    sb.append("_of_")
     types.foreachBetween { ty =>
       sb.append(ty.asIdent)
     } {

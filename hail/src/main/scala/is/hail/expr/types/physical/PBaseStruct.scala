@@ -54,12 +54,11 @@ abstract class PBaseStruct extends PType {
     sb.result()
   }
 
+  def identBase: String
   def asIdent: String = {
     val sb = new StringBuilder
-    this match {
-      case t: PStruct => sb.append("struct_of_")
-      case t: PTuple => sb.append("tuple_of_")
-    }
+    sb.append(identBase)
+    sb.append("_of_")
     types.foreachBetween { ty =>
       sb.append(ty.asIdent)
     } {
