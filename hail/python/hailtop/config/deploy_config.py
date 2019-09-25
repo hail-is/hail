@@ -6,6 +6,20 @@ from aiohttp import web
 log = logging.getLogger('gear')
 
 
+def get_conf_dir():
+    xdg_conf_home = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+    hail_conf = os.path.join(xdg_conf_home, 'hail')
+    if os.path.isdir(hail_conf):
+        return hail_conf
+    dot_hail = os.path.expanduser('~/.hail')
+    if not os.path.exists(dot_hail):
+        return hail_conf
+    return dot_hail
+
+
+HAIL_CONFIG_DIR = get_conf_dir()
+
+
 class DeployConfig:
     @staticmethod
     def from_config(config):
@@ -15,7 +29,7 @@ class DeployConfig:
     def from_config_file(config_file=None):
         if not config_file:
             config_file = os.environ.get(
-                'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
+                'HAIL_DEPLOY_CONFIG_FILE', os.path.join(HAIL_CONFIG_DIR, 'deploy-config.json'))
         if os.path.isfile(config_file):
             with open(config_file, 'r') as f:
                 config = json.loads(f.read())

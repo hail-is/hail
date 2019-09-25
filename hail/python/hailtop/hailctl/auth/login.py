@@ -5,7 +5,7 @@ import webbrowser
 import aiohttp
 from aiohttp import web
 
-from hailtop.config import get_deploy_config
+from hailtop.config import HAIL_CONFIG_DIR, get_deploy_config
 from hailtop.auth import get_tokens, namespace_auth_headers
 
 
@@ -77,9 +77,8 @@ Opening in your browser.
 
     tokens = get_tokens()
     tokens[auth_ns] = token
-    dot_hail_dir = os.path.expanduser('~/.hail')
-    if not os.path.exists(dot_hail_dir):
-        os.mkdir(dot_hail_dir, mode=0o700)
+    if not os.path.exists(HAIL_CONFIG_DIR):
+        os.mkdirs(HAIL_CONFIG_DIR, mode=0o700, exist_ok=True)
     tokens.write()
 
     if auth_ns == 'default':

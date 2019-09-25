@@ -1,6 +1,6 @@
 import os
 import json
-from hailtop.config import get_deploy_config
+from hailtop.config import HAIL_CONFIG_DIR, get_deploy_config
 
 
 def init_parser(parser):
@@ -35,6 +35,6 @@ def main(args):
     }
 
     config_file = os.environ.get(
-        'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
+        'HAIL_DEPLOY_CONFIG_FILE', os.path.join(HAIL_CONFIG_DIR, 'deploy-config.json'))
     with open(config_file, 'w') as f:
         f.write(json.dumps(config))

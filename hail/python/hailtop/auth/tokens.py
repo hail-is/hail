@@ -3,7 +3,7 @@ import os
 import sys
 import json
 import logging
-from hailtop.config import get_deploy_config
+from hailtop.config import HAIL_CONFIG_DIR, get_deploy_config
 
 log = logging.getLogger('gear')
 
@@ -14,7 +14,7 @@ class Tokens(collections.abc.MutableMapping):
         deploy_config = get_deploy_config()
         location = deploy_config.location()
         if location == 'external':
-            return os.path.expanduser('~/.hail/tokens.json')
+            return os.path.join(HAIL_CONFIG_DIR, 'tokens.json')
         return '/user-tokens/tokens.json'
 
     def __init__(self):
