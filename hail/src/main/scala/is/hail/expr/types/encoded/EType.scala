@@ -7,6 +7,7 @@ import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.utils._
 
 // All _$methods here assume that their arguments are fundamental types
 abstract class EType extends BaseType with Serializable with Requiredness {
@@ -90,7 +91,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit]
 
-  def _compatible(pt: PType): Boolean = ???
+  def _compatible(pt: PType): Boolean = fatal("EType subclasses must override either `_compatible` or both `_encodeCompatible` and `_decodeCompatible`")
   // Can this etype encode from this ptype
   final def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.fundamentalType)
   def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
