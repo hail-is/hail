@@ -435,7 +435,7 @@ async def post_notebook(request, userdata):
 @routes.get('/auth/{requested_notebook_token}')
 @web_authenticated_users_only
 async def get_auth(request, userdata):
-    return _get_auth(request, userdata)
+    return await _get_auth(request, userdata)
 
 
 @routes.get('/images')
@@ -713,7 +713,7 @@ async def workshop_post_notebook(request, userdata):
 @workshop_routes.get('/auth/{requested_notebook_token}')
 @web_authenticated_workshop_guest_only
 async def workshop_get_auth(request, userdata):
-    return _get_auth(request, userdata)
+    return await _get_auth(request, userdata)
 
 
 @workshop_routes.post('/notebook/delete')
