@@ -111,7 +111,8 @@ server {
     }
 
     location @pod_dead {
-    	proxy_pass http://notebook@notebook_base_path@/error;
+        rewrite ^ @notebook_base_path@/error;
+    	proxy_pass http://notebook;
     }
 
     location / {
