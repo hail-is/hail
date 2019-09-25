@@ -357,6 +357,7 @@ async def _wait_websocket(service, request, userdata):
     ready = (notebook['state'] == 'Ready')
     count = 0
     while count < 10:
+        log.info(f'/wait loop {count}')
         status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
         if not status:
             async with dbpool.acquire() as conn:
@@ -435,6 +436,7 @@ async def post_notebook(request, userdata):
 @routes.get('/auth/{requested_notebook_token}')
 @web_authenticated_users_only
 async def get_auth(request, userdata):
+    log.info('enter get_auth')
     try:
         r = await _get_auth(request, userdata)
         log.info(f'get_auth: r {r}')
