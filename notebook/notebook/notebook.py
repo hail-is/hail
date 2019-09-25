@@ -760,14 +760,14 @@ def run():
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
     notebook_app.add_routes(routes)
-    root_app.add_domain('notebook.*',
+    root_app.add_domain('notebook*',
                         deploy_config.prefix_application(notebook_app, 'notebook')) 
 
     workshop_app = web.Application()
     workshop_routes.static('/static', f'{root}/static')
     setup_common_static_routes(workshop_routes)
     workshop_app.add_routes(workshop_routes)
-    root_app.add_domain('workshop.*',
+    root_app.add_domain('workshop*',
                         deploy_config.prefix_application(workshop_app, 'workshop'))
 
     web.run_app(root_app,
