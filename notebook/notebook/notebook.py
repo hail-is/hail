@@ -435,7 +435,13 @@ async def post_notebook(request, userdata):
 @routes.get('/auth/{requested_notebook_token}')
 @web_authenticated_users_only
 async def get_auth(request, userdata):
-    return await _get_auth(request, userdata)
+    try:
+        r = await _get_auth(request, userdata)
+        log.info(f'get_auth: r {r}')
+        return r
+    except Exception as e:  # pylint: disable=broad-except
+        log.info(f'get_auth: e {e}')
+        raise e
 
 
 @routes.get('/images')
