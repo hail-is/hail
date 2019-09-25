@@ -1647,6 +1647,16 @@ def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
 
+def from_numpy(np_dtype):
+    if np_dtype == np.int32:
+        return tint32
+    elif np_dtype == np.int64:
+        return tint64
+    elif np_dtype == np.float32:
+        return tfloat32
+    elif np_dtype == np.float64:
+        return tfloat64
+
 
 class tvariable(HailType):
     _cond_map = {

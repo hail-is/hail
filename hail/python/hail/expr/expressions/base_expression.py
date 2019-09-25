@@ -1,7 +1,10 @@
 from typing import *
 
+import numpy as np
+
 from hail.expr import expressions
 from hail.expr.types import *
+from hail.expr.types import from_numpy
 from hail.ir import *
 from hail.typecheck import linked_list
 from hail.utils.java import *
@@ -82,6 +85,9 @@ def impute_type(x):
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with values of types {} ".format(list(vts)))
         return tdict(unified_key_type, unified_value_type)
+    elif isinstance(x, np.ndarray):
+        element_type = from_numpy(x.dtype)
+        return tndarray(element_type, x.ndim)
     elif x is None:
         raise ExpressionException("Hail cannot impute the type of 'None'")
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
