@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
@@ -15,6 +15,18 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     "container" -> states.storageType)
   val compType: PType = kt
   private val kcomp = fb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
+
+  private val compLoader: EmitMethodBuilder = {
+    val mb = fb.newMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
+    val off = mb.getArg[Long](1).load()
+    val m = mb.getArg[Boolean](2).load()
+    val v = mb.getArg(3)(typeToTypeInfo(compType)).load()
+    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m -> v))
+    mb
+  }
+
+  override def compWithKey(off: Code[Long], k: (Code[Boolean], Code[_])): Code[Int] =
+    compLoader.invoke[Int](off, k._1, k._2)
 
   val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
   val container = new TupleAggregatorState(fb, states, region, containerOffset(offset), regionIdx)
