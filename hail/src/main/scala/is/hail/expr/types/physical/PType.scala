@@ -258,6 +258,7 @@ abstract class PType extends BaseType with Serializable {
       case t2: PArray => t.isInstanceOf[PArray] && t.asInstanceOf[PArray].elementType.isOfType(t2.elementType)
       case t2: PSet => t.isInstanceOf[PSet] && t.asInstanceOf[PSet].elementType.isOfType(t2.elementType)
       case t2: PDict => t.isInstanceOf[PDict] && t.asInstanceOf[PDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[PDict].valueType.isOfType(t2.valueType)
+      case t2: PStream => t.isInstanceOf[PStream] && t.asInstanceOf[PStream].elementType.isOfType(t2.elementType)
     }
   }
 
