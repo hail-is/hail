@@ -97,3 +97,17 @@ spec:
     targetPort: 5000
   selector:
     app: notebook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop
+  labels:
+    app: workshop
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: notebook

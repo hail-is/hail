@@ -140,10 +140,10 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://workshop@notebook_base_path@/auth/$pod_uuid;
+        proxy_pass http://workshop@workshop_base_path@/auth/$pod_uuid;
     }
 
-    location ~ @notebook_base_path@/workshop/instance/([^/]+)/(.*) {
+    location ~ @workshop_base_path@/instance/([^/]+)/(.*) {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
@@ -167,7 +167,7 @@ server {
     }
 
     location @pod_dead {
-        rewrite ^ @notebook_base_path@/workshop/error;
+        rewrite ^ @workshop_base_path@/error;
     	proxy_pass http://workshop;
     }
 

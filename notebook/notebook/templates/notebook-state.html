@@ -14,7 +14,7 @@
         </span>
         <span class="small">Created on: {{ notebook['creation_date'] }}</span>
     </a>
-    <form action="{{ base_path }}{{ notebook_path }}/delete" method="POST">
+    <form action="{{ base_path }}/notebook/delete" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
         <button type="submit" class="material-icons nb-close">
             close
@@ -24,7 +24,7 @@
 {% if notebook['state'] != 'Ready' %}
     <script>
         let protocol = location.protocol.replace("http", "ws")
-        let sock = new WebSocket(protocol + location.host + "{{ base_path }}{{ notebook_path }}/wait");
+        let sock = new WebSocket(protocol + location.host + "{{ base_path }}/notebook/wait");
         sock.onmessage = function (event) {
             window.location.reload()
         }

@@ -746,20 +746,27 @@ async def on_startup(app):
 
 
 def run():
-    app = web.Application()
+    root_app = web.Application()
 
-    setup_aiohttp_jinja2(app, 'notebook')
-    setup_aiohttp_session(app)
+    setup_aiohttp_jinja2(root_app, 'notebook')
+    setup_aiohttp_session(root_app)
 
-    workshop_app = web.Application()
-    workshop_app.add_routes(workshop_routes)
-    app.add_domain('workshop.*', workshop_app)
+    root_app.on_startup.append(on_startup)
+
+    notebook_app = web.Application()
 
     sass_compile('notebook')
     root = os.path.dirname(os.path.abspath(__file__))
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
-    app.add_routes(routes)
+    notebook_app.add_routes(routes)
 
-    app.on_startup.append(on_startup)
-    web.run_app(deploy_config.prefix_application(app, 'notebook'), host='0.0.0.0', port=5000)
+    root_app.add_domain('notebook.*',
+                        deploy_config.prefix_application(notebook_app, 'notebook'))
+
+    workshop_app = web.Application()
+    workshop_app.add_routes(workshop_routes)
+    root_app.add_domain('workshop.*',
+                        deploy_config.prefix_application(workshop_app, 'workshop'))
+
+    web.run_app(root_app, host='0.0.0.0', port=5000)
