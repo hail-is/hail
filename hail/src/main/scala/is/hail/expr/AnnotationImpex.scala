@@ -236,6 +236,12 @@ object JSONAnnotationImpex {
         }
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]
+      case (JObject(list), TNDArray(_, _, _)) =>
+        val m = list.toMap
+        (m.get("flags"), m.get("offset"), m.get("shape"), m.get("strides"), m.get("data")) match {
+          case (Some(flagsJV), Some(offsetJV), Some(shapeJV), Some(stridesJV), Some(dataJV)) =>
+            
+        }
       case (_, TInterval(pointType, _)) =>
         jv match {
           case JObject(list) =>
