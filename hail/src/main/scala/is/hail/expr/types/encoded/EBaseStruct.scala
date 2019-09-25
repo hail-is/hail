@@ -8,19 +8,6 @@ import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-object EBaseStruct {
-  def getMissingness(types: Array[EType], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
-    var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    i
-  }
-}
-
 abstract class EBaseStruct extends EType {
   def types: Array[EType]
   def fields: IndexedSeq[EField]

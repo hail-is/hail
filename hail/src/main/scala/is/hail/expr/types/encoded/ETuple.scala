@@ -2,7 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.types.BaseType
+import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
@@ -15,7 +15,7 @@ final case class ETuple(_types: IndexedSeq[ETupleField], override val required: 
   val types = _types.map(_.typ).toArray
   val fields: IndexedSeq[EField] = types.zipWithIndex.map { case (t, i) => EField(s"$i", t, i) }
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = EBaseStruct.getMissingness(types, missingIdx)
+  val nMissing: Int = BaseStruct.getMissingness[EType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
 
   override def _decodeCompatible(pt: PType): Boolean = {

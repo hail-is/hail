@@ -2,7 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.types.BaseType
+import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
@@ -33,7 +33,7 @@ final case class EStruct(fields: IndexedSeq[EField], override val required: Bool
   def hasField(name: String): Boolean = fieldIdx.contains(name)
   def fieldType(name: String): EType = types(fieldIdx(name))
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = EBaseStruct.getMissingness(types, missingIdx)
+  val nMissing: Int = BaseStruct.getMissingness[EType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
 
   if (!fieldNames.areDistinct()) {

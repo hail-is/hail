@@ -5,17 +5,6 @@ import is.hail.asm4s.{Code, _}
 import is.hail.utils._
 
 object PBaseStruct {
-  def getMissingness(types: Array[PType], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
-    var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    i
-  }
-
   def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
     assert(byteOffsets.length == types.length)
     val bp = new BytePacker()

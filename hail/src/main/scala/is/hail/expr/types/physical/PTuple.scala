@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{TTuple, TupleField}
 import is.hail.utils._
 
@@ -34,7 +35,7 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
     PTuple(_types.take(newSize), required)
 
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = PBaseStruct.getMissingness(types, missingIdx)
+  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)

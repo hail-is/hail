@@ -3,13 +3,13 @@ package is.hail.expr.types.encoded
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.typeToTypeInfo
-import is.hail.expr.types.BaseType
+import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
 import is.hail.io.{InputBuffer, OutputBuffer}
 
 // All _$methods here assume that their arguments are fundamental types
-abstract class EType extends BaseType with Serializable {
+abstract class EType extends BaseType with Serializable with Requiredness {
   def virtualType: Type
 
   type StagedEncoder = (Code[_], Code[OutputBuffer]) => Code[Unit]
@@ -97,8 +97,6 @@ abstract class EType extends BaseType with Serializable {
   // Can this etype decode to this ptype
   final def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.fundamentalType)
   def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
-
-  def required: Boolean
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
