@@ -21,7 +21,7 @@ wheel:
 .PHONY: install
 install: wheel
 	-$(PIP) uninstall -y benchmark_hail
-	(PIP) install $(BENCHMARK_WHEEL)
+	$(PIP) install $(BENCHMARK_WHEEL)
 
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 PROJECT = $(shell gcloud config get-value project)
