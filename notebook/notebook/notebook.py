@@ -346,8 +346,6 @@ async def _wait_websocket(service, request, userdata):
     if 'X-Hail-Internal-Authorization' in request.headers:
         headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
 
-    log.info(f'cookies {request.cookies} {type(request.cookies)}')
-
     cookies = {}
     if 'session' in request.cookies:
         cookies['session'] = request.cookies['session']
@@ -357,7 +355,6 @@ async def _wait_websocket(service, request, userdata):
     ready = (notebook['state'] == 'Ready')
     count = 0
     while count < 10:
-        log.info(f'/wait loop {count}')
         status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
         if not status:
             async with dbpool.acquire() as conn:
@@ -436,14 +433,7 @@ async def post_notebook(request, userdata):
 @routes.get('/auth/{requested_notebook_token}')
 @web_authenticated_users_only()
 async def get_auth(request, userdata):
-    log.info('enter get_auth')
-    try:
-        r = await _get_auth(request, userdata)
-        log.info(f'get_auth: r {r}')
-        return r
-    except Exception as e:  # pylint: disable=broad-except
-        log.info(f'get_auth: e {e}')
-        raise e
+    return await _get_auth(request, userdata)
 
 
 @routes.get('/images')
