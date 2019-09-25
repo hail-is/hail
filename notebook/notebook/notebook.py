@@ -746,30 +746,39 @@ async def on_startup(app):
 
 
 def run():
-    root_app = web.Application()
-
-    setup_aiohttp_jinja2(root_app, 'notebook')
-    setup_aiohttp_session(root_app)
-
-    root_app.on_startup.append(on_startup)
-
     sass_compile('notebook')
     root = os.path.dirname(os.path.abspath(__file__))
 
+    # notebook
     notebook_app = web.Application()
+
+    notebook_app.on_startup.append(on_startup)
+
+    setup_aiohttp_jinja2(notebook_app, 'notebook')
+    setup_aiohttp_session(notebook_app)
+    
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
     notebook_app.add_routes(routes)
-    root_app.add_domain('notebook*',
-                        deploy_config.prefix_application(notebook_app, 'notebook')) 
-
+    
+    # workshop
     workshop_app = web.Application()
+
+    workshop_app.on_startup.append(on_startup)
+
+    setup_aiohttp_jinja2(workshop_app, 'notebook')
+    setup_aiohttp_session(workshop_app)
+
     workshop_routes.static('/static', f'{root}/static')
     setup_common_static_routes(workshop_routes)
     workshop_app.add_routes(workshop_routes)
+
+    # root app
+    root_app = web.Application()
+    root_app.add_domain('notebook*',
+                        deploy_config.prefix_application(notebook_app, 'notebook')) 
     root_app.add_domain('workshop*',
                         deploy_config.prefix_application(workshop_app, 'workshop'))
-
     web.run_app(root_app,
                 access_log_format='%a %t "%r" %s %b "%{Host}i" "%{Referer}i" "%{User-Agent}i"',
                 host='0.0.0.0', port=5000)
