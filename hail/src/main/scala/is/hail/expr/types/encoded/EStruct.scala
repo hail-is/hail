@@ -82,7 +82,7 @@ final case class EStruct(fields: IndexedSeq[EField], override val required: Bool
       PStruct(pFields, required)
   }
 
-  override def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PStruct]
     val addr = coerce[Long](v)
     val writeMissingBytes = if (ft.size == size) {

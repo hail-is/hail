@@ -45,8 +45,6 @@ final case class ETuple(_types: IndexedSeq[ETupleField], override val required: 
   }
 
   def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
-    // if we are here, then then we are a like a tuple, and the etype is a prefix of the
-    // ptype.
     val ft = pt.asInstanceOf[PBaseStruct]
     val addr = coerce[Long](v)
     val writeMissingBytes = if (ft.size == size) {
