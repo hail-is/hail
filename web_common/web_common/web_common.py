@@ -28,8 +28,15 @@ def setup_aiohttp_jinja2(app, module):
         ]))
 
 
+_compiled = False
+
+
 def setup_common_static_routes(routes):
-    sass_compile('web_common')
+    global _compiled
+    
+    if not _compiled:
+        sass_compile('web_common')
+        _compiled = True
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
 

@@ -753,20 +753,23 @@ def run():
 
     root_app.on_startup.append(on_startup)
 
-    notebook_app = web.Application()
-
     sass_compile('notebook')
     root = os.path.dirname(os.path.abspath(__file__))
+
+    notebook_app = web.Application()
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
     notebook_app.add_routes(routes)
-
     root_app.add_domain('notebook.*',
-                        deploy_config.prefix_application(notebook_app, 'notebook'))
+                        deploy_config.prefix_application(notebook_app, 'notebook')) 
 
     workshop_app = web.Application()
+    workshop_routes.static('/static', f'{root}/static')
+    setup_common_static_routes(workshop_routes)
     workshop_app.add_routes(workshop_routes)
     root_app.add_domain('workshop.*',
                         deploy_config.prefix_application(workshop_app, 'workshop'))
 
-    web.run_app(root_app, host='0.0.0.0', port=5000)
+    web.run_app(root_app,
+                access_log_format='%a %t "%r" %s %b "%{Host}i" "%{Referer}i" "%{User-Agent}i"',
+                host='0.0.0.0', port=5000)
