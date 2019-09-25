@@ -434,7 +434,7 @@ async def post_notebook(request, userdata):
 
 
 @routes.get('/auth/{requested_notebook_token}')
-@web_authenticated_users_only
+@web_authenticated_users_only()
 async def get_auth(request, userdata):
     log.info('enter get_auth')
     try:
