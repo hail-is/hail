@@ -629,7 +629,7 @@ async def workshop_get_login(request, userdata):
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'workshop')
     context['csrf_token'] = csrf_token
-    context['workshop_service'] = 'workshop'
+    context['notebook_service'] = 'workshop'
     response = aiohttp_jinja2.render_template('workshop/login.html',
                                               request,
                                               context)
