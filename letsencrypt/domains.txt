@@ -8,3 +8,4 @@ batch2.@domain@
 internal.@domain@
 auth.@domain@
 ukbb-rg.@domain@
+workshop.@domain@
