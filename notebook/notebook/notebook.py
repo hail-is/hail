@@ -462,13 +462,12 @@ async def wait_websocket(request, userdata):
 
 
 @routes.get('/error')
-@aiohttp_jinja2.template('error.html')
-@web_maybe_authenticated_user
-async def error_page(request, userdata):
+async def error_page(request):
     session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'notebook')
-    context['error'] = request.args.get('err')
-    return context
+    set_message(session,
+                f'Notebook not found.  Please create a new notebook.',
+                'error')
+    return web.HTTPFound(deploy_config.external_url('notebook', '/notebook'))
 
 
 @routes.get('/user')

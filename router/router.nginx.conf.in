@@ -111,8 +111,7 @@ server {
     }
 
     location @pod_dead {
-        set $args "?err=Notebook not found";
-        return 307 $updated_scheme://$updated_host/error$args;
+        return 302 http://notebook@notebook_base_path@/error;
     }
 
     location / {
