@@ -450,7 +450,7 @@ async def get_images(request):
             await cursor.execute('SELECT image FROM workshops WHERE active = 1;')
             workshops = await cursor.fetchall()
     for workshop in workshops:
-        images.append(workshop.image)
+        images.append(workshop['image'])
 
     return web.Response(text=' '.join(images))
 
