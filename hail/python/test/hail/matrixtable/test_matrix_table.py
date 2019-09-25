@@ -475,6 +475,15 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    def test_union_rows_different_col_schema(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt2 = hl.utils.range_matrix_table(10, 10)
+
+        mt2 = mt2.annotate_cols(x=mt2.col_idx + 1)
+        mt2 = mt2.annotate_globals(g="foo")
+
+        self.assertEqual(mt.union_rows(mt2).count_rows(), 20)
+
     def test_index(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
