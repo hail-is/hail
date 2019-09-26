@@ -11,7 +11,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   private val r: ClassFieldRef[Region] = fb.newField[Region]
   val region: Code[Region] = r.load()
 
-  val builder = new StagedArrayBuilder(eltType, fb, region)
+  val builder = new StagedGrowableArray(eltType, fb, region)
   val storageType: PTuple = PTuple(true, PInt32Required, builder.stateType)
   private val maxSize = fb.newField[Int]
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)

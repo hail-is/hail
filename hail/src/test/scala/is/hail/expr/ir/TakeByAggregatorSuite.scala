@@ -86,7 +86,7 @@ class TakeByAggregatorSuite extends HailSuite {
         val resultOff = fb.newField[Long]
 
         val tba = new TakeByRVAS(PInt32Required, PInt32Required, PArray(PInt32Required, required = true), fb)
-        val ab = new agg.StagedArrayBuilder(PInt32Required, fb, argR)
+        val ab = new agg.StagedGrowableArray(PInt32Required, fb, argR)
         val rt = tba.resultType
         val er = new EmitRegion(fb.apply_method, argR)
         val rng = er.mb.newRNG(0)

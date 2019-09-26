@@ -19,7 +19,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private val indexedKeyType = PTuple(true, keyType, PInt64Required)
   private val eltTuple = PTuple(true, indexedKeyType, valueType)
-  val ab = new StagedArrayBuilder(eltTuple, fb, region)
+  val ab = new StagedGrowableArray(eltTuple, fb, region)
 
   private val maxIndex = fb.newField[Long]("max_index")
   private val maxSize = fb.newField[Int]("max_size")

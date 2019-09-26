@@ -7,11 +7,11 @@ import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
 import is.hail.utils._
 
-object StagedArrayBuilder {
+object StagedGrowableArray {
   val END_SERIALIZATION: Int = 0x12345678
 }
 
-class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], initialCapacity: Int = 8) {
+class StagedGrowableArray(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], initialCapacity: Int = 8) {
   val eltArray = PArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PTuple(true, PInt32Required, PInt32Required, eltArray)
   val size: ClassFieldRef[Int] = fb.newField[Int]("size")
@@ -58,7 +58,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
         ob.writeInt(size),
         ob.writeInt(capacity),
         enc(region, data, ob),
-        ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
+        ob.writeInt(const(StagedGrowableArray.END_SERIALIZATION))
       )
     }
   }
@@ -73,7 +73,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
         capacity := ib.readInt(),
         data := dec(region, ib),
         ib.readInt()
-          .cne(const(StagedArrayBuilder.END_SERIALIZATION))
+          .cne(const(StagedGrowableArray.END_SERIALIZATION))
           .orEmpty[Unit](Code._fatal(s"StagedArrayBuilder serialization failed"))
       )
     }
