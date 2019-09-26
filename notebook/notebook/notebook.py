@@ -754,11 +754,11 @@ def run():
 
     setup_aiohttp_jinja2(notebook_app, 'notebook')
     setup_aiohttp_session(notebook_app)
-    
+
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
     notebook_app.add_routes(routes)
-    
+
     # workshop
     workshop_app = web.Application()
 
@@ -774,7 +774,7 @@ def run():
     # root app
     root_app = web.Application()
     root_app.add_domain('notebook*',
-                        deploy_config.prefix_application(notebook_app, 'notebook')) 
+                        deploy_config.prefix_application(notebook_app, 'notebook'))
     root_app.add_domain('workshop*',
                         deploy_config.prefix_application(workshop_app, 'workshop'))
     web.run_app(root_app,
