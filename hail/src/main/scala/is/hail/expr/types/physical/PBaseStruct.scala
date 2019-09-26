@@ -40,16 +40,16 @@ object PBaseStruct {
 }
 
 abstract class PBaseStruct extends PType {
-  def types: Array[PType]
+  val types: Array[PType]
 
-  def fields: IndexedSeq[PField]
+  val fields: IndexedSeq[PField]
 
-  val fieldRequired: Array[Boolean] = types.map(_.required)
+  lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  val fieldIdx: Map[String, Int] =
+  lazy val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
-  val fieldNames: Array[String] = fields.map(_.name).toArray
+  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
   def fieldByName(name: String): PField = fields(fieldIdx(name))
 
@@ -63,7 +63,7 @@ abstract class PBaseStruct extends PType {
 
   def fieldType(name: String): PType = types(fieldIdx(name))
 
-  val size: Int = fields.length
+  def size: Int = fields.length
 
   def _toPretty: String = {
     val sb = new StringBuilder
