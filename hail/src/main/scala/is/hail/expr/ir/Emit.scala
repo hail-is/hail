@@ -1320,7 +1320,7 @@ private class Emit(
               }
 
               EmitTriplet(
-                codeOld.setup, 
+                codeOld.setup,
                 codeOld.m,
                 Code(
                   srvb.start(init = true),
@@ -1821,7 +1821,6 @@ private class Emit(
         val xvaccum = mb.newField(accumName)(accumTypeInfo)
         val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(eltName)(elementTypeInfoA)
-        val zeroStored = mb.newField[Boolean]()
 
         val bodyenv = env
           .bind(accumName, (accumTypeInfo, xmaccum.load(), xvaccum.load()))
@@ -1830,30 +1829,27 @@ private class Emit(
         val z = emit(zero)
         val aIt = emitArrayIterator(a)
 
-        val scanCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
+        ArrayIteratorTriplet(
           Code(
-            zeroStored.mux(
-              Code._empty,
-              Code(cont(xmaccum, xvaccum),
-                zeroStored := true)
-            ),
-            xmv := m,
-            xvv := xmv.mux(defaultValue(elt), v),
-            codeB.setup,
-            xmbody := codeB.m,
-            xvaccum := xmbody.mux(defaultValue(zero.typ), codeB.v),
-            xmaccum := xmbody,
-            cont(xmaccum, xvaccum)
-          )
-        }
-
-        val it = emitArrayIterator(a).wrapContinuation(scanCont)
-        it.copy(calcLength = Code(
-          zeroStored := false,
-          z.setup,
-          xmaccum := z.m,
-          xvaccum := xmaccum.mux(defaultValue(zero.typ), z.v),
-          it.calcLength), length = it.length.map(_ + 1))
+            z.setup,
+            xmaccum := z.m,
+            xvaccum := xmaccum.mux(defaultValue(zero.typ), z.v),
+            aIt.calcLength),
+          aIt.length.map(_ + 1),
+          (cont: F) => {
+            val aet = aIt.arrayEmitter { (m, v) =>
+              Code(
+                xmv := m,
+                xvv := xmv.mux(defaultValue(elt), v),
+                codeB.setup,
+                xmbody := codeB.m,
+                xvaccum := xmbody.mux(defaultValue(zero.typ), codeB.v),
+                xmaccum := xmbody,
+                cont(xmaccum, xvaccum))
+            }
+            EmitArrayTriplet(aet.setup, aet.m,
+              Code(cont(xmaccum, xvaccum), aet.addElements))
+          })
 
       case MakeArray(args, _) =>
         val f = { cont: F =>
@@ -2182,5 +2178,3 @@ abstract class NDArrayEmitter(
     }
   }
 }
-
-
