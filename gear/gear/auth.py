@@ -51,11 +51,11 @@ def rest_authenticated_users_only(fun):
 
 def _web_unauthorized(request, redirect):
     if not redirect:
-        raise web.HTTPUnauthorized()
+        return web.HTTPUnauthorized()
 
     login_url = deploy_config.external_url('auth', '/login')
 
-    # request.url is yarl.URL
+    # request.url is a yarl.URL
     request_url = request.url
     x_forwarded_host = request.headers.get('X-Forwarded-Host')
     if x_forwarded_host:
@@ -64,7 +64,7 @@ def _web_unauthorized(request, redirect):
     if x_forwarded_proto:
         request_url = request_url.with_scheme(x_forwarded_proto)
 
-    raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request_url))}')
+    return web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request_url))}')
 
 
 def web_authenticated_users_only(redirect=True):
@@ -73,7 +73,7 @@ def web_authenticated_users_only(redirect=True):
         async def wrapped(request, *args, **kwargs):
             userdata = await userdata_from_web_request(request)
             if not userdata:
-                _web_unauthorized(request, redirect)
+                raise _web_unauthorized(request, redirect)
             return await fun(request, userdata, *args, **kwargs)
         return wrapped
     return wrap
@@ -93,7 +93,7 @@ def web_authenticated_developers_only(redirect=True):
         async def wrapped(request, userdata, *args, **kwargs):
             if ('developer' in userdata) and userdata['developer'] == 1:
                 return await fun(request, userdata, *args, **kwargs)
-            _web_unauthorized(request, redirect)
+            raise _web_unauthorized(request, redirect)
         return wrapped
     return wrap
 
