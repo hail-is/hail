@@ -111,8 +111,7 @@ server {
     }
 
     location @pod_dead {
-        rewrite ^ @notebook_base_path@/error;
-    	proxy_pass http://notebook;
+    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
@@ -167,8 +166,7 @@ server {
     }
 
     location @pod_dead {
-        rewrite ^ @workshop_base_path@/error;
-    	proxy_pass http://workshop;
+    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
