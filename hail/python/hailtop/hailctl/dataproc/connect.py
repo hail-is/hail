@@ -48,7 +48,7 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
            '--ssh-flag=-n']
 
     print('gcloud command:')
-    print(' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join(cmd[4:]))
+    print(' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join([f"'{x}'" for x in cmd[4:]]))
 
     if not args.dry_run:
         print("Connecting to cluster '{}'...".format(args.name))
