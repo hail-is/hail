@@ -8,7 +8,7 @@ import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical.{PArray, PFloat64, PStruct, PTuple, PInt32}
 
 object LinearRegressionAggregator extends StagedAggregator {
-  type State = TypedRVAState
+  type State = TypedRegionBackedAggState
 
   val vector = PArray(PFloat64(true), true)
   val scalar = PFloat64(true)
@@ -17,7 +17,7 @@ object LinearRegressionAggregator extends StagedAggregator {
   def resultType = PStruct("xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
 
   def createState(fb: EmitFunctionBuilder[_]): State =
-    new TypedRVAState(stateType, fb)
+    new TypedRegionBackedAggState(stateType, fb)
 
   def initOpF(state: State)(mb: MethodBuilder, k: Code[Int], k0: Code[Int]): Code[Unit] = Code(
     state.off := stateType.allocate(state.region),
@@ -29,8 +29,7 @@ object LinearRegressionAggregator extends StagedAggregator {
       vector.zeroes(mb, state.region, k*k)),
     Region.storeInt(
       stateType.loadField(state.off, 2),
-      k0),
-    Code._println(Code.boxDouble(Region.loadDouble(vector.loadElement(stateType.loadField(state.off, 1), 0))))
+      k0)
   )
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
@@ -51,7 +50,10 @@ object LinearRegressionAggregator extends StagedAggregator {
     val xty = stateType.loadField(state.off, 0)
     val xtx = stateType.loadField(state.off, 1)
 
-    coerce[Unit](Code(
+    val body = coerce[Unit](Code(
+      Code._println(Code.boxDouble(y)),
+      Code._println(Code.boxDouble(Region.loadDouble(nrVec.loadElement(x, 1)))),
+      Code._println(Code.boxBoolean(nrVec.isElementMissing(x, 1))),
       n := vector.loadLength(xty),
       i := 0,
       sptr := vector.firstElementOffset(xty, n),
@@ -77,9 +79,9 @@ object LinearRegressionAggregator extends StagedAggregator {
           sptr := sptr + scalar.byteSize,
           xptr2 := xptr2 + scalar.byteSize)),
         i += 1,
-        xptr := xptr + scalar.byteSize)),
+        xptr := xptr + scalar.byteSize))))
 
-      Code._println(Code.boxDouble(Region.loadDouble(vector.loadElement(xtx, 0))))))
+    nrVec.anyMissing(mb, x).mux(Code._empty, body)
   }
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {

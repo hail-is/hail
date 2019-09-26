@@ -164,7 +164,7 @@ object Code {
     JoinPoint.CallCC[Unit] { (jb, break) =>
       val continue = jb.joinPoint()
       val loopBody = jb.joinPoint()
-      continue.define { _ => JoinPoint.mux(cond, loopBody, break) }
+      continue.define { _ => JoinPoint.mux(cond.toConditional, loopBody, break) }
       loopBody.define { _ => Code(Code(body: _*), continue(())) }
       continue(())
     }

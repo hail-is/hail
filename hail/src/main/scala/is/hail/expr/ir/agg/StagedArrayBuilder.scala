@@ -122,7 +122,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
           capacity := capacity * 2,
           newDataOffset := eltArray.allocate(region, capacity),
           eltArray.stagedInitialize(newDataOffset, capacity, setMissing = true),
-          Region.copyFrom(data + 4L, newDataOffset + 4L, eltArray.nMissingBytes(size)),
+          Region.copyFrom(data + 4L, newDataOffset + 4L, eltArray.nMissingBytes(size).toL),
           Region.copyFrom(data + eltArray.elementsOffset(size),
             newDataOffset + eltArray.elementsOffset(capacity.load()),
             size.toL * const(eltArray.elementByteSize)),

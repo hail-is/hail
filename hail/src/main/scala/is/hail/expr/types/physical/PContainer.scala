@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
@@ -31,7 +32,7 @@ abstract class PContainer extends PIterable {
     loadLength(aoff)
 
 
-  def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
+  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
 
   def _elementsOffset(length: Int): Long =
     if (elementType.required)
@@ -43,7 +44,7 @@ abstract class PContainer extends PIterable {
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(4, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
+      UnsafeUtils.roundUpAlignment((nMissingBytes(length) + 4).toL, elementType.alignment)
 
   var elementsOffsetTable: Array[Long] = _
 
@@ -192,7 +193,7 @@ abstract class PContainer extends PIterable {
     else
       Code(
         Region.storeInt(aoff, length),
-        Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
+        Region.setMemory(aoff + const(4), nMissingBytes(length).toL, const(if (setMissing) (-1).toByte else 0.toByte)))
   }
 
   def zeroes(region: Region, length: Int): Long = {
@@ -211,10 +212,34 @@ abstract class PContainer extends PIterable {
       aoff)
   }
 
+  def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] = {
+    if (elementType.required)
+      true
+    else {
+      val n = mb.newLocal[Int]
+      JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
+        val loop = jb.joinPoint[Code[Int]](mb)
+        loop.define { i =>
+          (i < n).mux(
+            Region.loadByte(aoff + 4L + i.toL).cne(0).mux(
+              Code(Code._println("found missing"), ret(true)), loop(i + 1)
+            ), ret(false)
+          )
+        }
+        Code(
+          n := nMissingBytes(loadLength(aoff)),
+          loop(0))
+      }
+    }
+  }
+
   def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
     val i = mb.newLocal[Int]
     val n = mb.newLocal[Int]
-    Code.whileLoop(i < n, body(loadElement(aoff, n, i)))
+    Code(
+      n := loadLength(aoff),
+      i := 0,
+      Code.whileLoop(i < n, body(loadElement(aoff, n, i))))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =
