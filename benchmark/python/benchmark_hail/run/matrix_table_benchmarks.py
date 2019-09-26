@@ -286,6 +286,12 @@ def export_range_matrix_table_col_p100():
         mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
         mt.col.export(f.name)
 
+@benchmark
+def large_range_matrix_table_sum():
+    mt = hl.utils.range_matrix_table(n_cols=500000, n_rows=10000, n_partitions=2500)
+    mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
+    mt.annotate_cols(foo=hl.agg.sum(mt.x))._force_count_cols()
+
 
 @benchmark
 def kyle_sex_specific_qc():

@@ -166,6 +166,16 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     aggs.forall(aggCommutes)
   }
 
+  def shouldTreeAggregate: Boolean = {
+    def containsBigAggregator(agg: AggSignature2): Boolean = agg.nested.exists(_.exists(containsBigAggregator)) || (agg.op match {
+      case AggElements() => true
+      case AggElementsLengthCheck() => true
+      case Downsample() => true
+      case _ => false
+    })
+    aggs.exists(containsBigAggregator)
+  }
+
   def deserializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
     DeserializeAggs(i * nAggs, i2, spec, aggs)
 
