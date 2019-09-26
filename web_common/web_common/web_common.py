@@ -33,7 +33,7 @@ _compiled = False
 
 def setup_common_static_routes(routes):
     global _compiled
-    
+
     if not _compiled:
         sass_compile('web_common')
         _compiled = True
