@@ -11,8 +11,17 @@
   </head>
   <body>
     <div id="main">
-      {% include 'header.html' %}
+      {% if notebook_service is defined and notebook_service == 'workshop' %}
+        {% include 'workshop/header.html' %}
+      {% else %}
+        {% include 'header.html' %}
+      {% endif %}
       <div id="content">
+	{% if message is defined %}
+	  <div id="message" class="message-{{ message['type'] }}">
+	    {{ message['text'] }}
+	  </div>
+	{% endif %}
         {%block content %}{% endblock %}
       </div>
     </div>

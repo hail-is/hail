@@ -24,6 +24,12 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0.5rem 0;
 }
 
+input {
+    /* Not sure why, input elements in tables sometimes don't display
+       border without this, see workshop.hail.is/login page. */
+    padding: 1px;
+}
+
 .stacked-header {
     margin: 0 0 0.5rem 0;
 }
@@ -67,6 +73,12 @@ a {
         text-decoration: none;
         color: $devil-gray;
     }
+}
+
+.disabled-header-item {
+    padding: 15px 15px;
+    color: $devil-gray;
+    white-space: nowrap;
 }
 
 .button-header-link {
@@ -144,6 +156,30 @@ a {
 
 .gh-number {
     color: #6a737d;
+}
+
+#message {
+    border: 1px solid;
+    border-radius: 3px;
+    padding: 10px;
+    margin-bottom: 1rem;
+}
+
+.message-error {
+    color: red;
+    border-color: red;
+    background-color: #ffeaea;
+}
+
+.message-info {
+    color: green;
+    border-color: green;
+    background-color: #eaffea;
+}
+
+.dangerous {
+    color: red;
+    border-color: red;
 }
 
 .attributes {

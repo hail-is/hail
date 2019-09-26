@@ -28,19 +28,37 @@ def setup_aiohttp_jinja2(app, module):
         ]))
 
 
+_compiled = False
+
+
 def setup_common_static_routes(routes):
-    sass_compile('web_common')
+    global _compiled
+
+    if not _compiled:
+        sass_compile('web_common')
+        _compiled = True
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
 
-def base_context(deploy_config, userdata, service):
-    return {
+def set_message(session, text, type):
+    assert type in ('info', 'error')
+    session['message'] = {
+        'text': text,
+        'type': type
+    }
+
+
+def base_context(deploy_config, session, userdata, service):
+    context = {
         'base_path': deploy_config.base_path(service),
         'base_url': deploy_config.external_url(service, ''),
-        'notebook_base_url': deploy_config.external_url('notebook2', ''),
+        'notebook_base_url': deploy_config.external_url('notebook', ''),
         'auth_base_url': deploy_config.external_url('auth', ''),
         'batch_base_url': deploy_config.external_url('batch', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
         'scorecard_base_url': deploy_config.external_url('scorecard', ''),
         'userdata': userdata
     }
+    if 'message' in session:
+        context['message'] = session.pop('message')
+    return context
