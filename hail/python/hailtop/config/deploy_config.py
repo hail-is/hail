@@ -9,9 +9,11 @@ log = logging.getLogger('gear')
 def get_conf_dir():
     xdg_conf_home = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
     hail_conf = os.path.join(xdg_conf_home, 'hail')
+    dot_hail = os.path.expanduser('~/.hail')
+    if os.path.exists(os.path.join(dot_hail, 'tokens.json')):
+        return dot_hail
     if os.path.isdir(hail_conf):
         return hail_conf
-    dot_hail = os.path.expanduser('~/.hail')
     if not os.path.exists(dot_hail):
         return hail_conf
     return dot_hail
