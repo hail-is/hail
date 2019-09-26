@@ -1357,6 +1357,9 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
 
   private val originalMaybeBlocksSet = originalGP.maybeBlocks.map(_.toSet)
 
+  // This thing considers every block in the whole new matrix, and looks up that block's
+  // parents (by block coord) in the old matrix. It then filters out any parents known to be unrealized blocks.
+  // If a block has no parents, we remove that block entirely from the mapping.
   private val blockParentMap = (0 until tempDenseGP.numPartitions).map {blockId =>
     val (newBlockRow, newBlockCol) = tempDenseGP.blockCoordinates(blockId)
 
@@ -1373,8 +1376,11 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
     (blockId, filteredParents)
   }.filter{case (_, parents) => !parents.isEmpty}.toMap
 
+  // The blocks that are realized are those in the block parent map.
   private val blockIndices = blockParentMap.keys.toArray.sorted
+  // The blocks the new GP should mark as reaalized are the ones in the maybe blocks map.
   private val newGPMaybeBlocks: Option[Array[Int]] = if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
+  // the new gp is the same as the tempDense one except it has maybeblocks set.
   private val newGP = tempDenseGP.copy(maybeBlocks = newGPMaybeBlocks)
 
   log.info(s"Finished constructing block matrix filter RDD. Total time ${(System.nanoTime() - t0).toDouble / 1000000000}")
@@ -1387,12 +1393,24 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
         allBlockColRanges(newGP.blockBlockCol(blockIndex)))
     }
 
+  // Problem: Can this thing return -1? blockToPartition can return -1.
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = {
+        // This always returns an actual block number.
         val blockForPartition = newGP.partitionToBlock(partitionId)
+        // This would throw an error if the partition wasn't found
         val blockParents = blockParentMap(blockForPartition)
+        // Interesting bit. For each parent, look up its partition in original thing.
         val partitionParents = blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+        if (partitionParents.contains(-1)) {
+          log.error(s"PARTITION PARENTS CONTAINED -1! Parents of partition $partitionId were: ${partitionParents.toIndexedSeq}")
+          log.error(s"DIAGNOSTIC INFO:")
+          log.error(s"originalGP.maybeBlocks = ${originalGP.maybeBlocks.map(_.toIndexedSeq)}")
+          log.error(s"newGP.maybeBlocks = ${newGP.maybeBlocks.map(_.toIndexedSeq)}")
+          log.error(s"blockParentMap = ${blockParentMap.mapValues(_.toIndexedSeq)}")
+          throw new HailException("Partiton parent was -1 for BlockMatrixFilterRDD. See log")
+        }
         partitionParents
       }
     })
@@ -1506,6 +1524,14 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           val blockForPartition = newGP.partitionToBlock(partitionId)
           val blockParents = blockParentMap(blockForPartition)
           val partitionParents = blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+          if (partitionParents.contains(-1)) {
+            log.error(s"PARTITION PARENTS CONTAINED -1! Parents of partition $partitionId were: ${partitionParents.toIndexedSeq}")
+            log.error(s"DIAGNOSTIC INFO:")
+            log.error(s"originalGP.maybeBlocks = ${originalGP.maybeBlocks.map(_.toIndexedSeq)}")
+            log.error(s"newGP.maybeBlocks = ${newGP.maybeBlocks.map(_.toIndexedSeq)}")
+            log.error(s"blockParentMap = ${blockParentMap.mapValues(_.toIndexedSeq)}")
+            throw new HailException("Partiton parent was -1 for BlockMatrixFilterColsRDD. See log")
+          }
           partitionParents
       }
     })
