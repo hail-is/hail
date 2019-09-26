@@ -42,7 +42,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @routes.get('')
 @routes.get('/')
 async def get_index(request):  # pylint: disable=unused-argument
-    return aiohttp.web.HTTPFound('/login')
+    return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/login'))
 
 
 @routes.get('/login')
