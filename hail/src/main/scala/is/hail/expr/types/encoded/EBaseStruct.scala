@@ -81,6 +81,12 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         PField(name, pt, idx)
       }
       PStruct(pFields, required)
+    case t: TTuple =>
+      val pFields = t.fields.map { case Field(name, typ, idx) =>
+        val pt = fieldType(name).decodedPType(typ)
+        PTupleField(idx, pt)
+      }
+      PTuple(pFields, required)
   }
 
   def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
