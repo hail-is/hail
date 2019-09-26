@@ -261,13 +261,14 @@ abstract class PType extends BaseType with Serializable {
     }
   }
 
-  final def isPrimitive: Boolean = {
-    fundamentalType.isInstanceOf[PBoolean] ||
-      fundamentalType.isInstanceOf[PInt32] ||
+  final def isPrimitive: Boolean =
+    fundamentalType.isInstanceOf[PBoolean] || isNumeric
+
+  final def isNumeric: Boolean =
+    fundamentalType.isInstanceOf[PInt32] ||
       fundamentalType.isInstanceOf[PInt64] ||
       fundamentalType.isInstanceOf[PFloat32] ||
       fundamentalType.isInstanceOf[PFloat64]
-  }
 
   def containsPointers: Boolean = false
 

@@ -197,41 +197,45 @@ abstract class PContainer extends PIterable {
   }
 
   def zeroes(region: Region, length: Int): Long = {
-    val aoff = region.allocate(contentsAlignment, contentsByteSize(length))
+    require(elementType.isNumeric)
+    val aoff = allocate(region, length)
     initialize(region, aoff, length)
     Region.setMemory(aoff + elementsOffset(length), length * elementByteSize, 0.toByte)
     aoff
   }
 
   def zeroes(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long] = {
+    require(elementType.isNumeric)
     val aoff = mb.newLocal[Long]
     Code(
-      aoff := region.allocate(contentsAlignment, contentsByteSize(length)),
+      aoff := allocate(region, length),
       stagedInitialize(aoff, length),
       Region.setMemory(aoff + elementsOffset(length), length.toL * elementByteSize, 0.toByte),
       aoff)
   }
 
-  def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] = {
+  def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] =
     if (elementType.required)
       true
     else {
-      val n = mb.newLocal[Int]
+      val n = mb.newLocal[Long]
       JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
-        val loop = jb.joinPoint[Code[Int]](mb)
-        loop.define { i =>
-          (i < n).mux(
-            Region.loadByte(aoff + 4L + i.toL).cne(0).mux(
+        val loop = jb.joinPoint[Code[Long]](mb)
+        loop.define { ptr =>
+          (ptr < n).mux(
+            Region.loadInt(ptr).cne(0).mux(
               ret(true),
-              loop(i + 1)),
-            ret(false))
+              loop(ptr + 4L)),
+            (Region.loadByte(ptr) >>>
+              (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
+              ret(true),
+              ret(false)))
         }
         Code(
-          n := nMissingBytes(loadLength(aoff)),
-          loop(0))
+          n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
+          loop(aoff + 4L))
       }
     }
-  }
 
   def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
     val i = mb.newLocal[Int]
@@ -239,7 +243,11 @@ abstract class PContainer extends PIterable {
     Code(
       n := loadLength(aoff),
       i := 0,
-      Code.whileLoop(i < n, body(loadElement(aoff, n, i))))
+      Code.whileLoop(i < n,
+        isElementDefined(aoff, i).mux(
+          body(loadElement(aoff, n, i)),
+          Code._empty
+        )))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =
