@@ -25,6 +25,7 @@ object JoinPoint {
       }
     }
   }
+
   def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
     implicit ap: ParameterPack[A]
   ): Code[Ctrl] =

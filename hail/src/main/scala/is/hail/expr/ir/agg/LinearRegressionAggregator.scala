@@ -33,7 +33,7 @@ object LinearRegressionAggregator extends StagedAggregator {
   )
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
-    val _initOpF = state.fb.newMethod[Int, Int, Unit]("initOp")(initOpF(state))
+    val _initOpF = state.fb.newMethod[Int, Int, Unit]("linregInitOp")(initOpF(state))
     val Array(kt, k0t) = init
     (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
       Code._fatal("linreg: init args may not be missing"),
@@ -51,9 +51,6 @@ object LinearRegressionAggregator extends StagedAggregator {
     val xtx = stateType.loadField(state.off, 1)
 
     val body = coerce[Unit](Code(
-      Code._println(Code.boxDouble(y)),
-      Code._println(Code.boxDouble(Region.loadDouble(nrVec.loadElement(x, 1)))),
-      Code._println(Code.boxBoolean(nrVec.isElementMissing(x, 1))),
       n := vector.loadLength(xty),
       i := 0,
       sptr := vector.firstElementOffset(xty, n),
@@ -85,7 +82,7 @@ object LinearRegressionAggregator extends StagedAggregator {
   }
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
-    val _seqOpF = state.fb.newMethod[Double, Long, Unit]("seqOp")(seqOpF(state))
+    val _seqOpF = state.fb.newMethod[Double, Long, Unit]("linregSeqOp")(seqOpF(state))
     val Array(y, x) = seq
     (Code(y.setup, y.m) || Code(x.setup, x.m)).mux(
       Code._empty,
@@ -125,7 +122,7 @@ object LinearRegressionAggregator extends StagedAggregator {
   }.asInstanceOf[Code[Unit]]
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =
-    state.fb.newMethod[Unit]("combOp")(combOpF(state, other))
+    state.fb.newMethod[Unit]("linregCombOp")(combOpF(state, other))
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
     val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)

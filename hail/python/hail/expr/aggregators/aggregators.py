@@ -1527,7 +1527,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
 
     d = n - k
     rss = yty - dot(xty, beta)
-    rse2 = rss / d
+    rse2 = rss / d # residual standard error squared
     se = (rse2 * diag_inv) ** 0.5
     t = beta / se
     p = t.map(lambda ti: 2 * hl.pT(-hl.abs(ti), d, True, False))
@@ -1562,7 +1562,7 @@ def _linreg(y, x, nested_dim):
         raise ValueError("linreg: `nested_dim` must be between 0 and the number "
                          f"of covariates ({k}), inclusive")
 
-    t0 = hl.tstruct(xty=hl.tarray(hl.tfloat64),
+    t = hl.tstruct(xty=hl.tarray(hl.tfloat64),
                     beta=hl.tarray(hl.tfloat64),
                     diag_inv=hl.tarray(hl.tfloat64),
                     beta0=hl.tarray(hl.tfloat64))
@@ -1571,7 +1571,7 @@ def _linreg(y, x, nested_dim):
     k = hl.int32(k)
     k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', [y, x], t0, [k, k0])
+    return _agg_func('LinearRegression', [y, x], t, [k, k0])
 
 @typecheck(x=expr_float64, y=expr_float64)
 def corr(x, y) -> Float64Expression:
