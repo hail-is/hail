@@ -1755,12 +1755,11 @@ def pnorm(x) -> Float64Expression:
 
 @typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def pT(x, n, lower_tail=True, log_p=False) -> Float64Expression:
-    """The cumulative probability function of a [t-distribution](https://en.wikipedia.org/wiki/Student%27s_t-distribution) with `n` degrees of freedom.
+    """The cumulative probability function of a `t-distribution <https://en.wikipedia.org/wiki/Student%27s_t-distribution>`__ with `n` degrees of freedom.
 
     Examples
     --------
 
-    // FIX!
     >>> hl.eval(hl.pT(0, 10))
     0.5
 
@@ -1799,7 +1798,7 @@ def pT(x, n, lower_tail=True, log_p=False) -> Float64Expression:
 
 @typecheck(x=expr_float64, df1=expr_float64, df2=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def pF(x, df1, df2, lower_tail=True, log_p=False) -> Float64Expression:
-    """The cumulative probability function of a [F-distribution](https://en.wikipedia.org/wiki/F-distribution) with parameters `df1` and `df2`.
+    """The cumulative probability function of a `F-distribution <https://en.wikipedia.org/wiki/F-distribution>`__ with parameters `df1` and `df2`.
 
     Examples
     --------

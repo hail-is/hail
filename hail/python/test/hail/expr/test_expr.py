@@ -2749,6 +2749,18 @@ class Tests(unittest.TestCase):
     def test_uniroot(self):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3)), 1)
 
+    def test_pT(self):
+        self.assert_evals_to(hl.pT(0, 10), 0.5)
+        self.assert_evals_to(hl.pT(1, 10), 0.82955343384897)
+        self.assert_evals_to(hl.pT(1, 10, lower_tail=False), 0.17044656615103004)
+        self.assert_evals_to(hl.pT(1, 10, log_p=True), -0.186867754489647)
+
+    def test_pF(self):
+        self.assert_evals_to(hl.pF(0, 3, 10), 0.0)
+        self.assert_evals_to(hl.pF(1, 3, 10), 0.5676627969783028)
+        self.assert_evals_to(hl.pF(1, 3, 10, lower_tail=False), 0.4323372030216972)
+        self.assert_evals_to(hl.pF(1, 3, 10, log_p=True), -0.566227703842908)
+
     def test_chi_squared_test(self):
         res = hl.eval(hl.chi_squared_test(0, 0, 0, 0))
         self.assertTrue(math.isnan(res['p_value']))

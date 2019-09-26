@@ -12,7 +12,7 @@ object LinearRegressionAggregator extends StagedAggregator {
 
   val vector = PArray(PFloat64(true), true)
   val scalar = PFloat64(true)
-  val stateType: PTuple = PTuple(true, vector, vector, PInt32())
+  val stateType: PTuple = PTuple(true, vector, vector, PInt32(true))
   val nrVec = PArray(PFloat64())
   def resultType = PStruct("xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
 
@@ -20,6 +20,11 @@ object LinearRegressionAggregator extends StagedAggregator {
     new TypedRegionBackedAggState(stateType, fb)
 
   def initOpF(state: State)(mb: MethodBuilder, k: Code[Int], k0: Code[Int]): Code[Unit] = Code(
+    (k0 < 0 | k0 > k).mux(
+      Code._fatal(const("linreg: `nested_dim` must be between 0 and the number (")
+        .concat(k.toS)
+        .concat(") of covariates, inclusive")),
+      Code._empty),
     state.off := stateType.allocate(state.region),
     Region.storeAddress(
       stateType.fieldOffset(state.off, 0),
@@ -47,12 +52,14 @@ object LinearRegressionAggregator extends StagedAggregator {
     val sptr = mb.newLocal[Long]
     val xptr = mb.newLocal[Long]
     val xptr2 = mb.newLocal[Long]
-    val xty = stateType.loadField(state.off, 0)
-    val xtx = stateType.loadField(state.off, 1)
+    val xty = mb.newLocal[Long]
+    val xtx = mb.newLocal[Long]
 
     val body = coerce[Unit](Code(
       n := vector.loadLength(xty),
       i := 0,
+      xty := stateType.loadField(state.off, 0),
+      xtx := stateType.loadField(state.off, 1),
       sptr := vector.firstElementOffset(xty, n),
       xptr := vector.firstElementOffset(x, n),
       Code.whileLoop(i < n, Code(

@@ -1511,67 +1511,70 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     if weight is not None:
         y = hl.sqrt(weight) * y
         x = [hl.sqrt(weight) * xi for xi in x]
-    temp = _linreg(y, x, nested_dim)
-
-    k = len(x)
-    k0 = nested_dim
-    n = hl.agg.count_where(hl.all(lambda x: hl.is_defined(x), x) & hl.is_defined(y))
-    yty = hl.agg.filter(hl.is_defined(x), hl.agg.sum(y*y))
-    xty = temp.xty
-    beta = temp.beta
-    diag_inv = temp.diag_inv
-    beta0 = temp.beta0
-
-    def dot(a, b):
-        return hl.sum(a * b)
-
-    d = n - k
-    rss = yty - dot(xty, beta)
-    rse2 = rss / d # residual standard error squared
-    se = (rse2 * diag_inv) ** 0.5
-    t = beta / se
-    p = t.map(lambda ti: 2 * hl.pT(-hl.abs(ti), d, True, False))
-    rse = hl.sqrt(rse2)
-
-    d0 = k - k0
-    xty0 = xty[:k0]
-    rss0 = yty - dot(xty0, beta0)
-    r2 = 1 - rss / rss0
-    r2adj = 1 - (1 - r2) * (n - k0) / d
-    f = (rss0 - rss) * d / (rss * d0)
-    p0 = hl.pF(f, d0, d, False, False)
-
-    return hl.struct(
-        beta=beta,
-        standard_error=se,
-        t_stat=t,
-        p_value=p,
-        multiple_standard_error=rse,
-        multiple_r_squared=r2,
-        adjusted_r_squared=r2adj,
-        f_stat=f,
-        multiple_p_value=p0,
-        n=n,
-        yty=yty
-    )
-
-def _linreg(y, x, nested_dim):
-    k = len(x)
-    k0 = nested_dim
-    if k0 < 0 or k0 > k:
-        raise ValueError("linreg: `nested_dim` must be between 0 and the number "
-                         f"of covariates ({k}), inclusive")
-
-    t = hl.tstruct(xty=hl.tarray(hl.tfloat64),
-                    beta=hl.tarray(hl.tfloat64),
-                    diag_inv=hl.tarray(hl.tfloat64),
-                    beta0=hl.tarray(hl.tfloat64))
 
     x = hl.array(x)
-    k = hl.int32(k)
-    k0 = hl.int32(k0)
+    k = x.length
 
-    return _agg_func('LinearRegression', [y, x], t, [k, k0])
+    res_type = hl.tstruct(xty=hl.tarray(hl.tfloat64),
+                          beta=hl.tarray(hl.tfloat64),
+                          diag_inv=hl.tarray(hl.tfloat64),
+                          beta0=hl.tarray(hl.tfloat64))
+
+    temp = _agg_func('LinearRegression', [y, x], res_type, [k, hl.int32(nested_dim)])
+
+    k0 = nested_dim
+    covs_defined = hl.all(lambda cov: hl.is_defined(cov), x)
+    tup = hl.agg.filter(covs_defined,
+                        hl.tuple([hl.agg.count_where(hl.is_defined(y)),
+                                 hl.agg.sum(y * y)]))
+    n = tup[0]
+    yty = tup[1]
+
+    def result_from_agg(linreg_res, n, yty):
+        xty = linreg_res.xty
+        beta = linreg_res.beta
+        diag_inv = linreg_res.diag_inv
+        beta0 = linreg_res.beta0
+
+        def dot(a, b):
+            return hl.sum(a * b)
+
+        d = n - k
+        rss = yty - dot(xty, beta)
+        rse2 = rss / d  # residual standard error squared
+        se = (rse2 * diag_inv) ** 0.5
+        t = beta / se
+        p = t.map(lambda ti: 2 * hl.pT(-hl.abs(ti), d, True, False))
+        rse = hl.sqrt(rse2)
+
+        d0 = k - k0
+        xty0 = xty[:k0]
+        rss0 = yty - dot(xty0, beta0)
+        r2 = 1 - rss / rss0
+        r2adj = 1 - (1 - r2) * (n - k0) / d
+        f = (rss0 - rss) * d / (rss * d0)
+        p0 = hl.pF(f, d0, d, False, False)
+
+        return hl.struct(
+            beta=beta,
+            standard_error=se,
+            t_stat=t,
+            p_value=p,
+            multiple_standard_error=rse,
+            multiple_r_squared=r2,
+            adjusted_r_squared=r2adj,
+            f_stat=f,
+            multiple_p_value=p0,
+            n=n)
+
+    global _result_from_agg_f
+    if _result_from_agg_f is None:
+        _result_from_agg_f = hl.experimental.define_function(
+            result_from_agg,
+            res_type, hl.tint64, hl.tfloat64, _name="linregResFromAgg")
+
+    return _result_from_agg_f(temp, n, yty)
+
 
 @typecheck(x=expr_float64, y=expr_float64)
 def corr(x, y) -> Float64Expression:
