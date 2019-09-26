@@ -57,7 +57,7 @@ object ExtractAggregators {
   }
 
   private def unstagedNewAggregator(ir: ApplyAggOp): RegionValueAggregator = {
-    val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
+    val fb = EmitFunctionBuilder[Region, RegionValueAggregator]("new_aggregator")
     fb.emit(newAggregator(fb, ir))
     Region.scoped(r => fb.resultWithIndex()(0, r)(r))
   }

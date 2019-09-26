@@ -172,7 +172,7 @@ object CompileDecoder {
   def apply(
     settings: BgenSettings
   ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
-    val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
+    val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]("bgen_rdd_decoder")
     val mb = fb.apply_method
     val region = mb.getArg[Region](1).load()
     val cp = mb.getArg[BgenPartition](2).load()

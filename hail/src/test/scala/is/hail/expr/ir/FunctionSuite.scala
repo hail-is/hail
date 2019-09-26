@@ -98,7 +98,7 @@ class FunctionSuite extends HailSuite {
 
   @Test
   def testFunctionBuilderGetOrDefine() {
-    val fb = EmitFunctionBuilder[Int]()
+    val fb = EmitFunctionBuilder[Int]("foo")
     val i = fb.newField[Int]
     val mb1 = fb.getOrDefineMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
       mb.emit(i := i + 1)
