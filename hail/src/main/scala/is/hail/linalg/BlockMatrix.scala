@@ -1566,7 +1566,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           k = j + ei - si
 
           try {
-            newBlock(::, j until k) := block(::, si until ei)
+            newBlock(::, j until k) := block(0 until newBlock.rows, si until ei)
           } catch {
             case x: IllegalArgumentException =>
               val breezeMessage = x.getMessage()
