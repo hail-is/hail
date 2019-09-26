@@ -1424,16 +1424,16 @@ private class Emit(
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
         EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
-      case x@NDArrayReindex(child, indexExpr) =>
+      case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
-        val childPointer = mb.newField[Long]
+        val childAddress = mb.newField[Long]
 
         val childPType = child.pType.asInstanceOf[PNDArray]
-        val childFlags = childPType.flags.load(region, childPointer)
-        val childOffset = childPType.offset.load(region, childPointer)
-        val childShapeAddress = childPType.shape.load(region, childPointer)
-        val childStridesAddress = childPType.strides.load(region, childPointer)
-        val childDataAddress = childPType.data.load(region, childPointer)
+        val childFlags = childPType.flags.load(region, childAddress)
+        val childOffset = childPType.offset.load(region, childAddress)
+        val childShapeAddress = childPType.shape.load(region, childAddress)
+        val childStridesAddress = childPType.strides.load(region, childAddress)
+        val childDataAddress = childPType.data.load(region, childAddress)
 
         val outputShapePType = x.pType.shape.pType
         val outputStridesPType = x.pType.strides.pType
@@ -1446,10 +1446,10 @@ private class Emit(
 
         val ndAddress = mb.newField[Long]
 
-        val reindexShapeAndStrides = indexExpr.map { childIndex =>
+        val reindexShapeAndStrides = indexMap.map { childIndex =>
           if (childIndex < childPType.nDims) {
             Code(
-              shapeSrvb.addLong(shapeTuple.apply(childIndex)),
+              shapeSrvb.addLong(shapeTuple(childIndex)),
               shapeSrvb.advance(),
               stridesSrvb.addLong(stridesTuple.apply(childIndex)),
               stridesSrvb.advance()
@@ -1458,8 +1458,8 @@ private class Emit(
           else {
             Code(
               shapeSrvb.addLong(1L),
-              stridesSrvb.addLong(0L),
               shapeSrvb.advance(),
+              stridesSrvb.addLong(0L),
               stridesSrvb.advance()
             )
           }
@@ -1469,7 +1469,7 @@ private class Emit(
           shapeSrvb.start(),
           stridesSrvb.start(),
           childt.setup,
-          childPointer := childt.value[Long],
+          childAddress := childt.value[Long],
           reindexShapeAndStrides,
           ndAddress := x.pType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
         )
@@ -2093,7 +2093,7 @@ private class Emit(
         val childPType = child.pType.asInstanceOf[PNDArray]
 
         val outputPType = x.pType
-        val outputShapePType = outputPType.representation.fieldType("shape").asInstanceOf[PTuple]
+        val outputShapePType = outputPType.shape.pType
 
         val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
 
@@ -2163,7 +2163,7 @@ object NDArrayEmitter {
     val setupList = Array.tabulate(unifiedPType.size) { idx =>
       val left = getShapeAtIdx(leftShape, idx)
       val right = getShapeAtIdx(rightShape, idx)
-      val notSameAndNotBroadcastable = !((left ceq right) || (left ceq const(1L)) || (right ceq const(1L)))
+      val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
       Code(
          notSameAndNotBroadcastable.mux(
           Code._fatal("Incompatible NDArray shapes"),
