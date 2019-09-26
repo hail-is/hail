@@ -1551,10 +1551,12 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       .foreach { case (blockCol, startIndices, endIndices) =>
         val parentBI = originalGP.coordinatesBlock(blockRow, blockCol)
         var block = parentZeroBlock
+        var zeroBlockUsed = true
 
         if (blockParentMap(newGP.partitionToBlock(split.index)).contains(parentBI)) {
           val parentPI = originalGP.blockToPartition(parentBI)
           block = bm.blocks.iterator(bm.blocks.partitions(parentPI), context).next()._2
+          zeroBlockUsed = false
         }
         var colRangeIndex = 0
         while (colRangeIndex < startIndices.length) {
@@ -1562,7 +1564,30 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           val ei = endIndices(colRangeIndex)
           k = j + ei - si
 
-          newBlock(::, j until k) := block(::, si until ei)
+          try {
+            newBlock(::, j until k) := block(::, si until ei)
+          } catch {
+            case x: IllegalArgumentException =>
+              val breezeMessage = x.getMessage()
+
+              val fullMessage =
+                s"""
+                   |Breeze message: $breezeMessage
+                   |Diagnostic:
+                   |colRangeIndex = $colRangeIndex
+                   |si = $si
+                   |ei = $ei
+                   |j = $j
+                   |k = $k
+                   |zeroBlockUsed = $zeroBlockUsed
+                   |blockCol = $blockCol
+                   |blockRow = $blockRow
+                   |startIndices.length = ${startIndices.length}
+                   |startIndices = ${startIndices.toIndexedSeq}
+                   |endIndices = ${endIndices.toIndexedSeq}
+                   |""".stripMargin
+              throw new IllegalArgumentException(fullMessage)
+          }
 
           j = k
           colRangeIndex += 1
