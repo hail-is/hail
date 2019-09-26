@@ -834,6 +834,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       s"Int.MaxValue. Currently nCols: $nCols")
     require(nRows * nCols <= Int.MaxValue, "The length of the values array must be " +
       s"less than or equal to Int.MaxValue. Currently nRows * nCols: ${ nRows * nCols }")
+    utils.log.info(s"toBreezeMatrix partition indices ${this.blocks.partitions.toIndexedSeq.map(_.index)}\n Is one of the indices -1? ${this.blocks.partitions.contains(-1)}")
     val nRowsInt = nRows.toInt
     val nColsInt = nCols.toInt
     val localBlocks = blocks.collect()
