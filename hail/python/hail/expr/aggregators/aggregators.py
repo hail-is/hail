@@ -1524,6 +1524,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
 
     def dot(a, b):
         return hl.sum(a * b)
+
     d = n - k
     rss = yty - dot(xty, beta)
     rse2 = rss / d
@@ -1565,27 +1566,12 @@ def _linreg(y, x, nested_dim):
                     beta=hl.tarray(hl.tfloat64),
                     diag_inv=hl.tarray(hl.tfloat64),
                     beta0=hl.tarray(hl.tfloat64))
-    t = hl.tstruct(
-        yty=hl.tfloat64,
-        xty=hl.tarray(hl.tfloat64),
-        diag_inv=hl.tarray(hl.tfloat64),
-        beta0=hl.tarray(hl.tfloat64),
-        beta=hl.tarray(hl.tfloat64),
-        standard_error=hl.tarray(hl.tfloat64),
-        t_stat=hl.tarray(hl.tfloat64),
-        p_value=hl.tarray(hl.tfloat64),
-        multiple_standard_error=hl.tfloat64,
-        multiple_r_squared=hl.tfloat64,
-        adjusted_r_squared=hl.tfloat64,
-        f_stat=hl.tfloat64,
-        multiple_p_value=hl.tfloat64,
-        n=hl.tint64)
 
     x = hl.array(x)
     k = hl.int32(k)
     k0 = hl.int32(k0)
 
-    return _agg_func('linreg2', [y, x], t0, [k, k0])
+    return _agg_func('LinearRegression', [y, x], t0, [k, k0])
 
 @typecheck(x=expr_float64, y=expr_float64)
 def corr(x, y) -> Float64Expression:

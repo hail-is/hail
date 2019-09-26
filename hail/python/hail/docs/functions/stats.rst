@@ -14,6 +14,7 @@ Statistical functions
     pchisqtail
     pnorm
     pT
+    pF
     ppois
     qchisqtail
     qnorm
@@ -29,6 +30,7 @@ Statistical functions
 .. autofunction:: pchisqtail
 .. autofunction:: pnorm
 .. autofunction:: pT
+.. autofunction:: pF
 .. autofunction:: ppois
 .. autofunction:: qchisqtail
 .. autofunction:: qnorm

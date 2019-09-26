@@ -85,16 +85,8 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
   def computeResult(): Option[(DenseVector[Double], DenseVector[Double], DenseVector[Double], DenseVector[Double])] = {
     if (n > k)      
       try {
-        println("xty")
-        println(xty)
-        println("xtx")
-        println(xtx)
         val b = xtx \ xty
-        println("b")
-        println(b)
         val diagInv = diag(inv(xtx))
-        println("diagInv")
-        println(diagInv)
 
         val xtx0 = xtx(0 until k0, 0 until k0)
         val xty0 = xty(0 until k0)

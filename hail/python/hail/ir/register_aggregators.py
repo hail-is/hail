@@ -60,10 +60,7 @@ def register_aggregators():
     inbreeding_aggregator_type = dtype('struct{f_stat:float64,n_called:int64,expected_homs:float64,observed_homs:int64}')
     register_aggregator('Inbreeding', (), None, (dtype('call'), dtype('float64'),), inbreeding_aggregator_type)
 
-    linreg_aggregator_type = dtype('struct{xty:array<float64>,beta:array<float64>,diag_inv:array<float64>,beta0:array<float64>}')
-    register_aggregator('LinearRegression', (dtype('int32'), dtype('int32'),), None, (dtype('float64'), dtype('array<float64>'),), linreg_aggregator_type)
-
     linreg2_aggregator_type = dtype('struct{xty:array<float64>,beta:array<float64>,diag_inv:array<float64>,beta0:array<float64>}')
-    register_aggregator('linreg2', (dtype('int32'), dtype('int32'),), None, (dtype('float64'), dtype('array<float64>'),), linreg2_aggregator_type)
+    register_aggregator('LinearRegression', (dtype('int32'), dtype('int32'),), None, (dtype('float64'), dtype('array<float64>'),), linreg2_aggregator_type)
 
     register_aggregator('PrevNonnull', (), None, (dtype('?in'),), dtype('?in'))

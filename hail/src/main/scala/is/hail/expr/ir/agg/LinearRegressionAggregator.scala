@@ -128,61 +128,63 @@ object LinearRegressionAggregator extends StagedAggregator {
     state.fb.newMethod[Unit]("combOp")(combOpF(state, other))
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
-    // FIXME: are the toArrays necessary?
-    val ur = UnsafeRow.readArray(vector, null, xtyPtr)
-    val xty = DenseVector(ur.asInstanceOf[IndexedSeq[Double]].toArray[Double])
+    val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
+      .asInstanceOf[IndexedSeq[Double]].toArray[Double])
     val k = xty.length
-    val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, null, xtxPtr).asInstanceOf[IndexedSeq[Double]].toArray[Double])
-    println("xty")
-    println(xty)
-    println("xtx")
-    println(xtx)
-    val b = xtx \ xty
-    println("b")
-    println(b)
-    val diagInv = diag(inv(xtx))
-    println("diagInv")
-    println(diagInv)
-
-    val xtx0 = xtx(0 until k0, 0 until k0)
-    val xty0 = xty(0 until k0)
-    val b0 = xtx0 \ xty0
+    val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, null, xtxPtr)
+      .asInstanceOf[IndexedSeq[Double]].toArray[Double])
 
     val rvb = new RegionValueBuilder(region)
     rvb.start(resultType)
     rvb.startStruct()
 
-    rvb.startArray(k)
-    var i = 0
-    while (i < k) {
-      rvb.addDouble(xty(i))
-      i += 1
-    }
-    rvb.endArray()
+    try {
+      val b = xtx \ xty
+      val diagInv = diag(inv(xtx))
 
-    rvb.startArray(k)
-    i = 0
-    while (i < k) {
-      rvb.addDouble(b(i))
-      i += 1
-    }
-    rvb.endArray()
+      val xtx0 = xtx(0 until k0, 0 until k0)
+      val xty0 = xty(0 until k0)
+      val b0 = xtx0 \ xty0
 
-    rvb.startArray(k)
-    i = 0
-    while (i < k) {
-      rvb.addDouble(diagInv(i))
-      i += 1
-    }
-    rvb.endArray()
+      rvb.startArray(k)
+      var i = 0
+      while (i < k) {
+        rvb.addDouble(xty(i))
+        i += 1
+      }
+      rvb.endArray()
 
-    rvb.startArray(k0)
-    i = 0
-    while (i < k0) {
-      rvb.addDouble(b0(i))
-      i += 1
+      rvb.startArray(k)
+      i = 0
+      while (i < k) {
+        rvb.addDouble(b(i))
+        i += 1
+      }
+      rvb.endArray()
+
+      rvb.startArray(k)
+      i = 0
+      while (i < k) {
+        rvb.addDouble(diagInv(i))
+        i += 1
+      }
+      rvb.endArray()
+
+      rvb.startArray(k0)
+      i = 0
+      while (i < k0) {
+        rvb.addDouble(b0(i))
+        i += 1
+      }
+      rvb.endArray()
+    } catch {
+      case _: breeze.linalg.MatrixSingularException |
+           _: breeze.linalg.NotConvergedException =>
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
     }
-    rvb.endArray()
 
     rvb.endStruct()
     rvb.end()

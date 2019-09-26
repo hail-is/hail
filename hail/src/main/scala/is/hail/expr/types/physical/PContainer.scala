@@ -222,9 +222,9 @@ abstract class PContainer extends PIterable {
         loop.define { i =>
           (i < n).mux(
             Region.loadByte(aoff + 4L + i.toL).cne(0).mux(
-              Code(Code._println("found missing"), ret(true)), loop(i + 1)
-            ), ret(false)
-          )
+              ret(true),
+              loop(i + 1)),
+            ret(false))
         }
         Code(
           n := nMissingBytes(loadLength(aoff)),

@@ -25,8 +25,15 @@ object JoinPoint {
       }
     }
   }
+  def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
+    implicit ap: ParameterPack[A]
+  ): Code[Ctrl] =
+    mux(arg, cond.toConditional, j1, j2)
 
   def mux(cond: CodeConditional, j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
+    mux((), cond, j1, j2)
+
+  def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
     mux((), cond, j1, j2)
 
   case class CallCC[A: ParameterPack](

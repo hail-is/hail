@@ -1755,7 +1755,7 @@ def pnorm(x) -> Float64Expression:
 
 @typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def pT(x, n, lower_tail, log_p) -> Float64Expression:
-    """The cumulative probability function of a T distribution with `n` degrees of freedom.
+    """The cumulative probability function of a [t-distribution](https://en.wikipedia.org/wiki/Student%27s_t-distribution) with `n` degrees of freedom.
 
     Examples
     --------
@@ -1773,14 +1773,14 @@ def pT(x, n, lower_tail, log_p) -> Float64Expression:
     Notes
     -----
     If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is
-    a T distributed random variable with `n` degrees of freedom. If `lower_tail`
+    a t-distributed random variable with `n` degrees of freedom. If `lower_tail`
     is false, returns Prob(:math:`X` > `x`).
 
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
     n : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Degrees of freedom of T distribution.
+        Degrees of freedom of the t-distribution.
     lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
         otherwise greater than `x`.
@@ -1796,7 +1796,7 @@ def pT(x, n, lower_tail, log_p) -> Float64Expression:
 
 @typecheck(x=expr_float64, df1=expr_float64, df2=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def pF(x, df1, df2, lower_tail, log_p) -> Float64Expression:
-    """The cumulative probability function of ???
+    """The cumulative probability function of a [F-distribution](https://en.wikipedia.org/wiki/F-distribution) with parameters `df1` and `df2`.
 
     Examples
     --------
@@ -1814,16 +1814,16 @@ def pF(x, df1, df2, lower_tail, log_p) -> Float64Expression:
     Notes
     -----
     If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is
-    a T distributed random variable with `n` degrees of freedom. If `lower_tail`
+    a random variable with distribution :math:`F`(df1, df2). If `lower_tail`
     is false, returns Prob(:math:`X` > `x`).
 
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
     df1 : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Degrees of freedom ...
+        Parameter of the F-distribution
     df2 : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Degrees of freedom ...
+        Parameter of the F-distribution
     lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
         otherwise greater than `x`.
