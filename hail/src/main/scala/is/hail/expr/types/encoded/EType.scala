@@ -173,8 +173,7 @@ object EType {
       case t: PBoolean => EBoolean(t.required)
       case t: PBinary => EBinary(t.required)
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
-      case t: PTuple => ETuple(t._types.map(pf => ETupleField(pf.index, defaultFromPType(pf.typ))), t.required)
-      case t: PStruct => EStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
+      case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
   }
 }

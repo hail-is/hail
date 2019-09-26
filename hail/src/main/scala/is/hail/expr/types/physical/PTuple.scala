@@ -18,7 +18,6 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
   lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
 
   val types = _types.map(_.typ).toArray
-  val fieldRequired: Array[Boolean] = types.map(_.required)
 
   val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
 
@@ -28,8 +27,6 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
     assert(other isOfType this)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb)
   }
-
-  val size: Int = types.length
 
   override def truncate(newSize: Int): PTuple =
     PTuple(_types.take(newSize), required)

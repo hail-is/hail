@@ -44,9 +44,26 @@ abstract class PBaseStruct extends PType {
 
   def fields: IndexedSeq[PField]
 
-  def fieldRequired: Array[Boolean]
+  val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  def size: Int
+  val fieldIdx: Map[String, Int] =
+    fields.map(f => (f.name, f.index)).toMap
+
+  val fieldNames: Array[String] = fields.map(_.name).toArray
+
+  def fieldByName(name: String): PField = fields(fieldIdx(name))
+
+  def index(str: String): Option[Int] = fieldIdx.get(str)
+
+  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
+
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
+
+  def field(name: String): PField = fields(fieldIdx(name))
+
+  def fieldType(name: String): PType = types(fieldIdx(name))
+
+  val size: Int = fields.length
 
   def _toPretty: String = {
     val sb = new StringBuilder
