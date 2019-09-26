@@ -1582,6 +1582,11 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
                    |zeroBlockUsed = $zeroBlockUsed
                    |blockCol = $blockCol
                    |blockRow = $blockRow
+                   |newBlockCol = $newBlockCol
+                   |blockNRows = $blockNRows
+                   |newBlockNCols = $newBlockNCols
+                   |split.index = ${split.index}
+                   |parentBI = ${parentBI}
                    |startIndices.length = ${startIndices.length}
                    |startIndices = ${startIndices.toIndexedSeq}
                    |endIndices = ${endIndices.toIndexedSeq}
