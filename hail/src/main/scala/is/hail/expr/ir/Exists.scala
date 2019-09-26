@@ -68,6 +68,25 @@ object ContainsAgg {
   })
 }
 
+object AggIsCommutative {
+  def apply(op: AggOp): Boolean = op match {
+    case Take() | Collect() | PrevNonnull() | TakeBy() => true
+    case _ => false
+  }
+}
+
+object ContainsNonCommutativeAgg {
+  def apply(root: IR): Boolean = root match {
+    case ApplyAggOp(_, _, _, sig) => AggIsCommutative(sig.op)
+    case _: TableAggregate => false
+    case _: MatrixAggregate => false
+    case _ => root.children.exists {
+      case child: IR => ContainsNonCommutativeAgg(child)
+      case _ => false
+    }
+  }
+}
+
 object ContainsScan {
   def apply(root: IR): Boolean = IsScanResult(root) || (root match {
     case _: TableAggregate => false
