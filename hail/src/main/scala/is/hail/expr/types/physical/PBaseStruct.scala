@@ -5,17 +5,6 @@ import is.hail.asm4s.{Code, _}
 import is.hail.utils._
 
 object PBaseStruct {
-  def getMissingness(types: Array[PType], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
-    var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    i
-  }
-
   def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
     assert(byteOffsets.length == types.length)
     val bp = new BytePacker()
@@ -51,17 +40,48 @@ object PBaseStruct {
 }
 
 abstract class PBaseStruct extends PType {
-  def types: Array[PType]
+  val types: Array[PType]
 
-  def fields: IndexedSeq[PField]
+  val fields: IndexedSeq[PField]
 
-  def fieldRequired: Array[Boolean]
+  lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  def size: Int
+  lazy val fieldIdx: Map[String, Int] =
+    fields.map(f => (f.name, f.index)).toMap
+
+  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
+
+  def fieldByName(name: String): PField = fields(fieldIdx(name))
+
+  def index(str: String): Option[Int] = fieldIdx.get(str)
+
+  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
+
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
+
+  def field(name: String): PField = fields(fieldIdx(name))
+
+  def fieldType(name: String): PType = types(fieldIdx(name))
+
+  def size: Int = fields.length
 
   def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
+    sb.result()
+  }
+
+  def identBase: String
+  def asIdent: String = {
+    val sb = new StringBuilder
+    sb.append(identBase)
+    sb.append("_of_")
+    types.foreachBetween { ty =>
+      sb.append(ty.asIdent)
+    } {
+      sb.append("AND")
+    }
+    sb.append("END")
     sb.result()
   }
 

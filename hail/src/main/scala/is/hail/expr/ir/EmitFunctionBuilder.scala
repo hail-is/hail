@@ -222,7 +222,7 @@ class EmitFunctionBuilder[F >: Null](
     methods.append(mb2)
 
     val baos = new ByteArrayOutputStream()
-    val enc = spec.buildEncoder(litType, litType)(baos)
+    val enc = spec.buildEncoder(litType)(baos)
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)

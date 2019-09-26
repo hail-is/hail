@@ -13,6 +13,7 @@ import scala.reflect.{ClassTag, classTag}
 case class PInterval(pointType: PType, override val required: Boolean = false) extends ComplexPType {
   lazy val virtualType: TInterval = TInterval(pointType.virtualType, required)
 
+  def asIdent = s"interval_of_${pointType.asIdent}"
   def _toPretty = s"""Interval[$pointType]"""
 
   override def pyString(sb: StringBuilder): Unit = {

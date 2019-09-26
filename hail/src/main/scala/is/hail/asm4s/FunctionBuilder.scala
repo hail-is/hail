@@ -56,10 +56,16 @@ object FunctionBuilder {
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
+class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
 
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
+  val mname = {
+    val s = _mname.substring(0, scala.math.min(_mname.length, 65535))
+    require(java.lang.Character.isJavaIdentifierStart(s.head), "invalid java identifier, " + s)
+    require(s.forall(java.lang.Character.isJavaIdentifierPart(_)), "invalid java identifer, " + s)
+    s
+  }
   val mn = new MethodNode(ACC_PUBLIC, mname, descriptor, null, null)
   fb.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
 

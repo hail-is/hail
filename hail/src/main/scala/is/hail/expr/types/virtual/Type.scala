@@ -127,7 +127,7 @@ object Type {
   implicit def arbType = Arbitrary(genArb)
 }
 
-abstract class Type extends BaseType with Serializable {
+abstract class Type extends BaseType with Serializable with Requiredness {
   self =>
 
   def physicalType: PType
@@ -226,8 +226,6 @@ abstract class Type extends BaseType with Serializable {
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   def fundamentalType: Type = this
-
-  def required: Boolean
 
   def _typeCheck(a: Any): Boolean
 

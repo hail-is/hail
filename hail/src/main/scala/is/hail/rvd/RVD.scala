@@ -728,8 +728,8 @@ class RVD(
 
     val rowsCodecSpec = codecSpec.makeCodecSpec2(rowsRVType)
     val entriesCodecSpec = codecSpec.makeCodecSpec2(entriesRVType)
-    val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType, rowsRVType)
-    val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType, entriesRVType)
+    val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
+    val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
     val makeIndexWriter = IndexWriter.builder(typ.kType, +PStruct("entries_offset" -> PInt64()))
 
     val localTyp = typ
@@ -1441,8 +1441,8 @@ object RVD {
 
     val rowsCodecSpec = codecSpec.makeCodecSpec2(rowsRVType)
     val entriesCodecSpec = codecSpec.makeCodecSpec2(entriesRVType)
-    val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType, rowsRVType)
-    val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType, entriesRVType)
+    val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
+    val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
     val makeIndexWriter = IndexWriter.builder(localTyp.kType, +PStruct("entries_offset" -> PInt64()))
 
     val partDigits = digitsNeeded(nPartitions)

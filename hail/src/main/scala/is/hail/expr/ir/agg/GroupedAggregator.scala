@@ -3,6 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
@@ -79,6 +80,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
   val root: ClassFieldRef[Long] = fb.newField[Long]
   val size: ClassFieldRef[Int] = fb.newField[Int]
+  val keyEType = EType.defaultFromPType(keyType)
 
   val typ: PStruct = PStruct(
     required = true,
@@ -156,7 +158,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.states.map(_.serialize(codec))
-    val kEnc = EmitPackEncoder.buildMethod(keyType, keyType, fb)
+    val kEnc = keyEType.buildEncoderMethod(keyType, fb)
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(keyType))
 
@@ -170,7 +172,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             km := keyed.isKeyMissing(_elt),
             kv.storeAny(keyed.loadKey(_elt)),
             ob.writeBoolean(km),
-            (!km).orEmpty(kEnc.invoke(region, kv, ob)),
+            (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
             nested.toCode((i, _) => serializers(i)(ob)))
         })
@@ -179,7 +181,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.states.map(_.deserialize(codec))
-    val kDec = EmitPackDecoder.buildMethod(keyType, keyType, fb)
+    val kDec = keyEType.buildDecoderMethod(keyType, fb)
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(keyType))
 
