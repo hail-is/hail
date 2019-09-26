@@ -601,11 +601,12 @@ workshop_routes = web.RouteTableDef()
 
 @workshop_routes.get('')
 @workshop_routes.get('/')
+@aiohttp_jinja2.template('workshop/index.html')
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_index(request, userdata):  # pylint: disable=unused-argument
-    if userdata:
-        return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
-    return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook')
+    return context
 
 
 @workshop_routes.get('/login')

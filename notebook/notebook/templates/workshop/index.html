@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block title %}Join Workshop{% endblock %}
+{% block content %}
+  <div class="vcentered">
+    {% if userdata %}
+    <p>Welcome the Hail workshop service!  Log in to join the workshop.</p>
+    {% else %}
+    <p>Welcome the Hail-powered {{ userdata['workshop_name'] }} workshop!</p>
+    {% endif %}
+
+    <p>Navigate to the <a href="{{ base_url }}/notebook">Notebook</a>
+      tab to create or revisit a Jupyter notebook with the workshop
+      materials installed.</p>
+
+    <p><span style="color:red;"Warning:</span> Logging out will close
+      any notebook you have running and any work in progress
+      will be lost.</p>
+
+    <p>The notebook service is not available outside workshops like this, but
+      we (the Hail team) is working hard to change that.</p>
+  </div>
+{% endblock %}
