@@ -606,6 +606,7 @@ workshop_routes = web.RouteTableDef()
 async def workshop_get_index(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     context = base_context(deploy_config, session, userdata, 'notebook')
+    context['notebook_service'] = 'workshop'
     return context
 
 
