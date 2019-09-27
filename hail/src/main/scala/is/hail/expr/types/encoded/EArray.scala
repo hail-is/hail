@@ -10,8 +10,6 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 final case class EArray(elementType: EType, override val required: Boolean = false) extends EType {
-  lazy val virtualType: TArray = TArray(elementType.virtualType, required)
-
   override def _decodeCompatible(pt: PType): Boolean = {
     pt.required == required &&
       pt.isInstanceOf[PArray] &&

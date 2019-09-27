@@ -13,8 +13,6 @@ case object EInt32Optional extends EInt32(false)
 case object EInt32Required extends EInt32(true)
 
 class EInt32(override val required: Boolean) extends EType {
-  lazy val virtualType: TInt32 = TInt32(required)
-
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     out.writeInt(coerce[Int](v))
   }

@@ -11,8 +11,6 @@ import is.hail.utils._
 
 // All _$methods here assume that their arguments are fundamental types
 abstract class EType extends BaseType with Serializable with Requiredness {
-  def virtualType: Type
-
   type StagedEncoder = (Code[_], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoder[T] = (Code[Region], Code[InputBuffer]) => Code[T]
   type StagedInplaceDecoder = (Code[Region], Code[Long], Code[InputBuffer]) => Code[Unit]

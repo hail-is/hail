@@ -24,8 +24,6 @@ final case class EField(name: String, typ: EType, index: Int) {
 }
 
 final case class EBaseStruct(fields: IndexedSeq[EField], override val required: Boolean = false) extends EType {
-  lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)), required)
-
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   val types: Array[EType] = fields.map(_.typ).toArray
