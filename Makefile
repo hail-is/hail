@@ -8,7 +8,9 @@ default:
 check:
 	make -C gear check
 	make -C web_common check
+	make -C router-resolver check
 	make -C notebook check
+	make -C auth check
 	make -C scorecard check
 	make -C batch check
 	make -C ci check
