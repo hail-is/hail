@@ -93,14 +93,13 @@ a {
 
 .header-dropdown {
     display: block;
+
     &:active,
     &:hover {
-	.header-dropdown-item {
-            text-decoration: none;
-            color: $devil-gray;
+	.header-dropdown-link {
 	    border-color: black;
 	}
-
+	
 	.header-dropdown-menu {
 	    display: block;
 	}
@@ -135,7 +134,7 @@ a {
     /* -1.1px came from experimentation, I don't know why the extra 0.1px
        is needed. */
     transform: translate(0px, -1.1px);
-    z-index: 1;  /* below header-dropdown-item */
+    z-index: 1;  /* below header-dropdown-link */
 }
 
 .header-dropdown-menu-link {
