@@ -4,15 +4,13 @@ import os
 import asyncio
 import aiohttp
 from aiohttp import web
-import aiohttp_session
-import aiohttp_jinja2
 import gidgethub.aiohttp
 import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from gear import setup_aiohttp_session, web_maybe_authenticated_user
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
+from gear import setup_aiohttp_session, web_maybe_authenticated_user, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 
 log = logging.getLogger('scorecard')
 
@@ -45,33 +43,31 @@ async def get_healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('')
 @routes.get('/')
-@aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
-async def index(request, userdata):  # pylint: disable=unused-argument
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'scorecard')
+async def index(request, userdata):
     user_data, unassigned, urgent_issues, updated = get_users()
     component_random_user = {c: random.choice(us) for c, us in component_users.items()}
-    context['unassigned'] = unassigned
-    context['user_data'] = user_data
-    context['urgent_issues'] = urgent_issues
-    context['component_user'] = component_random_user
-    context['updated'] = updated
-    return context
+    page_context = {
+        'unassigned': unassigned,
+        'user_data': user_data,
+        'urgent_issues': urgent_issues,
+        'component_user': component_random_user,
+        'updated': updated
+    }
+    return render_template('scorecard', request, userdata, 'index.html', page_context)
 
 
 @routes.get('/users/{user}')
-@aiohttp_jinja2.template('user.html')
 @web_maybe_authenticated_user
 async def html_get_user(request, userdata):
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'scorecard')
     user = request.match_info['user']
     user_data, updated = get_user(user)
-    context['user'] = user
-    context['user_data'] = user_data
-    context['updated'] = updated
-    return context
+    page_context = {
+        'user': user,
+        'user_data': user_data,
+        'updated': updated,
+    }
+    return render_template('scorecard', request, userdata, 'user.html', page_context)
 
 
 def get_users():

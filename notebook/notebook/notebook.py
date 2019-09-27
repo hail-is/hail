@@ -8,16 +8,15 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
-import aiohttp_jinja2
 from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
-    new_csrf_token, check_csrf_token
+    render_template, check_csrf_token
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, \
-    set_message, base_context
+    set_message
 
 log = logging.getLogger('notebook')
 
@@ -255,29 +254,17 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('')
 @routes.get('/')
-@aiohttp_jinja2.template('index.html')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'notebook')
-    return context
+    return render_template('notebook', request, userdata, 'index.html', {})
 
 
 async def _get_notebook(service, request, userdata):
-    app = request.app
-
-    csrf_token = new_csrf_token()
-
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, service)
-    context['csrf_token'] = csrf_token
-    context['notebook'] = await get_user_notebook(app, userdata['id'])
-    context['notebook_service'] = service
-    response = aiohttp_jinja2.render_template('notebook.html',
-                                              request,
-                                              context)
-    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
-    return response
+    page_context = {
+        'notebook': await get_user_notebook(request.app, userdata['id']),
+        'notebook_service': service
+    }
+    return render_template(service, request, userdata, 'notebook.html', page_context)
 
 
 async def _post_notebook(service, request, userdata):
@@ -465,43 +452,31 @@ async def get_error(request, userdata):
 
 
 @routes.get('/user')
-@aiohttp_jinja2.template('user.html')
 @web_authenticated_users_only()
-async def user_page(request, userdata):  # pylint: disable=unused-argument
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'notebook')
-    return context
+async def user_page(request, userdata):
+    return render_template('notebook', request, userdata, 'user.html', {})
 
 
 @routes.get('/workshop-admin')
 @web_authenticated_developers_only()
 async def workshop_admin(request, userdata):
-    app = request.app
-    dbpool = app['dbpool']
-    csrf_token = new_csrf_token()
-
+    dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('SELECT * FROM workshops')
             workshops = await cursor.fetchall()
 
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'notebook')
-    context['csrf_token'] = csrf_token
-    context['workshops'] = workshops
-    response = aiohttp_jinja2.render_template('workshop-admin.html',
-                                              request,
-                                              context)
-    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
-    return response
+    page_context = {
+        'workshops': workshops
+    }
+    return render_template('notebook', request, userdata, 'workshop-admin.html', page_context)
 
 
 @routes.post('/workshop-admin-create')
 @check_csrf_token
 @web_authenticated_developers_only()
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    dbpool = app['dbpool']
+    dbpool = request.app['dbpool']
     session = await aiohttp_session.get_session(request)
 
     post = await request.post()
@@ -601,13 +576,12 @@ workshop_routes = web.RouteTableDef()
 
 @workshop_routes.get('')
 @workshop_routes.get('/')
-@aiohttp_jinja2.template('workshop/index.html')
 @web_maybe_authenticated_workshop_guest
-async def workshop_get_index(request, userdata):  # pylint: disable=unused-argument
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'workshop')
-    context['notebook_service'] = 'workshop'
-    return context
+async def workshop_get_index(request, userdata):
+    page_context = {
+        'notebook_service': 'workshop'
+    }
+    return render_template('workshop', request, userdata, 'workshop/index.html', page_context)
 
 
 @workshop_routes.get('/login')
@@ -616,17 +590,10 @@ async def workshop_get_login(request, userdata):
     if userdata:
         return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
 
-    csrf_token = new_csrf_token()
-
-    session = await aiohttp_session.get_session(request)
-    context = base_context(deploy_config, session, userdata, 'workshop')
-    context['csrf_token'] = csrf_token
-    context['notebook_service'] = 'workshop'
-    response = aiohttp_jinja2.render_template('workshop/login.html',
-                                              request,
-                                              context)
-    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
-    return response
+    page_context = {
+        'notebook_service': 'workshop'
+    }
+    return render_template('workshop', request, userdata, 'workshop/login.html', page_context)
 
 
 @workshop_routes.post('/login')
@@ -719,13 +686,13 @@ async def workshop_get_auth(request, userdata):
 @workshop_routes.post('/notebook/delete')
 @check_csrf_token
 @web_authenticated_workshop_guest_only
-async def workshop_delete_notebook(request, userdata):  # pylint: disable=unused-argument
+async def workshop_delete_notebook(request, userdata):
     return await _delete_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/notebook/wait')
 @web_authenticated_workshop_guest_only
-async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
+async def workshop_wait_websocket(request, userdata):
     return await _wait_websocket('workshop', request, userdata)
 
 
