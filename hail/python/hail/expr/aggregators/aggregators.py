@@ -88,7 +88,7 @@ class AggFunc(object):
     @typecheck_method(f=func_spec(1, expr_any),
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
     def explode(self, f, array_agg_expr):
-        if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if array_agg_expr._aggregations:
             raise ExpressionException("'{}.explode' does not support an already-aggregated expression as the argument to 'collection'".format(self.correct_prefix()))
         _check_agg_bindings(array_agg_expr, self._agg_bindings)
 
@@ -117,10 +117,10 @@ class AggFunc(object):
     @typecheck_method(condition=expr_bool,
                       aggregation=agg_expr(expr_any))
     def filter(self, condition, aggregation):
-        if len(condition._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if condition._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.filter' does not "
                                       f"support an already-aggregated expression as the argument to 'condition'")
-        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not aggregation._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.filter' "
                                       f"must have aggregation in argument to 'aggregation'")
 
@@ -137,10 +137,10 @@ class AggFunc(object):
                               aggregations)
 
     def group_by(self, group, aggregation):
-        if len(group._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if group._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.group_by' "
                                       f"does not support an already-aggregated expression as the argument to 'group'")
-        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not aggregation._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.group_by' "
                                       f"must have aggregation in argument to 'aggregation'")
 
@@ -158,7 +158,7 @@ class AggFunc(object):
                               aggregations)
 
     def array_agg(self, array, f):
-        if len(array._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if array._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.array_agg' "
                                       f"does not support an already-aggregated expression as the argument to 'array'")
         _check_agg_bindings(array, self._agg_bindings)

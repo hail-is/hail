@@ -182,7 +182,7 @@ class IR(BaseIR):
 
     @property
     def bound_variables(self):
-        return {v for child in self.children for v in child.bound_variables}
+        return {v for child in self.children if isinstance(child, IR) for v in child.bound_variables}
 
     @property
     def typ(self):
