@@ -1,0 +1,24 @@
+<div id="header">
+  <a class="header-link" href="{{ notebook_base_url }}/notebook">
+    Notebook
+  </a>
+
+  <div id="header-flex"></div>
+
+  {% if userdata %}
+    <span class="disabled-header-item">
+      <b>guest</b>
+    </span>
+    |
+    <form action="{{ base_url }}/logout" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button class="button-header-link" type="submit">
+	Log out
+      </button>
+    </form>
+    {% else %}
+	<a class="header-link" href="{{ base_url }}/login">
+	  Login
+	</a>
+    {% endif %}
+</div>

@@ -1,9 +1,0 @@
-name: notebook
-dependencies:
-- python=3.7
-- requests
-- flask
-- pip
-- pip:
-  - kubernetes
-  - Flask_Sockets

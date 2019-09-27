@@ -41,6 +41,7 @@
     </a>
     |
     <form action="{{ auth_base_url }}/logout" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button class="button-header-link" type="submit">
         Log out
       </button>

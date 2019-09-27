@@ -782,6 +782,21 @@ class BlockMatrixSuite extends HailSuite {
     bm1.blocks.collect() sameElements bm2.blocks.collect()
 
   @Test
+  def testSparseFilterEdges(): Unit = {
+    val lm = new BDM[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
+    val bm = toBM(lm, blockSize = 5)
+
+    val onlyEight = bm.filterBlocks(Array(8)) // Bottom right corner block
+    val onlyEightRowEleven = onlyEight.filterRows(Array(11)).toBreezeMatrix()
+    val onlyEightColEleven = onlyEight.filterCols(Array(11)).toBreezeMatrix()
+    val onlyEightCornerFour = onlyEight.filter(Array(10, 11), Array(10, 11)).toBreezeMatrix()
+
+    assert(onlyEightRowEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 143).map(_.toDouble))
+    assert(onlyEightColEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142, 143).map(_.toDouble))
+    assert(onlyEightCornerFour == new BDM[Double](2, 2, Array(130.0, 131.0, 142.0, 143.0)))
+  }
+
+  @Test
   def testFilterBlocks() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,

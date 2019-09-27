@@ -44,7 +44,7 @@ class PodThrottler:
                     return
 
                 await job._create_pod()
-            except:
+            except Exception:  # pylint: disable=broad-except
                 self.semaphore.release()
                 raise
 

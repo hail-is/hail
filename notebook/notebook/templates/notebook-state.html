@@ -1,0 +1,32 @@
+<div class="nb">
+    {% if notebook['state'] == 'Ready' %}
+        <i class="material-icons ready-icon">done</i>
+    {% else %}
+        <div class="spinner"></div>
+    {% endif %}
+    <a target="_blank" class="nb-state-container" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
+        <b>a_notebook</b>
+        <span class="small">
+        Status: <b>{{ notebook['state'] }}</b>
+        </span>
+        <span class="small">
+        Pod Name: <b>{{ notebook['pod_name'] }}</b>
+        </span>
+        <span class="small">Created on: {{ notebook['creation_date'] }}</span>
+    </a>
+    <form action="{{ base_path }}/notebook/delete" method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+        <button type="submit" class="material-icons nb-close">
+            close
+        </button>
+    </form>
+</div>
+{% if notebook['state'] != 'Ready' %}
+    <script>
+        let protocol = location.protocol.replace("http", "ws")
+        let sock = new WebSocket(protocol + location.host + "{{ base_path }}/notebook/wait");
+        sock.onmessage = function (event) {
+            window.location.reload()
+        }
+    </script>
+{% endif %}

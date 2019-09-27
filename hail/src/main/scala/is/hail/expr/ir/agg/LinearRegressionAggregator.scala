@@ -56,12 +56,12 @@ object LinearRegressionAggregator extends StagedAggregator {
     val xtx = mb.newLocal[Long]
 
     val body = coerce[Unit](Code(
-      n := vector.loadLength(xty),
-      i := 0,
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       sptr := vector.firstElementOffset(xty, n),
       xptr := vector.firstElementOffset(x, n),
+      n := vector.loadLength(xty),
+      i := 0,
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr)
           + (Region.loadDouble(xptr) * y)),
@@ -107,14 +107,14 @@ object LinearRegressionAggregator extends StagedAggregator {
     val oxtx = mb.newLocal[Long]
 
     Code(
-      n := vector.loadLength(xty),
-      i := 0,
-      sptr := vector.firstElementOffset(xty, n),
-      optr := vector.firstElementOffset(oxty, n),
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       oxty := stateType.loadField(other.off, 0),
       oxtx := stateType.loadField(other.off, 1),
+      n := vector.loadLength(xty),
+      i := 0,
+      sptr := vector.firstElementOffset(xty, n),
+      optr := vector.firstElementOffset(oxty, n),
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,

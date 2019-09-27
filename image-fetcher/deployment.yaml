@@ -26,15 +26,20 @@ spec:
             cpu: 1m
             memory: 100Mi
         volumeMounts:
-        - name: docksock
-          mountPath: /var/run/docker.sock
-        - name: gcr-pull-key
-          mountPath: /secrets
+         - name: deploy-config
+           mountPath: /deploy-config
+         - name: docksock
+           mountPath: /var/run/docker.sock
+         - name: gcr-pull-key
+           mountPath: /secrets
       volumes:
-      - name: docksock
-        hostPath:
-          path: /var/run/docker.sock
-      - name: gcr-pull-key
-        secret:
-          optional: False
-          secretName: gcr-pull-key
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: docksock
+         hostPath:
+           path: /var/run/docker.sock
+       - name: gcr-pull-key
+         secret:
+           optional: False
+           secretName: gcr-pull-key

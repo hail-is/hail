@@ -3,6 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
@@ -58,6 +59,7 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
   val size: ClassFieldRef[Int] = fb.newField[Int]
   val key = new TypedKey(t, fb, region)
   val tree = new AppendOnlyBTree(fb, key, region, root)
+  val et = EType.defaultFromPType(t)
 
   val typ: PStruct = PStruct(
     required = true,
@@ -108,22 +110,22 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
     tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    val kEnc = EmitPackEncoder.buildMethod(t, t, fb)
+    val kEnc = et.buildEncoderMethod(t, fb)
 
     { ob: Code[OutputBuffer] =>
       tree.bulkStore(ob) { (ob, src) =>
         Code(
           ob.writeBoolean(key.isKeyMissing(src)),
           (!key.isKeyMissing(src)).orEmpty(
-            kEnc.invoke(region, key.loadKey(src), ob)))
+            kEnc.invoke(key.loadKey(src), ob)))
       }
     }
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    val kDec = EmitPackDecoder.buildMethod(t, t, fb)
-    val km = fb.newField[Boolean]
-    val kv = fb.newField()(typeToTypeInfo(t))
+    val kDec = et.buildDecoderMethod(t, fb)
+    val km = fb.newField[Boolean]("km")
+    val kv = fb.newField("kv")(typeToTypeInfo(t))
 
     { ib: Code[InputBuffer] =>
       Code(

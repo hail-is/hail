@@ -1,350 +1,782 @@
-import aiohttp
-import aiohttp_jinja2
-import aiohttp_session
-import aiohttp_session.cookie_storage
-import asyncio
-import base64
-import jinja2
-import kubernetes_asyncio as kube
 import logging
 import os
-import re
-import uuid
-import uvloop
+import secrets
+from functools import wraps
+import asyncio
+import pymysql
+import aiohttp
+from aiohttp import web
+import aiohttp_session
+import aiohttp_session.cookie_storage
+import aiohttp_jinja2
+from kubernetes_asyncio import client, config
+import kubernetes_asyncio as kube
 
-from cryptography import fernet
-from pythonjsonlogger import jsonlogger
+from hailtop.config import get_deploy_config
+from gear import setup_aiohttp_session, create_database_pool, \
+    web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
+    new_csrf_token, check_csrf_token
+from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, \
+    set_message, base_context
 
-
-class CustomJsonFormatter(jsonlogger.JsonFormatter):
-    def add_fields(self, log_record, record, message_dict):
-        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
-        log_record['funcNameAndLine'] = "{}:{}".format(record.funcName, record.lineno)
-
-
-def configure_logging():
-    fmt = CustomJsonFormatter('(levelname) (asctime) (filename) (funcNameAndLine) (message)')
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(fmt)
-
-    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
-
-
-configure_logging()
 log = logging.getLogger('notebook')
 
-app = aiohttp.web.Application(client_max_size=None)
-routes = aiohttp.web.RouteTableDef()
+NOTEBOOK_NAMESPACE = os.environ['HAIL_NOTEBOOK_NAMESPACE']
 
-uvloop.install()
+deploy_config = get_deploy_config()
 
+routes = web.RouteTableDef()
 
-def read_string(f):
-    with open(f, 'r') as f:
-        return f.read().strip()
+# Must be int for Kubernetes V1 api timeout_seconds property
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
+POD_PORT = 8888
 
-SECRET_KEY = read_string('/notebook-secrets/secret-key').encode('utf-8')
-PASSWORD = read_string('/notebook-secrets/password')
-ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
-INSTANCE_ID = uuid.uuid4().hex
+DEFAULT_WORKER_IMAGE = os.environ['HAIL_NOTEBOOK_WORKER_IMAGE']
 
-log.info(f'INSTANCE_ID {INSTANCE_ID}')
-
-try:
-    with open('notebook-worker-images', 'r') as f:
-        def get_name(line):
-            return re.search("/([^/:]+):", line).group(1)
-        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
-except FileNotFoundError as e:
-    raise ValueError(
-        "working directory must contain a file called `notebook-worker-images' "
-        "containing the name of the docker image to use for worker pods.") from e
+log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 
 
-async def start_pod(jupyter_token, image):
-    pod_id = uuid.uuid4().hex
-    service_spec = kube.client.V1ServiceSpec(
-        selector={
-            'app': 'notebook-worker',
-            'hail.is/notebook-instance': INSTANCE_ID,
-            'uuid': pod_id},
-        ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
-    service_template = kube.client.V1Service(
-        metadata=kube.client.V1ObjectMeta(
-            generate_name='notebook-worker-service-',
-            labels={
-                'app': 'notebook-worker',
-                'hail.is/notebook-instance': INSTANCE_ID,
-                'uuid': pod_id}),
-        spec=service_spec)
-    svc = await app['k8s'].create_namespaced_service(
-        'default',
-        service_template
-    )
+async def workshop_userdata_from_web_request(request):
+    session = await aiohttp_session.get_session(request)
+    if 'workshop_session' not in session:
+        return None
+    userdata = session['workshop_session']
+
+    # verify this workshop is active
+    name = userdata['workshop_name']
+    token = userdata['workshop_token']
+
+    dbpool = request.app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                'SELECT * FROM workshops WHERE name = %s AND token = %s',
+                (name, token))
+            workshops = await cursor.fetchall()
+
+    if len(workshops) != 1:
+        return None
+
+    return userdata
+
+
+def web_maybe_authenticated_workshop_guest(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        return await fun(request, await workshop_userdata_from_web_request(request), *args, **kwargs)
+    return wrapped
+
+
+def web_authenticated_workshop_guest_only(fun):
+    @web_maybe_authenticated_workshop_guest
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        if not userdata:
+            raise web.HTTPFound(deploy_config.external_url('workshop', '/login'))
+        return await fun(request, userdata, *args, **kwargs)
+    return wrapped
+
+
+async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
+    service_base_path = deploy_config.base_path(service)
+
+    command = [
+        'jupyter',
+        'notebook',
+        f'--NotebookApp.token={jupyter_token}',
+        f'--NotebookApp.base_url={service_base_path}/instance/{notebook_token}/',
+        "--ip", "0.0.0.0", "--no-browser", "--allow-root"
+    ]
+    if 'workshop_image' in userdata:
+        image = userdata['workshop_image']
+    else:
+        image = DEFAULT_WORKER_IMAGE
+    volumes = [
+        kube.client.V1Volume(
+            name='deploy-config',
+            secret=kube.client.V1SecretVolumeSource(
+                secret_name='deploy-config'))
+    ]
+    volume_mounts = [
+        kube.client.V1VolumeMount(
+            mount_path='/deploy-config',
+            name='deploy-config',
+            read_only=True)
+    ]
+
+    user_id = userdata['id']
+    ksa_name = userdata.get('ksa_name')
+
+    bucket = userdata.get('bucket_name')
+    if bucket is not None:
+        command.append(f'--GoogleStorageContentManager.default_path="{bucket}"')
+
+    gsa_key_secret_name = userdata.get('gsa_key_secret_name')
+    if gsa_key_secret_name is not None:
+        volumes.append(
+            kube.client.V1Volume(
+                name='gsa-key',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=gsa_key_secret_name)))
+        volume_mounts.append(
+            kube.client.V1VolumeMount(
+                mount_path='/gsa-key',
+                name='gsa-key',
+                read_only=True))
+
+    jwt_secret_name = userdata.get('jwt_secret_name')
+    if jwt_secret_name is not None:
+        volumes.append(
+            kube.client.V1Volume(
+                name='user-tokens',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=jwt_secret_name)))
+        volume_mounts.append(
+            kube.client.V1VolumeMount(
+                mount_path='/user-tokens',
+                name='user-tokens',
+                read_only=True))
+
     pod_spec = kube.client.V1PodSpec(
-        security_context=kube.client.V1SecurityContext(
-            run_as_user=1000),
+        service_account_name=ksa_name,
         containers=[
             kube.client.V1Container(
-                command=[
-                    'jupyter',
-                    'notebook',
-                    '--ip=0.0.0.0',
-                    f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
-                ],
+                command=command,
                 name='default',
                 image=image,
-                ports=[kube.client.V1ContainerPort(container_port=8888)],
+                env=[kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE',
+                                          value='/deploy-config/deploy-config.json')],
+                ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
-                readiness_probe=kube.client.V1Probe(
-                    http_get=kube.client.V1HTTPGetAction(
-                        path=f'/instance/{svc.metadata.name}/login',
-                        port=8888)))])
+                volume_mounts=volume_mounts)
+        ],
+        volumes=volumes)
+
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook-worker-',
             labels={
                 'app': 'notebook-worker',
-                'hail.is/notebook-instance': INSTANCE_ID,
-                'uuid': pod_id,
+                'user_id': str(user_id)
             }),
         spec=pod_spec)
-    pod = await app['k8s'].create_namespaced_pod(
-        'default',
-        pod_template)
-    return svc, pod
+    pod = await k8s.create_namespaced_pod(
+        NOTEBOOK_NAMESPACE,
+        pod_template,
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+    return pod
+
+
+def notebook_status_from_pod(pod):
+    pod_ip = pod.status.pod_ip
+    if not pod_ip:
+        state = 'Scheduling'
+    else:
+        state = 'Initializing'
+        if pod.status and pod.status.conditions:
+            for c in pod.status.conditions:
+                if c.type == 'Ready' and c.status == 'True':
+                    state = 'Running'
+    return {
+        'pod_ip': pod_ip,
+        'state': state
+    }
+
+
+async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook):
+    try:
+        pod = await k8s.read_namespaced_pod(
+            name=notebook['pod_name'],
+            namespace=NOTEBOOK_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException as e:
+        if e.status == 404:
+            return None
+        raise
+
+    status = notebook_status_from_pod(pod)
+
+    if status['state'] == 'Running':
+        if notebook['state'] == 'Ready':
+            status['state'] = 'Ready'
+        else:
+            pod_name = notebook['pod_name']
+
+            # don't have dev credentials to connect through internal.hail.is
+            ready_url = deploy_config.external_url(
+                service,
+                f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
+            try:
+                async with aiohttp.ClientSession(
+                        timeout=aiohttp.ClientTimeout(total=1),
+                        headers=headers,
+                        cookies=cookies) as session:
+                    async with session.get(ready_url) as resp:
+                        if resp.status >= 200 and resp.status < 300:
+                            log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
+                            status['state'] = 'Ready'
+                        else:
+                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
+            except aiohttp.ServerTimeoutError:
+                log.info(f'GET on jupyter pod {pod_name} timed out: {resp}')
+
+    return status
+
+
+async def get_user_notebook(app, user_id):
+    dbpool = app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM notebooks WHERE user_id = %s;', user_id)
+            notebooks = await cursor.fetchall()
+
+    if len(notebooks) == 1:
+        return notebooks[0]
+    return None
+
+
+async def delete_worker_pod(k8s, pod_name):
+    try:
+        await k8s.delete_namespaced_pod(
+            pod_name,
+            NOTEBOOK_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException as e:
+        log.info(f'pod {pod_name} already deleted {e}')
 
 
 @routes.get('/healthcheck')
-async def healthcheck():
-    return aiohttp.web.Response()
+async def healthcheck(request):  # pylint: disable=unused-argument
+    return web.Response()
 
 
-@routes.get('/', name='root')
+@routes.get('')
+@routes.get('/')
 @aiohttp_jinja2.template('index.html')
-async def root(request):
+@web_maybe_authenticated_user
+async def index(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
-    if 'svc_name' not in session:
-        log.info(f'no svc_name found in session {session.keys()}')
-        return {'form_action_url': str(request.app.router['new'].url_for()),
-                'images': list(WORKER_IMAGES),
-                'default': 'isia'}
-    svc_name = session['svc_name']
-    jupyter_token = session['jupyter_token']
-    # str(request.app.router['root'].url_for()) +
-    url = request.url.with_path(f'instance/{svc_name}/')
-    url = url.with_query(token=jupyter_token)
-    log.info('redirecting to ' + str(url))
-    raise aiohttp.web.HTTPFound(url)
+    context = base_context(deploy_config, session, userdata, 'notebook')
+    return context
 
 
-@routes.get('/new', name='new')
-async def new_get(request):
+async def _get_notebook(service, request, userdata):
+    app = request.app
+
+    csrf_token = new_csrf_token()
+
     session = await aiohttp_session.get_session(request)
-    pod_name = session.get('pod_name')
-    svc_name = session.get('svc_name')
-    if pod_name:
-        await delete_worker_pod(pod_name, svc_name)
-    session.clear()
-    raise aiohttp.web.HTTPFound(
-        request.app.router['root'].url_for())
+    context = base_context(deploy_config, session, userdata, service)
+    context['csrf_token'] = csrf_token
+    context['notebook'] = await get_user_notebook(app, userdata['id'])
+    context['notebook_service'] = service
+    response = aiohttp_jinja2.render_template('notebook.html',
+                                              request,
+                                              context)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
+    return response
 
 
-@routes.post('/new')
-async def new_post(request):
-    session = await aiohttp_session.get_session(request)
-    log.info('new received')
-    form = await request.post()
-    password = form['password']
-    image = form['image']
-    if password != PASSWORD or image not in WORKER_IMAGES:
-        raise aiohttp.web.HTTPForbidden()
-    jupyter_token = fernet.Fernet.generate_key().decode('ascii')
-    svc, pod = await start_pod(jupyter_token, WORKER_IMAGES[image])
-    session['svc_name'] = svc.metadata.name
-    session['pod_name'] = pod.metadata.name
-    session['jupyter_token'] = jupyter_token
-    raise aiohttp.web.HTTPFound(
-        request.app.router['wait'].url_for())
+async def _post_notebook(service, request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
+    k8s = app['k8s_client']
+
+    notebook_token = secrets.token_urlsafe(32)
+    jupyter_token = secrets.token_hex(16)
+
+    pod = await start_pod(k8s, service, userdata, notebook_token, jupyter_token)
+    if pod.status.pod_ip:
+        state = 'Initializing'
+    else:
+        state = 'Scheduling'
+
+    user_id = userdata['id']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+DELETE FROM notebooks WHERE user_id = %s;
+INSERT INTO notebooks (user_id, notebook_token, pod_name, state, pod_ip, jupyter_token) VALUES (%s, %s, %s, %s, %s, %s);
+''',
+                (user_id, user_id, notebook_token, pod.metadata.name, state, pod.status.pod_ip, jupyter_token))
+
+    return web.HTTPFound(
+        location=deploy_config.external_url(service, '/notebook'))
 
 
-@routes.get('/wait', name='wait')
-@aiohttp_jinja2.template('wait.html')
-async def wait_webpage(request):
-    return {}
+async def _delete_notebook_2(request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
+    k8s = app['k8s_client']
+
+    notebook = await get_user_notebook(app, userdata['id'])
+    if notebook:
+        await delete_worker_pod(k8s, notebook['pod_name'])
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'DELETE FROM notebooks WHERE user_id = %s;', userdata['id'])
 
 
-@routes.get('/auth/{requested_svc_name}')
-async def auth(request):
-    session = await aiohttp_session.get_session(request)
-    requested_svc_name = request.match_info['requested_svc_name']
-    approved_svc_name = session.get('svc_name')
-    if approved_svc_name is not None and approved_svc_name == requested_svc_name:
-        return aiohttp.web.Response()
-    raise aiohttp.web.HTTPForbidden()
+async def _delete_notebook(service, request, userdata):
+    await _delete_notebook_2(request, userdata)
+    return web.HTTPFound(location=deploy_config.external_url(service, '/notebook'))
 
 
-async def get_all_workers():
-    workers = await app['k8s'].list_namespaced_pod(
-        namespace='default',
-        watch=False,
-        label_selector='app=notebook-worker')
-    workers_and_svcs = []
-    for w in workers.items:
-        uuid = w.metadata.labels['uuid']
-        svcs = await app['k8s'].list_namespaced_service(
-            namespace='default',
-            watch=False,
-            label_selector='uuid=' + uuid).items
-        assert len(svcs) <= 1
-        if len(svcs) == 1:
-            workers_and_svcs.append((w, svcs[0]))
-        else:
-            log.info(f'assuming pod {w.metadata.name} is getting deleted '
-                     f'because it has no service')
-    return workers_and_svcs
+async def _wait_websocket(service, request, userdata):
+    app = request.app
+    notebook = await get_user_notebook(app, userdata['id'])
+    if not notebook:
+        return web.HTTPNotFound()
 
+    k8s = request.app['k8s_client']
+    dbpool = request.app['dbpool']
 
-@routes.get('/workers', name='workers')
-@aiohttp_jinja2.template('workers.html')
-async def workers(request):
-    session = await aiohttp_session.get_session(request)
-    if not session.get('admin'):
-        raise aiohttp.web.HTTPFound(
-            request.app.router['admin-login'].url_for())
-    workers_and_svcs = await get_all_workers()
-    return {'workers': workers_and_svcs,
-            'workers_url': str(request.app.router['workers'].url_for()),
-            'leader_instance': INSTANCE_ID}
-
-
-@routes.get('/workers/{pod_name}/{svc_name}/delete')
-async def workers_delete(request):
-    session = await aiohttp_session.get_session(request)
-    pod_name = request.match_info['pod_name']
-    svc_name = request.match_info['svc_name']
-    if not session.get('admin'):
-        raise aiohttp.web.HTTPFound(
-            request.app.router['admin-login'].url_for())
-    await delete_worker_pod(pod_name, svc_name)
-    raise aiohttp.web.HTTPFound(request.app.router['workers'].url_for())
-
-
-@routes.post('/workers/delete-all-workers')
-async def delete_all_workers(request):
-    session = await aiohttp_session.get_session(request)
-    if not session.get('admin'):
-        raise aiohttp.web.HTTPFound(
-            request.app.router['admin-login'].url_for())
-    workers_and_svcs = await get_all_workers()
-    await asyncio.gather(*[
-        delete_worker_pod(pod.metadata.name, svc.metadata.name)
-        for pod, svc in workers_and_svcs])
-    raise aiohttp.web.HTTPFound(request.app.router['workers'].url_for())
-
-
-async def delete_worker_pod(pod_name, svc_name):
-    try:
-        await app['k8s'].delete_namespaced_pod(
-            pod_name,
-            'default')
-    except kube.client.rest.ApiException as e:
-        log.info(f'pod {pod_name} or associated service already deleted {e}')
-    try:
-        await app['k8s'].delete_namespaced_service(
-            svc_name,
-            'default')
-    except kube.client.rest.ApiException as e:
-        log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
-
-
-@routes.get('/admin-login', name='admin-login')
-@aiohttp_jinja2.template('admin-login.html')
-async def admin_login(request):
-    return {'form_action_url': str(request.app.router['workers'].url_for())}
-
-
-@routes.post('/admin-login')
-async def admin_login_post(request):
-    session = await aiohttp_session.get_session(request)
-    form = await request.post()
-    if form['password'] != ADMIN_PASSWORD:
-        raise aiohttp.web.HTTPForbidden()
-    session['admin'] = True
-    raise aiohttp.web.HTTPFound(request.app.router['workers'].url_for())
-
-
-@routes.get('/worker-image')
-async def worker_image(request):
-    del request
-    return aiohttp.web.Response(text='\n'.join(WORKER_IMAGES.values()))
-
-
-@routes.get('/waitws')
-async def wait_websocket(request):
-    session = await aiohttp_session.get_session(request)
-    ws = aiohttp.web.WebSocketResponse()
+    ws = web.WebSocketResponse()
     await ws.prepare(request)
-    pod_name = session['pod_name']
-    svc_name = session['svc_name']
-    jupyter_token = session['jupyter_token']
-    log.info(f'received wait websocket for {svc_name} {pod_name}')
-    while True:
-        try:
-            response = await app['client_session'].head(
-                f'https://notebook.hail.is/instance-ready/{svc_name}/',
-                timeout=1)
-            if response.status < 500:
-                log.info(
-                    f'HEAD on jupyter succeeded for {svc_name} {pod_name} '
-                    f'response: {response}')
-                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
-                # server is alive and functioning properly (in particular, our
-                # HEAD request will return 405 METHOD NOT ALLOWED)
-                break
-            # somewhat unusual, means the gateway had an error before we
-            # timed out, usually means the gateway itself is broken
-            log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
-        except Exception as e:
-            log.info(f'GET on jupyter failed for {svc_name} {pod_name} {e}')
+
+    # forward authorization
+    headers = {}
+    if 'Authorization' in request.headers:
+        headers['Authorization'] = request.headers['Authorization']
+    if 'X-Hail-Internal-Authorization' in request.headers:
+        headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
+
+    cookies = {}
+    if 'session' in request.cookies:
+        cookies['session'] = request.cookies['session']
+    if 'sesh' in request.cookies:
+        cookies['sesh'] = request.cookies['sesh']
+
+    ready = (notebook['state'] == 'Ready')
+    count = 0
+    while count < 10:
+        status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
+        if not status:
+            async with dbpool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        'DELETE FROM notebooks WHERE user_id = %s;',
+                        userdata['id'])
+            ready = False
+            break
+        if status['state'] != notebook['state']:
+            async with dbpool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        'UPDATE notebooks SET state = %s, pod_ip = %s WHERE user_id = %s;',
+                        (status['state'], status['pod_ip'], userdata['id']))
+            ready = (status['state'] == 'Ready')
+            break
+
         await asyncio.sleep(1)
-    notebook_url_scheme = request.url.scheme.replace('ws', 'http')
-    notebook_url = request.url.with_scheme(notebook_url_scheme)
-    notebook_url = notebook_url.with_path(f'instance/{svc_name}/')
-    notebook_url = notebook_url.with_query(token=jupyter_token)
-    await ws.send_str(str(notebook_url))
-    await ws.close()
-    log.info(f'notification sent to user for {svc_name} {pod_name}')
+        count += 1
+
+    # 0/1 ready
+    await ws.send_str(str(int(ready)))
+
     return ws
 
 
-async def setup_k8s(app):
-    kube.config.load_incluster_config()
-    app['k8s'] = kube.client.CoreV1Api()
+async def _get_error(service, request, userdata):
+    if not userdata:
+        return web.HTTPFound(deploy_config.external_url(service, '/login'))
+
+    await _delete_notebook_2(request, userdata)
+
+    session = await aiohttp_session.get_session(request)
+    set_message(session,
+                f'Notebook not found.  Please create a new notebook.',
+                'error')
+    return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 
 
-async def cleanup(app):
-    await app['client_session'].close()
+async def _get_auth(request, userdata):
+    app = request.app
+    requested_notebook_token = request.match_info['requested_notebook_token']
+
+    notebook = await get_user_notebook(app, userdata['id'])
+    if notebook and notebook['notebook_token'] == requested_notebook_token:
+        pod_ip = notebook['pod_ip']
+        if pod_ip:
+            return web.Response(headers={
+                'pod_ip': f'{pod_ip}:{POD_PORT}'
+            })
+
+    return web.HTTPNotFound()
 
 
-if __name__ == '__main__':
-    my_path = os.path.dirname(os.path.abspath(__file__))
-    aiohttp_jinja2.setup(
-        app,
-        loader=jinja2.FileSystemLoader(os.path.join(my_path, 'templates')))
-    routes.static('/static', os.path.join(my_path, 'static'))
-    app.add_routes(routes)
-    app.on_startup.append(setup_k8s)
-    app['client_session'] = aiohttp.ClientSession()
-    app.on_cleanup.append(cleanup)
-    aiohttp_session.setup(
-        app,
-        aiohttp_session.cookie_storage.EncryptedCookieStorage(
-            SECRET_KEY,
-            cookie_name="NOTEBOOK_AIOHTTP_SESSION"))
-    aiohttp.web.run_app(app, host='0.0.0.0', port=5000)
+@routes.get('/notebook')
+@web_authenticated_users_only()
+async def get_notebook(request, userdata):
+    return await _get_notebook('notebook', request, userdata)
+
+
+@routes.post('/notebook/delete')
+@check_csrf_token
+@web_authenticated_users_only(redirect=False)
+async def delete_notebook(request, userdata):  # pylint: disable=unused-argument
+    return await _delete_notebook('notebook', request, userdata)
+
+
+@routes.post('/notebook')
+@check_csrf_token
+@web_authenticated_users_only(redirect=False)
+async def post_notebook(request, userdata):
+    return await _post_notebook('notebook', request, userdata)
+
+
+@routes.get('/auth/{requested_notebook_token}')
+@web_authenticated_users_only()
+async def get_auth(request, userdata):
+    return await _get_auth(request, userdata)
+
+
+@routes.get('/images')
+async def get_images(request):
+    images = [DEFAULT_WORKER_IMAGE]
+
+    app = request.app
+    dbpool = app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT image FROM workshops WHERE active = 1;')
+            workshops = await cursor.fetchall()
+    for workshop in workshops:
+        images.append(workshop['image'])
+
+    return web.Response(text=' '.join(images))
+
+
+@routes.get('/notebook/wait')
+@web_authenticated_users_only(redirect=False)
+async def wait_websocket(request, userdata):
+    return await _wait_websocket('notebook', request, userdata)
+
+
+@routes.get('/error')
+@web_maybe_authenticated_user
+async def get_error(request, userdata):
+    return await _get_error('notebook', request, userdata)
+
+
+@routes.get('/user')
+@aiohttp_jinja2.template('user.html')
+@web_authenticated_users_only()
+async def user_page(request, userdata):  # pylint: disable=unused-argument
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook')
+    return context
+
+
+@routes.get('/workshop-admin')
+@web_authenticated_developers_only()
+async def workshop_admin(request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
+    csrf_token = new_csrf_token()
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM workshops')
+            workshops = await cursor.fetchall()
+
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'notebook')
+    context['csrf_token'] = csrf_token
+    context['workshops'] = workshops
+    response = aiohttp_jinja2.render_template('workshop-admin.html',
+                                              request,
+                                              context)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
+    return response
+
+
+@routes.post('/workshop-admin-create')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def create_workshop(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    dbpool = app['dbpool']
+    session = await aiohttp_session.get_session(request)
+
+    post = await request.post()
+    name = post['name']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            try:
+                active = (post.get('active') == 'on')
+                if active:
+                    token = secrets.token_urlsafe(32)
+                else:
+                    token = None
+                await cursor.execute('''
+INSERT INTO workshops (name, image, password, active, token) VALUES (%s, %s, %s, %s, %s);
+''',
+                                     (name,
+                                      post['image'],
+                                      post['password'],
+                                      active,
+                                      token))
+                set_message(session, f'Created workshop {name}.', 'info')
+            except pymysql.err.IntegrityError as e:
+                if e.args[0] == 1062:  # duplicate error
+                    set_message(session,
+                                f'Cannot create workshop {name}: duplicate name.',
+                                'error')
+                else:
+                    raise
+
+    return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
+
+
+@routes.post('/workshop-admin-update')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def update_workshop(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    dbpool = app['dbpool']
+
+    post = await request.post()
+    name = post['name']
+    id = post['id']
+    session = await aiohttp_session.get_session(request)
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            active = (post.get('active') == 'on')
+            # FIXME don't set token unless re-activating
+            if active:
+                token = secrets.token_urlsafe(32)
+            else:
+                token = None
+            n = await cursor.execute('''
+UPDATE workshops SET name = %s, image = %s, password = %s, active = %s, token = %s WHERE id = %s;
+''',
+                                     (name,
+                                      post['image'],
+                                      post['password'],
+                                      active,
+                                      token,
+                                      id))
+            if n == 0:
+                set_message(session,
+                            f'Internal error: cannot update workshop: workshop ID {id} not found.',
+                            'error')
+            else:
+                set_message(session, f'Updated workshop {name}.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
+
+
+@routes.post('/workshop-admin-delete')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    dbpool = app['dbpool']
+
+    post = await request.post()
+    name = post['name']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            n = await cursor.execute('''
+DELETE FROM workshops WHERE name = %s;
+''', name)
+
+    session = await aiohttp_session.get_session(request)
+    if n == 1:
+        set_message(session, f'Deleted workshop {name}.', 'info')
+    else:
+        set_message(session, f'Workshop {name} not found.', 'error')
+
+    return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
+
+
+workshop_routes = web.RouteTableDef()
+
+
+@workshop_routes.get('')
+@workshop_routes.get('/')
+@web_maybe_authenticated_workshop_guest
+async def workshop_get_index(request, userdata):  # pylint: disable=unused-argument
+    if userdata:
+        return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+    return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
+
+
+@workshop_routes.get('/login')
+@web_maybe_authenticated_workshop_guest
+async def workshop_get_login(request, userdata):
+    if userdata:
+        return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+
+    csrf_token = new_csrf_token()
+
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'workshop')
+    context['csrf_token'] = csrf_token
+    context['notebook_service'] = 'workshop'
+    response = aiohttp_jinja2.render_template('workshop/login.html',
+                                              request,
+                                              context)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
+    return response
+
+
+@workshop_routes.post('/login')
+@check_csrf_token
+async def workshop_post_login(request):
+    session = await aiohttp_session.get_session(request)
+    dbpool = request.app['dbpool']
+
+    post = await request.post()
+    name = post['name']
+    password = post['password']
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM workshops WHERE name = %s', name)
+            workshops = await cursor.fetchall()
+
+    def forbidden():
+        set_message(
+            session,
+            'No such workshop.  Check the workshop name and password and try again.',
+            'error')
+        raise web.HTTPFound(location=deploy_config.external_url('workshop', ''))
+
+    if len(workshops) != 1:
+        forbidden()
+    workshop = workshops[0]
+
+    if workshop['password'] != password:
+        forbidden()
+
+    # use hex since K8s labels can't start or end with _ or -
+    user_id = secrets.token_hex(16)
+    session['workshop_session'] = {
+        'workshop_name': name,
+        'workshop_token': workshop['token'],
+        'workshop_image': workshop['image'],
+        'id': user_id
+    }
+
+    set_message(session, f'Welcome to the {name} workshop!', 'info')
+
+    return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+
+
+@workshop_routes.post('/logout')
+@check_csrf_token
+@web_authenticated_workshop_guest_only
+async def workshop_post_logout(request, userdata):
+    app = request.app
+    user_id = userdata['id']
+    notebook = await get_user_notebook(app, user_id)
+    if notebook:
+        # Notebook is inaccessible since login creates a new random
+        # user id, so delete it.
+        dbpool = app['dbpool']
+        k8s = app['k8s_client']
+        await delete_worker_pod(k8s, notebook['pod_name'])
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'DELETE FROM notebooks WHERE user_id = %s;', user_id)
+
+    session = await aiohttp_session.get_session(request)
+    if 'workshop_session' in session:
+        del session['workshop_session']
+
+    return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+
+
+@workshop_routes.get('/notebook')
+@web_authenticated_workshop_guest_only
+async def workshop_get_notebook(request, userdata):
+    return await _get_notebook('workshop', request, userdata)
+
+
+@workshop_routes.post('/notebook')
+@check_csrf_token
+@web_authenticated_workshop_guest_only
+async def workshop_post_notebook(request, userdata):
+    return await _post_notebook('workshop', request, userdata)
+
+
+@workshop_routes.get('/auth/{requested_notebook_token}')
+@web_authenticated_workshop_guest_only
+async def workshop_get_auth(request, userdata):
+    return await _get_auth(request, userdata)
+
+
+@workshop_routes.post('/notebook/delete')
+@check_csrf_token
+@web_authenticated_workshop_guest_only
+async def workshop_delete_notebook(request, userdata):  # pylint: disable=unused-argument
+    return await _delete_notebook('workshop', request, userdata)
+
+
+@workshop_routes.get('/notebook/wait')
+@web_authenticated_workshop_guest_only
+async def workshop_wait_websocket(request, userdata):  # pylint: disable=unused-argument
+    return await _wait_websocket('workshop', request, userdata)
+
+
+@workshop_routes.get('/error')
+@web_maybe_authenticated_user
+async def workshop_get_error(request, userdata):
+    return await _get_error('workshop', request, userdata)
+
+
+async def on_startup(app):
+    if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+        await config.load_kube_config()
+    else:
+        config.load_incluster_config()
+    app['k8s_client'] = client.CoreV1Api()
+
+    app['dbpool'] = await create_database_pool()
+
+
+def run():
+    sass_compile('notebook')
+    root = os.path.dirname(os.path.abspath(__file__))
+
+    # notebook
+    notebook_app = web.Application()
+
+    notebook_app.on_startup.append(on_startup)
+
+    setup_aiohttp_jinja2(notebook_app, 'notebook')
+    setup_aiohttp_session(notebook_app)
+
+    routes.static('/static', f'{root}/static')
+    setup_common_static_routes(routes)
+    notebook_app.add_routes(routes)
+
+    # workshop
+    workshop_app = web.Application()
+
+    workshop_app.on_startup.append(on_startup)
+
+    setup_aiohttp_jinja2(workshop_app, 'notebook')
+    setup_aiohttp_session(workshop_app)
+
+    workshop_routes.static('/static', f'{root}/static')
+    setup_common_static_routes(workshop_routes)
+    workshop_app.add_routes(workshop_routes)
+
+    # root app
+    root_app = web.Application()
+    root_app.add_domain('notebook*',
+                        deploy_config.prefix_application(notebook_app, 'notebook'))
+    root_app.add_domain('workshop*',
+                        deploy_config.prefix_application(workshop_app, 'workshop'))
+    web.run_app(root_app,
+                access_log_format='%a %t "%r" %s %b "%{Host}i" "%{Referer}i" "%{User-Agent}i"',
+                host='0.0.0.0', port=5000)

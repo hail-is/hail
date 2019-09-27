@@ -7,6 +7,7 @@ import concurrent.futures
 import datetime
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import aiomysql
 import uvloop
 import humanize
@@ -82,17 +83,18 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         }
         wb_configs.append(wb_config)
 
-    token = new_csrf_token()
+    csrf_token = new_csrf_token()
 
-    context = base_context(deploy_config, userdata, 'ci')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'ci')
     context['watched_branches'] = wb_configs
     context['age'] = humanize.naturaldelta(datetime.datetime.now() - start_time)
-    context['token'] = token
+    context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template('index.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 
@@ -111,7 +113,8 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
 
-    config = base_context(deploy_config, userdata, 'ci')
+    session = await aiohttp_session.get_session(request)
+    config = base_context(deploy_config, session, userdata, 'ci')
     config['repo'] = wb.branch.repo.short_str()
     config['number'] = pr.number
     # FIXME
@@ -150,7 +153,8 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
     statuses = [await b.status() for b in batches]
-    context = base_context(deploy_config, userdata, 'ci')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'ci')
     context['batches'] = statuses
     return context
 
@@ -166,7 +170,8 @@ async def get_batch(request, userdata):  # pylint: disable=unused-argument
     for j in status['jobs']:
         j['duration'] = humanize.naturaldelta(Job.total_duration(j))
         j['exit_code'] = Job.exit_code(j)
-    context = base_context(deploy_config, userdata, 'ci')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'ci')
     context['batch'] = status
     return context
 
@@ -179,7 +184,8 @@ async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
     job = await batch_client.get_job(batch_id, job_id)
-    context = base_context(deploy_config, userdata, 'ci')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'ci')
     context['batch_id'] = batch_id
     context['job_id'] = job_id
     context['job_log'] = await job.log()
@@ -194,7 +200,8 @@ async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argum
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
     job = await batch_client.get_job(batch_id, job_id)
-    context = base_context(deploy_config, userdata, 'ci')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'ci')
     context['batch_id'] = batch_id
     context['job_id'] = job_id
     context['job_pod_status'] = json.dumps(json.loads(await job.pod_status()),

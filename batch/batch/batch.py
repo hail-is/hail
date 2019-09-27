@@ -8,9 +8,10 @@ import json
 import uuid
 from shlex import quote as shq
 
-import aiohttp_jinja2
 import aiohttp
 from aiohttp import web
+import aiohttp_session
+import aiohttp_jinja2
 import cerberus
 import kubernetes as kube
 import requests
@@ -1138,7 +1139,8 @@ async def ui_batch(request, userdata):
     params = request.query
     limit = params.get('limit')
     offset = params.get('offset')
-    context = base_context(deploy_config, userdata, 'batch')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'batch')
     context['batch'] = await _get_batch(batch_id, user, limit=limit, offset=offset)
     return context
 
@@ -1163,14 +1165,15 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(params, user)
-    token = new_csrf_token()
-    context = base_context(deploy_config, userdata, 'batch')
+    csrf_token = new_csrf_token()
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'batch')
     context['batch_list'] = batches[::-1]
-    context['token'] = token
+    context['csrf_token'] = csrf_token
     response = aiohttp_jinja2.render_template('batches.html',
                                               request,
                                               context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
     return response
 
 
@@ -1179,7 +1182,8 @@ async def ui_batches(request, userdata):
 @aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'batch')
     batch_id = int(request.match_info['batch_id'])
     context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
@@ -1194,7 +1198,8 @@ async def ui_get_job_log(request, userdata):
 @aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch')
+    session = await aiohttp_session.get_session(request)
+    context = base_context(deploy_config, session, userdata, 'batch')
     batch_id = int(request.match_info['batch_id'])
     context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])

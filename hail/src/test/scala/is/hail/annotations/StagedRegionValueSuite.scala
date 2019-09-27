@@ -474,7 +474,7 @@ class StagedRegionValueSuite extends HailSuite {
         val copyOff = Region.scoped { srcRegion =>
           val src = ScalaToRegionValue(srcRegion, t, a)
 
-          val fb = EmitFunctionBuilder[Region, Long, Long]
+          val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
           fb.emit(
             StagedRegionValueBuilder.deepCopyFromOffset(
               EmitRegion.default(fb.apply_method),

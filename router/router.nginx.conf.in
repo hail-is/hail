@@ -84,17 +84,17 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://notebook/auth/$jupyter_auth_name;
+        proxy_pass http://notebook@notebook_base_path@/auth/$pod_uuid;
     }
 
-    location ~ /instance/([^/]+)/(.*) {
-        set $jupyter_auth_name $1;
+    location ~ @notebook_base_path@/instance/([^/]+)/(.*) {
+        set $pod_uuid $1;
         auth_request /auth;
+        auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$1.default.svc.cluster.local$request_uri;
+        proxy_pass http://$auth_pod_ip$request_uri;
 
-        proxy_set_header Host $updated_host;
+	# don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -111,18 +111,13 @@ server {
     }
 
     location @pod_dead {
-        return 307 $updated_scheme://$updated_host/new;
-    }
-
-    location ~ /instance-ready/([^/]+)/ {
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$1.default.svc.cluster.local/instance/$1/;
+    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
-        proxy_pass http://notebook/;
+        proxy_pass http://notebook;
 
-        proxy_set_header Host $updated_host;
+	# don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -137,24 +132,24 @@ server {
 }
 
 server {
-    server_name notebook2.*;
+    server_name workshop.*;
 
     # needed to correctly handle error_page with internal handles
     recursive_error_pages on;
 
     location = /auth {
         internal;
-        proxy_pass http://notebook2@notebook2_base_path@/auth/$pod_uuid;
+        proxy_pass http://workshop@workshop_base_path@/auth/$pod_uuid;
     }
 
-    location ~ @notebook2_base_path@/instance/([^/]+)/(.*) {
+    location ~ @workshop_base_path@/instance/([^/]+)/(.*) {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-        proxy_set_header Host $updated_host;
+	# don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -171,22 +166,13 @@ server {
     }
 
     location @pod_dead {
-        set $args "?err=Notebook not found";
-        return 307 $updated_scheme://$updated_host/error$args;
-    }
-
-    location ~ @notebook2_base_path@/instance-ready/([^/]+) {
-        set $pod_uuid $1;
-        auth_request /auth;
-        auth_request_set $auth_pod_ip $upstream_http_pod_ip;
-
-        proxy_pass http://$auth_pod_ip@notebook2_base_path@/instance/$1;
+    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
-        proxy_pass http://notebook2;
+        proxy_pass http://workshop;
 
-        proxy_set_header Host $updated_host;
+	# don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;

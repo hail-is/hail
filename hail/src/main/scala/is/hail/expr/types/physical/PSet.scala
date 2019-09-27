@@ -17,6 +17,7 @@ final case class PSet(elementType: PType, override val required: Boolean = false
 
   override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
+  def _asIdent = s"set_of_${elementType.asIdent}"
   def _toPretty = s"Set[$elementType]"
 
   override def pyString(sb: StringBuilder): Unit = {

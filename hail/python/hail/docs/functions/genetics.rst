@@ -29,6 +29,7 @@ Genetics functions
     is_strand_ambiguous
     is_valid_contig
     is_valid_locus
+    contig_length
     allele_type
     pl_dosage
     gp_dosage
@@ -61,6 +62,7 @@ Genetics functions
 .. autofunction:: is_strand_ambiguous
 .. autofunction:: is_valid_contig
 .. autofunction:: is_valid_locus
+.. autofunction:: contig_length
 .. autofunction:: allele_type
 .. autofunction:: pl_dosage
 .. autofunction:: gp_dosage

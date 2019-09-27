@@ -8,6 +8,7 @@ case object PVoid extends PType {
 
   override val required = true
 
+  def _asIdent = "void"
   override def _toPretty = "Void"
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = null

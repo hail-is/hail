@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.rvd.RVDContext
@@ -17,19 +18,19 @@ trait CodecSpec extends Spec {
 }
 
 trait CodecSpec2 extends Spec {
-  def encodedType: Type
+  def encodedType: EType
+  def encodedVirtualType: Type
 
   type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
 
-  def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
-  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
+  def buildEncoder(t: PType): (OutputStream) => Encoder
 
   def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder)
 
   def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
-    using(buildEncoder(t, t)(baos))(_.writeRegionValue(region, offset))
+    using(buildEncoder(t)(baos))(_.writeRegionValue(region, offset))
     baos.toByteArray
   }
 

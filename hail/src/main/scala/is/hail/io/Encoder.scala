@@ -17,7 +17,7 @@ trait Encoder extends Closeable {
   def indexOffset(): Long
 }
 
-final class CompiledEncoder(out: OutputBuffer, f: () => AsmFunction3[Region, Long, OutputBuffer, Unit]) extends Encoder {
+final class CompiledEncoder(out: OutputBuffer, f: () => AsmFunction2[Long, OutputBuffer, Unit]) extends Encoder {
   def flush() {
     out.flush()
   }
@@ -27,7 +27,7 @@ final class CompiledEncoder(out: OutputBuffer, f: () => AsmFunction3[Region, Lon
   }
 
   def writeRegionValue(region: Region, offset: Long) {
-    f()(region, offset, out)
+    f()(offset, out)
   }
 
   def writeByte(b: Byte) {
