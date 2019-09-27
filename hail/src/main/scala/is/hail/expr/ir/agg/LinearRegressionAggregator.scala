@@ -101,16 +101,20 @@ object LinearRegressionAggregator extends StagedAggregator {
     val i = mb.newLocal[Int]
     val sptr = mb.newLocal[Long]
     val optr = mb.newLocal[Long]
-    val xty = stateType.loadField(state.off, 0)
-    val xtx = stateType.loadField(state.off, 1)
-    val oxty = stateType.loadField(other.off, 0)
-    val oxtx = stateType.loadField(other.off, 1)
+    val xty = mb.newLocal[Long]
+    val xtx = mb.newLocal[Long]
+    val oxty = mb.newLocal[Long]
+    val oxtx = mb.newLocal[Long]
 
     Code(
       n := vector.loadLength(xty),
       i := 0,
       sptr := vector.firstElementOffset(xty, n),
       optr := vector.firstElementOffset(oxty, n),
+      xty := stateType.loadField(state.off, 0),
+      xtx := stateType.loadField(state.off, 1),
+      oxty := stateType.loadField(other.off, 0),
+      oxtx := stateType.loadField(other.off, 1),
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,

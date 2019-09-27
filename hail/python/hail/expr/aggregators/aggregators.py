@@ -1512,8 +1512,8 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
         y = hl.sqrt(weight) * y
         x = [hl.sqrt(weight) * xi for xi in x]
 
+    k = len(x)
     x = hl.array(x)
-    k = x.length
 
     res_type = hl.tstruct(xty=hl.tarray(hl.tfloat64),
                           beta=hl.tarray(hl.tfloat64),
