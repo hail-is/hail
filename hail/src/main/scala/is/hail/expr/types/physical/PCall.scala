@@ -13,7 +13,7 @@ case object PCallRequired extends PCall(true)
 class PCall(override val required: Boolean) extends ComplexPType {
   lazy val virtualType: TCall = TCall(required)
 
-  def asIdent = "call"
+  def _asIdent = "call"
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {

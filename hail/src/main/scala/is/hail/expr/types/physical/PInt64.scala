@@ -16,7 +16,7 @@ case object PInt64Required extends PInt64(true)
 class PInt64(override val required: Boolean) extends PIntegral {
   lazy val virtualType: TInt64 = TInt64(required)
 
-  def asIdent = "int64"
+  def _asIdent = "int64"
   def _toPretty = "Int64"
 
   override def pyString(sb: StringBuilder): Unit = {

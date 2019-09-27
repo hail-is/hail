@@ -445,10 +445,7 @@ class EmitFunctionBuilder[F >: Null](
   def getOrDefineMethod(prefix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
     (f: EmitMethodBuilder => Unit): EmitMethodBuilder = {
     methodMemo.get(key) match {
-      case Some(mb) =>
-        assert(mb.parameterTypeInfo.sameElements(argsInfo))
-        assert(mb.returnTypeInfo == returnInfo)
-        mb
+      case Some(mb) => mb
       case None =>
         val mb = newMethod(prefix, argsInfo, returnInfo)
         f(mb)

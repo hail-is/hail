@@ -208,7 +208,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       Code._empty)
   }
 
-  def asIdent: String = {
+  def _asIdent: String = {
     val sb = new StringBuilder
     sb.append("struct_of_")
     types.foreachBetween { ty =>
