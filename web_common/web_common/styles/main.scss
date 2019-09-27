@@ -107,7 +107,7 @@ a {
     }
 }
 
-.header-dropdown-item {
+.header-dropdown-link {
     position: relative;
     padding: 8px;
     margin: 6px 6px 7px 6px;
@@ -119,6 +119,11 @@ a {
     border-color: white;
     border-width: 1px 1px 0 1px;
     z-index: 999; /* above header-dropdown-menu */
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
 }
 
 .header-dropdown-menu {
