@@ -1489,10 +1489,10 @@ private class Emit(
           shapet.setup,
           datat.setup,
           rowMajort.setup,
-          shapeAddress := shapet.value[Long],
           shapet.m.mux(
             Code._fatal("Missing shape"),
             Code(
+              shapeAddress := shapet.value[Long],
               shapeSrvb.start(),
               Code.foreach(0 until nDims) { index =>
                 shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
