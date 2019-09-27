@@ -143,7 +143,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     }
   }
 
-  def asIdent = s"array_of_${elementType.asIdent}"
+  def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

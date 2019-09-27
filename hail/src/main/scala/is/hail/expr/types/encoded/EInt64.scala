@@ -32,7 +32,7 @@ class EInt64(override val required: Boolean) extends EType {
 
   def _decodedPType(requestedType: Type): PType = PInt64(required)
 
-  def asIdent = "int64"
+  def _asIdent = "int64"
   def _toPretty = "Int64"
 }
 

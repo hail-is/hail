@@ -11,7 +11,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
   assert(elementType.required, "elementType must be required")
 
-  def asIdent: String = s"ndarray_of_${elementType.asIdent}"
+  def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
   override def _toPretty = s"NDArray[$elementType,$nDims]"
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException

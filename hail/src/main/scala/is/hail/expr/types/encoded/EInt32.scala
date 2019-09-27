@@ -35,7 +35,7 @@ class EInt32(override val required: Boolean) extends EType {
     case _ => PInt32(required)
   }
 
-  def asIdent = "int32"
+  def _asIdent = "int32"
   def _toPretty = "Int32"
 }
 

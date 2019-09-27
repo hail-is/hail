@@ -29,7 +29,7 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
 
-  def asIdent = "locus"
+  def _asIdent = "locus"
   def _toPretty = s"Locus($rg)"
 
   override def pyString(sb: StringBuilder): Unit = {

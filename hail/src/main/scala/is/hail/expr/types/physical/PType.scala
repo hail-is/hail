@@ -183,7 +183,9 @@ abstract class PType extends BaseType with Serializable with Requiredness {
       (signature, (a, toIns) => toIns)
   }
 
-  def asIdent: String
+  def asIdent: String = (if (required) "r_" else "o_") + _asIdent
+
+  def _asIdent: String
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)

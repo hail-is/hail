@@ -54,7 +54,7 @@ class EBinary(override val required: Boolean) extends EType {
     case t: TString => PString(required)
   }
 
-  def asIdent = "binary"
+  def _asIdent = "binary"
   def _toPretty = "Binary"
 }
 

@@ -72,7 +72,7 @@ abstract class PBaseStruct extends PType {
   }
 
   def identBase: String
-  def asIdent: String = {
+  def _asIdent: String = {
     val sb = new StringBuilder
     sb.append(identBase)
     sb.append("_of_")
