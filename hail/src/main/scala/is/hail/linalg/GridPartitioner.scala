@@ -36,11 +36,11 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
     throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${maybeBlocks.toIndexedSeq}")
 
-  val blockToPartitonMap = maybeBlocks.map(_.zipWithIndex.toMap.withDefaultValue(-1))
+  val blockToPartitionMap = maybeBlocks.map(_.zipWithIndex.toMap.withDefaultValue(-1))
 
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
-  
+
   def blockRowNRows(i: Int): Int = if (i < nBlockRows - 1) blockSize else lastBlockRowNRows
   def blockColNCols(j: Int): Int = if (j < nBlockCols - 1) blockSize else lastBlockColNCols
 
@@ -48,7 +48,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
   def blockBlockCol(bi: Int): Int = bi / nBlockRows
 
   def blockDims(bi: Int): (Int, Int) = (blockRowNRows(blockBlockRow(bi)), blockColNCols(blockBlockCol(bi)))
-  
+
   def blockCoordinates(bi: Int): (Int, Int) = (blockBlockRow(bi), blockBlockCol(bi))
 
   def coordinatesBlock(i: Int, j: Int): Int = {
@@ -56,7 +56,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     require(0 <= j && j < nBlockCols, s"Block column $j out of range [0, $nBlockCols).")
     i + j * nBlockRows
   }
-  
+
   def intersect(that: GridPartitioner): GridPartitioner = {
     copy(maybeBlocks = (maybeBlocks, that.maybeBlocks) match {
       case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
@@ -65,7 +65,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       case (None, None) => None
     })
   }
-  
+
   def union(that: GridPartitioner): GridPartitioner = {
     copy(maybeBlocks = (maybeBlocks, that.maybeBlocks) match {
       case (Some(bis), Some(bis2)) =>
@@ -86,7 +86,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       assert(maxNBlocks < Int.MaxValue)
       maxNBlocks.toInt
   }
-  
+
   def partitionToBlock(pi: Int): Int = maybeBlocks match {
     case Some(bis) =>
       assert(pi >= 0 && pi < bis.length)
@@ -95,8 +95,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       assert(pi >= 0 && pi < numPartitions)
       pi
   }
-  
-  def blockToPartition(blockId: Int): Int = blockToPartitonMap match {
+
+  def blockToPartition(blockId: Int): Int = blockToPartitionMap match {
     case Some(bpMap) => bpMap(blockId)
     case None =>  blockId
   }
