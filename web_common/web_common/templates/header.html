@@ -3,9 +3,20 @@
     <b>/</b>
   </a>
 
-  <a class="header-link" href="{{ notebook_base_url }}/notebook">
-    Notebook
-  </a>
+  {% if userdata['developer'] == 1 %}
+    <div class="header-dropdown">
+      <a class="header-dropdown-item" href="{{ notebook_base_url }}/notebook">
+	Notebook
+      </a>
+      <div class="header-dropdown-menu">
+	<a class="header-dropdown-menu-item" href="{{ notebook_base_url }}/workshops">Workshops</a>
+      </div>
+    </div>
+  {% else %}
+    <a class="header-link" href="{{ notebook_base_url }}/notebook">
+      Notebook
+    </a>
+  {% endif %}
 
   <a class="header-link" href="{{ batch_base_url }}">
     Batch

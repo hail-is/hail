@@ -91,6 +91,59 @@ a {
     padding: 15px 15px;
 }
 
+.header-dropdown {
+    display: block;
+    &:active,
+    &:hover {
+	&.header-dropdown-item {
+            text-decoration: none;
+            color: $devil-gray;
+	    border-color: black;
+	}
+
+	&.header-dropdown-menu {
+	    display: block;
+	}
+    }
+}
+
+.header-dropdown-item {
+    position: relative;
+    padding: 8px;
+    margin: 6px 6px 7px 6px;
+    color: $black;
+    white-space: nowrap;
+    background-color: white;
+    border-radius: 3px 3px 0 0;
+    border-style: solid;
+    border-color: white;
+    border-width: 1px 1px 0 1px;
+    z-index: 999; /* above header-dropdown-menu */
+}
+
+.header-dropdown-menu {
+    border-radius: 0 3px 3px 3px;
+    padding: 4px;
+    position: absolute;
+    display: none;
+    border: 1px solid black;
+    /* -1.1px came from experimentation, I don't know why the extra 0.1px
+       is needed. */
+    transform: translate(0px, -1.1px);
+    z-index: 1;  /* below header-dropdown-item */
+}
+
+.header-dropdown-menu-link {
+    padding: 4px 4px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
 #main {
     display: flex;
     flex-direction: column;
