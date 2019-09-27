@@ -318,14 +318,17 @@ object IRParser {
     i -> t
   }
 
-  def type_field(env: TypeParserEnvironment)(it: TokenIterator): (String, Type) = {
+  def struct_field[T](f: TokenIterator => T)(it: TokenIterator): (String, T) = {
     val name = identifier(it)
     punctuation(it, ":")
-    val typ = type_expr(env)(it)
+    val typ = f(it)
     while (it.hasNext && it.head == PunctuationToken("@")) {
       decorator(it)
     }
     (name, typ)
+  }
+  def type_field(env: TypeParserEnvironment)(it: TokenIterator): (String, Type) = {
+    struct_field(type_expr(env))(it)
   }
 
   def type_exprs(env: TypeParserEnvironment)(it: TokenIterator): Array[Type] = {
