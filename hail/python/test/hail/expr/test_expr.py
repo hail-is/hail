@@ -2507,6 +2507,11 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(hl.is_valid_locus('1', 249250622, 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_locus('chr1', 2645, 'GRCh37')))
 
+        assert hl.eval(hl.contig_length('5', 'GRCh37') == 180915260)
+        with self.assertRaises(hl.utils.FatalError):
+            hl.eval(hl.contig_length('chr5', 'GRCh37'))
+
+
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))

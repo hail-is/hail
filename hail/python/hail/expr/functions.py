@@ -4460,6 +4460,29 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     return _func("isValidContig({})".format(reference_genome.name), tbool, contig)
 
 @typecheck(contig=expr_str,
+           reference_genome=reference_genome_type)
+def contig_length(contig, reference_genome='default') -> Int32Expression:
+    """Returns the length of `contig` in `reference_genome`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.contig_length('5', reference_genome='GRCh37'))
+    180915260
+
+    Parameters
+    ----------
+    contig : :class:`.Expression` of type :py:data:`.tstr`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("contigLength({})".format(reference_genome.name), tint32, contig)
+
+
+@typecheck(contig=expr_str,
            position=expr_int32,
            reference_genome=reference_genome_type)
 def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpression:
