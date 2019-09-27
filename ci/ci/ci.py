@@ -85,7 +85,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         'watched_branches': wb_configs,
         'age': humanize.naturaldelta(datetime.datetime.now() - start_time)
     }
-    return render_template('ci', request, userdata, 'index.html', page_context)
+    return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
@@ -131,7 +131,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     batches = sorted(batches, key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.status() for b in batches]
 
-    return render_template('ci', request, userdata, 'pr.html', page_context)
+    return await render_template('ci', request, userdata, 'pr.html', page_context)
 
 
 @routes.get('/batches')
@@ -143,7 +143,7 @@ async def get_batches(request, userdata):
     page_context = {
         'batches': statuses
     }
-    return render_template('ci', request, userdata, 'batches.html', page_context)
+    return await render_template('ci', request, userdata, 'batches.html', page_context)
 
 
 @routes.get('/batches/{batch_id}')
@@ -159,7 +159,7 @@ async def get_batch(request, userdata):
     page_context = {
         'batch': status
     }
-    return render_template('ci', request, userdata, 'batch.html', page_context)
+    return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
@@ -174,7 +174,7 @@ async def get_job_log(request, userdata):
         'job_id': job_id,
         'job_log': await job.log()
     }
-    return render_template('ci', request, userdata, 'job_log.html', page_context)
+    return await render_template('ci', request, userdata, 'job_log.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -190,7 +190,7 @@ async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argum
         'job_pod_status': json.dumps(json.loads(await job.pod_status()),
                                      indent=2)
     }
-    return render_template('ci', request, userdata, 'job_pod_status.html', page_context)
+    return await render_template('ci', request, userdata, 'job_pod_status.html', page_context)
 
 
 @routes.post('/authorize_source_sha')

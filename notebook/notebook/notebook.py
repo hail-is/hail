@@ -256,7 +256,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @routes.get('/')
 @web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
-    return render_template('notebook', request, userdata, 'index.html', {})
+    return await render_template('notebook', request, userdata, 'index.html', {})
 
 
 async def _get_notebook(service, request, userdata):
@@ -264,7 +264,7 @@ async def _get_notebook(service, request, userdata):
         'notebook': await get_user_notebook(request.app, userdata['id']),
         'notebook_service': service
     }
-    return render_template(service, request, userdata, 'notebook.html', page_context)
+    return await render_template(service, request, userdata, 'notebook.html', page_context)
 
 
 async def _post_notebook(service, request, userdata):
@@ -454,7 +454,7 @@ async def get_error(request, userdata):
 @routes.get('/user')
 @web_authenticated_users_only()
 async def user_page(request, userdata):
-    return render_template('notebook', request, userdata, 'user.html', {})
+    return await render_template('notebook', request, userdata, 'user.html', {})
 
 
 @routes.get('/workshop-admin')
@@ -469,7 +469,7 @@ async def workshop_admin(request, userdata):
     page_context = {
         'workshops': workshops
     }
-    return render_template('notebook', request, userdata, 'workshop-admin.html', page_context)
+    return await render_template('notebook', request, userdata, 'workshop-admin.html', page_context)
 
 
 @routes.post('/workshop-admin-create')
@@ -581,7 +581,7 @@ async def workshop_get_index(request, userdata):
     page_context = {
         'notebook_service': 'workshop'
     }
-    return render_template('workshop', request, userdata, 'workshop/index.html', page_context)
+    return await render_template('workshop', request, userdata, 'workshop/index.html', page_context)
 
 
 @workshop_routes.get('/login')
@@ -593,7 +593,7 @@ async def workshop_get_login(request, userdata):
     page_context = {
         'notebook_service': 'workshop'
     }
-    return render_template('workshop', request, userdata, 'workshop/login.html', page_context)
+    return await render_template('workshop', request, userdata, 'workshop/login.html', page_context)
 
 
 @workshop_routes.post('/login')

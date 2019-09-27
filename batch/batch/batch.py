@@ -1139,7 +1139,7 @@ async def ui_batch(request, userdata):
     page_context = {
         'batch': await _get_batch(batch_id, user, limit=limit, offset=offset)
     }
-    return render_template('batch', request, userdata, 'batch.html', page_context)
+    return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
 @routes.post('/batches/{batch_id}/cancel')
@@ -1164,7 +1164,7 @@ async def ui_batches(request, userdata):
     page_context = {
         'batch_list': batches[::-1],
     }
-    return render_template('batch', request, userdata, 'batches.html', page_context)
+    return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
@@ -1179,7 +1179,7 @@ async def ui_get_job_log(request, userdata):
         'job_id': job_id,
         'job_log': await _get_job_log(batch_id, job_id, user)
     }
-    return render_template('batch', request, userdata, 'job_log.html', page_context)
+    return await render_template('batch', request, userdata, 'job_log.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -1195,7 +1195,7 @@ async def ui_get_pod_status(request, userdata):
         'pod_status': json.dumps(
             json.loads(await _get_pod_status(batch_id, job_id, user)), indent=2)
     }
-    return render_template('batch', request, userdata, 'pod_status.html', page_context)
+    return await render_template('batch', request, userdata, 'pod_status.html', page_context)
 
 
 @routes.get('')

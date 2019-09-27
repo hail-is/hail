@@ -54,7 +54,7 @@ async def index(request, userdata):
         'component_user': component_random_user,
         'updated': updated
     }
-    return render_template('scorecard', request, userdata, 'index.html', page_context)
+    return await render_template('scorecard', request, userdata, 'index.html', page_context)
 
 
 @routes.get('/users/{user}')
@@ -67,7 +67,7 @@ async def html_get_user(request, userdata):
         'user_data': user_data,
         'updated': updated,
     }
-    return render_template('scorecard', request, userdata, 'user.html', page_context)
+    return await render_template('scorecard', request, userdata, 'user.html', page_context)
 
 
 def get_users():

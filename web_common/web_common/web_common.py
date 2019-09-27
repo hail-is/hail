@@ -69,7 +69,7 @@ def base_context(session, userdata, service):
     return context
 
 
-def render_template(service, request, userdata, file, page_context):
+async def render_template(service, request, userdata, file, page_context):
     if '_csrf' in request.cookies:
         csrf_token = request.cookies['_csrf']
     else:
