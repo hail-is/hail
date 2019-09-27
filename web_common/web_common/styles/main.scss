@@ -95,13 +95,13 @@ a {
     display: block;
     &:active,
     &:hover {
-	&.header-dropdown-item {
+	.header-dropdown-item {
             text-decoration: none;
             color: $devil-gray;
 	    border-color: black;
 	}
 
-	&.header-dropdown-menu {
+	.header-dropdown-menu {
 	    display: block;
 	}
     }
