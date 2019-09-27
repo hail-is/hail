@@ -2,6 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -14,18 +15,18 @@ case object EFloat64Required extends EFloat64(true)
 class EFloat64(override val required: Boolean) extends EType {
   lazy val virtualType: TFloat64 = TFloat64(required)
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     out.writeDouble(coerce[Double](v))
   }
 
   def _buildDecoder(
     pt: PType,
-    mb: MethodBuilder,
+    mb: EmitMethodBuilder,
     region: Code[Region],
     in: Code[InputBuffer]
   ): Code[Double] = in.readDouble()
 
-  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = in.skipDouble()
+  def _buildSkip(mb: EmitMethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = in.skipDouble()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PFloat64]
 
