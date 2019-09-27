@@ -106,10 +106,14 @@ a {
     }
 }
 
+.header-dropdown-link-margin {
+    margin: 6px 6px 7px 6px;
+}
+
 .header-dropdown-link {
     position: relative;
+    display: inline-block;
     padding: 8px;
-    margin: 6px 6px 7px 6px;
     color: $black;
     white-space: nowrap;
     background-color: white;

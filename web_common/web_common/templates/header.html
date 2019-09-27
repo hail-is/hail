@@ -4,12 +4,14 @@
   </a>
 
   {% if userdata['developer'] == 1 %}
-    <div class="header-dropdown">
-      <a class="header-dropdown-link" href="{{ notebook_base_url }}/notebook">
-	Notebook
-      </a>
-      <div class="header-dropdown-menu">
-	<a class="header-dropdown-menu-link" href="{{ notebook_base_url }}/workshops">Workshops</a>
+    <div class="header-dropdown-link-margin">
+      <div class="header-dropdown">
+	<a class="header-dropdown-link" href="{{ notebook_base_url }}/notebook">
+	  Notebook
+	</a>
+	<div class="header-dropdown-menu">
+	  <a class="header-dropdown-menu-link" href="{{ notebook_base_url }}/workshop-admin">Workshop Admin</a>
+	</div>
       </div>
     </div>
   {% else %}
