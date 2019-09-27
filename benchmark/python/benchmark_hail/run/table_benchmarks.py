@@ -177,6 +177,14 @@ def table_aggregate_take_by_strings():
 
 
 @benchmark
+def table_aggregate_linreg():
+    ht = hl.read_table(resource('many_ints_table.ht'))
+    ht.aggregate(hl.tuple([hl.agg.linreg(ht[f'i{i%5}'],
+                                         [ht[f'i{(i+1)%5}'], ht[f'i{(i+2)%5}']])
+                           for i in range(25)]))
+
+
+@benchmark
 def table_take():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.take(100)
