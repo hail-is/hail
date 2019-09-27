@@ -9,8 +9,8 @@ import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, render_template
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes
+from gear import setup_aiohttp_session, web_maybe_authenticated_user
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 log = logging.getLogger('scorecard')
 

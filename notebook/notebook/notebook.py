@@ -14,9 +14,9 @@ import kubernetes_asyncio as kube
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
-    render_template, check_csrf_token
+    check_csrf_token
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, \
-    set_message
+    set_message, render_template
 
 log = logging.getLogger('notebook')
 

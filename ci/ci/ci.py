@@ -15,8 +15,8 @@ from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
-    render_template, check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes
+    check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch

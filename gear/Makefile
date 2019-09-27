@@ -1,4 +1,4 @@
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../web_common
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 .PHONY: check

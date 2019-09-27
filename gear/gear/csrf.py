@@ -2,28 +2,12 @@ import secrets
 import logging
 from functools import wraps
 from aiohttp import web
-import aiohttp_jinja2
 
 log = logging.getLogger('gear.auth')
 
 
 def new_csrf_token():
     return secrets.token_urlsafe(64)
-
-
-def render_template(service, request, userdata, file, page_context):
-    if '_csrf' in request.cookies:
-        csrf_token = request.cookies['_csrf']
-    else:
-        csrf_token = new_csrf_token()
-
-    context = base_context(deploy_config, session, userdata, service)
-    context.update(page_context)
-    context['csrf_token'] = csrf_token
-
-    response = aiohttp_jinja2.render_template(file, request, context)
-    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
-    return response
 
 
 def check_csrf_token(fun):

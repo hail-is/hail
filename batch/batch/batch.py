@@ -22,9 +22,9 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    render_template, check_csrf_token
+    check_csrf_token
 # sass_compile,
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
