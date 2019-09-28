@@ -1097,7 +1097,7 @@ class RVD(
 
     val partBc = partitioner.broadcast(sparkContext)
     val rightTyp = that.typ
-    val codecSpec = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
+    val codecSpec = TypedCodecSpec(that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(that.rowPType)
     val partitionKeyedIntervals = that.boundary.crdd
       .flatMap { rv =>
