@@ -13,7 +13,7 @@
 
     .ready-icon {
         font-size: $icon-size;
-        color: $blue;
+        color: green;
         margin-right: $margin;
     }
 
@@ -24,11 +24,6 @@
     .nb-state-container {
         flex-direction: column;
         display: flex;
-        color: $black;
-        &:hover {
-            text-decoration: none;
-            color: $devil-gray;
-        }
     }
 
     .nb-close {

@@ -179,7 +179,7 @@ def notebook_status_from_pod(pod):
         if pod.status and pod.status.conditions:
             for c in pod.status.conditions:
                 if c.type == 'Ready' and c.status == 'True':
-                    state = 'Running'
+                    state = 'Initializing'
     return {
         'pod_ip': pod_ip,
         'state': state
@@ -199,7 +199,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
 
     status = notebook_status_from_pod(pod)
 
-    if status['state'] == 'Running':
+    if status['state'] == 'Initializing':
         if notebook['state'] == 'Ready':
             status['state'] = 'Ready'
         else:
