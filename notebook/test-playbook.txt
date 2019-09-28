@@ -4,7 +4,7 @@
  - navigate to notebook.hail.is
  - you will be preompted to log in
  - create a notebook
- - open notebook
+ - open Jupyter
  - open a notebook
  - verify kernel works, evaluate e.g. 1 + 1
  - close notebook (x)
@@ -17,16 +17,17 @@ A.  Deleted pod
 
  - create a noteobok
  - delete the notebook pod
- - click on open notebook
- - it should open second tab, return to notebook.hail.is/notebook with
-   an error and create notebook button
+ - open Jupyter
+ - it should open a new tab
+ - it sholud return to notebook.hail.is/notebook with an error and the
+   create notebook button
 
 B.  Frozen pod
 
  - create notebook
  - log into the k8s node running the pod
  - docker pause <container id>
- - open the notebook
+ - open Jupyter
  - it should create a second tab
  - let nginx gateway time out
  - it should return to notebook.hail.is/noebook with an error, the
@@ -48,10 +49,10 @@ B.  Frozen pod
 
  - navigate to workshop.hail.is
  - welcome text should be shown
- - log in with invalid workshop AND password, you should see error
+ - log in with invalid workshop and an invalid password, it should
+   return you to the login page with an error message
  - log in with valid workshop and password
- - you should be redirected to workshop.hail.is/notebook with success message
+ - you should be redirected to workshop.hail.is/notebook with success message and the open notebook button
  - log out
 
  - in addition, 1. and 2. should be repeated in workshop.hail.is
-
