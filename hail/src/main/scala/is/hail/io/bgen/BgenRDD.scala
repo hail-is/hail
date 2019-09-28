@@ -5,7 +5,7 @@ import is.hail.asm4s.{AsmFunction4, AsmFunction5}
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
-import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
+import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
 import is.hail.expr.types.physical.{PArray, PCall, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TInt64Required, TLocus, TString, TStruct, Type}
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
@@ -40,7 +40,7 @@ object BgenSettings {
         EField("contig", EBinaryRequired, 0),
         EField("position", EInt32Required, 1)
       )), 0),
-      EField("alleles", EArray(EInt32Optional, required = false), 1)),
+      EField("alleles", EArray(EBinaryOptional, required = false), 1)),
       required = false
     )
 

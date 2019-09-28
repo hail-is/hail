@@ -2603,6 +2603,13 @@ class IRSuite extends HailSuite {
     blockMatrixIRs.map(ir => Array(ir))
   }
 
+  @Test def testIRConstruction(): Unit = {
+    matrixIRs()
+    tableIRs()
+    valueIRs()
+    blockMatrixIRs()
+  }
+
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val env = IRParserEnvironment(refMap = Map(
