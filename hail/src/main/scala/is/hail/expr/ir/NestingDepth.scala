@@ -43,7 +43,7 @@ object NestingDepth {
       memo.bind(ir, depth.eval)
       ir match {
         case ArrayMap(a, name, body) =>
-          computeIR(a, depth.incrementEval)
+          computeIR(a, depth)
           computeIR(body, depth.incrementEval)
         case ArrayFor(a, valueName, body) =>
           computeIR(a, depth)

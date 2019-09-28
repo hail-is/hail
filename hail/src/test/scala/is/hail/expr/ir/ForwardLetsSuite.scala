@@ -37,7 +37,6 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
 
-
   def aggMin(value: IR): ApplyAggOp = ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(value), AggSignature(Min(), FastSeq(), None, FastSeq(value.typ)))
 
   @DataProvider(name = "nonForwardingAggOps")
@@ -51,7 +50,6 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](AggLet("x", In(0, TInt32()) + In(0, TInt32()), ir, false)))
   }
 
-
   @DataProvider(name = "forwardingOps")
   def forwardingOps(): Array[Array[IR]] = {
     val x = Ref("x", TInt32())
@@ -60,7 +58,9 @@ class ForwardLetsSuite extends HailSuite {
       MakeTuple.ordered(FastSeq(I32(1), ApplyBinaryPrimOp(Add(), x, I32(2)))),
       If(True(), x, I32(0)),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
-      ApplyUnaryPrimOp(Negate(), x)
+      ApplyUnaryPrimOp(Negate(), x),
+      ArrayMap(ArrayRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32())),
+      ArrayFilter(ArrayRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32()) <= I32(0))
     ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
 
@@ -99,7 +99,6 @@ class ForwardLetsSuite extends HailSuite {
     val after = ForwardLets(ir)
     assert(after.isInstanceOf[AggLet])
   }
-
 
   @Test(dataProvider = "forwardingOps")
   def testForwardingOps(ir: IR): Unit = {
