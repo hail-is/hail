@@ -3064,7 +3064,7 @@ class LocusExpression(Expression):
 
         Examples
         --------
-        Create a window of one megabase around a locus:
+        Create a window of two megabases centered at a locus:
 
         >>> locus = hl.locus('16', 29_500_000)
         >>> window = locus.window(1_000_000, 1_000_000)
