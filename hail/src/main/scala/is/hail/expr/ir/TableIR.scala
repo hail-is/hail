@@ -19,7 +19,7 @@ import is.hail.utils._
 import is.hail.variant._
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import is.hail.io.CodecSpec2
+import is.hail.io.{BufferSpec, AbstractTypedCodecSpec, TypedCodecSpec}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{CustomSerializer, Formats, JObject, ShortTypeHints}
@@ -87,13 +87,13 @@ abstract sealed class TableIR extends BaseIR {
 object TableLiteral {
   def apply(value: TableValue, ctx: ExecuteContext): TableLiteral = {
     val globalPType = PType.canonical(value.typ.globalType)
-    val enc = RVD.wireCodec.makeCodecSpec2(globalPType)
+    val enc = TypedCodecSpec(globalPType, BufferSpec.wireSpec) // use wireSpec to save memory
     val encoder = enc.buildEncoder(globalPType)
     TableLiteral(value.typ, value.rvd, enc, RegionValue(ctx.r, value.globals.value.offset).toBytes(encoder))
   }
 }
 
-case class TableLiteral(typ: TableType, rvd: RVD, enc: CodecSpec2, encodedGlobals: Array[Byte]) extends TableIR {
+case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Byte]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
@@ -1572,7 +1572,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
     val act = implicitly[ClassTag[Annotation]]
 
-    val enc = RVD.wireCodec.makeCodecSpec2(prev.rvd.rowPType)
+    val enc = TypedCodecSpec(prev.rvd.rowPType, BufferSpec.wireSpec)
     val rdd = prev.rvd.keyedEncodedRDD(enc, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = enc.decodeRDD(rowType, rdd.map(_._2))
     TableValue(typ, prev.globals, RVD.unkeyed(rowPType, orderedCRDD))

@@ -1,18 +1,16 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDPartitioner
 import is.hail.table.Table
 import is.hail.utils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
-import is.hail.TestUtils._
-import is.hail.annotations.BroadcastRow
-import is.hail.io.CodecSpec
 
 class TableIRSuite extends HailSuite {
   def getKT: Table = {

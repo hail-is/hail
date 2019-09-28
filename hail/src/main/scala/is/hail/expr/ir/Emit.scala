@@ -9,7 +9,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1208,7 +1208,7 @@ private class Emit(
 
         val deserializers = sc.states.states
           .slice(start, start + aggSigs.length)
-          .map(sc => sc.deserialize(CodecSpec.defaultUncompressedBuffer))
+          .map(sc => sc.deserialize(BufferSpec.defaultUncompressed))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
           .map(i => sc.newState(i)): _*))
@@ -1522,12 +1522,12 @@ private class Emit(
         val gTypeTuple = PTuple(gType)
         val bTypeTuple = PTuple(bType)
 
-        val spec = CodecSpec.defaultUncompressed
+        val spec = BufferSpec.defaultUncompressed
         val parentFB = mb.fb
 
-        val cCodec = spec.makeCodecSpec2(ctxTypeTuple)
-        val gCodec = spec.makeCodecSpec2(gTypeTuple)
-        val bCodec = spec.makeCodecSpec2(bTypeTuple)
+        val cCodec = TypedCodecSpec(ctxTypeTuple, spec)
+        val gCodec = TypedCodecSpec(gTypeTuple, spec)
+        val bCodec = TypedCodecSpec(bTypeTuple, spec)
 
         val functionID: String = {
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]]("collect_distributed_array")

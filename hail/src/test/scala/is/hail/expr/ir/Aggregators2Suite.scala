@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
+import is.hail.io.BufferSpec
 import is.hail.utils._
 import is.hail.variant.{Call0, Call1, Call2}
 import is.hail.{ExecStrategy, HailSuite}
@@ -28,7 +28,7 @@ class Aggregators2Suite extends HailSuite {
     val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
     val argRef = Ref(genUID(), argT.virtualType)
-    val spec = CodecSpec.defaultUncompressedBuffer
+    val spec = BufferSpec.defaultUncompressed
 
     val (_, combAndDuplicate) = CompileWithAggregators2[Unit](
       Array.fill(nPartitions)(aggSig),

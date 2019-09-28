@@ -4,20 +4,17 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
-import is.hail.io.{CodecSpec, exportTypes}
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
-import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
 
 object TableValue {
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
@@ -69,13 +66,10 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val codecSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = AbstractRVDSpec.formats
-        val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-        codecSpecJSON.extract[CodecSpec]
-      } else
-        CodecSpec.default
+    if (codecSpecJSONStr != null)
+      warn("ignoring codecSpecJSONStr")
+
+    val bufferSpec: BufferSpec = BufferSpec.default
 
     if (overwrite)
       fs.delete(path, recursive = true)
@@ -86,8 +80,9 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, codecSpec, Array(globals.javaValue))
+    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, bufferSpec, Array(globals.javaValue))
 
+    val codecSpec = TypedCodecSpec(rvd.rowPType, bufferSpec)
     val partitionCounts = rvd.write(path + "/rows", "../index", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"

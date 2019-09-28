@@ -8,7 +8,7 @@ import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
-import is.hail.io.index.IndexReader
+import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
@@ -85,7 +85,7 @@ object BgenRDDPartitions extends Logging {
   }
 
   def apply(
-    sc: SparkContext,
+    rg: Option[ReferenceGenome],
     files: Seq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
@@ -121,6 +121,12 @@ object BgenRDDPartitions extends Logging {
 
     val nonEmptyFilesAfterFilter = sortedFiles.filter(_.nVariants > 0)
 
+    val indexReaderBuilder = {
+      val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
+      val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
+      val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
+      IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+    }
     if (nonEmptyFilesAfterFilter.isEmpty) {
       (Array.empty, Array.empty)
     } else {
@@ -129,7 +135,7 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        using(IndexReader(fs, file.indexPath)) { index =>
+        using(indexReaderBuilder(fs, file.indexPath, 8)) { index =>
           val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init

@@ -2,18 +2,17 @@ package is.hail.expr.ir
 
 import java.io._
 
+import is.hail.HailContext
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
-import is.hail.{HailContext, asm4s}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
-import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.{PTuple, PType}
-import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
-import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
+import is.hail.expr.types.virtual.{TTuple, Type}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -202,7 +201,7 @@ class EmitFunctionBuilder[F >: Null](
   private[this] def encodeLiterals(): Array[Byte] = {
     val literals = literalsMap.toArray
     val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
-    val spec = CodecSpec.defaultUncompressed.makeCodecSpec2(litType)
+    val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
     assert(litRType == litType)

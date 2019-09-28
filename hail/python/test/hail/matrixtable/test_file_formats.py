@@ -14,7 +14,7 @@ def create_backward_compatibility_files():
     all_values_table, all_values_matrix_table = create_all_values_datasets()
 
     file_version = Env.hail().variant.FileFormat.version().toString()
-    supported_codecs = scala_object(Env.hail().io, 'CodecSpec').supportedCodecSpecs()
+    supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
 
     table_dir = resource(os.path.join('backward_compatability', str(file_version), 'table'))
     if not os.path.exists(table_dir):

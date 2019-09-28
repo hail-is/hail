@@ -5,12 +5,14 @@ import is.hail.asm4s.{AsmFunction4, AsmFunction5}
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
+import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
 import is.hail.expr.types.physical.{PArray, PCall, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
-import is.hail.expr.types.virtual.{TArray, TStruct, Type}
-import is.hail.io.HadoopFSDataBinaryReader
+import is.hail.expr.types.virtual.{Field, TArray, TInt64Required, TLocus, TString, TStruct, Type}
+import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
 import is.hail.sparkextras._
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
@@ -19,6 +21,71 @@ import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContex
 
 import scala.language.reflectiveCalls
 
+object BgenSettings {
+
+  def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
+    "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation(false)),
+    "alleles" -> TArray(TString()))
+  val indexAnnotationType: Type = +TStruct()
+
+  def indexCodecSpecs(rg: Option[ReferenceGenome]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
+    val bufferSpec = LEB128BufferSpec(
+      BlockingBufferSpec(32 * 1024,
+        LZ4BlockBufferSpec(32 * 1024,
+          new StreamBlockBufferSpec)))
+
+    val keyVType = indexKeyType(rg)
+    val keyEType = EBaseStruct(FastIndexedSeq(
+      EField("locus", EBaseStruct(FastIndexedSeq(
+        EField("contig", EBinaryRequired, 0),
+        EField("position", EInt32Required, 1)
+      )), 0),
+      EField("alleles", EArray(EInt32Optional, required = false), 1)),
+      required = false
+    )
+
+    val annotationVType = +TStruct()
+    val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
+
+    val leafEType = EBaseStruct(FastIndexedSeq(
+      EField("first_idx", EInt64Required, 0),
+      EField("keys", EArray(EBaseStruct(FastIndexedSeq(
+        EField("key", keyEType, 0),
+        EField("offset", EInt64Required, 1),
+        EField("annotation", annotationEType, 2)
+      ), required = true), required = true), 1)
+    ))
+    val leafVType = TStruct(FastIndexedSeq(
+      Field("first_idx", TInt64Required, 0),
+      Field("keys", TArray(TStruct(FastIndexedSeq(
+        Field("key", keyVType, 0),
+        Field("offset", TInt64Required, 1),
+        Field("annotation", annotationVType, 2)
+      ), required = true), required = true), 1)))
+
+    val internalNodeEType = EBaseStruct(FastIndexedSeq(
+      EField("children", EArray(EBaseStruct(FastIndexedSeq(
+        EField("index_file_offset", EInt64Required, 0),
+        EField("first_idx", EInt64Required, 1),
+        EField("first_key", keyEType, 2),
+        EField("first_record_offset", EInt64Required, 3),
+        EField("first_annotation", annotationEType, 4)
+      ), required = true), required = true), 0)
+    ))
+
+    val internalNodeVType = TStruct(FastIndexedSeq(
+      Field("children", TArray(TStruct(FastIndexedSeq(
+        Field("index_file_offset", TInt64Required, 0),
+        Field("first_idx", TInt64Required, 1),
+        Field("first_key", keyVType, 2),
+        Field("first_record_offset", TInt64Required, 3),
+        Field("first_annotation", annotationVType, 4)
+      ), required = true), required = true), 0)
+    ))
+
+    (TypedCodecSpec(leafEType, leafVType, bufferSpec), (TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)))
+  }
+}
 
 case class BgenSettings(
   nSamples: Int,
@@ -82,7 +149,12 @@ private class BgenRDD(
   keys: RDD[Row]
 ) extends RDD[RVDContext => Iterator[RegionValue]](sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
   private[this] val f = CompileDecoder(settings)
-  private[this] val indexBuilder = IndexReaderBuilder(settings)
+  private[this] val indexBuilder = {
+    val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(settings.rg)
+    val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
+    IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(settings.rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+  }
 
   protected def getPartitions: Array[Partition] = parts
 
