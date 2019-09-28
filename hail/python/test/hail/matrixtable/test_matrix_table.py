@@ -784,20 +784,20 @@ class Tests(unittest.TestCase):
 
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
-        codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
+        supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
         ds = self.get_mt()
         temp = new_temp_file(suffix='hmt')
-        for codec in codecs:
+        for codec in supported_codecs:
             ds.write(temp, overwrite=True, _codec_spec=codec.toString())
             ds2 = hl.read_matrix_table(temp)
             self.assertTrue(ds._same(ds2))
 
     def test_codecs_table(self):
         from hail.utils.java import scala_object
-        codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
+        supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
         rt = self.get_mt().rows()
         temp = new_temp_file(suffix='ht')
-        for codec in codecs:
+        for codec in supported_codecs:
             rt.write(temp, overwrite=True, _codec_spec=codec.toString())
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))

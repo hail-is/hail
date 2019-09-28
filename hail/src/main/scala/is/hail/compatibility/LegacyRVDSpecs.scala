@@ -84,7 +84,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   override def read(hc: HailContext, path: String, requestedType: TStruct, newPartitioner: Option[RVDPartitioner], filterIntervals: Boolean): RVD = shim.read(hc, path, requestedType, newPartitioner, filterIntervals)
 
-  override def codecSpec2: AbstractTypedCodecSpec = shim.codecSpec2
+  override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
   override def partFiles: Array[String] = shim.partFiles
 
@@ -116,7 +116,7 @@ case class UnpartitionedRVDSpec private(
 
   def key: IndexedSeq[String] = FastIndexedSeq()
 
-  def codecSpec2: AbstractTypedCodecSpec = TypedCodecSpec(rowEType, rowVType, codecSpec.child)
+  def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType, rowVType, codecSpec.child)
 }
 
 case class OrderedRVDSpec private(
@@ -135,6 +135,6 @@ case class OrderedRVDSpec private(
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
-  override def codecSpec2: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child)
+  override def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child)
 }
 

@@ -138,7 +138,7 @@ object AbstractRVDSpec {
 
     val (t, crdd) = hc.readRowsSplit(
       pathLeft, pathRight, isl, isr,
-      specLeft.codecSpec2, specRight.codecSpec2, parts, tmpPartitioner.rangeBounds,
+      specLeft.typedCodecSpec, specRight.typedCodecSpec, parts, tmpPartitioner.rangeBounds,
       requestedTypeLeft, requestedTypeRight)
     assert(t.virtualType == requestedType)
     val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
@@ -162,7 +162,7 @@ abstract class AbstractRVDSpec {
 
   def partFiles: Array[String]
 
-  def codecSpec2: AbstractTypedCodecSpec
+  def typedCodecSpec: AbstractTypedCodecSpec
 
   def indexed: Boolean = false
 
@@ -176,14 +176,14 @@ abstract class AbstractRVDSpec {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
       val requestedKey = key.takeWhile(requestedType.hasField)
-      val (pType: PStruct, crdd) = hc.readRows(path, codecSpec2, partFiles, requestedType)
+      val (pType: PStruct, crdd) = hc.readRows(path, typedCodecSpec, partFiles, requestedType)
       val rvdType = RVDType(pType, requestedKey)
 
       RVD(rvdType, partitioner.coarsen(requestedKey.length), crdd)
   }
 
   def readLocalSingleRow(hc: HailContext, path: String, requestedType: TStruct, r: Region): (PStruct, Long) =
-    AbstractRVDSpec.readLocal(hc, path, codecSpec2, partFiles, requestedType, r)
+    AbstractRVDSpec.readLocal(hc, path, typedCodecSpec, partFiles, requestedType, r)
 
   def write(fs: FS, path: String) {
     fs.writeTextFile(path + "/metadata.json.gz") { out =>
@@ -299,7 +299,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   _indexSpec: AbstractIndexSpec,
   _partFiles: Array[String],
   _jRangeBounds: JValue) extends AbstractRVDSpec with Indexed {
-  def codecSpec2: AbstractTypedCodecSpec = _codecSpec
+  def typedCodecSpec: AbstractTypedCodecSpec = _codecSpec
 
   def indexSpec: AbstractIndexSpec = _indexSpec
 
@@ -329,7 +329,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
         assert(key.nonEmpty)
         val parts = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
 
-        val (decPType: PStruct, crdd) = hc.readIndexedRows(path, _indexSpec, codecSpec2, parts, tmpPartitioner.rangeBounds, requestedType)
+        val (decPType: PStruct, crdd) = hc.readIndexedRows(path, _indexSpec, typedCodecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
         val rvdType = RVDType(decPType, requestedKey)
         val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
 
@@ -359,5 +359,5 @@ case class OrderedRVDSpec2(_key: IndexedSeq[String],
 
   def key: IndexedSeq[String] = _key
 
-  def codecSpec2: AbstractTypedCodecSpec = _codecSpec
+  def typedCodecSpec: AbstractTypedCodecSpec = _codecSpec
 }
