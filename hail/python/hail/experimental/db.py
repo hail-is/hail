@@ -119,16 +119,19 @@ class NoLens:
         return NoLens(self.t.drop(*args, **kwargs))
 
     def select(self, *args, **kwargs):
-        return RowLens(self.t.select(*args, **kwargs))
+        return NoLens(self.t.select(*args, **kwargs))
 
     def explode(self, *args, **kwargs):
-        return RowLens(self.t.explode(*args, **kwargs))
+        return NoLens(self.t.explode(*args, **kwargs))
 
     def group_by(self, *args, **kwargs):
         return GroupedNoLens(self.t.group_by(*args, **kwargs))
 
     def __getitem__(self, *args, **kwargs):
         return self.t.__getitem__(*args, **kwargs)
+
+    def index(self, *args, **kwargs):
+        return self.t.index(*args, **kwargs)
 
     def unlens(self):
         return self.t
@@ -144,7 +147,7 @@ class GroupedNoLens:
 
 
 class DB:
-    _valid_key_properties = {'gene', 'unique'}
+    _valid_key_properties = {'gene', 'unique', 'FIXME: unique?'}
 
     def __init__(self, db_url='http://localhost:8000/annodb.json'):
         response = requests.get(db_url)
@@ -175,16 +178,15 @@ class DB:
 
     def _annotate_gene_name(self, rel):
         gene_field = Env.get_uid()
-        gencode = DB.__by_name['gencode'].index_compatible_version(rel.key)
+        gencode = self.__by_name['gencode'].index_compatible_version(rel.key)
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
     def annotate(self, rel, *names):
         """Add annotations from datasets specified by name.
 
-        The list of available datasets is at :meth:`.DB.available_databases`. An
-        interactive query builder is available in the Hail Annotation Database
-        documentation.
+        List datasets with at :meth:`.available_databases`. An interactive query
+        builder is available in the Hail Annotation Database documentation.
 
         Examples
         --------
