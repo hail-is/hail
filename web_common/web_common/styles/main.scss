@@ -131,7 +131,6 @@ a {
 
 .header-dropdown-menu {
     border-radius: 0 3px 3px 3px;
-    padding: 4px;
     position: absolute;
     display: none;
     background-color: white;
@@ -143,8 +142,8 @@ a {
 }
 
 .header-dropdown-menu-link {
-    display: inline-block;
-    padding: 4px 4px;
+    display: block;
+    padding: 8px;
     color: $black;
     white-space: nowrap;
     &:active,
