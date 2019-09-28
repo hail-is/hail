@@ -226,14 +226,14 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
-      sb.append("Struct{")
+      sb.append("EBaseStruct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
     } else {
       if (fields.length == 0)
-        sb.append("Struct { }")
+        sb.append("EBaseStruct { }")
       else {
-        sb.append("Struct {")
+        sb.append("EBaseStruct {")
         sb += '\n'
         fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
         sb += '\n'

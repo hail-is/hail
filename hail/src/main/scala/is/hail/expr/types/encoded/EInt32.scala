@@ -34,7 +34,7 @@ class EInt32(override val required: Boolean) extends EType {
   }
 
   def _asIdent = "int32"
-  def _toPretty = "Int32"
+  def _toPretty = "EInt32"
 }
 
 object EInt32 {

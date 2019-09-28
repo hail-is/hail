@@ -2,12 +2,22 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, IRParser, PunctuationToken, TokenIterator, typeToTypeInfo}
 import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
+
+
+class ETypeSerializer extends CustomSerializer[EType](format => ( {
+  case JString(s) => IRParser.parse[EType](s, EType.eTypeParser)
+}, {
+  case t: EType => JString(t.parsableString())
+}))
+
 
 // All _$methods here assume that their arguments are fundamental types
 abstract class EType extends BaseType with Serializable with Requiredness {
@@ -188,6 +198,34 @@ object EType {
       case t: PBinary => EBinary(t.required)
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
+    }
+  }
+
+  def eTypeParser(it: TokenIterator): EType = {
+    val req = it.head match {
+      case x: PunctuationToken if x.value == "+" =>
+        IRParser.consumeToken(it)
+        true
+      case _ => false
+    }
+
+    IRParser.identifier(it) match {
+      case "EBoolean" => EBoolean(req)
+      case "EInt32" => EInt32(req)
+      case "EInt64" => EInt64(req)
+      case "EFloat32" => EFloat32(req)
+      case "EFloat64" => EFloat64(req)
+      case "EBinary" => EBinary(req)
+      case "EArray" =>
+        IRParser.punctuation(it, "[")
+        val elementType = eTypeParser(it)
+        IRParser.punctuation(it, "]")
+        EArray(elementType, req)
+      case "EBaseStruct" =>
+        IRParser.punctuation(it, "{")
+        val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
+        IRParser.punctuation(it, "}")
+        EBaseStruct(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req)
     }
   }
 }
