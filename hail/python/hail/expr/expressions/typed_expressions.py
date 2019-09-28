@@ -1447,7 +1447,7 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __len__(self):
         return len(self._fields)
 
-    @typecheck_method(item=oneof(str, int))
+    @typecheck_method(item=oneof(str, int, slice))
     def __getitem__(self, item):
         """Access a field of the struct by name or index.
 
@@ -1472,8 +1472,15 @@ class StructExpression(Mapping[str, Expression], Expression):
         """
         if isinstance(item, str):
             return self._get_field(item)
-        else:
+        if isinstance(item, int):
             return self._get_field(self.dtype.fields[item])
+        else:
+            assert item.start is None or isinstance(item.start, int)
+            assert item.stop is None or isinstance(item.stop, int)
+            assert item.step is None or isinstance(item.step, int)
+            return hl.struct(**{
+                f: self[f]
+                for f in self.dtype.fields[item.start:item.stop:item.step]})
 
     def __iter__(self):
         return iter(self._fields)
@@ -1641,7 +1648,7 @@ class TupleExpression(Expression, Sequence):
     >>> tup = hl.literal(("a", 1, [1, 2, 3]))
     """
 
-    @typecheck_method(item=int)
+    @typecheck_method(item=oneof(int, slice))
     def __getitem__(self, item):
         """Index into the tuple.
 
@@ -1660,6 +1667,13 @@ class TupleExpression(Expression, Sequence):
         -------
         :class:`.Expression`
         """
+        if isinstance(item, slice):
+            assert item.start is None or isinstance(item.start, int)
+            assert item.stop is None or isinstance(item.stop, int)
+            assert item.step is None or isinstance(item.step, int)
+            return hl.tuple([
+                self[i]
+                for i in range(len(self))[item.start:item.stop:item.step]])
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
         return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)

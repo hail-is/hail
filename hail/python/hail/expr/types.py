@@ -1198,7 +1198,7 @@ class tunion(HailType, Mapping):
         return HailTypeContext.union(*self.values())
 
 
-class ttuple(HailType):
+class ttuple(HailType, Mapping):
     """Hail type for tuples.
 
     In Python, these are represented as :obj:`tuple`.
@@ -1241,6 +1241,13 @@ class ttuple(HailType):
             if len(annotation) != len(self.types):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
                                 (self, len(self.types), annotation))
+
+    @typecheck_method(item=int)
+    def __getitem__(self, item):
+        return self._types[item]
+
+    def __iter__(self):
+        return iter(range(len(self._types)))
 
     def __len__(self):
         return len(self._types)

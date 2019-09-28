@@ -1537,6 +1537,44 @@ class Table(ExprContainer):
                                       f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                                       f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
+    @staticmethod
+    def _maybe_truncate_for_flexindex(indexer, indexee_dtype):
+        if not len(indexee_dtype) > 0:
+            raise ValueError('Must have non-empty key to index')
+
+        if not isinstance(indexer.dtype, (hl.tstruct, hl.ttuple)):
+            indexer = hl.tuple([indexer])
+
+        matching_prefix = 0
+        for x, y in zip(indexer.dtype.values(), indexee_dtype.values()):
+            if x != y:
+                break
+            matching_prefix += 1
+        prefix_match = matching_prefix == len(indexee_dtype)
+        direct_match = prefix_match and \
+            len(indexer) == len(indexee_dtype)
+        prefix_interval_match = len(indexee_dtype) == 1 and \
+            isinstance(indexee_dtype[0], hl.tinterval) and \
+            indexer.dtype[0] == indexee_dtype[0].point_type
+        direct_interval_match = prefix_interval_match and \
+            len(indexer) == 1
+        if direct_match or direct_interval_match:
+            return indexer
+        if prefix_match:
+            return indexer[0:matching_prefix]
+        if prefix_interval_match:
+            return indexer[0]
+        return None
+
+
+    @typecheck_method(indexer=expr_any, all_matches=bool)
+    def _maybe_flexindex_table_by_expr(self, indexer, all_matches):
+        truncated_indexer = Table._maybe_truncate_for_flexindex(
+            indexer, self.key.dtype)
+        if truncated_indexer is not None:
+            return self.index(truncated_indexer, all_matches=all_matches)
+        return None
+
     def _index(self, *exprs, all_matches=False) -> 'Expression':
         exprs = tuple(exprs)
         if not len(exprs) > 0:
