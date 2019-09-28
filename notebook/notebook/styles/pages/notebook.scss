@@ -24,11 +24,27 @@
     .nb-state-container {
         flex-direction: column;
         display: flex;
+	/* override link styling */
+	color: black;
+	&:active,
+	&:hover {
+            text-decoration: underline;
+
+	    .nb-link {
+		text-decoration: underline;
+	    }
+	}
+    }
+
+    .nb-link {
+	color: #07c;
+	text-decoration: none;
     }
 
     .nb-close {
         margin-left: $margin * 4;
         font-size: $icon-size;
+	font-weight: bold;
         /* clear button styling */
         border: none;
         background: none;
