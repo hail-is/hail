@@ -13,8 +13,6 @@ case object EFloat64Optional extends EFloat64(false)
 case object EFloat64Required extends EFloat64(true)
 
 class EFloat64(override val required: Boolean) extends EType {
-  lazy val virtualType: TFloat64 = TFloat64(required)
-
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     out.writeDouble(coerce[Double](v))
   }

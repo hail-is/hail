@@ -13,8 +13,6 @@ case object EFloat32Optional extends EFloat32(false)
 case object EFloat32Required extends EFloat32(true)
 
 class EFloat32(override val required: Boolean) extends EType {
-  lazy val virtualType: TFloat32 = TFloat32(required)
-
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     out.writeFloat(coerce[Float](v))
   }

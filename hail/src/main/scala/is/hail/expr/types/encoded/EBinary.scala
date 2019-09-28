@@ -13,8 +13,6 @@ case object EBinaryOptional extends EBinary(false)
 case object EBinaryRequired extends EBinary(true)
 
 class EBinary(override val required: Boolean) extends EType {
-  lazy val virtualType: TBinary = TBinary(required)
-
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     val addr = coerce[Long](v)
     val len = mb.newLocal[Int]("len")

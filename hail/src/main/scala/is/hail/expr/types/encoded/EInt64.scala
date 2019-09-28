@@ -13,8 +13,6 @@ case object EInt64Optional extends EInt64(false)
 case object EInt64Required extends EInt64(true)
 
 class EInt64(override val required: Boolean) extends EType {
-  lazy val virtualType: TInt64 = TInt64(required)
-
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     out.writeLong(coerce[Long](v))
   }
