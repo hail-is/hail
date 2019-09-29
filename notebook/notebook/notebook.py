@@ -80,8 +80,7 @@ def web_authenticated_workshop_guest_only(redirect=True):
             if not userdata:
                 if redirect:
                     return web.HTTPFound(deploy_config.external_url('workshop', '/login'))
-                else:
-                    return web.HTTPUnauthorized()
+                raise web.HTTPUnauthorized()
             return await fun(request, userdata, *args, **kwargs)
         return wrapped
     return wrap
