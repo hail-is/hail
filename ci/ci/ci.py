@@ -7,6 +7,7 @@ import concurrent.futures
 import datetime
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import aiomysql
 import uvloop
 import humanize
@@ -207,6 +208,7 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
         async with conn.cursor() as cursor:
             await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
+    session = await aiohttp_session.get_session(request)
     set_message(session, 'SHA {sha} authorized.', 'info')
     raise web.HTTPFound('/')
 
