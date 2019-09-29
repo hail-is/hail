@@ -242,6 +242,12 @@ a {
 .dangerous {
     color: red;
     border-color: red;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: #f66;
+        border-color: #f66;
+    }
 }
 
 .attributes {

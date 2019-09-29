@@ -528,7 +528,7 @@ async def create_workshop(request, userdata):  # pylint: disable=unused-argument
                 else:
                     token = None
                 await cursor.execute('''
-INSERT INTO workshops (name, image, password, active, token) VALUES (%s, %s, %s, %s, %s);
+INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                      (name,
                                       post['image'],
@@ -569,7 +569,7 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
             else:
                 token = None
             n = await cursor.execute('''
-UPDATE workshops SET name = %s, image = %s, password = %s, active = %s, token = %s WHERE id = %s;
+UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s, active = %s, token = %s WHERE id = %s;
 ''',
                                      (name,
                                       post['image'],
