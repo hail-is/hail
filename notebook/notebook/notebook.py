@@ -434,7 +434,7 @@ async def _get_auth(request, userdata):
                 'pod_ip': f'{pod_ip}:{POD_PORT}'
             })
 
-    return web.HTTPUnauthorized()
+    return web.HTTPForbidden()
 
 
 @routes.get('/notebook')
