@@ -4,15 +4,15 @@
     {% else %}
         <div class="spinner"></div>
     {% endif %}
-    <a target="_blank" class="nb-state-container" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
-        <b>a_notebook</b>
-        <span class="small">
-        Status: <b>{{ notebook['state'] }}</b>
-        </span>
-        <span class="small">
-        Pod Name: <b>{{ notebook['pod_name'] }}</b>
-        </span>
-        <span class="small">Created on: {{ notebook['creation_date'] }}</span>
+    <a class="nb-state-container" target="_blank" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
+      {% if notebook['state'] == 'Ready' %}
+        <b class="nb-link">Open Notebook<i class="material-icons text-icon">open_in_new</i></b>
+      {% else %}
+	<b>Creating Notebook...</b>
+      {% endif %}
+      <div class="small">Status: <b>{{ notebook['state'] }}</b></div>
+      <div class="small">Pod Name: {{ notebook['pod_name'] }}</div>
+      <div class="small">Created on: {{ notebook['creation_date'] }}</div>
     </a>
     <form action="{{ base_path }}/notebook/delete" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
