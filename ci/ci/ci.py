@@ -16,7 +16,8 @@ from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
     check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
 
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
@@ -206,6 +207,7 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
         async with conn.cursor() as cursor:
             await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
+    set_message(session, 'SHA {sha} authorized.', 'info')
     raise web.HTTPFound('/')
 
 
