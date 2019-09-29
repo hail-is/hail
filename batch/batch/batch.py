@@ -10,6 +10,7 @@ from shlex import quote as shq
 
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import cerberus
 import kubernetes as kube
 import requests
