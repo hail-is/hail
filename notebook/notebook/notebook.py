@@ -204,6 +204,9 @@ def notebook_status_from_pod(pod):
 
 
 async def k8s_notebook_status_from_notebook(k8s, notebook):
+    if not notebook:
+        return None
+
     try:
         pod = await k8s.read_namespaced_pod(
             name=notebook['pod_name'],
