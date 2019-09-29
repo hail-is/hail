@@ -41,24 +41,32 @@ async def workshop_userdata_from_web_request(request):
     session = await aiohttp_session.get_session(request)
     if 'workshop_session' not in session:
         return None
-    userdata = session['workshop_session']
+    workshop_session = session['workshop_session']
 
     # verify this workshop is active
-    name = userdata['workshop_name']
-    token = userdata['workshop_token']
+    name = workshop_session['workshop_name']
+    token = workshop_session['workshop_token']
 
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(
-                'SELECT * FROM workshops WHERE name = %s AND token = %s',
+                'SELECT * FROM workshops WHERE name = %s AND token = %s AND active = 1;',
                 (name, token))
             workshops = await cursor.fetchall()
 
-    if len(workshops) != 1:
-        return None
+            if len(workshops) != 1:
+                set_message(
+                    session,
+                    'You are not logged into an active workshop.  Please log in to join the workshop.',
+                    'error')
+                return None
+            workshop = workshops[0]
 
-    return userdata
+    return {
+        'id': workshop_session['id'],
+        'workshop': workshop
+    }
 
 
 def web_maybe_authenticated_workshop_guest(fun):
@@ -88,72 +96,80 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         f'--NotebookApp.base_url={service_base_path}/instance/{notebook_token}/',
         "--ip", "0.0.0.0", "--no-browser", "--allow-root"
     ]
-    if 'workshop_image' in userdata:
-        image = userdata['workshop_image']
-    else:
-        image = DEFAULT_WORKER_IMAGE
-    volumes = [
-        kube.client.V1Volume(
-            name='deploy-config',
-            secret=kube.client.V1SecretVolumeSource(
-                secret_name='deploy-config'))
-    ]
-    volume_mounts = [
-        kube.client.V1VolumeMount(
-            mount_path='/deploy-config',
-            name='deploy-config',
-            read_only=True)
-    ]
 
-    user_id = userdata['id']
-    ksa_name = userdata.get('ksa_name')
+    if service == 'notebook':
+        service_account_name = userdata.get('ksa_name')
 
-    bucket = userdata.get('bucket_name')
-    if bucket is not None:
+        bucket = userdata['bucket_name']
         command.append(f'--GoogleStorageContentManager.default_path="{bucket}"')
 
-    gsa_key_secret_name = userdata.get('gsa_key_secret_name')
-    if gsa_key_secret_name is not None:
-        volumes.append(
+        image = DEFAULT_WORKER_IMAGE
+
+        env = [kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE',
+                                    value='/deploy-config/deploy-config.json')]
+
+        jwt_secret_name = userdata['jwt_secret_name']
+        gsa_key_secret_name = userdata['gsa_key_secret_name']
+        volumes = [
+            kube.client.V1Volume(
+                name='deploy-config',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name='deploy-config')),
             kube.client.V1Volume(
                 name='gsa-key',
                 secret=kube.client.V1SecretVolumeSource(
-                    secret_name=gsa_key_secret_name)))
-        volume_mounts.append(
+                    secret_name=gsa_key_secret_name)),
+            kube.client.V1Volume(
+                name='user-tokens',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=jwt_secret_name))
+        ]
+        volume_mounts = [
+            kube.client.V1VolumeMount(
+                mount_path='/deploy-config',
+                name='deploy-config',
+                read_only=True),
             kube.client.V1VolumeMount(
                 mount_path='/gsa-key',
                 name='gsa-key',
-                read_only=True))
-
-    jwt_secret_name = userdata.get('jwt_secret_name')
-    if jwt_secret_name is not None:
-        volumes.append(
-            kube.client.V1Volume(
-                name='user-tokens',
-                secret=kube.client.V1SecretVolumeSource(
-                    secret_name=jwt_secret_name)))
-        volume_mounts.append(
+                read_only=True),
             kube.client.V1VolumeMount(
                 mount_path='/user-tokens',
                 name='user-tokens',
-                read_only=True))
+                read_only=True)
+        ]
+        resources = kube.client.V1ResourceRequirements(
+            requests={'cpu': '1.601', 'memory': '1.601G'})
+    else:
+        workshop = userdata['workshop']
+
+        service_account_name = None
+        image = workshop['image']
+        env = []
+        volumes = []
+        volume_mounts = []
+
+        cpu = workshop['cpu']
+        memory = workshop['memory']
+        resources = kube.client.V1ResourceRequirements(
+            requests={'cpu': cpu, 'memory': memory},
+            limits={'cpu': cpu, 'memory': memory})
 
     pod_spec = kube.client.V1PodSpec(
-        service_account_name=ksa_name,
+        service_account_name=service_account_name,
         containers=[
             kube.client.V1Container(
                 command=command,
                 name='default',
                 image=image,
-                env=[kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE',
-                                          value='/deploy-config/deploy-config.json')],
+                env=env,
                 ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
-                resources=kube.client.V1ResourceRequirements(
-                    requests={'cpu': '1.601', 'memory': '1.601G'}),
+                resources=resources,
                 volume_mounts=volume_mounts)
         ],
         volumes=volumes)
 
+    user_id = userdata['id']
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook-worker-',
@@ -519,6 +535,8 @@ INSERT INTO workshops (name, image, password, active, token) VALUES (%s, %s, %s,
 ''',
                                      (name,
                                       post['image'],
+                                      post['cpu'],
+                                      post['memory'],
                                       post['password'],
                                       active,
                                       token))
@@ -558,6 +576,8 @@ UPDATE workshops SET name = %s, image = %s, password = %s, active = %s, token = 
 ''',
                                      (name,
                                       post['image'],
+                                      post['cpu'],
+                                      post['memory'],
                                       post['password'],
                                       active,
                                       token,
@@ -639,29 +659,27 @@ async def workshop_post_login(request):
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * FROM workshops WHERE name = %s', name)
+            await cursor.execute(
+                '''
+SELECT * FROM workshops
+WHERE name = %s AND password = %s AND active = 1;
+''',
+                name, password)
             workshops = await cursor.fetchall()
 
-    def forbidden():
-        set_message(
-            session,
-            'No such workshop.  Check the workshop name and password and try again.',
-            'error')
-        raise web.HTTPFound(location=deploy_config.external_url('workshop', ''))
-
-    if len(workshops) != 1:
-        forbidden()
-    workshop = workshops[0]
-
-    if workshop['password'] != password:
-        forbidden()
+            if len(workshops) != 1:
+                set_message(
+                    session,
+                    'No such workshop.  Check the workshop name and password and try again.',
+                    'error')
+                return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
+            workshop = workshops[0]
 
     # use hex since K8s labels can't start or end with _ or -
     user_id = secrets.token_hex(16)
     session['workshop_session'] = {
         'workshop_name': name,
         'workshop_token': workshop['token'],
-        'workshop_image': workshop['image'],
         'id': user_id
     }
 
