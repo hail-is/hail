@@ -63,6 +63,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     set
     empty_set
     dict
+    empty_dict
 
 .. rubric:: Collection functions
 
