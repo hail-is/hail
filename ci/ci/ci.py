@@ -40,6 +40,7 @@ routes = web.RouteTableDef()
 start_time = datetime.datetime.now()
 
 
+@routes.get('')
 @routes.get('/')
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
