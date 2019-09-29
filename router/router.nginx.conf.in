@@ -164,7 +164,7 @@ server {
     }
 
     location @error {
-    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
+    	return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
     }
 
     location / {
