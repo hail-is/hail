@@ -55,10 +55,7 @@ async def workshop_userdata_from_web_request(request):
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
-                set_message(
-                    session,
-                    'You are not logged into an active workshop.  Please log in to join the workshop.',
-                    'error')
+                del session['workshop_session']
                 return None
             workshop = workshops[0]
 
