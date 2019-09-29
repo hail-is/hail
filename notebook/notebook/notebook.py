@@ -201,18 +201,23 @@ def notebook_status_from_pod(pod):
     }
 
 
-async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook):
+async def k8s_notebook_status_from_notebook(k8s, notebook):
     try:
         pod = await k8s.read_namespaced_pod(
             name=notebook['pod_name'],
             namespace=NOTEBOOK_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        return notebook_status_from_pod(pod)
     except kube.client.rest.ApiException as e:
         if e.status == 404:
             return None
         raise
 
-    status = notebook_status_from_pod(pod)
+
+async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook):
+    status = await k8s_notebook_status_from_notebook(k8s, notebook)
+    if not status:
+        return None
 
     if status['state'] == 'Initializing':
         if notebook['state'] == 'Ready':
@@ -241,8 +246,25 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
     return status
 
 
-async def get_user_notebook(app, user_id):
-    dbpool = app['dbpool']
+async def update_notebook_return_changed(dbpool, user_id, notebook, new_status):
+    if not new_status:
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'DELETE FROM notebooks WHERE user_id = %s;',
+                    user_id)
+                return True
+    if new_status['state'] != notebook['state']:
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'UPDATE notebooks SET state = %s, pod_ip = %s WHERE user_id = %s;',
+                    (new_status['state'], new_status['pod_ip'], user_id))
+        return True
+    return False
+
+
+async def get_user_notebook(dbpool, user_id):
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('SELECT * FROM notebooks WHERE user_id = %s;', user_id)
@@ -276,8 +298,10 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def _get_notebook(service, request, userdata):
+    app = request.app
+    dbpool = app['dbpool']
     page_context = {
-        'notebook': await get_user_notebook(request.app, userdata['id']),
+        'notebook': await get_user_notebook(dbpool, userdata['id']),
         'notebook_service': service
     }
     return await render_template(service, request, userdata, 'notebook.html', page_context)
@@ -311,33 +335,30 @@ INSERT INTO notebooks (user_id, notebook_token, pod_name, state, pod_ip, jupyter
         location=deploy_config.external_url(service, '/notebook'))
 
 
-async def _delete_notebook_2(request, userdata):
+async def _delete_notebook(service, request, userdata):
     app = request.app
     dbpool = app['dbpool']
     k8s = app['k8s_client']
-
-    notebook = await get_user_notebook(app, userdata['id'])
+    user_id = userdata['id']
+    notebook = await get_user_notebook(dbpool, user_id)
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
         async with dbpool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    'DELETE FROM notebooks WHERE user_id = %s;', userdata['id'])
+                    'DELETE FROM notebooks WHERE user_id = %s;', user_id)
 
-
-async def _delete_notebook(service, request, userdata):
-    await _delete_notebook_2(request, userdata)
     return web.HTTPFound(location=deploy_config.external_url(service, '/notebook'))
 
 
 async def _wait_websocket(service, request, userdata):
     app = request.app
-    notebook = await get_user_notebook(app, userdata['id'])
+    k8s = app['k8s_client']
+    dbpool = app['dbpool']
+    user_id = userdata['id']
+    notebook = await get_user_notebook(dbpool, user_id)
     if not notebook:
         return web.HTTPNotFound()
-
-    k8s = request.app['k8s_client']
-    dbpool = request.app['dbpool']
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -358,26 +379,17 @@ async def _wait_websocket(service, request, userdata):
     ready = (notebook['state'] == 'Ready')
     count = 0
     while count < 10:
-        status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
-        if not status:
-            async with dbpool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        'DELETE FROM notebooks WHERE user_id = %s;',
-                        userdata['id'])
-            ready = False
-            break
-        if status['state'] != notebook['state']:
-            async with dbpool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        'UPDATE notebooks SET state = %s, pod_ip = %s WHERE user_id = %s;',
-                        (status['state'], status['pod_ip'], userdata['id']))
-            ready = (status['state'] == 'Ready')
-            break
-
+        try:
+            new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
+            changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
+            if changed:
+                break
+        except Exception:  # pylint: disable=broad-except
+            log.exception('while updating status in /wait')
         await asyncio.sleep(1)
         count += 1
+
+    ready = new_status and new_status['state'] == 'Ready'
 
     # 0/1 ready
     await ws.send_str(str(int(ready)))
@@ -389,7 +401,16 @@ async def _get_error(service, request, userdata):
     if not userdata:
         return web.HTTPFound(deploy_config.external_url(service, '/login'))
 
-    await _delete_notebook_2(request, userdata)
+    app = request.app
+    k8s = app['k8s_client']
+    dbpool = app['dbpool']
+    user_id = userdata['id']
+
+    # we just failed a check, so update status from k8s without probe,
+    # best we can do is 'Initializing'
+    notebook = await get_user_notebook(dbpool, user_id)
+    new_status = await k8s_notebook_status_from_notebook(k8s, notebook)
+    await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
 
     session = await aiohttp_session.get_session(request)
     set_message(session,
@@ -399,10 +420,11 @@ async def _get_error(service, request, userdata):
 
 
 async def _get_auth(request, userdata):
-    app = request.app
     requested_notebook_token = request.match_info['requested_notebook_token']
+    app = request.app
+    dbpool = app['dbpool']
 
-    notebook = await get_user_notebook(app, userdata['id'])
+    notebook = await get_user_notebook(dbpool, userdata['id'])
     if notebook and notebook['notebook_token'] == requested_notebook_token:
         pod_ip = notebook['pod_ip']
         if pod_ip:
@@ -662,13 +684,13 @@ WHERE name = %s AND password = %s AND active = 1;
 @web_authenticated_workshop_guest_only
 async def workshop_post_logout(request, userdata):
     app = request.app
+    dbpool = app['dbpool']
+    k8s = app['k8s_client']
     user_id = userdata['id']
-    notebook = await get_user_notebook(app, user_id)
+    notebook = await get_user_notebook(dbpool, user_id)
     if notebook:
         # Notebook is inaccessible since login creates a new random
         # user id, so delete it.
-        dbpool = app['dbpool']
-        k8s = app['k8s_client']
         await delete_worker_pod(k8s, notebook['pod_name'])
         async with dbpool.acquire() as conn:
             async with conn.cursor() as cursor:
