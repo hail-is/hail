@@ -652,7 +652,7 @@ async def workshop_post_login(request):
 SELECT * FROM workshops
 WHERE name = %s AND password = %s AND active = 1;
 ''',
-                name, password)
+                (name, password))
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
