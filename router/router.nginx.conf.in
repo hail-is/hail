@@ -106,11 +106,10 @@ server {
         proxy_connect_timeout 5s;
 
         proxy_intercept_errors on;
-        # 502: no service, 504: pod not responding
-        error_page 502 504 = @pod_dead;
+        error_page 401 403 502 504 = @error;
     }
 
-    location @pod_dead {
+    location @error {
     	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
@@ -161,11 +160,10 @@ server {
         proxy_connect_timeout 5s;
 
         proxy_intercept_errors on;
-        # 502: no service, 504: pod not responding
-        error_page 502 504 = @pod_dead;
+        error_page 401 403 502 504 = @error;
     }
 
-    location @pod_dead {
+    location @error {
     	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
