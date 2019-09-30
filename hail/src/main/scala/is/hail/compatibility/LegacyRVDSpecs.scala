@@ -89,6 +89,8 @@ trait ShimRVDSpec extends AbstractRVDSpec {
   override def partFiles: Array[String] = shim.partFiles
 
   override lazy val indexed: Boolean = shim.indexed
+
+  val attrs: Map[String, String] = shim.attrs
 }
 
 case class IndexedRVDSpec private(
@@ -102,7 +104,7 @@ case class IndexedRVDSpec private(
 
   lazy val shim = IndexedRVDSpec2(lRvdType.key,
     TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child),
-    indexSpec.toIndexSpec2, partFiles, jRangeBounds)
+    indexSpec.toIndexSpec2, partFiles, jRangeBounds, Map.empty[String, String])
 }
 
 case class UnpartitionedRVDSpec private(
@@ -117,6 +119,8 @@ case class UnpartitionedRVDSpec private(
   def key: IndexedSeq[String] = FastIndexedSeq()
 
   def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType, rowVType, codecSpec.child)
+
+  val attrs: Map[String, String] = Map.empty
 }
 
 case class OrderedRVDSpec private(
@@ -136,5 +140,7 @@ case class OrderedRVDSpec private(
   }
 
   override def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child)
+
+  val attrs: Map[String, String] = Map.empty
 }
 

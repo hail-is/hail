@@ -110,7 +110,6 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
       s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
       s"to $path")
-
   }
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {

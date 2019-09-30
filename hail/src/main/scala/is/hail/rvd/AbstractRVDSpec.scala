@@ -166,6 +166,8 @@ abstract class AbstractRVDSpec {
 
   def indexed: Boolean = false
 
+  def attrs: Map[String, String]
+
   def read(
     hc: HailContext,
     path: String,
@@ -254,7 +256,8 @@ object MakeRVDSpec {
     codecSpec: AbstractTypedCodecSpec,
     partFiles: Array[String],
     partitioner: RVDPartitioner,
-    indexSpec: AbstractIndexSpec = null
+    indexSpec: AbstractIndexSpec = null,
+    attrs: Map[String, String] = Map.empty
   ): AbstractRVDSpec = {
     val partJV = JSONAnnotationImpex.exportAnnotation(
       partitioner.rangeBounds.toFastSeq,
@@ -265,12 +268,14 @@ object MakeRVDSpec {
         codecSpec,
         ais,
         partFiles,
-        partJV)
+        partJV,
+        attrs)
       case None => OrderedRVDSpec2(
         key,
         codecSpec,
         partFiles,
-        partJV
+        partJV,
+        attrs
       )
     }
   }
@@ -281,7 +286,8 @@ object IndexedRVDSpec2 {
     codecSpec: AbstractTypedCodecSpec,
     indexSpec: AbstractIndexSpec,
     partFiles: Array[String],
-    partitioner: RVDPartitioner
+    partitioner: RVDPartitioner,
+    attrs: Map[String, String]
   ): AbstractRVDSpec = {
     IndexedRVDSpec2(
       key,
@@ -290,7 +296,8 @@ object IndexedRVDSpec2 {
       partFiles,
       JSONAnnotationImpex.exportAnnotation(
         partitioner.rangeBounds.toFastSeq,
-        partitioner.rangeBoundsType))
+        partitioner.rangeBoundsType),
+      attrs)
   }
 }
 
@@ -298,7 +305,8 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   _codecSpec: AbstractTypedCodecSpec,
   _indexSpec: AbstractIndexSpec,
   _partFiles: Array[String],
-  _jRangeBounds: JValue) extends AbstractRVDSpec with Indexed {
+  _jRangeBounds: JValue,
+  _attrs: Map[String, String]) extends AbstractRVDSpec with Indexed {
   def typedCodecSpec: AbstractTypedCodecSpec = _codecSpec
 
   def indexSpec: AbstractIndexSpec = _indexSpec
@@ -313,6 +321,8 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   def partFiles: Array[String] = _partFiles
 
   def key: IndexedSeq[String] = _key
+
+  val attrs: Map[String, String] = _attrs
 
   override def read(
     hc: HailContext,
@@ -347,7 +357,8 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
 case class OrderedRVDSpec2(_key: IndexedSeq[String],
   _codecSpec: AbstractTypedCodecSpec,
   _partFiles: Array[String],
-  _jRangeBounds: JValue) extends AbstractRVDSpec {
+  _jRangeBounds: JValue,
+  _attrs: Map[String, String]) extends AbstractRVDSpec {
   lazy val partitioner: RVDPartitioner = {
     val keyType = _codecSpec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
@@ -358,6 +369,8 @@ case class OrderedRVDSpec2(_key: IndexedSeq[String],
   def partFiles: Array[String] = _partFiles
 
   def key: IndexedSeq[String] = _key
+
+  val attrs: Map[String, String] = _attrs
 
   def typedCodecSpec: AbstractTypedCodecSpec = _codecSpec
 }

@@ -1157,14 +1157,6 @@ class RVD(
 
   private[rvd] def keyBy(key: Int = typ.key.length): KeyedRVD =
     new KeyedRVD(this, key)
-
-  private def rvdSpec(key: IndexedSeq[String], codecSpec: AbstractTypedCodecSpec, indexSpec: AbstractIndexSpec, partFiles: Array[String]): AbstractRVDSpec =
-    IndexedRVDSpec2(
-      key,
-      codecSpec,
-      indexSpec,
-      partFiles,
-      partitioner)
 }
 
 object RVD {
