@@ -52,7 +52,7 @@ class Tests(unittest.TestCase):
             f = os.path.join(table_dir, '{}.ht'.format(i))
             while os.path.exists(f):
                 ds = hl.read_table(f)
-                self.assertTrue(ds._same(all_values_table))
+                assert ds._same(all_values_table)
                 i += 1
                 f = os.path.join(table_dir, '{}.ht'.format(i))
                 n += 1
@@ -62,9 +62,9 @@ class Tests(unittest.TestCase):
             f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
             while os.path.exists(f):
                 ds = hl.read_matrix_table(f)
-                self.assertTrue(ds._same(all_values_matrix_table))
+                assert ds._same(all_values_matrix_table)
                 i += 1
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        self.assertEqual(n, 20)
+        assert n == 32
