@@ -484,6 +484,7 @@ steps:
      make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
      mkdir -p www/docs
+     rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
