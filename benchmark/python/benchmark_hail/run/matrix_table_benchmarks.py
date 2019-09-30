@@ -12,6 +12,12 @@ def matrix_table_decode_and_count():
 
 
 @benchmark
+def matrix_table_decode_and_count_just_gt():
+    mt = hl.read_matrix_table(resource('profile.mt')).select_entries('GT')
+    mt._force_count_rows()
+
+
+@benchmark
 def matrix_table_array_arithmetic():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt = mt.filter_rows(mt.alleles.length() == 2)
@@ -279,3 +285,36 @@ def export_range_matrix_table_col_p100():
     with NamedTemporaryFile() as f:
         mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
         mt.col.export(f.name)
+
+
+@benchmark
+def kyle_sex_specific_qc():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt = mt.annotate_cols(sex=hl.cond(hl.rand_bool(0.5), 'Male', 'Female'))
+    (num_males, num_females) = mt.aggregate_cols((hl.agg.count_where(mt.sex == 'Male'),
+                                                  hl.agg.count_where(mt.sex == 'Female')))
+    mt = mt.annotate_rows(
+        male_hets=hl.agg.count_where(mt.GT.is_het() & (mt.sex == 'Male')),
+        male_homvars=hl.agg.count_where(mt.GT.is_hom_var() & (mt.sex == 'Male')),
+        male_calls=hl.agg.count_where(hl.is_defined(mt.GT) & (mt.sex == 'Male')),
+        female_hets=hl.agg.count_where(mt.GT.is_het() & (mt.sex == 'Female')),
+        female_homvars=hl.agg.count_where(mt.GT.is_hom_var() & (mt.sex == 'Female')),
+        female_calls=hl.agg.count_where(hl.is_defined(mt.GT) & (mt.sex == 'Female'))
+    )
+
+    mt = mt.annotate_rows(
+        call_rate=(hl.case()
+                   .when(mt.locus.in_y_nonpar(), (mt.male_calls / num_males))
+                   .when(mt.locus.in_x_nonpar(), (mt.male_calls + 2 * mt.female_calls) / (num_males + 2 * num_females))
+                   .default((mt.male_calls + mt.female_calls) / (num_males + num_females))),
+        AC=(hl.case()
+            .when(mt.locus.in_y_nonpar(), mt.male_homvars)
+            .when(mt.locus.in_x_nonpar(), mt.male_homvars + mt.female_hets + 2 * mt.female_homvars)
+            .default(mt.male_hets + 2 * mt.male_homvars + mt.female_hets + 2 * mt.female_homvars)),
+        AN=(hl.case()
+            .when(mt.locus.in_y_nonpar(), mt.male_calls)
+            .when(mt.locus.in_x_nonpar(), mt.male_calls + 2 * mt.female_calls)
+            .default(2 * mt.male_calls + 2 * mt.female_calls))
+    )
+
+    mt.rows()._force_count()
