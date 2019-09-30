@@ -90,7 +90,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   override lazy val indexed: Boolean = shim.indexed
 
-  val attrs: Map[String, String] = shim.attrs
+  lazy val attrs: Map[String, String] = shim.attrs
 }
 
 case class IndexedRVDSpec private(
