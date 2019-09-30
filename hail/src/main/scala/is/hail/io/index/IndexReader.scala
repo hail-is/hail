@@ -19,26 +19,6 @@ import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
-//  def apply(fs: FS, path: String): (FS, String, Int) => IndexReader = {
-//    val (keyType, annotationType) = IndexReader.readTypes(fs, path)
-//    IndexReaderBuilder(keyType, annotationType)
-//  }
-
-//  def apply(keyType: Type, annotationType: Type): (FS, String, Int) => IndexReader = {
-//    val leafPType = LeafNodeBuilder.typ(keyType.physicalType, annotationType.physicalType)
-//    val intPType = InternalNodeBuilder.typ(keyType.physicalType, annotationType.physicalType)
-//    val leafCodec = legacyCodecSpec(leafPType)
-//    val intCodec = legacyCodecSpec(intPType)
-//
-//    val (leafRetPType, leafDec) = leafCodec.buildDecoder(leafPType.virtualType)
-//    assert(leafRetPType == leafPType)
-//
-//    val (intRetPType, intDec) = intCodec.buildDecoder(intPType.virtualType)
-//    assert(intRetPType == intPType)
-//
-//    withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
-//  }
-
   def fromSpec(spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {
     val (keyType, annotationType) = spec.types
     val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(spec.leafCodec.encodedVirtualType)
@@ -78,11 +58,6 @@ object IndexReader {
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
-
-//  def apply(fs: FS, path: String, cacheCapacity: Int = 8): IndexReader = {
-//    val builder = IndexReaderBuilder(fs, path)
-//    builder(fs, path, cacheCapacity)
-//  }
 }
 
 

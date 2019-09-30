@@ -15,6 +15,7 @@ import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSp
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
+import org.json4s.jackson.JsonMethods
 
 object TableValue {
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
@@ -66,10 +67,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val hc = HailContext.get
     val fs = hc.sFS
 
-    if (codecSpecJSONStr != null)
-      warn("ignoring codecSpecJSONStr")
-
-    val bufferSpec: BufferSpec = BufferSpec.default
+    val bufferSpec: BufferSpec = if (codecSpecJSONStr != null) {
+      implicit val formats = AbstractRVDSpec.formats
+      val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
+      codecSpecJSON.extract[BufferSpec]
+    } else BufferSpec.default
 
     if (overwrite)
       fs.delete(path, recursive = true)
