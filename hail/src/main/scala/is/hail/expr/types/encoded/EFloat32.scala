@@ -31,7 +31,7 @@ class EFloat32(override val required: Boolean) extends EType {
   def _decodedPType(requestedType: Type): PType = PFloat32(required)
 
   def _asIdent = "float32"
-  def _toPretty = "Float32"
+  def _toPretty = "EFloat32"
 }
 
 object EFloat32 {

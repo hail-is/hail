@@ -31,7 +31,7 @@ class EFloat64(override val required: Boolean) extends EType {
   def _decodedPType(requestedType: Type): PType = PFloat64(required)
 
   def _asIdent = "float64"
-  def _toPretty = "Float64"
+  def _toPretty = "EFloat64"
 }
 
 object EFloat64 {

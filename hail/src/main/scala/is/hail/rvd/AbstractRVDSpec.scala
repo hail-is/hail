@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.types.encoded.ETypeSerializer
 import is.hail.expr.types.physical.{PStruct, PTypeSerializer}
 import is.hail.expr.types.virtual.{TStructSerializer, _}
 import is.hail.io._
@@ -28,7 +29,8 @@ object AbstractRVDSpec {
     new TStructSerializer +
     new TypeSerializer +
     new PTypeSerializer +
-    new RVDTypeSerializer
+    new RVDTypeSerializer +
+    new ETypeSerializer
 
   def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"

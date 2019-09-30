@@ -53,7 +53,7 @@ class EBinary(override val required: Boolean) extends EType {
   }
 
   def _asIdent = "binary"
-  def _toPretty = "Binary"
+  def _toPretty = "EBinary"
 }
 
 object EBinary {

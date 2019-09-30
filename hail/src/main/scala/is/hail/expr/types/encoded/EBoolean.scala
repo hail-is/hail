@@ -31,7 +31,7 @@ class EBoolean(override val required: Boolean) extends EType {
   def _decodedPType(requestedType: Type): PType = PBoolean(required)
 
   def _asIdent = "bool"
-  def _toPretty = "Boolean"
+  def _toPretty = "EBoolean"
 }
 
 object EBoolean {
