@@ -28,6 +28,8 @@ object AbstractRVDSpec {
   } +
     new TStructSerializer +
     new TypeSerializer +
+    new PTypeSerializer +
+    new RVDTypeSerializer +
     new ETypeSerializer
 
   def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
