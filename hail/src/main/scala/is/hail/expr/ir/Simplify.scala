@@ -415,10 +415,32 @@ object Simplify {
     case TableCollect(TableParallelize(x, _)) => x
     case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
 
+    case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
+      TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)
+    case TableAggregate(TableOrderBy(child, _), query) if !ContainsNonCommutativeAgg(query) =>
+      if (child.typ.key.isEmpty)
+        TableAggregate(child, query)
+      else
+        TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)
     case TableAggregate(TableMapRows(child, newRow), query) if !ContainsScan(newRow) =>
       val uid = genUID()
       TableAggregate(child,
         AggLet(uid, newRow, Subst(query, BindingEnv(agg = Some(Env("row" -> Ref(uid, newRow.typ))))), isScan = false))
+
+    // NOTE: The below rule should be reintroduced when it is possible to put an ArrayAgg inside a TableAggregate
+    // case TableAggregate(TableParallelize(rowsAndGlobal, _), query) =>
+    //   rowsAndGlobal match {
+    //     // match because we currently don't optimize MakeStruct through Let, and this is a common pattern
+    //     case MakeStruct(Seq((_, rows), (_, global))) =>
+    //       Let("global", global, ArrayAgg(rows, "row", query))
+    //     case other =>
+    //       val uid = genUID()
+    //       Let(uid,
+    //         rowsAndGlobal,
+    //         Let("global",
+    //           GetField(Ref(uid, rowsAndGlobal.typ), "global"),
+    //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
+    //   }
 
     case ApplyIR("annotate", Seq(s, MakeStruct(fields))) =>
       InsertFields(s, fields)
