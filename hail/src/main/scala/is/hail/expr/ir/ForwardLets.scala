@@ -51,9 +51,7 @@ object ForwardLets {
           (IsConstant(value) && !value.isInstanceOf[Str]) ||
           refs.isEmpty ||
           (refs.size == 1 &&
-            nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
-            !ContainsScan(value) &&
-            !ContainsAgg(value))
+            nestingDepth.lookup(refs.head) == nestingDepth.lookup(base))
       }
 
       def mapRewrite(): IR = ir.copy(ir.children

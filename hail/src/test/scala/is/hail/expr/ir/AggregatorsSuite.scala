@@ -213,7 +213,7 @@ class AggregatorsSuite extends HailSuite {
         AggArrayPerElement(GetField(Ref("row", tp.typ.rowType), "foo"), "elt", "_",
           ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", eltType)), aggSig), None, isScan = false)),
       (aggregable, TStruct("a" -> TArray(eltType))),
-      expected)(ExecStrategy.interpretOnly)
+      expected)(ExecStrategy.interpretNoOpt)
   }
 
   @Test

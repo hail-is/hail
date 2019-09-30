@@ -457,7 +457,6 @@ object Interpret {
         ()
 
       case ArrayAgg(a, name, body) =>
-        assert(aggArgs.isEmpty)
         val aggElementType = TStruct(name -> a.typ.asInstanceOf[TArray].elementType)
         val aValue = interpret(a, env, args, aggArgs)
           .asInstanceOf[IndexedSeq[Any]]
