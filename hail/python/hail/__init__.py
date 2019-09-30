@@ -1,8 +1,12 @@
+import pkg_resources
 import sys
+
+__pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
+del pkg_resources
 del sys
 
 __doc__ = r"""
@@ -20,6 +24,7 @@ For help, visit either:
  
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
+
 
 from .context import init, stop, spark_context, default_reference, \
     get_reference, set_global_seed, _set_flags, _get_flags, \
@@ -98,7 +103,6 @@ ir.register_functions()
 ir.register_aggregators()
 
 __version__ = None  # set in hail.init()
-__pip_version__ = None  # set in hail.init()
 
 import warnings
 

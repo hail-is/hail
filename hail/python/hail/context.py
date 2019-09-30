@@ -96,7 +96,6 @@ class HailContext(object):
 
         version = read_version()
         hail.__version__ = version
-        hail.__pip_version__ = read_pip_version()
 
         if log is None:
             log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
@@ -392,17 +391,9 @@ def set_global_seed(seed):
     Env.set_seed(seed)
 
 
-def _read_string_from_resource(fname):
-    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
-    return pkg_resources.resource_string(__name__, fname).decode().strip()
-
-
 def read_version() -> str:
-    return _read_string_from_resource('hail_version')
-
-
-def read_pip_version() -> str:
-    return _read_string_from_resource('hail_pip_version')
+    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+    return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
 
 
 def _set_flags(**flags):
