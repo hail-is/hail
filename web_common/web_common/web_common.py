@@ -82,5 +82,5 @@ async def render_template(service, request, userdata, file, page_context):
     context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template(file, request, context)
-    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, domain=os.environ['HAIL_DOMAIN'], secure=True, httponly=True)
     return response

@@ -68,7 +68,7 @@ i.  Launch Jupyter
  - log into an active workshop
  - deactivate the workshop in another tab
  - launch Jupyter
- - you should be redirected to workshop/login with an error message
+ - you should be redirected to workshop/login
 
 ii.  Connect to Jupyter
 
@@ -76,4 +76,4 @@ ii.  Connect to Jupyter
  - launch Jupyter
  - deactivate the workshop in another tab
  - connect to Jupyer
- - you should be redirected to workshop/login with an error message
+ - you should be redirected to workshop/login

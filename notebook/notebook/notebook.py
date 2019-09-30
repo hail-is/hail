@@ -55,10 +55,7 @@ async def workshop_userdata_from_web_request(request):
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
-                set_message(
-                    session,
-                    'You are not logged into an active workshop.  Please log in to join the workshop.',
-                    'error')
+                del session['workshop_session']
                 return None
             workshop = workshops[0]
 
@@ -75,14 +72,18 @@ def web_maybe_authenticated_workshop_guest(fun):
     return wrapped
 
 
-def web_authenticated_workshop_guest_only(fun):
-    @web_maybe_authenticated_workshop_guest
-    @wraps(fun)
-    async def wrapped(request, userdata, *args, **kwargs):
-        if not userdata:
-            raise web.HTTPFound(deploy_config.external_url('workshop', '/login'))
-        return await fun(request, userdata, *args, **kwargs)
-    return wrapped
+def web_authenticated_workshop_guest_only(redirect=True):
+    def wrap(fun):
+        @web_maybe_authenticated_workshop_guest
+        @wraps(fun)
+        async def wrapped(request, userdata, *args, **kwargs):
+            if not userdata:
+                if redirect:
+                    return web.HTTPFound(deploy_config.external_url('workshop', '/login'))
+                raise web.HTTPUnauthorized()
+            return await fun(request, userdata, *args, **kwargs)
+        return wrapped
+    return wrap
 
 
 async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
@@ -202,6 +203,9 @@ def notebook_status_from_pod(pod):
 
 
 async def k8s_notebook_status_from_notebook(k8s, notebook):
+    if not notebook:
+        return None
+
     try:
         pod = await k8s.read_namespaced_pod(
             name=notebook['pod_name'],
@@ -432,7 +436,7 @@ async def _get_auth(request, userdata):
                 'pod_ip': f'{pod_ip}:{POD_PORT}'
             })
 
-    return web.HTTPNotFound()
+    return web.HTTPForbidden()
 
 
 @routes.get('/notebook')
@@ -456,7 +460,7 @@ async def post_notebook(request, userdata):
 
 
 @routes.get('/auth/{requested_notebook_token}')
-@web_authenticated_users_only()
+@web_authenticated_users_only(redirect=False)
 async def get_auth(request, userdata):
     return await _get_auth(request, userdata)
 
@@ -528,7 +532,7 @@ async def create_workshop(request, userdata):  # pylint: disable=unused-argument
                 else:
                     token = None
                 await cursor.execute('''
-INSERT INTO workshops (name, image, password, active, token) VALUES (%s, %s, %s, %s, %s);
+INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                      (name,
                                       post['image'],
@@ -569,7 +573,7 @@ async def update_workshop(request, userdata):  # pylint: disable=unused-argument
             else:
                 token = None
             n = await cursor.execute('''
-UPDATE workshops SET name = %s, image = %s, password = %s, active = %s, token = %s WHERE id = %s;
+UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s, active = %s, token = %s WHERE id = %s;
 ''',
                                      (name,
                                       post['image'],
@@ -655,7 +659,7 @@ async def workshop_post_login(request):
 SELECT * FROM workshops
 WHERE name = %s AND password = %s AND active = 1;
 ''',
-                name, password)
+                (name, password))
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
@@ -681,7 +685,7 @@ WHERE name = %s AND password = %s AND active = 1;
 
 @workshop_routes.post('/logout')
 @check_csrf_token
-@web_authenticated_workshop_guest_only
+@web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_post_logout(request, userdata):
     app = request.app
     dbpool = app['dbpool']
@@ -705,33 +709,33 @@ async def workshop_post_logout(request, userdata):
 
 
 @workshop_routes.get('/notebook')
-@web_authenticated_workshop_guest_only
+@web_authenticated_workshop_guest_only()
 async def workshop_get_notebook(request, userdata):
     return await _get_notebook('workshop', request, userdata)
 
 
 @workshop_routes.post('/notebook')
 @check_csrf_token
-@web_authenticated_workshop_guest_only
+@web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_post_notebook(request, userdata):
     return await _post_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/auth/{requested_notebook_token}')
-@web_authenticated_workshop_guest_only
+@web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_get_auth(request, userdata):
     return await _get_auth(request, userdata)
 
 
 @workshop_routes.post('/notebook/delete')
 @check_csrf_token
-@web_authenticated_workshop_guest_only
+@web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_delete_notebook(request, userdata):
     return await _delete_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/notebook/wait')
-@web_authenticated_workshop_guest_only
+@web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_wait_websocket(request, userdata):
     return await _wait_websocket('workshop', request, userdata)
 

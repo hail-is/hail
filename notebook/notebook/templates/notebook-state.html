@@ -6,9 +6,9 @@
     {% endif %}
     <a class="nb-state-container" target="_blank" href="{{ base_url }}/instance/{{ notebook['notebook_token'] }}/?token={{ notebook['jupyter_token'] }}">
       {% if notebook['state'] == 'Ready' %}
-        <b class="nb-link">Open Notebook<i class="material-icons text-icon">open_in_new</i></b>
+        <b class="nb-link">Open Jupyter<i class="material-icons text-icon">open_in_new</i></b>
       {% else %}
-	<b>Creating Notebook...</b>
+	<b>Launching Jupyter</b>
       {% endif %}
       <div class="small">Status: <b>{{ notebook['state'] }}</b></div>
       <div class="small">Pod Name: {{ notebook['pod_name'] }}</div>
