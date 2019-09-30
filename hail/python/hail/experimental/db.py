@@ -149,7 +149,10 @@ class GroupedNoLens:
 class DB:
     _valid_key_properties = {'gene', 'unique', 'FIXME: unique?'}
 
-    def __init__(self, db_url='http://localhost:8000/annodb.json'):
+    def __init__(self,
+                 db_url='https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f' +
+                 str(hl.__pip_version__) +
+                 '%2fannotation_db.json?alt=media'):
         response = requests.get(db_url)
         doc = response.json()
         assert isinstance(doc, dict)

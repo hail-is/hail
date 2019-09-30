@@ -98,6 +98,7 @@ ir.register_functions()
 ir.register_aggregators()
 
 __version__ = None  # set in hail.init()
+__pip_version__ = None  # set in hail.init()
 
 import warnings
 

@@ -219,9 +219,9 @@ DEPLOYED_VERSION = $(shell \
 .PHONY: check-pypi
 check-pypi:
 	if [ -z "$$DEPLOY_PROD" ]; then \
-	  echo "DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
+	  echo "ERROR: DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
 	if [ "$(DEPLOYED_VERSION)" == "$(HAIL_PIP_VERSION)" ]; then \
-	  echo "version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
+	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
@@ -234,11 +234,18 @@ pypi-deploy: check-pypi test-dataproc set-docs-sha
 TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
 .PHONY: check-tag
 check-tag:
-	if [ -z "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
+	if [ -z "$(TAG_EXISTS)" ]; then echo "ERROR: tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
+
+annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)/annotationdb.json
+.PHONY: deploy-annotation-db
+deploy-annotation-db:
+	! gsutil ls $(annotation_db_json_url) && \
+    gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url) || \
+    echo "ERROR: annotation db $(HAIL_PIP_VERSION) already exists, refusing to overwrite" && exit 1
 
 GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
-tag: check-tag pypi-deploy
+tag: check-tag pypi-deploy deploy-annotation-db
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
