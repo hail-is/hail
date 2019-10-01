@@ -5,8 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
+import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
-import is.hail.io.{OutputBuffer, InputBuffer, CodecSpec}
 
 object StagedBlockLinkedList {
   val defaultBlockCap: Int = 64

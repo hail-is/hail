@@ -6,7 +6,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2}
+import is.hail.io.BufferSpec
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
@@ -35,7 +35,7 @@ object TableMapIRNew {
       else
         null
 
-    val spec = CodecSpec.defaultUncompressedBuffer
+    val spec = BufferSpec.defaultUncompressed
 
     // Order of operations:
     // 1. init op on all aggs and serialize to byte array.
@@ -162,10 +162,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
-    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && (agg.op match {
-      case Take() | Collect() | PrevNonnull() | TakeBy() => false
-      case _ => true
-    })
+    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
     aggs.forall(aggCommutes)
   }
 

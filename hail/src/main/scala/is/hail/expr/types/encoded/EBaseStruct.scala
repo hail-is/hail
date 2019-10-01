@@ -24,8 +24,6 @@ final case class EField(name: String, typ: EType, index: Int) {
 }
 
 final case class EBaseStruct(fields: IndexedSeq[EField], override val required: Boolean = false) extends EType {
-  lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)), required)
-
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   val types: Array[EType] = fields.map(_.typ).toArray
@@ -228,14 +226,14 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
-      sb.append("Struct{")
+      sb.append("EBaseStruct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
     } else {
       if (fields.length == 0)
-        sb.append("Struct { }")
+        sb.append("EBaseStruct { }")
       else {
-        sb.append("Struct {")
+        sb.append("EBaseStruct {")
         sb += '\n'
         fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
         sb += '\n'

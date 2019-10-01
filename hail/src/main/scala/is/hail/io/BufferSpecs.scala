@@ -8,6 +8,33 @@ import is.hail.io.compress.LZ4Utils
 import org.json4s.jackson.JsonMethods
 import org.json4s.{Extraction, JValue}
 
+object BufferSpec {
+  val default: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
+
+  val defaultUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024,
+    new StreamBlockBufferSpec)
+
+  val unblockedUncompressed: BufferSpec = new StreamBufferSpec
+
+  val blockSpecs: Array[BufferSpec] = Array(
+    BlockingBufferSpec(64 * 1024,
+      new StreamBlockBufferSpec),
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)),
+    new StreamBufferSpec)
+
+  val specs: Array[BufferSpec] = blockSpecs.flatMap { blockSpec =>
+    Array(blockSpec, LEB128BufferSpec(blockSpec))
+  }
+
+  val wireSpec: BufferSpec = default
+  val memorySpec: BufferSpec = default
+}
+
 trait BufferSpec extends Spec {
   def buildInputBuffer(in: InputStream): InputBuffer
 

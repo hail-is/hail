@@ -797,6 +797,26 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
+  def testSparseTransposeMaybeBlocks(): Unit = {
+    val lm = new BDM[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
+    val bm = toBM(lm, blockSize = 3)
+    val sparse = bm.filterBand(0, 0, true)
+    assert(sparse.transpose().gp.maybeBlocks.get.toIndexedSeq == IndexedSeq(0, 5, 10))
+  }
+
+  @Test
+  def filterRowsRectangleSum(): Unit = {
+    val nRows = 10
+    val nCols = 50
+    val bm = BlockMatrix.fill(hc, nRows, nCols, 2, 1)
+    val banded = bm.filterBand(0, 0, false)
+    val rowFilt = banded.filterRows((0L until nRows.toLong by 2L).toArray)
+    val summed = rowFilt.rowSum().toBreezeMatrix().toArray
+    val expected = Array.tabulate(nRows)(x => if (x % 2 == 0) 2.0 else 0) ++ Array.tabulate(nCols - nRows)(x => 0.0)
+    assert(summed sameElements expected)
+  }
+
+  @Test
   def testFilterBlocks() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,

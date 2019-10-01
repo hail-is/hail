@@ -3,12 +3,12 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailSuite
-import is.hail.annotations.{CodeOrdering, Region, RegionUtils}
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer, StreamBufferSpec}
+import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
 import is.hail.utils._
 import org.testng.annotations.Test
 

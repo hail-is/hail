@@ -35,6 +35,18 @@ def table_range_force_count():
 
 
 @benchmark
+def table_range_join_1b_1k():
+    ht1 = hl.utils.range_table(1_000_000_000)
+    ht2 = hl.utils.range_table(1_000)
+    ht1.join(ht2, 'inner').count()
+
+@benchmark
+def table_range_join_1b_1b():
+    ht1 = hl.utils.range_table(1_000_000_000)
+    ht2 = hl.utils.range_table(1_000_000_000)
+    ht1.join(ht2, 'inner').count()
+
+@benchmark
 def table_python_construction():
     n = 100
     ht = hl.utils.range_table(100)

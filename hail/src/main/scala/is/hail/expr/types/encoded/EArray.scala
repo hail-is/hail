@@ -10,8 +10,6 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 final case class EArray(elementType: EType, override val required: Boolean = false) extends EType {
-  lazy val virtualType: TArray = TArray(elementType.virtualType, required)
-
   override def _decodeCompatible(pt: PType): Boolean = {
     pt.required == required &&
       pt.isInstanceOf[PArray] &&
@@ -144,10 +142,10 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
   }
 
   def _asIdent = s"array_of_${elementType.asIdent}"
-  def _toPretty = s"Array[$elementType]"
+  def _toPretty = s"EArray[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Array[")
+    sb.append("EArray[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }

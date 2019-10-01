@@ -1,12 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
-import is.hail.asm4s._
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.asm4s.{coerce, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2, InputBuffer, OutputBuffer, PackCodecSpec2}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
-import is.hail.asm4s.coerce
 
 trait AggregatorState {
   def fb: EmitFunctionBuilder[_]
@@ -84,12 +83,12 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
     Code(newState(off), StagedRegionValueBuilder.deepCopy(fb, region, storageType, src, off))
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    val enc = PackCodecSpec2(storageType, codec).buildEmitEncoderF[Long](storageType, fb)
+    val enc = TypedCodecSpec(storageType, codec).buildEmitEncoderF[Long](storageType, fb)
     ob: Code[OutputBuffer] => enc(region, off, ob)
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    val (t, dec) = PackCodecSpec2(storageType, codec).buildEmitDecoderF[Long](storageType.virtualType, fb)
+    val (t, dec) = TypedCodecSpec(storageType, codec).buildEmitDecoderF[Long](storageType.virtualType, fb)
     val off2: ClassFieldRef[Long] = fb.newField[Long]
     ib: Code[InputBuffer] => Code(off2 := dec(region, ib), Region.copyFrom(off2, off, storageType.byteSize))
   }

@@ -4,10 +4,9 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, IRParser, MakeTuple, Pretty, TypeCheck}
+import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
-import is.hail.io.CodecSpec
 import is.hail.utils._
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -64,22 +63,6 @@ abstract class Backend {
     timings.logInfo()
 
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
-  }
-
-  def encode(ir0: IR, codecString: String): (String, Array[Byte]) = {
-    val codec = CodecSpec.fromShortString(codecString)
-    val ir = lower(ir0, None, false)
-
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
-    if (ir.typ == TVoid)
-      throw new LowererUnsupportedOperation(s"lowered to unit-valued IR: ${Pretty(ir)}")
-
-    Region.scoped { region =>
-      val (pt: PTuple, f) = Compile[Long](MakeTuple.ordered(FastSeq(ir)))
-      val enc = codec.makeCodecSpec2(pt)
-      (pt.parsableString(), enc.encode(pt, region, f(0, region)(region)))
-    }
   }
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")

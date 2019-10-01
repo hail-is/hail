@@ -104,7 +104,7 @@ object LowerTableIR {
           val globalsPath = r.spec.globalsComponent.absolutePath(path)
           val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
           val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
-          val gSpec = globalsSpec.codecSpec2
+          val gSpec = globalsSpec.typedCodecSpec
 
           if (dropRows) {
             TableStage(
@@ -119,7 +119,7 @@ object LowerTableIR {
             val rowsPath = r.spec.rowsComponent.absolutePath(path)
             val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
             val partitioner = rowsSpec.partitioner
-            val rSpec = rowsSpec.codecSpec2
+            val rSpec = rowsSpec.typedCodecSpec
             val ctxType = TStruct("path" -> TString())
 
             if (rowsSpec.key startsWith typ.key) {

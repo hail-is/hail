@@ -8,6 +8,8 @@
         <tr>
           <th>Name</th>
           <th>Image</th>
+          <th>CPU</th>
+          <th>Memory</th>
           <th>Password</th>
           <th>Active</th>
           <th></th>
@@ -18,9 +20,9 @@
           <form action="{{ base_path }}/workshop-admin-update" method="POST">
             <tr>
               <td>{{ workshop['name'] }}</td>
-              <td>
-                <input name="image" value="{{ workshop['image'] }}" />
-              </td>
+              <td><input name="image" value="{{ workshop['image'] }}" /></td>
+              <td><input name="cpu" value="{{ workshop['cpu'] }}" /></td>
+              <td><input name="memory" value="{{ workshop['memory'] }}" /></td>
               <td>
                 <input name="password" value="{{ workshop['password'] }}" />
               </td>
@@ -46,9 +48,10 @@
           <tr>
             <td>
               <input name="name" />
-            <td>
-              <input name="image" />
-            </td>
+	    </td>
+            <td><input name="image" /></td>
+            <td><input name="cpu" /></td>
+            <td><input name="memory" /></td>
             <td>
               <input name="password" />
             </td>
