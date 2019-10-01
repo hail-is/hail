@@ -85,8 +85,6 @@ if role == 'Master':
         'SPARK_HOME': '/usr/lib/spark/',
         'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
         'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
-        'HAIL_SPARK_MONITOR': '1',
-        'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
     }
 
     print('setting environment')
@@ -124,7 +122,11 @@ if role == 'Master':
         ],
         'display_name': 'Hail',
         'language': 'python',
-        'env': env_to_set
+        'env': {
+            **env_to_set,
+            'HAIL_SPARK_MONITOR': '1',
+            'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
+        }
     }
 
     # write kernel spec file to default Jupyter kernel directory
