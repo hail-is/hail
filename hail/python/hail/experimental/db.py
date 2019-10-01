@@ -147,7 +147,7 @@ class GroupedNoLens:
 
 
 class DB:
-    _valid_key_properties = {'gene', 'unique', 'FIXME: unique?'}
+    _valid_key_properties = {'gene', 'unique'}
 
     def __init__(self,
                  db_url='https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f' +
@@ -185,7 +185,7 @@ class DB:
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
-    def annotate(self, rel, *names):
+    def annotate_rows_db(self, rel, *names):
         """Add annotations from datasets specified by name.
 
         List datasets with at :meth:`.available_databases`. An interactive query
@@ -196,12 +196,12 @@ class DB:
         Annotate a matrix table with the `gnomad_lof_metrics`:
 
         >>> db = hl.experimental.DB()
-        >>> mt = db.annotate(mt, 'gnomad_lof_metrics') # doctest: +SKIP
+        >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
 
         Annotate a table with `clinvar_gene_summary`, `CADD`, and `DANN`:
 
         >>> db = hl.experimental.DB()
-        >>> mt = db.annotate(mt, 'clinvar_gene_summary', 'CADD', 'DANN') # doctest: +SKIP
+        >>> mt = db.annotate_rows_db(mt, 'clinvar_gene_summary', 'CADD', 'DANN') # doctest: +SKIP
 
         Notes
         -----

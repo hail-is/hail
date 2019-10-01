@@ -31,7 +31,10 @@ JAR_TEST_SOURCES := $(shell git ls-files src/test)
 PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
-PYTHON_VERSION_INFO := python/hail/hail_version python/hail/hail_pip_version python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO := python/hail/hail_version
+PYTHON_VERSION_INFO += python/hail/hail_pip_version
+PYTHON_VERSION_INFO += python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
 SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
@@ -84,6 +87,10 @@ python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
 
 python/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	echo $(HAIL_PIP_VERSION) > $@
+
+python/hail/docs/_static/hail_version.js: python/hail/hail_version python/hail/hail_pip_version
+	printf 'hail_version="$(shell cat python/hail/hail_version)";' > $@
+	printf 'hail_pip_version="$(shell cat python/hail/hail_pip_version)"' >> $@
 
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
