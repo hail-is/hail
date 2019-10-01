@@ -143,6 +143,10 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(x = hl.agg.count())
         assert mt.x.collect() == [0, 0, 0]
 
+    def test_col_collect(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt.cols().collect()
+
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
               .annotate_globals(g1=5)
