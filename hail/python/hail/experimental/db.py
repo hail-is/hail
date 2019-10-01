@@ -147,17 +147,43 @@ class GroupedNoLens:
 
 
 class DB:
+    """An annotation database instance.
+
+    This class facilitates the annotation of genetic datasets with variant
+    annotations. It accepts either an HTTP(S) URL to an Annotation DB
+    configuration or a python :obj:`dict` describing an Annotation DB
+    configuration.
+
+    Examples
+    --------
+    Create an annotation database connecting to the default Hail Annotation DB:
+
+    >>> db = hl.experimental.DB()
+    >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
+    """
+
     _valid_key_properties = {'gene', 'unique'}
 
     def __init__(self,
-                 db_url='https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f' +
-                 str(hl.__pip_version__) +
-                 '%2fannotation_db.json?alt=media'):
-        response = requests.get(db_url)
-        doc = response.json()
-        assert isinstance(doc, dict)
+                 url=None,
+                 json=None):
+        if json is not None and url is not None:
+            raise ValueError(f'Only specify one of the parameters url and json, '
+                             f'received: url={url} and json={json}')
+        if json is None:
+            if url is None:
+                url = ('https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f' +
+                       str(hl.__pip_version__) +
+                       '%2fannotation_db.json?alt=media')
+            response = requests.get(url)
+            json = response.json()
+            assert isinstance(json, dict)
+        else:
+            if not isinstance(json, dict):
+                raise ValueError(f'expected a dict mapping dataset names to '
+                                 f'configurations, but found {json}')
         self.__by_name = {k: Dataset.from_name_and_json(k, v)
-                          for k, v in doc.items()}
+                          for k, v in json.items()}
 
     def available_databases(self):
         return self._by_name().keys()
