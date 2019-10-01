@@ -480,6 +480,24 @@ object Simplify {
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
 
+    case TableFilter(TableParallelize(rowsAndGlobal, nPartitions), pred) if canRepartition =>
+      val newRowsAndGlobal = rowsAndGlobal match {
+        case MakeStruct(Seq(("rows", rows), ("global", globalVal))) =>
+          Let("global", globalVal,
+            MakeStruct(FastSeq(
+              ("rows", ArrayFilter(rows, "row", pred)),
+              ("global", Ref("global", globalVal.typ)))))
+        case _ =>
+          val uid = genUID()
+          Let(uid, rowsAndGlobal,
+            Let("global", GetField(Ref(uid, rowsAndGlobal.typ), "global"),
+              MakeStruct(FastSeq(
+                ("rows", ArrayFilter(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", pred)),
+                ("global", Ref("global", rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global")))
+              ))))
+      }
+      TableParallelize(newRowsAndGlobal, nPartitions)
+
     case TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition =>
       TableKeyBy(child, keys, false)
 
@@ -660,6 +678,17 @@ object Simplify {
       // remove means union intervals
         Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
+
+    case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) =>
+      val ord = k.typ.keyType.ordering.intervalEndpointOrdering
+      val maybeFlip: IR => IR = if (keep) identity else !_
+      val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
+        TBoolean(),
+        Literal(TArray(TInterval(k.typ.keyType)), Interval.union(intervals.toArray, ord).toFastIndexedSeq),
+        MakeStruct(k.typ.keyType.fieldNames.map { keyField =>
+          (keyField, GetField(Ref("row", child.typ.rowType), keyField))
+        })))
+      TableKeyBy(TableFilter(child, pred), keys, isSorted)
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {

@@ -1,14 +1,13 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.expr.types.virtual.{TBoolean, TInt32, TInterval, TTuple}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class IntervalSuite extends TestNGSuite {
+class IntervalSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
@@ -154,5 +153,26 @@ class IntervalSuite extends TestNGSuite {
     assert(Interval.intersection(x1, x3, ord).toSeq == FastSeq[Interval](
       intInterval(7, 10),
       intInterval(15, 19, includesEnd = true)))
+  }
+
+  @Test def testsortedNonOverlappingIntervalsContain() {
+    val intervals = Literal(TArray(TInterval(TInt32())), FastIndexedSeq(
+      Interval(0, 1, includesStart = true, includesEnd = true),
+      Interval(10, 20, includesStart = true, includesEnd = true),
+      Interval(30, 32, includesStart = false, includesEnd = false),
+      Interval(32, 32, includesStart = true, includesEnd = true)
+    ))
+
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(-1)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(7)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(27)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(30)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(300)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(0)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(1)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(10)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(11)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(31)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(32)), true)
   }
 }
