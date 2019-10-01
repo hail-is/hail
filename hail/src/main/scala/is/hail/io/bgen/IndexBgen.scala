@@ -29,6 +29,12 @@ private case class IndexBgenPartition(
 }
 
 object IndexBgen {
+
+  val bufferSpec: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
+
   def apply(
     hc: HailContext,
     files: Array[String],
@@ -101,16 +107,11 @@ object IndexBgen {
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
-    val codecSpec = PackCodecSpec(LEB128BufferSpec(
-      BlockingBufferSpec(32 * 1024,
-        LZ4BlockBufferSpec(32 * 1024,
-          new StreamBlockBufferSpec))))
+    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(referenceGenome)
     val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
-    val leafCodec = codecSpec.makeCodecSpec2(leafPType)
     val leafEnc = leafCodec.buildEncoder(leafPType)
 
     val intPType = InternalNodeBuilder.typ(indexKeyType, annotationType)
-    val intCodec = codecSpec.makeCodecSpec2(intPType)
     val intEnc = intCodec.buildEncoder(intPType)
 
     RVD.unkeyed(rowType, crvd)
@@ -120,7 +121,7 @@ object IndexBgen {
         val partIdx = TaskContext.get.partitionId()
 
         using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
-          leafEnc, intEnc, leafPType, intPType, attributes = attributes)) { iw =>
+          leafEnc, intEnc, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
             iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

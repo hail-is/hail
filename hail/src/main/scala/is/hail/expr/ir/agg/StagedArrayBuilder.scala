@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
 object StagedArrayBuilder {
@@ -52,7 +52,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>
-      val enc = PackCodecSpec2(eltArray, codec).buildEmitEncoderF[Long](eltArray, fb)
+      val enc = TypedCodecSpec(eltArray, codec).buildEmitEncoderF[Long](eltArray, fb)
 
       Code(
         ob.writeInt(size),
@@ -64,7 +64,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    val (decType, dec) = PackCodecSpec2(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, fb)
+    val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, fb)
     assert(decType == eltArray)
 
     { (ib: Code[InputBuffer]) =>

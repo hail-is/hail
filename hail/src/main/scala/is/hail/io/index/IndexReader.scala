@@ -12,34 +12,19 @@ import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.utils._
 import is.hail.io.fs.FS
-import is.hail.rvd.AbstractRVDSpec
+import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec}
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
-  def apply(fs: FS, path: String): (FS, String, Int) => IndexReader = {
-    val (keyType, annotationType) = IndexReader.readTypes(fs, path)
-    IndexReaderBuilder(keyType, annotationType)
-  }
-
-  def apply(settings: BgenSettings): (FS, String, Int) => IndexReader =
-    IndexReaderBuilder(settings.requestedType.keyType, settings.indexAnnotationType)
-
-  def apply(keyType: Type, annotationType: Type): (FS, String, Int) => IndexReader = {
-    val leafPType = LeafNodeBuilder.typ(keyType.physicalType, annotationType.physicalType)
-    val intPType = InternalNodeBuilder.typ(keyType.physicalType, annotationType.physicalType)
-    val leafCodec = legacyCodecSpec(leafPType)
-    val intCodec = legacyCodecSpec(intPType)
-
-    val (leafRetPType, leafDec) = leafCodec.buildDecoder(leafPType.virtualType)
-    assert(leafRetPType == leafPType)
-
-    val (intRetPType, intDec) = intCodec.buildDecoder(intPType.virtualType)
-    assert(intRetPType == intPType)
-
+  def fromSpec(spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {
+    val (keyType, annotationType) = spec.types
+    val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(spec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(spec.internalNodeCodec.encodedVirtualType)
     withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
+
   }
 
   def withDecoders(
@@ -50,12 +35,6 @@ object IndexReaderBuilder {
     (fs, path, cacheCapacity) => new IndexReader(fs, path, cacheCapacity, leafDec,
       intDec, keyType, annotationType, leafPType, intPType)
   }
-
-  def legacyCodecSpec(pt: PType): CodecSpec2 = PackCodecSpec2(pt, LEB128BufferSpec(
-    BlockingBufferSpec(32 * 1024,
-      LZ4BlockBufferSpec(32 * 1024,
-        new StreamBlockBufferSpec))))
-
 }
 
 object IndexReader {
@@ -78,11 +57,6 @@ object IndexReader {
     implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
-  }
-
-  def apply(fs: FS, path: String, cacheCapacity: Int = 8): IndexReader = {
-    val builder = IndexReaderBuilder(fs, path)
-    builder(fs, path, cacheCapacity)
   }
 }
 

@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {

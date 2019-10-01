@@ -1,7 +1,6 @@
 package is.hail
 
-import java.io.{File, InputStream}
-import java.nio.charset.Charset
+import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
@@ -10,25 +9,23 @@ import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.ir.{BaseIR, TextTableReader}
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.io.index._
 import is.hail.io.vcf._
-import is.hail.io.{CodecSpec, Decoder, CodecSpec2}
-import is.hail.rvd.{IndexSpec, RVDContext}
+import is.hail.io.{AbstractTypedCodecSpec, Decoder}
+import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome}
-import is.hail.io.fs.{FS, HadoopFS}
-import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SparkSession}
@@ -751,7 +748,7 @@ class HailContext private(
 
   def readIndexedPartitions(
     path: String,
-    indexSpec: IndexSpec,
+    indexSpec: AbstractIndexSpec,
     partFiles: Array[String],
     intervalBounds: Option[Array[Interval]] = None
   ): RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
@@ -789,7 +786,7 @@ class HailContext private(
 
   def readRows(
     path: String,
-    enc: CodecSpec2,
+    enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     requestedType: TStruct
   ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
@@ -805,8 +802,8 @@ class HailContext private(
 
   def readIndexedRows(
     path: String,
-    indexSpec: IndexSpec,
-    enc: CodecSpec2,
+    indexSpec: AbstractIndexSpec,
+    enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     bounds: Array[Interval],
     requestedType: TStruct
@@ -824,10 +821,10 @@ class HailContext private(
   def readRowsSplit(
     pathRows: String,
     pathEntries: String,
-    indexSpecRows: Option[IndexSpec],
-    indexSpecEntries: Option[IndexSpec],
-    rowsEnc: CodecSpec2,
-    entriesEnc: CodecSpec2,
+    indexSpecRows: Option[AbstractIndexSpec],
+    indexSpecEntries: Option[AbstractIndexSpec],
+    rowsEnc: AbstractTypedCodecSpec,
+    entriesEnc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     bounds: Array[Interval],
     requestedTypeRows: TStruct,
@@ -860,7 +857,7 @@ class HailContext private(
         require(annotationType.asInstanceOf[TStruct].hasField(f))
         require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
       }
-      IndexReaderBuilder(keyType, annotationType)
+      IndexReaderBuilder.fromSpec(indexSpec)
     }
 
     val rdd = new RDD[(InputStream, InputStream, Option[IndexReader], Option[Interval], InputMetrics)](sc, Nil) {
