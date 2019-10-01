@@ -217,6 +217,8 @@ object Simplify {
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))
 
+    case ArrayFilter(ArraySort(a, left, right, compare), name, cond) => ArraySort(ArrayFilter(a, name, cond), left, right, compare)
+
     case NDArrayShape(MakeNDArray(_, shape, _)) => shape
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
@@ -413,7 +415,37 @@ object Simplify {
       }
 
     case TableCollect(TableParallelize(x, _)) => x
+    case x@TableCollect(TableOrderBy(child, sortFields)) if sortFields.forall(_.sortOrder == Ascending) =>
+      val uid = genUID()
+      val uid2 = genUID()
+      val left = genUID()
+      val right = genUID()
+      val uid3 = genUID()
+      val sortType = child.typ.rowType.select(sortFields.map(_.field))._1
+
+      val kvElement = MakeStruct(FastSeq(
+        ("key", SelectFields(Ref(uid2, child.typ.rowType), sortFields.map(_.field))),
+        ("value", Ref(uid2, child.typ.rowType))))
+      val sorted = ArraySort(
+        ArrayMap(
+          GetField(Ref(uid, x.typ), "rows"),
+          uid2,
+          kvElement
+        ),
+        left,
+        right,
+        ApplyComparisonOp(LT(sortType),
+          GetField(Ref(left, kvElement.typ), "key"),
+          GetField(Ref(right, kvElement.typ), "key")))
+      Let(uid,
+        TableCollect(TableKeyBy(child, FastIndexedSeq())),
+        MakeStruct(FastSeq(
+          ("rows", ArrayMap(sorted,
+            uid3,
+            GetField(Ref(uid3, sorted.typ.asInstanceOf[TArray].elementType), "value"))),
+          ("global", GetField(Ref(uid, x.typ), "global")))))
     case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+    case GetField(TableCollect(child), "global") => TableGetGlobals(child)
 
     case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
       TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)

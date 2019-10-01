@@ -336,7 +336,8 @@ object TypeCheck {
       case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
-      case TableCollect(_) =>
+      case TableCollect(child) =>
+        assert(child.typ.key.isEmpty)
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>

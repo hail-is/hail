@@ -96,7 +96,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableGetGlobals(table),
-            ir.TableCollect(table),
+            ir.TableCollect(ir.TableKeyBy(table, [], False)),
             ir.TableToValueApply(table, {'name': 'ForceCountTable'}),
             ir.MatrixToValueApply(matrix_read, {'name': 'ForceCountMatrixTable'}),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
