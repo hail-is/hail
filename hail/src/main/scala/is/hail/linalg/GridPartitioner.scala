@@ -111,7 +111,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
   
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
-    def transposeBI(bi: Int): Int = coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
+    def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
     maybeBlocks match {
       case Some(bis) =>
         val (biTranspose, piTranspose) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
