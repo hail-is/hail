@@ -3,7 +3,7 @@ package is.hail.annotations
 import java.io._
 
 import is.hail.expr.types.physical.PType
-import is.hail.utils.{using, RestartableByteArrayInputStream}
+import is.hail.utils.RestartableByteArrayInputStream
 import is.hail.io._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 

@@ -3,23 +3,14 @@ package is.hail.utils
 import java.io.{ IOException, InputStream }
 
 // not thread safe
-class RestartableByteArrayInputStream (
-  start: Int,
-  private[this] var end: Int,
-  private[this] var buf: Array[Byte]
-) extends InputStream {
+class RestartableByteArrayInputStream extends InputStream {
+  private[this] var off: Int = 0
+  private[this] var end: Int = 0
+  private[this] var buf: Array[Byte] = null
   def this(buf: Array[Byte]) {
-    this(0, buf.length, buf)
+    this()
+    restart(buf)
   }
-  def this() {
-    this(0, 0, null)
-  }
-  if (buf != null) {
-    require(start >= 0)
-    require(start <= end)
-    require(end <= buf.length)
-  }
-  private[this] var off: Int = start
 
   override def read(): Int = {
     if (off == end) {

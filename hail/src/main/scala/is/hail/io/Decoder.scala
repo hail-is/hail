@@ -34,15 +34,15 @@ final class ByteArrayDecoder(
   makeDec: InputStream => Decoder
 ) extends Closeable {
   private[this] val bais = new RestartableByteArrayInputStream()
-  private[this] val enc = makeDec(bais)
+  private[this] val dec = makeDec(bais)
 
   override def close(): Unit = {
-    enc.close()
+    dec.close()
     bais.close()
   }
 
   def regionValueFromBytes(region: Region, bytes: Array[Byte]): Long = {
     bais.restart(bytes)
-    enc.readRegionValue(region)
+    dec.readRegionValue(region)
   }
 }
