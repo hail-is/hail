@@ -94,7 +94,7 @@ class HailContext(object):
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
         optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
-        version = read_version()
+        version = read_version_info()
         hail.__version__ = version
 
         if log is None:
@@ -281,7 +281,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 
 def _hail_cite_url():
-    version = read_version()
+    version = read_version_info()
     [tag, sha_prefix] = version.split("-")
     if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
         # pip installed
@@ -391,7 +391,7 @@ def set_global_seed(seed):
     Env.set_seed(seed)
 
 
-def read_version() -> str:
+def read_version_info() -> str:
     # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
     return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
 
