@@ -18,8 +18,8 @@ AUTHORIZED_USERS = {
     'chrisvittal',
     'catoverdrive',
     'daniel-goldstein',
-    'ahiduchick',
     'GreatBrando',
     'johnc1231',
-    'iitalics'
+    'iitalics',
+    'gsarma'
 }
