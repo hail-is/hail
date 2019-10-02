@@ -2746,9 +2746,6 @@ class Tests(unittest.TestCase):
     def assert_evals_to(self, e, v):
         assert_evals_to(e, v)
 
-    def batch_assert_evals_to(self, *expr_and_expected):
-        batch_assert_evals_to(expr_and_expected)
-
     def test_set_functions(self):
         s = hl.set([1, 3, 7])
         t = hl.set([3, 8])

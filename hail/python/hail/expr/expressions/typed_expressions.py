@@ -3279,7 +3279,7 @@ class NDArrayExpression(Expression):
             axes = list(reversed(range(self.ndim)))
         else:
             if len(axes) != self.ndim:
-                raise ValueError(f'Must specify a complete permutation of the dimensions.'
+                raise ValueError(f'Must specify a complete permutation of the dimensions. '
                                  f'Expected {self.ndim} axes, got {len(axes)}')
 
             if len(set(axes)) != len(axes):

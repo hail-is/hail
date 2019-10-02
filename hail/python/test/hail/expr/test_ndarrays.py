@@ -12,7 +12,7 @@ def assert_ndarrays(asserter, exprs_and_expecteds):
     evaled_exprs = hl.eval(expr_tuple)
 
     for (evaled, expected) in zip(evaled_exprs, expecteds):
-        assert (asserter(evaled, expected)), f"{evaled} != {asserter}"
+        assert asserter(evaled, expected)
 
 
 def assert_ndarrays_eq(*expr_and_expected):
@@ -39,7 +39,7 @@ def test_ndarray_ref():
              [6, 7]]]
     h_cube = hl._ndarray(cube)
     h_np_cube = hl._ndarray(np.array(cube))
-    batch_assert_evals_to(
+    assert_all_eval_to(
         (h_cube[0, 0, 1], 1),
         (h_cube[1, 1, 0], 6),
         (h_np_cube[0, 0, 1], 1),
@@ -48,8 +48,9 @@ def test_ndarray_ref():
         (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
         (h_np_cube[0, :, :][:, 0][1], 2))
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError) as exc:
         hl._ndarray([[4], [1, 2, 3], 5])
+    assert "inner dimensions do not match" in str(exc.value)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
@@ -101,7 +102,7 @@ def test_ndarray_shape():
     m = hl._ndarray(np_m)
     nd = hl._ndarray(np_nd)
 
-    batch_assert_evals_to(
+    assert_all_eval_to(
         (e.shape, np_e.shape),
         (row.shape, np_row.shape),
         (col.shape, np_col.shape),
@@ -271,7 +272,7 @@ def test_ndarray_sum():
     np_m = np.array([[1, 2], [3, 4]])
     m = hl._ndarray(np_m)
 
-    batch_assert_evals_to(
+    assert_all_eval_to(
         (m.sum(axis=0), np_m.sum(axis=0)),
         (m.sum(axis=1), np_m.sum(axis=1)),
         (m.sum(), np_m.sum()))
@@ -295,11 +296,17 @@ def test_ndarray_transpose():
         (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
         (cube.T, np_cube.T))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         v.transpose((1,))
+    assert "Invalid axis: 1" in str(exc.value)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         cube.transpose((1, 1))
+    assert "Expected 3 axes, got 2" in str(exc.value)
+
+    with pytest.raises(ValueError) as exc:
+        cube.transpose((1, 1, 1))
+    assert "Axes cannot contain duplicates" in str(exc.value)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
