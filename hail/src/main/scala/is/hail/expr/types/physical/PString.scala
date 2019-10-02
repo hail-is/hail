@@ -17,6 +17,7 @@ case object PStringRequired extends PString(true)
 class PString(override val required: Boolean) extends PType {
   lazy val virtualType: TString = TString(required)
 
+  def _asIdent = "string"
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {

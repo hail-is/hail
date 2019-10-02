@@ -27,6 +27,7 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
       this.copy(elementType = elementType.fundamentalType)
   }
 
+  def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

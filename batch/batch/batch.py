@@ -8,9 +8,9 @@ import json
 import uuid
 from shlex import quote as shq
 
-import aiohttp_jinja2
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import cerberus
 import kubernetes as kube
 import requests
@@ -23,9 +23,10 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    new_csrf_token, check_csrf_token
+    check_csrf_token
 # sass_compile,
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
 
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
@@ -1130,7 +1131,6 @@ async def delete_batch(request, userdata):
 
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
-@aiohttp_jinja2.template('batch.html')
 @web_authenticated_users_only()
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -1138,20 +1138,22 @@ async def ui_batch(request, userdata):
     params = request.query
     limit = params.get('limit')
     offset = params.get('offset')
-    context = base_context(deploy_config, userdata, 'batch')
-    context['batch'] = await _get_batch(batch_id, user, limit=limit, offset=offset)
-    return context
+    page_context = {
+        'batch': await _get_batch(batch_id, user, limit=limit, offset=offset)
+    }
+    return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
 @routes.post('/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
-@aiohttp_jinja2.template('batches.html')
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     await _cancel_batch(batch_id, user)
+    session = await aiohttp_session.get_session(request)
+    set_message(session, 'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
@@ -1163,46 +1165,41 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(params, user)
-    token = new_csrf_token()
-    context = base_context(deploy_config, userdata, 'batch')
-    context['batch_list'] = batches[::-1]
-    context['token'] = token
-    response = aiohttp_jinja2.render_template('batches.html',
-                                              request,
-                                              context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
-    return response
+    page_context = {
+        'batch_list': batches[::-1],
+    }
+    return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
-@aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch')
     batch_id = int(request.match_info['batch_id'])
-    context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
-    context['job_id'] = job_id
     user = userdata['username']
-    context['job_log'] = await _get_job_log(batch_id, job_id, user)
-    return context
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'job_log': await _get_job_log(batch_id, job_id, user)
+    }
+    return await render_template('batch', request, userdata, 'job_log.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
 @prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
-@aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch')
     batch_id = int(request.match_info['batch_id'])
-    context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
-    context['job_id'] = job_id
     user = userdata['username']
-    context['pod_status'] = json.dumps(
-        json.loads(await _get_pod_status(batch_id, job_id, user)), indent=2)
-    return context
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'pod_status': json.dumps(
+            json.loads(await _get_pod_status(batch_id, job_id, user)), indent=2)
+    }
+    return await render_template('batch', request, userdata, 'pod_status.html', page_context)
 
 
 @routes.get('')

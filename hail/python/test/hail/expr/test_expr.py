@@ -2096,6 +2096,35 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38')),
                          hl.eval(hl.locus('chr22', 1, 'GRCh38')))
 
+    def test_locus_window(self):
+        locus = hl.Locus('22', 123456, reference_genome='GRCh37')
+
+        lit = hl.literal(locus)
+        results = hl.eval(hl.struct(
+            zeros=lit.window(0, 0),
+            ones=lit.window(1, 1),
+            big_windows=lit.window(1_000_000_000, 1_000_000_000)
+        ))
+
+        pt = hl.tinterval(hl.tlocus('GRCh37'))
+
+        assert results.zeros == hl.Interval(hl.Locus('22', 123456),
+                                            hl.Locus('22', 123456),
+                                            includes_start=True,
+                                            includes_end=True,
+                                            point_type=pt)
+        assert results.ones == hl.Interval(hl.Locus('22', 123455),
+                                           hl.Locus('22', 123457),
+                                           includes_start=True,
+                                           includes_end=True,
+                                           point_type=pt)
+        assert results.big_windows == hl.Interval(hl.Locus('22', 1),
+                                                  hl.Locus('22', hl.get_reference('GRCh37').contig_length('22')),
+                                                  includes_start=True,
+                                                  includes_end=True,
+                                                  point_type=pt)
+
+
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
         self.assertEqual(hl.eval(hl.dict(hl.array({1: 1, 2: 2}))), {1: 1, 2: 2})
@@ -2506,6 +2535,11 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(hl.is_valid_locus('1', 0, 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_locus('1', 249250622, 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_locus('chr1', 2645, 'GRCh37')))
+
+        assert hl.eval(hl.contig_length('5', 'GRCh37') == 180915260)
+        with self.assertRaises(hl.utils.FatalError):
+            hl.eval(hl.contig_length('chr5', 'GRCh37'))
+
 
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)

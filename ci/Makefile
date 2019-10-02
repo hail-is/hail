@@ -13,18 +13,10 @@ CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hail/python:../gear:../web_common python3
 
-PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
-
-flake8-stmp: $(PY_FILES)
-	python3 -m flake8 ci
-	touch $@
-
-pylint-stmp: $(PY_FILES)
-	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
-	touch $@
-
 .PHONY: check
-check: flake8-stmp pylint-stmp
+check:
+	$(PYTHON) -m flake8 ci
+	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
 
 .PHONY: build-ci-utils
 build-ci-utils:
@@ -58,7 +50,3 @@ push: build
 deploy: push push-ci-utils
 	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-ci-user-config"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
-
-.PHONY: clean
-clean:
-	rm -f flake8-stmp pylint-stmp

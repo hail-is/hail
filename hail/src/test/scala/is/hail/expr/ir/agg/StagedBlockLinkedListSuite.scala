@@ -19,7 +19,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     val arrayPType = PArray(elemPType)
 
     private val initF: Region => Long = {
-      val fb = EmitFunctionBuilder[Region, Long]
+      val fb = EmitFunctionBuilder[Region, Long]("init")
       val sbll = new StagedBlockLinkedList(elemPType, fb)
 
       val ptr = fb.newField[Long]
@@ -34,7 +34,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val pushF: (Region, Long, E) => Unit = {
-      val fb = EmitFunctionBuilder[Region, Long, Long, Unit]
+      val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("push")
       val sbll = new StagedBlockLinkedList(elemPType, fb)
 
       val r = fb.getArg[Region](1).load
@@ -57,7 +57,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val appendF: (Region, Long, BlockLinkedList[E]) => Unit = {
-      val fb = EmitFunctionBuilder[Region, Long, Long, Unit]
+      val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("append")
       val sbll1 = new StagedBlockLinkedList(elemPType, fb)
       val sbll2 = new StagedBlockLinkedList(elemPType, fb)
 
@@ -78,7 +78,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val materializeF: (Region, Long) => IndexedSeq[E] = {
-      val fb = EmitFunctionBuilder[Region, Long, Long]
+      val fb = EmitFunctionBuilder[Region, Long, Long]("materialize")
       val sbll = new StagedBlockLinkedList(elemPType, fb)
 
       val rArg = fb.getArg[Region](1).load
@@ -99,7 +99,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val initWithDeepCopyF: (Region, BlockLinkedList[E]) => Long = {
-      val fb = EmitFunctionBuilder[Region, Long, Long]
+      val fb = EmitFunctionBuilder[Region, Long, Long]("init_with_copy")
       val sbll2 = new StagedBlockLinkedList(elemPType, fb)
       val sbll1 = new StagedBlockLinkedList(elemPType, fb)
       val dstPtr = fb.newField[Long]

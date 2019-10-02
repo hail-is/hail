@@ -24,6 +24,12 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0.5rem 0;
 }
 
+input {
+    /* Not sure why, input elements in tables sometimes don't display
+       border without this, see workshop.hail.is/login page. */
+    padding: 1px;
+}
+
 .stacked-header {
     margin: 0 0 0.5rem 0;
 }
@@ -69,6 +75,12 @@ a {
     }
 }
 
+.disabled-header-item {
+    padding: 15px 15px;
+    color: $devil-gray;
+    white-space: nowrap;
+}
+
 .button-header-link {
     /* remove button styling, add link, header-link styling */
     border: none;
@@ -77,6 +89,68 @@ a {
     color: $black;
     white-space: nowrap;
     padding: 15px 15px;
+}
+
+.header-dropdown {
+    display: block;
+
+    &:active,
+    &:hover {
+	.header-dropdown-link {
+	    border-color: black;
+	}
+	
+	.header-dropdown-menu {
+	    display: block;
+	}
+    }
+}
+
+.header-dropdown-link-margin {
+    margin: 6px 6px 7px 6px;
+}
+
+.header-dropdown-link {
+    position: relative;
+    display: inline-block;
+    padding: 8px;
+    color: $black;
+    white-space: nowrap;
+    background-color: white;
+    border-radius: 3px 3px 0 0;
+    border-style: solid;
+    border-color: white;
+    border-width: 1px 1px 0 1px;
+    z-index: 999; /* above header-dropdown-menu */
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
+.header-dropdown-menu {
+    border-radius: 0 3px 3px 3px;
+    position: absolute;
+    display: none;
+    background-color: white;
+    border: 1px solid black;
+    /* -1.1px came from experimentation, I don't know why the extra 0.1px
+       is needed. */
+    transform: translate(0px, -1.1px);
+    z-index: 1;  /* below header-dropdown-link */
+}
+
+.header-dropdown-menu-link {
+    display: block;
+    padding: 8px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
 }
 
 #main {
@@ -144,6 +218,36 @@ a {
 
 .gh-number {
     color: #6a737d;
+}
+
+#message {
+    border: 1px solid;
+    border-radius: 3px;
+    padding: 10px;
+    margin-bottom: 1rem;
+}
+
+.message-error {
+    color: red;
+    border-color: red;
+    background-color: #ffeaea;
+}
+
+.message-info {
+    color: green;
+    border-color: green;
+    background-color: #eaffea;
+}
+
+.dangerous {
+    color: red;
+    border-color: red;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: #f66;
+        border-color: #f66;
+    }
 }
 
 .attributes {

@@ -16,6 +16,7 @@ case object PFloat32Required extends PFloat32(true)
 class PFloat32(override val required: Boolean) extends PType {
   lazy val virtualType: TFloat32 = TFloat32(required)
 
+  def _asIdent = "float32"
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit = {

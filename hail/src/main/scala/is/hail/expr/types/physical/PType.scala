@@ -4,7 +4,8 @@ import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.{EmitMethodBuilder, IRParser}
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{BaseType, EncodedType}
+import is.hail.expr.types.{BaseType, Requiredness}
+import is.hail.expr.types.encoded.EType
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -152,11 +153,9 @@ object PType {
       case PVoid => PVoid
     }
   }
-
-  def canonical(t: EncodedType): PType = canonical(t.virtualType)
 }
 
-abstract class PType extends BaseType with Serializable {
+abstract class PType extends BaseType with Serializable with Requiredness {
   self =>
 
   def virtualType: Type
@@ -182,6 +181,10 @@ abstract class PType extends BaseType with Serializable {
       (signature, (a, toIns) => toIns)
   }
 
+  def asIdent: String = (if (required) "r_" else "o_") + _asIdent
+
+  def _asIdent: String
+
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
       sb.append("+")
@@ -205,8 +208,6 @@ abstract class PType extends BaseType with Serializable {
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   def fundamentalType: PType = this
-
-  def required: Boolean
 
   final def unary_+(): PType = setRequired(true)
 

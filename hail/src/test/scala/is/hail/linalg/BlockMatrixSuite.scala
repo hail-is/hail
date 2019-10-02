@@ -782,6 +782,41 @@ class BlockMatrixSuite extends HailSuite {
     bm1.blocks.collect() sameElements bm2.blocks.collect()
 
   @Test
+  def testSparseFilterEdges(): Unit = {
+    val lm = new BDM[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
+    val bm = toBM(lm, blockSize = 5)
+
+    val onlyEight = bm.filterBlocks(Array(8)) // Bottom right corner block
+    val onlyEightRowEleven = onlyEight.filterRows(Array(11)).toBreezeMatrix()
+    val onlyEightColEleven = onlyEight.filterCols(Array(11)).toBreezeMatrix()
+    val onlyEightCornerFour = onlyEight.filter(Array(10, 11), Array(10, 11)).toBreezeMatrix()
+
+    assert(onlyEightRowEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 143).map(_.toDouble))
+    assert(onlyEightColEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142, 143).map(_.toDouble))
+    assert(onlyEightCornerFour == new BDM[Double](2, 2, Array(130.0, 131.0, 142.0, 143.0)))
+  }
+
+  @Test
+  def testSparseTransposeMaybeBlocks(): Unit = {
+    val lm = new BDM[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
+    val bm = toBM(lm, blockSize = 3)
+    val sparse = bm.filterBand(0, 0, true)
+    assert(sparse.transpose().gp.maybeBlocks.get.toIndexedSeq == IndexedSeq(0, 5, 10))
+  }
+
+  @Test
+  def filterRowsRectangleSum(): Unit = {
+    val nRows = 10
+    val nCols = 50
+    val bm = BlockMatrix.fill(hc, nRows, nCols, 2, 1)
+    val banded = bm.filterBand(0, 0, false)
+    val rowFilt = banded.filterRows((0L until nRows.toLong by 2L).toArray)
+    val summed = rowFilt.rowSum().toBreezeMatrix().toArray
+    val expected = Array.tabulate(nRows)(x => if (x % 2 == 0) 2.0 else 0) ++ Array.tabulate(nCols - nRows)(x => 0.0)
+    assert(summed sameElements expected)
+  }
+
+  @Test
   def testFilterBlocks() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,

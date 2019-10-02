@@ -1,19 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.{HailContext, stats}
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s.AsmFunction3
-import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
-import is.hail.expr.types._
+import is.hail.expr.TypedAggregator
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
+import is.hail.io.BufferSpec
 import is.hail.methods._
 import is.hail.rvd.RVDContext
 import is.hail.utils._
+import is.hail.{HailContext, stats}
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
@@ -769,7 +767,7 @@ object Interpret {
                 SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
               }
             } else {
-              val spec = CodecSpec.defaultUncompressedBuffer
+              val spec = BufferSpec.defaultUncompressed
 
               val (_, initOp) = CompileWithAggregators2[Long, Unit](
                 extracted.aggs,

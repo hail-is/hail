@@ -20,6 +20,7 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
 
   override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
+  def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
   def _toPretty = s"Dict[$keyType, $valueType]"
 
   override def pyString(sb: StringBuilder): Unit = {

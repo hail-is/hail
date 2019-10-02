@@ -3,9 +3,10 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
+import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
-import is.hail.io.{OutputBuffer, InputBuffer, CodecSpec, EmitPackEncoder, EmitPackDecoder}
 
 object StagedBlockLinkedList {
   val defaultBlockCap: Int = 64
@@ -38,6 +39,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   type Node = Code[Long]
 
   val bufferType = PArray(elemType, required = true)
+  val bufferEType = EType.defaultFromPType(bufferType).asInstanceOf[EArray]
 
   val nodeType = PStruct(
     "buf" -> bufferType,
@@ -194,7 +196,6 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val serF = fb.newMethod("blockLinkedListSerialize",
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[OutputBuffer]),
       typeInfo[Unit])
-    val r = serF.getArg[Region](1).load
     val ob = serF.getArg[OutputBuffer](2).load
     serF.emit {
       val n = serF.newLocal[Long]
@@ -202,7 +203,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       Code(
         foreachNode(serF, n) { Code(
           ob.writeBoolean(true),
-          EmitPackEncoder.emitArray(bufferType, bufferType, serF, r, buffer(n), ob, count(n)))
+          bufferEType.buildPrefixEncoder(bufferType.fundamentalType, serF, buffer(n), ob, count(n)))
         },
         ob.writeBoolean(false))
     }
@@ -215,14 +216,14 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       typeInfo[Unit])
     val r = desF.getArg[Region](1).load
     val ib = desF.getArg[InputBuffer](2).load
-    val er = EmitRegion(desF, r)
-    desF.emit {
-      val srvb = new StagedRegionValueBuilder(er, bufferType)
-      val bufFType = bufferType.fundamentalType
+    val array = desF.newLocal[Long]("array")
+    val bufFType = bufferType.fundamentalType
+    val dec = bufferEType.buildDecoder(bufferType, desF)
+    desF.emit(
       Code.whileLoop(ib.readBoolean(),
-        EmitPackDecoder.emitArray(bufFType, bufFType, desF, ib, srvb),
-        appendShallow(desF, r, srvb.end()))
-    }
+        array := dec(r, ib),
+        appendShallow(desF, r, array))
+    )
     desF.invoke(region, inputBuffer)
   }
 

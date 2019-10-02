@@ -27,6 +27,7 @@ Constructor functions
     set
     empty_set
     dict
+    empty_dict
 
 
 .. autofunction:: bool
@@ -45,3 +46,4 @@ Constructor functions
 .. autofunction:: set
 .. autofunction:: empty_set
 .. autofunction:: dict
+.. autofunction:: empty_dict

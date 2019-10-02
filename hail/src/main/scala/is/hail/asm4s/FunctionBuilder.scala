@@ -56,10 +56,16 @@ object FunctionBuilder {
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
+class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
 
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
+  val mname = {
+    val s = _mname.substring(0, scala.math.min(_mname.length, 65535))
+    require(java.lang.Character.isJavaIdentifierStart(s.head), "invalid java identifier, " + s)
+    require(s.forall(java.lang.Character.isJavaIdentifierPart(_)), "invalid java identifer, " + s)
+    s
+  }
   val mn = new MethodNode(ACC_PUBLIC, mname, descriptor, null, null)
   fb.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
 
@@ -420,3 +426,18 @@ class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInf
 
   def arg4 = getArg[A4](4)
 }
+
+class Function5Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, A5 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction5[A1, A2, A3, A4, A5, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4], GenericTypeInfo[A5]), GenericTypeInfo[R], namePrefix = name) {
+
+  def arg1 = getArg[A1](1)
+
+  def arg2 = getArg[A2](2)
+
+  def arg3 = getArg[A3](3)
+
+  def arg4 = getArg[A4](4)
+
+  def arg5 = getArg[A5](5)
+}
+

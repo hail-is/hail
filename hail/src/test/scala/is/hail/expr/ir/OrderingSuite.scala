@@ -28,7 +28,7 @@ class OrderingSuite extends HailSuite {
   }
 
   def getStagedOrderingFunction[T: TypeInfo](t: PType, comp: String, r: Region): AsmFunction3[Region, Long, Long, T] = {
-    val fb = EmitFunctionBuilder[Region, Long, Long, T]
+    val fb = EmitFunctionBuilder[Region, Long, Long, T]("ord")
     val stagedOrdering = t.codeOrdering(fb.apply_method)
     val cv1 = coerce[stagedOrdering.T](Region.getIRIntermediate(t)(fb.getArg[Long](2)))
     val cv2 = coerce[stagedOrdering.T](Region.getIRIntermediate(t)(fb.getArg[Long](3)))
@@ -233,7 +233,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(TTuple(t), Row(elem))
         val eoff = rvb.end()
 
-        val fb = EmitFunctionBuilder[Region, Long, Long, Int]
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search")
         val cregion = fb.getArg[Region](1).load()
         val cset = fb.getArg[Long](2)
         val cetuple = fb.getArg[Long](3)
@@ -273,7 +273,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()
 
-        val fb = EmitFunctionBuilder[Region, Long, Long, Int]
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search_dict")
         val cregion = fb.getArg[Region](1).load()
         val cdict = fb.getArg[Long](2)
         val cktuple = fb.getArg[Long](3)

@@ -1511,8 +1511,9 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     })
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-    val (blockRow, newBlockCol) = newGP.blockCoordinates(newGP.partitionToBlock(split.index))
-    val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
+    val blockIndex = newGP.partitionToBlock(split.index)
+    val (blockRow, newBlockCol) = newGP.blockCoordinates(blockIndex)
+    val (blockNRows, newBlockNCols) = newGP.blockDims(blockIndex)
     val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
     val newBlock = BDM.zeros[Double](blockNRows, newBlockNCols)
     var j = 0
@@ -1536,7 +1537,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           val ei = endIndices(colRangeIndex)
           k = j + ei - si
 
-          newBlock(::, j until k) := block(::, si until ei)
+          newBlock(::, j until k) := block(0 until newBlock.rows, si until ei)
 
           j = k
           colRangeIndex += 1

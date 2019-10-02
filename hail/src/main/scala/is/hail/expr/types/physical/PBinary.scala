@@ -18,6 +18,7 @@ case object PBinaryRequired extends PBinary(true)
 class PBinary(override val required: Boolean) extends PType {
   lazy val virtualType: TBinary = TBinary(required)
 
+  def _asIdent = "binary"
   def _toPretty = "Binary"
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
@@ -96,6 +97,10 @@ object PBinary {
     Region.loadInt(boff)
 
   def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
+
+  def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
+
+  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
 
   def bytesOffset(boff: Long): Long = boff + 4
 

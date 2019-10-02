@@ -4,6 +4,7 @@ import java.io._
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.utils.RestartableByteArrayInputStream
 
 trait Decoder extends Closeable {
   def close()
@@ -27,4 +28,21 @@ final class CompiledDecoder(in: InputBuffer, f: () => AsmFunction2[Region, Input
   }
 
   def seek(offset: Long): Unit = in.seek(offset)
+}
+
+final class ByteArrayDecoder(
+  makeDec: InputStream => Decoder
+) extends Closeable {
+  private[this] val bais = new RestartableByteArrayInputStream()
+  private[this] val dec = makeDec(bais)
+
+  override def close(): Unit = {
+    dec.close()
+    bais.close()
+  }
+
+  def regionValueFromBytes(region: Region, bytes: Array[Byte]): Long = {
+    bais.restart(bytes)
+    dec.readRegionValue(region)
+  }
 }

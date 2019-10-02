@@ -43,8 +43,8 @@ class DeployConfig:
     def service_ns(self, service):
         return self._service_namespace.get(service, self._default_ns)
 
-    def scheme(self):
-        return 'https' if self._location == 'external' else 'http'
+    def scheme(self, base_scheme='http'):
+        return (base_scheme + 's') if self._location == 'external' else base_scheme
 
     def domain(self, service):
         ns = self.service_ns(service)
@@ -65,11 +65,11 @@ class DeployConfig:
             return ''
         return f'/{ns}/{service}'
 
-    def base_url(self, service):
-        return self.scheme() + '://' + self.domain(service) + self.base_path(service)
+    def base_url(self, service, base_scheme='http'):
+        return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 
-    def url(self, service, path):
-        return f'{self.base_url(service)}{path}'
+    def url(self, service, path, base_scheme='http'):
+        return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
 
     def auth_session_cookie_name(self):
         auth_ns = self.service_ns('auth')
@@ -77,11 +77,11 @@ class DeployConfig:
             return 'session'
         return 'sesh'
 
-    def external_url(self, service, path):
+    def external_url(self, service, path, base_scheme='http'):
         ns = self.service_ns(service)
         if ns == 'default':
-            return f'https://{service}.hail.is{path}'
-        return f'https://internal.hail.is/{ns}/{service}{path}'
+            return f'{base_scheme}s://{service}.hail.is{path}'
+        return f'{base_scheme}s://internal.hail.is/{ns}/{service}{path}'
 
     def prefix_application(self, app, service):
         base_path = self.base_path(service)

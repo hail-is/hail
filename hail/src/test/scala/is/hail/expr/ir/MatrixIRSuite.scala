@@ -4,7 +4,6 @@ import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.MatrixTable

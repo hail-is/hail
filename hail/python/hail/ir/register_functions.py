@@ -9,6 +9,8 @@ def register_reference_genome_functions(rg):
     register_session_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
     register_session_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
+    register_session_function(f"contigLength({rg})", (dtype("str"),), dtype("int32"))
+
     register_session_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
     register_session_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
 

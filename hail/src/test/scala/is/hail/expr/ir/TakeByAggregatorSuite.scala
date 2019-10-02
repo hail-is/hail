@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 class TakeByAggregatorSuite extends HailSuite {
   @Test def testPointers() {
     for ((size, n) <- Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) {
-      val fb = EmitFunctionBuilder[Region, Long]
+      val fb = EmitFunctionBuilder[Region, Long]("test_pointers")
       val tba = new TakeByRVAS(PStringRequired, PInt64Optional, PArray(PStringRequired, required = true), fb)
       Region.scoped { r =>
         val argR = fb.getArg[Region](1).load()
@@ -22,7 +22,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
         fb.emit(Code(
           tba.createState,
-          tba.newState,
+          tba.newState(0L),
           tba.initialize(size),
           i := 0L,
           Code.whileLoop(i < n.toLong,
@@ -47,7 +47,7 @@ class TakeByAggregatorSuite extends HailSuite {
   }
 
   @Test def testMissing() {
-    val fb = EmitFunctionBuilder[Region, Long]
+    val fb = EmitFunctionBuilder[Region, Long]("take_by_test_missing")
     val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PArray(PInt32Optional, required = true), fb)
     Region.scoped { r =>
       val argR = fb.getArg[Region](1).load()
@@ -55,7 +55,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
       fb.emit(Code(
         tba.createState,
-        tba.newState,
+        tba.newState(0L),
         tba.initialize(7),
         tba.seqOp(true, 0, true, 0),
         tba.seqOp(true, 0, true, 0),
@@ -77,7 +77,7 @@ class TakeByAggregatorSuite extends HailSuite {
   @Test def testRandom() {
     for (n <- Array(1, 2, 10, 100, 1000, 10000, 100000, 1000000)) {
       val nToTake = 1025
-      val fb = EmitFunctionBuilder[Region, Long]
+      val fb = EmitFunctionBuilder[Region, Long]("take_by_test_random")
 
       Region.scoped { r =>
         val argR = fb.getArg[Region](1).load()
@@ -93,7 +93,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
         fb.emit(Code(
           tba.createState,
-          tba.newState,
+          tba.newState(0L),
           tba.initialize(nToTake),
           ab.initialize(),
           i := 0,

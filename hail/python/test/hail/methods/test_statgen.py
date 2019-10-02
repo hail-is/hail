@@ -1278,6 +1278,23 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    def test_split_multi_shuffle(self):
+        ht = hl.utils.range_table(1)
+        ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
+                               hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'G'])])
+        ht = ht.explode(ht.keys)
+        ht = ht.key_by(**ht.keys).drop('keys')
+        alleles = hl.split_multi(ht, permit_shuffle=True).alleles.collect()
+        assert alleles == [['A', 'C'], ['A', 'G'], ['A', 'T']]
+
+        ht = ht.annotate_globals(cols = [hl.struct(s='sample1'), hl.struct(s='sample2')])
+        ht = ht.annotate(entries=[hl.struct(GT=hl.call(0, 1)), hl.struct(GT=hl.call(1, 1))])
+        mt = ht._unlocalize_entries('entries', 'cols', ['s'])
+        mt = hl.split_multi_hts(mt, permit_shuffle=True)
+        mt._force_count_rows()
+        assert mt.alleles.collect() == [['A', 'C'], ['A', 'G'], ['A', 'T']]
+
+
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
         mt = mt.key_rows_by(locus=hl.locus(hl.str(mt.row_idx+1), mt.row_idx+1), alleles=['A', 'T'])

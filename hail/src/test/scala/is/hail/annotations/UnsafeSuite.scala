@@ -50,7 +50,7 @@ class UnsafeSuite extends HailSuite {
 
   @DataProvider(name = "codecs")
   def codecs(): Array[Array[Any]] = {
-    (CodecSpec.codecSpecs ++ Array(PackCodecSpec2(PStruct("x" -> PInt64()), CodecSpec.defaultUncompressedBuffer)))
+    (BufferSpec.specs ++ Array(TypedCodecSpec(PStruct("x" -> PInt64()), BufferSpec.default)))
       .map(x => Array[Any](x))
   }
 
@@ -82,8 +82,8 @@ class UnsafeSuite extends HailSuite {
       val a2 = subset(t, requestedType, a)
       assert(requestedType.typeCheck(a2))
 
-      CodecSpec.codecSpecs.foreach { codecSpec =>
-        val codec = codecSpec.makeCodecSpec2(pt)
+      BufferSpec.specs.foreach { bufferSpec =>
+        val codec = TypedCodecSpec(pt, bufferSpec)
         region.clear()
         rvb.start(pt)
         rvb.addRow(t, a.asInstanceOf[Row])
@@ -110,9 +110,9 @@ class UnsafeSuite extends HailSuite {
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
-        val codec2 = codecSpec.makeCodecSpec2(PType.canonical(requestedType))
+        val codec2 = TypedCodecSpec(PType.canonical(requestedType), bufferSpec)
         val aos2 = new ByteArrayOutputStream()
-        val en2 = codec.buildEncoder(pt, prt)(aos2)
+        val en2 = codec2.buildEncoder(pt)(aos2)
         en2.writeRegionValue(region, offset)
         en2.flush()
 
@@ -149,8 +149,8 @@ class UnsafeSuite extends HailSuite {
     valuesAndTypes.foreach { case (v, t) =>
       Region.scoped { region =>
         val off = ScalaToRegionValue(region, t, v)
-        CodecSpec.codecSpecs.foreach { spec =>
-          val cs2 = spec.makeCodecSpec2(t)
+        BufferSpec.specs.foreach { spec =>
+          val cs2 = TypedCodecSpec(t, spec)
           val baos = new ByteArrayOutputStream()
           val enc = cs2.buildEncoder(t)(baos)
           enc.writeRegionValue(region, off)
@@ -170,7 +170,7 @@ class UnsafeSuite extends HailSuite {
   @Test def testBufferWriteReadDoubles() {
     val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
 
-    CodecSpec.bufferSpecs.foreach { bufferSpec =>
+    BufferSpec.specs.foreach { bufferSpec =>
       val out = new ByteArrayOutputStream()
       val outputBuffer = bufferSpec.buildOutputBuffer(out)
       outputBuffer.writeDoubles(a)
