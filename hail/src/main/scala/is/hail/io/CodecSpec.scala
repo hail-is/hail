@@ -49,7 +49,7 @@ trait AbstractTypedCodecSpec extends Spec {
     val (pt, dec) = buildDecoder(requestedType)
     (pt, ContextRDD.weaken[RVDContext](bytes).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
-      it.map(RegionValue.fromBytes(dec, ctx.region, rv))
+      RegionValue.fromBytes(dec, ctx.region, rv)(it)
     })
   }
 

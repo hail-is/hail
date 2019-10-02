@@ -36,3 +36,22 @@ final class CompiledEncoder(out: OutputBuffer, f: () => AsmFunction2[Long, Outpu
 
   def indexOffset(): Long = out.indexOffset()
 }
+
+final class ByteArrayEncoder(
+  makeEnc: OutputStream => Encoder
+) extends Closeable {
+  private[this] val baos = new ByteArrayOutputStream()
+  private[this] val enc = makeEnc(baos)
+
+  def close(): Unit = {
+    enc.close()
+    baos.close()
+  }
+
+  def regionValueToBytes(region: Region, offset: Long): Array[Byte] = {
+    baos.reset()
+    enc.writeRegionValue(region, offset)
+    enc.flush()
+    baos.toByteArray()
+  }
+}
