@@ -102,7 +102,7 @@ class AggFunc(object):
         _check_agg_bindings(aggregated, self._agg_bindings)
         self._agg_bindings.remove(var)
 
-        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not self._as_scan and not aggregated._aggregations:
             raise ExpressionException("'{}.explode' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
 
         indices, _ = unify_all(array_agg_expr, aggregated)
@@ -120,7 +120,7 @@ class AggFunc(object):
         if condition._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.filter' does not "
                                       f"support an already-aggregated expression as the argument to 'condition'")
-        if not aggregation._aggregations:
+        if not self._as_scan and not aggregation._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.filter' "
                                       f"must have aggregation in argument to 'aggregation'")
 
@@ -140,7 +140,7 @@ class AggFunc(object):
         if group._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.group_by' "
                                       f"does not support an already-aggregated expression as the argument to 'group'")
-        if not aggregation._aggregations:
+        if not self._as_scan and not aggregation._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.group_by' "
                                       f"must have aggregation in argument to 'aggregation'")
 
@@ -171,7 +171,7 @@ class AggFunc(object):
         _check_agg_bindings(aggregated, self._agg_bindings)
         self._agg_bindings.remove(var)
 
-        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not self._as_scan and not aggregated._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.array_agg' "
                                       f"must take mapping that contains aggregation expression.")
 
