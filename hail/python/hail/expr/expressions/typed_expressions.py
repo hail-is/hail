@@ -1478,9 +1478,8 @@ class StructExpression(Mapping[str, Expression], Expression):
             assert item.start is None or isinstance(item.start, int)
             assert item.stop is None or isinstance(item.stop, int)
             assert item.step is None or isinstance(item.step, int)
-            return hl.struct(**{
-                f: self[f]
-                for f in self.dtype.fields[item.start:item.stop:item.step]})
+            return hl.select(
+                *self.dtype.fields[item.start:item.stop:item.step])
 
     def __iter__(self):
         return iter(self._fields)
@@ -1671,9 +1670,10 @@ class TupleExpression(Expression, Sequence):
             assert item.start is None or isinstance(item.start, int)
             assert item.stop is None or isinstance(item.stop, int)
             assert item.step is None or isinstance(item.step, int)
-            return hl.tuple([
-                self[i]
-                for i in range(len(self))[item.start:item.stop:item.step]])
+            return hl.or_missing(hl.is_defined(self),
+                                 hl.tuple([
+                                     self[i]
+                                     for i in range(len(self))[item.start:item.stop:item.step]]))
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
         return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)

@@ -215,7 +215,8 @@ class DB:
         """Add annotations from datasets specified by name.
 
         List datasets with at :meth:`.available_databases`. An interactive query
-        builder is available in the Hail Annotation Database documentation.
+        builder is available in the
+        `Hail Annotation Database documentation </docs/0.2/annotation_database_ui.html>`_.
 
         Examples
         --------

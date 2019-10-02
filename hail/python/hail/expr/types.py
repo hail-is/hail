@@ -1198,7 +1198,7 @@ class tunion(HailType, Mapping):
         return HailTypeContext.union(*self.values())
 
 
-class ttuple(HailType, Mapping):
+class ttuple(HailType, Sequence):
     """Hail type for tuples.
 
     In Python, these are represented as :obj:`tuple`.
@@ -1247,7 +1247,8 @@ class ttuple(HailType, Mapping):
         return self._types[item]
 
     def __iter__(self):
-        return iter(range(len(self._types)))
+        for i in range(len(self)):
+            yield self[i]
 
     def __len__(self):
         return len(self._types)

@@ -246,9 +246,8 @@ check-tag:
 annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)/annotation_db.json
 .PHONY: deploy-annotation-db
 deploy-annotation-db:
-	(! gsutil ls $(annotation_db_json_url) >/dev/null 2>/dev/null && \
-    gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)) || \
-    (echo "ERROR: annotation db $(HAIL_PIP_VERSION) already exists, refusing to overwrite" && exit 1)
+	gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)
+	gsutil -m retention temp set $(annotation_db_json_url)
 
 GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
