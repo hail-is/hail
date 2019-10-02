@@ -2274,9 +2274,7 @@ object NDArrayEmitter {
   def zeroBroadcastedDims2(mb: MethodBuilder, loopVars: Array[Code[Long]], nDims: Int, shapeArray: Array[Code[Long]]): Array[Code[Long]] = {
     val broadcasted = 0L
     val notBroadcasted = 1L
-    def getShapeAtIdx(i: Int): Code[Long] = shapeArray(i)
-
-    Array.tabulate(nDims)(dim => (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
+    Array.tabulate(nDims)(dim => (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
   }
 
   def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
@@ -2312,8 +2310,6 @@ abstract class NDArrayEmitter(
         dataSrvb.end()
       )
 
-    val ndAddress = mb.newField[Long]
-
     def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
       coerce[Unit](Code(
         srvb.start(),
@@ -2324,11 +2320,7 @@ abstract class NDArrayEmitter(
       ))
     }
 
-    val ndSetup = Code(
-      setup,
-      ndAddress := targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides2(outputShape, mb), dataAddress, mb)
-    )
-    EmitTriplet(ndSetup, false, ndAddress)
+    EmitTriplet(coerce[Unit](setup), false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides2(outputShape, mb), dataAddress, mb))
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
