@@ -20,6 +20,7 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
   val types = _types.map(_.typ).toArray
 
   val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
+  val nFields: Int = fields.size
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
