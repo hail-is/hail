@@ -326,6 +326,25 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_agg_nesting(self):
+        t = hl.utils.range_table(10)
+        aggregated_count = t.aggregate(hl.agg.count(), _localize=False) #10
+
+        filter_count = t.aggregate(hl.agg.filter(aggregated_count == 10, hl.agg.count()))
+        self.assertEqual(filter_count, 10)
+
+        exploded_count = t.aggregate(hl.agg.explode(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
+        self.assertEqual(exploded_count, 100)
+
+        grouped_count = t.aggregate(hl.agg.group_by(aggregated_count, hl.agg.count()))
+        self.assertEqual(grouped_count, {10: 10})
+
+        array_agg_count = t.aggregate(hl.agg.array_agg(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
+        self.assertEqual(array_agg_count, [10 for i in range(10)])
+
+
+
+
     def test_approx_cdf(self):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)
