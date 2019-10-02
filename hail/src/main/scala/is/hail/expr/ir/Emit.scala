@@ -2294,32 +2294,6 @@ object NDArrayEmitter {
     Array.tabulate(nDims)(dim => (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
   }
 
-  def unifyShapes(mb: MethodBuilder, leftShape: Code[Long], leftShapePType: PTuple, rightShape: Code[Long],
-    rightShapePType: PTuple, region: Code[Region]): (Code[_], Code[Long], PTuple) = {
-    assert(leftShapePType == rightShapePType)
-
-    val unifiedPType = leftShapePType
-    def getShapeAtIdx(shape: Code[Long], idx: Int): Code[Long] = Region.loadLong(unifiedPType.loadField(shape, idx))
-    val unifiedShapeAddress = mb.newField[Long]
-
-    val setupList = Array.tabulate(unifiedPType.size) { idx =>
-      val left = getShapeAtIdx(leftShape, idx)
-      val right = getShapeAtIdx(rightShape, idx)
-      val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
-      Code(
-         notSameAndNotBroadcastable.mux(
-          Code._fatal("Incompatible NDArray shapes"),
-          Region.storeLong(unifiedPType.loadField(unifiedShapeAddress, idx),
-            (left > right).mux(left, right)))
-      )
-    }
-
-    val setup = Code(
-      unifiedShapeAddress := unifiedPType.allocate(region),
-      Code(setupList:_*))
-    (setup, unifiedShapeAddress, unifiedPType)
-  }
-
   def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
     leftShape.zip(rightShape).map{case (left, right) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
