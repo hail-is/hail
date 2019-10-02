@@ -1479,13 +1479,11 @@ private class Emit(
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val targetShapePType = xP.shape.pType
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")
-        val shapeSrvb = new StagedRegionValueBuilder(mb, targetShapePType)
         val ndAddress = mb.newField[Long]
         val shapeAddress = mb.newField[Long]
 
-        def getShapeAtIdx(index: Int) = Region.loadLong(shapePType.loadField(shapeAddress, index))
+        val shapeTuple = new CodePTuple(shapePType, region, shapeAddress)
 
         def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
           Code(
@@ -1493,7 +1491,7 @@ private class Emit(
             Code.foreach(0 until nDims) { index =>
               shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
                 Code._fatal(s"shape missing at index $index"),
-                Code(srvb.addLong(getShapeAtIdx(index)), srvb.advance())
+                Code(srvb.addLong(shapeTuple(index)), srvb.advance())
               )
             }
           )
@@ -1507,13 +1505,6 @@ private class Emit(
             Code._fatal("Missing shape"),
             Code(
               shapeAddress := shapet.value[Long],
-//              shapeSrvb.start(),
-//              Code.foreach(0 until nDims) { index =>
-//                shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
-//                  Code._fatal(s"shape missing at index $index"),
-//                  Code(shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
-//                )
-//              },
               ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStrides(shapePType, shapeAddress, mb), requiredData, mb)
             )
           )
