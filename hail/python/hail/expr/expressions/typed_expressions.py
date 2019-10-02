@@ -3058,6 +3058,43 @@ class LocusExpression(Expression):
             raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(rg.name))
         return hl.get_sequence(self.contig, self.position, before, after, rg)
 
+    @typecheck_method(before=expr_int32, after=expr_int32)
+    def window(self, before, after):
+        """Returns an interval of a specified number of bases around the locus.
+
+        Examples
+        --------
+        Create a window of two megabases centered at a locus:
+
+        >>> locus = hl.locus('16', 29_500_000)
+        >>> window = locus.window(1_000_000, 1_000_000)
+        >>> hl.eval(window)
+        Interval(start=Locus(contig=16, position=28500000, reference_genome=GRCh37), end=Locus(contig=16, position=30500000, reference_genome=GRCh37), includes_start=True, includes_end=True)
+
+        Notes
+        -----
+        The returned interval is inclusive of both the `start` and `end`
+        endpoints.
+
+        Parameters
+        ----------
+        before : :class:`.Expression` of type :py:data:`.tint32`
+            Number of bases to include before the locus. Truncates at 1.
+        after : :class:`.Expression` of type :py:data:`.tint32`
+            Number of bases to include after the locus. Truncates at
+            contig length.
+
+        Returns
+        -------
+        :class:`.IntervalExpression`
+        """
+        start_pos = hl.max(1, self.position - before)
+        end_pos = hl.min(hl.contig_length(self.contig, self.dtype.reference_genome), self.position + after)
+        return hl.interval(start=hl.locus(self.contig, start_pos),
+                           end=hl.locus(self.contig, end_pos),
+                           includes_start=True,
+                           includes_end=True)
+
 
 class IntervalExpression(Expression):
     """Expression of type :class:`.tinterval`.
