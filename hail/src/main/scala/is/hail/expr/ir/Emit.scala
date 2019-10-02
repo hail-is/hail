@@ -2166,9 +2166,8 @@ private class Emit(
         val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup)
 
-        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape2,
-          childP.shape.pType,
-          body.pType, setup) {
+        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
+          childP.shape.pType, body.pType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             Code(
               elemRef := childEmitter.outputElement(idxVars),
@@ -2182,11 +2181,8 @@ private class Emit(
         val lP = lChild.pType.asInstanceOf[PNDArray]
         val rP = rChild.pType.asInstanceOf[PNDArray]
 
-        val lElemType = lP.elementType
-        val rElemType = rP.elementType
-
-        val lVti = typeToTypeInfo(lElemType.virtualType)
-        val rVti = typeToTypeInfo(rElemType.virtualType)
+        val lVti = typeToTypeInfo(lP.elementType.virtualType)
+        val rVti = typeToTypeInfo(rP.elementType.virtualType)
 
         val lElemRef = coerce[Any](mb.newField(lName)(lVti))
         val rElemRef = coerce[Any](mb.newField(rName)(rVti))
@@ -2198,16 +2194,15 @@ private class Emit(
         val leftChildEmitter = deforest(lChild)
         val rightChildEmitter = deforest(rChild)
 
-        val shapeArray = NDArrayEmitter.unifyShapes2(leftChildEmitter.outputShape2, rightChildEmitter.outputShape2)
+        val shapeArray = NDArrayEmitter.unifyShapes2(leftChildEmitter.outputShape, rightChildEmitter.outputShape)
 
         val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup)
 
-        new NDArrayEmitter(mb, lP.shape.pType.size, shapeArray,
-          lP.shape.pType, body.pType, setup) {
+        new NDArrayEmitter(mb, lP.shape.pType.size, shapeArray, lP.shape.pType, body.pType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
 
-            val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, leftChildEmitter.outputShape2)
-            val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, rightChildEmitter.outputShape2)
+            val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, leftChildEmitter.outputShape)
+            val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, rightChildEmitter.outputShape)
 
             Code(
               lElemRef := leftChildEmitter.outputElement(lIdxVars2),
@@ -2226,28 +2221,18 @@ private class Emit(
         val outputPType = x.pType
         val outputShapePType = outputPType.shape.pType
 
-        val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
-
         var shapeSeq = IndexedSeq[Code[Long]]()
 
-        val reindexShape = indexExpr.map {childIndex =>
+        indexExpr.foreach {childIndex =>
           if (childIndex < childPType.nDims) {
-            shapeSeq = shapeSeq :+ childEmitter.outputShape2(childIndex)
-            Code(
-              shapeSrvb.addLong(childEmitter.outputShape2(childIndex)),
-              shapeSrvb.advance()
-            )
+            shapeSeq = shapeSeq :+ childEmitter.outputShape(childIndex)
           }
           else {
             shapeSeq = shapeSeq :+ const(1L)
-            Code(
-              shapeSrvb.addLong(1L),
-              shapeSrvb.advance()
-            )
           }
         }
 
-        val setup = Code(childEmitter.setup, shapeSrvb.start(), reindexShape)
+        val setup = Code(childEmitter.setup)
 
         new NDArrayEmitter(mb, indexExpr.length, shapeSeq.toArray, outputShapePType, outputPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
@@ -2310,7 +2295,7 @@ object NDArrayEmitter {
 abstract class NDArrayEmitter(
    val mb: MethodBuilder,
    val nDims: Int,
-   val outputShape2: Array[Code[Long]],
+   val outputShape: Array[Code[Long]],
    val outputShapePType: PTuple,
    val outputElementPType: PType,
    val setup: Code[_]) {
@@ -2318,11 +2303,11 @@ abstract class NDArrayEmitter(
   def outputElement(idxVars: Array[Code[Long]]): Code[_]
 
   def emit(targetType: PNDArray): EmitTriplet = {
-    val dataSrvb = new StagedRegionValueBuilder(mb, targetType.representation.fieldType("data").asInstanceOf[PArray])
-    
+    val dataSrvb = new StagedRegionValueBuilder(mb, targetType.data.pType)
+
     val dataAddress: Code[Long] =
       Code(
-        dataSrvb.start(targetType.numElements(outputShape2, mb).toI),
+        dataSrvb.start(targetType.numElements(outputShape, mb).toI),
         emitLoops(dataSrvb),
         dataSrvb.end()
       )
@@ -2332,7 +2317,7 @@ abstract class NDArrayEmitter(
     def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
       coerce[Unit](Code(
         srvb.start(),
-        Code(outputShape2.map(shapeElement => Code(
+        Code(outputShape.map(shapeElement => Code(
           srvb.addLong(shapeElement),
           srvb.advance()
         )):_*) // Why is putting end here so bad?
@@ -2341,7 +2326,7 @@ abstract class NDArrayEmitter(
 
     val ndSetup = Code(
       setup,
-      ndAddress := targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides2(outputShape2, mb), dataAddress, mb)
+      ndAddress := targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides2(outputShape, mb), dataAddress, mb)
     )
     EmitTriplet(ndSetup, false, ndAddress)
   }
@@ -2359,7 +2344,7 @@ abstract class NDArrayEmitter(
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
         dimVar := 0L,
-        Code.whileLoop(dimVar < outputShape2(dimIdx),
+        Code.whileLoop(dimVar < outputShape(dimIdx),
           innerLoops,
           dimVar := dimVar + 1L
         )
