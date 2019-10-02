@@ -80,6 +80,26 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
+  def makeDefaultStrides2(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
+    val tupleStartAddress = mb.newField[Long]
+    val runningProduct = mb.newLocal[Long]
+    val region = mb.getArg[Region](1)
+    val tempShapeStorage = mb.newLocal[Long]
+
+    Code(
+      tupleStartAddress := strides.pType.allocate(region),
+      runningProduct := elementType.byteSize,
+      Code.foreach((nDims - 1) to 0 by -1) { idx =>
+        val fieldOffset = strides.pType.fieldOffset(tupleStartAddress, idx)
+        Code(
+          Region.storeLong(fieldOffset, runningProduct),
+          tempShapeStorage := sourceShapeArray(idx),
+          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L))
+      },
+      tupleStartAddress
+    )
+  }
+
   def getElementPosition(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
     val bytesAway = mb.newLocal[Long]

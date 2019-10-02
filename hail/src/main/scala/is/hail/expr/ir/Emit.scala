@@ -1487,6 +1487,18 @@ private class Emit(
 
         def getShapeAtIdx(index: Int) = Region.loadLong(shapePType.loadField(shapeAddress, index))
 
+        def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+          Code(
+            srvb.start(),
+            Code.foreach(0 until nDims) { index =>
+              shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
+                Code._fatal(s"shape missing at index $index"),
+                Code(srvb.addLong(getShapeAtIdx(index)), srvb.advance())
+              )
+            }
+          )
+        }
+
         val setup = Code(
           shapet.setup,
           datat.setup,
@@ -1495,14 +1507,14 @@ private class Emit(
             Code._fatal("Missing shape"),
             Code(
               shapeAddress := shapet.value[Long],
-              shapeSrvb.start(),
-              Code.foreach(0 until nDims) { index =>
-                shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
-                  Code._fatal(s"shape missing at index $index"),
-                  Code(shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
-                )
-              },
-              ndAddress := xP.construct(0, 0, shapeSrvb.end(), xP.makeDefaultStrides(shapePType, shapeAddress, mb), requiredData, mb)
+//              shapeSrvb.start(),
+//              Code.foreach(0 until nDims) { index =>
+//                shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
+//                  Code._fatal(s"shape missing at index $index"),
+//                  Code(shapeSrvb.addLong(getShapeAtIdx(index)), shapeSrvb.advance())
+//                )
+//              },
+              ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStrides(shapePType, shapeAddress, mb), requiredData, mb)
             )
           )
         )
@@ -2154,7 +2166,7 @@ private class Emit(
         val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup)
 
-        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape, childEmitter.outputShape2,
+        new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape2,
           childP.shape.pType,
           body.pType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
@@ -2186,19 +2198,16 @@ private class Emit(
         val leftChildEmitter = deforest(lChild)
         val rightChildEmitter = deforest(rChild)
 
-        val (unifiedShapeSetup, unifiedShape, unifiedShapePType) = NDArrayEmitter.unifyShapes(mb, leftChildEmitter.outputShape, leftChildEmitter.outputShapePType,
-          rightChildEmitter.outputShape, rightChildEmitter.outputShapePType, region)
+        val shapeArray = NDArrayEmitter.unifyShapes2(leftChildEmitter.outputShape2, rightChildEmitter.outputShape2)
 
-        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup, unifiedShapeSetup)
-        val unifiedTuple = new CodePTuple(unifiedShapePType, region, unifiedShape)
-        val shapeArray = (0 until unifiedShapePType.nFields).map(i => unifiedTuple[Long](i)).toArray
+        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup)
 
-        new NDArrayEmitter(mb, unifiedShapePType.size, unifiedShape, shapeArray,
+        new NDArrayEmitter(mb, lP.shape.pType.size, shapeArray,
           lP.shape.pType, body.pType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
 
-            val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, leftChildEmitter.outputShape, leftChildEmitter.outputShapePType)
-            val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, rightChildEmitter.outputShape, rightChildEmitter.outputShapePType)
+            val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, leftChildEmitter.outputShape2)
+            val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, rightChildEmitter.outputShape2)
 
             Code(
               lElemRef := leftChildEmitter.outputElement(lIdxVars2),
@@ -2219,14 +2228,13 @@ private class Emit(
 
         val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
 
-        val childShapeTuple = new CodePTuple(childPType.shape.pType, region, childEmitter.outputShape)
         var shapeSeq = IndexedSeq[Code[Long]]()
 
         val reindexShape = indexExpr.map {childIndex =>
           if (childIndex < childPType.nDims) {
-            shapeSeq = shapeSeq :+ childShapeTuple(childIndex)
+            shapeSeq = shapeSeq :+ childEmitter.outputShape2(childIndex)
             Code(
-              shapeSrvb.addLong(childShapeTuple(childIndex)),
+              shapeSrvb.addLong(childEmitter.outputShape2(childIndex)),
               shapeSrvb.advance()
             )
           }
@@ -2241,7 +2249,7 @@ private class Emit(
 
         val setup = Code(childEmitter.setup, shapeSrvb.start(), reindexShape)
 
-        new NDArrayEmitter(mb, indexExpr.length, shapeSrvb.end(), shapeSeq.toArray, outputShapePType, outputPType.elementType, setup) {
+        new NDArrayEmitter(mb, indexExpr.length, shapeSeq.toArray, outputShapePType, outputPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val concreteIdxsForChild = Array.tabulate(childEmitter.nDims) { childDim =>
               val parentDim = indexExpr.indexOf(childDim)
@@ -2264,9 +2272,8 @@ private class Emit(
         val shapeTuple = new CodePTuple(xP.shape.pType, er.region, shapeAddress)
 
         val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i)).toArray
-        info(s"shapeArray was length ${shapeArray.size} and containted ${shapeArray.toIndexedSeq}")
 
-        new NDArrayEmitter(mb, nDims, shapeAddress, shapeArray,
+        new NDArrayEmitter(mb, nDims, shapeArray,
           xP.shape.pType, xP.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val elementLocation = xP.getElementPosition(idxVars, ndAddress, er.region, mb)
@@ -2279,10 +2286,10 @@ private class Emit(
 
 object NDArrayEmitter {
 
-  def zeroBroadcastedDims2(mb: MethodBuilder, loopVars: Array[Code[Long]], nDims: Int, shape: Code[Long], shapePType: PTuple): Array[Code[Long]] = {
+  def zeroBroadcastedDims2(mb: MethodBuilder, loopVars: Array[Code[Long]], nDims: Int, shapeArray: Array[Code[Long]]): Array[Code[Long]] = {
     val broadcasted = 0L
     val notBroadcasted = 1L
-    def getShapeAtIdx(i: Int): Code[Long] = Region.loadLong(shapePType.loadField(shape, i))
+    def getShapeAtIdx(i: Int): Code[Long] = shapeArray(i)
 
     Array.tabulate(nDims)(dim => (getShapeAtIdx(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
   }
@@ -2312,12 +2319,23 @@ object NDArrayEmitter {
       Code(setupList:_*))
     (setup, unifiedShapeAddress, unifiedPType)
   }
+
+  def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
+    leftShape.zip(rightShape).map{case (left, right) =>
+      val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
+      coerce[Long](Code(
+        notSameAndNotBroadcastable.mux(
+          Code._fatal("Incompatible NDArray shapes"),
+          (left > right).mux(left, right)
+        )
+      ))
+    }
+  }
 }
 
 abstract class NDArrayEmitter(
    val mb: MethodBuilder,
    val nDims: Int,
-   val outputShape: Code[Long],
    val outputShape2: Array[Code[Long]],
    val outputShapePType: PTuple,
    val outputElementPType: PType,
@@ -2349,7 +2367,7 @@ abstract class NDArrayEmitter(
 
     val ndSetup = Code(
       setup,
-      ndAddress := targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides(outputShapePType, outputShape, mb), dataAddress, mb)
+      ndAddress := targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides2(outputShape2, mb), dataAddress, mb)
     )
     EmitTriplet(ndSetup, false, ndAddress)
   }
@@ -2367,7 +2385,7 @@ abstract class NDArrayEmitter(
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
         dimVar := 0L,
-        Code.whileLoop(dimVar < Region.loadLong(outputShapePType.loadField(outputShape, dimIdx)),
+        Code.whileLoop(dimVar < outputShape2(dimIdx),
           innerLoops,
           dimVar := dimVar + 1L
         )
