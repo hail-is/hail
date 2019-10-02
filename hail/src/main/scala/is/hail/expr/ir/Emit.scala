@@ -2263,7 +2263,8 @@ private class Emit(
         val shapeAddress = xP.shape.load(er.region, ndAddress)
         val shapeTuple = new CodePTuple(xP.shape.pType, er.region, shapeAddress)
 
-        val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple[Long](i)).toArray
+        val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i)).toArray
+        info(s"shapeArray was length ${shapeArray.size} and containted ${shapeArray.toIndexedSeq}")
 
         new NDArrayEmitter(mb, nDims, shapeAddress, shapeArray,
           xP.shape.pType, xP.elementType, setup) {
@@ -2329,16 +2330,26 @@ abstract class NDArrayEmitter(
     
     val dataAddress: Code[Long] =
       Code(
-        dataSrvb.start(targetType.numElements(outputShape, mb).toI),
+        dataSrvb.start(targetType.numElements(outputShape2, mb).toI),
         emitLoops(dataSrvb),
         dataSrvb.end()
       )
 
     val ndAddress = mb.newField[Long]
 
+    def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+      coerce[Unit](Code(
+        srvb.start(),
+        Code(outputShape2.map(shapeElement => Code(
+          srvb.addLong(shapeElement),
+          srvb.advance()
+        )):_*) // Why is putting end here so bad?
+      ))
+    }
+
     val ndSetup = Code(
       setup,
-      ndAddress := targetType.construct(0, 0, outputShape, targetType.makeDefaultStrides(outputShapePType, outputShape, mb), dataAddress, mb)
+      ndAddress := targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides(outputShapePType, outputShape, mb), dataAddress, mb)
     )
     EmitTriplet(ndSetup, false, ndAddress)
   }

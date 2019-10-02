@@ -54,11 +54,8 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   override def fundamentalType: PType = representation.fundamentalType
 
-  def numElements(shape: Code[Long], mb: MethodBuilder): Code[Long] = {
-    def getShapeAtIdx(idx: Int): Code[Long] = Region.loadLong(this.representation.fieldType("shape").asInstanceOf[PTuple]
-      .loadField(shape, idx))
-
-      Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * getShapeAtIdx(idx) }
+  def numElements(shape: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
+      Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * shape(idx) }
   }
 
   def makeDefaultStrides(sourceShapePType: PTuple, sourceShape: Code[Long], mb: MethodBuilder): Code[Long] = {
@@ -110,6 +107,24 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       srvb.addInt(offset),
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("shape"))(shape),
+      srvb.advance(),
+      srvb.addIRIntermediate(this.representation.fieldType("strides"))(strides),
+      srvb.advance(),
+      srvb.addIRIntermediate(this.representation.fieldType("data"))(data),
+      srvb.end()
+    ))
+  }
+
+  def construct2(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]), strides: Code[Long], data: Code[Long], mb: MethodBuilder): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(mb, this.representation)
+
+    coerce[Long](Code(
+      srvb.start(),
+      srvb.addInt(flags),
+      srvb.advance(),
+      srvb.addInt(offset),
+      srvb.advance(),
+      srvb.addBaseStruct(this.shape.pType, shapeBuilder),
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("strides"))(strides),
       srvb.advance(),
