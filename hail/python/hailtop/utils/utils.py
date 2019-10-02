@@ -27,11 +27,14 @@ class AsyncWorkerPool:
         self._sem = asyncio.Semaphore(parallelism)
         self._count = 0
         self._done = asyncio.Event()
+        self._results = []
+        self._idx = 0
 
-    async def _call(self, f, args, kwargs):
+    async def _call(self, idx, f, args, kwargs):
         async with self._sem:
             try:
-                await f(*args, **kwargs)
+                result = await f(*args, **kwargs)
+                self._results[idx] = result
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -46,7 +49,10 @@ class AsyncWorkerPool:
         if self._count == 0:
             self._done.clear()
         self._count += 1
-        asyncio.ensure_future(self._call(f, args, kwargs))
+        self._results.append(None)
+        asyncio.ensure_future(self._call(self._idx, f, args, kwargs))
+        self._idx += 1
 
     async def wait(self):
         await self._done.wait()
+        return self._results

@@ -1,0 +1,7 @@
+/Dockerfile.out
+/sql-config.cnf
+/sql-config.json
+/create-tables.sql
+/delete-tables.sql
+/*.log
+/*.yaml.out

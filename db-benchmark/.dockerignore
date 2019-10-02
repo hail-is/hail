@@ -1,0 +1,9 @@
+**/*.log
+**/*.pyc
+**/*~
+**/__pycache__
+.pytest_cache/
+sql-config.cnf
+sql-config.json
+*.yaml
+*.yaml.out
