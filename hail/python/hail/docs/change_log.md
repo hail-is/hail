@@ -1,5 +1,29 @@
 # Change Log
 
+## Frequently Asked Questions
+
+### With a version like 0.x, is Hail ready for use in publications?
+
+Yes. The semantic versioning standard uses 0.x (development) versions to 
+refer to software that is either "buggy" or "partial". While we don't view
+Hail as particularly buggy (especially compared to one-off untested
+scripts pervasive in bioinformatics!), Hail 0.2 is a partial realization
+of a larger vision.
+
+### What stability is guaranteed?
+
+We do not intentionally break back-compatibility of interfaces or file 
+formats. This means that a script developed to run on Hail 0.2.5 should
+continue to work in every subsequent release within the 0.2 major version.
+**The exception to this rule is experimental functionality, denoted as
+such in the reference documentation, which may change at any time**.
+
+Please note that **forward compatibility should not be expected, especially
+relating to file formats**: this means that it may not be possible to use
+an earlier version of Hail to read files written in a later version.  
+
+---
+
 ## Version 0.2.24
 
 Released 2019-10-03
