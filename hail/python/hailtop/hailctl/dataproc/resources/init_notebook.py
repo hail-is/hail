@@ -40,15 +40,13 @@ if role == 'Master':
         'setuptools',
         'mkl<2020',
         'ipywidgets<8',
-        'jupyter_console<5',
         'nbconvert<6',
         'notebook<6',
         'qtconsole<5',
-        'jupyter', 'tornado<6',  # https://github.com/hail-is/hail/issues/5505
         'lxml<5',
         'google-cloud==0.32.0',
-        'ipython<7',
         'jgscm<0.2',
+        'jupyter', 'tornado<6',  # https://github.com/hail-is/hail/issues/5505
     ]
 
     # add user-requested packages
