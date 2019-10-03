@@ -55,6 +55,7 @@ async def workshop_userdata_from_web_request(request):
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
+                assert len(workshops) == 0
                 del session['workshop_session']
                 return None
             workshop = workshops[0]
@@ -276,6 +277,7 @@ async def get_user_notebook(dbpool, user_id):
 
     if len(notebooks) == 1:
         return notebooks[0]
+    assert len(notebooks) == 0
     return None
 
 
@@ -663,6 +665,7 @@ WHERE name = %s AND password = %s AND active = 1;
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
+                assert len(workshops) == 0
                 set_message(
                     session,
                     'No such workshop.  Check the workshop name and password and try again.',
