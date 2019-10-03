@@ -65,17 +65,7 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
                             SB=e.SB,
                             gvcf_info=hl.case()
                                 .when(hl.is_missing(row.info.END),
-                                      hl.struct(
-                                          ClippingRankSum=row.info.ClippingRankSum,
-                                          BaseQRankSum=row.info.BaseQRankSum,
-                                          MQ=row.info.MQ,
-                                          MQRankSum=row.info.MQRankSum,
-                                          MQ_DP=row.info.MQ_DP,
-                                          QUALapprox=row.info.QUALapprox,
-                                          RAW_MQ=row.info.RAW_MQ,
-                                          ReadPosRankSum=row.info.ReadPosRankSum,
-                                          VarDP=hl.cond(row.info.VarDP > vardp_outlier,
-                                                        row.info.DP, row.info.VarDP)))
+                                      hl.struct(**(row.info.drop('END', 'DP'))))
                                 .or_missing()
                         ))),
             ),
