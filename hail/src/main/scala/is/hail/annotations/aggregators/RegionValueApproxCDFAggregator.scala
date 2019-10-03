@@ -368,12 +368,12 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
 
     val mergedCompactionCounts = Array.fill[Int](ubOnNumLevels)(0)
     lvl = 0
-    while (lvl < compactionCounts.length) {
+    while (compactionCounts(lvl) > 0) {
       mergedCompactionCounts(lvl) += compactionCounts(lvl)
       lvl += 1
     }
     lvl = 0
-    while (lvl < other.compactionCounts.length) {
+    while (other.compactionCounts(lvl) > 0) {
       mergedCompactionCounts(lvl) += other.compactionCounts(lvl)
       lvl += 1
     }
@@ -804,3 +804,4 @@ object QuantilesAggregator {
     total
   }
 }
+
