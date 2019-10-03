@@ -790,6 +790,11 @@ object Interpret {
                 Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
               assert(rTyp.types(0).virtualType == query.typ)
 
+              val useTreeAggregate = extracted.shouldTreeAggregate
+              val isCommutative = extracted.isCommutative
+              log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
+              log.info(s"Aggregate: commutative=${ isCommutative }")
+
               val aggResults = value.rvd.combine[Array[Byte]](
                 Region.scoped { region =>
                   val initF = initOp(0, region)
@@ -815,7 +820,7 @@ object Interpret {
                     }
                     write(aggRegion, seqOps.getAggOffset())
                   }
-                }, combOpF, commutative = extracted.isCommutative)
+                }, combOpF, commutative = isCommutative, tree = useTreeAggregate)
 
               Region.scoped { r =>
                 val resF = f(0, r)

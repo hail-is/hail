@@ -568,15 +568,46 @@ class RVD(
     RVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
-  // Aggregating
-  // used in Interpret by TableAggregate2
-  def combine[U: ClassTag](
+  def combine[U : ClassTag](
     zeroValue: U,
     itF: (Int, RVDContext, Iterator[RegionValue]) => U,
     combOp: (U, U) => U,
-    commutative: Boolean): U = {
-    val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
-    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
+    commutative: Boolean,
+    tree: Boolean): U = {
+
+    val makeComb: () => Combiner[U] = () => Combiner(zeroValue, combOp, commutative = commutative, associative = true)
+
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+
+    if (tree) {
+      val depth = treeAggDepth(HailContext.get, reduced.getNumPartitions)
+      val scale = math.max(
+        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        2)
+      var i = 0
+      while (i < depth - 1 && reduced.getNumPartitions > scale) {
+        val nParts = reduced.getNumPartitions
+        val newNParts = nParts / scale
+        reduced = reduced.mapPartitionsWithIndex { (i, it) =>
+          it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+        }
+          .partitionBy(new Partitioner {
+            override def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+            override def numPartitions: Int = newNParts
+          })
+          .mapPartitions { it =>
+            val ac = makeComb()
+            it.foreach { case (newPart, (oldPart, v)) =>
+              ac.combine(oldPart, v)
+            }
+            Iterator.single(ac.result())
+          }
+        i += 1
+      }
+    }
+
+    val ac = makeComb()
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }
@@ -602,22 +633,6 @@ class RVD(
     val ac = Combiner(zeroValue, combOp, commutative, associative = true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
-  }
-
-  // only used by MatrixMapCols
-  def treeAggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U,
-    makePC: (Int, RVDContext) => PC
-  )(seqOp: (PC, U, RegionValue) => U,
-    combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
-      val u2 = seqOp(pc, u, rv)
-      ctx.region.clear()
-      u2
-    }
-    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
   }
 
   def forall(p: RegionValue => Boolean): Boolean =
