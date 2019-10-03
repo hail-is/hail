@@ -1388,7 +1388,6 @@ case class TableKeyByAndAggregate(
           .boundary
           .mapPartitionsWithIndex { (i, ctx, it) =>
             val partRegion = ctx.freshRegion
-            val aggRegion = ctx.freshRegion
             val globals = globalsBc.value.readRegionValue(partRegion)
             val makeKey = {
               val f = makeKeyF(i, partRegion)
@@ -1397,21 +1396,31 @@ case class TableKeyByAndAggregate(
                 SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
               }
             }
+            val makeAgg = { () =>
+              val aggRegion = ctx.freshRegion
+              RegionValue(aggRegion, deserialize(aggRegion, initAggs))
+            }
 
             val seqOp = {
               val f = makeSeq(i, partRegion)
-              (rv: RegionValue, aggOff: Long) => {
-                f.setAggState(aggRegion, aggOff)
+              (rv: RegionValue, agg: RegionValue) => {
+                f.setAggState(agg.region, agg.offset)
                 f(rv.region, globals, false, rv.offset, false)
-                f.getAggOffset()
+                agg.setOffset(f.getAggOffset())
               }
             }
-            new BufferedAggregatorIterator[RegionValue, Long, Array[Byte], Row](
+            val serializeAndCleanupAggs = { rv: RegionValue =>
+              val a = serialize(rv.region, rv.offset)
+              rv.region.close()
+              a
+            }
+
+            new BufferedAggregatorIterator[RegionValue, RegionValue, Array[Byte], Row](
               it,
-              () => deserialize(aggRegion, initAggs),
+              makeAgg,
               makeKey,
               seqOp,
-              serialize(aggRegion, _),
+              serializeAndCleanupAggs,
               localBufferSize)
           }.aggregateByKey(initAggs, nPartitions.getOrElse(prev.rvd.getNumPartitions))(combOp, combOp)
 

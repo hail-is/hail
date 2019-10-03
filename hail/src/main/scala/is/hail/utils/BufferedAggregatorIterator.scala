@@ -10,8 +10,8 @@ class BufferedAggregatorIterator[T, V, U, K](
   it: Iterator[T],
   makeComb: () => V,
   makeKey: T => K,
-  sequence: (T, V) => V,
-  serialize: V => U,
+  sequence: (T, V) => Unit,
+  serializeAndCleanup: V => U,
   bufferSize: Int
 ) extends Iterator[(K, U)] {
 
@@ -42,21 +42,22 @@ class BufferedAggregatorIterator[T, V, U, K](
       val value = fb.value
       val key = makeKey(value)
       if (buffer.containsKey(key)) {
-        buffer.replace(key, sequence(value, buffer.get(key)))
+        sequence(value, buffer.get(key))
         fb.advance()
       } else {
-        val agg = sequence(value, makeComb())
+        val agg = makeComb()
+        sequence(value, agg)
         fb.advance()
         buffer.put(key, agg)
         if (popped != null) {
           val cp = popped
           popped = null
-          return cp.getKey -> serialize(cp.getValue)
+          return cp.getKey -> serializeAndCleanup(cp.getValue)
         }
       }
     }
     val next = buffer.entrySet().iterator().next()
     buffer.remove(next.getKey)
-    next.getKey -> serialize(next.getValue)
+    next.getKey -> serializeAndCleanup(next.getValue)
   }
 }
