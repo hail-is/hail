@@ -1,5 +1,26 @@
 # Change Log
 
+## Version 0.2.24
+
+Released 2019-10-03
+
+### `hailctl dataproc`
+- (hail#7185) Resolve issue in dependencies that led to a Jupyter update breaking cluster creation.
+
+### New features
+- (hail#7071) Add `permit_shuffle` flag to `hl.{split_multi, split_multi_hts}` to allow processing of datasets with both multiallelics and duplciate loci.
+- (hail#7121) Add `hl.contig_length` function.
+- (hail#7130) Add `window` method on `LocusExpression`, which creates an interval around a locus.
+- (hail#7172) Permit `hl.init(sc=sc)` with pip-installed packages, given the right configuration options.
+
+### Bug fixes
+- (hail#7070) Fix unintentionally strict type error in `MatrixTable.union_rows`.
+- (hail#7170) Fix issues created downstream of `BlockMatrix.T`.
+- (hail#7146) Fix bad handling of edge cases in `BlockMatrix.filter`.
+- (hail#7182) Fix problem parsing VCFs where lines end in an INFO field of type flag.
+
+---
+
 ## Version 0.2.23
 
 Released 2019-09-23
