@@ -45,13 +45,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     } else {
       blocks(size) += 1
       val blockByteSize = Region.SIZES(size)
-      totalAllocatedBytes += blockByteSize
+      incrementAllocatedBytes(blockByteSize)
       Memory.malloc(blockByteSize)
     }
   }
 
   protected[annotations] def getChunk(size: Long): Long = {
-    totalAllocatedBytes += size
+    incrementAllocatedBytes(size)
     Memory.malloc(size)
   }
 
