@@ -914,7 +914,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       if (infoType.hasField(key)) {
         rvb.setFieldIndex(infoType.fieldIdx(key))
         if (infoFlagFieldNames.contains(key)) {
-          if (line(pos) == '=') {
+          if (pos != line.length && line(pos) == '=') {
             pos += 1
             val s = parseInfoString()
             if (s != "0")

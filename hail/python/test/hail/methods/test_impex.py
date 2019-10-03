@@ -381,6 +381,11 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
+    def test_flag_at_eol(self):
+        vcf_path = resource('flag_at_end.vcf')
+        mt = hl.import_vcf(vcf_path)
+        assert mt._force_count_rows() == 1
+
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):
