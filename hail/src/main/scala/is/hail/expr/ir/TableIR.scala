@@ -1508,7 +1508,6 @@ case class TableKeyByAndAggregate(
           val f = makeSeq(i, partRegion)
           (rv: RegionValue, rvAggs: Array[RegionValueAggregator]) => {
             f(rv.region, rvAggs, globals, false, rv.offset, false)
-            rvAggs
           }
         }
         new BufferedAggregatorIterator[RegionValue, Array[RegionValueAggregator], Array[RegionValueAggregator], Row](
