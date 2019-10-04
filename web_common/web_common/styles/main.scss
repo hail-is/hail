@@ -120,7 +120,9 @@ a {
 .header-dropdown-menu-caret {
     position: absolute;
     width: 100px;
-    height: 15px;
+    /* Extra 0.1 is needed to fully cover the border.  Don't know why it
+       is needed. */
+    height: 15.1px;
     overflow: hidden;
     top: -15px;
 }
@@ -147,6 +149,8 @@ a {
     border-radius: 3px;
     background-color: white;
     border: 1px solid black;
+    /* 12px: height of triangle + 5px spacing */
+    transform: translate(0px, 12px);
 }
 
 .header-dropdown-menu-link {
