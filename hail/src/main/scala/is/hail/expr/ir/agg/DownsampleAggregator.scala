@@ -104,6 +104,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
     mb.emit(Code(
       allocateSpace(),
       this.nDivisions := mb.getArg[Int](1),
+      (this.nDivisions < 50).orEmpty(Code._fatal(const("downsample: require n_divisions >= 50, found ").concat(this.nDivisions.toS))),
       left := 0d,
       right := 0d,
       bottom := 0d,
@@ -248,8 +249,6 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
   val xBinCoordinate: Code[Double] => Code[Int] = {
     val mb = fb.newMethod("downsample_x_bin_coordinate", Array[TypeInfo[_]](DoubleInfo), IntInfo)
     val x = mb.getArg[Double](1)
-
-    val r = mb.newLocal[Int]
     mb.emit(right.ceq(left).mux(0, (((x - left) / (right - left)) * nDivisions.toD).toI))
     mb.invoke(_)
   }
@@ -257,27 +256,22 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
   val yBinCoordinate: Code[Double] => Code[Int] = {
     val mb = fb.newMethod("downsample_y_bin_coordinate", Array[TypeInfo[_]](DoubleInfo), IntInfo)
     val y = mb.getArg[Double](1)
-    val r = mb.newLocal[Int]
     mb.emit(top.ceq(bottom).mux(0, (((y - bottom) / (top - bottom)) * nDivisions.toD).toI))
     mb.invoke(_)
   }
 
-  def insertIntoTree(x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def insertIntoTree(binX: Code[Int], binY: Code[Int], point: Code[Long], deepCopy: Boolean): Code[Unit] = {
     val name = s"downsample_insert_into_tree_${ deepCopy.toString }"
-    val mb = fb.getOrDefineMethod(name, (this, name, deepCopy), Array[TypeInfo[_]](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
-      val x = mb.getArg[Double](1)
-      val y = mb.getArg[Double](2)
+    val mb = fb.getOrDefineMethod(name, (this, name, deepCopy), Array[TypeInfo[_]](IntInfo, IntInfo, LongInfo), UnitInfo) { mb =>
+      val binX = mb.getArg[Int](1)
+      val binY = mb.getArg[Int](2)
       val point = mb.getArg[Long](3)
       val insertOffset = mb.newLocal[Long]("insert_offset")
       val binOffset = mb.newLocal[Long]("bin_offset")
       val insertedPointOffset = mb.newLocal[Long]("inserted_point_offset")
-      val binX = mb.newLocal[Int]("binX")
-      val binY = mb.newLocal[Int]("binY")
       val binStaging = mb.newLocal[Long]("binStaging")
 
       mb.emit(Code(
-        binX := xBinCoordinate(x),
-        binY := yBinCoordinate(y),
         binStaging := storageType.loadField(off, "binStaging"),
         Region.storeInt(binType.fieldOffset(binStaging, "x"), binX),
         Region.storeInt(binType.fieldOffset(binStaging, "y"), binY),
@@ -299,7 +293,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       ))
     }
 
-    mb.invoke(x, y, point)
+    mb.invoke(binX, binY, point)
   }
 
   def copyFromTree(other: AppendOnlyBTree): Code[Unit] = {
@@ -318,7 +312,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           pointX := Region.loadDouble(pointType.loadField(point, "x")),
           pointY := Region.loadDouble(pointType.loadField(point, "y")),
           lm := pointType.isFieldMissing(point, "label"),
-          insertIntoTree(pointX, pointY, point, deepCopy = true)
+          insertIntoTree(xBinCoordinate(pointX), yBinCoordinate(pointY), point, deepCopy = true)
         ))
         mb.invoke(_)
       }
@@ -362,7 +356,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           point := coerce[Long](buffer.loadElement(i)._2),
           x := Region.loadDouble(pointType.loadField(point, "x")),
           y := Region.loadDouble(pointType.loadField(point, "y")),
-          insertIntoTree(x, y, point, deepCopy = true),
+          insertIntoTree(xBinCoordinate(x), yBinCoordinate(y), point, deepCopy = true),
           i := i + 1),
         buffer.initialize(),
         oldRegion.load().invalidate()
@@ -379,7 +373,6 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       val y = mb.getArg[Double](2)
       val point = mb.getArg[Long](3)
 
-      val debugReadBack = mb.newLocal[Long]
       mb.emit(Code(
         bufferLeft := min(bufferLeft, x),
         bufferRight := max(bufferRight, x),
@@ -393,39 +386,42 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
     mb.invoke(x, y, point)
   }
 
-  def checkAndModifyBounds(x: Code[Double], y: Code[Double]): Code[Boolean] = {
-    val name = "downsample_check_and_modify_bounds"
-    val mb = fb.getOrDefineMethod(name, (this, name), Array[TypeInfo[_]](DoubleInfo, DoubleInfo), BooleanInfo) { mb =>
-      val x = mb.getArg[Double](1)
-      val y = mb.getArg[Double](2)
-      val outsideBin = mb.newLocal[Boolean]("outside_bin")
+  def checkBounds(xBin: Code[Int], yBin: Code[Int]): Code[Boolean] = {
+    val name = "downsample_check_bounds"
+    val mb = fb.getOrDefineMethod(name, (this, name), Array[TypeInfo[_]](IntInfo, IntInfo), BooleanInfo) { mb =>
+      val xBin = mb.getArg[Int](1)
+      val yBin = mb.getArg[Int](2)
+      val factor = mb.newLocal[Int]("factor")
       mb.emit(Code(
-        outsideBin := false,
-        (x < left).mux(
-          Code(
-            outsideBin := true,
-            left := x
-          ),
-          (x > right).orEmpty(Code(
-            outsideBin := true,
-            right := x
-          ))
-        ),
-        (y < bottom).mux(
-          Code(
-            outsideBin := true,
-            bottom := y
-          ),
-          (y > top).orEmpty(Code(
-            outsideBin := true,
-            top := y
-          ))
-        ),
-        outsideBin
-      ))
+        factor := nDivisions >> 2,
+        treeSize.ceq(0)
+          || (xBin < -factor)
+          || (xBin > nDivisions + factor)
+          || (yBin < -factor)
+          || (yBin > nDivisions + factor)))
     }
 
-    mb.invoke(x, y)
+    mb.invoke(xBin, yBin)
+  }
+
+  def binAndInsert(x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean): Code[Unit] = {
+    val name = "downsample_bin_and_insert"
+    val mb = fb.getOrDefineMethod(name, (this, name, deepCopy), Array[TypeInfo[_]](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
+      val x = mb.getArg[Double](1)
+      val y = mb.getArg[Double](2)
+      val point = mb.getArg[Long](3)
+
+      val binX = mb.newLocal[Int]("bin_x")
+      val binY = mb.newLocal[Int]("bin_y")
+
+      mb.emit(Code(
+        binX := xBinCoordinate(x),
+        binY := yBinCoordinate(y),
+        checkBounds(binX, binY).mux(
+          insertPointIntoBuffer(x, y, point, deepCopy = deepCopy),
+          insertIntoTree(binX, binY, point, deepCopy = deepCopy))))
+    }
+    mb.invoke(x, y, point)
   }
 
   def insert(x: Code[Double], y: Code[Double], lm: Code[Boolean], l: Code[Long]): Code[Unit] = {
@@ -450,10 +446,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
             Code(
               pointType.setFieldPresent(pointStaging, "label"),
               StagedRegionValueBuilder.deepCopy(fb, region, labelType, l, pointType.fieldOffset(pointStaging, "label"))))),
-        checkAndModifyBounds(x, y).mux(
-          insertPointIntoBuffer(x, y, pointStaging, deepCopy = false),
-          insertIntoTree(x, y, pointStaging, deepCopy = false))))
-
+        binAndInsert(x, y, pointStaging, deepCopy = false)))
     }
 
     val lmField = fb.newField[Boolean]("lm_field")
@@ -475,10 +468,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       mb.emit(Code(
         x := Region.loadDouble(pointType.loadField(point, "x")),
         y := Region.loadDouble(pointType.loadField(point, "y")),
-        checkAndModifyBounds(x, y).mux(
-          insertPointIntoBuffer(x, y, point, deepCopy = true),
-          insertIntoTree(x, y, point, deepCopy = true)
-        )
+        binAndInsert(x, y, point, deepCopy = true)
       ))
     }
 

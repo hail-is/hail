@@ -115,7 +115,7 @@ class Aggregators2Suite extends HailSuite {
             assert(f(double.get(0)) == f(double.get(1)),
               s"\nbefore: ${ f(double.get(0)) }\nafter:  ${ f(double.get(1)) }")
             assert(f(double.get(0)) == expected,
-              s"\nbefore: ${ f(double.get(0)) }\nafter:  ${ expected }")
+              s"\nresult: ${ f(double.get(0)) }\nexpect: ${ expected }")
           case None =>
             assert(resultType.virtualType.valuesSimilar(double.get(0), double.get(1)), // state does not change through serialization
               s"\nbefore: ${ double.get(0) }\nafter:  ${ double.get(1) }")
@@ -663,8 +663,6 @@ class Aggregators2Suite extends HailSuite {
       Row(3d, 3.3d, null)
     )
 
-//    val rowsBase = IndexedSeq.tabulate(20)(i => Row(i.toDouble, i.toDouble, null))
-//    val rows = rowsBase ++ rowsBase ++ IndexedSeq(Row(0d, 0d, null), Row(0d, 0d, null))
     val arrayType = TArray(TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](
       GetField(ArrayRef(Ref("rows", arrayType), i), "x"),
@@ -679,17 +677,6 @@ class Aggregators2Suite extends HailSuite {
       args = FastIndexedSeq(("rows", (arrayType, rows))))
 
     val expected = rows.toSet
-//    val expected = Set(
-//      Row(-1.23, 1.23, null),
-//      Row(-10d, 10d, FastIndexedSeq("foo")),
-//      Row(0d, 100d, FastIndexedSeq()),
-//      Row(-10.1d, -100d, null),
-//      Row(0d, 0d, null),
-//      Row(1d, 1.1d, null),
-//      Row(2d, 2.2d, null),
-//      Row(3d, 3.3d, null),
-//      Row(4d, 4.4d, null)
-//    )
     assertAggEquals(aggSig,
       FastIndexedSeq(I32(100)),
       seqOpArgs,
