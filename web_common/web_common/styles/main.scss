@@ -103,7 +103,6 @@ a {
 }
 
 .header-dropdown-menu-caret {
-    position: absolute;
     width: 100px;
     height: 100px;
     top: -100px;
@@ -112,7 +111,6 @@ a {
 
 .header-dropdown-menu-caret:after {
     content: "";
-    position: absolute;
     width: 20px;
     height: 20px;
     background: #999;
