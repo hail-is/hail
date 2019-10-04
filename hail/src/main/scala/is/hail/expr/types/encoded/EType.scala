@@ -21,7 +21,6 @@ class ETypeSerializer extends CustomSerializer[EType](format => ( {
 }))
 
 
-// All _$methods here assume that their arguments are fundamental types
 abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedEncoder = (Code[_], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoder[T] = (Code[Region], Code[InputBuffer]) => Code[T]
