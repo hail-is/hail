@@ -1,5 +1,7 @@
 package is.hail.backend
 
+import java.io.PrintWriter
+
 import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
@@ -23,7 +25,7 @@ abstract class Backend {
   def lower(ir: IR, timer: Option[ExecutionTimer], optimize: Boolean = true): IR =
       LowerTableIR(ir, timer, optimize)
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean): (Any, Timings) = {
+  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, Timings) = {
     val timer = new ExecutionTimer("Backend.execute")
     val ir = lower(ir0, Some(timer), optimize)
 
@@ -33,10 +35,10 @@ abstract class Backend {
     val res = Region.scoped { region =>
       ir.typ match {
         case TVoid =>
-          val (_, f) = timer.time(Compile[Unit](ir), "JVM compile")
+          val (_, f) = timer.time(Compile[Unit](ir, print), "JVM compile")
           timer.time(f(0, region)(region), "Runtime")
         case _ =>
-          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple.ordered(FastSeq(ir))), "JVM compile")
+          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple.ordered(FastSeq(ir)), print), "JVM compile")
           timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
       }
     }

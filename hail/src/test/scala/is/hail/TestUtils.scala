@@ -1,5 +1,7 @@
 package is.hail
 
+import java.io.PrintWriter
+
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
@@ -143,10 +145,14 @@ object TestUtils {
   }
 
 
-  def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+  def loweredExecute(x: IR, env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    bytecodePrinter: Option[PrintWriter] = None
+  ): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.backend.jvmLowerAndExecute(x, optimize = false)._1
+    HailContext.backend.jvmLowerAndExecute(x, optimize = false, print = bytecodePrinter)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
