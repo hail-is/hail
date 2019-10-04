@@ -82,7 +82,7 @@ object Compile {
 
   def apply[R: TypeInfo : ClassTag](
     body: IR,
-    print: Option[PrintWriter] = None
+    print: Option[PrintWriter]
   ): (PType, (Int, Region) => AsmFunction1[Region, R]) = {
     apply[AsmFunction1[Region, R], R](print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
   }
@@ -91,17 +91,33 @@ object Compile {
     name0: String,
     typ0: PType,
     body: IR,
-    optimize: Boolean): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
-
-    apply[AsmFunction3[Region, T0, Boolean, R], R](None, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize)
+    optimize: Boolean,
+    print: Option[PrintWriter]
+  ): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
+    apply[AsmFunction3[Region, T0, Boolean, R], R](print, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: PType,
-    body: IR): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
+    body: IR,
+    optimize: Boolean): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) =
+    apply(name0, typ0, body, optimize, None)
 
-    apply[AsmFunction3[Region, T0, Boolean, R], R](None, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize = true)
+  def apply[T0: ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: PType,
+    body: IR): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) =
+    apply(name0, typ0, body, true)
+
+  def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: PType,
+    name1: String,
+    typ1: PType,
+    body: IR,
+    print: Option[PrintWriter]): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](print, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
@@ -109,10 +125,8 @@ object Compile {
     typ0: PType,
     name1: String,
     typ1: PType,
-    body: IR): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
-
-    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](None, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
-  }
+    body: IR): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) =
+    apply(name0, typ0, name1, typ1, body, None)
 
   def apply[
   T0: TypeInfo : ClassTag,
