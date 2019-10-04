@@ -33,17 +33,23 @@
       Scorecard
     </a>
 
-    <a target="_blank" class="header-link" href="https://internal.hail.is/monitoring/grafana/">
-      Grafana<i class="material-icons text-icon">open_in_new</i>
-    </a>
-
-    <a target="_blank" class="header-link" href="https://internal.hail.is/monitoring/prometheus/">
-      Prometheus<i class="material-icons text-icon">open_in_new</i>
-    </a>
-
-    <a target="_blank" class="header-link" href="https://internal.hail.is/monitoring/kibana/">
-      Kibana<i class="material-icons text-icon">open_in_new</i>
-    </a>
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<div class="disabled-header-dropdown-item">Monitoring</div>
+	<div class="header-dropdown-menu">
+	  <div class="header-dropdown-menu-caret"></div>
+	  <a target="_blank" class="header-dropdown-menu-link" href="https://internal.hail.is/monitoring/grafana/">
+	    Grafana<i class="material-icons text-icon">open_in_new</i>
+	  </a>
+	  <a target="_blank" class="header-dropdown-menu-link" href="https://internal.hail.is/monitoring/prometheus/">
+	    Prometheus<i class="material-icons text-icon">open_in_new</i>
+	  </a>
+	  <a target="_blank" class="header-dropdown-menu-link" href="https://internal.hail.is/monitoring/kibana/">
+	    Kibana<i class="material-icons text-icon">open_in_new</i>
+	  </a>
+	</div>
+      </div>
+    </div>
   {% endif %}
 
   <div id="header-flex"></div>

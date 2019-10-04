@@ -95,6 +95,12 @@ a {
     margin: 6px;
 }
 
+.disabled-header-dropdown-item {
+    padding: 9px 9px;
+    color: $devil-gray;
+    white-space: nowrap;
+}
+
 .header-dropdown-link {
     padding: 9px 9px;
     color: $black;
