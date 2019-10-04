@@ -125,6 +125,7 @@ a {
 
 .header-dropdown-menu-caret {
     position: absolute;
+    /* big enough to contain ::after */
     width: 100px;
     /* Chrome doesn't seem to handle exact overlap.  Depending on the zoom
        level, there is a thin border or overhang artifacts.  The extra
@@ -145,11 +146,19 @@ a {
        15px - 20px / 2 = 5px
        plus 2px to make triangle slightly smaller */
     top: 7px;
-    /* (header-dropdown-link text width) / 2 + (header-dropdown-link padding)
-       35px = ~52px / 2 + 9px */
-    left: 35px;
+    /* left: (header-dropdown-item width) / 2 */
     background-color: white;
     border: 1px solid black;
+}
+
+.notebook-caret:after {
+    /* measured */
+    left: 37px;
+}
+
+.monitoring-caret:after {
+    /* measured */
+    left: 41px;
 }
 
 .header-dropdown-menu {
