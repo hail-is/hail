@@ -103,9 +103,11 @@ a {
 }
 
 .header-dropdown-menu-caret {
+    position: absolute;
     width: 100px;
     height: 15px;
     overflow: hidden;
+    top: -15px;
 }
 
 .header-dropdown-menu-caret:after {
@@ -115,7 +117,7 @@ a {
     height: 20px;
     background: #999;
     transform: rotate(45deg);
-    top: -10px;
+    top: 5px;
     left: 25px;
     background-color: white;
     border: 1px solid black;
@@ -124,9 +126,6 @@ a {
 .header-dropdown-menu {
     position: absolute;
     display: none;
-}
-
-.header-dropdown-menu-items {
     border-radius: 3px;
     background-color: white;
     border: 1px solid black;
