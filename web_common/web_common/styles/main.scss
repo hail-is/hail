@@ -146,19 +146,19 @@ a {
        15px - 20px / 2 = 5px
        plus 2px to make triangle slightly smaller */
     top: 7px;
-    /* left: (header-dropdown-item width) / 2 */
+    /* left: (header-dropdown-item width) / 2 + padding - width / 2 */
     background-color: white;
     border: 1px solid black;
 }
 
 .notebook-caret:after {
-    /* measured */
-    left: 37px;
+    /* 74 (measured) / 2 + 9 - 20 / 2 = 38px */
+    left: 36px;
 }
 
 .monitoring-caret:after {
-    /* measured */
-    left: 41px;
+    /* 82 (measured) / 2 + 9 - 20 / 2 = 42px */
+    left: 40px;
 }
 
 .header-dropdown-menu {
