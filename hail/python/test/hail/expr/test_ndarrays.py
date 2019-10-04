@@ -183,10 +183,9 @@ def test_ndarray_ops():
         (ncube1 + ny, cube1 + y),
         (ny + ncube1, y + cube1),
         (nrow_vec + ncube1, row_vec + cube1),
-        (ncube1 + nrow_vec, cube1 + row_vec))
+        (ncube1 + nrow_vec, cube1 + row_vec),
 
         # Subtraction
-    assert_ndarrays_eq(
         (na - na, np.array(a - a)),
         (nx - nx, x - x),
         (ncube1 - ncube2, cube1 - cube2),
@@ -196,9 +195,8 @@ def test_ndarray_ops():
         (ncube1 - ny, cube1 - y),
         (ny - ncube1, y - cube1),
         (ncube1 - nrow_vec, cube1 - row_vec),
-        (nrow_vec - ncube1, row_vec - cube1))
+        (nrow_vec - ncube1, row_vec - cube1),
 
-    assert_ndarrays_eq(
         # Multiplication
         (na * na, np.array(a * a)),
         (nx * nx, x * x),
@@ -211,9 +209,8 @@ def test_ndarray_ops():
         (ncube1 * ny, cube1 * y),
         (ny * ncube1, y * cube1),
         (ncube1 * nrow_vec, cube1 * row_vec),
-        (nrow_vec * ncube1, row_vec * cube1))
+        (nrow_vec * ncube1, row_vec * cube1),
 
-    assert_ndarrays_eq(
         # Floor div
         (na // na, np.array(a // a)),
         (nx // nx, x // x),

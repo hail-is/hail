@@ -2295,6 +2295,8 @@ abstract class NDArrayEmitter(
    val outputElementPType: PType,
    val setup: Code[_]) {
 
+  private val outputShapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]).toArray
+
   def outputElement(idxVars: Array[Code[Long]]): Code[_]
 
   def emit(targetType: PNDArray): EmitTriplet = {
@@ -2302,7 +2304,7 @@ abstract class NDArrayEmitter(
 
     val dataAddress: Code[Long] =
       Code(
-        dataSrvb.start(targetType.numElements(outputShape, mb).toI),
+        dataSrvb.start(targetType.numElements(outputShapeVariables.map(_.load()), mb).toI),
         emitLoops(dataSrvb),
         dataSrvb.end()
       )
@@ -2310,14 +2312,19 @@ abstract class NDArrayEmitter(
     def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
       coerce[Unit](Code(
         srvb.start(),
-        Code(outputShape.map(shapeElement => Code(
+        Code(outputShapeVariables.map(shapeElement => Code(
           srvb.addLong(shapeElement),
           srvb.advance()
         )):_*) // Why is putting end here so bad?
       ))
     }
 
-    EmitTriplet(coerce[Unit](setup), false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides(outputShape, mb), dataAddress, mb))
+    val fullSetup = Code(
+      setup,
+      Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
+    )
+
+    EmitTriplet(fullSetup, false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
@@ -2333,7 +2340,7 @@ abstract class NDArrayEmitter(
     idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
         dimVar := 0L,
-        Code.whileLoop(dimVar < outputShape(dimIdx),
+        Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
           innerLoops,
           dimVar := dimVar + 1L
         )
