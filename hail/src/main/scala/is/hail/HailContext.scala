@@ -908,7 +908,8 @@ class HailFeatureFlags {
     mutable.Map[String, String](
       "lower" -> null,
       "newaggs" -> "1",
-      "max_leader_scans" -> "1000"
+      "max_leader_scans" -> "1000",
+      "jvm_bytecode_dump" -> null
     )
 
   val available: java.util.ArrayList[String] =

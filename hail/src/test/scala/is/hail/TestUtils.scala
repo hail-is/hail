@@ -1,6 +1,6 @@
 package is.hail
 
-import java.io.PrintWriter
+import java.io.{PrintWriter, File}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
@@ -380,7 +380,13 @@ object TestUtils {
             case ExecStrategy.InterpretUnoptimized => Interpret[Any](ctx, x, env, args, agg, optimize = false)
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
-              eval(x, env, args, agg)
+              eval(x, env, args, agg, bytecodePrinter =
+                Option(HailContext.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
+                    pw
+                  })
             case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
           }
           assert(t.typeCheck(res))
