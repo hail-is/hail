@@ -91,6 +91,21 @@ a {
     padding: 15px 15px;
 }
 
+.header-dropdown-item-margin {
+    margin: 6px;
+}
+
+.header-dropdown-link {
+    padding: 9px 9px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
 .header-dropdown {
     display: block;
 
@@ -115,10 +130,13 @@ a {
     position: absolute;
     width: 20px;
     height: 20px;
-    background: #999;
     transform: rotate(45deg);
-    top: 5px;
-    left: 25px;
+    /* width / 2 - (header-dropdown top) 
+       plus 2px to make triangle slightly smaller */
+    top: 7px;
+    /* (header-dropdown-link text width) / 2 + (header-dropdown-link padding)
+       ~52px / 2 + 9px = 35px */
+    left: 35px;
     background-color: white;
     border: 1px solid black;
 }

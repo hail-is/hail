@@ -5,11 +5,13 @@
 
   {% if userdata['developer'] == 1 %}
     <div class="header-dropdown">
-      <div class="header-link">Notebook</div>
-      <div class="header-dropdown-menu">
-	<div class="header-dropdown-menu-caret"></div>
-	<a class="header-dropdown-menu-link" href="{{ notebook_base_url }}/workshop-admin">Workshop Admin</a>
-	<a class="header-dropdown-menu-link" href="{{ workshop_base_url }}">Workshop</a>
+      <div class="header-dropdown-item-margin">
+	<a href="{{ notebook_base_url }}/notebook" class="header-dropdown-link">Notebook</a>
+	<div class="header-dropdown-menu">
+	  <div class="header-dropdown-menu-caret"></div>
+	  <a class="header-dropdown-menu-link" href="{{ notebook_base_url }}/workshop-admin">Workshop Admin</a>
+	  <a class="header-dropdown-menu-link" href="{{ workshop_base_url }}">Workshop</a>
+	</div>
       </div>
     </div>
   {% else %}
