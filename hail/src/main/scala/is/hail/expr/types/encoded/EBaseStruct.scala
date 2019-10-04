@@ -160,7 +160,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val readFields = fields.map { f =>
       if (t.hasField(f.name)) {
         val rf = t.field(f.name)
-        val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb)
+        val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb.fb)
         val rFieldAddr = t.fieldOffset(addr, rf.index)
         if (f.typ.required)
           readElemF(region, rFieldAddr, in)

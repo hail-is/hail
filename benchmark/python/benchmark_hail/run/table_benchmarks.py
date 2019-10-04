@@ -187,6 +187,20 @@ def table_aggregate_take_by_strings():
     ht = hl.read_table(resource('many_strings_table.ht'))
     ht.aggregate(hl.tuple([hl.agg.take(ht['f18'], 25, ordering=ht[f'f{i}']) for i in range(18)]))
 
+@benchmark
+def table_aggregate_downsample_dense():
+    ht = hl.read_table(resource('many_ints_table.ht'))
+    ht.aggregate(tuple([hl.agg.downsample(ht[f'i{i}'], ht['i3'], label=hl.str(ht['i4'])) for i in range(3)]))
+
+@benchmark
+def table_aggregate_downsample_worst_case():
+    ht = hl.utils.range_table(250_000_000, 8)
+    ht.aggregate(hl.agg.downsample(ht.idx, -ht.idx))
+
+# @benchmark FIXME: this needs fixtures to accurately measure downsample (rather than randomness)
+def table_aggregate_downsample_sparse():
+    ht = hl.utils.range_table(250_000_000, 8)
+    ht.aggregate(hl.agg.downsample(hl.rand_norm() ** 5, hl.rand_norm() ** 5))
 
 @benchmark
 def table_take():

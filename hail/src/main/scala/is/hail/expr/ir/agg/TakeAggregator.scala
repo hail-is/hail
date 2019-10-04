@@ -25,7 +25,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
     Code(
       regionLoader(r),
       maxSize := Region.loadInt(maxSizeOffset(src)),
-      builder.loadFields(builderStateOffset(src)))
+      builder.loadFrom(builderStateOffset(src)))
 
   override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     region.isValid.orEmpty(
@@ -33,7 +33,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
         regionStorer(region),
         region.invalidate(),
         Region.storeInt(maxSizeOffset(dest), maxSize),
-        builder.storeFields(builderStateOffset(dest))))
+        builder.storeTo(builderStateOffset(dest))))
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>

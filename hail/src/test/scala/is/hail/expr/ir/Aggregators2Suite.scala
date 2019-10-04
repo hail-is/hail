@@ -21,7 +21,8 @@ class Aggregators2Suite extends HailSuite {
     expected: Any,
     args: IndexedSeq[(String, (Type, Any))],
     nPartitions: Int,
-    expectedInit: Option[Any]
+    expectedInit: Option[Any],
+    transformResult: Option[Any => Any]
   ): Unit = {
     assert(seqOps.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
 
@@ -44,7 +45,8 @@ class Aggregators2Suite extends HailSuite {
     assert(rt.types(0) == rt.types(1))
 
     val resultType = rt.types(0)
-    assert(resultType.virtualType.typeCheck(expected), s"expected type $resultType")
+    if (transformResult.isEmpty)
+      assert(resultType.virtualType.typeCheck(expected), s"expected type $resultType")
 
     Region.scoped { region =>
       val argOff = ScalaToRegionValue(region, argT, argVs)
@@ -108,10 +110,18 @@ class Aggregators2Suite extends HailSuite {
         val res = resF(0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, region, res(region))
-        assert(resultType.virtualType.valuesSimilar(double.get(0), double.get(1)), // state does not change through serialization
-          s"\nbefore: ${ double.get(0) }\nafter:  ${ double.get(1) }")
-        assert(resultType.virtualType.valuesSimilar(double.get(0), expected),
-          s"\nresult: ${ double.get(0) }\nexpect: $expected")
+        transformResult match {
+          case Some(f) =>
+            assert(f(double.get(0)) == f(double.get(1)),
+              s"\nbefore: ${ f(double.get(0)) }\nafter:  ${ f(double.get(1)) }")
+            assert(f(double.get(0)) == expected,
+              s"\nbefore: ${ f(double.get(0)) }\nafter:  ${ expected }")
+          case None =>
+            assert(resultType.virtualType.valuesSimilar(double.get(0), double.get(1)), // state does not change through serialization
+              s"\nbefore: ${ double.get(0) }\nafter:  ${ double.get(1) }")
+            assert(resultType.virtualType.valuesSimilar(double.get(0), expected),
+              s"\nresult: ${ double.get(0) }\nexpect: $expected")
+        }
       }
     }
   }
@@ -123,11 +133,13 @@ class Aggregators2Suite extends HailSuite {
     expected: Any,
     args: IndexedSeq[(String, (Type, Any))] = FastIndexedSeq(),
     nPartitions: Int = 2,
-    expectedInit: Option[Any] = None): Unit =
+    expectedInit: Option[Any] = None,
+    transformResult: Option[Any => Any] = None): Unit =
     assertAggEquals(aggSig,
       InitOp2(0, initArgs, aggSig),
       seqArgs.map(s => SeqOp2(0, s, aggSig)),
-      expected, args, nPartitions, expectedInit)
+      expected, args, nPartitions, expectedInit,
+      transformResult)
 
   val t = TStruct("a" -> TString(), "b" -> TInt64())
   val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
@@ -136,6 +148,7 @@ class Aggregators2Suite extends HailSuite {
   val pnnAggSig = AggSignature2(PrevNonnull(), FastSeq[Type](), FastSeq[Type](t), None)
   val countAggSig = AggSignature2(Count(), FastSeq[Type](), FastSeq[Type](), None)
   val sumAggSig = AggSignature2(Sum(), FastSeq[Type](), FastSeq[Type](TInt64()), None)
+
   def collectAggSig(t: Type): AggSignature2 = AggSignature2(Collect(), FastSeq(), FastSeq(t), None)
 
   @Test def TestCount() {
@@ -291,7 +304,7 @@ class Aggregators2Suite extends HailSuite {
     // test counts and data input orderings
     for (
       n <- FastIndexedSeq(0, 1, 4, 100);
-      perm <- permutations
+        perm <- permutations
     ) {
       test(n, perm, t, identity[IR], identity[Row], TInt32(), GetField(_, "b"))
     }
@@ -299,7 +312,7 @@ class Aggregators2Suite extends HailSuite {
     // test key and value types
     for (
       (vt, valueF, resultF) <- valueTransformations;
-      (kt, keyF) <- keyTransformations
+        (kt, keyF) <- keyTransformations
     ) {
       test(4, permutations.last, vt, valueF, resultF, kt, keyF)
     }
@@ -483,7 +496,7 @@ class Aggregators2Suite extends HailSuite {
       }, lcAggSig)
     }
 
-    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, None)
+    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, None, None)
   }
 
   @Test def testNestedArrayElementsAgg() {
@@ -512,7 +525,7 @@ class Aggregators2Suite extends HailSuite {
     val expected = FastIndexedSeq(Row(FastIndexedSeq(Row(45L))))
 
     val args = Array.tabulate(10)(i => FastIndexedSeq(FastIndexedSeq(i.toLong))).toFastIndexedSeq
-    assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2, None)
+    assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2, None, None)
   }
 
   @Test def testArrayElementsAggTake() {
@@ -542,7 +555,7 @@ class Aggregators2Suite extends HailSuite {
     }
 
     val expected = Array.tabulate(value(0).length)(i => Row(Array.tabulate(3)(j => value(j)(i)).toFastIndexedSeq)).toFastIndexedSeq
-    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, None)
+    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2, None, None)
   }
 
   @Test def testGroup() {
@@ -626,5 +639,62 @@ class Aggregators2Suite extends HailSuite {
     val aggsigPrimitive = AggSignature2(CollectAsSet(), FastSeq(), FastSeq(TInt64()), None)
     assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
     assertAggEquals(aggsigPrimitive, FastSeq(), eltsPrimitive, expected = expectedPrimitive, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
+  }
+
+  @Test def testDownsample() {
+    val aggSig = AggSignature2(Downsample(), FastSeq(TInt32()), FastSeq(TFloat64(), TFloat64(), TArray(TString())), None)
+    val rows = FastIndexedSeq(
+      Row(-1.23, 1.23, null),
+      Row(-10d, 10d, FastIndexedSeq("foo")),
+      Row(0d, 100d, FastIndexedSeq()),
+      Row(0d, 100d, FastIndexedSeq()),
+      Row(-10.1d, -100d, null),
+      Row(0d, 0d, null),
+      Row(0d, 0d, null),
+      Row(1d, 1.1d, null),
+      Row(1d, 1.1d, null),
+      Row(2d, 2.2d, null),
+      Row(3d, 3.3d, null),
+      Row(3d, 3.3d, null),
+      Row(3d, 3.3d, null),
+      Row(4d, 4.4d, null),
+      Row(3d, 3.3d, null),
+      Row(3d, 3.3d, null),
+      Row(3d, 3.3d, null)
+    )
+
+//    val rowsBase = IndexedSeq.tabulate(20)(i => Row(i.toDouble, i.toDouble, null))
+//    val rows = rowsBase ++ rowsBase ++ IndexedSeq(Row(0d, 0d, null), Row(0d, 0d, null))
+    val arrayType = TArray(TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())))
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](
+      GetField(ArrayRef(Ref("rows", arrayType), i), "x"),
+      GetField(ArrayRef(Ref("rows", arrayType), i), "y"),
+      GetField(ArrayRef(Ref("rows", arrayType), i), "label")
+    ))
+
+    assertAggEquals(aggSig,
+      FastIndexedSeq(I32(500)),
+      Array.fill[IndexedSeq[IR]](20)(FastIndexedSeq(NA(TFloat64()), NA(TFloat64()), NA(TArray(TString())))),
+      expected = FastIndexedSeq(),
+      args = FastIndexedSeq(("rows", (arrayType, rows))))
+
+    val expected = rows.toSet
+//    val expected = Set(
+//      Row(-1.23, 1.23, null),
+//      Row(-10d, 10d, FastIndexedSeq("foo")),
+//      Row(0d, 100d, FastIndexedSeq()),
+//      Row(-10.1d, -100d, null),
+//      Row(0d, 0d, null),
+//      Row(1d, 1.1d, null),
+//      Row(2d, 2.2d, null),
+//      Row(3d, 3.3d, null),
+//      Row(4d, 4.4d, null)
+//    )
+    assertAggEquals(aggSig,
+      FastIndexedSeq(I32(100)),
+      seqOpArgs,
+      expected = expected,
+      args = FastIndexedSeq(("rows", (arrayType, rows))),
+      transformResult = Some(_.asInstanceOf[IndexedSeq[_]].toSet))
   }
 }

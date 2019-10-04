@@ -250,11 +250,17 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] =
     loadField(region, offset, fieldIdx(fieldName))
 
-  def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean] =
-    isFieldMissing(offset, fieldIdx(fieldName))
+  def loadField(offset: Code[Long], field: String): Code[Long] = loadField(offset, fieldIdx(field))
 
-  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
-    fieldOffset(offset, fieldIdx(fieldName))
+  def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = isFieldDefined(offset, fieldIdx(field))
+
+  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] = isFieldMissing(offset, fieldIdx(field))
+
+  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] = fieldOffset(offset, fieldIdx(fieldName))
+
+  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] = setFieldPresent(offset, fieldIdx(field))
+
+  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] = setFieldMissing(offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new ArrayBuilder[PField](fields.length)

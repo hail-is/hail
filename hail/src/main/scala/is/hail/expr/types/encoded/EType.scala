@@ -64,10 +64,10 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildInplaceDecoder(pt: PType, mb: EmitMethodBuilder): StagedInplaceDecoder = {
+  final def buildInplaceDecoder(pt: PType, fb: EmitFunctionBuilder[_]): StagedInplaceDecoder = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: ${ pt.parsableString() }\n  ET: ${ parsableString() }")
-    mb.fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>

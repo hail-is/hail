@@ -33,7 +33,10 @@ object Region {
 
   def loadByte(addr: Long): Byte = Memory.loadByte(addr)
 
-  def storeInt(addr: Long, v: Int): Unit = Memory.storeInt(addr, v)
+  def storeInt(addr: Long, v: Int): Unit = {
+    assert(addr > 0)
+    Memory.storeInt(addr, v)
+  }
 
   def storeLong(addr: Long, v: Long): Unit = Memory.storeLong(addr, v)
 

@@ -67,7 +67,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       Region.storeAddress(storageType.fieldOffset(child, 0), parent))
 
   private val insert: EmitMethodBuilder = {
-    val insertAt = fb.newMethod("insert", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], typeToTypeInfo(key.compType), typeInfo[Long]), typeInfo[Long])
+    val insertAt = fb.newMethod("btree_insert", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], typeToTypeInfo(key.compType), typeInfo[Long]), typeInfo[Long])
     val node: Code[Long] = insertAt.getArg[Long](1)
     val insertIdx: Code[Int] = insertAt.getArg[Int](2)
     val km: Code[Boolean] = insertAt.getArg[Boolean](3)
@@ -154,7 +154,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
   }
 
   private val getF: EmitMethodBuilder = {
-    val get = fb.newMethod("get", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(key.compType)), typeInfo[Long])
+    val get = fb.newMethod("btree_get", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(key.compType)), typeInfo[Long])
     val node = get.getArg[Long](1).load()
     val km = get.getArg[Boolean](2).load()
     val kv = get.getArg(3)(typeToTypeInfo(key.compType)).load()
@@ -183,7 +183,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     getF.invoke(root, km, kv)
 
   def foreach(visitor: Code[Long] => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("foreach", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
+    val f = fb.newMethod("btree_foreach", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
     val node = f.getArg[Long](1)
 
     f.emit(Code(
@@ -200,7 +200,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
   }
 
   val deepCopy: Code[Long] => Code[Unit] = {
-    val f = fb.newMethod("deepCopy", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
+    val f = fb.newMethod("btree_deepCopy", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
     val destNode = f.getArg[Long](1)
     val srcNode = f.getArg[Long](2)
 
@@ -231,7 +231,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
   }
 
   def bulkStore(obCode: Code[OutputBuffer])(keyStore: (Code[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("bulkStore", Array[TypeInfo[_]](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
+    val f = fb.newMethod("btree_bulkStore", Array[TypeInfo[_]](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val ob = f.getArg[OutputBuffer](2).load()
 
@@ -249,7 +249,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
   }
 
   def bulkLoad(ibCode: Code[InputBuffer])(keyLoad: (Code[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("bulkLoad", Array[TypeInfo[_]](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
+    val f = fb.newMethod("btree_bulkLoad", Array[TypeInfo[_]](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val ib = f.getArg[InputBuffer](2).load()
     val newNode = f.newLocal[Long]
