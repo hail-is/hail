@@ -120,8 +120,10 @@ a {
 .header-dropdown-menu-caret {
     position: absolute;
     width: 100px;
-    /* Extra 0.1 is needed to fully cover the border.  Don't know why it
-       is needed. */
+    /* Chrome doesn't seem to handle exact overlap.  Depending on the zoom
+       level, there is a thin border or overhang artifacts.  The extra
+       0.1 appears to fully covers the border.  Firefox looks correct
+       at 15px and this creates a slight overhang at high zoom.  */
     height: 15.1px;
     overflow: hidden;
     top: -15px;
@@ -152,7 +154,7 @@ a {
     border: 1px solid black;
     /* height of triangle + 5px spacing
        12px = 7px + 5px */
-    transform: translate(0px, 12px);
+    top-margin: 12px;
 }
 
 .header-dropdown-menu-link {
