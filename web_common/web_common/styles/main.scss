@@ -133,11 +133,12 @@ a {
     width: 20px;
     height: 20px;
     transform: rotate(45deg);
-    /* width / 2 - (header-dropdown top) 
+    /* abs(header-dropdown top) - width / 2
+       15px - 20px / 2 = 5px
        plus 2px to make triangle slightly smaller */
     top: 7px;
     /* (header-dropdown-link text width) / 2 + (header-dropdown-link padding)
-       ~52px / 2 + 9px = 35px */
+       35px = ~52px / 2 + 9px */
     left: 35px;
     background-color: white;
     border: 1px solid black;
@@ -149,7 +150,8 @@ a {
     border-radius: 3px;
     background-color: white;
     border: 1px solid black;
-    /* 12px: height of triangle + 5px spacing */
+    /* height of triangle + 5px spacing
+       12px = 7px + 5px */
     transform: translate(0px, 12px);
 }
 
