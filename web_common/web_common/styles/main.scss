@@ -104,27 +104,30 @@ a {
 
 .header-dropdown-menu-caret {
     width: 100px;
-    height: 100px;
-    top: -100px;
+    height: 15px;
     overflow: hidden;
 }
 
 .header-dropdown-menu-caret:after {
     content: "";
+    position: absolute;
     width: 20px;
     height: 20px;
     background: #999;
     transform: rotate(45deg);
-    top: 90px;
+    top: -10px;
     left: 25px;
     background-color: white;
     border: 1px solid black;
 }
 
 .header-dropdown-menu {
-    border-radius: 3px;
     position: absolute;
     display: none;
+}
+
+.header-dropdown-menu-items {
+    border-radius: 3px;
     background-color: white;
     border: 1px solid black;
 }
