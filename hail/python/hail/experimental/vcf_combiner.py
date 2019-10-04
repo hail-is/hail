@@ -5,7 +5,7 @@ from hail import MatrixTable, Table
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
 from hail.ir import Apply, TableKeyBy, TableMapRows, TopLevelReference
-from hail.typecheck import typecheck
+from hail.typecheck import oneof, sequenceof, typecheck
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
@@ -20,8 +20,8 @@ def unlocalize(mt):
         return mt._unlocalize_entries('__entries', '__cols', ['s'])
     return mt
 
-# vardp_outlier is needed due to a mistake in generating gVCFs
-def transform_one(mt, vardp_outlier=100_000) -> Table:
+@typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
+def transform_one(mt, info_to_keep=[]) -> Table:
     """transforms a gvcf into a form suitable for combining
 
     The input to this should be some result of either :func:`.import_vcf` or
@@ -30,7 +30,10 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
     There is a strong assumption that this function will be called on a matrix
     table with one column.
     """
+    if not info_to_keep:
+        info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
     mt = localize(mt)
+
     if mt.row.dtype not in _transform_rows_function_map:
         f = hl.experimental.define_function(
             lambda row: hl.rbind(
@@ -65,7 +68,7 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
                             SB=e.SB,
                             gvcf_info=hl.case()
                                 .when(hl.is_missing(row.info.END),
-                                      hl.struct(**(row.info.drop('END', 'DP'))))
+                                      hl.struct(**(row.info.select(*info_to_keep))))
                                 .or_missing()
                         ))),
             ),
