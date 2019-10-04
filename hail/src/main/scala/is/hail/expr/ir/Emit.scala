@@ -1485,13 +1485,15 @@ private class Emit(
 
         val shapeTuple = new CodePTuple(shapePType, region, shapeAddress)
 
+        val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]).toArray
+
         def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
           Code(
             srvb.start(),
             Code.foreach(0 until nDims) { index =>
-              shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
-                Code._fatal(s"shape missing at index $index"),
-                Code(srvb.addLong(shapeTuple(index)), srvb.advance())
+              Code(
+                srvb.addLong(shapeVariables(index)),
+                srvb.advance()
               )
             }
           )
@@ -1503,11 +1505,15 @@ private class Emit(
           rowMajort.setup,
           shapet.m.mux(
             Code._fatal("Missing shape"),
-            Code(
-              shapeAddress := shapet.value[Long],
-              ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStrides(shapePType, shapeAddress, mb), requiredData, mb)
+            shapeAddress := shapet.value[Long]
+          ),
+          Code.foreach(0 until nDims) {index =>
+            shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
+              Code._fatal(s"shape missing at index $index"),
+              shapeVariables(index) := shapeTuple(index)
             )
-          )
+          },
+          ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStrides(shapeVariables.map(_.load()), mb), requiredData, mb)
         )
         EmitTriplet(setup, false, ndAddress)
       case NDArrayShape(ndIR) =>
@@ -2311,7 +2317,7 @@ abstract class NDArrayEmitter(
       ))
     }
 
-    EmitTriplet(coerce[Unit](setup), false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides2(outputShape, mb), dataAddress, mb))
+    EmitTriplet(coerce[Unit](setup), false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides(outputShape, mb), dataAddress, mb))
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {

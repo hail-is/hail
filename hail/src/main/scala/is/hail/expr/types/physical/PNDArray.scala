@@ -58,29 +58,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * shape(idx) }
   }
 
-  def makeDefaultStrides(sourceShapePType: PTuple, sourceShape: Code[Long], mb: MethodBuilder): Code[Long] = {
-    def getShapeAtIdx(index: Int) = Region.loadLong(sourceShapePType.loadField(sourceShape, index))
-
-    val tupleStartAddress = mb.newField[Long]
-    val runningProduct = mb.newLocal[Long]
-    val region = mb.getArg[Region](1)
-    val tempShapeStorage = mb.newLocal[Long]
-
-    Code(
-      tupleStartAddress := strides.pType.allocate(region),
-      runningProduct := elementType.byteSize,
-      Code.foreach((nDims - 1) to 0 by -1) { idx =>
-        val fieldOffset = strides.pType.fieldOffset(tupleStartAddress, idx)
-        Code(
-          Region.storeLong(fieldOffset, runningProduct),
-          tempShapeStorage := getShapeAtIdx(idx),
-          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L))
-      },
-      tupleStartAddress
-    )
-  }
-
-  def makeDefaultStrides2(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
+  def makeDefaultStrides(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
     val tupleStartAddress = mb.newField[Long]
     val runningProduct = mb.newLocal[Long]
     val region = mb.getArg[Region](1)
