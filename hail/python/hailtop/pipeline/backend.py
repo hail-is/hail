@@ -321,7 +321,7 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
-        print(f'Built DAG with {n_jobs_submitted} in {round(time.time() - start, 3)} seconds:')
+        print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
         start = time.time()
         batch = batch.submit()
         print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
