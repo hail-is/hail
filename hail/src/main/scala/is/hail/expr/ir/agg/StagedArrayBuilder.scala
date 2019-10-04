@@ -91,7 +91,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
   def setMissing(): Code[Unit] = incrementSize() // all elements set to missing on initialization
 
 
-  def append(elt: Code[_], deepCopy: Boolean = false): Code[Unit] = {
+  def append(elt: Code[_], deepCopy: Boolean = true): Code[Unit] = {
     val dest = eltArray.elementOffset(data, capacity, size)
     Code(
       eltArray.setElementPresent(region, data, size),
