@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `deleted` BOOLEAN NOT NULL default false,
   `cancelled` BOOLEAN NOT NULL default false,
   `closed` BOOLEAN NOT NULL default false,
-  `n_jobs` INT NOT NULL default 0,
+  `n_jobs` INT NOT NULL,
   `n_completed` INT NOT NULL default 0,
   `n_succeeded` INT NOT NULL default 0,
   `n_failed` INT NOT NULL default 0,
@@ -58,22 +58,6 @@ CREATE TABLE IF NOT EXISTS `batch-attributes` (
 CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
 
 DELIMITER $$
-
-CREATE TRIGGER trigger_jobs_insert AFTER INSERT ON jobs
-    FOR EACH ROW BEGIN
-        UPDATE batch SET n_jobs = n_jobs + 1 WHERE id = new.batch_id;
-        IF (NEW.state LIKE 'Error' OR NEW.state LIKE 'Failed' OR NEW.state LIKE 'Success' OR NEW.state LIKE 'Cancelled') THEN
-            UPDATE batch SET n_completed = n_completed + 1 WHERE id = NEW.batch_id;
-            IF (NEW.state LIKE 'Failed' OR NEW.state LIKE 'Error') THEN
-	        UPDATE batch SET n_failed = n_failed + 1 WHERE id = NEW.batch_id;
-            ELSEIF (NEW.state LIKE 'Success') THEN
-                UPDATE batch SET n_succeeded = n_succeeded + 1 WHERE id = NEW.batch_id;
-	    ELSEIF (NEW.state LIKE 'Cancelled') THEN
-                UPDATE batch SET n_cancelled = n_cancelled + 1 WHERE id = NEW.batch_id;
-	    END IF;
-        END IF;
-    END;
-$$
 
 CREATE TRIGGER trigger_jobs_update AFTER UPDATE ON jobs
     FOR EACH ROW BEGIN

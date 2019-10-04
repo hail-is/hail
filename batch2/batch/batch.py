@@ -915,7 +915,7 @@ async def create_batch(request, userdata):
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         userdata=userdata,
-        n_jobs=parameters.get('n_jobs'))
+        n_jobs=parameters['n_jobs'])
     if batch is None:
         abort(400, f'creation of batch in db failed')
 
