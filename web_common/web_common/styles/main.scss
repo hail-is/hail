@@ -91,37 +91,20 @@ a {
     padding: 15px 15px;
 }
 
-.header-dropdown {
-    display: block;
-
-    &:active,
-    &:hover {
-	.header-dropdown-link {
-	    border-color: black;
-	}
-	
-	.header-dropdown-menu {
-	    display: block;
-	}
-    }
+.header-dropdown-item-margin {
+    margin: 6px;
 }
 
-.header-dropdown-link-margin {
-    margin: 6px 6px 7px 6px;
+.disabled-header-dropdown-item {
+    padding: 9px 9px;
+    color: $devil-gray;
+    white-space: nowrap;
 }
 
 .header-dropdown-link {
-    position: relative;
-    display: inline-block;
-    padding: 8px;
+    padding: 9px 9px;
     color: $black;
     white-space: nowrap;
-    background-color: white;
-    border-radius: 3px 3px 0 0;
-    border-style: solid;
-    border-color: white;
-    border-width: 1px 1px 0 1px;
-    z-index: 999; /* above header-dropdown-menu */
     &:active,
     &:hover {
         text-decoration: none;
@@ -129,16 +112,64 @@ a {
     }
 }
 
-.header-dropdown-menu {
-    border-radius: 0 3px 3px 3px;
+.header-dropdown {
+    display: block;
+
+    &:active,
+    &:hover {
+	.header-dropdown-menu {
+	    display: block;
+	}
+    }
+}
+
+.header-dropdown-menu-caret {
     position: absolute;
-    display: none;
+    /* big enough to contain ::after */
+    width: 100px;
+    /* Chrome doesn't seem to handle exact overlap.  Depending on the zoom
+       level, there is a thin border or overhang artifacts.  The extra
+       0.1 appears to fully covers the border.  Firefox looks correct
+       at 15px and this creates a slight overhang at high zoom.  */
+    height: 15.1px;
+    overflow: hidden;
+    top: -15px;
+}
+
+.header-dropdown-menu-caret:after {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    transform: rotate(45deg);
+    /* abs(header-dropdown top) - width / 2
+       15px - 20px / 2 = 5px
+       plus 2px to make triangle slightly smaller */
+    top: 7px;
+    /* left: (header-dropdown-item width) / 2 + padding - width / 2 */
     background-color: white;
     border: 1px solid black;
-    /* -1.1px came from experimentation, I don't know why the extra 0.1px
-       is needed. */
-    transform: translate(0px, -1.1px);
-    z-index: 1;  /* below header-dropdown-link */
+}
+
+.notebook-caret:after {
+    /* 74 (measured) / 2 + 9 - 20 / 2 = 38px */
+    left: 36px;
+}
+
+.monitoring-caret:after {
+    /* 82 (measured) / 2 + 9 - 20 / 2 = 42px */
+    left: 40px;
+}
+
+.header-dropdown-menu {
+    position: absolute;
+    display: none;
+    border-radius: 3px;
+    background-color: white;
+    border: 1px solid black;
+    /* height of triangle + 5px spacing
+       12px = 7px + 5px */
+    margin-top: 12px;
 }
 
 .header-dropdown-menu-link {
