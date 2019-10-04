@@ -96,49 +96,39 @@ a {
 
     &:active,
     &:hover {
-	.header-dropdown-link {
-	    border-color: black;
-	}
-	
 	.header-dropdown-menu {
 	    display: block;
 	}
     }
 }
 
-.header-dropdown-link-margin {
-    margin: 6px 6px 7px 6px;
+.header-dropdown-menu-caret {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    top: -100px;
+    overflow: hidden;
 }
 
-.header-dropdown-link {
-    position: relative;
-    display: inline-block;
-    padding: 8px;
-    color: $black;
-    white-space: nowrap;
+.header-dropdown-menu-caret:after {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #999;
+    transform: rotate(45deg);
+    top: 90px;
+    left: 25px;
     background-color: white;
-    border-radius: 3px 3px 0 0;
-    border-style: solid;
-    border-color: white;
-    border-width: 1px 1px 0 1px;
-    z-index: 999; /* above header-dropdown-menu */
-    &:active,
-    &:hover {
-        text-decoration: none;
-        color: $devil-gray;
-    }
+    border: 1px solid black;
 }
 
 .header-dropdown-menu {
-    border-radius: 0 3px 3px 3px;
+    border-radius: 3px;
     position: absolute;
     display: none;
     background-color: white;
     border: 1px solid black;
-    /* -1.1px came from experimentation, I don't know why the extra 0.1px
-       is needed. */
-    transform: translate(0px, -1.1px);
-    z-index: 1;  /* below header-dropdown-link */
 }
 
 .header-dropdown-menu-link {
