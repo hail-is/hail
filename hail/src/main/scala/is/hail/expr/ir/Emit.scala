@@ -1513,7 +1513,7 @@ private class Emit(
               shapeVariables(index) := shapeTuple(index)
             )
           },
-          ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStrides(shapeVariables.map(_.load()), mb), requiredData, mb)
+          ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
         )
         EmitTriplet(setup, false, ndAddress)
       case NDArrayShape(ndIR) =>
@@ -2295,7 +2295,7 @@ abstract class NDArrayEmitter(
    val outputElementPType: PType,
    val setup: Code[_]) {
 
-  private val outputShapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]).toArray
+  private val outputShapeVariables = (0 until nDims).map(_ => mb.newField[Long]).toArray
 
   def outputElement(idxVars: Array[Code[Long]]): Code[_]
 
@@ -2324,7 +2324,7 @@ abstract class NDArrayEmitter(
       Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
     )
 
-    EmitTriplet(fullSetup, false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStrides(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
+    EmitTriplet(fullSetup, false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {
