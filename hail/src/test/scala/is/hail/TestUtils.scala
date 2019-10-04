@@ -157,7 +157,12 @@ object TestUtils {
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
-  def eval(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+  def eval(x: IR,
+    env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    bytecodePrinter: Option[PrintWriter] = None
+  ): Any = {
     val inputTypesB = new ArrayBuilder[Type]()
     val inputsB = new ArrayBuilder[Any]()
 
@@ -207,7 +212,8 @@ object TestUtils {
         val (resultType2, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
           argsVar, argsPType,
-          postAggIR)
+          postAggIR,
+          print = bytecodePrinter)
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -275,7 +281,9 @@ object TestUtils {
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsPType,
-          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
+          optimize = true,
+          print = bytecodePrinter)
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
