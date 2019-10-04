@@ -368,6 +368,7 @@ class Pipeline:
 
         seen = set()
         ordered_tasks = []
+
         def schedule_task(t):
             if t in seen:
                 return
