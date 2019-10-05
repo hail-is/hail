@@ -60,13 +60,13 @@ object Emit {
 object AggContainer {
   def fromVars(aggs: Array[AggSignature2], fb: EmitFunctionBuilder[_], region: ClassFieldRef[Region], off: ClassFieldRef[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
     val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a).createState(fb)).toArray)
-    val aggState = agg.TupleAggregatorState(states, region, off)
+    val aggState = new agg.TupleAggregatorState(fb, states, region, off)
 
     val setup = Code(
       region := Region.stagedCreate(Region.REGULAR),
       region.load().setNumParents(aggs.length),
       off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize),
-      states.createStates,
+      states.createStates(fb),
       aggState.newState)
 
     val cleanup = Code(
@@ -1168,14 +1168,14 @@ private class Emit(
         val newRegion = mb.newField[Region]
         val AggContainer(aggs, sc) = container.get
         val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)
-        val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
+        val addFields = mb.fb.wrapVoids(Array.tabulate(aggSigs.length) { j =>
           val idx = start + j
           assert(aggSigs(j) == aggs(idx))
           val rvAgg = agg.Extract.getAgg(aggSigs(j))
           Code(
             rvAgg.result(sc.states(idx), srvb),
             srvb.advance())
-        }: _*))
+        }, "aggs_result")
 
         present(Code(
           newRegion := region,
@@ -1195,7 +1195,7 @@ private class Emit(
         void(
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          coerce[Unit](Code(serialize: _*)),
+          mb.fb.wrapVoids(serialize, "serialize_aggs"),
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"),
           mb.fb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
@@ -1222,7 +1222,7 @@ private class Emit(
           ib := spec.buildCodeInputBuffer(
             Code.newInstance[ByteArrayInputStream, Array[Byte]](
               mb.fb.getSerializedAgg(sIdx))),
-          coerce[Unit](Code(unserialize: _*)))
+          mb.fb.wrapVoids(unserialize, "deserialize_aggs"))
 
       case Begin(xs) =>
         EmitTriplet(

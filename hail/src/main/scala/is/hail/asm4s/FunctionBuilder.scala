@@ -316,7 +316,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
         val count = method.instructions.size
         log.info(s"${ cn.name }.${ method.name } instruction count: $count")
         if (count > 8000)
-          log.info(s"${ cn.name }.${ method.name } instruction count > 8000")
+          log.warn(s"big method: ${ cn.name }.${ method.name }: $count")
       }
 
       cn.accept(cw)
@@ -329,7 +329,13 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
         val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
         val sw2 = new StringWriter()
         cn.accept(cwNoFrames)
-        CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+        try {
+          CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+        } catch {
+          case e: Exception =>
+            log.error("Verify Output 1 for " + name + ":")
+            throw e
+        }
 
         if (sw2.toString().length() != 0) {
           System.err.println("Verify Output 2 for " + name + ":")
@@ -337,7 +343,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
           throw new IllegalStateException("Bytecode failed verification 1", e)
         } else {
           if (sw1.toString().length() != 0) {
-            System.err.println("Verifiy Output 1 for " + name + ":")
+            System.err.println("Verify Output 1 for " + name + ":")
             System.err.println(sw1)
           }
           throw e

@@ -18,7 +18,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   private val kcomp = fb.getCodeOrdering[Int](kt, CodeOrdering.compare, ignoreMissingness = false)
 
   val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
-  val container = TupleAggregatorState(states, region, containerAddress(offset), regionIdx)
+  val container = new TupleAggregatorState(fb, states, region, containerAddress(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -90,7 +90,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   private val _elt = fb.newField[Long]
   private val initStatesOffset: Code[Long] = typ.loadField(off, 0)
-  val initContainer: TupleAggregatorState = TupleAggregatorState(nested, region, initStatesOffset)
+  val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, initStatesOffset)
 
   val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
   val tree = new AppendOnlyBTree(fb, keyed, region, root)
@@ -113,7 +113,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
     Code(loadContainer(km, kv), seqOps, keyed.storeStates)
 
-  override def createState: Code[Unit] = Code(super.createState, nested.createStates)
+  override def createState: Code[Unit] = Code(super.createState, nested.createStates(fb))
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -165,7 +165,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     { ob: Code[OutputBuffer] =>
       Code(
         initContainer.load,
-        nested.toCode((i, _) => serializers(i)(ob)),
+        nested.toCode(fb, "grouped_nested_serialize_init", (i, _) => serializers(i)(ob)),
         tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
           Code(
             _elt := kvOff,
@@ -174,7 +174,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             ob.writeBoolean(km),
             (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
-            nested.toCode((i, _) => serializers(i)(ob)))
+            nested.toCode(fb, "grouped_nested_serialize", (i, _) => serializers(i)(ob)))
         })
     }
   }
@@ -187,14 +187,14 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
     { ib: Code[InputBuffer] =>
       Code(
-        init(nested.toCode((i, _) => deserializers(i)(ib))),
+        init(nested.toCode(fb, "grouped_nested_deserialize_init", (i, _) => deserializers(i)(ib))),
         tree.bulkLoad(ib) { (ib, koff) =>
           Code(
             _elt := koff,
             km := ib.readBoolean(),
             (!km).orEmpty(kv := kDec.invoke(region, ib)),
             initElement(_elt, km, kv),
-            nested.toCode((i, _) => deserializers(i)(ib)),
+            nested.toCode(fb, "grouped_nested_deserialize", (i, _) => deserializers(i)(ib)),
             keyed.storeStates)
         })
     }
@@ -220,7 +220,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    state.combine(other, state.nested.toCode((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+    state.combine(other, state.nested.toCode(state.fb, "grouped_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -238,9 +238,9 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
                 ssb.advance(),
                 ssb.addBaseStruct(resultEltType, { svb =>
                   Code(svb.start(),
-                    state.nested.toCode { (i, s) =>
+                    state.nested.toCode(state.fb, "grouped_result", { (i, s) =>
                       Code(nestedAggs(i).result(s, svb), svb.advance())
-                    })
+                    }))
                 }))),
             sab.advance())
         }))

@@ -258,7 +258,7 @@ class EmitFunctionBuilder[F >: Null](
     _aggRegion = newField[Region]("agg_top_region")
     _aggOff = newField[Long]("agg_off")
     val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray)
-    _aggState = agg.TupleAggregatorState(states, _aggRegion, _aggOff)
+    _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
     _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
@@ -279,14 +279,14 @@ class EmitFunctionBuilder[F >: Null](
       Code(_aggRegion := newF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
         _aggOff := _aggRegion.load().allocate(states.storageType.alignment, states.storageType.byteSize),
-        states.createStates,
+        states.createStates(this),
         _aggState.newState))
 
     setF.emit(
       Code(
         _aggRegion := setF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
-        states.createStates,
+        states.createStates(this),
         _aggOff := setF.getArg[Long](2),
         _aggState.load))
 
@@ -439,6 +439,14 @@ class EmitFunctionBuilder[F >: Null](
       )
     }
     m
+  }
+
+  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] = {
+    coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
+      val mb = newMethod(prefix + s"_group$i", Array[TypeInfo[_]](), UnitInfo)
+      mb.emit(Code(codes: _*))
+      mb.invoke()
+    }.toArray: _*))
   }
 
   def getOrDefineMethod(prefix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
