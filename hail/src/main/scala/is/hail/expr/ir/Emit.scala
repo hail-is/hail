@@ -1512,7 +1512,7 @@ private class Emit(
             )
           }
         )
-        val result = xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
+        val result = xP.construct(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
         EmitTriplet(setup, false, result)
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
@@ -1522,50 +1522,45 @@ private class Emit(
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childAddress = mb.newField[Long]
-
+        val childM = mb.newLocal[Boolean]
         val childPType = coerce[PNDArray](child.pType)
-        val childFlags = childPType.flags.load(region, childAddress)
-        val childOffset = childPType.offset.load(region, childAddress)
-        val childShapeAddress = childPType.shape.load(region, childAddress)
-        val childStridesAddress = childPType.strides.load(region, childAddress)
-        val childDataAddress = childPType.data.load(region, childAddress)
 
-        val outputShapePType = x.pType.shape.pType
-        val outputStridesPType = x.pType.strides.pType
-
-        val shapeTuple = new CodePTuple(childPType.shape.pType, region, childShapeAddress)
-        val stridesTuple = new CodePTuple(childPType.strides.pType, region, childStridesAddress)
-
-        val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
-        val stridesSrvb = new StagedRegionValueBuilder(mb, outputStridesPType)
-
-        val reindexShapeAndStrides = indexMap.map { childIndex =>
-          if (childIndex < childPType.nDims) {
-            Code(
-              shapeSrvb.addLong(shapeTuple(childIndex)),
-              shapeSrvb.advance(),
-              stridesSrvb.addLong(stridesTuple.apply(childIndex)),
-              stridesSrvb.advance()
-            )
-          }
-          else {
-            Code(
-              shapeSrvb.addLong(1L),
-              shapeSrvb.advance(),
-              stridesSrvb.addLong(0L),
-              stridesSrvb.advance()
-            )
-          }
-        }
+        val childShape = new CodePTuple(childPType.shape.pType, region, childPType.shape.load(region, childAddress))
+        val childStrides = new CodePTuple(childPType.strides.pType, region, childPType.strides.load(region, childAddress))
 
         val setup = Code(
-          shapeSrvb.start(),
-          stridesSrvb.start(),
           childt.setup,
-          childAddress := childt.value[Long],
-          reindexShapeAndStrides)
-        val result = x.pType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
-        EmitTriplet(setup, false, result)
+          childM := childt.m,
+          childAddress := childM.mux(coerce[Long](defaultValue(PInt64())), childt.value[Long]))
+        val value = x.pType.construct(
+          childPType.flags.load(region, childAddress),
+          childPType.offset.load(region, childAddress),
+          {srvb =>
+            Code(
+              srvb.start(),
+              Code.foreach(indexMap) {childIndex =>
+                Code(
+                  srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
+                  srvb.advance()
+                )
+              }
+            )
+          },
+          {srvb =>
+            Code(
+              srvb.start(),
+              Code.foreach(indexMap) {index =>
+                Code(
+                  srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
+                  srvb.advance()
+                )
+              }
+            )
+          },
+          childPType.data.load(region, childAddress),
+          mb
+        )
+        EmitTriplet(setup, childM.load(), value)
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
 
@@ -2310,7 +2305,7 @@ abstract class NDArrayEmitter(
         Code(outputShapeVariables.map(shapeElement => Code(
           srvb.addLong(shapeElement),
           srvb.advance()
-        )):_*) // Why is putting end here so bad?
+        )):_*)
       ))
     }
 
@@ -2319,7 +2314,7 @@ abstract class NDArrayEmitter(
       Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
     )
 
-    EmitTriplet(fullSetup, false, targetType.construct2(0, 0, shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
+    EmitTriplet(fullSetup, false, targetType.construct(0, 0, shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {

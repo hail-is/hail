@@ -101,25 +101,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     ))
   }
 
-  def construct(flags: Code[Int], offset: Code[Int], shape: Code[Long], strides: Code[Long], data: Code[Long], mb: MethodBuilder): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, this.representation)
-
-    coerce[Long](Code(
-      srvb.start(),
-      srvb.addInt(flags),
-      srvb.advance(),
-      srvb.addInt(offset),
-      srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("shape"))(shape),
-      srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("strides"))(strides),
-      srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("data"))(data),
-      srvb.end()
-    ))
-  }
-
-  def construct2(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
+  def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
     stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
 
@@ -132,7 +114,6 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       srvb.addBaseStruct(this.shape.pType, shapeBuilder),
       srvb.advance(),
       srvb.addBaseStruct(this.strides.pType, stridesBuilder),
-      //srvb.addIRIntermediate(this.representation.fieldType("strides"))(strides),
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("data"))(data),
       srvb.end()
