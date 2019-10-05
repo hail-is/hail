@@ -1506,7 +1506,7 @@ private class Emit(
             shapeAddress := shapet.value[Long]
           ),
           Code.foreach(0 until nDims) {index =>
-            shapePType.isFieldMissing(shapeAddress, index).mux[Unit](
+            shapeTuple.isMissing(index).mux[Unit](
               Code._fatal(s"shape missing at index $index"),
               shapeVariables(index) := shapeTuple(index)
             )

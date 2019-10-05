@@ -76,4 +76,8 @@ class CodePTuple(
     Region.loadIRIntermediate(pType.types(i))(
       pType.loadField(offset, i)
     ).asInstanceOf[Code[T]]
+
+  def isMissing(i: Int): Code[Boolean] = {
+    pType.isFieldMissing(offset, i)
+  }
 }
