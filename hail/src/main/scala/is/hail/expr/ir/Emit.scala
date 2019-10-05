@@ -1469,8 +1469,8 @@ private class Emit(
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val xP = x.pType
-        val dataContainer = dataIR.pType.asInstanceOf[PArray]
-        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
+        val dataContainer = dataIR.pType
+        val shapePType = coerce[PTuple](shapeIR.pType)
         val dataPType = xP.data.pType
         val nDims = shapePType.size
 
@@ -1523,7 +1523,7 @@ private class Emit(
         val childt = emit(child)
         val childAddress = mb.newField[Long]
 
-        val childPType = child.pType.asInstanceOf[PNDArray]
+        val childPType = coerce[PNDArray](child.pType)
         val childFlags = childPType.flags.load(region, childAddress)
         val childOffset = childPType.offset.load(region, childAddress)
         val childShapeAddress = childPType.shape.load(region, childAddress)
@@ -2143,7 +2143,7 @@ private class Emit(
   def deforestNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
     def deforest(nd: IR): NDArrayEmitter = deforestNDArray(er, nd, env)
 
-    val xType = x.pType.asInstanceOf[PNDArray]
+    val xType = coerce[PNDArray](x.pType)
     val nDims = xType.nDims
 
     x match {
@@ -2170,8 +2170,8 @@ private class Emit(
           }
         }
       case NDArrayMap2(lChild, rChild, lName, rName, body) =>
-        val lP = lChild.pType.asInstanceOf[PNDArray]
-        val rP = rChild.pType.asInstanceOf[PNDArray]
+        val lP = coerce[PNDArray](lChild.pType)
+        val rP = coerce[PNDArray](rChild.pType)
 
         val lVti = typeToTypeInfo(lP.elementType.virtualType)
         val rVti = typeToTypeInfo(rP.elementType.virtualType)
