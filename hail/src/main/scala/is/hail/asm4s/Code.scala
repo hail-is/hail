@@ -936,14 +936,3 @@ class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =
     ifNull[U](Code._null[U], cnonnullcase)
 }
-
-class CodePTuple(
-  val pType: PTuple,
-  val region: Code[Region],
-  val offset: Code[Long]
-) {
-  def apply[T](i: Int): Code[T] =
-    Region.loadIRIntermediate(pType.types(i))(
-      pType.loadField(offset, i)
-    ).asInstanceOf[Code[T]]
-}

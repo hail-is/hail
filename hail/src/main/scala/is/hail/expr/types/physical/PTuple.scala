@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.CodeOrdering
+import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{TTuple, TupleField}
@@ -64,4 +65,15 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
     else
       PTuple(fundamentalFieldTypes, required)
   }
+}
+
+class CodePTuple(
+  val pType: PTuple,
+  val region: Code[Region],
+  val offset: Code[Long]
+) {
+  def apply[T](i: Int): Code[T] =
+    Region.loadIRIntermediate(pType.types(i))(
+      pType.loadField(offset, i)
+    ).asInstanceOf[Code[T]]
 }
