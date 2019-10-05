@@ -668,7 +668,10 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       rvb.startArray(abf.length)
       var i = 0
       while (i < abf.length) {
-        rvb.addFloat(abf(i))
+        if (abf.isMissing(i))
+          rvb.setMissing()
+        else
+          rvb.addFloat(abf(i))
         i += 1
       }
       rvb.endArray()
@@ -693,7 +696,10 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       rvb.startArray(abd.length)
       var i = 0
       while (i < abd.length) {
-        rvb.addDouble(abd(i))
+        if (abd.isMissing(i))
+          rvb.setMissing()
+        else
+          rvb.addDouble(abd(i))
         i += 1
       }
       rvb.endArray()
