@@ -1480,7 +1480,6 @@ private class Emit(
         val rowMajort = emit(rowMajorIR)
 
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")
-        val ndAddress = mb.newField[Long]
         val shapeAddress = mb.newField[Long]
 
         val shapeTuple = new CodePTuple(shapePType, region, shapeAddress)
@@ -1512,10 +1511,10 @@ private class Emit(
               Code._fatal(s"shape missing at index $index"),
               shapeVariables(index) := shapeTuple(index)
             )
-          },
-          ndAddress := xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
+          }
         )
-        EmitTriplet(setup, false, ndAddress)
+        val result = xP.construct2(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
+        EmitTriplet(setup, false, result)
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
@@ -1541,8 +1540,6 @@ private class Emit(
         val shapeSrvb = new StagedRegionValueBuilder(mb, outputShapePType)
         val stridesSrvb = new StagedRegionValueBuilder(mb, outputStridesPType)
 
-        val ndAddress = mb.newField[Long]
-
         val reindexShapeAndStrides = indexMap.map { childIndex =>
           if (childIndex < childPType.nDims) {
             Code(
@@ -1567,10 +1564,9 @@ private class Emit(
           stridesSrvb.start(),
           childt.setup,
           childAddress := childt.value[Long],
-          reindexShapeAndStrides,
-          ndAddress := x.pType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
-        )
-        EmitTriplet(setup, false, ndAddress)
+          reindexShapeAndStrides)
+        val result = x.pType.construct(childFlags, childOffset, shapeSrvb.end(), stridesSrvb.end(), childDataAddress, mb)
+        EmitTriplet(setup, false, result)
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
 
