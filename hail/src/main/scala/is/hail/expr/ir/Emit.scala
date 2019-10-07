@@ -2301,10 +2301,12 @@ abstract class NDArrayEmitter(
     def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
       coerce[Unit](Code(
         srvb.start(),
-        Code(outputShapeVariables.map(shapeElement => Code(
-          srvb.addLong(shapeElement),
-          srvb.advance()
-        )):_*)
+        Code.foreach(outputShapeVariables){ shapeElement =>
+          Code(
+            srvb.addLong(shapeElement),
+            srvb.advance()
+          )
+        }
       ))
     }
 
