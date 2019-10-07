@@ -441,11 +441,19 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] = {
+  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] =
+    wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, Array(), Array(), size)
+
+  def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
+    prefix: String,
+    argTypes: Array[TypeInfo[_]],
+    args: Array[Code[_]],
+    size: Int = 32): Code[Unit] = {
     coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
-      val mb = newMethod(prefix + s"_group$i", Array[TypeInfo[_]](), UnitInfo)
-      mb.emit(Code(codes: _*))
-      mb.invoke()
+      val mb = newMethod(prefix + s"_group$i", argTypes, UnitInfo)
+      val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a).load() }
+      mb.emit(Code(codes.map(_.apply(methodArgs)): _*))
+      mb.invoke(args: _*)
     }.toArray: _*))
   }
 

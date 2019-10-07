@@ -22,6 +22,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   private val aoff: ClassFieldRef[Long] = fb.newField[Long]("arrayrva_aoff")
 
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
+
   private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(region, typ.loadField(region, off, 1), eltIdx)
 
   val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, typ.loadField(region, off, 0))
@@ -68,13 +69,13 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   }
 
   def init(initOp: Code[Unit], initLen: Boolean): Code[Unit] = {
-      Code(
-        region.setNumParents(nStates),
-        off := region.allocate(typ.alignment, typ.byteSize),
-        initContainer.newState,
-        initOp,
-        initContainer.store,
-        if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
+    Code(
+      region.setNumParents(nStates),
+      off := region.allocate(typ.alignment, typ.byteSize),
+      initContainer.newState,
+      initOp,
+      initContainer.store,
+      if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
   }
 
   def loadInit: Code[Unit] = initContainer.load
@@ -90,12 +91,16 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
     { ob: Code[OutputBuffer] =>
       Code(
         loadInit,
-        nested.toCode(fb, "array_nested_serialize_init", (i, _) => serializers(i)(ob)),
+        nested.toCodeWithArgs(fb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+          Array(ob),
+          { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
           load,
-          nested.toCode(fb, "array_nested_serialize", (i, _) => serializers(i)(ob)),
+          nested.toCodeWithArgs(fb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+            Array(ob),
+            { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
           idx := idx + 1))
     }
   }
@@ -103,12 +108,18 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.states.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
-        Code(
-          init(nested.toCode(fb, "array_nested_deserialize_init", (i, _) => deserializers(i)(ib)), initLen = false),
-          lenRef := ib.readInt(),
-          (lenRef < 0).mux(
-            typ.setFieldMissing(off, 1),
-            seq(nested.toCode(fb, "array_nested_deserialize", (i, _) => deserializers(i)(ib)))))
+      Code(
+        init(nested.toCodeWithArgs(fb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+          Array(ib),
+          { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) }),
+          initLen = false),
+        lenRef := ib.readInt(),
+        (lenRef < 0).mux(
+          typ.setFieldMissing(off, 1),
+          seq(nested.toCodeWithArgs(fb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+            Array(ib),
+            { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) })
+          )))
     }
   }
 
@@ -197,6 +208,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   type State = ArrayElementState
 
   def initOpTypes: Array[PType] = Array()
+
   def seqOpTypes: Array[PType] = Array(PInt32(), PVoid)
 
   def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType): _*))

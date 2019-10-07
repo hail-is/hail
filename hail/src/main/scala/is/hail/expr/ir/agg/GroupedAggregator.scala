@@ -165,7 +165,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     { ob: Code[OutputBuffer] =>
       Code(
         initContainer.load,
-        nested.toCode(fb, "grouped_nested_serialize_init", (i, _) => serializers(i)(ob)),
+        nested.toCodeWithArgs(fb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+          Array(ob),
+          { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
         tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
           Code(
             _elt := kvOff,
@@ -174,7 +176,10 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             ob.writeBoolean(km),
             (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
-            nested.toCode(fb, "grouped_nested_serialize", (i, _) => serializers(i)(ob)))
+            nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+              Array(ob),
+              { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) })
+          )
         })
     }
   }
@@ -187,14 +192,18 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
     { ib: Code[InputBuffer] =>
       Code(
-        init(nested.toCode(fb, "grouped_nested_deserialize_init", (i, _) => deserializers(i)(ib))),
+        init(nested.toCodeWithArgs(fb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+          Array(ib),
+          { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) })),
         tree.bulkLoad(ib) { (ib, koff) =>
           Code(
             _elt := koff,
             km := ib.readBoolean(),
             (!km).orEmpty(kv := kDec.invoke(region, ib)),
             initElement(_elt, km, kv),
-            nested.toCode(fb, "grouped_nested_deserialize", (i, _) => deserializers(i)(ib)),
+            nested.toCodeWithArgs(fb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+              Array(ib),
+              { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) }),
             keyed.storeStates)
         })
     }

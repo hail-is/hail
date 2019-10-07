@@ -168,6 +168,10 @@ case class StateTuple(states: Array[AggregatorState]) {
   def toCode(fb: EmitFunctionBuilder[_], prefix: String, f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     fb.wrapVoids(Array.tabulate(nStates)((i: Int) => f(i, states(i))), prefix)
 
+  def toCodeWithArgs(fb: EmitFunctionBuilder[_], prefix: String, argTypes: Array[TypeInfo[_]], args: Array[Code[_]],
+    f: (Int, AggregatorState, Seq[Code[_]]) => Code[Unit]): Code[Unit] =
+    fb.wrapVoidsWithArgs(Array.tabulate(nStates)((i: Int) => { args: Seq[Code[_]] => f(i, states(i), args) }), prefix, argTypes, args)
+
   def createStates(fb: EmitFunctionBuilder[_]): Code[Unit] =
     toCode(fb, "create_states", (i, s) => s.createState)
 }
@@ -188,6 +192,9 @@ class TupleAggregatorState(val fb: EmitFunctionBuilder[_], val states: StateTupl
   def newState: Code[Unit] = states.toCode(fb, "new_state", (i, s) => s.newState(getStateOffset(i)))
   def load: Code[Unit] = states.toCode(fb, "load", (i, s) => s.load(getRegion(i), getStateOffset(i)))
   def store: Code[Unit] = states.toCode(fb, "store", (i, s) => s.store(setRegion(i), getStateOffset(i)))
-  def copyFrom(statesOffset: Code[Long]): Code[Unit] =
-    states.toCode(fb, "copy_from", (i, s) => s.copyFrom(storageType.loadField(statesOffset, i)))
+  def copyFrom(statesOffset: Code[Long]): Code[Unit] = {
+    states.toCodeWithArgs(fb, "copy_from", Array[TypeInfo[_]](LongInfo),
+      Array(statesOffset),
+      { case (i, s, Seq(o: Code[Long@unchecked])) => s.copyFrom(storageType.loadField(o, i)) })
+  }
 }
