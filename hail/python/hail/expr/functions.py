@@ -6,7 +6,7 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
-from hail.expr.types import *
+from hail.expr.types import from_numpy
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.ir import *
 from hail.typecheck import *
@@ -3891,15 +3891,7 @@ def _ndarray(collection, row_major=None):
         return result
 
     if isinstance(collection, np.ndarray):
-        if row_major is None:
-            row_major = not collection.flags.f_contiguous
-            flattened = collection.flatten('A')
-        else:
-            flattened = collection.flatten('C' if row_major else 'F')
-
-        elem_type = np_type_to_hl_type(collection.dtype)
-        data = [to_expr(i.item(), elem_type) for i in flattened]
-        shape = collection.shape
+        return literal(collection)
     elif isinstance(collection, list):
         shape = list_shape(collection)
         data = deep_flatten(collection)
