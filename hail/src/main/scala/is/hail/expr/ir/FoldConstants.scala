@@ -37,7 +37,6 @@ object FoldConstants {
           } &&
           (canGenerateLiterals || CanEmit(ir.typ)) =>
           try {
-            log.info(s"Safe to interpret: $ir")
             Some(
               Literal.coerce(ir.typ, Interpret(ctx, ir, optimize = false)))
           } catch {

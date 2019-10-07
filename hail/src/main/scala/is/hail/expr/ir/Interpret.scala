@@ -87,7 +87,6 @@ object Interpret {
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
 
-    log.info(s"Thing I am actually interpreting: $ir")
     val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 
     result
