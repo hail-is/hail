@@ -244,8 +244,8 @@ steps:
      valueFrom: batch2_image.image
    script: |
      set -ex
-     python3 -m flake8 batch2
-     python3 -m pylint --rcfile pylintrc batch2
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
    dependsOn:
      - batch2_image
  - kind: buildImage
