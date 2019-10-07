@@ -49,6 +49,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
 
   def blockDims(bi: Int): (Int, Int) = (blockRowNRows(blockBlockRow(bi)), blockColNCols(blockBlockCol(bi)))
 
+  def nBlocks: Int = maybeBlocks.map(_.length).getOrElse(nBlockRows * nBlockCols)
+
   def blockCoordinates(bi: Int): (Int, Int) = (blockBlockRow(bi), blockBlockCol(bi))
 
   def coordinatesBlock(i: Int, j: Int): Int = {
