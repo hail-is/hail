@@ -55,7 +55,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   override def fundamentalType: PType = representation.fundamentalType
 
   def numElements(shape: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
-      Array.range(0, nDims).foldLeft(const(1L)) { (prod, idx) => prod * shape(idx) }
+      shape.foldLeft(const(1L))(_ * _)
   }
 
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = {
