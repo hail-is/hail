@@ -1,5 +1,6 @@
 *~
 *.o
+*.pyc
 .*.crc
 .gradle/
 .idea/

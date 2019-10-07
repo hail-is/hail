@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.expr.ir.ExecuteContext
 import java.io.InputStream
 import java.util.Properties
 
@@ -608,7 +609,7 @@ class HailContext private(
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
-  val optimizerIterations: Int) {
+  _optimizerIterations: Int) {
   lazy val sc: SparkContext = backend.asSpark().sc
 
   lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
@@ -618,6 +619,8 @@ class HailContext private(
   info(s"Hail temporary directory: $tmpDir")
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
+  flags.set("optimizer_iterations" , _optimizerIterations.toString)
+  def optimizerIterations: Int = flags.get("optimizer_iterations").toInt
 
   var checkRVDKeys: Boolean = false
 
@@ -853,7 +856,11 @@ class HailFeatureFlags {
       "lower" -> null,
       "newaggs" -> "1",
       "max_leader_scans" -> "1000",
-      "jvm_bytecode_dump" -> null
+      "jvm_bytecode_dump" -> null,
+      "shuffle_service_url" -> null,
+      "shuffle_buffer_spec" -> null,
+      "shuffle_read_parallelism" -> "10",
+      "optimizer_iterations" -> null
     )
 
   val available: java.util.ArrayList[String] =

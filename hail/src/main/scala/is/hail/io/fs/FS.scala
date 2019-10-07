@@ -121,6 +121,8 @@ trait FS extends Serializable{
 
   def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream
 
+  def unsafeReaderNoCompression(filename: String): FSDataInputStream
+
   def unsafeWriter(filename: String): OutputStream
 }
 

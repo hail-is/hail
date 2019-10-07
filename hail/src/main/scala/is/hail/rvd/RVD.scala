@@ -1,5 +1,7 @@
 package is.hail.rvd
 
+import is.hail.shuffler.ShuffleClient
+import is.hail.table.Ascending
 import java.util
 
 import is.hail.HailContext
@@ -42,7 +44,8 @@ class RVD(
   self =>
   require(crdd.getNumPartitions == partitioner.numPartitions)
 
-  require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
+  require(typ.kType.virtualType isIsomorphicTo partitioner.kType,
+    s"${typ.kType.virtualType} isIsomorphicTo ${partitioner.kType}")
 
   // Basic accessors
 
@@ -240,7 +243,6 @@ class RVD(
       val kOrdering = newType.kType.virtualType.ordering
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
-      val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
 
       val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]({ case (_, _) =>
         val ur = new UnsafeRow(localRowPType, null, 0)
@@ -251,14 +253,26 @@ class RVD(
         partBc.value.contains(key)
       }) else this
 
-      val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
-        filtered.keyedEncodedRDD(enc, newType.key),
-        newPartitioner.sparkPartitioner(crdd.sparkContext)
-      ).setKeyOrdering(kOrdering.toOrdering)
+      val shuffleService = HailContext.get.flags.get("shuffle_service_url")
+      if (shuffleService != null) {
+        ShuffleClient.shuffle(
+          shuffleService,
+          rowPType,
+          newType.kFieldIdx.map(x => (x, Ascending)),
+          this,
+          Right(newPartitioner),
+          executeContext)
+      } else {
+        val bufferSpec = ShuffleClient.activeShuffleBufferSpec
+        val codec = TypedCodecSpec(rowPType, bufferSpec)
+        val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
+          filtered.keyedEncodedRDD(codec, newType.key),
+          newPartitioner.sparkPartitioner(crdd.sparkContext)
+        ).setKeyOrdering(kOrdering.toOrdering)
 
-      val (rType: PStruct, shuffledCRDD) = enc.decodeRDD(localRowPType.virtualType, shuffled.values)
-
-      RVD(RVDType(rType, newType.key), newPartitioner, shuffledCRDD)
+        val (rType, shuffledCRDD) = codec.decodeRDD(localRowPType.virtualType, shuffled.values)
+        RVD(RVDType(rType.asInstanceOf[PStruct], newType.key), newPartitioner, shuffledCRDD)
+      }
     } else {
       if (newPartitioner != partitioner)
         new RVD(

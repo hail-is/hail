@@ -11,18 +11,9 @@ import is.hail.utils._
 
 object CodeOrdering {
 
-  sealed trait Op {
-    type ReturnType
-    val rtti: TypeInfo[ReturnType]
-  }
-  final case object compare extends Op {
-    type ReturnType = Int
-    val rtti = typeInfo[Int]
-  }
-  sealed trait BooleanOp extends Op {
-    type ReturnType = Boolean
-    val rtti = typeInfo[Boolean]
-  }
+  sealed trait Op { type ReturnType }
+  final case object compare extends Op { type ReturnType = Int }
+  sealed trait BooleanOp extends Op { type ReturnType = Boolean }
   final case object equiv extends BooleanOp
   final case object lt extends BooleanOp
   final case object lteq extends BooleanOp
@@ -405,4 +396,14 @@ abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
   def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) >= 0
 
   def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
+
+  // reverses the sense of the non-null comparison only
+  def reverse: CodeOrderingCompareConsistentWithOthers = new CodeOrderingCompareConsistentWithOthers () {
+    override def reverse: CodeOrdering = CodeOrdering.this
+    override type T = CodeOrdering.this.T
+    override type P = CodeOrdering.this.P
+
+    def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      CodeOrdering.this.compareNonnull(y, x)
+  }
 }

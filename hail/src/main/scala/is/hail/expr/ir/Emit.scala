@@ -1395,22 +1395,25 @@ private class Emit(
           false,
           defaultValue(typ))
       case ir@ApplyIR(fn, args) =>
-        assert(!ir.inline)
-        val mfield = mb.newField[Boolean]
-        val vfield = mb.newField()(typeToTypeInfo(ir.typ))
+        if (ir.inline) {
+          emit(ir.explicitNode)
+        } else {
+          val mfield = mb.newField[Boolean]
+          val vfield = mb.newField()(typeToTypeInfo(ir.typ))
 
-        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
-          Code(
-            v.setup,
-            mfield := v.m,
-            mfield.mux(
-              vfield.storeAny(defaultValue(t)),
-              vfield.storeAny(v.v)))
+          val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
+            Code(
+              v.setup,
+              mfield := v.m,
+              mfield.mux(
+                vfield.storeAny(defaultValue(t)),
+                vfield.storeAny(v.v)))
+          }
+
+          EmitTriplet(
+            wrapToMethod(FastSeq(ir.explicitNode))(addFields),
+            mfield, vfield)
         }
-
-        EmitTriplet(
-          wrapToMethod(FastSeq(ir.explicitNode))(addFields),
-          mfield, vfield)
 
       case ir@Apply(fn, args, rt) =>
         val impl = ir.implementation
@@ -2618,6 +2621,7 @@ abstract class NDArrayEmitter(
     val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
     val loadedIdxVars = idxVars.map(_.load())
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
+    assert(idxVars.length == nDims)
     val body =
       Code(
         storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Double]],

@@ -185,6 +185,7 @@ abstract class AbstractRVDSpec {
     AbstractRVDSpec.readLocal(hc, path, typedCodecSpec, partFiles, requestedType, r)
 
   def write(fs: FS, path: String) {
+    import AbstractRVDSpec.formats
     fs.writeTextFile(path + "/metadata.json.gz") { out =>
       import AbstractRVDSpec.formats
       Serialization.write(this, out)

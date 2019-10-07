@@ -101,7 +101,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
         svd.V.asInstanceOf[org.apache.spark.mllib.linalg.DenseMatrix].values
       else
         svd.V.toArray
-    
+
     val V = new DenseMatrix[Double](svd.V.numRows, svd.V.numCols, data)
     val S = DenseVector(svd.s.toArray)
 
@@ -117,7 +117,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       f3(mv.typ.extractColKey(cv.asInstanceOf[Row]), scores(i))
     }
     val newGlobal = f2(g1, globalScores)
-    
+
     TableValue(TableType(rowType.virtualType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
       BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct]), rvd)
   }

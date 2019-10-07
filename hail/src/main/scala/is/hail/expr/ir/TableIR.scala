@@ -16,7 +16,9 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
+import is.hail.shuffler.ShuffleClient
 import java.io.{ObjectInputStream, ObjectOutputStream}
+import org.apache.spark.TaskContext
 
 import is.hail.io._
 import org.apache.spark.sql.{DataFrame, Row}
@@ -1841,7 +1843,10 @@ object TableOrderBy {
   }
 }
 
-case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) extends TableIR {
+case class TableOrderBy(
+  child: TableIR,
+  sortFields: IndexedSeq[SortField]
+) extends TableIR {
   // TableOrderBy expects an unkeyed child, so that we can better optimize by
   // pushing these two steps around as needed
 
@@ -1858,27 +1863,41 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-
-    val physicalKey = prev.rvd.typ.key
+    val rvdType = prev.rvd.typ
+    val physicalKey = rvdType.key
     if (TableOrderBy.isAlreadyOrdered(sortFields, physicalKey))
       return prev
 
-    val rowType = child.typ.rowType
-    val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
-      val i = rowType.fieldIdx(n)
-      val f = rowType.fields(i)
-      val fo = f.typ.ordering
-      if (so == Ascending) fo else fo.reverse
-    }.toArray
+    val shuffleService = HailContext.get.flags.get("shuffle_service_url")
+    if (shuffleService != null) {
+      val rowPType = rvdType.rowType
+      val rvd = ShuffleClient.shuffle(
+        shuffleService,
+        rowPType,
+        sortFields.map { case f => (rowPType.field(f.field).index, f.sortOrder) }.toArray,
+        prev.rvd,
+        Left(prev.rvd.getNumPartitions),
+        ctx)
+      TableValue(typ, prev.globals, rvd)
+    } else {
+      val rowType = child.typ.rowType
+      val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
+        val i = rowType.fieldIdx(n)
+        val f = rowType.fields(i)
+        val fo = f.typ.ordering
+        if (so == Ascending) fo else fo.reverse
+      }.toArray
 
-    val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
+      val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 
-    val act = implicitly[ClassTag[Annotation]]
+      val act = implicitly[ClassTag[Annotation]]
 
-    val codec = TypedCodecSpec(prev.rvd.rowPType, BufferSpec.wireSpec)
-    val rdd = prev.rvd.keyedEncodedRDD(codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
-    val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(rowType, rdd.map(_._2))
-    TableValue(typ, prev.globals, RVD.unkeyed(rowPType, orderedCRDD))
+      val bufferSpec = ShuffleClient.activeShuffleBufferSpec
+      val codec = TypedCodecSpec(prev.rvd.rowPType, bufferSpec)
+      val rdd = prev.rvd.keyedEncodedRDD(codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
+      val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(rowType, rdd.map(_._2))
+      TableValue(typ, prev.globals, RVD.unkeyed(rowPType, orderedCRDD))
+    }
   }
 }
 

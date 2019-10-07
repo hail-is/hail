@@ -1,11 +1,13 @@
 package is.hail.io
 
 import java.io._
+import java.nio.ByteBuffer
 import java.util
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
+import is.hail.shuffler.HailChannelInputStream
 
 trait InputBuffer extends Closeable {
   def close(): Unit
@@ -345,6 +347,9 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
+  private val lenBb = ByteBuffer.wrap(lenBuf)
+  private var bufcopy: Array[Byte] = null
+  private var bufBb: ByteBuffer = null
 
   def close() {
     in.close()
@@ -354,12 +359,27 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   def seek(offset: Long): Unit = in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
 
   def readBlock(buf: Array[Byte]): Int = {
-    in.readFully(lenBuf, 0, 4)
-    val len = Memory.loadInt(lenBuf, 0)
-    assert(len >= 0)
-    assert(len <= buf.length)
-    in.readFully(buf, 0, len)
-    len
+    if (in.isInstanceOf[HailChannelInputStream]) {
+      val channel = in.asInstanceOf[HailChannelInputStream].channel
+      channel.read(lenBb)
+      val len = Memory.loadInt(lenBuf, 0)
+      assert(len >= 0)
+      assert(len <= buf.length)
+      if (bufcopy != buf) {
+        bufcopy = buf
+        bufBb = ByteBuffer.wrap(bufcopy)
+      }
+      bufBb.clear()
+      channel.read(bufBb)
+      len
+    } else {
+      in.readFully(lenBuf, 0, 4)
+      val len = Memory.loadInt(lenBuf, 0)
+      assert(len >= 0)
+      assert(len <= buf.length)
+      in.readFully(buf, 0, len)
+      len
+    }
   }
 }
 

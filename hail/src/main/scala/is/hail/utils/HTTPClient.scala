@@ -24,8 +24,11 @@ object HTTPClient {
     conn.setDoOutput(true);
     conn.setRequestProperty("Content-Length", Integer.toString(contentLength))
     using(conn.getOutputStream())(writeBody)
-    assert(200 <= conn.getResponseCode() && conn.getResponseCode() < 300,
-      s"POST ${url} ${conn.getResponseCode()} ${using(conn.getErrorStream())(fullyReadInputStreamAsString)}")
+    val code = conn.getResponseCode()
+    if (code < 200 || code >= 300) {
+      throw new RuntimeException(
+        s"POST ${url} ${code} ${using(conn.getErrorStream())(fullyReadInputStreamAsString)}")
+    }
     val result = using(conn.getInputStream())(readResponse)
     conn.disconnect()
     result
@@ -34,11 +37,24 @@ object HTTPClient {
   def get[T](
     url: String,
     readResponse: InputStream => T
+  ): T = get(url, null, readResponse)
+
+  def get[T](
+    url: String,
+    headers: Map[String, String],
+    readResponse: InputStream => T
   ): T = {
     val conn = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
     conn.setRequestMethod("GET")
-    assert(200 <= conn.getResponseCode() && conn.getResponseCode() < 300,
-      s"GET ${url} ${conn.getResponseCode()} ${using(conn.getErrorStream())(fullyReadInputStreamAsString)}")
+    conn.setUseCaches(false)
+    if (headers != null) {
+      headers.foreach((conn.setRequestProperty _).tupled)
+    }
+    val code = conn.getResponseCode()
+    if (code < 200 || code >= 300) {
+      throw new RuntimeException(
+        s"GET ${url} ${code} ${using(conn.getErrorStream())(fullyReadInputStreamAsString)}")
+    }
     val result = using(conn.getInputStream())(readResponse)
     conn.disconnect()
     result
@@ -50,8 +66,11 @@ object HTTPClient {
   ): Unit = {
     val conn = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
     conn.setRequestMethod("DELETE")
-    assert(200 <= conn.getResponseCode() && conn.getResponseCode() < 300,
-      s"DELETE ${url} ${conn.getResponseCode()} ${using(conn.getErrorStream())(fullyReadInputStreamAsString)}")
+    val code = conn.getResponseCode()
+    if (code < 200 || code >= 300) {
+      throw new RuntimeException(
+        s"DELETE ${url} ${code} ${using(conn.getErrorStream())(fullyReadInputStreamAsString)}")
+    }
     val result = using(conn.getInputStream())(readResponse)
     conn.disconnect()
     result

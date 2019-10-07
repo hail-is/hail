@@ -1,9 +1,11 @@
 package is.hail.annotations
 
 import is.hail.utils._
+import java.lang.ref.{ PhantomReference, ReferenceQueue }
+import scala.collection.mutable
 
 object RegionPool {
-  private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
+  private[this] lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
     override def initialValue(): RegionPool = RegionPool()
   }
 
@@ -12,6 +14,65 @@ object RegionPool {
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()
     new RegionPool(strictMemoryCheck, thread.getName, thread.getId)
+  }
+}
+
+object RegionPoolNativeResourceOwner {
+  private[this] var cleaner: Thread = null
+  private[this] var queue: ReferenceQueue[RegionPool] = null
+  private[this] var refs: mutable.Set[RegionPoolNativeResourceOwner] = null
+
+  def apply(pool: RegionPool): RegionPoolNativeResourceOwner = this.synchronized {
+    if (cleaner == null) {
+      queue = new ReferenceQueue()
+      refs = mutable.Set()
+      cleaner = new Thread(new Runnable() {
+        def run() {
+          while (true) {
+            val owner = queue.remove().asInstanceOf[RegionPoolNativeResourceOwner]
+            owner.cleanup()
+            refs.remove(owner)
+          }
+        }
+      })
+      cleaner.start()
+    }
+
+    val owner = new RegionPoolNativeResourceOwner(pool, queue)
+    refs.add(owner)
+    owner
+  }
+}
+
+class RegionPoolNativeResourceOwner private (
+  pool: RegionPool,
+  queue: ReferenceQueue[RegionPool]
+) extends PhantomReference[RegionPool](pool, queue) {
+  private[this] val freeBlocks = pool.freeBlocks
+  private[this] val regions = pool.regions
+  def cleanup(): Unit = {
+    log.info(s"freeing RegionPool via RegionPoolNativeResourceOwner with ")
+
+    var freedBytes = 0L
+
+    var i = 0
+    while (i < regions.size) {
+      regions(i).freeMemory()
+      i += 1
+    }
+
+    i = 0
+    while (i < 4) {
+      val blockSize = Region.SIZES(i)
+      val blocks = freeBlocks(i)
+      while (blocks.size > 0) {
+        Memory.free(blocks.pop())
+        freedBytes += blockSize
+      }
+      i += 1
+    }
+
+    log.info(s"freed ${freedBytes}")
   }
 }
 
@@ -51,6 +112,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   }
 
   protected[annotations] def getChunk(size: Long): Long = {
+    if (size > (1L << 18)) {
+      log.info(s"unusually large chunk: $size")
+    }
     incrementAllocatedBytes(size)
     Memory.malloc(size)
   }
@@ -117,8 +181,6 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), thread $threadID: $threadName")
   }
-
-  override def finalize(): Unit = close()
 
   def close(): Unit = {
     report("FREE")

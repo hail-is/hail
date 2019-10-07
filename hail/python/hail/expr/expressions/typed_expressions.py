@@ -3421,6 +3421,8 @@ class NDArrayExpression(Expression):
     >>> nd = hl._nd.array([[1, 2], [3, 4]])
     """
 
+    __array_ufunc__ = None
+
     @property
     def ndim(self):
         """The number of dimensions of this ndarray.

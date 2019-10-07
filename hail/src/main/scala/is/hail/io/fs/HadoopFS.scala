@@ -439,6 +439,9 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
 
   def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream = open(filename, checkCodec)
 
+  def unsafeReaderNoCompression(filename: String): FSDataInputStream =
+    openNoCompression(filename)
+
   def unsafeWriter(filename: String): OutputStream = create(filename)
 
   def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T = {

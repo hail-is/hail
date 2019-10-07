@@ -461,7 +461,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def iterator(p: Partition, tc: TaskContext, ctx: C): Iterator[T] =
     rdd.iterator(p, tc).flatMap(_(ctx))
 
-  private[this] def onRDD[U: ClassTag](
+  def onRDD[U: ClassTag](
     f: RDD[C => Iterator[T]] => RDD[C => Iterator[U]]
   ): ContextRDD[C, U] = new ContextRDD(f(rdd), mkc)
 }
