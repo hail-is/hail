@@ -1,6 +1,9 @@
 package is.hail.asm4s.joinpoint
 
 import is.hail.asm4s._
+import is.hail.expr.ir
+import is.hail.expr.ir.EmitTriplet
+import is.hail.expr.types.physical.PType
 
 object ParameterPack {
   implicit val unit: ParameterPack[Unit] = new ParameterPack[Unit] {
@@ -67,4 +70,38 @@ case class ParameterStore[A](
 
   def :=(cc: JoinPoint.CallCC[A]): Code[Unit] =
     Code(cc.code, store)
+}
+
+object TypedTriplet {
+  def apply(t: PType, et: EmitTriplet): TypedTriplet[t.type] =
+    TypedTriplet(et.setup, et.m, et.v)
+
+  def missing(t: PType): TypedTriplet[t.type] =
+    TypedTriplet(t, EmitTriplet(Code._empty, true, ir.defaultValue(t)))
+
+  class Pack[P] private[joinpoint](t: PType) extends ParameterPack[TypedTriplet[P]] {
+    def push(trip: TypedTriplet[P]): Code[Unit] = Code(
+      trip.setup,
+      trip.m.mux(
+        Code(coerce[Unit](ir.defaultValue(t)), coerce[Unit](const(true))),
+        Code(coerce[Unit](trip.v), coerce[Unit](const(false)))))
+
+    def newLocals(mb: MethodBuilder): ParameterStore[TypedTriplet[P]] = {
+      val m = mb.newLocal[Boolean]("m")
+      val v = mb.newLocal("v")(ir.typeToTypeInfo(t))
+      ParameterStore(Code(m.storeInsn, v.storeInsn), TypedTriplet(Code._empty, m, v))
+    }
+
+    def newFields(fb: FunctionBuilder[_], name: String): (Settable[Boolean], Settable[_]) =
+      (fb.newField[Boolean](name + "_missing"), fb.newField(name)(ir.typeToTypeInfo(t)))
+  }
+
+  def pack(t: PType): Pack[t.type] = new Pack(t)
+}
+
+case class TypedTriplet[P](setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
+  def untyped: EmitTriplet = EmitTriplet(setup, m, v)
+
+  def storeTo(dm: Settable[Boolean], dv: Settable[_]): Code[Unit] =
+    Code(setup, dm := m, (!dm).orEmpty(dv.storeAny(v)))
 }
