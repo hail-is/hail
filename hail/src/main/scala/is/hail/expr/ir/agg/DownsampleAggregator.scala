@@ -104,7 +104,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
     mb.emit(Code(
       allocateSpace(),
       this.nDivisions := mb.getArg[Int](1),
-      (this.nDivisions < 50).orEmpty(Code._fatal(const("downsample: require n_divisions >= 50, found ").concat(this.nDivisions.toS))),
+      (this.nDivisions < 4).orEmpty(Code._fatal(const("downsample: require n_divisions >= 4, found ").concat(this.nDivisions.toS))),
       left := 0d,
       right := 0d,
       bottom := 0d,
