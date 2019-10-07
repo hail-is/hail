@@ -60,8 +60,8 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = {
     def builder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-      val runningProduct = mb.newField[Long]
-      val tempShapeStorage = mb.newField[Long]
+      val runningProduct = mb.newLocal[Long]
+      val tempShapeStorage = mb.newLocal[Long]
       val computedStrides = (0 until nDims).map(_ => mb.newField[Long]).toArray
       Code(
         srvb.start(),
