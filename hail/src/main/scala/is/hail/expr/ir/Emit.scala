@@ -1522,45 +1522,44 @@ private class Emit(
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childAddress = mb.newField[Long]
-        val childM = mb.newLocal[Boolean]
         val childPType = coerce[PNDArray](child.pType)
 
         val childShape = new CodePTuple(childPType.shape.pType, region, childPType.shape.load(region, childAddress))
         val childStrides = new CodePTuple(childPType.strides.pType, region, childPType.strides.load(region, childAddress))
 
-        val setup = Code(
-          childt.setup,
-          childM := childt.m,
-          childAddress := childM.mux(coerce[Long](defaultValue(PInt64())), childt.value[Long]))
-        val value = x.pType.construct(
-          childPType.flags.load(region, childAddress),
-          childPType.offset.load(region, childAddress),
-          { srvb =>
-            Code(
-              srvb.start(),
-              Code.foreach(indexMap) {childIndex =>
-                Code(
-                  srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
-                  srvb.advance()
-                )
-              }
-            )
-          },
-          { srvb =>
-            Code(
-              srvb.start(),
-              Code.foreach(indexMap) {index =>
-                Code(
-                  srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
-                  srvb.advance()
-                )
-              }
-            )
-          },
-          childPType.data.load(region, childAddress),
-          mb
+        val setup = childt.setup
+        val value = Code(
+          childAddress := childt.value[Long],
+          x.pType.construct(
+            childPType.flags.load(region, childAddress),
+            childPType.offset.load(region, childAddress),
+            { srvb =>
+              Code(
+                srvb.start(),
+                Code.foreach(indexMap) {childIndex =>
+                  Code(
+                    srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
+                    srvb.advance()
+                  )
+                }
+              )
+            },
+            { srvb =>
+              Code(
+                srvb.start(),
+                Code.foreach(indexMap) {index =>
+                  Code(
+                    srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
+                    srvb.advance()
+                  )
+                }
+              )
+            },
+            childPType.data.load(region, childAddress),
+            mb
+          )
         )
-        EmitTriplet(setup, childM.load(), value)
+        EmitTriplet(setup, childt.m, value)
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
 
