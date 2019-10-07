@@ -1535,7 +1535,7 @@ private class Emit(
         val value = x.pType.construct(
           childPType.flags.load(region, childAddress),
           childPType.offset.load(region, childAddress),
-          {srvb =>
+          { srvb =>
             Code(
               srvb.start(),
               Code.foreach(indexMap) {childIndex =>
@@ -1546,7 +1546,7 @@ private class Emit(
               }
             )
           },
-          {srvb =>
+          { srvb =>
             Code(
               srvb.start(),
               Code.foreach(indexMap) {index =>

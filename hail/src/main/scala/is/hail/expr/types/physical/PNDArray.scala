@@ -66,7 +66,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       Code(
         srvb.start(),
         runningProduct := elementType.byteSize,
-        Code.foreach((nDims - 1) to 0 by -1){index =>
+        Code.foreach((nDims - 1) to 0 by -1){ index =>
           Code(
             computedStrides(index) := runningProduct,
             tempShapeStorage := sourceShapeArray(index),
