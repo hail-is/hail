@@ -1478,7 +1478,7 @@ class StructExpression(Mapping[str, Expression], Expression):
             assert item.start is None or isinstance(item.start, int)
             assert item.stop is None or isinstance(item.stop, int)
             assert item.step is None or isinstance(item.step, int)
-            return hl.select(
+            return self.select(
                 *self.dtype.fields[item.start:item.stop:item.step])
 
     def __iter__(self):
