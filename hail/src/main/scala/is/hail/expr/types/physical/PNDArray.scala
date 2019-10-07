@@ -58,30 +58,27 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       shape.foldLeft(const(1L))(_ * _)
   }
 
-  def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = {
-    def builder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-      val runningProduct = mb.newLocal[Long]
-      val tempShapeStorage = mb.newLocal[Long]
-      val computedStrides = (0 until nDims).map(_ => mb.newField[Long]).toArray
-      Code(
-        srvb.start(),
-        runningProduct := elementType.byteSize,
-        Code.foreach((nDims - 1) to 0 by -1){ index =>
-          Code(
-            computedStrides(index) := runningProduct,
-            tempShapeStorage := sourceShapeArray(index),
-            runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
-          )
-        },
-        Code.foreach(0 until nDims)(index =>
-          Code(
-            srvb.addLong(computedStrides(index)),
-            srvb.advance()
-          )
+  def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+    val runningProduct = mb.newLocal[Long]
+    val tempShapeStorage = mb.newLocal[Long]
+    val computedStrides = (0 until nDims).map(_ => mb.newField[Long]).toArray
+    Code(
+      srvb.start(),
+      runningProduct := elementType.byteSize,
+      Code.foreach((nDims - 1) to 0 by -1){ index =>
+        Code(
+          computedStrides(index) := runningProduct,
+          tempShapeStorage := sourceShapeArray(index),
+          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
+        )
+      },
+      Code.foreach(0 until nDims)(index =>
+        Code(
+          srvb.addLong(computedStrides(index)),
+          srvb.advance()
         )
       )
-    }
-    builder
+    )
   }
 
   def getElementPosition(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
