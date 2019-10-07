@@ -19,7 +19,7 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop.utils import unzip, blocking_to_async
+from hailtop.utils import blocking_to_async
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
@@ -27,10 +27,8 @@ from gear import setup_aiohttp_session, \
     new_csrf_token, check_csrf_token
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
-import uvloop
-uvloop.install()
+# import uvloop
 
-from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import JobsBuilder
 from .datetime_json import JSON_ENCODER
@@ -42,6 +40,8 @@ from .k8s import K8s
 from .utils import abort, jsonify
 
 from . import schemas
+
+# uvloop.install()
 
 log = logging.getLogger('batch')
 
@@ -105,17 +105,6 @@ def copy(files):
 
 class JobStateWriteFailure(Exception):
     pass
-
-
-class DeblockedIterator:
-    def __init__(self, it):
-        self.it = it
-
-    def __aiter__(self):
-        return self
-
-    def __anext__(self):
-        return blocking_to_async(app['blocking_pool'], self.it.__next__)
 
 
 class Job:
@@ -1125,17 +1114,6 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         log.info(f'job {job.id} mark unscheduled -- pod phase is unknown')
         await job.mark_unscheduled()
         return
-
-
-class DeblockedIterator:
-    def __init__(self, it):
-        self.it = it
-
-    def __aiter__(self):
-        return self
-
-    def __anext__(self):
-        return blocking_to_async(app['blocking_pool'], self.it.__next__)
 
 
 async def pod_changed(pod):

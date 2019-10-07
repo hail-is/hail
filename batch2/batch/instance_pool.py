@@ -157,8 +157,8 @@ function retry {{
             else
                 export INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
                 export WORKER_LOGS_DIRECTORY=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_directory")
-                 
-                echo "startup of batch worker failed after $n attempts;" >> worker.log 
+
+                echo "startup of batch worker failed after $n attempts;" >> worker.log
                 gsutil -m cp worker.log $WORKER_LOGS_DIRECTORY/$INST_TOKEN/
 
                 export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')

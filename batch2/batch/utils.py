@@ -33,6 +33,7 @@ def parse_cpu(cpu_string):
         if match.group(2) == 'm':
             number /= 1000
         return round(number, 3)
+    return None
 
 
 image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
@@ -42,6 +43,7 @@ def parse_image_tag(image_string):
     match = image_regex.fullmatch(image_string)
     if match:
         return match.group(3)
+    return None
 
 
 class CalledProcessError(Exception):
