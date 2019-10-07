@@ -11,8 +11,9 @@ build:
 	docker pull ubuntu:18.04
 	-docker pull $(UKBB_RG_STATIC_LATEST)
 	docker build -t ukbb-rg-static -f Dockerfile.static --cache-from ukbb-rg-static,$(UKBB_RG_STATIC_LATEST),ubuntu:18.04 .
+	docker pull ubuntu:19.04
 	-docker pull $(UKBB_RG_BROWSER_LATEST)
-	docker build -t ukbb-rg-browser -f Dockerfile.browser --cache-from ukbb-rg-browser,$(UKBB_RG_BROWSER_LATEST),ubuntu:18.04 .
+	docker build -t ukbb-rg-browser -f Dockerfile.browser --cache-from ukbb-rg-browser,$(UKBB_RG_BROWSER_LATEST),ubuntu:19.04 .
 
 .PHONY: push
 push: build
