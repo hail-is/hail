@@ -28,8 +28,8 @@ def batch_status_exit_codes(batch_status):
 
 def test_simple(client):
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+    head = batch.create_job('ubuntu:16.04', command=['echo', 'head'])
+    tail = batch.create_job('ubuntu:16.04', command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Success') == 2, status
@@ -42,7 +42,7 @@ def test_missing_parent_is_400(client):
         batch = client.create_batch()
         fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
         fake_job = Job.from_async_job(fake_job)
-        batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[fake_job])
+        batch.create_job('ubuntu:16.04', command=['echo', 'head'], parents=[fake_job])
         batch.submit()
     except ValueError as err:
         assert re.search('parents with invalid job ids', str(err))
@@ -52,10 +52,10 @@ def test_missing_parent_is_400(client):
 
 def test_dag(client):
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
+    head = batch.create_job('ubuntu:16.04', command=['echo', 'head'])
+    left = batch.create_job('ubuntu:16.04', command=['echo', 'left'], parents=[head])
+    right = batch.create_job('ubuntu:16.04', command=['echo', 'right'], parents=[head])
+    tail = batch.create_job('ubuntu:16.04', command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Success') == 4, status
@@ -67,11 +67,11 @@ def test_dag(client):
 
 def test_cancel_tail(client):
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
+    head = batch.create_job('ubuntu:16.04', command=['echo', 'head'])
+    left = batch.create_job('ubuntu:16.04', command=['echo', 'left'], parents=[head])
+    right = batch.create_job('ubuntu:16.04', command=['echo', 'right'], parents=[head])
     tail = batch.create_job(
-        'alpine:3.8',
+        'ubuntu:16.04',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[left, right])
     batch = batch.submit()
@@ -89,13 +89,13 @@ def test_cancel_tail(client):
 
 def test_cancel_left_after_tail(client):
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
+    head = batch.create_job('ubuntu:16.04', command=['echo', 'head'])
     left = batch.create_job(
-        'alpine:3.8',
+        'ubuntu:16.04',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[head])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
+    right = batch.create_job('ubuntu:16.04', command=['echo', 'right'], parents=[head])
+    tail = batch.create_job('ubuntu:16.04', command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
     head.wait()
     right.wait()
@@ -127,10 +127,10 @@ def test_callback(client):
         server = ServerThread(app)
         server.start()
         batch = client.create_batch(callback=server.url_for('/test'))
-        head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-        left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
-        right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
-        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
+        head = batch.create_job('ubuntu:16.04', command=['echo', 'head'])
+        left = batch.create_job('ubuntu:16.04', command=['echo', 'left'], parents=[head])
+        right = batch.create_job('ubuntu:16.04', command=['echo', 'right'], parents=[head])
+        tail = batch.create_job('ubuntu:16.04', command=['echo', 'tail'], parents=[left, right])
         batch = batch.submit()
         print(f'ids {head.job_id} {left.job_id} {right.job_id} {tail.job_id}')
         batch_status = batch.wait()
@@ -160,9 +160,9 @@ def test_callback(client):
 def test_no_parents_allowed_in_other_batches(client):
     b1 = client.create_batch()
     b2 = client.create_batch()
-    head = b1.create_job('alpine:3.8', command=['echo', 'head'])
+    head = b1.create_job('ubuntu:16.04', command=['echo', 'head'])
     try:
-        b2.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+        b2.create_job('ubuntu:16.04', command=['echo', 'tail'], parents=[head])
     except ValueError as err:
         assert re.search('parents from another batch', str(err))
         return
@@ -172,10 +172,10 @@ def test_no_parents_allowed_in_other_batches(client):
 def test_input_dependency(client):
     user = get_userinfo()
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8',
+    head = batch.create_job('ubuntu:16.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
                             output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
-    tail = batch.create_job('alpine:3.8',
+    tail = batch.create_job('ubuntu:16.04',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
                             input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
                             parents=[head])
@@ -189,10 +189,10 @@ def test_input_dependency(client):
 def test_input_dependency_directory(client):
     user = get_userinfo()
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8',
+    head = batch.create_job('ubuntu:16.04',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
                             output_files=[('/io/test/', f'gs://{user["bucket_name"]}')])
-    tail = batch.create_job('alpine:3.8',
+    tail = batch.create_job('ubuntu:16.04',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
                             input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
                             parents=[head])
@@ -204,13 +204,13 @@ def test_input_dependency_directory(client):
 
 def test_always_run_cancel(client):
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
+    head = batch.create_job('ubuntu:16.04', command=['echo', 'head'])
     left = batch.create_job(
-        'alpine:3.8',
+        'ubuntu:16.04',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[head])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
-    tail = batch.create_job('alpine:3.8',
+    right = batch.create_job('ubuntu:16.04', command=['echo', 'right'], parents=[head])
+    tail = batch.create_job('ubuntu:16.04',
                             command=['echo', 'tail'],
                             parents=[left, right],
                             always_run=True)
@@ -229,8 +229,8 @@ def test_always_run_cancel(client):
 
 def test_always_run_error(client):
     batch = client.create_batch()
-    head = batch.create_job('alpine:3.8', command=['/bin/sh', '-c', 'exit 1'])
-    tail = batch.create_job('alpine:3.8',
+    head = batch.create_job('ubuntu:16.04', command=['/bin/sh', '-c', 'exit 1'])
+    tail = batch.create_job('ubuntu:16.04',
                             command=['echo', 'tail'],
                             parents=[head],
                             always_run=True)

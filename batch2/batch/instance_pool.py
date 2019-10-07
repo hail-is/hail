@@ -108,7 +108,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
-                    'sourceImage': 'projects/hail-vdc/global/images/batch2-worker-1',
+                    'sourceImage': 'projects/hail-vdc/global/images/batch2-worker-2',
                 }
             }],
 
