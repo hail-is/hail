@@ -217,7 +217,7 @@ class ASM4SSuite extends TestNGSuite {
       Code(
         Code.switch(fb.getArg[Int](1),
           v := 999,
-          (1 to 50).map { i => i -> (v := const(i * i)) }: _*),
+          (1 to 50).map { i => i -> (v := const(i * i)) }),
         _return(v))
     }
     val f = fb.result()()
