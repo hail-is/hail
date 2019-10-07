@@ -46,8 +46,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     :py:data:`.tcall`, then an error is raised. The following fields are always
     computed from `GT`:
 
-    - `call_rate` (``float64``) -- Fraction of calls not missing or filtered.
-       Equivalent to `n_called` divided by :meth:`.count_rows`.
+    - `call_rate` (``float64``) -- Fraction of calls not missing or filtered. Equivalent to `n_called` divided by :meth:`.count_rows`.
     - `n_called` (``int64``) -- Number of non-missing calls.
     - `n_not_called` (``int64``) -- Number of missing calls.
     - `n_filtered` (``int64``) -- Number of filtered entries.
