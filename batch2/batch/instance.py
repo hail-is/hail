@@ -249,7 +249,7 @@ class Instance:
                 log.info(f'instance {self.name} is {status} and not healthy and last ping was greater than 5 minutes, deleting')
                 await self.delete()
 
-            if (status == 'STAGING' or status == 'RUNNING') and not self.active and time.time() - self.time_created > 60 * 5:
+            if (status in ('STAGING', 'RUNNING')) and not self.active and time.time() - self.time_created > 60 * 5:
                 log.info(f'instance {self.name} is {status} and not active and older than 5 minutes, deleting')
                 await self.delete()
 

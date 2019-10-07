@@ -19,7 +19,7 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop.utils import unzip, blocking_to_async
+from hailtop.utils import blocking_to_async
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
@@ -27,10 +27,8 @@ from gear import setup_aiohttp_session, \
     new_csrf_token, check_csrf_token
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
 
-import uvloop
-uvloop.install()
+# import uvloop
 
-from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import JobsBuilder
 from .datetime_json import JSON_ENCODER
@@ -42,6 +40,8 @@ from .k8s import K8s
 from .utils import abort, jsonify
 
 from . import schemas
+
+# uvloop.install()
 
 log = logging.getLogger('batch')
 
@@ -105,17 +105,6 @@ def copy(files):
 
 class JobStateWriteFailure(Exception):
     pass
-
-
-class DeblockedIterator:
-    def __init__(self, it):
-        self.it = it
-
-    def __aiter__(self):
-        return self
-
-    def __anext__(self):
-        return blocking_to_async(app['blocking_pool'], self.it.__next__)
 
 
 class Job:
@@ -226,10 +215,9 @@ class Job:
         if self._state == 'Running':
             future_logs = asyncio.gather(*[_read_log_from_worker(task) for task in tasks])
             return {k: v for k, v in await future_logs}
-        else:
-            assert self._state in ('Error', 'Failed', 'Success')
-            future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
-            return {k: v for k, v in await future_logs}
+        assert self._state in ('Error', 'Failed', 'Success')
+        future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
+        return {k: v for k, v in await future_logs}
 
     async def _read_pod_status(self):
         if self._state in ('Pending', 'Cancelled'):
@@ -255,10 +243,9 @@ class Job:
         if self._state == 'Running':
             future_statuses = asyncio.gather(*[_read_status_from_worker(task) for task in tasks])
             return {k: v for k, v in await future_statuses}
-        else:
-            assert self._state in ('Error', 'Failed', 'Success')
-            future_statuses = asyncio.gather(*[_read_status_from_gcs(task) for task in tasks])
-            return {k: v for k, v in await future_statuses}
+        assert self._state in ('Error', 'Failed', 'Success')
+        future_statuses = asyncio.gather(*[_read_status_from_gcs(task) for task in tasks])
+        return {k: v for k, v in await future_statuses}
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
@@ -1127,17 +1114,6 @@ async def update_job_with_pod(job, pod):  # pylint: disable=R0911
         return
 
 
-class DeblockedIterator:
-    def __init__(self, it):
-        self.it = it
-
-    def __aiter__(self):
-        return self
-
-    def __anext__(self):
-        return blocking_to_async(app['blocking_pool'], self.it.__next__)
-
-
 async def pod_changed(pod):
     job = await Job.from_pod(pod)
     await update_job_with_pod(job, pod)
@@ -1176,8 +1152,8 @@ async def driver_event_loop():
             object = await app['driver'].complete_queue.get()
             pod = v1.api_client._ApiClient__deserialize(object, kube.client.V1Pod)
             await pod_changed(pod)
-        except Exception as exc:
-            log.exception(f'driver event loop failed due to exception: {exc}')
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'driver event loop failed due to exception')
 
 
 async def polling_event_loop():
@@ -1185,8 +1161,8 @@ async def polling_event_loop():
     while True:
         try:
             await refresh_pods()
-        except Exception as exc:
-            log.exception(f'polling event loop failed due to exception: {exc}')
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'polling event loop failed due to exception')
         await asyncio.sleep(60 * 10)
 
 

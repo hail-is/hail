@@ -238,6 +238,16 @@ steps:
    publishAs: batch2
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: check_batch2
+   image:
+     valueFrom: batch2_image.image
+   script: |
+     set -ex
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
+   dependsOn:
+     - batch2_image
  - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test

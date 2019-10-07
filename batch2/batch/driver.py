@@ -2,11 +2,11 @@ import os
 import json
 import asyncio
 import aiohttp
+from aiohttp import web
 import logging
 import google.oauth2.service_account
 import sortedcontainers
 import traceback
-from aiohttp import web
 
 from hailtop.config import get_deploy_config
 from hailtop.utils import AsyncWorkerPool
@@ -23,6 +23,7 @@ db = get_db()
 
 class DriverException(Exception):
     def __init__(self, status, message):
+        super().__init__()
         self.status = status
         self.message = message
 
@@ -224,13 +225,11 @@ class Pod:
                 if resp.status == 200:
                     log.info(f'created {self.name} on inst {inst}')
                     return None
-                else:
-                    log.info(f'failed to create {self.name} on inst {inst} due to {resp}')
-                    return
-            else:
-                assert err
-                log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
-                asyncio.ensure_future(self.put_on_ready())
+                log.info(f'failed to create {self.name} on inst {inst} due to {resp}')
+                return
+            assert err
+            log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
+            asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
         assert self.deleted
@@ -264,10 +263,9 @@ class Pod:
         resp, err = self._get(url)
         if resp:
             return resp.json(), None
-        else:
-            assert err
-            log.info(f'failed to read container log {self.name}, {container} on {inst} due to err {err}, ignoring')
-            return None, err
+        assert err
+        log.info(f'failed to read container log {self.name}, {container} on {inst} due to err {err}, ignoring')
+        return None, err
 
     async def read_container_status(self, container):
         assert container in tasks
@@ -281,10 +279,9 @@ class Pod:
         resp, err = self._get(url)
         if resp:
             return resp.json(), None
-        else:
-            assert err
-            log.info(f'failed to read container status {self.name}, {container} on {inst} due to err {err}, ignoring')
-            return None, err
+        assert err
+        log.info(f'failed to read container status {self.name}, {container} on {inst} due to err {err}, ignoring')
+        return None, err
 
     def status(self):
         if self._status is None:
@@ -295,8 +292,7 @@ class Pod:
                     'phase': 'Pending'
                 }
             }
-        else:
-            return self._status
+        return self._status
 
     def __str__(self):
         return self.name
@@ -372,9 +368,7 @@ class Driver:
         if pod is None:
             log.warning(f'pod_complete from unknown pod {pod_name}, instance {inst_token}')
             return web.HTTPNotFound()
-        else:
-            log.info(f'pod_complete from pod {pod_name}, instance {inst_token}')
-
+        log.info(f'pod_complete from pod {pod_name}, instance {inst_token}')
         await pod.mark_complete(status)
         await self.complete_queue.put(status)
         return web.Response()
@@ -387,7 +381,7 @@ class Driver:
 
         try:
             pod = await Pod.create_pod(self, name, spec, output_directory)
-        except Exception as err:
+        except Exception as err:  # pylint: disable=broad-except
             return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
 
         self.pods[name] = pod
@@ -459,9 +453,9 @@ class Driver:
             return pod.name, pod
 
         records = await db.pods.get_all_records()
-        self.pods = dict([_pod(record) for record in records])
+        self.pods = dict(_pod(record) for record in records)
 
-        for pod in list(self.pods.values()):
+        for pod in self.pods.values():
             if not pod.instance and not pod._status:
                 asyncio.ensure_future(pod.put_on_ready())
 

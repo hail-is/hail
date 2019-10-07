@@ -15,8 +15,7 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 
-import uvloop
-uvloop.install()
+# import uvloop
 
 from hailtop.config import DeployConfig
 from gear import configure_logging
@@ -26,10 +25,10 @@ from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
 
+# uvloop.install()
+
 configure_logging()
 log = logging.getLogger('batch2-agent')
-
-uvloop.install()
 
 docker = aiodocker.Docker()
 
@@ -196,6 +195,7 @@ class Container:
     def status(self):
         if self._container is not None:
             return self._container._container
+        return None
 
     async def log(self):
         logs = await self._container.log(stderr=True, stdout=True)
@@ -225,21 +225,11 @@ class Container:
             state['terminated'] = {
                 'exitCode': self.status['State']['ExitCode'],
                 'startedAt': self.status['State']['StartedAt'],  # This is 0 if RunContainerError, different from k8s
-                'finishedAt': self.status['State']['FinishedAt'], # This is 0 if RunContainerError, different from k8s
+                'finishedAt': self.status['State']['FinishedAt'],  # This is 0 if RunContainerError, different from k8s
                 'message': self.status['State']['Error']
             }
         else:
             raise Exception(f'unknown docker state {self.status["State"]}')
-
-        x = {
-            'containerID': f'docker://{self.status["Id"]}',
-            'image': self.spec['image'],
-            'imageID': self.status['Image'],
-            'name': self.name,
-            'ready': False,
-            'restartCount': self.status['RestartCount'],
-            'state': state
-        }
 
         return {
             'containerID': f'docker://{self.status["Id"]}',
@@ -292,10 +282,11 @@ class Secret(Volume):
 
 
 class EmptyDir(Volume):
+    # FIXME add size parameter
     @staticmethod
-    async def create(name, size=None):
+    async def create(name):
         config = {
-            'Name': name  # FIXME: add size; need to possibly format disk image
+            'Name': name
         }
         volume = await docker.volumes.create(config)
         return EmptyDir(name, volume)
@@ -348,6 +339,8 @@ class BatchPod:
 
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
+        self.last_updated = None
+
     async def _create(self):
         log.info(f'creating pod {self.name}')
         self.volumes = await self._create_volumes()
@@ -382,7 +375,7 @@ class BatchPod:
                         return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception:  # pylint: disable=broad-except
                 log.exception(f'caught exception while marking {self.name} complete, will try again later')
             await asyncio.sleep(15)
 
@@ -444,9 +437,7 @@ class BatchPod:
             'metadata': self.metadata,
             'status': {
                 'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
-                # 'hostIP': None,
                 'phase': self.phase
-                # 'startTime': None
             }
         }
 
@@ -530,15 +521,15 @@ class Worker:
 
         asyncio.ensure_future(bp.delete())
 
-    async def delete_pod(self, request):
+    async def delete_pod(self, request):  # pylint: disable=unused-argument
         await asyncio.shield(self._delete_pod(request))
         return jsonify({})
 
-    async def list_pods(self, request):
+    async def list_pods(self, request):  # pylint: disable=unused-argument
         pods = [pod.to_dict() for _, pod in self.pods.items()]
         return jsonify(pods)
 
-    async def healthcheck(self, request):
+    async def healthcheck(self, request):  # pylint: disable=unused-argument
         return jsonify({})
 
     async def run(self):
@@ -584,7 +575,7 @@ class Worker:
                         log.info('deactivated')
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception:  # pylint: disable=broad-except
                 log.exception('caught exception while deactivating')
         finally:
             log.info('shutting down')
