@@ -679,7 +679,7 @@ object Simplify {
         Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
 
-    case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) =>
+    case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
       val ord = k.typ.keyType.ordering.intervalEndpointOrdering
       val maybeFlip: IR => IR = if (keep) identity else !_
       val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
