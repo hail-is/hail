@@ -220,8 +220,6 @@ def _to_expr(e, dtype):
             key_array = to_expr(keys, tarray(dtype.key_type))
             value_array = to_expr(values, tarray(dtype.value_type))
             return hl.dict(hl.zip(key_array, value_array))
-    elif isinstance(dtype, tndarray):
-        return e
     else:
         raise NotImplementedError(dtype)
 
