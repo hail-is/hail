@@ -3,7 +3,7 @@ package is.hail.asm4s.joinpoint
 import is.hail.asm4s._
 import is.hail.utils.{fatal}
 import org.objectweb.asm.Opcodes
-import org.objectweb.asm.tree.{LabelNode, AbstractInsnNode, JumpInsnNode}
+import org.objectweb.asm.tree.{LabelNode, AbstractInsnNode, JumpInsnNode, LookupSwitchInsnNode}
 import scala.collection.mutable
 import scala.collection.generic.Growable
 
@@ -29,6 +29,23 @@ object JoinPoint {
   def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
     mux((), cond, j1, j2)
 
+  def switch(
+    target: Code[Int],
+    dflt: JoinPoint[Unit],
+    cases: Seq[(Int, JoinPoint[Unit])]
+  ): Code[Ctrl] = {
+    ensureStackIndicator(dflt.stackIndicator)
+    cases.foreach { case (_, j) => ensureStackIndicator(j.stackIndicator) }
+    new Code[Ctrl] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        target.emit(il)
+        il += new LookupSwitchInsnNode(dflt.label,
+          cases.map(_._1).toArray,
+          cases.map(_._2.label).toArray)
+      }
+    }
+  }
+
   case class CallCC[A: ParameterPack](
     f: (JoinPointBuilder, JoinPoint[A]) => Code[Ctrl]
   ) {
@@ -36,7 +53,12 @@ object JoinPoint {
       val jb = new JoinPointBuilder(si)
       val ret = new JoinPoint[A](si)
       val body = f(jb, ret)
-      Code(assignLabels(jb.joinPoints :+ ret), body, jb.define, ret.placeLabel)
+      Code(
+        assignLabels(jb.joinPoints),
+        assignLabels(List(ret)),
+        body,
+        jb.define,
+        ret.placeLabel)
     }
   }
 

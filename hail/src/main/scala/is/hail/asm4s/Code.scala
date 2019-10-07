@@ -170,6 +170,22 @@ object Code {
     }
   }
 
+  def switch(value: Code[Int], dflt: Code[Unit], cases: (Int, Code[Unit])*): Code[Unit] = {
+    import is.hail.asm4s.joinpoint._
+    JoinPoint.CallCC[Unit] { (jb, ret) =>
+      def thenReturn(c: Code[Unit]): JoinPoint[Unit] = {
+        val j = jb.joinPoint()
+        j.define { _ => Code(c, ret(())) }
+        j
+      }
+      JoinPoint.switch(value,
+        thenReturn(dflt),
+        cases.map { case (key, body) =>
+          key -> thenReturn(body)
+        })
+    }
+  }
+
   def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
