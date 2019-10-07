@@ -2208,16 +2208,15 @@ private class Emit(
         val outputPType = x.pType
         val outputShapePType = outputPType.shape.pType
 
-        var shapeSeq = IndexedSeq[Code[Long]]()
 
-        indexExpr.foreach {childIndex =>
+        val shapeSeq = indexExpr.map {childIndex =>
           if (childIndex < childPType.nDims) {
-            shapeSeq = shapeSeq :+ childEmitter.outputShape(childIndex)
+            childEmitter.outputShape(childIndex)
           }
           else {
-            shapeSeq = shapeSeq :+ const(1L)
+            const(1L)
           }
-        }
+        }.toArray
 
         val setup = Code(childEmitter.setup)
 
