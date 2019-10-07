@@ -215,10 +215,9 @@ class Job:
         if self._state == 'Running':
             future_logs = asyncio.gather(*[_read_log_from_worker(task) for task in tasks])
             return {k: v for k, v in await future_logs}
-        else:
-            assert self._state in ('Error', 'Failed', 'Success')
-            future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
-            return {k: v for k, v in await future_logs}
+        assert self._state in ('Error', 'Failed', 'Success')
+        future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
+        return {k: v for k, v in await future_logs}
 
     async def _read_pod_status(self):
         if self._state in ('Pending', 'Cancelled'):
@@ -244,10 +243,9 @@ class Job:
         if self._state == 'Running':
             future_statuses = asyncio.gather(*[_read_status_from_worker(task) for task in tasks])
             return {k: v for k, v in await future_statuses}
-        else:
-            assert self._state in ('Error', 'Failed', 'Success')
-            future_statuses = asyncio.gather(*[_read_status_from_gcs(task) for task in tasks])
-            return {k: v for k, v in await future_statuses}
+        assert self._state in ('Error', 'Failed', 'Success')
+        future_statuses = asyncio.gather(*[_read_status_from_gcs(task) for task in tasks])
+        return {k: v for k, v in await future_statuses}
 
     async def _delete_gs_files(self):
         errs = await app['log_store'].delete_gs_files(self.directory)
@@ -1154,8 +1152,8 @@ async def driver_event_loop():
             object = await app['driver'].complete_queue.get()
             pod = v1.api_client._ApiClient__deserialize(object, kube.client.V1Pod)
             await pod_changed(pod)
-        except Exception as exc:
-            log.exception(f'driver event loop failed due to exception: {exc}')
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'driver event loop failed due to exception')
 
 
 async def polling_event_loop():
@@ -1163,8 +1161,8 @@ async def polling_event_loop():
     while True:
         try:
             await refresh_pods()
-        except Exception as exc:
-            log.exception(f'polling event loop failed due to exception: {exc}')
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'polling event loop failed due to exception')
         await asyncio.sleep(60 * 10)
 
 
