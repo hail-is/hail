@@ -4,7 +4,7 @@ configure_logging()
 
 
 def main():
-    from .batch import run
+    from .main import run
     run()
 
 
