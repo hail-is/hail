@@ -6,7 +6,7 @@ setup(
     url = 'https://github.com/hail-is/hail.git',
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
-    description = 'GCE job manager',
+    description = 'Job manager',
     packages = find_packages(),
     include_package_data=True
 )

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `deleted` BOOLEAN NOT NULL default false,
   `cancelled` BOOLEAN NOT NULL default false,
   `closed` BOOLEAN NOT NULL default false,
-  `n_jobs` INT NOT NULL,
+  `n_jobs` INT NOT NULL default 0,
   `n_completed` INT NOT NULL default 0,
   `n_succeeded` INT NOT NULL default 0,
   `n_failed` INT NOT NULL default 0,
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `pod_spec` TEXT(65535),
   `exit_codes` TEXT(65535),
   `durations` TEXT(65535),
+  `messages` TEXT(65535),
   `input_files` TEXT(65535),
   `output_files` TEXT(65535),
   PRIMARY KEY (`batch_id`, `job_id`),
@@ -56,6 +57,26 @@ CREATE TABLE IF NOT EXISTS `batch-attributes` (
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
+
+CREATE TABLE IF NOT EXISTS `instances` (
+  `name` VARCHAR(100) NOT NULL,
+  `token` VARCHAR(100) NOT NULL,
+  `ip_address` VARCHAR(100),
+  PRIMARY KEY (`token`)  
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `pods` (
+  `name` VARCHAR(100) NOT NULL,
+  `spec` TEXT(65535) NOT NULL,
+  `output_directory` VARCHAR(100) NOT NULL,
+  `cores` DOUBLE NOT NULL,
+  `instance` VARCHAR(100),
+  `status` TEXT(65535),
+  `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`name`),
+  FOREIGN KEY (`instance`) REFERENCES instances (`token`) ON DELETE SET NULL
+) ENGINE = InnoDB;
+CREATE INDEX pods_instance ON `pods` (`instance`);
 
 DELIMITER $$
 

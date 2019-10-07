@@ -1,6 +1,4 @@
-import os
 import asyncio
-import aiohttp
 import unittest
 from hailtop.batch_client.aioclient import BatchClient
 
