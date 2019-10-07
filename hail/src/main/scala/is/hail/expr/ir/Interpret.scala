@@ -364,7 +364,6 @@ object Interpret {
                 }
                 val ordering = eltT.ordering
                 val lb = a.count(elem => ordering.lt(eltF(elem), eValue))
-                println(s"a=${a}, elem=${eValue}, lb=$lb")
                 lb
               } else
                 a.count(elem.typ.ordering.lt(_, eValue))
