@@ -349,8 +349,22 @@ object Interpret {
               assert(onKey)
               d.count { case (k, _) => elem.typ.ordering.lt(k, eValue) }
             case a: IndexedSeq[_] =>
-              assert(!onKey)
-              a.count(elem.typ.ordering.lt(_, eValue))
+              if (onKey) {
+                val (eltF, eltT) = orderedCollection.typ.asInstanceOf[TContainer].elementType match {
+                  case t: TBaseStruct => ( { (x: Any) =>
+                    val r = x.asInstanceOf[Row]
+                    if (r == null) null else r.get(0)
+                  }, t.types(0))
+                  case i: TInterval => ( { (x: Any) =>
+                    val i = x.asInstanceOf[Interval]
+                    if (i == null) null else i.start
+                  }, i.pointType)
+                }
+                val ordering = eltT.ordering
+                val lb = a.count(elem => ordering.lt(eltF(elem), eValue))
+                lb
+              } else
+                a.count(elem.typ.ordering.lt(_, eValue))
           }
         }
 

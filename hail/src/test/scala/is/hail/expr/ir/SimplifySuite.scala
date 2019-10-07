@@ -5,7 +5,7 @@ import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, SortField}
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -134,5 +134,34 @@ class SimplifySuite extends HailSuite {
           Some(FastSeq("foo", "field0", "field1", "field2")))))
 
     assert(simplified == expected)
+  }
+
+  @Test def testFilterParallelize() {
+    for (rowsAndGlobals <- Array(
+      MakeStruct(FastSeq(
+      ("rows", In(0, TArray(TStruct("x" -> TInt32())))),
+      ("global", In(1, TStruct())))),
+      In(0, TStruct("rows" -> TArray(TStruct("x" -> TInt32())), "global" -> TStruct())))
+    ) {
+      val tp = TableParallelize(rowsAndGlobals, None)
+      val tf = TableFilter(tp, GetField(Ref("row", tp.typ.rowType), "x") < 100)
+
+      val rw = Simplify(tf)
+      TypeCheck(rw)
+      assert(!Exists(rw, _.isInstanceOf[TableFilter]))
+    }
+  }
+
+  @Test def testFilterIntervalsKeyByToFilter() {
+    var t: TableIR = TableRange(100, 10)
+    t = TableMapRows(t, InsertFields(Ref("row", t.typ.rowType), FastSeq(("x", I32(1) - GetField(Ref("row", t.typ.rowType), "idx")))))
+    t = TableKeyBy(t, FastIndexedSeq("x"))
+    t = TableFilterIntervals(t, FastIndexedSeq(Interval(Row(-10), Row(10), includesStart = true, includesEnd = false)), keep = true)
+
+    val t2 = Simplify(t)
+    assert(t2 match {
+      case TableKeyBy(TableFilter(child, _), _, _) => !Exists(child, _.isInstanceOf[TableFilterIntervals])
+      case _ => false
+    })
   }
 }

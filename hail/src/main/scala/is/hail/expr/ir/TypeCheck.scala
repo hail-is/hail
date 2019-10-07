@@ -206,7 +206,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TIterable])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = -coerce[TIterable](orderedCollection.typ).elementType
-        assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
+        assert(-elem.typ == (if (onKey) elt match {
+          case t: TBaseStruct => -t.types(0)
+          case t: TInterval => -t.pointType
+        } else elt))
       case x@GroupByKey(collection) =>
         val telt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         val td = coerce[TDict](x.typ)
