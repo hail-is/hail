@@ -191,4 +191,46 @@ class EmitStreamSuite extends TestNGSuite {
         assert(evalStreamLen(ir) == None, Pretty(ir))
     }
   }
+
+  @Test def testEmitLeftJoinDistinct() {
+    val tupTyp = TTuple(TInt32(), TString())
+    val Seq(l, r) = Seq("l", "r").map(Ref(_, tupTyp))
+    val Seq(i) = Seq("i").map(Ref(_, TInt32()))
+    val cmp = ApplyComparisonOp(
+      Compare(TInt32()),
+      GetTupleElement(l, 0),
+      GetTupleElement(r, 0))
+
+    def leftjoin(lstream: IR, rstream: IR): IR =
+      ArrayLeftJoinDistinct(lstream, rstream,
+        "l", "r", cmp,
+        MakeTuple.ordered(Seq(
+          GetTupleElement(l, 1),
+          GetTupleElement(r, 1))))
+
+    def pairs(xs: Seq[(Int, String)]): IR =
+      MakeStream(xs.map { case (a, b) => MakeTuple.ordered(Seq(I32(a), Str(b))) }, TStream(tupTyp))
+
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      leftjoin(pairs(Seq()), pairs(Seq())) -> IndexedSeq(),
+      leftjoin(pairs(Seq(3 -> "A")), pairs(Seq())) ->
+        IndexedSeq(Row("A", null)),
+      leftjoin(pairs(Seq()), pairs(Seq(3 -> "B"))) ->
+        IndexedSeq(),
+      leftjoin(pairs(Seq(0 -> "A")), pairs(Seq(0 -> "B"))) ->
+        IndexedSeq(Row("A", "B")),
+      leftjoin(
+        pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
+        pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> ".."))
+      ) -> IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
+      leftjoin(
+        pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
+        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c"))
+      ) -> IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"))
+    )
+    for ((ir, v) <- tests) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+    }
+  }
 }
