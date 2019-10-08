@@ -233,4 +233,69 @@ class EmitStreamSuite extends TestNGSuite {
       assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
     }
   }
+
+  @Test def testEmitScan() {
+    val Seq(a, v, x) = Seq("a", "v", "x").map(Ref(_, TInt32()))
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      ArrayScan(MakeStream(Seq(), TStream(TInt32())),
+        9, "a", "v", a + v) -> IndexedSeq(9),
+      ArrayScan(ArrayMap(StreamRange(0, 4, 1), "x", x * x),
+        1, "a", "v", a + v) -> IndexedSeq(1, 1/*1+0*0*/, 2/*1+1*1*/, 6/*2+2*2*/, 15/*6+3*3*/)
+    )
+    for ((ir, v) <- tests) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+    }
+  }
+
+  @Test def testEmitAggScan() {
+    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*) = {
+      val aggregate = compileStream(ir, inType.physicalType)
+      for ((inp, expected) <- tests)
+        assert(aggregate(inp) == expected, Pretty(ir))
+    }
+
+    def scanOp(op: AggOp, initArgs: Option[Seq[IR]], opArgs: Seq[IR]): ApplyScanOp =
+      ApplyScanOp(
+        FastIndexedSeq(),
+        initArgs.map(_.toFastIndexedSeq),
+        opArgs.toFastIndexedSeq,
+        AggSignature(op,
+          Seq(),
+          initArgs.map(_.map(_.typ)),
+          opArgs.map(_.typ)))
+
+    val pairType = TStruct("x" -> TCall(), "y" -> TInt32())
+    val intsType = TArray(TInt32())
+
+    assertAggScan(
+      ArrayAggScan(ToStream(In(0, TArray(pairType))),
+        "foo",
+        GetField(Ref("foo", pairType), "y") +
+          GetField(
+            scanOp(CallStats(),
+              Some(Seq(I32(2))),
+              Seq(GetField(Ref("foo", pairType), "x"))
+            ),
+            "AN")
+      ),
+      TArray(pairType),
+      FastIndexedSeq(
+        Row(null, 1), Row(Call2(0, 0), 2), Row(Call2(0, 1), 3), Row(Call2(1, 1), 4), null, Row(null, 5)
+      ) -> FastIndexedSeq(1 + 0, 2 + 0, 3 + 2, 4 + 4, null, 5 + 6)
+    )
+
+    assertAggScan(
+      ArrayAggScan(
+        ArrayAggScan(ToStream(In(0, intsType)),
+          "i",
+          scanOp(Sum(), None, Seq(Ref("i", TInt32()).toL))),
+        "x",
+        scanOp(Max(), None, Seq(Ref("x", TInt64())))
+      ),
+      intsType,
+      FastIndexedSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->
+        IndexedSeq(null, 0L, 2L, 7L, 15L, 15L, 15L, 16L, 17L)
+    )
+  }
 }
