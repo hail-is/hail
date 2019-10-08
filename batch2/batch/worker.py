@@ -20,7 +20,7 @@ from aiodocker.exceptions import DockerError
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import jsonify, abort, parse_cpu, parse_image_tag
+from .utils import parse_cpu, parse_image_tag
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
@@ -474,48 +474,48 @@ class Worker:
         self.last_updated = time.time()
         parameters = await request.json()
         await asyncio.shield(self._create_pod(parameters))
-        return jsonify({})
+        return web.Response()
 
     async def get_container_log(self, request):
         pod_name = request.match_info['pod_name']
         container_name = request.match_info['container_name']
 
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
 
         if container_name not in bp.containers:
-            abort(404, 'unknown container name')
+            raise web.HTTPNotFound(reason='unknown container name')
         result = await bp.log(container_name)
 
-        return jsonify(result)
+        return web.json_response(result)
 
     async def get_container_status(self, request):
         pod_name = request.match_info['pod_name']
         container_name = request.match_info['container_name']
 
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
 
         if container_name not in bp.containers:
-            abort(404, 'unknown container name')
+            raise web.HTTPNotFound(reason='unknown container name')
         result = bp.container_status(container_name)
 
-        return jsonify(result)
+        return web.json_response(result)
 
     async def get_pod(self, request):
         pod_name = request.match_info['pod_name']
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
-        return jsonify(bp.to_dict())
+        return web.json_response(bp.to_dict())
 
     async def _delete_pod(self, request):
         pod_name = request.match_info['pod_name']
 
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
         del self.pods[pod_name]
 
@@ -523,14 +523,14 @@ class Worker:
 
     async def delete_pod(self, request):  # pylint: disable=unused-argument
         await asyncio.shield(self._delete_pod(request))
-        return jsonify({})
+        return web.Response()
 
     async def list_pods(self, request):  # pylint: disable=unused-argument
         pods = [pod.to_dict() for _, pod in self.pods.items()]
-        return jsonify(pods)
+        return web.json_response(pods)
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
-        return jsonify({})
+        return web.Response()
 
     async def run(self):
         app_runner = None
