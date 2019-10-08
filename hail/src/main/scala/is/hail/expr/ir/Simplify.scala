@@ -219,8 +219,6 @@ object Simplify {
 
     case ArrayFilter(ArraySort(a, left, right, compare), name, cond) => ArraySort(ArrayFilter(a, name, cond), left, right, compare)
 
-    case NDArrayShape(MakeNDArray(_, shape, _)) => shape
-
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
