@@ -42,9 +42,12 @@ object TableValue {
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
-  require(typ.rowType == rvd.rowType, s"mismatch:\n  typ: ${ typ.rowType }\n  rvd: ${ rvd.rowType }")
-  require(rvd.typ.key.startsWith(typ.key))
-  require(typ.globalType == globals.t.virtualType)
+  if (typ.rowType != rvd.rowType)
+    throw new RuntimeException(s"row mismatch:\n  typ: ${ typ.rowType.parsableString() }\n  rvd: ${ rvd.rowType.parsableString() }")
+  if (!rvd.typ.key.startsWith(typ.key))
+    throw new RuntimeException(s"key mismatch:\n  typ: ${ typ.key }\n  rvd: ${ rvd.typ.key }")
+  if (typ.globalType != globals.t.virtualType)
+    throw new RuntimeException(s"globals mismatch:\n  typ: ${ typ.globalType.parsableString() }\n  val: ${ globals.t.virtualType.parsableString() }")
 
   def rdd: RDD[Row] =
     rvd.toRows
