@@ -29,10 +29,10 @@ spec:
       containers:
       - name: batch2_driver
         image: {{ batch2_image.image }}
-	command:
-	 - python3
-	 - -m
-	 - batch.driver
+        command:
+         - python3
+         - -m
+         - batch.driver
         resources:
           requests:
             memory: "1G"
@@ -138,10 +138,10 @@ spec:
       containers:
       - name: batch2
         image: {{ batch2_image.image }}
-	command:
-	 - python3
-	 - -m
-	 - batch.front_end
+        command:
+         - python3
+         - -m
+         - batch.front_end
         resources:
           requests:
             memory: "1G"
