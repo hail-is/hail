@@ -364,7 +364,7 @@ class BatchPod:
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    async with session.post(self.worker.deploy_config.url('batch2', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
+                    async with session.post(self.worker.deploy_config.url('batch2_driver', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
                         self.last_updated = time.time()
                         if resp.status == 200:
                             log.info(f'sent pod complete for {self.name}')
@@ -570,7 +570,7 @@ class Worker:
                 body = {'inst_token': self.token}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate')
+                    url = self.deploy_config.url('batch2_driver', '/api/v1alpha/instances/deactivate')
                     async with session.post(url, json=body):
                         log.info('deactivated')
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
@@ -595,7 +595,7 @@ class Worker:
                         'ip_address': self.ip_address}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2', '/api/v1alpha/instances/activate')
+                    url = self.deploy_config.url('batch2_driver', '/api/v1alpha/instances/activate')
                     async with session.post(url, json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()

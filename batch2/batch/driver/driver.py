@@ -11,10 +11,11 @@ import traceback
 from hailtop.config import get_deploy_config
 from hailtop.utils import AsyncWorkerPool
 
-from .google_compute import GServices
+from ..google_compute import GServices
+from ..utils import parse_cpu
+from ..globals import get_db, tasks
+
 from .instance_pool import InstancePool
-from .utils import parse_cpu
-from .globals import get_db, tasks
 
 log = logging.getLogger('driver')
 

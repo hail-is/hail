@@ -4,12 +4,13 @@ import logging
 import time
 import math
 
-from .utils import new_token
-from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
+from ..utils import new_token
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
+from ..globals import get_db
+
 from .instance import Instance
-from .globals import get_db
 
 log = logging.getLogger('instance_pool')
 db = get_db()

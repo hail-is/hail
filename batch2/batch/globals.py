@@ -21,5 +21,5 @@ db = None
 def get_db():
     global db
     if not db:
-        db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
+        db = BatchDatabase.create_synchronous('/sql-config/sql-config.json')
     return db

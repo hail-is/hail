@@ -1,13 +1,13 @@
+import os
 import asyncio
 import concurrent
 import logging
-import os
-import traceback
 import json
 import time
 
-import aiohttp_jinja2
+import aiohttp
 from aiohttp import web
+import aiohttp_jinja2
 import cerberus
 import kubernetes as kube
 import prometheus_client as pc
@@ -24,24 +24,21 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from .batch import Batch, Job
-from .log_store import LogStore
-from .database import JobsBuilder
-from .datetime_json import JSON_ENCODER
-from .globals import get_db
-from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, BATCH_NAMESPACE
-from .driver import Driver
-from .k8s import K8s
-from .utils import abort, jsonify
+from ..batch import Batch, Job
+from ..log_store import LogStore
+from ..database import JobsBuilder
+from ..datetime_json import JSON_ENCODER
+from ..globals import get_db
+from ..batch_configuration import POD_VOLUME_SIZE, INSTANCE_ID
+from ..utils import abort, jsonify
 
 from . import schemas
 
 # uvloop.install()
 
-log = logging.getLogger('batch')
+log = logging.getLogger('batch.front_end')
 
-REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
+REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
@@ -58,14 +55,10 @@ REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET
 REQUEST_TIME_GET_LOGS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/pod_status', verb="GET")
 
-POD_EVICTIONS = pc.Counter('batch_pod_evictions', 'Count of batch pod evictions')
 READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
 
-log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
-log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
-log.info(f'BATCH_IMAGE = {BATCH_IMAGE}')
 
 routes = web.RouteTableDef()
 
@@ -321,7 +314,7 @@ async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     await _cancel_batch(request.app, batch_id, user)
-    return jsonify({})
+    return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
@@ -333,8 +326,12 @@ async def close_batch(request, userdata):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         abort(404)
-    await batch.close()
-    return jsonify({})
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        async with session.post(
+                deploy_config.url('batch2_driver', f'/api/v1alpha/batches/{user}/{batch_id}/close')):
+            pass
+    return web.Response()
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
@@ -430,138 +427,6 @@ async def index(request, userdata):
     raise web.HTTPFound(location=location)
 
 
-async def update_job_with_pod(app, job, pod):  # pylint: disable=R0911
-    log.info(f'update job {job.id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
-    if job and job._state == 'Pending':
-        if pod:
-            log.error(f'job {job.id} has pod {pod.metadata.name}, ignoring')
-        return
-
-    if pod and (not job or job.is_complete()):
-        err = await app['driver'].delete_pod(name=pod.metadata.name)
-        if err is not None:
-            traceback.print_tb(err.__traceback__)
-            log.info(f'failed to delete pod {pod.metadata.name} for job {job.id if job else "None"} due to {err}, ignoring')
-        return
-
-    if job and job._cancelled and not job.always_run and job._state == 'Running':
-        await job.set_state('Cancelled')
-        await job._delete_pod()
-        return
-
-    if pod and pod.status and pod.status.phase == 'Pending':
-        all_container_statuses = pod.status.container_statuses or []
-        for container_status in all_container_statuses:
-            if (container_status.state and
-                    container_status.state.waiting and
-                    container_status.state.waiting.reason):
-                await job.mark_complete(pod)
-                return
-
-    if not pod:
-        log.info(f'job {job.id} no pod found, rescheduling')
-        await job.mark_unscheduled()
-        return
-
-    if pod and pod.status and pod.status.reason == 'Evicted':
-        POD_EVICTIONS.inc()
-        log.info(f'job {job.id} mark unscheduled -- pod was evicted')
-        await job.mark_unscheduled()
-        return
-
-    if pod and pod.status and pod.status.phase in ('Succeeded', 'Failed'):
-        log.info(f'job {job.id} mark complete')
-        await job.mark_complete(pod)
-        return
-
-    if pod and pod.status and pod.status.phase == 'Unknown':
-        log.info(f'job {job.id} mark unscheduled -- pod phase is unknown')
-        await job.mark_unscheduled()
-        return
-
-
-async def pod_changed(app, pod):
-    job = await Job.from_pod(app, pod)
-    await update_job_with_pod(app, job, pod)
-
-
-async def refresh_pods(app):
-    log.info(f'refreshing pods')
-
-    pod_jobs = [Job.from_record(app, record) for record in await app['db'].jobs.get_records_where({'state': 'Running'})]
-
-    pods = app['driver'].list_pods()
-    log.info(f'batch had {len(pods)} pods')
-
-    seen_pods = set()
-    for pod_dict in pods:
-        pod = app['k8s_client'].api_client._ApiClient__deserialize(pod_dict, kube.client.V1Pod)
-        pod_name = pod.metadata.name
-        seen_pods.add(pod_name)
-        asyncio.ensure_future(pod_changed(app, pod))
-
-    if len(seen_pods) != len(pod_jobs):
-        log.info('restarting running jobs with pods not seen in batch')
-
-    async def restart_job(job):
-        log.info(f'restarting job {job.id}')
-        await update_job_with_pod(app, job, None)
-    asyncio.gather(*[restart_job(job)
-                     for job in pod_jobs
-                     if job._pod_name not in seen_pods])
-
-
-async def driver_event_loop(app):
-    await asyncio.sleep(1)
-    while True:
-        try:
-            object = await app['driver'].complete_queue.get()
-            pod = app['k8s_client'].api_client._ApiClient__deserialize(object, kube.client.V1Pod)
-            await pod_changed(app, pod)
-        except Exception:  # pylint: disable=broad-except
-            log.exception(f'driver event loop failed due to exception')
-
-
-async def polling_event_loop(app):
-    await asyncio.sleep(1)
-    while True:
-        try:
-            await refresh_pods(app)
-        except Exception:  # pylint: disable=broad-except
-            log.exception(f'polling event loop failed due to exception')
-        await asyncio.sleep(60 * 10)
-
-
-async def db_cleanup_event_loop(app):
-    await asyncio.sleep(1)
-    while True:
-        try:
-            for record in await app['db'].batch.get_finished_deleted_records():
-                batch = Batch.from_record(app, record, deleted=True)
-                await batch.delete()
-        except Exception as exc:  # pylint: disable=W0703
-            log.exception(f'Could not delete batches due to exception: {exc}')
-        await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
-
-
-@routes.post('/api/v1alpha/instances/activate')
-# @rest_authenticated_users_only
-async def activate_worker(request):
-    return await asyncio.shield(request.app['driver'].activate_worker(request))
-
-
-@routes.post('/api/v1alpha/instances/deactivate')
-# @rest_authenticated_users_only
-async def deactivate_worker(request):
-    return await asyncio.shield(request.app['driver'].deactivate_worker(request))
-
-
-@routes.post('/api/v1alpha/instances/pod_complete')
-# @rest_authenticated_users_only
-async def pod_complete(request):
-    return await asyncio.shield(request.app['driver'].pod_complete(request))
-
-
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -573,28 +438,14 @@ async def on_startup(app):
     v1 = kube.client.CoreV1Api()
     app['k8s_client'] = v1
 
-    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, v1)
-
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
 
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    driver = Driver(k8s, bucket_name)
-    app['driver'] = driver
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
     app['db'] = get_db()
-
-    await driver.initialize()
-    await refresh_pods(app)  # this is really slow for large N
-
-    asyncio.ensure_future(driver.run())
-    # we need a polling event loop in case a delete happens before a create job, but this is too slow
-    # we also need a polling loop in case pod creation fails
-    # asyncio.ensure_future(polling_event_loop(app))
-    asyncio.ensure_future(driver_event_loop(app))
-    asyncio.ensure_future(db_cleanup_event_loop(app))
 
 
 async def on_cleanup(app):
@@ -606,7 +457,7 @@ def run():
     app = web.Application(client_max_size=None)
     setup_aiohttp_session(app)
 
-    setup_aiohttp_jinja2(app, 'batch')
+    setup_aiohttp_jinja2(app, 'batch.front_end')
     setup_common_static_routes(routes)
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)

@@ -4,7 +4,7 @@ import googleapiclient.errors
 import asyncio
 import aiohttp
 
-from .globals import get_db
+from ..globals import get_db
 
 log = logging.getLogger('instance')
 db = get_db()
