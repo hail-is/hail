@@ -1,5 +1,3 @@
-from .database import BatchDatabase
-
 states = {'Pending', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
 
 complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
@@ -14,12 +12,3 @@ valid_state_transitions = {
 }
 
 tasks = ('setup', 'main', 'cleanup')
-
-db = None
-
-
-async def get_db():
-    global db
-    if not db:
-        db = await BatchDatabase('/sql-config/sql-config.json')
-    return db

@@ -17,9 +17,9 @@ from hailtop.config import get_deploy_config
 
 from ..batch import Batch, Job
 from ..log_store import LogStore
-from ..globals import get_db
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, BATCH_NAMESPACE
+from ..database import BatchDatabase
 
 from .driver import Driver
 from .k8s import K8s
@@ -208,7 +208,7 @@ async def on_startup(app):
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    db = await get_db()
+    db = await BatchDatabase('/sql-config/sql-config.json')
     app['db'] = db
 
     driver = Driver(db, k8s, bucket_name)

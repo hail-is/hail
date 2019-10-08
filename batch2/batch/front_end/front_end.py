@@ -26,9 +26,8 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 from ..batch import Batch, Job
 from ..log_store import LogStore
-from ..database import JobsBuilder
+from ..database import BatchDatabase, JobsBuilder
 from ..datetime_json import JSON_ENCODER
-from ..globals import get_db
 from ..batch_configuration import POD_VOLUME_SIZE, INSTANCE_ID
 
 from . import schemas
@@ -444,7 +443,7 @@ async def on_startup(app):
     log.info(f'bucket_name {bucket_name}')
 
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
-    app['db'] = await get_db()
+    app['db'] = await BatchDatabase('/sql-config/sql-config.json')
 
 
 async def on_cleanup(app):
