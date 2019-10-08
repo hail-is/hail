@@ -122,11 +122,14 @@ class EmitStreamSuite extends TestNGSuite {
     val Seq(start, end, i) = Seq("start", "end", "i").map(Ref(_, TInt32()))
     val ir =
       Let("end", 10,
-        Let("start", 3,
-          StreamRange(start, end, 1))
+        ArrayFlatMap(
+          Let("start", 3,
+            StreamRange(start, end, 1)),
+          "i",
+          MakeStream(Seq(i, end), TStream(TInt32())))
       )
-    assert(evalStream(ir) == (3 until 10).toIndexedSeq, Pretty(ir))
-    assert(evalStreamLen(ir) == Some(10 - 3), Pretty(ir))
+    assert(evalStream(ir) == (3 until 10).flatMap { i => Seq(i, 10) }.toIndexedSeq, Pretty(ir))
+    assert(evalStreamLen(ir).isEmpty, Pretty(ir))
   }
 
   @Test def testEmitMap() {
@@ -158,6 +161,34 @@ class EmitStreamSuite extends TestNGSuite {
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
       assert(evalStreamLen(ir).isEmpty, Pretty(ir))
+    }
+  }
+
+  @Test def testEmitFlatMap() {
+    val x = Ref("x", TInt32())
+    val y = Ref("y", TInt32())
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      ArrayFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, x, 1)) ->
+        (0 until 6).flatMap(0 until _),
+      ArrayFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, NA(TInt32()), 1)) ->
+        IndexedSeq(),
+      ArrayFlatMap(StreamRange(0, NA(TInt32()), 1), "x", StreamRange(0, x, 1)) ->
+        null,
+      ArrayFlatMap(StreamRange(0, 20, 1), "x",
+        ArrayFlatMap(StreamRange(0, x, 1), "y",
+          StreamRange(0, (x + y), 1))) ->
+        (0 until 20).flatMap { x => (0 until x).flatMap { y => 0 until (x + y) } },
+      ArrayFlatMap(ArrayFilter(StreamRange(0, 5, 1), "x", x cne 3),
+        "y", MakeStream(Seq(y, y), TStream(TInt32()))) ->
+        IndexedSeq(0, 0, 1, 1, 2, 2, 4, 4),
+      ArrayFlatMap(StreamRange(0, 4, 1),
+        "x", ToStream(MakeArray(Seq[IR](x, x), TArray(TInt32())))) ->
+        IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
+    )
+    for ((ir, v) <- tests) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      if (v != null)
+        assert(evalStreamLen(ir) == None, Pretty(ir))
     }
   }
 }
