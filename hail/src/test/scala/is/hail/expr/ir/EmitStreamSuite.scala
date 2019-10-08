@@ -111,4 +111,36 @@ class EmitStreamSuite extends TestNGSuite {
     assert(evalStream(ir) == (3 until 10).toIndexedSeq, Pretty(ir))
     assert(evalStreamLen(ir) == Some(10 - 3), Pretty(ir))
   }
+
+  @Test def testEmitMap() {
+    val ten = StreamRange(I32(0), I32(10), I32(1))
+    val x = Ref("x", TInt32())
+    val y = Ref("y", TInt32())
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      ArrayMap(ten, "x", x * 2) -> (0 until 10).map(_ * 2),
+      ArrayMap(ten, "x", x.toL) -> (0 until 10).map(_.toLong),
+      ArrayMap(ArrayMap(ten, "x", x + 1), "y", y * y) -> (0 until 10).map(i => (i + 1) * (i + 1)),
+      ArrayMap(ten, "x", NA(TInt32())) -> IndexedSeq.tabulate(10) { _ => null }
+    )
+    for ((ir, v) <- tests) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+    }
+  }
+
+  @Test def testEmitFilter() {
+    val ten = StreamRange(I32(0), I32(10), I32(1))
+    val x = Ref("x", TInt32())
+    val y = Ref("y", TInt64())
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      ArrayFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
+      ArrayFilter(ArrayMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
+      ArrayFilter(ArrayMap(ten, "x", (x * 2).toL), "y", NA(TInt32())) -> IndexedSeq(),
+      ArrayFilter(ArrayMap(ten, "x", NA(TInt32())), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
+    )
+    for ((ir, v) <- tests) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir).isEmpty, Pretty(ir))
+    }
+  }
 }
