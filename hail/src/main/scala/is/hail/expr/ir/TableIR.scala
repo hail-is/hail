@@ -1458,7 +1458,7 @@ case class TableKeyByAndAggregate(
           rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd))
       } catch {
         case e: agg.UnsupportedExtraction =>
-          log.info(s"couldn't lower TableAggregate: $e")
+          log.info(s"couldn't lower TableKeyByAndAggregate: $e")
       }
     }
 
