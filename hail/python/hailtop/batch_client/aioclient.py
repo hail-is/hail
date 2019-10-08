@@ -13,6 +13,25 @@ from .globals import complete_states
 job_array_size = 1000
 
 
+async def retry_request(f, *args, **kwargs):
+    delay = 0.1
+    while True:
+        try:
+            return await f(*args, **kwargs)
+        except aiohttp.ClientResponseError as e:
+            # 408 request timeout, 503 service unavailable, 504 gateway timeout
+            if e.status == 408 or e.status == 503 or e.status == 504:
+                pass
+            else:
+                raise
+        except aiohttp.ServerTimeoutError:
+            pass
+        # exponentially back off, up to (expected) max of 30s
+        delay = min(delay * 2, 60.0)
+        t = delay * random.random()
+        await asyncio.sleep(t)
+
+
 def filter_params(complete, success, attributes):
     params = None
     if complete is not None:
@@ -369,17 +388,8 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_job_with_retry(self, batch_id, docs):
-        i = 0
-        while True:
-            try:
-                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
-            except Exception:  # pylint: disable=W0703
-                j = random.randrange(math.floor(1.1 ** i))
-                await asyncio.sleep(0.100 * j)
-                # max 44.5s
-                if i < 64:
-                    i += 1
+    async def _submit_job(self, batch_id, docs):
+        return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
 
     async def submit(self):
         if self._submitted:
@@ -392,31 +402,25 @@ class BatchBuilder:
         if self.callback:
             batch_doc['callback'] = self.callback
 
-        batch = None
-        try:
-            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-            batch = Batch(self._client, b['id'], b.get('attributes'))
+        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+        batch = Batch(self._client, b['id'], b.get('attributes'))
 
-            docs = []
-            n = 0
-            for jdoc in self._job_docs:
-                n += 1
-                docs.append(jdoc)
-                if n == job_array_size:
-                    await self.pool.call(self._submit_job_with_retry, batch.id, docs)
-                    n = 0
-                    docs = []
+        docs = []
+        n = 0
+        for jdoc in self._job_docs:
+            n += 1
+            docs.append(jdoc)
+            if n == job_array_size:
+                await self.pool.call(self._submit_job, batch.id, docs)
+                n = 0
+                docs = []
 
-            if docs:
-                await self.pool.call(self._submit_job_with_retry, batch.id, docs)
+        if docs:
+            await self.pool.call(self._submit_job, batch.id, docs)
 
-            await self.pool.wait()
+        await self.pool.wait()
 
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')  # FIXME: this needs a retry!
-        except Exception as err:  # pylint: disable=W0703
-            if batch:
-                await batch.cancel()
-            raise err
+        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -456,21 +460,25 @@ class BatchClient:
         self._headers = h
 
     async def _get(self, path, params=None):
-        response = await self._session.get(
+        response = await retry_request(
+            self._session.get,
             self.url + path, params=params, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):
-        response = await self._session.post(
+        response = await retry_request(
+            self._session.post,
             self.url + path, json=json, headers=self._headers)
         return await response.json()
 
     async def _patch(self, path):
-        await self._session.patch(
+        await retry_request(
+            self._session.patch,
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        await self._session.delete(
+        await retry_request(
+            self._session.delete,
             self.url + path, headers=self._headers)
 
     async def _refresh_k8s_state(self):
