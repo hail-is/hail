@@ -16,6 +16,7 @@ object EmitStream {
 
   sealed trait Step[+A, +S]
   object EOS extends Step[Nothing, Nothing]
+  case class Skip[S](s: S) extends Step[Nothing, S]
   case class Yield[A, S](elt: A, s: S) extends Step[A, S]
 
   def stepIf[A, S, X](k: Step[A, S] => Code[X], c: Code[Boolean], a: A, s: S): Code[X] =
@@ -39,6 +40,49 @@ object EmitStream {
       jb: JoinPointBuilder,
       state: S
     )(k: Step[A, S] => Code[Ctrl]): Code[Ctrl]
+
+    def map[B](f: A => B): Parameterized[P, B] =
+      contMap[B] { (a, k) => k(f(a)) }
+
+    def contMap[B](
+      f: (A, B => Code[Ctrl]) => Code[Ctrl],
+      setup: Code[Unit] = Code._empty,
+      cleanup: Code[Unit] = Code._empty
+    ): Parameterized[P, B] = new Parameterized[P, B] {
+      type S = self.S
+      val stateP = self.stateP
+      def dummyState = self.dummyState
+      def length(s0: S): Option[Code[Int]] = self.length(s0)
+      def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+        self.init(mb, jb, param) {
+          case m@(Missing | Empty) => k(m)
+          case Start(s) => Code(setup, k(Start(s)))
+        }
+      def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] =
+        self.step(mb, jb, state) {
+          case EOS => Code(cleanup, k(EOS))
+          case Skip(s) => k(Skip(s))
+          case Yield(a, s) => f(a, b => k(Yield(b, s)))
+        }
+    }
+
+    def filterMap[B](f: (A, Option[B] => Code[Ctrl]) => Code[Ctrl]): Parameterized[P, B] = new Parameterized[P, B] {
+      type S = self.S
+      val stateP = self.stateP
+      def dummyState = self.dummyState
+      def length(s0: S): Option[Code[Int]] = None
+      def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+        self.init(mb, jb, param)(k)
+      def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] =
+        self.step(mb, jb, state) {
+          case EOS => k(EOS)
+          case Skip(s) => k(Skip(s))
+          case Yield(a, s) => f(a, {
+            case None => k(Skip(s))
+            case Some(b) => k(Yield(b, s))
+          })
+        }
+    }
   }
 
   val missing: Parameterized[Any, Nothing] = new Parameterized[Any, Nothing] {
@@ -160,6 +204,39 @@ object EmitStream {
               vv := vm.mux(defaultValue(valueType), valuet.v))
           emitPStream[E](childIR, bodyEnv, setupBodyEnv)
 
+        case ArrayMap(childIR, name, bodyIR) =>
+          val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
+          val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
+          emitPStream(childIR, env, setupEnv).map { eltt =>
+            val eltm = fb.newField[Boolean](name + "_missing")
+            val eltv = fb.newField(name)(childEltTI)
+            val bodyt = emitIR(bodyIR, env.bind(name -> ((childEltTI, eltm, eltv))))
+            EmitTriplet(
+              Code(eltt.setup,
+                eltm := eltt.m,
+                eltv := eltm.mux(defaultValue(childEltType), eltt.v),
+                bodyt.setup),
+              bodyt.m,
+              bodyt.v)
+          }
+
+        case ArrayFilter(childIR, name, condIR) =>
+          val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
+          val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
+          emitPStream(childIR, env, setupEnv).filterMap { (eltt, k) =>
+            val eltm = fb.newField[Boolean](name + "_missing")
+            val eltv = fb.newField(name)(childEltTI)
+            val condt = emitIR(condIR, env.bind(name -> ((childEltTI, eltm, eltv))))
+            Code(
+              eltt.setup,
+              eltm := eltt.m,
+              eltv := eltm.mux(defaultValue(childEltType), eltt.v),
+              condt.setup,
+              (condt.m || !condt.value[Boolean]).mux(
+                k(None),
+                k(Some(EmitTriplet(Code._empty, eltm, eltv)))))
+          }
+
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
       }
@@ -207,6 +284,7 @@ case class EmitStream(
             val loop = jb.joinPoint()
             loop.define { _ => stream.step(mb, jb, state.load) {
               case EOS => ret(())
+              case Skip(s1) => Code(state := s1, loop(()))
               case Yield(elt, s1) => Code(
                 elt.setup,
                 cont(elt.m, elt.value),
