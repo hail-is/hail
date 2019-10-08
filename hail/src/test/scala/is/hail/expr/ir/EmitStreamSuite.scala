@@ -68,6 +68,23 @@ class EmitStreamSuite extends TestNGSuite {
     assert(evalStream(NA(TStream(TInt32()))) == null)
   }
 
+  @Test def testEmitMake() {
+    val x = Ref("x", TInt32())
+    val typ = TStream(TInt32())
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      MakeStream(Seq[IR](1, 2, NA(TInt32()), 3), typ) -> IndexedSeq(1, 2, null, 3),
+      MakeStream(Seq[IR](), typ) -> IndexedSeq(),
+      MakeStream(Seq[IR](MakeTuple.ordered(Seq(4, 5))), TStream(TTuple(TInt32(), TInt32()))) ->
+        IndexedSeq(Row(4, 5)),
+      MakeStream(Seq[IR](Str("hi"), Str("world")), TStream(TString())) ->
+        IndexedSeq("hi", "world")
+    )
+    for ((ir, v) <- tests) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+    }
+  }
+
   @Test def testEmitRange() {
     val tripleType = PStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
     val triple = In(0, tripleType.virtualType)
