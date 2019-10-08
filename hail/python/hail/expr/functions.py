@@ -3891,7 +3891,14 @@ def _ndarray(collection, row_major=None):
         return result
 
     if isinstance(collection, np.ndarray):
-        return literal(collection)
+        if row_major is None:
+            row_major = not collection.flags.f_contiguous
+            flattened = collection.flatten('A')
+        else:
+            flattened = collection.flatten('C' if row_major else 'F')
+
+        data = flattened.tolist()
+        shape = collection.shape
     elif isinstance(collection, list):
         shape = list_shape(collection)
         data = deep_flatten(collection)
