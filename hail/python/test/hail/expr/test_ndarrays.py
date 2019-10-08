@@ -88,7 +88,11 @@ def test_ndarray_eval():
     assert hl.eval(hl._ndarray([[], []])).strides == (8, 8)
     assert np.array_equal(hl.eval(hl._ndarray([])), np.array([]))
 
-    assert np.array_equal(hl.eval(hl.literal(np.zeros((10, 10)))), np.zeros((10, 10)))
+    zero_array = np.zeros((10, 10), dtype=np.int64)
+    evaled_zero_array = hl.eval(hl.literal(zero_array))
+
+    assert np.array_equal(evaled_zero_array, zero_array)
+    assert zero_array.dtype == evaled_zero_array.dtype
 
 
 @skip_unless_spark_backend()
