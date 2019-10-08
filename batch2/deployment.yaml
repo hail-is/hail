@@ -6,19 +6,19 @@ metadata:
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: batch2_driver
+  name: batch2-driver
   labels:
-    app: batch2_driver
+    app: batch2-driver
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: batch2_driver
+      app: batch2-driver
   replicas: 1
   template:
     metadata:
       labels:
-        app: batch2_driver
+        app: batch2-driver
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
@@ -27,7 +27,7 @@ spec:
       priorityClassName: production
 {% endif %}
       containers:
-      - name: batch2_driver
+      - name: batch2-driver
         image: {{ batch2_image.image }}
         command:
          - python3
@@ -223,13 +223,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: batch2_driver
+  name: batch2-driver
   labels:
-    app: batch2_driver
+    app: batch2-driver
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: batch2_driver
+    app: batch2-driver
