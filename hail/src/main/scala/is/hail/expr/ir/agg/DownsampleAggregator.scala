@@ -359,7 +359,8 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           insertIntoTree(xBinCoordinate(x), yBinCoordinate(y), point, deepCopy = true),
           i := i + 1),
         buffer.initialize(),
-        oldRegion.load().invalidate()
+        oldRegion.load().invalidate(),
+        allocateSpace()
       ))
     }
 
