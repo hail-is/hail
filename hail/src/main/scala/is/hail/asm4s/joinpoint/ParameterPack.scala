@@ -42,6 +42,11 @@ object ParameterPack {
       ParameterStore(Code(cs.store, bs.store, as.store), (as.load, bs.load, cs.load))
     }
   }
+
+  def localMemoize[A, X](mb: MethodBuilder, a0: A)(k: A => Code[X])(implicit ap: ParameterPack[A]): Code[X] ={
+    val a = ap.newLocals(mb)
+    Code(ap.push(a0), a.store, k(a.load))
+  }
 }
 
 object ParameterStore {
@@ -56,4 +61,10 @@ trait ParameterPack[A] {
 case class ParameterStore[A](
   store: Code[Unit],
   load: A
-)
+) {
+  def :=(v: A)(implicit p: ParameterPack[A]): Code[Unit] =
+    Code(p.push(v), store)
+
+  def :=(cc: JoinPoint.CallCC[A]): Code[Unit] =
+    Code(cc.code, store)
+}
