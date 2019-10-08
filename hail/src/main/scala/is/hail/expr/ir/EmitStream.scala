@@ -87,6 +87,36 @@ object EmitStream {
           })
         }
     }
+
+    def scan[B: ParameterPack](dummy: B)(
+      zero: B,
+      op: (A, B, B => Code[Ctrl]) => Code[Ctrl]
+    ): Parameterized[P, B] = new Parameterized[P, B] {
+      implicit val sP = self.stateP
+      type S = (self.S, B, Code[Boolean])
+      val stateP: ParameterPack[S] = implicitly
+      def emptyState: S = (self.emptyState, dummy, false)
+      def length(s0: S): Option[Code[Int]] = self.length(s0._1).map(_ + 1)
+
+      def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+        self.init(mb, jb, param) {
+          case Missing => k(Missing)
+          case Start(s0) => k(Start((s0, zero, true)))
+        }
+
+      def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] = {
+        val yield_ = jb.joinPoint[(B, self.S)](mb)
+        yield_.define { case (b, s1) => k(Yield(b, (s1, b, false))) }
+        val (s, b, isFirstStep) = state
+        isFirstStep.mux(
+          yield_((b, s)),
+          self.step(mb, jb, s) {
+            case EOS => k(EOS)
+            case Skip(s1) => k(Skip((s1, b, false)))
+            case Yield(a, s1) => op(a, b, b1 => yield_((b1, s1)))
+          })
+      }
+    }
   }
 
   val missing: Parameterized[Any, Nothing] = new Parameterized[Any, Nothing] {
@@ -405,6 +435,66 @@ object EmitStream {
                 lelt.storeTo(leltm, leltv),
                 relt.storeTo(reltm, reltv),
                 joint.setup), joint.m, joint.v) }
+
+        case ArrayScan(childIR, zeroIR, accName, eltName, bodyIR) =>
+          val e = childIR.pType.asInstanceOf[PStreamable].elementType
+          val a = zeroIR.pType
+          implicit val eP = TypedTriplet.pack(e)
+          implicit val aP = TypedTriplet.pack(a)
+          val (eltm, eltv) = eP.newFields(fb, "scan_elt")
+          val (accm, accv) = aP.newFields(fb, "scan_acc")
+          val zerot = emitIR(zeroIR, env)
+          val bodyt = emitIR(bodyIR, env
+            .bind(accName -> ((typeToTypeInfo(a), accm, accv)))
+            .bind(eltName -> ((typeToTypeInfo(e), eltm, eltv))))
+          emitPStream(childIR, env, setupEnv).scan(TypedTriplet.missing(a))(
+            TypedTriplet(a, zerot),
+            (eltt, acc, k) => {
+              val elt = TypedTriplet(e, eltt)
+              Code(
+                elt.storeTo(eltm, eltv),
+                acc.storeTo(accm, accv),
+                k(TypedTriplet(a, bodyt)))
+            }).map(_.untyped)
+
+        case ArrayAggScan(childIR, name, query) =>
+          val res = genUID()
+          val extracted =
+            try {
+              agg.Extract(CompileWithAggregators.liftScan(query), res)
+            } catch {
+              case e: agg.UnsupportedExtraction =>
+                fatal(s"BUG: lowered aggscan to a stream, but this agg is not supported: $e")
+            }
+
+          val (newContainer, aggSetup, aggCleanup) =
+            AggContainer.fromFunctionBuilder(extracted.aggs, fb, "array_agg_scan")
+          val initIR = Optimize(extracted.init, noisy = true, canGenerateLiterals = true,
+            context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+          val seqPerEltIR = Optimize(extracted.seqPerElt, noisy = true, canGenerateLiterals = false,
+            context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+          val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true, canGenerateLiterals = false,
+            context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+
+          val e = coerce[PStreamable](childIR.pType).elementType
+          val a = postAggIR.pType
+          implicit val eP = TypedTriplet.pack(e)
+          implicit val aP = TypedTriplet.pack(a)
+          val (eltm, eltv) = eP.newFields(fb, "aggscan_elt")
+          val (postm, postv) = aP.newFields(fb, "aggscan_new_elt")
+          val bodyEnv = env.bind(name -> ((typeToTypeInfo(e), eltm, eltv)))
+          val init = emitter.emit(initIR, env, None, er, Some(newContainer))
+          val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, None, er, Some(newContainer))
+          val postt = emitter.emit(postAggIR, bodyEnv, None, er, Some(newContainer))
+
+          emitPStream(childIR, env, setupEnv).contMap(
+            (eltt, k) => Code(
+              TypedTriplet(e, eltt).storeTo(eltm, eltv),
+              TypedTriplet(a, postt).storeTo(postm, postv),
+              seqPerElt.setup,
+              k(EmitTriplet(Code._empty, postm, postv))),
+            Code(aggSetup, init.setup),
+            aggCleanup)
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
