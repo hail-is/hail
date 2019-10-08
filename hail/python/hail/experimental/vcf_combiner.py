@@ -4,7 +4,8 @@ import hail as hl
 from hail import MatrixTable, Table
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
-from hail.ir import Apply, TableKeyBy, TableMapRows, TopLevelReference
+from hail.genetics.reference_genome import reference_genome_type
+from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
 
 _transform_rows_function_map = {}
@@ -155,6 +156,50 @@ def combine_gvcfs(mts):
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
     return hl.call(la[lgt[0]], la[lgt[1]])
+
+@typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
+def calculate_new_intervals(ht, n, reference_genome='default'):
+    """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
+    for repartitioning the table/matrix table
+
+    Parameters
+    ----------
+    ht : :class:`.Table`
+        Table / Rows Table to compute new intervals for
+    n : :obj:`int`
+        Number of rows each partition should have, (last partition may be smaller)
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+
+    Returns
+    -------
+    :obj:`List[Interval]`
+    """
+    assert list(ht.key) == ['locus']
+    assert ht.locus.dtype == hl.tlocus(reference_genome=reference_genome)
+    end = hl.Locus(reference_genome.contigs[-1],
+                   reference_genome.lengths[reference_genome.contigs[-1]])
+
+    ht = ht.select()
+    ht = ht.annotate(x=hl.scan.count())
+    ht = ht.annotate(y=ht.x + 1)
+    ht = ht.filter(ht.x // n != ht.y // n)
+    ht = ht.select()
+    ht = ht.annotate(start=hl.or_else(
+        hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
+                              reference_genome=reference_genome)),
+        hl.locus_from_global_position(0, reference_genome=reference_genome)))
+    ht = ht.key_by()
+    ht = ht.select(interval=hl.interval(start=ht.start, end=ht.locus, includes_end=True))
+
+    intervals = ht.aggregate(hl.agg.collect(ht.interval))
+
+    last_st = hl.eval(
+        hl.locus_from_global_position(hl.literal(intervals[-1].end).global_position() + 1,
+                                      reference_genome=reference_genome))
+    interval = hl.Interval(start=last_st, end=end, includes_end=True)
+    intervals.append(interval)
+    return intervals
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
