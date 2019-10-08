@@ -28,3 +28,7 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 	> /usr/bin/docker-credential-gcr && sudo chmod +x /usr/bin/docker-credential-gcr
 
 sudo docker-credential-gcr configure-docker
+
+sudo docker pull ubuntu:18.04
+sudo docker pull google/cloud-sdk:237.0.0-alpine
+sudo docker pull gcr.io/hail-vdc/batch2:latest
