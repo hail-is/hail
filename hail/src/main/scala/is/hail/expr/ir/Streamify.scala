@@ -5,6 +5,7 @@ import is.hail.expr.types.virtual._
 object Streamify {
   def apply(ir: IR): IR = ir match {
     case NA(t) => NA(t)
+    case MakeArray(xs, t) => MakeStream(xs, TStream(t.elementType, t.required))
     case ArrayRange(x, y, z) => StreamRange(x, y, z)
     case ArrayMap(a, n, b) => ArrayMap(apply(a), n, b)
     case ArrayFilter(a, n, b) => ArrayFilter(apply(a), n, b)

@@ -118,6 +118,29 @@ object EmitStream {
     }
   }
 
+  def sequence[P, A](
+    initialize: P => Code[Unit],
+    elements: Seq[A]
+  ): Parameterized[P, A] = new Parameterized[P, A] {
+    type S = Code[Int]
+    val stateP: ParameterPack[S] = implicitly
+    def dummyState: S = elements.length
+    def length(s0: S): Option[Code[Int]] = Some(elements.length)
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      Code(initialize(param), k(Start(0)))
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, idx: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] = {
+      val eos = jb.joinPoint()
+      eos.define { _ => k(EOS) }
+      JoinPoint.switch(idx, eos, elements.map { elt =>
+        val j = jb.joinPoint()
+        j.define { _ => k(Yield(elt, idx + 1)) }
+        j
+      })
+    }
+  }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -139,6 +162,9 @@ object EmitStream {
 
         case NA(_) =>
           missing
+
+        case MakeStream(elements, pType) =>
+          sequence(setupEnv, elements.map(emitIR(_, env)))
 
         case StreamRange(startIR, stopIR, stepIR) =>
           val step = fb.newField[Int]("sr_step")
