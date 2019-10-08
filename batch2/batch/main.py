@@ -33,7 +33,6 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL
     POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, BATCH_NAMESPACE
 from .driver import Driver
 from .k8s import K8s
-from .utils import abort, jsonify
 
 from . import schemas
 
@@ -86,10 +85,10 @@ def create_job(app, jobs_builder, batch_id, userdata, parameters):  # pylint: di
     always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
-        abort(400, f'only one container allowed in pod_spec {pod_spec}')
+        raise web.HTTPBadRequest(reason=f'only one container allowed in pod_spec {pod_spec}')
 
     if pod_spec.containers[0].name != 'main':
-        abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
+        raise web.HTTPBadRequest(reason=f'container name must be "main" was {pod_spec.containers[0].name}')
 
     if not pod_spec.containers[0].resources:
         pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
@@ -136,30 +135,30 @@ async def get_job(request, userdata):
 
     job = await Job.from_db(request.app, batch_id, job_id, user)
     if not job:
-        abort(404)
-    return jsonify(job.to_dict())
+        raise web.HTTPNotFound()
+    return web.json_response(job.to_dict())
 
 
 async def _get_job_log(app, batch_id, job_id, user):
     job = await Job.from_db(app, batch_id, job_id, user)
     if not job:
-        abort(404)
+        raise web.HTTPNotFound()
 
     job_log = await job._read_logs()
     if job_log:
         return job_log
-    abort(404)
+    raise web.HTTPNotFound()
 
 
 async def _get_pod_status(app, batch_id, job_id, user):
     job = await Job.from_db(app, batch_id, job_id, user)
     if not job:
-        abort(404)
+        raise web.HTTPNotFound()
 
     pod_statuses = await job._read_pod_status()
     if pod_statuses:
         return JSON_ENCODER.encode(pod_statuses)
-    abort(404)
+    raise web.HTTPNotFound()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -170,7 +169,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
     job_log = await _get_job_log(request.app, batch_id, job_id, user)
-    return jsonify(job_log)
+    return web.json_response(job_log)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -181,7 +180,7 @@ async def get_pod_status(request, userdata):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
     pod_spec = await _get_pod_status(request.app, batch_id, job_id, user)
-    return jsonify(pod_spec)
+    return web.json_response(pod_spec)
 
 
 async def _get_batches_list(app, params, user):
@@ -196,7 +195,7 @@ async def _get_batches_list(app, params, user):
         if k in ('complete', 'success'):  # params does not support deletion
             continue
         if not k.startswith('a:'):
-            abort(400, f'unknown query parameter {k}')
+            raise web.HTTPBadRequest(reason=f'unknown query parameter {k}')
         attributes[k[2:]] = v
 
     records = await app['db'].batch.find_records(user=user,
@@ -215,7 +214,7 @@ async def _get_batches_list(app, params, user):
 async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['username']
-    return jsonify(await _get_batches_list(request.app, params, user))
+    return web.json_response(await _get_batches_list(request.app, params, user))
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
@@ -232,9 +231,9 @@ async def create_jobs(request, userdata):
     log.info(f'took {round(time.time() - start1, 3)} seconds to get batch from db')
 
     if not batch:
-        abort(404)
+        raise web.HTTPNotFound()
     if batch.closed:
-        abort(400, f'batch {batch_id} is already closed')
+        raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
 
     start2 = time.time()
     jobs_parameters = await request.json()
@@ -243,7 +242,7 @@ async def create_jobs(request, userdata):
     start3 = time.time()
     validator = cerberus.Validator(schemas.job_array_schema)
     if not await blocking_to_async(app['blocking_pool'], validator.validate, jobs_parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
+        raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
     log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
     start4 = time.time()
@@ -254,14 +253,14 @@ async def create_jobs(request, userdata):
 
         success = await jobs_builder.commit()
         if not success:
-            abort(400, f'insertion of jobs in db failed')
+            raise web.HTTPBadRequest(reason=f'insertion of jobs in db failed')
     finally:
         await jobs_builder.close()
 
     log.info(f'took {round(time.time() - start4, 3)} seconds to commit jobs to db')
 
     log.info(f'took {round(time.time() - start, 3)} seconds to create jobs from start to finish')
-    return jsonify({})
+    return web.Response()
 
 
 @routes.post('/api/v1alpha/batches/create')
@@ -273,7 +272,7 @@ async def create_batch(request, userdata):
 
     validator = cerberus.Validator(schemas.batch_schema)
     if not validator.validate(parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
+        raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
 
     batch = await Batch.create_batch(
         request.app,
@@ -282,23 +281,23 @@ async def create_batch(request, userdata):
         userdata=userdata,
         n_jobs=parameters['n_jobs'])
     if batch is None:
-        abort(400, f'creation of batch in db failed')
+        raise web.HTTPBadRequest(reason=f'creation of batch in db failed')
 
     log.info(f'took {round(time.time() - start, 3)} seconds to initialize batch {batch.id} in db')
-    return jsonify(await batch.to_dict(include_jobs=False))
+    return web.json_response(await batch.to_dict(include_jobs=False))
 
 
 async def _get_batch(app, batch_id, user, limit=None, offset=None):
     batch = await Batch.from_db(app, batch_id, user)
     if not batch:
-        abort(404)
+        raise web.HTTPNotFound()
     return await batch.to_dict(include_jobs=True, limit=limit, offset=offset)
 
 
 async def _cancel_batch(app, batch_id, user):
     batch = await Batch.from_db(app, batch_id, user)
     if not batch:
-        abort(404)
+        raise web.HTTPNotFound()
     asyncio.ensure_future(batch.cancel())
 
 
@@ -311,7 +310,7 @@ async def get_batch(request, userdata):
     params = request.query
     limit = params.get('limit')
     offset = params.get('offset')
-    return jsonify(await _get_batch(request.app, batch_id, user, limit=limit, offset=offset))
+    return web.json_response(await _get_batch(request.app, batch_id, user, limit=limit, offset=offset))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -321,7 +320,7 @@ async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     await _cancel_batch(request.app, batch_id, user)
-    return jsonify({})
+    return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
@@ -332,9 +331,9 @@ async def close_batch(request, userdata):
     user = userdata['username']
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
-        abort(404)
+        raise web.HTTPNotFound()
     await batch.close()
-    return jsonify({})
+    return web.Response()
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
@@ -345,9 +344,9 @@ async def delete_batch(request, userdata):
     user = userdata['username']
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
-        abort(404)
+        raise web.HTTPNotFound()
     asyncio.ensure_future(batch.mark_deleted())
-    return jsonify({})
+    return web.Response()
 
 
 @routes.get('/batches/{batch_id}')
