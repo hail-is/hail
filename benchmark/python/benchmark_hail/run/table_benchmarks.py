@@ -333,3 +333,9 @@ def join_p100_p10():
 def group_by_collect_per_row():
     ht = hl.read_matrix_table(resource('gnomad_dp_simulation.mt')).localize_entries('e', 'c')
     ht.group_by(*ht.key).aggregate(value=hl.agg.collect(ht.row_value))._force_count()
+    
+
+@benchmark
+def group_by_take_rekey():
+    ht = hl.read_matrix_table(resource('gnomad_dp_simulation.mt')).localize_entries('e', 'c')
+    ht.group_by(k=hl.int(ht.row_idx / 50)).aggregate(value=hl.agg.take(ht.row_value, 1))._force_count()
