@@ -145,6 +145,40 @@ object EmitStream {
     }
   }
 
+  def compose[A, B, C](
+    outer: Parameterized[A, B],
+    inner: Parameterized[B, C]
+  ): Parameterized[A, C] = new Parameterized[A, C] {
+    implicit val outSP = outer.stateP
+    implicit val innSP = inner.stateP
+    type S = (outer.S, inner.S)
+    val stateP: ParameterPack[S] = implicitly
+    def emptyState: S = (outer.emptyState, inner.emptyState)
+    def length(s0: S): Option[Code[Int]] = None
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: A)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      outer.init(mb, jb, param) {
+        case Missing => k(Missing)
+        case Start(outS0) => k(Start((outS0, inner.emptyState)))
+      }
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[C, S] => Code[Ctrl]): Code[Ctrl] = {
+      val (outS, innS) = state
+      inner.step(mb, jb, innS) {
+        case EOS => outer.step(mb, jb, outS) {
+          case EOS => k(EOS)
+          case Skip(outS1) => k(Skip((outS1, inner.emptyState)))
+          case Yield(outElt, outS1) => inner.init(mb, jb, outElt) {
+            case Missing => k(Skip((outS1, inner.emptyState)))
+            case Start(innS1) => k(Skip((outS1, innS1)))
+          }
+        }
+        case Skip(innS1) => k(Skip((outS, innS1)))
+        case Yield(innElt, innS1) => k(Yield(innElt, (outS, innS1)))
+      }
+    }
+  }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -266,6 +300,20 @@ object EmitStream {
                 k(None),
                 k(Some(EmitTriplet(Code._empty, eltm, eltv)))))
           }
+
+        case ArrayFlatMap(outerIR, name, innerIR) =>
+          val outerEltType = outerIR.pType.asInstanceOf[PStreamable].elementType
+          val outerEltTI = coerce[Any](typeToTypeInfo(outerEltType))
+          val eltm = fb.newField[Boolean](name + "_missing")
+          val eltv = fb.newField(name)(outerEltTI)
+          val innerEnv = env.bind(name -> ((outerEltTI, eltm, eltv)))
+          def setupInnerEnv(eltt: EmitTriplet): Code[Unit] =
+            Code(eltt.setup,
+              eltm := eltt.m,
+              eltv := eltm.mux(defaultValue(outerEltType), eltt.v))
+          val outer = emitPStream(outerIR, env, setupEnv)
+          val inner = emitPStream(innerIR, innerEnv, setupInnerEnv)
+          compose(outer, inner)
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")

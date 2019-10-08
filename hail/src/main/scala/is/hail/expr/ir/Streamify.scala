@@ -9,6 +9,7 @@ object Streamify {
     case ArrayRange(x, y, z) => StreamRange(x, y, z)
     case ArrayMap(a, n, b) => ArrayMap(apply(a), n, b)
     case ArrayFilter(a, n, b) => ArrayFilter(apply(a), n, b)
+    case ArrayFlatMap(a, n, b) => ArrayFlatMap(apply(a), n, apply(b))
     case Let(n, v, b) => Let(n, v, apply(b))
     case ir => ToStream(ir)
   }
