@@ -8,12 +8,10 @@ from ..utils import new_token
 from ..batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
-from ..globals import get_db
 
 from .instance import Instance
 
 log = logging.getLogger('instance_pool')
-db = get_db()
 
 
 class InstancePool:
@@ -67,7 +65,7 @@ class InstancePool:
     async def initialize(self):
         log.info('initializing instance pool')
 
-        for record in await db.instances.get_all_records():
+        for record in await self.driver.db.instances.get_all_records():
             inst = Instance.from_record(self, record)
             self.token_inst[inst.token] = inst
             self.instances.add(inst)
