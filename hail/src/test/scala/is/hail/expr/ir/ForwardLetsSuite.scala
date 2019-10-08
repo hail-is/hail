@@ -144,4 +144,21 @@ class ForwardLetsSuite extends HailSuite {
     TypeCheck(ir, BindingEnv(env))
     TypeCheck(ForwardLets(ir).asInstanceOf[IR], BindingEnv(env))
   }
+
+  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
+    val x = Let(
+      "x",
+      ArrayAgg(
+        In(0, TArray(TInt32())),
+        "foo",
+        Ref(
+          "y", TInt32())),
+      ArrayAgg(In(1, TArray(TInt32())),
+        "bar",
+        Ref("y", TInt32()) + Ref("x", TInt32()
+        )))
+
+    TypeCheck(x, BindingEnv(Env("y" -> TInt32())))
+    TypeCheck(ForwardLets(x).asInstanceOf[IR], BindingEnv(Env("y" -> TInt32())))
+  }
 }

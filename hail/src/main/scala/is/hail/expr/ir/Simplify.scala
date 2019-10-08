@@ -485,6 +485,35 @@ object Simplify {
 
     case ApplyUnaryPrimOp(Bang(), ApplyComparisonOp(op, l, r)) =>
       ApplyComparisonOp(ComparisonOp.invert(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
+
+    case ArrayAgg(_, _, query) if {
+      def canBeLifted(x: IR): Boolean = x match {
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case AggLet(_, _, _, false) => false
+        case x if IsAggResult(x) => false
+        case other => other.children.forall {
+          case child: IR => canBeLifted(child)
+          case _: BaseIR => true
+        }
+      }
+      canBeLifted(query)
+    } => query
+
+    case ArrayAggScan(_, _, query) if {
+      def canBeLifted(x: IR): Boolean = x match {
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case AggLet(_, _, _, true) => false
+        case x if IsScanResult(x) => false
+        case other => other.children.forall {
+          case child: IR => canBeLifted(child)
+          case _: BaseIR => true
+        }
+      }
+      canBeLifted(query)
+    } => query
+
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {

@@ -136,6 +136,53 @@ class SimplifySuite extends HailSuite {
     assert(simplified == expected)
   }
 
+  @Test def testArrayAggNoAggRewrites(): Unit = {
+    val doesRewrite: Array[ArrayAgg] = Array(
+      ArrayAgg(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
+      ArrayAgg(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true)))
+
+    doesRewrite.foreach { a =>
+      assert(Simplify(a) == a.query)
+    }
+
+    val doesNotRewrite: Array[ArrayAgg] = Array(
+      ArrayAgg(In(0, TArray(TInt32())), "foo",
+        ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(Ref("foo", TInt32())),
+          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt32())))),
+      ArrayAgg(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false))
+    )
+
+    doesNotRewrite.foreach { a =>
+      assert(Simplify(a) == a)
+    }
+  }
+
+  @Test def testArrayAggScanNoAggRewrites(): Unit = {
+    val doesRewrite: Array[ArrayAggScan] = Array(
+      ArrayAggScan(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
+      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false)))
+
+    doesRewrite.foreach { a =>
+      assert(Simplify(a) == a.query)
+    }
+
+    val doesNotRewrite: Array[ArrayAggScan] = Array(
+      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+        ApplyScanOp(FastIndexedSeq(), None, FastIndexedSeq(Ref("foo", TInt32())),
+          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt32())))),
+      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true))
+    )
+
+    doesNotRewrite.foreach { a =>
+      assert(Simplify(a) == a)
+    }
+  }
+
+
   @Test def testFilterParallelize() {
     for (rowsAndGlobals <- Array(
       MakeStruct(FastSeq(
