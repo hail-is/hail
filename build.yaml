@@ -762,6 +762,9 @@ steps:
     - kind: Service
       name: batch2
       for: alive
+    - kind: Service
+      name: batch2_driver
+      for: alive
    dependsOn:
     - default_ns
     - batch_pods_ns

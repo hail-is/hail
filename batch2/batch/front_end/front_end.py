@@ -328,7 +328,7 @@ async def close_batch(request, userdata):
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.post(
-                deploy_config.url('batch2_driver', f'/api/v1alpha/batches/{user}/{batch_id}/close')):
+                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close')):
             pass
     return web.Response()
 
