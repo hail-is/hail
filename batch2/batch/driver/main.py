@@ -172,19 +172,16 @@ async def db_cleanup_event_loop(app):
 
 
 @routes.post('/api/v1alpha/instances/activate')
-# @rest_authenticated_users_only
 async def activate_worker(request):
     return await asyncio.shield(request.app['driver'].activate_worker(request))
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-# @rest_authenticated_users_only
 async def deactivate_worker(request):
     return await asyncio.shield(request.app['driver'].deactivate_worker(request))
 
 
 @routes.post('/api/v1alpha/instances/pod_complete')
-# @rest_authenticated_users_only
 async def pod_complete(request):
     return await asyncio.shield(request.app['driver'].pod_complete(request))
 
