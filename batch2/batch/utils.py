@@ -1,5 +1,4 @@
 import re
-import asyncio
 from aiohttp import web
 import secrets
 import logging
