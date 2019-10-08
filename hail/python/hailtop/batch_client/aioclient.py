@@ -389,7 +389,7 @@ class BatchBuilder:
         return j
 
     async def _submit_job(self, batch_id, docs):
-        return self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+        return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
 
     async def submit(self):
         if self._submitted:
