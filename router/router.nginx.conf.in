@@ -77,6 +77,18 @@ server {
 }
 
 server {
+    server_name batch2-driver.*;
+    client_max_body_size 10000m;
+
+    location / {
+        proxy_pass http://batch2-driver/;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
     server_name notebook.*;
 
     # needed to correctly handle error_page with internal handles
