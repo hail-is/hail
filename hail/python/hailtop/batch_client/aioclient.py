@@ -27,7 +27,7 @@ async def retry_request(f, *args, **kwargs):
         except aiohttp.ServerTimeoutError:
             pass
         # exponentially back off, up to (expected) max of 30s
-        delay = math.min(delay * 2, 60.0)
+        delay = min(delay * 2, 60.0)
         t = delay * random.random()
         await asyncio.sleep(t)
 
