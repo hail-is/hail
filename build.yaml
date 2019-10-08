@@ -763,7 +763,7 @@ steps:
       name: batch2
       for: alive
     - kind: Service
-      name: batch2_driver
+      name: batch2-driver
       for: alive
    dependsOn:
     - default_ns
