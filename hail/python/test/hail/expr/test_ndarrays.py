@@ -88,6 +88,9 @@ def test_ndarray_eval():
     assert hl.eval(hl._ndarray([[], []])).strides == (8, 8)
     assert np.array_equal(hl.eval(hl._ndarray([])), np.array([]))
 
+    assert np.array_equal(hl.eval(hl.literal(np.zeros((10, 10)))), np.zeros((10, 10)))
+
+
 @skip_unless_spark_backend()
 def test_ndarray_shape():
     np_e = np.array(3)
@@ -132,7 +135,7 @@ def test_ndarray_reshape():
         (cube_t_to_rect, np_cube_t_to_rect))
 
 @skip_unless_spark_backend()
-def test_ndarray_map_jvm():
+def test_ndarray_map():
     a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
     b = hl.map(lambda x: -x, a)
     c = hl.map(lambda x: True, a)
