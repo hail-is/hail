@@ -444,7 +444,7 @@ async def on_startup(app):
     log.info(f'bucket_name {bucket_name}')
 
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
-    app['db'] = get_db()
+    app['db'] = await get_db()
 
 
 async def on_cleanup(app):

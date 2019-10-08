@@ -208,10 +208,12 @@ async def on_startup(app):
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    driver = Driver(k8s, bucket_name)
+    db = await get_db()
+    app['db'] = db
+
+    driver = Driver(db, k8s, bucket_name)
     app['driver'] = driver
     app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
-    app['db'] = get_db()
 
     await driver.initialize()
     await refresh_pods(app)  # this is really slow for large N

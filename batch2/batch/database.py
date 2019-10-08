@@ -10,11 +10,6 @@ log = logging.getLogger('batch.database')
 MAX_RETRIES = 12
 
 
-def run_synchronous(coro):
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(coro)
-
-
 async def _retry(f, *args, **kwargs):
     n_attempts = 0
     saved_err = None
@@ -40,12 +35,6 @@ async def _retry(f, *args, **kwargs):
 
 @asyncinit
 class Database:
-    @classmethod
-    def create_synchronous(cls, config_file):
-        db = object.__new__(cls)
-        run_synchronous(cls.__init__(db, config_file))
-        return db
-
     async def __init__(self, config_file):
         with open(config_file, 'r') as f:
             config = json.loads(f.read().strip())

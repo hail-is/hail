@@ -18,8 +18,8 @@ tasks = ('setup', 'main', 'cleanup')
 db = None
 
 
-def get_db():
+async def get_db():
     global db
     if not db:
-        db = BatchDatabase.create_synchronous('/sql-config/sql-config.json')
+        db = await BatchDatabase('/sql-config/sql-config.json')
     return db
