@@ -98,7 +98,7 @@ spec:
        - name: gsa-key
          secret:
            optional: false
-           secretName: batch-gsa-key
+           secretName: batch2-gsa-key
        - name: batch2-tokens
          secret:
            optional: false

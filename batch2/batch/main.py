@@ -19,8 +19,8 @@ from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    new_csrf_token, check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, base_context
+    check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 # import uvloop
 
@@ -352,7 +352,6 @@ async def delete_batch(request, userdata):
 
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
-@aiohttp_jinja2.template('batch.html')
 @web_authenticated_users_only()
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -360,14 +359,14 @@ async def ui_batch(request, userdata):
     params = request.query
     limit = params.get('limit')
     offset = params.get('offset')
-    context = base_context(deploy_config, userdata, 'batch2')
-    context['batch'] = await _get_batch(request.app, batch_id, user, limit=limit, offset=offset)
-    return context
+    page_context = {
+        'batch': await _get_batch(request.app, batch_id, user, limit=limit, offset=offset)
+    }
+    return await render_template('batch2', request, userdata, 'batch.html', page_context)
 
 
 @routes.post('/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
-@aiohttp_jinja2.template('batches.html')
 @check_csrf_token
 @web_authenticated_users_only(redirect=False)
 async def ui_cancel_batch(request, userdata):
@@ -385,30 +384,25 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(request.app, params, user)
-    token = new_csrf_token()
-    context = base_context(deploy_config, userdata, 'batch2')
-    context['batch_list'] = batches[::-1]
-    context['token'] = token
-    response = aiohttp_jinja2.render_template('batches.html',
-                                              request,
-                                              context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
-    return response
+    page_context = {
+        'batch_list': batches[::-1]
+    }
+    return await render_template('batch2', request, userdata, 'batches.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
-@aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only()
 async def ui_get_job_log(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch2')
     batch_id = int(request.match_info['batch_id'])
-    context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
-    context['job_id'] = job_id
     user = userdata['username']
-    context['job_log'] = await _get_job_log(request.app, batch_id, job_id, user)
-    return context
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'job_log': await _get_job_log(request.app, batch_id, job_id, user)
+    }
+    return await render_template('batch2', request, userdata, 'job_log.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
@@ -416,15 +410,16 @@ async def ui_get_job_log(request, userdata):
 @aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only()
 async def ui_get_pod_status(request, userdata):
-    context = base_context(deploy_config, userdata, 'batch2')
     batch_id = int(request.match_info['batch_id'])
-    context['batch_id'] = batch_id
     job_id = int(request.match_info['job_id'])
-    context['job_id'] = job_id
     user = userdata['username']
-    context['pod_status'] = json.dumps(
-        json.loads(await _get_pod_status(request.app, batch_id, job_id, user)), indent=2)
-    return context
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'pod_status': json.dumps(
+            json.loads(await _get_pod_status(request.app, batch_id, job_id, user)), indent=2)
+    }
+    return await render_template('batch2', request, userdata, 'pod_status.html', page_context)
 
 
 @routes.get('')
@@ -581,7 +576,10 @@ async def on_startup(app):
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, v1)
 
     userinfo = await async_get_userinfo()
+    log.info(f'running as {userinfo["username"]}')
+
     bucket_name = userinfo['bucket_name']
+    log.info(f'bucket_name {bucket_name}')
 
     driver = Driver(k8s, bucket_name)
     app['driver'] = driver
