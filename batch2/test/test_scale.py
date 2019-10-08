@@ -24,7 +24,7 @@ def test_scale(client):
     batch = client.create_batch()
     for idx in range(n_jobs):
         sleep_time = random.uniform(0, 30)
-        batch.create_job('ubuntu:16.04', command=['sleep', str(round(sleep_time))])
+        batch.create_job('ubuntu:18.04', command=['sleep', str(round(sleep_time))])
 
     batch = batch.submit()
     status = batch.wait()
