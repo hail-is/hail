@@ -10,6 +10,7 @@ object Streamify {
     case ArrayMap(a, n, b) => ArrayMap(apply(a), n, b)
     case ArrayFilter(a, n, b) => ArrayFilter(apply(a), n, b)
     case ArrayFlatMap(a, n, b) => ArrayFlatMap(apply(a), n, apply(b))
+    case ArrayLeftJoinDistinct(l, r, ln, rn, c, j) => ArrayLeftJoinDistinct(apply(l), apply(r), ln, rn, c, j)
     case Let(n, v, b) => Let(n, v, apply(b))
     case ir => ToStream(ir)
   }
