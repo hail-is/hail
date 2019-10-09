@@ -560,24 +560,30 @@ class Batch:
         jobs = await self.app['db'].jobs.get_records_by_batch(self.id, limit, offset)
         return [Job.from_record(self.app, record) for record in jobs]
 
+    # called by driver
     async def _cancel_jobs(self):
         await asyncio.gather(*[j.cancel() for j in await self.get_jobs()])
 
+    # called by front end
     async def cancel(self):
         await self.app['db'].batch.update_record(self.id, cancelled=True, closed=True)
         self.cancelled = True
         self.closed = True
         log.info(f'batch {self.id} cancelled')
 
+    # called by driver
     async def _close_jobs(self):
         await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
                                if j._state == 'Running'])
 
+    # called by front end
     async def close(self):
         await self.app['db'].batch.update_record(self.id, closed=True)
         self.closed = True
         log.info(f'batch {self.id} closed')
 
+    # called by driver
+    # FIXME make called by front end
     async def mark_deleted(self):
         await self.cancel()
         await self.app['db'].batch.update_record(self.id,

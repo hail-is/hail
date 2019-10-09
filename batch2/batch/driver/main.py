@@ -75,8 +75,8 @@ async def delete_batch(request):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    # would prefer for this to be in front end, but then Batch.from_db
-    # won't be able to find batch
+    # FIXME call from front end.  Can't yet, becuase then
+    # Batch.from_db won't be able to find batch
     await batch.mark_deleted()
     asyncio.ensure_future(batch._cancel_jobs())
     return web.Response()
