@@ -86,6 +86,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         PTupleField(idx, pt)
       }
       PTuple(pFields, required)
+    case t: TNDArray =>
+      val elementType = _decodedPType(t.representation).asInstanceOf[PStruct].fieldType("data").asInstanceOf[PArray].elementType
+      PNDArray(elementType, t.nDims, required)
   }
 
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
