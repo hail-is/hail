@@ -1845,7 +1845,8 @@ class Table(ExprContainer):
             Create an interactive IPython widget.
         """
         if widget:
-            return hl.experimental.interact(self)
+            from hail.experimental.interact import interact
+            return interact(self)
 
         def format_type(typ):
             return typ.pretty(indent=4).lstrip()

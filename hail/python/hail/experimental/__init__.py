@@ -18,7 +18,6 @@ from .tidyr import gather, separate, spread
 from .codec import encode, decode
 from .db import DB
 from .compile import compile_comparison_binary, compiled_compare
-from .interact import interact
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -50,5 +49,4 @@ __all__ = ['ld_score',
            'DB',
            'decode',
            'compile_comparison_binary',
-           'compiled_compare',
-           'interact']
+           'compiled_compare']
