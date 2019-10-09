@@ -711,9 +711,9 @@ async def workshop_post_logout(request, userdata):
     return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
 
 
-@workshop_routes.get('/faq')
+@workshop_routes.get('/resources')
 async def workshop_get_faq(request):
-    return await render_template('notebook', request, {}, 'workshop/faq.html', {})
+    return await render_template('notebook', request, {}, 'workshop/resources.html', {})
 
 
 @workshop_routes.get('/notebook')
