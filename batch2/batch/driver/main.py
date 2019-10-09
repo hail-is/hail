@@ -18,7 +18,7 @@ from hailtop.config import get_deploy_config
 from ..batch import Batch, Job
 from ..log_store import LogStore
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, BATCH_NAMESPACE
+    POD_VOLUME_SIZE, INSTANCE_ID, BATCH_NAMESPACE
 from ..database import BatchDatabase
 
 from .driver import Driver
@@ -34,7 +34,6 @@ log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
-log.info(f'BATCH_IMAGE = {BATCH_IMAGE}')
 
 routes = web.RouteTableDef()
 

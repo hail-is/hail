@@ -616,10 +616,12 @@ cores = int(os.environ['CORES'])
 namespace = os.environ['NAMESPACE']
 inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
-batch_image = os.environ['BATCH_IMAGE']
+batch_worker_image = os.environ['BATCH_WORKER_IMAGE']
+
+log.info(f'BATCH_WORKER_IMAGE={batch_worker_image}')
 
 deploy_config = DeployConfig('gce', namespace, {})
-worker = Worker(batch_image, cores, deploy_config, inst_token, ip_address)
+worker = Worker(batch_worker_image, cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
