@@ -179,9 +179,8 @@ def table_aggregate_take_by_strings():
 @benchmark
 def table_aggregate_linreg():
     ht = hl.read_table(resource('many_ints_table.ht'))
-    ht.aggregate(hl.tuple([hl.agg.linreg(ht[f'i{i%5}'],
-                                         [ht[f'i{(i+1)%5}'], ht[f'i{(i+2)%5}']])
-                           for i in range(25)]))
+    ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2]),
+        hl.range(30)))
 
 
 @benchmark
