@@ -170,7 +170,7 @@ object Code {
     }
   }
 
-  def switch(target: Code[Int], dflt: Code[Unit], cases: Seq[(Int, Code[Unit])]): Code[Unit] = {
+  def switch(target: Code[Int], dflt: Code[Unit], cases: Seq[Code[Unit]]): Code[Unit] = {
     import is.hail.asm4s.joinpoint._
     JoinPoint.CallCC[Unit] { (jb, ret) =>
       def thenReturn(c: Code[Unit]): JoinPoint[Unit] = {
@@ -180,9 +180,7 @@ object Code {
       }
       JoinPoint.switch(target,
         thenReturn(dflt),
-        cases.map { case (key, body) =>
-          key -> thenReturn(body)
-        })
+        cases.map(thenReturn))
     }
   }
 

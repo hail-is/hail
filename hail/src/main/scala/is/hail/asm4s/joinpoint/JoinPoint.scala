@@ -3,7 +3,7 @@ package is.hail.asm4s.joinpoint
 import is.hail.asm4s._
 import is.hail.utils.{fatal}
 import org.objectweb.asm.Opcodes
-import org.objectweb.asm.tree.{LabelNode, AbstractInsnNode, JumpInsnNode, LookupSwitchInsnNode}
+import org.objectweb.asm.tree.{LabelNode, AbstractInsnNode, JumpInsnNode, TableSwitchInsnNode}
 import scala.collection.mutable
 import scala.collection.generic.Growable
 
@@ -32,19 +32,20 @@ object JoinPoint {
   def switch(
     target: Code[Int],
     dflt: JoinPoint[Unit],
-    cases: Seq[(Int, JoinPoint[Unit])]
-  ): Code[Ctrl] = {
-    ensureStackIndicator(dflt.stackIndicator)
-    cases.foreach { case (_, j) => ensureStackIndicator(j.stackIndicator) }
-    new Code[Ctrl] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        target.emit(il)
-        il += new LookupSwitchInsnNode(dflt.label,
-          cases.map(_._1).toArray,
-          cases.map(_._2.label).toArray)
+    cases: Seq[JoinPoint[Unit]]
+  ): Code[Ctrl] =
+    if (cases.isEmpty)
+      dflt(())
+    else {
+      ensureStackIndicator(dflt.stackIndicator)
+      cases.foreach { j => ensureStackIndicator(j.stackIndicator) }
+      new Code[Ctrl] {
+        def emit(il: Growable[AbstractInsnNode]): Unit = {
+          target.emit(il)
+          il += new TableSwitchInsnNode(0, cases.length - 1, dflt.label, cases.map(_.label): _*)
+        }
       }
     }
-  }
 
   case class CallCC[A: ParameterPack](
     f: (JoinPointBuilder, JoinPoint[A]) => Code[Ctrl]
