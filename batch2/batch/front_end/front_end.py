@@ -347,7 +347,6 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    await batch.mark_deleted()
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.delete(
