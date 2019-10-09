@@ -5,7 +5,7 @@ import time
 import math
 
 from ..utils import new_token
-from ..batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
 
@@ -140,7 +140,7 @@ class InstancePool:
 #!/bin/bash
 set -ex
 
-export BATCH_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_image")
+export BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 export HOME=/root
 
 function retry {{
@@ -174,15 +174,15 @@ retry docker run \
            -v /batch:/batch \
            -p 5000:5000 \
            -d --entrypoint "/bin/bash" \
-           $BATCH_IMAGE \
+           $BATCH_WORKER_IMAGE \
            -c "sh /run-worker.sh"
 '''
                 }, {
                     'key': 'inst_token',
                     'value': inst_token
                 }, {
-                    'key': 'batch_image',
-                    'value': BATCH_IMAGE
+                    'key': 'batch_worker_image',
+                    'value': BATCH_WORKER_IMAGE
                 }, {
                     'key': 'batch_instance',
                     'value': INSTANCE_ID
