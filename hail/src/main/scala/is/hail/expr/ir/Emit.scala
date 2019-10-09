@@ -2271,7 +2271,28 @@ private class Emit(
           // Steps:
           // Keep a running product. Also keep a count of -1s. If there's more than one -1, break. If the running product doesn't
           // divide number of elements, break. If there's one -1, loop over elements and replace the -1 with total / product.
+          val countNegs = mb.newLocal[Int]
+          val runningProduct = mb.newLocal[Long]
+          val quotient = mb.newLocal[Long]
 
+          Code(
+            countNegs := 0,
+            runningProduct := 1L,
+
+            (countNegs > 1).mux(
+              Code._fatal("Can't infer shape, more than one -1"),
+              Code._empty
+            ),
+            ((const(numElements.toLong) % runningProduct) > 0L).mux(
+              Code._fatal("Can't reshape since requested shape is incompatible with number of elements"),
+              Code._empty
+            ),
+            quotient := const(numElements.toLong) / runningProduct,
+            (countNegs >= 1).mux(
+              ???,
+              Code._empty
+            )
+          )
           //
           ???
         }

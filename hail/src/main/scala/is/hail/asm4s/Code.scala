@@ -553,6 +553,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def /(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LDIV))
 
+  def %(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LREM))
+
   def compare(rhs: Code[Long]): Code[Int] = Code(lhs, rhs, new InsnNode(LCMP))
 
   def <(rhs: Code[Long]): Code[Boolean] = compare(rhs) < 0
