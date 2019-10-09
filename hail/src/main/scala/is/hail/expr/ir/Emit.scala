@@ -1597,6 +1597,101 @@ private class Emit(
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
 
+      case NDArrayMatMul(lChild, rChild) =>
+        val lT = emit(lChild)  //Daniel calls emit rather than deforest?
+        val rT = emit(rChild)
+
+        val lNDims = lChild.pType.asInstanceOf[PNDArray].nDims
+        val rNDims = rChild.pType.asInstanceOf[PNDArray].nDims
+
+        val lPType = lChild.pType.asInstanceOf[PNDArray]
+        val rPType = rChild.pType.asInstanceOf[PNDArray]
+
+        val leftND = mb.newField[Long]
+        val rightND = mb.newField[Long]
+
+        val leftShape = lPType.shape.load(region, leftND)
+
+        val lShapeTuple = new CodePTuple(lPType.shape.pType, region, leftShape)
+
+        val setup = Code(
+          lT.setup,
+          rT.setup,
+          leftND := lT.value[Long],
+          rightND := rT.value[Long]
+        )
+
+        val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
+
+        val elementMul = lPType.elementType match {
+          case PInt32(_) => (a: Code[_], b: Code[_]) => (coerce[Int](a) * coerce[Int](b)).asInstanceOf[Code[Any]]
+          case PInt64(_) => (a: Code[_], b: Code[_]) => (coerce[Long](a) * coerce[Long](b)).asInstanceOf[Code[Any]]
+          case PFloat32(_) => (a: Code[_], b: Code[_]) => (coerce[Float](a) * coerce[Float](b)).asInstanceOf[Code[Any]]
+          case PFloat64(_) => (a: Code[_], b: Code[_]) => (coerce[Double](a) * coerce[Double](b)).asInstanceOf[Code[Any]]
+        }
+
+        val elementAdd = lPType.elementType match {
+          case PInt32(_) => (a: Code[_], b: Code[_]) => (coerce[Int](a) + coerce[Int](b)).asInstanceOf[Code[Any]]
+          case PInt64(_) => (a: Code[_], b: Code[_]) => (coerce[Long](a) + coerce[Long](b)).asInstanceOf[Code[Any]]
+          case PFloat32(_) => (a: Code[_], b: Code[_]) => (coerce[Float](a) + coerce[Float](b)).asInstanceOf[Code[Any]]
+          case PFloat64(_) => (a: Code[_], b: Code[_]) => (coerce[Double](a) + coerce[Double](b)).asInstanceOf[Code[Any]]
+        }
+
+        val elementZero = lPType.elementType match {
+          case PInt32(_) => const(0).asInstanceOf[Code[Any]]
+          case PInt64(_) => const(0L).asInstanceOf[Code[Any]]
+          case PFloat32(_) => const(0.0f).asInstanceOf[Code[Any]]
+          case PFloat64(_) => const(0.0).asInstanceOf[Code[Any]]
+        }
+
+        val eVti = typeToTypeInfo(lPType.elementType.virtualType)
+
+        // FIXME Only going to work if same shape as left
+        val emitter = new NDArrayEmitter(mb, outputPType.nDims, leftShape, lPType.shape.pType, lPType.elementType, setup) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val seqIdxVars = idxVars.toSeq
+            val element = coerce[Any](mb.newField("foo")(eVti))//mb.newLocal
+            val kLocal = mb.newLocal[Long]
+            val k = kLocal.load()
+
+            val (lIdxVars, rIdxVars) = (lNDims, rNDims) match {
+              case (1, 1) => (Array(k), Array(k))
+              case (_, _) => {
+                val stackDims :+ n :+ m = seqIdxVars
+
+                ((stackDims :+ n :+ k).toArray, (stackDims :+ k :+  m).toArray)
+              }
+            }
+
+            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementPosition(lIdxVars, leftND, region, mb))
+            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementPosition(rIdxVars, rightND, region, mb))
+            val maxK = mb.newLocal[Long]
+
+            Code(
+              kLocal := 0L,
+              maxK := lShapeTuple(lNDims - 1),
+              element := elementZero,
+              Code.whileLoop(k < maxK,
+                Code(
+                  //                  Code._println("k:"),
+                  //                  Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+                  //                    "println", k),
+                  //                  Code._println("lElem:"),
+                  //                  Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Double, Unit](
+                  //                    "println", coerce[Double](lElem)),
+                  //                  Code._println("rElem:"),
+                  //                  Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Double, Unit](
+                  //                    "println", coerce[Double](rElem)),
+                  element := elementAdd(elementMul(lElem, rElem), element),
+                  kLocal := kLocal + 1L
+                )
+              ),
+              element
+            )
+          }
+        }
+        emitter.emit(outputPType)
+
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
