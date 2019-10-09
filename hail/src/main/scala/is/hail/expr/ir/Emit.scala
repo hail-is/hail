@@ -1601,11 +1601,11 @@ private class Emit(
         val lT = emit(lChild)  //Daniel calls emit rather than deforest?
         val rT = emit(rChild)
 
-        val lNDims = lChild.pType.asInstanceOf[PNDArray].nDims
-        val rNDims = rChild.pType.asInstanceOf[PNDArray].nDims
-
         val lPType = lChild.pType.asInstanceOf[PNDArray]
         val rPType = rChild.pType.asInstanceOf[PNDArray]
+
+        val lNDims = lPType.nDims
+        val rNDims = rPType.nDims
 
         val leftND = mb.newField[Long]
         val rightND = mb.newField[Long]
@@ -1675,15 +1675,6 @@ private class Emit(
               element := elementZero,
               Code.whileLoop(k < maxK,
                 Code(
-                  //                  Code._println("k:"),
-                  //                  Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-                  //                    "println", k),
-                  //                  Code._println("lElem:"),
-                  //                  Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Double, Unit](
-                  //                    "println", coerce[Double](lElem)),
-                  //                  Code._println("rElem:"),
-                  //                  Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Double, Unit](
-                  //                    "println", coerce[Double](rElem)),
                   element := elementAdd(elementMul(lElem, rElem), element),
                   kLocal := kLocal + 1L
                 )
@@ -2481,6 +2472,19 @@ object NDArrayEmitter {
         )
       ))
     }
+  }
+
+  def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
+    val leftLen = leftShape.length
+    val rightLen = rightShape.length
+    val mRows = leftShape(leftLen - 2)
+    val mCols = rightShape(rightLen - 1)
+    val mustMatch = leftShape(leftLen - 1) ceq rightShape(rightLen - 2)
+
+    val compatibilityCheck =
+
+
+    ???
   }
 }
 
