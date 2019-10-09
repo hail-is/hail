@@ -1614,6 +1614,8 @@ private class Emit(
 
         val lShapeTuple = new CodePTuple(lPType.shape.pType, region, leftShape)
 
+        val leftShapeArray = (0 until lPType.nDims).map(i => coerce[Long](lShapeTuple(i))).toArray
+
         val setup = Code(
           lT.setup,
           rT.setup,
@@ -1647,7 +1649,7 @@ private class Emit(
         val eVti = typeToTypeInfo(lPType.elementType.virtualType)
 
         // FIXME Only going to work if same shape as left
-        val emitter = new NDArrayEmitter(mb, outputPType.nDims, leftShape, lPType.shape.pType, lPType.elementType, setup) {
+        val emitter = new NDArrayEmitter(mb, outputPType.nDims, leftShapeArray, lPType.shape.pType, lPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val seqIdxVars = idxVars.toSeq
             val element = coerce[Any](mb.newField("foo")(eVti))//mb.newLocal
