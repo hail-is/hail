@@ -53,7 +53,7 @@ async def close_batch(request):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(self._close_jobs())
+    asyncio.ensure_future(batch._close_jobs())
     return web.Response()
 
 
@@ -64,7 +64,7 @@ async def cancel_batch(request):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(self._cancel_jobs())
+    asyncio.ensure_future(batch._cancel_jobs())
     return web.Response()
 
 
@@ -75,7 +75,7 @@ async def delete_batch(request):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(self._cancel_jobs())
+    asyncio.ensure_future(batch._cancel_jobs())
     return web.Response()
 
 
