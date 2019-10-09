@@ -170,12 +170,12 @@ object Code {
     }
   }
 
-  def switch(target: Code[Int], dflt: Code[Unit], cases: Seq[Code[Unit]]): Code[Unit] = {
+  def switch[T: TypeInfo](target: Code[Int], dflt: Code[T], cases: Seq[Code[T]]): Code[T] = {
     import is.hail.asm4s.joinpoint._
-    JoinPoint.CallCC[Unit] { (jb, ret) =>
-      def thenReturn(c: Code[Unit]): JoinPoint[Unit] = {
+    JoinPoint.CallCC[Code[T]] { (jb, ret) =>
+      def thenReturn(c: Code[T]): JoinPoint[Unit] = {
         val j = jb.joinPoint()
-        j.define { _ => Code(c, ret(())) }
+        j.define { _ => ret(c) }
         j
       }
       JoinPoint.switch(target,
