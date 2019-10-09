@@ -54,7 +54,6 @@ server {
 
 server {
     server_name batch.*;
-    client_max_body_size 10000m;
 
     location / {
         proxy_pass http://batch/;
@@ -66,7 +65,6 @@ server {
 
 server {
     server_name batch2.*;
-    client_max_body_size 10000m;
 
     location / {
         proxy_pass http://batch2/;
