@@ -1,5 +1,3 @@
-from collections import Counter
-
 import itertools
 import pandas
 import pyspark
@@ -1844,7 +1842,7 @@ class Table(ExprContainer):
         handler : Callable[[str], None]
             Handler function for returned string.
         widget : bool
-            [Experimental] create an interactive IPython widget.
+            Create an interactive IPython widget.
         """
         if widget:
             return hl.experimental.interact(self)
@@ -3289,8 +3287,5 @@ class Table(ExprContainer):
         return Table(TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 
-    def interact(self):
-        from .vis.interact import interact
-        interact(self)
 
 table_type.set(Table)

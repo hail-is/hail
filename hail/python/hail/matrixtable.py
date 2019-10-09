@@ -3114,7 +3114,7 @@ class MatrixTable(ExprContainer):
         handler : Callable[[str], None]
             Handler function for returned string.
         widget : bool
-            [Experimental] create an interactive IPython widget.
+            Create an interactive IPython widget.
         """
         if widget:
             return hl.experimental.interact(self)

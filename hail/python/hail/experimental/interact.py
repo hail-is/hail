@@ -1,10 +1,4 @@
-import abc
-
-import collections
 from IPython.display import display
-from bokeh.io import save
-from bokeh.plotting import figure
-from bokeh.resources import CDN
 from ipywidgets import widgets, link
 
 import hail as hl
@@ -12,7 +6,6 @@ import hail as hl
 __all__ = [
     'interact',
 ]
-
 
 def interact(obj, cache=True):
     if cache:
@@ -23,12 +16,40 @@ def interact(obj, cache=True):
 
     if isinstance(obj, hl.Table):
         glob = widgets.Button(description='globals',
-                              layout=widgets.Layout(width='200px', height='30px'))
+                              layout=widgets.Layout(width='150px', height='30px'))
         rows = widgets.Button(description='rows',
-                              layout=widgets.Layout(width='200px', height='200px'))
+                              layout=widgets.Layout(width='150px', height='200px'))
         rows.style = selected_style
 
-        tab.children = [recursive_build(t) for t in [obj.globals, obj.row]]
+        globals_frames = []
+        globals_frames.append(widgets.HTML(
+            f'<p><big>Global fields, with one value in the dataset.</big></p>\n'
+            f'<p>Commonly used methods:</p>\n'
+            f'<ul>'
+            f'<li>{html_link("annotate_globals", "https://hail.is/docs/0.2/hail.Table.html#hail.Table.annotate_globals")}: '
+            f'add new global fields.</li>'
+            f'</ul>'
+        ))
+        append_struct_frames(obj.globals.dtype, globals_frames)
+
+        row_frames = []
+        row_frames.append(widgets.HTML(
+            f'<p><big>Row fields, with one record per row of the table.</big></p>\n'
+            f'<p>Commonly used methods:</p>\n'
+            f'<ul>'
+            f'<li>{html_link("annotate", "https://hail.is/docs/0.2/hail.Table.html#hail.Table.annotate")}: '
+            f'add new fields.</li>'
+            f'<li>{html_link("filter", "https://hail.is/docs/0.2/hail.Table.html#hail.Table.filter")}: '
+            f'filter rows of the table.</li>'
+            f'<li>{html_link("aggregate", "https://hail.is/docs/0.2/hail.Table.html#hail.Table.aggregate")}: '
+            f'aggregate over rows to produce a single value.</li>'
+            f'</ul>'
+        ))
+        if len(obj.key) > 0:
+            row_frames.append(widgets.HTML(f'<p><big>Key: {list(obj.key)}<big><p>'))
+        append_struct_frames(obj.row.dtype, row_frames)
+
+        tab.children = [widgets.VBox(frames) for frames in [globals_frames, row_frames]]
         tab.set_title(0, 'globals')
         tab.set_title(1, 'row')
         tab.selected_index = 1
@@ -47,7 +68,74 @@ def interact(obj, cache=True):
                                  layout=widgets.Layout(width='200px', height='200px'))
         entries.style = selected_style
 
-        tab.children = [recursive_build(t) for t in [obj.globals, obj.row, obj.col, obj.entry]]
+        globals_frames = []
+        globals_frames.append(widgets.HTML(
+            f'<p><big>Global fields, with one value in the dataset.</big></p>\n'
+            f'<p>Commonly used methods:</p>\n'
+            f'<ul>'
+            f'<li>{html_link("annotate_globals()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.annotate_globals")}: '
+            f'add new global fields.</li>'
+            f'</ul>'
+        ))
+        append_struct_frames(obj.globals.dtype, globals_frames)
+
+        row_frames = []
+        row_frames.append(widgets.HTML(
+            f'<p><big>Row fields, with one record per row in the dataset.</big></p>\n'
+            f'<p>Commonly used methods:</p>\n'
+            f'<ul>'
+            f'<li>{html_link("annotate_rows()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.annotate_rows")}: '
+            f'add new row fields. This method supports {html_link("aggregation", "https://hail.is/docs/0.2/aggregators.html")}, '
+            f'aggregating over entries to compute one result per row, e.g. computing the mean depth per variant.</li>'
+            f'<li>{html_link("filter_rows()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.filter_rows")}: '
+            f'filter rows in the matrix table.</li>'
+            f'<li>{html_link("aggregate_rows()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.aggregate_rows")}: '
+            f'aggregate over rows (not including entries or columns) to produce a single value, e.g. counting the number of loss-of-function variants.</li>'
+            f'<li>{html_link("rows()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.rows")}: '
+            f'return the rows as a Hail {html_link("Table", "https://hail.is/docs/0.2/hail.Table.html")}.</li>'
+            f'</ul>'
+        ))
+        if len(obj.row_key) > 0:
+            row_frames.append(widgets.HTML(f'<p><big>Row key: {list(obj.row_key)}<big><p>'))
+        append_struct_frames(obj.row.dtype, row_frames)
+
+        col_frames = []
+        col_frames.append(widgets.HTML(
+            f'<p><big>Column fields, with one record per column in the dataset.</big></p>\n'
+            f'<p>Commonly used methods:</p>\n'
+            f'<ul>'
+            f'<li>{html_link("annotate_cols()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.annotate_cols")}: '
+            f'add new column fields. This method supports {html_link("aggregation", "https://hail.is/docs/0.2/aggregators.html")}, '
+            f'aggregating over entries to compute one result per column, e.g. computing the mean depth per sample.</li>'
+            f'<li>{html_link("filter_cols()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.filter_cols")}: '
+            f'filter columns in the matrix table.</li>'
+            f'<li>{html_link("aggregate_cols()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.aggregate_cols")}: '
+            f'aggregate over columns (not including entries or rows) to produce a single value, e.g. counting the number of samples with case status.</li>'
+            f'<li>{html_link("cols()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.cols")}: '
+            f'return the columns as a Hail {html_link("Table", "https://hail.is/docs/0.2/hail.Table.html")}.'
+            f'</li>'
+            f'</ul>'
+        ))
+        if len(obj.col_key) > 0:
+            col_frames.append(widgets.HTML(f'<p><big>Column key: {list(obj.col_key)}<big><p>'))
+        append_struct_frames(obj.col.dtype, col_frames)
+
+        entry_frames = []
+        entry_frames.append(widgets.HTML(
+            f'<p><big>Entry fields, with one record per (row, column) pair in the dataset.</big></p>\n'
+            f'<p>Commonly used methods:</p>\n'
+            f'<ul>'
+            f'<li>{html_link("annotate_entries()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.annotate_entries")}: '
+            f'add new entry fields.</li>'
+            f'<li>{html_link("filter_entries()", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.filter_entries")}: '
+            f'filter entries in the matrix table, removing them from downstream operations, like aggregations.</li>'
+            f'<li>{html_link("aggregate_entries", "https://hail.is/docs/0.2/hail.MatrixTable.html#hail.MatrixTable.aggregate_entries")}: '
+            f'aggregate over entries to produce a single value, e.g. computing mean depth across an entire dataset.</li>'
+            f'</ul>'
+        ))
+        append_struct_frames(obj.entry.dtype, entry_frames)
+
+        tab.children = [widgets.VBox(frames) for frames in [globals_frames, row_frames, col_frames, entry_frames]]
         tab.set_title(0, 'globals')
         tab.set_title(1, 'row')
         tab.set_title(2, 'col')
@@ -57,7 +145,7 @@ def interact(obj, cache=True):
         box = widgets.VBox([widgets.HBox([glob, cols]), widgets.HBox([rows, entries])])
         buttons = [glob, rows, cols, entries]
 
-    selection_handler = widgets.IntText(3)
+    selection_handler = widgets.IntText(tab.selected_index)
     button_idx = dict(zip(buttons, range(len(buttons))))
 
     def handle_selection(x):
@@ -80,12 +168,150 @@ def interact(obj, cache=True):
 
 
 def format_type(t):
-    if not isinstance(t, (hl.tstruct, hl.ttuple)):
-        return str(t)
+    if isinstance(t, hl.tdict):
+        return f'dict<{format_type(t.key_type)}, {format_type(t.value_type)}>'
+    elif isinstance(t, hl.tset):
+        return f'set<{format_type(t.element_type)}>'
+    elif isinstance(t, hl.tarray):
+        return f'array<{format_type(t.element_type)}>'
     elif isinstance(t, hl.tstruct):
-        return 'struct'
+        return 'struct (click to expand)'
+    elif isinstance(t, hl.ttuple):
+        return 'tuple (click to expand)'
+    elif isinstance(t, hl.tinterval):
+        return f'interval<{format_type(t.point_type)}>'
     else:
-        return 'tuple'
+        return str(t)
+
+
+def html_code(text):
+    return f'<pre>{text}</pre>'
+
+
+def get_type_html(t):
+    if isinstance(t, hl.tdict):
+        return f'<p>A dictionary mapping keys to values.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" DictExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.DictExpression")}</li>' \
+               f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>\n' \
+               f'<p>Access elements using square brackets: {html_code("x[k]")}</p>'
+    elif isinstance(t, hl.tset):
+        return f'<p>A set of unique values.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" SetExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.SetExpression")}</li>' \
+               f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>\n'
+    elif isinstance(t, hl.tarray):
+        if hl.expr.types.is_numeric(t.element_type):
+            return f'<p>A variable-length array of homogenous numeric values.</p>\n' \
+                   f'Documentation:\n<ul>' \
+                   f'<li>class: {html_link(" ArrayNumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.ArrayNumericExpression")}</li>' \
+                   f'<li>inherited class: {html_link(" ArrayExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.ArrayExpression")}</li>' \
+                   f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
+                   f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+                   f'</ul>\n' \
+                   f'<p>Access elements using square brackets: {html_code("x[i]")} or slice using Python syntax: {html_code("x[:end], x[start:], x[start:end]")}</p>'
+        else:
+            return f'<p>A variable-length array of homogenous values.</p>\n' \
+                   f'Documentation:\n<ul>' \
+                   f'<li>class: {html_link(" ArrayExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.ArrayExpression")}</li>' \
+                   f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
+                   f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+                   f'</ul>\n' \
+                   f'<p>Access elements using square brackets: {html_code("x[i]")} or slice using Python syntax: {html_code("x[:end], x[start:], x[start:end]")}</p>'
+    elif isinstance(t, hl.tstruct):
+        bracket_str = html_code("x[\"foo\"]")
+        return f'<p>A structure of named heterogeneous values.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" StructExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.StructExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>\n' \
+               f'<p>Access an element by name with dots: {html_code("x.foo")} or with square brackets: {bracket_str}</p>'
+    elif isinstance(t, hl.ttuple):
+        return f'<p>A tuple of heterogeneous values.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" TupleExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.TupleExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>\n' \
+               f'<p>Access an element using square brackets: {html_code("x[0]")} for the first element, {html_code("x[1]")} for the second, etc.</p>'
+    elif isinstance(t, hl.tinterval):
+        return f'<p>An object representing an interval.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" IntervalExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.IntervalExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>'
+    elif isinstance(t, hl.tlocus):
+        return f'<p>An object representing a genomic locus (chromomsome and position).</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" LocusExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.LocusExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>{html_link("Genetics functions", "https://hail.is/docs/0.2/functions/genetics.html")}</li>' \
+               f'</ul>'
+    elif t == hl.tint32:
+        return f'<p>A 32-bit integer.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" Int32Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Int32Expression")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
+               f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
+               f'</ul>'
+    elif t == hl.tint64:
+        return f'<p>A 64-bit integer.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" Int64Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Int64Expression")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
+               f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
+               f'</ul>'
+    elif t == hl.tfloat32:
+        return f'<p>A 32-bit floating point number.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" Float32Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Float32Expression")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
+               f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
+               f'</ul>'
+    elif t == hl.tfloat64:
+        return f'<p>A 64-bit floating point number.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" Float64Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Float64Expression")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
+               f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
+               f'</ul>'
+    elif t == hl.tbool:
+        return f'<p>A 64-bit floating point number.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" BooleanExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.BooleanExpression")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
+               f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
+               f'</ul>'
+
+    elif t == hl.tstr:
+        return f'<p>A text string.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" StringExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.StringExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>'
+    elif t == hl.tcall:
+        return f'<p>An object representing a genotype call.</p>\n' \
+               f'Documentation:\n<ul>' \
+               f'<li>class: {html_link(" CallExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CallExpression")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'</ul>'
+
+
+def html_link(text, dest):
+    return f'<a target="_blank" href="{dest}">{text}</a>'
 
 
 def format_html(s):
@@ -93,367 +319,50 @@ def format_html(s):
         str(s).replace('<', '&lt').replace('>', '&gt').replace('\n', '</br>'))
 
 
-# registry function is (expr, handle) -> Widget
-
-def _get_aggr(expr):
-    indices = expr._indices
-    src = indices.source
-    assert len(indices.axes) > 0
-    if isinstance(src, hl.MatrixTable):
-        if indices.axes == {'row'}:
-            return src.aggregate_rows
-        elif indices.axes == {'column'}:
-            return src.aggregate_cols
-        else:
-            assert indices.axes == {'row', 'column'}
-            return src.aggregate_entries
+def append_struct_frames(t, frames):
+    if len(t) == 0:
+        frames.append(widgets.HTML('<big>No fields.</big>'))
     else:
-        assert isinstance(src, hl.Table)
-        assert indices.axes == {'row'}
-        return src.aggregate
+        frames.append(widgets.HTML('<big>Fields:</big>'))
+    acc = widgets.Accordion([recursive_build(x) for x in t.values()])
+    for i, (name, fd) in enumerate(t.items()):
+        acc.set_title(i, f'{repr(name)} ({format_type(fd)})')
+    acc.selected_index = None
+    frames.append(acc)
 
 
-def get_aggr(expr):
-    if hasattr(expr, '__aggr'):
-        return expr.__aggr
-    else:
-        expr.__aggr = _get_aggr(expr)
-        return expr.__aggr
-
-
-def recursive_build(expr):
-    handle = widgets.HTML('', sync=True)
-
+def recursive_build(t):
     frames = []
-    if isinstance(expr.dtype, hl.tstruct):
-        frames.append(widgets.HTML('<big>Entire struct:</big>'))
-    if isinstance(expr.dtype, hl.ttuple):
-        frames.append(widgets.HTML('<big>Entire tuple:</big>'))
 
-    global actions
-    frames.extend(list(map(lambda a: a.build(expr, handle),
-                           filter(lambda a: a.supports(expr), actions))))
-    frames.append(handle)
+    frames.append(widgets.HTML(get_type_html(t)))
 
-    if isinstance(expr.dtype, hl.tstruct):
-        frames.append(widgets.HTML('<big>Fields:</big>'))
-        acc = widgets.Accordion([recursive_build(x) for x in expr.values()])
-        for i, (name, fd) in enumerate(expr.items()):
-            acc.set_title(i, f'[ {repr(name)} ]: {format_type(fd.dtype)}')
+    if isinstance(t, hl.tstruct):
+        append_struct_frames(t, frames)
+    elif isinstance(t, hl.ttuple):
+        if len(t) == 0:
+            frames.append(widgets.HTML('<big>No fields.</big>'))
+        else:
+            frames.append(widgets.HTML('<big>Fields:</big>'))
+        acc = widgets.Accordion([recursive_build(x) for x in t.types])
+        for i, fd in enumerate(t.types):
+            acc.set_title(i, f'[{i}] ({format_type(fd)})')
         acc.selected_index = None
         frames.append(acc)
-    elif isinstance(expr.dtype, hl.ttuple):
-        frames.append(widgets.HTML('<big>Fields:</big>'))
-        acc = widgets.Accordion([recursive_build(x) for x in expr.values()])
-        for i, fd in enumerate(expr):
-            acc.set_title(i, f'[ {i} ]: {format_type(fd.dtype)}')
+    elif isinstance(t, (hl.tarray, hl.tset)):
+        acc = widgets.Accordion([recursive_build(t.element_type)])
+        acc.set_title(0, f'<element> ({format_type(t.element_type)})')
         acc.selected_index = None
         frames.append(acc)
+    elif isinstance(t, hl.tdict):
+        acc = widgets.Accordion([recursive_build(t.key_type), recursive_build(t.value_type)])
+        acc.set_title(0, f'<key> ({format_type(t.key_type)})')
+        acc.set_title(1, f'<value> ({format_type(t.element_type)})')
+        acc.selected_index = None
+        frames.append(acc)
+    elif isinstance(t, (hl.tinterval)):
+        acc = widgets.Accordion([recursive_build(t.point_type)])
+        acc.set_title(0, f'<point> ({format_type(t.point_type)})')
+        acc.selected_index = None
+        frames.append(acc)
+
     return widgets.VBox(frames)
-
-
-class SummaryAction(object):
-    __metaclass__ = abc.ABCMeta
-
-    @abc.abstractmethod
-    def supports_type(self, t: hl.HailType) -> bool:
-        ...
-
-    @abc.abstractmethod
-    def build(self, expr, handle) -> widgets.Widget:
-        ...
-
-    def supports(self, expr) -> bool:
-        return self.supports_type(expr.dtype)
-
-
-class Clear(SummaryAction):
-    def supports_type(self, t: hl.HailType):
-        return True
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Clear', tooltip='Clear output')
-
-        def compute(b):
-            handle.value = ''
-
-        b.on_click(compute)
-        return b
-
-
-class Head(SummaryAction):
-    def supports_type(self, t: hl.HailType):
-        return True
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Head', tooltip='Show first few values')
-        n_to_show = widgets.IntText(value=10, layout=widgets.Layout(width='60px'), sync=True)
-
-        def compute(b):
-            r = expr._show(n=n_to_show.value, types=False, width=100)
-            handle.value = format_html(r)
-
-        b.on_click(compute)
-        return widgets.HBox(children=[b, n_to_show])
-
-
-class AggregationAction(SummaryAction):
-    __metaclass__ = abc.ABCMeta
-
-    def supports(self, expr):
-        return len(expr._indices.axes) > 0 and self.supports_type(expr.dtype)
-
-
-class Missingness(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return True
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Missingness', tooltip='Compute missingness')
-
-        def compute(b):
-            (n, frac) = get_aggr(expr)((hl.agg.count_where(hl.is_missing(expr)),
-                                        hl.agg.fraction(hl.is_missing(expr))))
-            if frac is None:
-                handle.value = format_html('no non-missing values')
-            else:
-                handle.value = format_html(f'{n} values ({round(frac * 100, 2)}% of total) are missing')
-
-        b.on_click(compute)
-        return b
-
-
-class Stats(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return t in {hl.tint32, hl.tint64, hl.tfloat32, hl.tfloat64}
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Statistics', tooltip='Compute statistics')
-
-        def compute(b):
-            stats = get_aggr(expr)(hl.agg.stats(expr))
-            emit = []
-            if stats is None:
-                emit.append('No non-missing values')
-            else:
-                for k, v in stats.items():
-                    emit.append(f'{k.rjust(6)} | {v}')
-            handle.value = format_html('\n'.join(emit))
-
-        b.on_click(compute)
-        return b
-
-
-class Hist(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return t in {hl.tint32, hl.tint64, hl.tfloat32, hl.tfloat64}
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Histogram', tooltip='Plot histogram')
-        n_bins = widgets.IntText(value=50, layout=widgets.Layout(width='60px'), sync=True)
-
-        aggr = get_aggr(expr)
-
-        def compute(b):
-            stats = aggr(hl.agg.stats(expr))
-            hist = aggr(hl.agg.hist(expr, stats.min, stats.max, n_bins.value))
-            p = figure(background_fill_color='#EEEEEE')
-            p.quad(bottom=0, top=hist.bin_freq,
-                   left=hist.bin_edges[:-1], right=hist.bin_edges[1:],
-                   line_color='black')
-            html_path = 'hist.html'
-            save(p, filename=html_path, title='Histogram', resources=CDN)
-            handle.value = f'<a href="{html_path}" target="_blank"><big>Link to plot</big></a>'
-
-        b.on_click(compute)
-        return widgets.HBox([b, n_bins])
-
-
-class Counter(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return t in {hl.tstr, hl.tcall, hl.tint32, hl.tbool}
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Counter', tooltip='Compute counter')
-
-        def compute(b):
-            c = collections.Counter(get_aggr(expr)(hl.agg.counter(expr)))
-            emit = [f'{"Count".rjust(9)} | Value',
-                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
-            for k, v in c.most_common():
-                emit.append('{} | {}'.format(str(v).rjust(9), repr(k)))
-            handle.value = format_html('\n'.join(emit))
-
-        b.on_click(compute)
-        return b
-
-
-class LengthStats(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return t == hl.tstr or isinstance(t, (hl.tarray, hl.tset, hl.tdict))
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Length Stats', tooltip='Compute stats about length')
-
-        def compute(b):
-            stats = get_aggr(expr)(hl.agg.stats(hl.len(expr)))
-            emit = []
-            if stats is None:
-                emit.append('No non-missing values')
-            else:
-                for k, v in stats.items():
-                    emit.append(f'{k.rjust(6)} | {v}')
-            handle.value = format_html('\n'.join(emit))
-
-        b.on_click(compute)
-        return b
-
-
-class LengthCounter(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return t == hl.tstr or isinstance(t, (hl.tarray, hl.tset, hl.tdict))
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Length Counter', tooltip='Compute counter of length')
-
-        def compute(b):
-            c = collections.Counter(get_aggr(expr)(hl.agg.counter(hl.len(expr))))
-            emit = [f'{"Count".rjust(9)} | Value',
-                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
-            for k, v in c.most_common():
-                emit.append('{} | {}'.format(str(v).rjust(9), repr(k)))
-            handle.value = format_html('\n'.join(emit))
-
-        b.on_click(compute)
-        return b
-
-
-class ElementCounter(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return isinstance(t, (hl.tarray, hl.tset, hl.tdict))
-
-    def build(self, expr, handle):
-
-        if isinstance(expr.dtype, hl.tdict):
-            b = widgets.Button(description='Key Counter', tooltip='Compute counter of keys')
-            expr = expr.keys()
-        else:
-            b = widgets.Button(description='Element Counter', tooltip='Compute counter of elements')
-
-        def compute(b):
-            from collections import Counter
-            c = Counter(get_aggr(expr)(hl.agg.counter(hl.agg.explode(expr))))
-            emit = [f'{"Count".rjust(9)} | Value',
-                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
-            for k, v in c.most_common():
-                emit.append('{} | {}'.format(str(v).rjust(9), repr(k)))
-            handle.value = format_html('\n'.join(emit))
-
-        b.on_click(compute)
-        return b
-
-
-class ContigCounter(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return isinstance(t, hl.tlocus)
-
-    def build(self, expr, handle):
-        b = widgets.Button(description='Contig Counter', tooltip='Compute counter of contigs')
-
-        def compute(b):
-            result = get_aggr(expr)(hl.agg.counter(expr.contig))
-            rg = expr.dtype.reference_genome
-            emit = [f'{"Count".rjust(9)} | Value',
-                    ('-' * 5).rjust(9) + ' | ' + '-' * 5]
-            for contig in rg.contigs:
-                if contig in result:
-                    emit.append(f'{str(result[contig]).rjust(9)} | {repr(contig)}')
-            handle.value = format_html('\n'.join(emit))
-
-        b.on_click(compute)
-        return b
-
-
-class TakeBy(AggregationAction):
-    def __init__(self, ascending):
-        self.ascending = ascending
-
-    def supports_type(self, t: hl.HailType):
-        return t in {hl.tint32, hl.tint64, hl.tfloat32, hl.tfloat64}
-
-    def build(self, expr, handle):
-        if self.ascending:
-            b = widgets.Button(description='N Largest', tooltip='Largest N values with key')
-        else:
-            b = widgets.Button(description='N Smallest', tooltip='Smallest N values with key')
-
-        n_to_take = widgets.IntText(value=10, layout=widgets.Layout(width='60px'), sync=True)
-
-        def compute(b):
-            src = expr._indices.source
-            axes = expr._indices.axes
-            if isinstance(src, hl.Table):
-                assert axes == {'row'}
-                key = src.key
-            else:
-                assert isinstance(src, hl.MatrixTable)
-                if axes == {'row'}:
-                    key = src.row_key
-                elif axes == {'column'}:
-                    key = src.col_key
-                else:
-                    assert axes == {'row', 'column'}
-                    key = hl.struct(**src.row_key, **src.col_key)
-            ord = expr
-            if self.ascending:
-                ord = -ord
-            to_take = hl.struct(**key, value=expr)
-            n = n_to_take.value
-            result = get_aggr(expr)(hl.agg.take(to_take, n, ordering=ord))
-            s = hl.Table.parallelize(result, to_take.dtype)._show(n, width=100)
-            handle.value = format_html(s)
-
-        b.on_click(compute)
-        return widgets.HBox([b, n_to_take])
-
-
-class FractionNonZero(AggregationAction):
-    def supports_type(self, t: hl.HailType):
-        return hl.expr.types.is_numeric(t)
-
-    def build(self, expr, handle):
-        if expr.dtype == hl.tbool:
-            b = widgets.Button(description='Fraction True', tooltip='Fraction of values that are True')
-            word = 'True'
-        else:
-            b = widgets.Button(description='Fraction Non-Zero', tooltip='Fraction of values that are non-zero')
-            word = 'non-zero'
-
-        def compute(b):
-
-            n, frac = get_aggr(expr)((hl.agg.count_where(hl.bool(expr)),
-                                      hl.agg.fraction(hl.agg.filter(lambda x: hl.is_defined(x), (hl.bool(expr))))))
-            if frac is None:
-                handle.value = format_html('no non-missing values')
-            else:
-                handle.value = format_html(f'{n} values ({round(frac * 100, 2)}% of total) are {word}')
-
-        b.on_click(compute)
-        return b
-
-
-actions = [
-    Clear(),
-    Head(),
-    Missingness(),
-    Stats(),
-    Hist(),
-    Counter(),
-    LengthStats(),
-    LengthCounter(),
-    ElementCounter(),
-    ContigCounter(),
-    TakeBy(ascending=True),
-    TakeBy(ascending=False),
-    FractionNonZero(),
-]
