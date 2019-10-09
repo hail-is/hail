@@ -1596,6 +1596,7 @@ private class Emit(
         EmitTriplet(setup, childt.m, value)
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
+      case x: NDArrayReshape => emitDeforestedNDArray(x)
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
@@ -2261,6 +2262,22 @@ private class Emit(
             }
             childEmitter.outputElement(concreteIdxsForChild)
           }
+        }
+
+      case NDArrayReshape(nd, shape) =>
+
+        // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
+        def compatibleShape(numElements: Int, requestedShape: Array[Code[Long]]): Array[Code[Long]] = {
+          // Steps:
+          // Keep a running product. Also keep a count of -1s. If there's more than one -1, break. If the running product doesn't
+          // divide number of elements, break. If there's one -1, loop over elements and replace the -1 with total / product.
+
+          //
+          ???
+        }
+
+        new NDArrayEmitter(mb, ???, ???, ???, ???, ???){
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = ???
         }
 
       case _ =>
