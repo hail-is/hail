@@ -711,6 +711,11 @@ async def workshop_post_logout(request, userdata):
     return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
 
 
+@workshop_routes.get('/faq')
+async def workshop_get_faq(request):
+    return await render_template('notebook', request, {}, 'workshop/faq.html', {})
+
+
 @workshop_routes.get('/notebook')
 @web_authenticated_workshop_guest_only()
 async def workshop_get_notebook(request, userdata):
