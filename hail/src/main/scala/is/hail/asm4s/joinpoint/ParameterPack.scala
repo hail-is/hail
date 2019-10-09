@@ -9,6 +9,8 @@ object ParameterPack {
   implicit val unit: ParameterPack[Unit] = new ParameterPack[Unit] {
     def push(u: Unit): Code[Unit] = Code._empty
     def newLocals(mb: MethodBuilder): ParameterStore[Unit] = ParameterStore.unit
+    def newFields(fb: FunctionBuilder[_], name: String): (Unit => Code[Unit], Unit) =
+      (_ => Code._empty, ())
   }
 
   implicit def code[T](implicit tti: TypeInfo[T]): ParameterPack[Code[T]] =
@@ -18,19 +20,28 @@ object ParameterPack {
         val x = mb.newLocal(tti)
         ParameterStore(x.storeInsn, x.load)
       }
+      def newFields(fb: FunctionBuilder[_], name: String): (Code[T] => Code[Unit], Code[T]) = {
+        val x = fb.newField(name)(tti)
+        (x := _, x.load)
+      }
     }
 
   implicit def tuple2[A, B](
     implicit ap: ParameterPack[A],
     bp: ParameterPack[B]
   ): ParameterPack[(A, B)] = new ParameterPack[(A, B)] {
-      def push(v: (A, B)): Code[Unit] = Code(ap.push(v._1), bp.push(v._2))
-      def newLocals(mb: MethodBuilder): ParameterStore[(A, B)] = {
-        val as = ap.newLocals(mb)
-        val bs = bp.newLocals(mb)
-        ParameterStore(Code(bs.store, as.store), (as.load, bs.load))
-      }
+    def push(v: (A, B)): Code[Unit] = Code(ap.push(v._1), bp.push(v._2))
+    def newLocals(mb: MethodBuilder): ParameterStore[(A, B)] = {
+      val as = ap.newLocals(mb)
+      val bs = bp.newLocals(mb)
+      ParameterStore(Code(bs.store, as.store), (as.load, bs.load))
     }
+    def newFields(fb: FunctionBuilder[_], name: String): (((A, B)) => Code[Unit], (A, B)) = {
+      val (setA, a) = ap.newFields(fb, name + "_1")
+      val (setB, b) = bp.newFields(fb, name + "_2")
+      ({ case (a, b) => Code(setA(a), setB(b)) }, (a, b))
+    }
+  }
 
   implicit def tuple3[A, B, C](
     implicit ap: ParameterPack[A],
@@ -43,6 +54,12 @@ object ParameterPack {
       val bs = bp.newLocals(mb)
       val cs = cp.newLocals(mb)
       ParameterStore(Code(cs.store, bs.store, as.store), (as.load, bs.load, cs.load))
+    }
+    def newFields(fb: FunctionBuilder[_], name: String): (((A, B, C)) => Code[Unit], (A, B, C)) = {
+      val (setA, a) = ap.newFields(fb, name + "_1")
+      val (setB, b) = bp.newFields(fb, name + "_2")
+      val (setC, c) = cp.newFields(fb, name + "_3")
+      ({ case (a, b, c) => Code(setA(a), setB(b), setC(c)) }, (a, b, c))
     }
   }
 
@@ -60,6 +77,7 @@ object ParameterStore {
 trait ParameterPack[A] {
   def push(a: A): Code[Unit]
   def newLocals(mb: MethodBuilder): ParameterStore[A]
+  def newFields(fb: FunctionBuilder[_], name: String): (A => Code[Unit], A)
 }
 
 case class ParameterStore[A](
@@ -93,8 +111,16 @@ object TypedTriplet {
       ParameterStore(Code(m.storeInsn, v.storeInsn), TypedTriplet(Code._empty, m, v))
     }
 
-    def newFields(fb: FunctionBuilder[_], name: String): (Settable[Boolean], Settable[_]) =
-      (fb.newField[Boolean](name + "_missing"), fb.newField(name)(ir.typeToTypeInfo(t)))
+    def newFields(fb: FunctionBuilder[_], name: String): ((TypedTriplet[P] => Code[Unit]), TypedTriplet[P]) = {
+      val m = fb.newField[Boolean](name + "_missing")
+      val v = fb.newField(name)(ir.typeToTypeInfo(t))
+      def set(trip: TypedTriplet[P]): Code[Unit] =
+        Code(trip.setup,
+          trip.m.mux(
+            m := true,
+            Code(m := false, v.storeAny(trip.v))))
+      (set, TypedTriplet(Code._empty, m, v))
+    }
   }
 
   def pack(t: PType): Pack[t.type] = new Pack(t)
@@ -102,7 +128,4 @@ object TypedTriplet {
 
 case class TypedTriplet[P] private(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def untyped: EmitTriplet = EmitTriplet(setup, m, v)
-
-  def storeTo(dm: Settable[Boolean], dv: Settable[_]): Code[Unit] =
-    Code(setup, dm := m, (!dm).orEmpty(dv.storeAny(v)))
 }
