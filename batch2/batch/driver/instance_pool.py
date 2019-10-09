@@ -14,11 +14,21 @@ from .instance import Instance
 log = logging.getLogger('instance_pool')
 
 
+class Cores(int):
+    def __new__(cls, value):
+        i = int.__new__(cls, value * 1000)
+        i.value = round(value, 3)
+        return i
+
+    def __str__(self):
+        return f'{self.value}'
+
+
 class InstancePool:
     def __init__(self, driver):
         self.driver = driver
         self.worker_type = WORKER_TYPE
-        self.worker_cores = WORKER_CORES
+        self.worker_cores = Cores(WORKER_CORES)
 
         if WORKER_TYPE == 'standard':
             m = 3.75
@@ -55,7 +65,7 @@ class InstancePool:
         self.n_active_instances = 0
 
         # for pending and active
-        self.free_cores = 0
+        self.free_cores = Cores(0)
 
         self.token_inst = {}
 

@@ -15,7 +15,7 @@ from ..google_compute import GServices
 from ..utils import parse_cpu
 from ..globals import tasks
 
-from .instance_pool import InstancePool
+from .instance_pool import InstancePool, Cores
 
 log = logging.getLogger('driver')
 
@@ -72,7 +72,7 @@ class Pod:
         self.name = name
         self.spec = spec
         self.output_directory = output_directory
-        self.cores = cores
+        self.cores = Cores(cores)
         self.instance = instance
         self.on_ready = on_ready
         self._status = status
@@ -306,7 +306,7 @@ class Driver:
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue(maxsize=1000)
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
-        self.ready_cores = 0
+        self.ready_cores = Cores(0)
         self.changed = asyncio.Event()
 
         self.pool = None  # created in run
