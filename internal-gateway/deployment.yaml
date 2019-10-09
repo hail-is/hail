@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: internal-gateway-deployment
+  name: internal-gateway
   labels:
     app: internal-gateway
     hail.is/sha: "{{ code.sha }}"
