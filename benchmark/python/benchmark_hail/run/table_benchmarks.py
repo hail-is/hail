@@ -191,8 +191,8 @@ def table_aggregate_take_by_strings():
 @benchmark
 def table_aggregate_linreg():
     ht = hl.read_table(resource('many_ints_table.ht'))
-    ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2]),
-        hl.range(30)))
+    ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2, ht.i3, ht.i4]),
+        hl.range(75)))
 
 
 @benchmark
