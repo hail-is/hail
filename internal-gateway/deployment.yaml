@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gateway-internal-deployment
+  name: internal-gateway
   labels:
-    app: gateway-internal
+    app: internal-gateway
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: gateway-internal
+      app: internal-gateway
   replicas: 3
   template:
     metadata:
       labels:
-        app: gateway-internal
+        app: internal-gateway
         hail.is/sha: "{{ code.sha }}"
     spec:
       priorityClassName: infrastructure
@@ -25,14 +25,14 @@ spec:
                   - key: "app"
                     operator: In
                     values:
-                    - gateway-internal
+                    - internal-gateway
               topologyKey: "kubernetes.io/hostname"
       tolerations:
        - key: preemptible
          value: "true"
       containers:
-       - name: gateway-internal
-         image: "{{ gateway_internal_image.image }}"
+       - name: internal-gateway
+         image: "{{ internal_gateway_image.image }}"
          resources:
            requests:
              memory: "250M"
@@ -43,12 +43,12 @@ spec:
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: gateway-internal
+  name: internal-gateway
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: gateway-internal
+    name: internal-gateway
   minReplicas: 3
   maxReplicas: 10
   metrics:
