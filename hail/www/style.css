@@ -11,6 +11,16 @@ body {
   font-size: 16px;
 }
 
+.callout {
+  padding: 1rem;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+  margin: 1rem 0px;
+}
+.callout p:last-child {
+  margin-bottom: 0px;
+}
+
 #body {
   color: #444;
   font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
