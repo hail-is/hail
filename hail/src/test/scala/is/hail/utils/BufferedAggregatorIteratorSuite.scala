@@ -28,11 +28,12 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite {
     ) { case (arr, bufferSize) =>
       val simple = arr.groupBy(_._1).map { case (k, a) => k -> a.map(_._2.toLong).sum }
       val buffAgg = {
-        new BufferedAggregatorIterator[(Int, Int), SumAgg, Int](
+        new BufferedAggregatorIterator[(Int, Int), SumAgg, SumAgg, Int](
           arr.iterator,
           () => new SumAgg(),
           { case (k, v) => k },
           { case (t, agg) => agg.add(t._2) },
+          a => a,
           bufferSize)
           .toArray
           .groupBy(_._1)

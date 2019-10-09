@@ -2,18 +2,17 @@ package is.hail.expr.ir
 
 import java.io._
 
+import is.hail.HailContext
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
-import is.hail.{HailContext, asm4s}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
-import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.{PTuple, PType}
-import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
-import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
+import is.hail.expr.types.virtual.{TTuple, Type}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -202,7 +201,7 @@ class EmitFunctionBuilder[F >: Null](
   private[this] def encodeLiterals(): Array[Byte] = {
     val literals = literalsMap.toArray
     val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
-    val spec = CodecSpec.defaultUncompressed.makeCodecSpec2(litType)
+    val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
     assert(litRType == litType)
@@ -259,7 +258,7 @@ class EmitFunctionBuilder[F >: Null](
     _aggRegion = newField[Region]("agg_top_region")
     _aggOff = newField[Long]("agg_off")
     val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray)
-    _aggState = agg.TupleAggregatorState(states, _aggRegion, _aggOff)
+    _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
     _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
@@ -280,14 +279,14 @@ class EmitFunctionBuilder[F >: Null](
       Code(_aggRegion := newF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
         _aggOff := _aggRegion.load().allocate(states.storageType.alignment, states.storageType.byteSize),
-        states.createStates,
+        states.createStates(this),
         _aggState.newState))
 
     setF.emit(
       Code(
         _aggRegion := setF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
-        states.createStates,
+        states.createStates(this),
         _aggOff := setF.getArg[Long](2),
         _aggState.load))
 
@@ -440,6 +439,22 @@ class EmitFunctionBuilder[F >: Null](
       )
     }
     m
+  }
+
+  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] =
+    wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, Array(), Array(), size)
+
+  def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
+    prefix: String,
+    argTypes: Array[TypeInfo[_]],
+    args: Array[Code[_]],
+    size: Int = 32): Code[Unit] = {
+    coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
+      val mb = newMethod(prefix + s"_group$i", argTypes, UnitInfo)
+      val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a).load() }
+      mb.emit(Code(codes.map(_.apply(methodArgs)): _*))
+      mb.invoke(args: _*)
+    }.toArray: _*))
   }
 
   def getOrDefineMethod(prefix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])

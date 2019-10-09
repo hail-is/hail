@@ -4,10 +4,11 @@ import is.hail.HailContext
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
-import is.hail.io.index.IndexReader
+import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
@@ -184,7 +185,18 @@ object LoadBgen {
     require(files.length == indexFiles.length)
     val headers = getFileHeaders(fs, files)
     headers.zip(indexFiles).map { case (h, indexFile) =>
-      using(IndexReader(fs, indexFile)) { index =>
+      val (keyType, _) = IndexReader.readTypes(fs, indexFile)
+      val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
+        case TLocus(rg, _) => Some(rg.value)
+        case _ => None
+      }
+      val indexReaderBuilder = {
+        val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
+        val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
+        val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
+        IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+      }
+      using(indexReaderBuilder(fs, indexFile, 8)) { index =>
         val attributes = index.attributes
         val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
@@ -370,7 +382,7 @@ case class MatrixBGENReader(
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
-  val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(sc, fileMetadata,
+  val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(referenceGenome, fileMetadata,
     if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
     Some(128)
   else

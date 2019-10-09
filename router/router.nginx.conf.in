@@ -84,17 +84,17 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://notebook@notebook_base_path@/auth/$pod_uuid;
+        proxy_pass http://notebook@notebook_base_path@/auth/$notebook_token;
     }
 
     location ~ @notebook_base_path@/instance/([^/]+)/(.*) {
-        set $pod_uuid $1;
+        set $notebook_token $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-	# don't set Host, notebook dispatches off domain
+	proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -106,11 +106,10 @@ server {
         proxy_connect_timeout 5s;
 
         proxy_intercept_errors on;
-        # 502: no service, 504: pod not responding
-        error_page 502 504 = @pod_dead;
+        error_page 401 403 502 504 = @error;
     }
 
-    location @pod_dead {
+    location @error {
     	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
@@ -139,17 +138,17 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://workshop@workshop_base_path@/auth/$pod_uuid;
+        proxy_pass http://workshop@workshop_base_path@/auth/$notebook_token;
     }
 
     location ~ @workshop_base_path@/instance/([^/]+)/(.*) {
-        set $pod_uuid $1;
+        set $notebook_token $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-	# don't set Host, notebook dispatches off domain
+	proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -161,12 +160,11 @@ server {
         proxy_connect_timeout 5s;
 
         proxy_intercept_errors on;
-        # 502: no service, 504: pod not responding
-        error_page 502 504 = @pod_dead;
+        error_page 401 403 502 504 = @error;
     }
 
-    location @pod_dead {
-    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
+    location @error {
+    	return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
     }
 
     location / {

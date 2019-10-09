@@ -2,23 +2,23 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
-import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2}
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.bgen.MatrixBGENReaderSerializer
+import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.json4s.{Formats, MappingException}
+import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
 
 abstract class Token extends Positional {
@@ -704,7 +704,9 @@ object IRParser {
         val rName = identifier(it)
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
-        val body = ir_value_expr(env)(it)
+        val body_env = (env + (lName -> -(coerce[TNDArray](l.typ).elementType))
+                            + (rName -> -(coerce[TNDArray](r.typ).elementType)))
+        val body = ir_value_expr(body_env)(it)
         NDArrayMap2(l, r, lName, rName, body)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
@@ -1020,7 +1022,7 @@ object IRParser {
         env.irMap(name).asInstanceOf[IR]
       case "ReadPartition" =>
         implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec2]
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
         ReadPartition(path, spec, rowType)

@@ -1821,8 +1821,12 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        ir = GetField(TableCollect(self._tir), 'rows')
-        e = construct_expr(ir, hl.tarray(self.row.dtype))
+        if len(self.key) > 0:
+            t = self.order_by(*self.key)
+        else:
+            t = self
+        ir = GetField(TableCollect(t._tir), 'rows')
+        e = construct_expr(ir, hl.tarray(t.row.dtype))
         if _localize:
             return Env.backend().execute(e._ir)
         else:

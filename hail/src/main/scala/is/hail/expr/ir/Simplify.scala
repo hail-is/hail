@@ -217,7 +217,7 @@ object Simplify {
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))
 
-    case NDArrayShape(MakeNDArray(_, shape, _)) => shape
+    case ArrayFilter(ArraySort(a, left, right, compare), name, cond) => ArraySort(ArrayFilter(a, name, cond), left, right, compare)
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
@@ -413,12 +413,64 @@ object Simplify {
       }
 
     case TableCollect(TableParallelize(x, _)) => x
-    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+    case x@TableCollect(TableOrderBy(child, sortFields)) if sortFields.forall(_.sortOrder == Ascending) =>
+      val uid = genUID()
+      val uid2 = genUID()
+      val left = genUID()
+      val right = genUID()
+      val uid3 = genUID()
+      val sortType = child.typ.rowType.select(sortFields.map(_.field))._1
 
+      val kvElement = MakeStruct(FastSeq(
+        ("key", SelectFields(Ref(uid2, child.typ.rowType), sortFields.map(_.field))),
+        ("value", Ref(uid2, child.typ.rowType))))
+      val sorted = ArraySort(
+        ArrayMap(
+          GetField(Ref(uid, x.typ), "rows"),
+          uid2,
+          kvElement
+        ),
+        left,
+        right,
+        ApplyComparisonOp(LT(sortType),
+          GetField(Ref(left, kvElement.typ), "key"),
+          GetField(Ref(right, kvElement.typ), "key")))
+      Let(uid,
+        TableCollect(TableKeyBy(child, FastIndexedSeq())),
+        MakeStruct(FastSeq(
+          ("rows", ArrayMap(sorted,
+            uid3,
+            GetField(Ref(uid3, sorted.typ.asInstanceOf[TArray].elementType), "value"))),
+          ("global", GetField(Ref(uid, x.typ), "global")))))
+    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+    case GetField(TableCollect(child), "global") => TableGetGlobals(child)
+
+    case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
+      TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)
+    case TableAggregate(TableOrderBy(child, _), query) if !ContainsNonCommutativeAgg(query) =>
+      if (child.typ.key.isEmpty)
+        TableAggregate(child, query)
+      else
+        TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)
     case TableAggregate(TableMapRows(child, newRow), query) if !ContainsScan(newRow) =>
       val uid = genUID()
       TableAggregate(child,
         AggLet(uid, newRow, Subst(query, BindingEnv(agg = Some(Env("row" -> Ref(uid, newRow.typ))))), isScan = false))
+
+    // NOTE: The below rule should be reintroduced when it is possible to put an ArrayAgg inside a TableAggregate
+    // case TableAggregate(TableParallelize(rowsAndGlobal, _), query) =>
+    //   rowsAndGlobal match {
+    //     // match because we currently don't optimize MakeStruct through Let, and this is a common pattern
+    //     case MakeStruct(Seq((_, rows), (_, global))) =>
+    //       Let("global", global, ArrayAgg(rows, "row", query))
+    //     case other =>
+    //       val uid = genUID()
+    //       Let(uid,
+    //         rowsAndGlobal,
+    //         Let("global",
+    //           GetField(Ref(uid, rowsAndGlobal.typ), "global"),
+    //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
+    //   }
 
     case ApplyIR("annotate", Seq(s, MakeStruct(fields))) =>
       InsertFields(s, fields)
@@ -431,6 +483,35 @@ object Simplify {
 
     case ApplyUnaryPrimOp(Bang(), ApplyComparisonOp(op, l, r)) =>
       ApplyComparisonOp(ComparisonOp.invert(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
+
+    case ArrayAgg(_, _, query) if {
+      def canBeLifted(x: IR): Boolean = x match {
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case AggLet(_, _, _, false) => false
+        case x if IsAggResult(x) => false
+        case other => other.children.forall {
+          case child: IR => canBeLifted(child)
+          case _: BaseIR => true
+        }
+      }
+      canBeLifted(query)
+    } => query
+
+    case ArrayAggScan(_, _, query) if {
+      def canBeLifted(x: IR): Boolean = x match {
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case AggLet(_, _, _, true) => false
+        case x if IsScanResult(x) => false
+        case other => other.children.forall {
+          case child: IR => canBeLifted(child)
+          case _: BaseIR => true
+        }
+      }
+      canBeLifted(query)
+    } => query
+
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
@@ -457,6 +538,24 @@ object Simplify {
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
+
+    case TableFilter(TableParallelize(rowsAndGlobal, nPartitions), pred) if canRepartition =>
+      val newRowsAndGlobal = rowsAndGlobal match {
+        case MakeStruct(Seq(("rows", rows), ("global", globalVal))) =>
+          Let("global", globalVal,
+            MakeStruct(FastSeq(
+              ("rows", ArrayFilter(rows, "row", pred)),
+              ("global", Ref("global", globalVal.typ)))))
+        case _ =>
+          val uid = genUID()
+          Let(uid, rowsAndGlobal,
+            Let("global", GetField(Ref(uid, rowsAndGlobal.typ), "global"),
+              MakeStruct(FastSeq(
+                ("rows", ArrayFilter(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", pred)),
+                ("global", Ref("global", rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global")))
+              ))))
+      }
+      TableParallelize(newRowsAndGlobal, nPartitions)
 
     case TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition =>
       TableKeyBy(child, keys, false)
@@ -638,6 +737,17 @@ object Simplify {
       // remove means union intervals
         Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
+
+    case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
+      val ord = k.typ.keyType.ordering.intervalEndpointOrdering
+      val maybeFlip: IR => IR = if (keep) identity else !_
+      val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
+        TBoolean(),
+        Literal(TArray(TInterval(k.typ.keyType)), Interval.union(intervals.toArray, ord).toFastIndexedSeq),
+        MakeStruct(k.typ.keyType.fieldNames.map { keyField =>
+          (keyField, GetField(Ref("row", child.typ.rowType), keyField))
+        })))
+      TableKeyBy(TableFilter(child, pred), keys, isSorted)
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {

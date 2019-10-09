@@ -70,15 +70,15 @@ To try Hail out, open iPython or a Jupyter notebook and run:
 You're now all set to run the
 `tutorials <https://hail.is/docs/0.2/tutorials-landing.html>`__ locally!
 
+Running on the cloud
+~~~~~~~~~~~~~~~~~~~~
+
+For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.4 cluster. For example, Google and Amazon make it
-possible to rent Spark clusters with many thousands of cores on-demand,
-providing for the elastic compute requirements of scientific research without
-an up-front capital investment.
-
-For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+Hail can run on any Spark 2.4 cluster.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 

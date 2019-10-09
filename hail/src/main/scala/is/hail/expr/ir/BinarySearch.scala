@@ -10,8 +10,12 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, keyOnly: Boolean) {
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
   val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder, t: PType) = if (keyOnly) {
-    val ttype = coerce[PBaseStruct](elt)
-    require(ttype.size == 2)
+    val ttype = elt match {
+      case t: PBaseStruct =>
+        require(t.size == 2)
+        t
+      case t: PInterval => t.representation
+    }
     val kt = ttype.types(0)
     val findMB = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
     val mk2l = findMB.newLocal[Boolean]

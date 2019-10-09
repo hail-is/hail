@@ -1,10 +1,10 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
@@ -22,13 +22,14 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   private val aoff: ClassFieldRef[Long] = fb.newField[Long]("arrayrva_aoff")
 
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
+
   private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(typ.loadField(region, off, 1), eltIdx)
 
-  val initContainer: TupleAggregatorState = TupleAggregatorState(nested, region, typ.loadField(region, off, 0))
-  val container: TupleAggregatorState = TupleAggregatorState(nested, region, statesOffset(idx), regionOffset(idx))
+  val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, typ.loadField(region, off, 0))
+  val container: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, statesOffset(idx), regionOffset(idx))
 
   override def createState: Code[Unit] = Code(
-    super.createState, nested.createStates)
+    super.createState, nested.createStates(fb))
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -68,13 +69,13 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   }
 
   def init(initOp: Code[Unit], initLen: Boolean): Code[Unit] = {
-      Code(
-        region.setNumParents(nStates),
-        off := region.allocate(typ.alignment, typ.byteSize),
-        initContainer.newState,
-        initOp,
-        initContainer.store,
-        if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
+    Code(
+      region.setNumParents(nStates),
+      off := region.allocate(typ.alignment, typ.byteSize),
+      initContainer.newState,
+      initOp,
+      initContainer.store,
+      if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
   }
 
   def loadInit: Code[Unit] = initContainer.load
@@ -90,12 +91,16 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
     { ob: Code[OutputBuffer] =>
       Code(
         loadInit,
-        nested.toCode((i, _) => serializers(i)(ob)),
+        nested.toCodeWithArgs(fb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+          Array(ob),
+          { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
           load,
-          nested.toCode((i, _) => serializers(i)(ob)),
+          nested.toCodeWithArgs(fb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+            Array(ob),
+            { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
           idx := idx + 1))
     }
   }
@@ -103,12 +108,18 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
     val deserializers = nested.states.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
-        Code(
-          init(nested.toCode((i, _) => deserializers(i)(ib)), initLen = false),
-          lenRef := ib.readInt(),
-          (lenRef < 0).mux(
-            typ.setFieldMissing(off, 1),
-            seq(nested.toCode((i, _) => deserializers(i)(ib)))))
+      Code(
+        init(nested.toCodeWithArgs(fb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+          Array(ib),
+          { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) }),
+          initLen = false),
+        lenRef := ib.readInt(),
+        (lenRef < 0).mux(
+          typ.setFieldMissing(off, 1),
+          seq(nested.toCodeWithArgs(fb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+            Array(ib),
+            { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) })
+          )))
     }
   }
 
@@ -169,7 +180,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         other.initLength(state.lenRef)),
       check),
       Code(other.idx := state.idx, other.load, state.load),
-      state.nested.toCode((i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+      state.nested.toCode(state.fb, "array_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -184,9 +195,9 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
                 ssb.start(),
                 state.idx := sab.arrayIdx,
                 state.load,
-                state.nested.toCode { (i, s) =>
+                state.nested.toCode(state.fb, "array_nested_result", { (i, s) =>
                   Code(nestedAggs(i).result(s, ssb), ssb.advance())
-                })
+                }))
             }),
             sab.advance()))
       })
@@ -197,6 +208,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   type State = ArrayElementState
 
   def initOpTypes: Array[PType] = Array()
+
   def seqOpTypes: Array[PType] = Array(PInt32(), PVoid)
 
   def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType): _*))

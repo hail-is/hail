@@ -381,6 +381,18 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
+    def test_flag_at_eol(self):
+        vcf_path = resource('flag_at_end.vcf')
+        mt = hl.import_vcf(vcf_path)
+        assert mt._force_count_rows() == 1
+
+    def test_missing_float_entries(self):
+        vcf = hl.import_vcf(resource('noglgp.vcf'), array_elements_required=False,
+                            reference_genome='GRCh38')
+        gl_gp = vcf.aggregate_entries(hl.agg.collect(hl.struct(GL=vcf.GL, GP=vcf.GP)))
+        assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
+                         hl.Struct(GL=[None, None, None], GP=[None, None, None])]
+
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):

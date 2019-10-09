@@ -1056,7 +1056,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableCollectRebuild() {
-    val tc = TableCollect(tab)
+    val tc = TableCollect(TableKeyBy(tab, FastIndexedSeq()))
     checkRebuild(tc, TStruct("global" -> TStruct("g1" -> TInt32())),
       (_: BaseIR, r: BaseIR) => {
         r.asInstanceOf[MakeStruct].fields.head._2.isInstanceOf[TableGetGlobals]

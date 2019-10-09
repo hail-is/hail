@@ -73,7 +73,7 @@ package object ir {
 
   def invoke(name: String, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, args.map(_.typ)) match {
     case Some(f) => f(args)
-    case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")})$rt")
+    case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
   }
 
 

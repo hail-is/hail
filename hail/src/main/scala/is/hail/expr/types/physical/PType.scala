@@ -153,8 +153,6 @@ object PType {
       case PVoid => PVoid
     }
   }
-
-  def canonical(t: EType): PType = canonical(t.virtualType)
 }
 
 abstract class PType extends BaseType with Serializable with Requiredness {

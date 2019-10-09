@@ -419,7 +419,7 @@ class BlockMatrix(object):
                       block_size=nullable(int),
                       seed=nullable(int),
                       gaussian=bool)
-    def random(cls, n_rows, n_cols, block_size=None, seed=None, gaussian=True):
+    def random(cls, n_rows, n_cols, block_size=None, seed=None, gaussian=True) -> 'BlockMatrix':
         """Creates a block matrix with standard normal or uniform random entries.
 
         Examples

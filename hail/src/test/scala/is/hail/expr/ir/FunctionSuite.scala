@@ -31,9 +31,10 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerJavaStaticFunction("compare", Array(TInt32(), TInt32()), TInt32(), null)(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", Array(), TInt32(), null)(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", Array(), TInt32(), null)(ScalaTestCompanion.getClass, "testFunction")
-    registerCode[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null){
-      case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int]))  => a + b }
-    registerCode("testCodeUnification2", tv("x"), tv("x"), null){ case (_, rt, (aT, a: Code[Long])) => a }
+    registerCode[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
+      case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int])) => a + b
+    }
+    registerCode("testCodeUnification2", tv("x"), tv("x"), null) { case (_, rt, (aT, a: Code[Long])) => a }
   }
 }
 
@@ -109,7 +110,47 @@ class FunctionSuite extends HailSuite {
     fb.emit(Code(i := 0, mb1.invoke(), mb2.invoke(), i))
     Region.scoped { r =>
 
-     assert(fb.resultWithIndex().apply(0, r)() == 2)
+      assert(fb.resultWithIndex().apply(0, r)() == 2)
+    }
+  }
+
+  @Test def testFunctionBuilderWrapVoids() {
+    val fb = EmitFunctionBuilder[Int]("foo")
+    val i = fb.newField[Int]
+
+    val codes = Array(
+      i := i + 1,
+      i := i + 2,
+      i := i + 3,
+      i := i + 4,
+      i := i + 5,
+      i := i + 6
+    )
+
+    fb.emit(Code(i := 0, fb.wrapVoids(codes, "foo", 2), i))
+    Region.smallScoped { r =>
+      assert(fb.resultWithIndex().apply(0, r).apply() == 21)
+
+    }
+  }
+
+  @Test def testFunctionBuilderWrapVoidsWithArgs() {
+    val fb = EmitFunctionBuilder[Int]("foo")
+    val i = fb.newLocal[Int]
+    val j = fb.newField[Int]
+
+    val codes = Array[Seq[Code[_]] => Code[Unit]](
+      { case Seq(ii: Code[Int@unchecked]) => j := j + const(1) * ii },
+      { case Seq(ii: Code[Int@unchecked]) => j := j + const(2) * ii },
+      { case Seq(ii: Code[Int@unchecked]) => j := j + const(3) * ii },
+      { case Seq(ii: Code[Int@unchecked]) => j := j + const(4) * ii },
+      { case Seq(ii: Code[Int@unchecked]) => j := j + const(5) * ii },
+      { case Seq(ii: Code[Int@unchecked]) => j := j + const(6) * ii }
+    )
+
+    fb.emit(Code(j := 0, i := 1, fb.wrapVoidsWithArgs(codes, "foo", Array(IntInfo), Array(i.load()), 2), j))
+    Region.smallScoped { r =>
+      assert(fb.resultWithIndex().apply(0, r).apply() == 21)
     }
   }
 }

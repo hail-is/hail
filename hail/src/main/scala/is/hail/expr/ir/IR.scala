@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, CodecSpec2}
+import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
@@ -64,6 +64,11 @@ sealed trait IR extends BaseIR {
   }
 
   def unwrap: IR = _unwrap(this)
+}
+
+sealed trait TypedIR[T <: Type, P <: PType] extends IR {
+  override def typ: T = coerce[T](super.typ)
+  override def pType: P = coerce[P](super.pType)
 }
 
 object Literal {
@@ -254,32 +259,29 @@ final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
+sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
+  def elementTyp: Type = typ.elementType
+}
+
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends NDArrayIR
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
+final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR {
   require(shape.typ.asInstanceOf[TTuple].size > 0)
 }
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
-final case class NDArraySlice(nd: IR, slices: IR) extends IR
+final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 
-final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
-  override def typ: TNDArray = coerce[TNDArray](super.typ)
-  def elementTyp: Type = typ.elementType
-}
+final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends NDArrayIR
 
-final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends IR {
-  override def typ: TNDArray = coerce[TNDArray](super.typ)
-  def elementTyp: Type = typ.elementType
-}
-
-final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
+final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends NDArrayIR
 final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
-final case class NDArrayMatMul(l: IR, r: IR) extends IR
+final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
@@ -430,7 +432,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
-final case class ReadPartition(path: IR, spec: CodecSpec2, rowType: TStruct) extends IR
+final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

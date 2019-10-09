@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 23
+HAIL_PATCH_VERSION := 24
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
@@ -288,6 +288,7 @@ docs: install $(PYTHON_VERSION_INFO)
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
 	$(MAKE) -C build/www
+	rm build/www/*.md
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -317,6 +318,7 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
 	$(MAKE) -C build/www
+	rm build/www/*.md
 	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)

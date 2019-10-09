@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import java.io.PrintWriter
+
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
@@ -17,6 +19,7 @@ object Compile {
   private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
 
   private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    print: Option[PrintWriter],
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
@@ -28,7 +31,7 @@ object Compile {
       Env(args.map { case (n, _, _) => n -> n }: _*))
     val k = CodeCacheKey(FastIndexedSeq[AggSignature2](), args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
     codeCache.get(k) match {
-      case Some(v) => 
+      case Some(v) =>
         return (v.typ, v.f.asInstanceOf[(Int, Region) => F])
       case None =>
     }
@@ -49,12 +52,13 @@ object Compile {
 
     Emit(ir, fb, nSpecialArgs)
 
-    val f = fb.resultWithIndex()
+    val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
     (ir.pType, f)
   }
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    print: Option[PrintWriter],
     args: Seq[(String, PType, ClassTag[_])],
     body: IR,
     nSpecialArgs: Int,
@@ -73,28 +77,47 @@ object Compile {
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
-    Compile[F, R](args, argTypeInfo, body, nSpecialArgs, optimize)
+    Compile[F, R](print, args, argTypeInfo, body, nSpecialArgs, optimize)
   }
 
-  def apply[R: TypeInfo : ClassTag](body: IR): (PType, (Int, Region) => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
+  def apply[R: TypeInfo : ClassTag](
+    body: IR,
+    print: Option[PrintWriter]
+  ): (PType, (Int, Region) => AsmFunction1[Region, R]) = {
+    apply[AsmFunction1[Region, R], R](print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: PType,
     body: IR,
-    optimize: Boolean): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
-
-    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1, optimize)
+    optimize: Boolean,
+    print: Option[PrintWriter]
+  ): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
+    apply[AsmFunction3[Region, T0, Boolean, R], R](print, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: PType,
-    body: IR): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
+    body: IR,
+    optimize: Boolean): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) =
+    apply(name0, typ0, body, optimize, None)
 
-    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1, optimize = true)
+  def apply[T0: ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: PType,
+    body: IR): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) =
+    apply(name0, typ0, body, true)
+
+  def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: PType,
+    name1: String,
+    typ1: PType,
+    body: IR,
+    print: Option[PrintWriter]): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](print, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
@@ -102,10 +125,8 @@ object Compile {
     typ0: PType,
     name1: String,
     typ1: PType,
-    body: IR): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
-
-    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
-  }
+    body: IR): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) =
+    apply(name0, typ0, name1, typ1, body, None)
 
   def apply[
   T0: TypeInfo : ClassTag,
@@ -120,7 +141,7 @@ object Compile {
     typ2: PType,
     body: IR
   ): (PType, (Int, Region) => AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]) = {
-    apply[AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R], R](FastSeq(
+    apply[AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R], R](None, FastSeq(
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2])
@@ -140,7 +161,7 @@ object Compile {
     name3: String, typ3: PType,
     body: IR
   ): (PType, (Int, Region) => AsmFunction9[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, R]) = {
-    apply[AsmFunction9[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, R], R](FastSeq(
+    apply[AsmFunction9[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, R], R](None, FastSeq(
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2]),
@@ -166,7 +187,7 @@ object Compile {
     body: IR
   ): (PType, (Int, Region) => AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R]) = {
 
-    apply[AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R], R](FastSeq(
+    apply[AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R], R](None, FastSeq(
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2]),
@@ -315,8 +336,8 @@ object CompileWithAggregators {
     assert((initScopeArgs ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
 
     val ExtractedAggregators(postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body, aggResultName)
-    val compileInitOp = (initOp: IR) => Compile[FAggInit, Unit](initScopeArgs, initOp, 2, optimize = true)
-    val compileSeqOp = (seqOp: IR) => Compile[FAggSeq, Unit](aggScopeArgs, seqOp, 2, optimize = true)
+    val compileInitOp = (initOp: IR) => Compile[FAggInit, Unit](None, initScopeArgs, initOp, 2, optimize = true)
+    val compileSeqOp = (seqOp: IR) => Compile[FAggSeq, Unit](None, aggScopeArgs, seqOp, 2, optimize = true)
 
     (rvAggs,
       (initOpIR, compileInitOp),

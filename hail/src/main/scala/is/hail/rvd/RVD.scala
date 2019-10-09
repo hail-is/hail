@@ -8,11 +8,13 @@ import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
-import is.hail.io.{CodecSpec, CodecSpec2, RichContextRDDRegionValue}
+import is.hail.io._
 import is.hail.io.index.IndexWriter
+import is.hail.io.{BufferSpec, AbstractTypedCodecSpec, TypedCodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
+import org.apache.spark.TaskContext
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -80,23 +82,27 @@ class RVD(
     map(rv => new UnsafeRow(localRowPType, rv.region, rv.offset))
   }
 
-  def stabilize(enc: CodecSpec2): RDD[Array[Byte]] = {
-    val encoder = enc.buildEncoder(rowPType)
-    crdd.mapPartitions(_.map(_.toBytes(encoder))).clearingRun
+  def stabilize(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
+    val makeEnc = enc.buildEncoder(rowPType)
+    crdd.mapPartitions(RegionValue.toBytes(makeEnc, _)).clearingRun
   }
 
-  def encodedRDD(enc: CodecSpec2): RDD[Array[Byte]] =
+  def encodedRDD(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] =
     stabilize(enc)
 
-  def keyedEncodedRDD(enc: CodecSpec2, key: IndexedSeq[String] = typ.key): RDD[(Any, Array[Byte])] = {
-    val encoder = enc.buildEncoder(rowPType)
+  def keyedEncodedRDD(enc: AbstractTypedCodecSpec, key: IndexedSeq[String] = typ.key): RDD[(Any, Array[Byte])] = {
+    val makeEnc = enc.buildEncoder(rowPType)
     val kFieldIdx = typ.copy(key = key).kFieldIdx
 
     val localRowPType = rowPType
     crdd.mapPartitions { it =>
+      val encoder = new ByteArrayEncoder(makeEnc)
+      TaskContext.get.addTaskCompletionListener { _ =>
+        encoder.close()
+      }
       it.map { rv =>
         val keys: Any = SafeRow.selectFields(localRowPType, rv)(kFieldIdx)
-        val bytes = rv.toBytes(encoder)
+        val bytes = encoder.regionValueToBytes(rv.region, rv.offset)
         (keys, bytes)
       }
     }.clearingRun
@@ -222,7 +228,7 @@ class RVD(
       val kOrdering = newType.kType.virtualType.ordering
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
-      val enc = RVD.wireCodec.makeCodecSpec2(rowPType)
+      val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
 
       val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]({ case (_, _) =>
         val ur = new UnsafeRow(localRowPType, null, 0)
@@ -271,7 +277,7 @@ class RVD(
       return this
 
     val newPartitioner = if (shuffle) {
-      val enc = RVD.wireCodec.makeCodecSpec2(rowPType)
+      val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
       val shuffledBytes = stabilize(enc).coalesce(maxPartitions, shuffle = true)
       val (newRowPType, shuffled) = destabilize(shuffledBytes, enc)
       if (typ.key.isEmpty)
@@ -562,15 +568,46 @@ class RVD(
     RVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
-  // Aggregating
-  // used in Interpret by TableAggregate2
-  def combine[U: ClassTag](
+  def combine[U : ClassTag](
     zeroValue: U,
     itF: (Int, RVDContext, Iterator[RegionValue]) => U,
     combOp: (U, U) => U,
-    commutative: Boolean): U = {
-    val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
-    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
+    commutative: Boolean,
+    tree: Boolean): U = {
+
+    val makeComb: () => Combiner[U] = () => Combiner(zeroValue, combOp, commutative = commutative, associative = true)
+
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+
+    if (tree) {
+      val depth = treeAggDepth(HailContext.get, reduced.getNumPartitions)
+      val scale = math.max(
+        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        2)
+      var i = 0
+      while (i < depth - 1 && reduced.getNumPartitions > scale) {
+        val nParts = reduced.getNumPartitions
+        val newNParts = nParts / scale
+        reduced = reduced.mapPartitionsWithIndex { (i, it) =>
+          it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+        }
+          .partitionBy(new Partitioner {
+            override def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+            override def numPartitions: Int = newNParts
+          })
+          .mapPartitions { it =>
+            val ac = makeComb()
+            it.foreach { case (newPart, (oldPart, v)) =>
+              ac.combine(oldPart, v)
+            }
+            Iterator.single(ac.result())
+          }
+        i += 1
+      }
+    }
+
+    val ac = makeComb()
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }
@@ -596,22 +633,6 @@ class RVD(
     val ac = Combiner(zeroValue, combOp, commutative, associative = true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
-  }
-
-  // only used by MatrixMapCols
-  def treeAggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U,
-    makePC: (Int, RVDContext) => PC
-  )(seqOp: (PC, U, RegionValue) => U,
-    combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, pc: PC, u: U, rv: RegionValue) =>
-      val u2 = seqOp(pc, u, rv)
-      ctx.region.clear()
-      u2
-    }
-    crdd.treeAggregateWithPartitionOp(zeroValue, makePC, clearingSeqOp, combOp, depth)
   }
 
   def forall(p: RegionValue => Boolean): Boolean =
@@ -643,12 +664,11 @@ class RVD(
   // Collecting
 
   def collect(): Array[Row] = {
-    val enc = RVD.wireCodec.makeCodecSpec2(rowPType)
+    val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
     val encodedData = collectAsBytes(enc)
     val (pType: PStruct, dec) = enc.buildDecoder(rowType)
     Region.scoped { region =>
-      encodedData.iterator
-        .map(RegionValue.fromBytes(dec, region, RegionValue(region)))
+      RegionValue.fromBytes(dec, region, RegionValue(region))(encodedData.iterator)
         .map { rv =>
           val row = SafeRow(pType, rv)
           region.clear()
@@ -662,14 +682,14 @@ class RVD(
       Iterator.single(f(i, ctx, it))
     }.collect()
 
-  def collectAsBytes(enc: CodecSpec2): Array[Array[Byte]] = stabilize(enc).collect()
+  def collectAsBytes(enc: AbstractTypedCodecSpec): Array[Array[Byte]] = stabilize(enc).collect()
 
   // Persisting
 
   def cache(): RVD = persist(StorageLevel.MEMORY_ONLY)
 
   def persist(level: StorageLevel): RVD = {
-    val enc = RVD.memoryCodec.makeCodecSpec2(rowPType)
+    val enc = TypedCodecSpec(rowPType, BufferSpec.memorySpec)
     val persistedRDD = stabilize(enc).persist(level)
     val (newRowPType, iterationRDD) = destabilize(persistedRDD, enc)
 
@@ -696,15 +716,16 @@ class RVD(
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def write(path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = crdd.writeRows(path, idxRelPath, typ, stageLocally, codecSpec.makeCodecSpec2(rowPType))
-    rvdSpec(codecSpec, IndexSpec.emptyAnnotation(idxRelPath, typ.kType.virtualType), partFiles).write(HailContext.sFS, path)
+  def write(path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = crdd.writeRows(path, idxRelPath, typ, stageLocally, codecSpec)
+    val spec = MakeRVDSpec(typ.key, codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
+    spec.write(HailContext.sFS, path)
     partitionCounts
   }
 
   def writeRowsSplit(
     path: String,
-    codecSpec: CodecSpec,
+    bufferSpec: BufferSpec,
     stageLocally: Boolean,
     targetPartitioner: RVDPartitioner
   ): Array[Long] = {
@@ -726,8 +747,8 @@ class RVD(
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val rowsCodecSpec = codecSpec.makeCodecSpec2(rowsRVType)
-    val entriesCodecSpec = codecSpec.makeCodecSpec2(entriesRVType)
+    val rowsCodecSpec = TypedCodecSpec(rowsRVType, bufferSpec)
+    val entriesCodecSpec = TypedCodecSpec(entriesRVType, bufferSpec)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
     val makeIndexWriter = IndexWriter.builder(typ.kType, +PStruct("entries_offset" -> PInt64()))
@@ -852,7 +873,7 @@ class RVD(
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, typ, rowsRVType, entriesRVType, partFiles,
+    RichContextRDDRegionValue.writeSplitSpecs(fs, path, rowsCodecSpec, entriesCodecSpec, typ, rowsRVType, entriesRVType, partFiles,
       if (targetPartitioner != null) targetPartitioner else partitioner)
 
     partitionCounts
@@ -1096,21 +1117,26 @@ class RVD(
 
     val partBc = partitioner.broadcast(sparkContext)
     val rightTyp = that.typ
-    val codecSpec = RVD.wireCodec.makeCodecSpec2(that.rowPType)
+    val codecSpec = TypedCodecSpec(that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(that.rowPType)
-    val partitionKeyedIntervals = that.boundary.crdd
-      .flatMap { rv =>
+    val partitionKeyedIntervals = that.boundary.crdd.mapPartitions { it =>
+      val encoder = new ByteArrayEncoder(makeEnc)
+      TaskContext.get.addTaskCompletionListener { _ =>
+        encoder.close()
+      }
+      it.flatMap { rv =>
         val r = SafeRow(rightTyp.rowType, rv)
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
         if (interval != null) {
           val wrappedInterval = interval.copy(
             start = Row(interval.start),
             end = Row(interval.end))
-          val bytes = rv.toBytes(makeEnc)
+          val bytes = encoder.regionValueToBytes(rv.region, rv.offset)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
         } else
           Iterator()
-      }.clearingRun
+      }
+    }.clearingRun
 
     val nParts = getNumPartitions
     val intervalOrd = rightTyp.kType.types(0).virtualType.ordering.toOrdering.asInstanceOf[Ordering[Interval]]
@@ -1142,12 +1168,12 @@ class RVD(
 
   private[rvd] def destabilize(
     stable: RDD[Array[Byte]],
-    enc: CodecSpec2
+    enc: AbstractTypedCodecSpec
   ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
     val (rowPType: PStruct, dec) = enc.buildDecoder(rowType)
     (rowPType, ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
-      it.map(RegionValue.fromBytes(dec, ctx.region, rv))
+      RegionValue.fromBytes(dec, ctx.region, rv)(it)
     })
   }
 
@@ -1156,21 +1182,9 @@ class RVD(
 
   private[rvd] def keyBy(key: Int = typ.key.length): KeyedRVD =
     new KeyedRVD(this, key)
-
-  private def rvdSpec(codecSpec: CodecSpec, indexSpec: IndexSpec, partFiles: Array[String]): AbstractRVDSpec =
-    IndexedRVDSpec(
-      typ,
-      codecSpec,
-      indexSpec,
-      partFiles,
-      partitioner)
 }
 
 object RVD {
-  val memoryCodec = CodecSpec.defaultUncompressed
-
-  val wireCodec = memoryCodec
-
   def empty(sc: SparkContext, typ: RVDType): RVD = {
     RVD(typ,
       RVDPartitioner.empty(typ),
@@ -1419,7 +1433,7 @@ object RVD {
   def writeRowsSplitFiles(
     rvds: IndexedSeq[RVD],
     path: String,
-    codecSpec: CodecSpec,
+    bufferSpec: BufferSpec,
     stageLocally: Boolean
   ): Array[Array[Long]] = {
     val first = rvds.head
@@ -1439,8 +1453,8 @@ object RVD {
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val rowsCodecSpec = codecSpec.makeCodecSpec2(rowsRVType)
-    val entriesCodecSpec = codecSpec.makeCodecSpec2(entriesRVType)
+    val rowsCodecSpec = TypedCodecSpec(rowsRVType, bufferSpec)
+    val entriesCodecSpec = TypedCodecSpec(entriesRVType, bufferSpec)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
     val makeIndexWriter = IndexWriter.builder(localTyp.kType, +PStruct("entries_offset" -> PInt64()))
@@ -1496,7 +1510,7 @@ object RVD {
         val fs = bcFS.value
         val s = StringUtils.leftPad(i.toString, fileDigits, '0')
         val basePath = path + s + ".mt"
-        RichContextRDDRegionValue.writeSplitSpecs(fs, basePath, codecSpec, localTyp, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
+        RichContextRDDRegionValue.writeSplitSpecs(fs, basePath, rowsCodecSpec, entriesCodecSpec, localTyp, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
       }
 
     partCounts

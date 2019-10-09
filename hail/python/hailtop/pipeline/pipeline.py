@@ -366,23 +366,29 @@ class Pipeline:
             If `True`, delete temporary directories with intermediate files.
         """
 
-        dependencies = {task: task._dependencies for task in self._tasks}
+        seen = set()
         ordered_tasks = []
-        niter = 0
-        while dependencies:
-            for task, deps in dependencies.items():
-                if not deps:
-                    ordered_tasks.append(task)
-                    niter = 0
-            for task, _ in dependencies.items():
-                dependencies[task] = dependencies[task].difference(set(ordered_tasks))
-            for task in ordered_tasks:
-                if task in dependencies:
-                    del dependencies[task]
-            niter += 1
 
-            if niter == 100:
-                raise PipelineException("cycle detected in dependency graph")
+        def schedule_task(t):
+            if t in seen:
+                return
+            seen.add(t)
+            for p in t._dependencies:
+                schedule_task(p)
+            ordered_tasks.append(t)
+
+        for t in self._tasks:
+            schedule_task(t)
+
+        assert len(seen) == len(self._tasks)
+
+        task_index = {t: i for i, t in enumerate(ordered_tasks)}
+        for t in ordered_tasks:
+            i = task_index[t]
+            for p in t._dependencies:
+                j = task_index[p]
+                if j >= i:
+                    raise PipelineException("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
         self._backend._run(self, dry_run, verbose, delete_scratch_on_exit)

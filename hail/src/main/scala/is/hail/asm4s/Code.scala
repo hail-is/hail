@@ -4,6 +4,9 @@ import java.io.PrintStream
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
+import is.hail.annotations.Region
+import is.hail.expr.types.physical.PTuple
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._

@@ -22,8 +22,8 @@ object NDArrayFunctions extends RegistryFunctions {
       registerIR(stringOp, TNDArray(argType, nDimVar), TNDArray(argType, nDimVar), TNDArray(retType, nDimVar)) { (l, r) =>
         val lid = genUID()
         val rid = genUID()
-        val lElemRef = Ref(lid, coerce[TNDArray](l.typ).elementType)
-        val rElemRef = Ref(rid, coerce[TNDArray](r.typ).elementType)
+        val lElemRef = Ref(lid, coerce[TNDArray](l.typ).elementType.setRequired(false))
+        val rElemRef = Ref(rid, coerce[TNDArray](r.typ).elementType.setRequired(false))
 
         NDArrayMap2(l, r, lid, rid, irOp(lElemRef, rElemRef))
       }

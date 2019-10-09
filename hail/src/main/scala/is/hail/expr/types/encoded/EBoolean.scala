@@ -13,8 +13,6 @@ case object EBooleanOptional extends EBoolean(false)
 case object EBooleanRequired extends EBoolean(true)
 
 class EBoolean(override val required: Boolean) extends EType {
-  lazy val virtualType: TBoolean = TBoolean(required)
-
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     out.writeBoolean(coerce[Boolean](v))
   }
@@ -33,7 +31,7 @@ class EBoolean(override val required: Boolean) extends EType {
   def _decodedPType(requestedType: Type): PType = PBoolean(required)
 
   def _asIdent = "bool"
-  def _toPretty = "Boolean"
+  def _toPretty = "EBoolean"
 }
 
 object EBoolean {

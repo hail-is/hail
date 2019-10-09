@@ -49,6 +49,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
 
   def blockDims(bi: Int): (Int, Int) = (blockRowNRows(blockBlockRow(bi)), blockColNCols(blockBlockCol(bi)))
 
+  def nBlocks: Int = maybeBlocks.map(_.length).getOrElse(nBlockRows * nBlockCols)
+
   def blockCoordinates(bi: Int): (Int, Int) = (blockBlockRow(bi), blockBlockCol(bi))
 
   def coordinatesBlock(i: Int, j: Int): Int = {
@@ -108,17 +110,23 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
   override def getPartition(key: Any): Int = key match {
     case (i: Int, j: Int) => coordinatesPart(i, j)
   }
-  
+
+  /**
+    *
+    * @return A transposed GridPartitioner and a function that maps partitions in the new partitioner to partitions
+    *         in the old partitioner. 
+    */
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
-    def transposeBI(bi: Int): Int = coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
+    def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
+    def inverseTransposeBI(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
     maybeBlocks match {
       case Some(bis) =>
         val (biTranspose, piTranspose) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
         val inverseTransposePI = piTranspose.zipWithIndex.sortBy(_._1).map(_._2)
         
         (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), inverseTransposePI)
-      case None => (gpT, transposeBI)
+      case None => (gpT, inverseTransposeBI)
     }
   }
 

@@ -4,25 +4,13 @@ DOMAIN ?= hail.is
 ROUTER_RESOLVER_LATEST = gcr.io/$(PROJECT)/router-resolver:latest
 ROUTER_RESOLVER_IMAGE = gcr.io/$(PROJECT)/router-resolver:$(shell docker images -q --no-trunc router-resolver:latest | sed -e 's,[^:]*:,,')
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
-PY_FILES := $(shell find router_resolver -iname \*.py -not -exec git check-ignore -q {} \; -print)
-
-flake8-stmp: $(PY_FILES)
-	$(PYTHON) -m flake8 router_resolver
-	touch $@
-
-pylint-stmp: $(PY_FILES)
-	$(PYTHON) -m pylint --rcfile ../pylintrc router_resolver --score=n
-	touch $@
-
 .PHONY: check
-check: flake8-stmp pylint-stmp
-
-.PHONY: clean
-clean:
-	rm -f flake8-stmp pylint-stmp
+check:
+	$(PYTHON) -m flake8 router_resolver
+	$(PYTHON) -m pylint --rcfile ../pylintrc router_resolver --score=n
 
 .PHONY: build
 build:
