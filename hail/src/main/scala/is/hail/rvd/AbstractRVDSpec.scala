@@ -2,6 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.encoded.ETypeSerializer
 import is.hail.expr.types.physical.{PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
 import is.hail.expr.types.virtual.{TStructSerializer, _}
@@ -118,7 +119,8 @@ object AbstractRVDSpec {
     requestedTypeLeft: TStruct,
     requestedTypeRight: TStruct,
     newPartitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean
+    filterIntervals: Boolean,
+    ctx: ExecuteContext
   ): RVD = {
     require(specRight.key.isEmpty)
     require(requestedType == requestedTypeLeft ++ requestedTypeRight)
@@ -143,7 +145,7 @@ object AbstractRVDSpec {
     assert(t.virtualType == requestedType)
     val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     newPartitioner match {
-      case Some(part) if !filterIntervals => tmprvd.repartition(part.coarsen(requestedKey.length))
+      case Some(part) if !filterIntervals => tmprvd.repartition(part.coarsen(requestedKey.length), ctx)
       case _ => tmprvd
     }
   }
@@ -172,6 +174,7 @@ abstract class AbstractRVDSpec {
     hc: HailContext,
     path: String,
     requestedType: TStruct,
+    ctx: ExecuteContext,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = newPartitioner match {
@@ -328,6 +331,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
     hc: HailContext,
     path: String,
     requestedType: TStruct,
+    ctx: ExecuteContext,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = {
@@ -346,10 +350,10 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
         if (filterIntervals)
           tmprvd
         else
-          tmprvd.repartition(np.coarsen(requestedKey.length))
+          tmprvd.repartition(np.coarsen(requestedKey.length), ctx)
       case None =>
         // indexed reads are costly; don't use an indexed read when possible
-        super.read(hc, path, requestedType, None, filterIntervals)
+        super.read(hc, path, requestedType, ctx, None, filterIntervals)
     }
   }
 }

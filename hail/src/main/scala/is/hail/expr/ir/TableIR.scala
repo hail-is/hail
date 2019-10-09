@@ -170,12 +170,12 @@ case class TableNativeReader(
         intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
       else
         intervals.map(i => new RVDPartitioner(tr.typ.keyType, i))
-      val rvd = spec.rowsComponent.read(hc, path, tr.typ.rowType, partitioner, filterIntervals)
+      val rvd = spec.rowsComponent.read(hc, path, tr.typ.rowType, ctx, partitioner, filterIntervals)
       if (rvd.typ.key startsWith tr.typ.key)
         rvd
       else {
         log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
-        rvd.changeKey(tr.typ.key)
+        rvd.changeKey(tr.typ.key, ctx)
       }
     }
     TableValue(tr.typ, BroadcastRow(RegionValue(ctx.r, globalsOffset), globalType.setRequired(false).asInstanceOf[PStruct], hc.backend), rvd)
@@ -222,9 +222,9 @@ case class TableNativeZippedReader(
       val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
       val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
       if (tr.typ.rowType.fieldNames.forall(f => !rightFieldSet.contains(f))) {
-        specLeft.rowsComponent.read(hc, pathLeft, tr.typ.rowType, partitioner, filterIntervals)
+        specLeft.rowsComponent.read(hc, pathLeft, tr.typ.rowType, ctx, partitioner, filterIntervals)
       } else if (tr.typ.rowType.fieldNames.forall(f => !leftFieldSet.contains(f))) {
-        specRight.rowsComponent.read(hc, pathRight, tr.typ.rowType, partitioner, filterIntervals)
+        specRight.rowsComponent.read(hc, pathRight, tr.typ.rowType, ctx, partitioner, filterIntervals)
       } else {
         val rvdSpecLeft = specLeft.rowsComponent.rvdSpec(hc.sFS, pathLeft)
         val rvdSpecRight = specRight.rowsComponent.rvdSpec(hc.sFS, pathRight)
@@ -238,7 +238,8 @@ case class TableNativeZippedReader(
           rvdPathLeft, rvdPathRight,
           tr.typ.rowType,
           leftRType, rightRType,
-          partitioner, filterIntervals)
+          partitioner, filterIntervals,
+          ctx)
       }
     }
 
@@ -364,7 +365,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
-    tv.copy(typ = typ, rvd = tv.rvd.enforceKey(keys, isSorted))
+    tv.copy(typ = typ, rvd = tv.rvd.enforceKey(keys, ctx, isSorted))
   }
 }
 
@@ -500,9 +501,9 @@ case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends Table
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
     val rvd = strategy match {
-      case RepartitionStrategy.SHUFFLE => prev.rvd.coalesce(n, shuffle = true)
-      case RepartitionStrategy.COALESCE => prev.rvd.coalesce(n, shuffle = false)
-      case RepartitionStrategy.NAIVE_COALESCE => prev.rvd.naiveCoalesce(n)
+      case RepartitionStrategy.SHUFFLE => prev.rvd.coalesce(n, ctx, shuffle = true)
+      case RepartitionStrategy.COALESCE => prev.rvd.coalesce(n, ctx, shuffle = false)
+      case RepartitionStrategy.NAIVE_COALESCE => prev.rvd.naiveCoalesce(n, ctx)
     }
 
     prev.copy(rvd = rvd)
@@ -647,7 +648,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         rightRVD,
         joinKey,
         rvMerger,
-        RVDType(newRowPType, newKey))
+        RVDType(newRowPType, newKey),
+        ctx)
     } else {
       val leftRVD = leftTV.rvd
       val rightRVD = rightTV.rvd
@@ -656,7 +658,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         joinKey,
         joinType,
         rvMerger,
-        RVDType(newRowPType, newKey))
+        RVDType(newRowPType, newKey),
+        ctx)
     }
 
     TableValue(typ, newGlobals, joinedRVD)
@@ -858,7 +861,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         info("TableMultiWayZipJoin: repartitioning children")
         val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
         val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
-        childRVDs.map(_.repartition(newPartitioner))
+        childRVDs.map(_.repartition(newPartitioner, ctx))
       }
     val newPartitioner = repartitionedRVDs(0).partitioner
 
@@ -1243,7 +1246,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tvs = children.map(_.execute(ctx))
     tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length))
+      rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length, ctx))
   }
 }
 
@@ -1302,7 +1305,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    prev.copy(rvd = prev.rvd.truncateKey(prev.typ.key).distinctByKey())
+    prev.copy(rvd = prev.rvd.truncateKey(prev.typ.key).distinctByKey(ctx))
   }
 }
 
@@ -1564,7 +1567,7 @@ case class TableKeyByAndAggregate(
 
     prev.copy(
       typ = typ,
-      rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd))
+      rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd, ctx))
   }
 }
 
@@ -1719,7 +1722,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
 
     val newRVD = prevRVD
-      .repartition(prevRVD.partitioner.strictify)
+      .repartition(prevRVD.partitioner.strictify, ctx)
       .boundary
       .mapPartitionsWithIndex(newRVDType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()

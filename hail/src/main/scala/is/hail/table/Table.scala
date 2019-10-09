@@ -215,7 +215,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, key, globalSignature),
             BroadcastRow(ctx, globals, globalSignature),
-            RVD.coerce(RVDType(PType.canonical(signature).asInstanceOf[PStruct], key), crdd)), ctx)}
+            RVD.coerce(RVDType(PType.canonical(signature).asInstanceOf[PStruct], key), crdd, ctx)), ctx)}
   )
 
   def typ: TableType = tir.typ

@@ -22,14 +22,14 @@ object TableValue {
     val tt = TableType(rowType.virtualType, key, TStruct.empty())
     TableValue(tt,
       BroadcastRow.empty(ctx),
-      RVD.coerce(RVDType(rowType, key), rdd))
+      RVD.coerce(RVDType(rowType, key), rdd, ctx))
   }
 
   def apply(ctx: ExecuteContext, rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     val tt = TableType(rowType, key, TStruct.empty())
     TableValue(tt,
         BroadcastRow.empty(ctx),
-        RVD.coerce(tt.canonicalRVDType, rdd))
+        RVD.coerce(tt.canonicalRVDType, rdd, ctx))
   }
 
   def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue = {
@@ -37,7 +37,10 @@ object TableValue {
     val tt = TableType(rowType, key, TStruct.empty())
     TableValue(tt,
       BroadcastRow.empty(ctx),
-      RVD.coerce(RVDType(canonicalRowType, key), ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType)))
+      RVD.coerce(
+        RVDType(canonicalRowType, key),
+        ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType),
+        ctx))
   }
 }
 

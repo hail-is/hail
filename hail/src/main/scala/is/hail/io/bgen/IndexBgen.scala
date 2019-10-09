@@ -41,7 +41,9 @@ object IndexBgen {
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
-    skipInvalidLoci: Boolean = false) {
+    skipInvalidLoci: Boolean = false,
+    ctx: ExecuteContext
+  ) {
     val fs = hc.sFS
     val bcFS = hc.bcFS
 
@@ -115,7 +117,7 @@ object IndexBgen {
     val intEnc = intCodec.buildEncoder(intPType)
 
     RVD.unkeyed(rowType, crvd)
-      .repartition(partitioner, shuffle = true)
+      .repartition(partitioner, ctx, shuffle = true)
       .toRows
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
