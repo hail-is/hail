@@ -53,7 +53,29 @@ async def close_batch(request):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    await batch.close()
+    asyncio.ensure_future(self._close_jobs())
+    return web.Response()
+
+
+@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
+async def cancel_batch(request):
+    user = request.match_info['user']
+    batch_id = int(request.match_info['batch_id'])
+    batch = await Batch.from_db(request.app, batch_id, user)
+    if not batch:
+        raise web.HTTPNotFound()
+    asyncio.ensure_future(self._cancel_jobs())
+    return web.Response()
+
+
+@routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
+async def delete_batch(request):
+    user = request.match_info['user']
+    batch_id = int(request.match_info['batch_id'])
+    batch = await Batch.from_db(request.app, batch_id, user)
+    if not batch:
+        raise web.HTTPNotFound()
+    asyncio.ensure_future(self._cancel_jobs())
     return web.Response()
 
 

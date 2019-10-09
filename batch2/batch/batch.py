@@ -567,7 +567,6 @@ class Batch:
         await self.app['db'].batch.update_record(self.id, cancelled=True, closed=True)
         self.cancelled = True
         self.closed = True
-        asyncio.ensure_future(self._cancel_jobs())
         log.info(f'batch {self.id} cancelled')
 
     async def _close_jobs(self):
@@ -577,7 +576,6 @@ class Batch:
     async def close(self):
         await self.app['db'].batch.update_record(self.id, closed=True)
         self.closed = True
-        asyncio.ensure_future(self._close_jobs())
         log.info(f'batch {self.id} closed')
 
     async def mark_deleted(self):

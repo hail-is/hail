@@ -290,7 +290,13 @@ async def _cancel_batch(app, batch_id, user):
     batch = await Batch.from_db(app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(batch.cancel())
+    await batch.cancel()
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        async with session.patch(
+                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel')):
+            pass
+    return web.Response()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
@@ -324,6 +330,7 @@ async def close_batch(request, userdata):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
+    await batch.close()
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.patch(
@@ -341,7 +348,12 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(request.app, batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(batch.mark_deleted())
+    await batch.mark_deleted()
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        async with session.delete(
+                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}')):
+            pass
     return web.Response()
 
 
