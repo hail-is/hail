@@ -32,7 +32,7 @@ spec:
          value: "true"
       containers:
        - name: internal-gateway
-         image: "{{ gateway_internal_image.image }}"
+         image: "{{ internal_gateway_image.image }}"
          resources:
            requests:
              memory: "250M"
