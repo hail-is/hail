@@ -3,6 +3,11 @@
 {% block content %}
   <div class="vcentered">
     <h1>Welcome!</h1>
+    {% if userdata %}
+       <p>Welcome to the Hail-powered <b>{{ userdata['workshop_name'] }}</b> workshop!</p>
+     {% else %}
+       <p>Welcome to the Hail workshop service!
+     {% endif %}
     <p>Navigate to the <a href="{{ base_path }}/notebook">Notebook</a>
       tab to launch Jupyter with workshop materials installed, or
       return to an existing Jupyter instance.</p>
