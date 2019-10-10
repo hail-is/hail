@@ -7,9 +7,7 @@ __all__ = [
     'interact',
 ]
 
-def interact(obj, cache=True):
-    if cache:
-        obj = obj.cache()
+def interact(obj):
     tab = widgets.Tab()
     base_style = widgets.ButtonStyle()
     selected_style = widgets.ButtonStyle(button_color='#DDFFDD', font_weight='bold')
