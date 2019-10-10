@@ -3213,21 +3213,19 @@ class Table(ExprContainer):
 
         return Table(TableDistinct(self._tir))
 
-    def summarize(self):
+    def summarize(self, handler=None):
         """Compute and print summary information about the fields in the table.
 
         .. include:: _templates/experimental.rst
         """
 
-        computations, printers = hl.expr.generic_summary(self.row, skip_top=True)
-        results = self.aggregate(computations)
-        for name, fields in printers:
-            print(f'* {name}:')
-
-            max_k_len = max(len(f) for f in fields)
-            for k, v in fields.items():
-                print(f'    {k.rjust(max_k_len)} : {v(results)}')
-            print()
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
+        handler(self.row._summarize())
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
