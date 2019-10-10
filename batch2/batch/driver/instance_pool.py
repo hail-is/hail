@@ -172,6 +172,7 @@ retry docker run \
            -v /var/run/docker.sock:/var/run/docker.sock \
            -v /usr/bin/docker:/usr/bin/docker \
            -v /snap/bin/gcloud:/usr/bin/gcloud \
+           -v /snap/bin/gsutil:/usr/bin/gsutil \
            -v /batch:/batch \
            -p 5000:5000 \
            -d --entrypoint "/bin/bash" \
