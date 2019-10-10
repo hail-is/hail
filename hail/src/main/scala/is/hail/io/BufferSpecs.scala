@@ -4,7 +4,7 @@ import is.hail.rvd.AbstractRVDSpec
 import java.io._
 
 import is.hail.asm4s._
-import is.hail.io.compress.LZ4Utils
+import is.hail.io.compress.LZ4
 import org.json4s.{ DefaultFormats, Formats, ShortTypeHints }
 
 import org.json4s.jackson.JsonMethods
@@ -13,7 +13,7 @@ import org.json4s.{Extraction, JValue}
 object BufferSpec {
   val default: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024,
-      LZ4BlockBufferSpec(32 * 1024,
+      LZ4HCBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec)))
 
   val defaultUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024,
@@ -49,6 +49,8 @@ object BufferSpec {
   val shortTypeHints = ShortTypeHints(List(
       classOf[BlockBufferSpec],
       classOf[LZ4BlockBufferSpec],
+      classOf[LZ4HCBlockBufferSpec],
+      classOf[LZ4FastBlockBufferSpec],
       classOf[StreamBlockBufferSpec],
       classOf[BufferSpec],
       classOf[LEB128BufferSpec],
