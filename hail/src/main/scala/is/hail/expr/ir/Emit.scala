@@ -1526,8 +1526,6 @@ private class Emit(
         val ndAddress = mb.newField[Long]
         val overallMissing = mb.newField[Boolean]
 
-
-
         val idxFields = idxst.map(_ => mb.newField[Long])
         val idxFieldsBinding = Code(
           idxFields.zip(idxst).map{ case (field, idxTriplet) =>
@@ -1541,7 +1539,10 @@ private class Emit(
         val setup = coerce[Unit](Code(
           ndt.setup,
           overallMissing := ndt.m,
-          Code(idxst.map(_.setup))
+          Code(idxst.map(_.setup)),
+          Code.foreach(idxst.map(_.m)){ idxMissingness =>
+            overallMissing := overallMissing || idxMissingness
+          }
         ))
 
         val value = Code(
