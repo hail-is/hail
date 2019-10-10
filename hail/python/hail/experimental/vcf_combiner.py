@@ -160,7 +160,7 @@ def lgt_to_gt(lgt, la):
 @typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
 def calculate_new_intervals(ht, n, reference_genome='default'):
     """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
-    for repartitioning the table/matrix table
+    for repartitioning a combiner matrix table
 
     Parameters
     ----------
@@ -200,94 +200,3 @@ def calculate_new_intervals(ht, n, reference_genome='default'):
     interval = hl.Interval(start=last_st, end=end, includes_end=True)
     intervals.append(interval)
     return intervals
-
-# NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
-#       some of it is copied from GenomicsDB's wiki.
-# always missing items include MQ, HaplotypeScore, InbreedingCoeff
-# items that are dropped by CombineGVCFs and so set to missing are MLEAC, MLEAF
-# Notes on info aggregation, The GenomicsDB wiki says the following:
-#   The following operations are supported:
-#       "sum" sum over valid inputs
-#       "mean"
-#       "median"
-#       "element_wise_sum"
-#       "concatenate"
-#       "move_to_FORMAT"
-#       "combine_histogram"
-#
-#   Operations for the fields
-#   QUAL: set to missing
-#   INFO {
-#       BaseQRankSum: median, # NOTE : move to format for combine
-#       ClippingRankSum: median, # NOTE : move to format for combine
-#       DP: sum
-#       ExcessHet: median, # NOTE : this can also be dropped
-#       MQ: median, # NOTE : move to format for combine
-#       MQ_DP: sum,
-#       MQ0: median,
-#       MQRankSum: median, # NOTE : move to format for combine
-#       QUALApprox: sum,
-#       RAW_MQ: sum
-#       ReadPosRankSum: median, # NOTE : move to format for combine
-#       SB_TABLE: elementwise sum, # NOTE: after being moved from FORMAT as SB
-#       VarDP: sum
-#   }
-#   FORMAT {
-#       END: move from INFO
-#   }
-#
-# The following are Truncated INFO fields for the specific VCFs this tool targets
-# ##INFO=<ID=BaseQRankSum,Number=1,Type=Float>
-# ##INFO=<ID=ClippingRankSum,Number=1,Type=Float>
-# ##INFO=<ID=DP,Number=1,Type=Integer>
-# ##INFO=<ID=END,Number=1,Type=Integer>
-# ##INFO=<ID=ExcessHet,Number=1,Type=Float>
-# ##INFO=<ID=MQ,Number=1,Type=Float>
-# ##INFO=<ID=MQRankSum,Number=1,Type=Float>
-# ##INFO=<ID=MQ_DP,Number=1,Type=Integer>
-# ##INFO=<ID=QUALapprox,Number=1,Type=Integer>
-# ##INFO=<ID=RAW_MQ,Number=1,Type=Float>
-# ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
-# ##INFO=<ID=VarDP,Number=1,Type=Integer>
-#
-# As of 2019-03-25, the schema returned by the combiner is as follows:
-# ----------------------------------------
-# Global fields:
-#     None
-# ----------------------------------------
-# Column fields:
-#     's': str
-# ----------------------------------------
-# Row fields:
-#     'locus': locus<GRCh38>
-#     'alleles': array<str>
-#     'rsid': str
-# ----------------------------------------
-# Entry fields:
-#     'DP': int32
-#     'END': int32
-#     'GQ': int32
-#     'LA': array<int32>
-#     'LAD': array<int32>
-#     'LGT': call
-#     'LPGT': call
-#     'LPL': array<int32>
-#     'MIN_DP': int32
-#     'PID': str
-#     'RGQ': int32
-#     'SB': array<int32>
-#     'gvcf_info': struct {
-#         ClippingRankSum: float64,
-#         BaseQRankSum: float64,
-#         MQ: float64,
-#         MQRankSum: float64,
-#         MQ_DP: int32,
-#         QUALapprox: int32,
-#         RAW_MQ: float64,
-#         ReadPosRankSum: float64,
-#         VarDP: int32
-#     }
-# ----------------------------------------
-# Column key: ['s']
-# Row key: ['locus']
-# ----------------------------------------
