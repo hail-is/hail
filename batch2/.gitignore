@@ -2,5 +2,4 @@
 /deployment.yaml.out
 flycheck_*.py
 *_flymake.py
-*.pyc
 **/__pycache__
