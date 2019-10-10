@@ -33,6 +33,9 @@ object BufferSpec {
     Array(blockSpec, LEB128BufferSpec(blockSpec))
   }
 
+  val wireSpec: BufferSpec = default
+  val memorySpec: BufferSpec = default
+
   def parse(s: String): BufferSpec = {
     import AbstractRVDSpec.formats
     JsonMethods.parse(s).extract[BufferSpec]
