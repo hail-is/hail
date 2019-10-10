@@ -1198,12 +1198,11 @@ object LoadVCF {
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
     val filterAttrs: VCFAttributes = header
       .getFilterLines
       .toList
       // (ID, description)
-      .map(line => (line.getID, Map("Description" -> "")))
+      .map(line => (line.getID, Map("Description" -> line.getDescription)))
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
