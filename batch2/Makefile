@@ -30,6 +30,7 @@ deploy: push
 build-worker-image:
 	-gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch2-worker-image
 	gcloud -q compute --project $(PROJECT) instances create --zone=$(ZONE) build-batch2-worker-image --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata-from-file startup-script=build-batch2-worker-image-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=ubuntu-minimal-1804-bionic-v20191008 --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-ssd
+	sleep 300
 	gcloud -q compute --project $(PROJECT) instances stop --zone=$(ZONE) build-batch2-worker-image
-	gcloud -q compute --project $(PROJECT) images create batch2-worker-4 --source-disk=build-batch2-worker-image --source-disk-zone=$(ZONE)
+	gcloud -q compute --project $(PROJECT) images create batch2-worker-5 --source-disk=build-batch2-worker-image --source-disk-zone=$(ZONE)
 	gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch2-worker-image
