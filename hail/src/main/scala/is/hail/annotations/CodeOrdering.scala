@@ -397,4 +397,14 @@ abstract class CodeOrdering {
 
     (xm || ym).mux(xm && ym, equivNonnull(xv, yv))
   }
+
+  // reverses the sense of the non-null comparison only
+  def reverse: CodeOrdering = new CodeOrdering () {
+    override def reverse: CodeOrdering = CodeOrdering.this
+    override type T = CodeOrdering.this.T
+    override type P = CodeOrdering.this.P
+
+    def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      CodeOrdering.this.compareNonnull(y, x)
+  }
 }
