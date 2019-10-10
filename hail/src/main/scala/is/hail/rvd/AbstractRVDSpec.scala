@@ -183,7 +183,7 @@ abstract class AbstractRVDSpec {
 
   def write(fs: FS, path: String) {
     fs.writeTextFile(path + "/metadata.json.gz") { out =>
-      implicit val formats = AbstractRVDSpec.formats
+      import AbstractRVDSpec.formats
       Serialization.write(this, out)
     }
   }
