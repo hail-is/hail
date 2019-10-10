@@ -52,7 +52,6 @@ object ComparisonOp {
 sealed trait ComparisonOp[ReturnType] {
   def t1: Type
   def t2: Type
-  // FIXME: WTF
   val op: CodeOrdering.Op
   val strict: Boolean = true
   def codeOrdering(mb: EmitMethodBuilder, t1p: PType, t2p: PType): CodeOrdering.F[op.ReturnType] = {
