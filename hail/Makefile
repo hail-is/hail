@@ -281,6 +281,7 @@ docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
+	rm -rf build/docs
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
 	cp python/hail/hail_version build/
@@ -311,6 +312,7 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
+	rm -rf build/docs
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
 	cp python/hail/hail_version build/

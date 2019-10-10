@@ -401,3 +401,15 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #
 # texinfo_no_detailmenu = False
+
+def autodoc_skip_member(app, what, name, obj, skip, options):
+    exclusions = ('__delattr__', '__dict__', '__dir__', '__doc__', '__format__',
+                  '__getattribute__', '__hash__', '__init__',
+                  '__init_subclass__', '__new__', '__reduce__', '__reduce_ex__',
+                  '__repr__', '__setattr__', '__sizeof__', '__str__',
+                  '__subclasshook__', '__weakref__')
+    exclude = name in exclusions
+    return skip or exclude
+
+def setup(app):
+    app.connect('autodoc-skip-member', autodoc_skip_member)
