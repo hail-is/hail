@@ -4,7 +4,7 @@ import java.io._
 import java.util
 
 import is.hail.annotations.{Memory, Region}
-import is.hail.io.compress.LZ4Utils
+import is.hail.io.compress.LZ4
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
@@ -271,15 +271,15 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
-final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
-  private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
+final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+  private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
   def close() {
     out.close()
   }
 
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
-    val compLen = LZ4Utils.compress(comp, 4, buf, decompLen)
+    val compLen = lz4.compress(comp, 4, buf, decompLen)
     Memory.storeInt(comp, 0, decompLen) // decompLen
     out.writeBlock(comp, compLen + 4)
   }
