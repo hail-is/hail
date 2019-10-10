@@ -49,8 +49,6 @@ object BufferSpec {
   val shortTypeHints = ShortTypeHints(List(
       classOf[BlockBufferSpec],
       classOf[LZ4BlockBufferSpec],
-      classOf[LZ4HCBlockBufferSpec],
-      classOf[LZ4FastBlockBufferSpec],
       classOf[StreamBlockBufferSpec],
       classOf[BufferSpec],
       classOf[LEB128BufferSpec],
