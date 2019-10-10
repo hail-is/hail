@@ -1526,19 +1526,28 @@ private class Emit(
         val ndAddress = mb.newField[Long]
         val overallMissing = mb.newField[Boolean]
 
+
+
+        val idxFields = idxst.map(_ => mb.newField[Long])
+        val idxFieldsBinding = Code(
+          idxFields.zip(idxst).map{ case (field, idxTriplet) =>
+            field := idxTriplet.value[Long]
+          }
+        )
+        val cachedIdxVals = idxFields.map(_.load()).toArray
+
+        val targetElementPosition = childPType.getElementAddress(cachedIdxVals, ndAddress, region, mb)
+
         val setup = coerce[Unit](Code(
           ndt.setup,
           overallMissing := ndt.m,
           Code(idxst.map(_.setup))
         ))
 
-        val idxValues = idxst.map(_.value[Long]).toArray
-
-        val targetElementPosition = childPType.getElementAddress(idxValues, ndAddress, region, mb)
-
         val value = Code(
           ndAddress := ndt.value[Long],
-          childPType.outOfBounds(idxValues, ndAddress, region, mb).orEmpty(Code._fatal("Index out of bounds")),
+          idxFieldsBinding,
+          childPType.outOfBounds(cachedIdxVals, ndAddress, region, mb).orEmpty(Code._fatal("Index out of bounds")),
           Region.loadIRIntermediate(childPType.data.pType.elementType)(targetElementPosition)
         )
 
