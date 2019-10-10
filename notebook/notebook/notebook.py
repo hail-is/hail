@@ -677,7 +677,7 @@ WHERE name = %s AND password = %s AND active = 1;
                 assert len(workshops) == 0
                 set_message(
                     session,
-                    'No such workshop.  Check the workshop name and password and try again.',
+                    'Workshop Inactive!',
                     'error')
                 return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
             workshop = workshops[0]
@@ -697,7 +697,7 @@ WHERE name = %s AND password = %s AND active = 1;
 
 @workshop_routes.post('/logout')
 @check_csrf_token
-@web_authenticated_workshop_guest_only(redirect=False)
+@web_authenticated_workshop_guest_only(redirect=True)
 async def workshop_post_logout(request, userdata):
     app = request.app
     dbpool = app['dbpool']
@@ -718,6 +718,11 @@ async def workshop_post_logout(request, userdata):
         del session['workshop_session']
 
     return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+
+
+@workshop_routes.get('/resources')
+async def workshop_get_faq(request):
+    return await render_template('notebook', request, {}, 'workshop/resources.html', {})
 
 
 @workshop_routes.get('/notebook')
