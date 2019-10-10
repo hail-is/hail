@@ -1,51 +1,40 @@
 import abc
 import os
-
+import requests
+import pyspark
 from hail.utils.java import *
 from hail.expr.types import dtype
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.expr.blockmatrix_type import *
-from hail.ir.renderer import Renderer
+from hail.ir.renderer import CSERenderer, Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
-
-import requests
-
-import pyspark
 
 
 class Backend(abc.ABC):
     @abc.abstractmethod
     def execute(self, ir, timed=False):
-        return
+        pass
 
     @abc.abstractmethod
     def value_type(self, ir):
-        return
+        pass
 
     @abc.abstractmethod
     def table_type(self, tir):
-        return
+        pass
 
     @abc.abstractmethod
     def matrix_type(self, mir):
-        return
-
-    def persist_table(self, t, storage_level):
-        return t
-
-    def unpersist_table(self, t):
-        return t
-
-    def persist_matrix_table(self, mt, storage_level):
-        return mt
-
-    def unpersist_matrix_table(self, mt):
-        return mt
+        pass
 
     @abc.abstractmethod
     def add_reference(self, config):
+        pass
+
+    @abc.abstractmethod
+    def load_references_from_dataset(self, path):
         pass
 
     @abc.abstractmethod
@@ -85,6 +74,18 @@ class Backend(abc.ABC):
     def fs(self):
         pass
 
+    def persist_table(self, t, storage_level):
+        return t
+
+    def unpersist_table(self, t):
+        return t
+
+    def persist_matrix_table(self, mt, storage_level):
+        return mt
+
+    def unpersist_matrix_table(self, mt):
+        return mt
+
 
 class SparkBackend(Backend):
     def __init__(self):
@@ -99,7 +100,7 @@ class SparkBackend(Backend):
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
-            r = Renderer(stop_at_jir=True)
+            r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
             ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
@@ -157,6 +158,9 @@ class SparkBackend(Backend):
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
 
+    def load_references_from_dataset(self, path):
+        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(path))
+
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         Env.hail().variant.ReferenceGenome.fromFASTAFile(
             Env.hc()._jhc,
@@ -193,7 +197,7 @@ class LocalBackend(Backend):
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
-            r = Renderer(stop_at_jir=True)
+            r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
             ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
@@ -206,11 +210,14 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
-    def __init__(self):
-        from hailtop.gear import get_deploy_config
-        deploy_config = get_deploy_config()
+    def __init__(self, deploy_config=None):
+        from hailtop.config import get_deploy_config
+        from hailtop.auth import service_auth_headers
+
+        if not deploy_config:
+            deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('apiserver')
-        self.headers = deploy_config.auth_headers('apiserver')
+        self.headers = service_auth_headers(deploy_config, 'apiserver')
         self._fs = None
 
     @property
@@ -221,7 +228,7 @@ class ServiceBackend(Backend):
         return self._fs
 
     def _render(self, ir):
-        r = Renderer()
+        r = CSERenderer()
         assert len(r.jirs) == 0
         return r(ir)
 
@@ -307,6 +314,9 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
+
+    def load_references_from_dataset(self, path):
+        raise NotImplementedError
 
     def add_sequence(self, name, fasta_file, index_file):
         resp = requests.post(f'{self.url}/references/sequence/set',

@@ -46,10 +46,27 @@ class HailContext(object):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             conf = SparkConf()
-            conf.set('spark.jars', hail_jar_path)
-            conf.set('spark.driver.extraClassPath', hail_jar_path)
+            jars = [hail_jar_path]
+
+            if os.environ.get('HAIL_SPARK_MONITOR'):
+                import sparkmonitor
+                jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
+                conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
+
+            conf.set('spark.jars', ','.join(jars))
+            conf.set('spark.driver.extraClassPath', ','.join(jars))
             conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
-            SparkContext._ensure_initialized(conf=conf)
+            if sc is None:
+                SparkContext._ensure_initialized(conf=conf)
+            else:
+                import warnings
+                warnings.warn(
+                    'pip-installed Hail requires additional configuration options in Spark referring\n'
+                    '  to the path to the Hail Python module directory HAIL_DIR,\n'
+                    '  e.g. /path/to/python/site-packages/hail:\n'
+                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
+                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
+                    '    spark.executor.extraClassPath=./hail-all-spark.jar')
         else:
             SparkContext._ensure_initialized()
 
@@ -68,9 +85,8 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         if _backend is None:
-            apiserver_url = os.environ.get('HAIL_APISERVER_URL')
-            if apiserver_url is not None:
-                _backend = ServiceBackend(apiserver_url)
+            if os.environ.get('HAIL_APISERVER_URL') is not None:
+                _backend = ServiceBackend()
             else:
                 _backend = SparkBackend()
         self._backend = _backend

@@ -2,7 +2,6 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.cxx
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
@@ -12,6 +11,14 @@ object PContainer {
 
   def loadLength(aoff: Code[Long]): Code[Int] =
     Region.loadInt(aoff)
+
+  def storeLength(aoff: Long, length: Int): Unit =
+    Region.storeInt(aoff, length)
+
+  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    Region.storeInt(aoff, length)
+
+  def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
 }
 
 abstract class PContainer extends PIterable {
@@ -31,8 +38,17 @@ abstract class PContainer extends PIterable {
   final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     loadLength(aoff)
 
+  final def storeLength(region: Region, aoff: Long, length: Int): Unit =
+    PContainer.storeLength(aoff, length)
 
-  def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
+  final def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    PContainer.storeLength(aoff, length)
+
+  final def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    storeLength(aoff, length)
+
+
+  def nMissingBytes(len: Code[Int]): Code[Long] = PContainer.nMissingBytes(len)
 
   def _elementsOffset(length: Int): Long =
     if (elementType.required)
@@ -74,7 +90,7 @@ abstract class PContainer extends PIterable {
     !isElementDefined(region, aoff, i)
 
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
-    elementType.required || !region.loadBit(aoff + 4, i)
+    elementType.required || !Region.loadBit(aoff + 4, i)
 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
@@ -93,21 +109,25 @@ abstract class PContainer extends PIterable {
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    region.setBit(aoff + 4, i)
+    Region.setBit(aoff + 4, i)
   }
 
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.setBit(aoff + 4L, i.toL)
-  }
+  def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    Region.setBit(aoff + 4L, i.toL)
+
+  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    setElementMissing(aoff, i)
 
   def setElementPresent(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    region.clearBit(aoff + 4, i)
+    Region.clearBit(aoff + 4, i)
   }
 
-  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.clearBit(aoff + 4L, i.toL)
-  }
+  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    Region.clearBit(aoff + 4L, i.toL)
+
+  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
+    setElementPresent(aoff, i)
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
@@ -124,7 +144,7 @@ abstract class PContainer extends PIterable {
   def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
-      case _: PArray | _: PBinary => region.loadAddress(off)
+      case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
   }
@@ -138,7 +158,7 @@ abstract class PContainer extends PIterable {
   }
 
   def loadElement(region: Region, aoff: Long, i: Int): Long =
-    loadElement(region, aoff, region.loadInt(aoff), i)
+    loadElement(region, aoff, Region.loadInt(aoff), i)
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, Region.loadInt(aoff), i)
@@ -176,7 +196,7 @@ abstract class PContainer extends PIterable {
   }
 
   def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
-    region.storeInt(aoff, length)
+    Region.storeInt(aoff, length)
     if (setMissing)
       setAllMissingBits(region, aoff, length)
     else
@@ -262,55 +282,4 @@ abstract class PContainer extends PIterable {
   }
 
   override def containsPointers: Boolean = true
-
-  def cxxImpl: String = {
-    elementType match {
-      case _: PStruct | _: PTuple =>
-        s"ArrayAddrImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
-      case _ =>
-        s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
-    }
-  }
-
-  def cxxArrayBuilder: String = {
-    elementType match {
-      case _: PStruct | _: PTuple =>
-        s"ArrayAddrBuilder<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }, ${ alignment }>"
-      case _ =>
-        s"ArrayLoadBuilder<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize }, ${ elementType.alignment }, ${ alignment }>"
-    }
-  }
-
-  def cxxArraySorter(ltClass: String): String = s"ArraySorter<$cxxArrayBuilder, $ltClass>"
-
-  def cxxLoadLength(a: cxx.Code): cxx.Code = {
-    s"$cxxImpl::load_length($a)"
-  }
-
-  def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::is_element_missing($a, $i)"
-  }
-
-  def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
-    if (elementType.required)
-      "0"
-    else
-      s"(($len + 7) >> 3)"
-  }
-
-  def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
-    s"${ cxxElementsOffset(len) } + $len * ${ UnsafeUtils.arrayElementSize(elementType) }"
-  }
-
-  def cxxElementsOffset(len: cxx.Code): cxx.Code = {
-    s"$cxxImpl::elements_offset($len)"
-  }
-
-  def cxxElementAddress(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::element_address($a, $i)"
-  }
-
-  def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$cxxImpl::load_element($a, $i)"
-  }
 }

@@ -18,6 +18,7 @@ case object PBinaryRequired extends PBinary(true)
 class PBinary(override val required: Boolean) extends PType {
   lazy val virtualType: TBinary = TBinary(required)
 
+  def _asIdent = "binary"
   def _toPretty = "Binary"
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
@@ -32,8 +33,8 @@ class PBinary(override val required: Boolean) extends PType {
       var i = 0
 
       while (i < lim) {
-        val b1 = java.lang.Byte.toUnsignedInt(r1.loadByte(bOff1 + i))
-        val b2 = java.lang.Byte.toUnsignedInt(r2.loadByte(bOff2 + i))
+        val b1 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff1 + i))
+        val b2 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff2 + i))
         if (b1 != b2)
           return java.lang.Integer.compare(b1, b2)
 
@@ -87,13 +88,19 @@ object PBinary {
 
   def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
 
+  def loadLength(boff: Long): Int = Region.loadInt(boff)
+
   def loadLength(region: Region, boff: Long): Int =
-    region.loadInt(boff)
+    Region.loadInt(boff)
 
   def loadLength(boff: Code[Long]): Code[Int] =
     Region.loadInt(boff)
 
   def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
+
+  def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
+
+  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
 
   def bytesOffset(boff: Long): Long = boff + 4
 
@@ -107,4 +114,11 @@ object PBinary {
     region.allocate(const(contentAlignment), contentByteSize(length))
   }
 
+  def store(addr: Long, bytes: Array[Byte]): Unit = {
+    Region.storeInt(addr, bytes.length)
+    Region.storeBytes(bytesOffset(addr), bytes)
+  }
+
+  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
+    Code.invokeScalaObject[Long, Array[Byte], Unit](PBinary.getClass, "store", addr, bytes)
 }

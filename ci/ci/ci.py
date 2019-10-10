@@ -7,41 +7,42 @@ import concurrent.futures
 import datetime
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import aiomysql
 import uvloop
-import jinja2
 import humanize
-import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-
 from hailtop.batch_client.aioclient import BatchClient, Job
-from hailtop.gear import get_deploy_config, setup_aiohttp_session
-from hailtop.gear.auth import rest_authenticated_developers_only, web_authenticated_developers_only, new_csrf_token, check_csrf_token
-from hailtop import gear
+from hailtop.config import get_deploy_config
+from gear import setup_aiohttp_session, \
+    rest_authenticated_developers_only, web_authenticated_developers_only, \
+    check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
+
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
-gear.configure_logging()
 log = logging.getLogger('ci')
 
 uvloop.install()
+
+deploy_config = get_deploy_config()
 
 watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
     for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
 
-app = web.Application()
-setup_aiohttp_session(app)
-
 routes = web.RouteTableDef()
 
 start_time = datetime.datetime.now()
 
 
+@routes.get('')
 @routes.get('/')
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
@@ -83,23 +84,14 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         }
         wb_configs.append(wb_config)
 
-    token = new_csrf_token()
-
-    context = {
+    page_context = {
         'watched_branches': wb_configs,
-        'age': humanize.naturaldelta(datetime.datetime.now() - start_time),
-        'token': token
+        'age': humanize.naturaldelta(datetime.datetime.now() - start_time)
     }
-
-    response = aiohttp_jinja2.render_template('index.html',
-                                              request,
-                                              context)
-    response.set_cookie('_csrf', token, secure=True, httponly=True)
-    return response
+    return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@aiohttp_jinja2.template('pr.html')
 @web_authenticated_developers_only()
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
     watched_branch_index = int(request.match_info['watched_branch_index'])
@@ -113,9 +105,9 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
 
-    config = {}
-    config['repo'] = wb.branch.repo.short_str()
-    config['number'] = pr.number
+    page_context = {}
+    page_context['repo'] = wb.branch.repo.short_str()
+    page_context['number'] = pr.number
     # FIXME
     if pr.batch:
         if hasattr(pr.batch, 'id'):
@@ -126,10 +118,11 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 attrs = j['attributes']
                 if 'link' in attrs:
                     attrs['link'] = attrs['link'].split(',')
-            config['batch'] = status
-            config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
+            page_context['batch'] = status
+            # [4:] strips off gs:/
+            page_context['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
         else:
-            config['exception'] = '\n'.join(
+            page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))
 
     batch_client = request.app['batch_client']
@@ -139,27 +132,26 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             'pr': pr_number
         })
     batches = sorted(batches, key=lambda b: b.id, reverse=True)
-    config['history'] = [await b.status() for b in batches]
+    page_context['history'] = [await b.status() for b in batches]
 
-    return config
+    return await render_template('ci', request, userdata, 'pr.html', page_context)
 
 
 @routes.get('/batches')
-@aiohttp_jinja2.template('batches.html')
 @web_authenticated_developers_only()
-async def get_batches(request, userdata):  # pylint: disable=unused-argument
+async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
     statuses = [await b.status() for b in batches]
-    return {
+    page_context = {
         'batches': statuses
     }
+    return await render_template('ci', request, userdata, 'batches.html', page_context)
 
 
 @routes.get('/batches/{batch_id}')
-@aiohttp_jinja2.template('batch.html')
 @web_authenticated_developers_only()
-async def get_batch(request, userdata):  # pylint: disable=unused-argument
+async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
@@ -167,40 +159,41 @@ async def get_batch(request, userdata):  # pylint: disable=unused-argument
     for j in status['jobs']:
         j['duration'] = humanize.naturaldelta(Job.total_duration(j))
         j['exit_code'] = Job.exit_code(j)
-    return {
+    page_context = {
         'batch': status
     }
+    return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-@aiohttp_jinja2.template('job_log.html')
 @web_authenticated_developers_only()
-async def get_job_log(request, userdata):  # pylint: disable=unused-argument
+async def get_job_log(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
     job = await batch_client.get_job(batch_id, job_id)
-    return {
+    page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': await job.log()
     }
+    return await render_template('ci', request, userdata, 'job_log.html', page_context)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
-@aiohttp_jinja2.template('job_pod_status.html')
 @web_authenticated_developers_only()
 async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
     job = await batch_client.get_job(batch_id, job_id)
-    return {
+    page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_pod_status': json.dumps(json.loads(await job.pod_status()),
                                      indent=2)
     }
+    return await render_template('ci', request, userdata, 'job_pod_status.html', page_context)
 
 
 @routes.post('/authorize_source_sha')
@@ -215,6 +208,8 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
         async with conn.cursor() as cursor:
             await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
+    session = await aiohttp_session.get_session(request)
+    set_message(session, 'SHA {sha} authorized.', 'info')
     raise web.HTTPFound('/')
 
 
@@ -284,6 +279,7 @@ async def batch_callback_handler(request):
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
+    app = request.app
     params = await request.json()
     branch = FQBranch.from_short_str(params['branch'])
     steps = params['steps']
@@ -320,15 +316,13 @@ async def update_loop(app):
         await asyncio.sleep(300)
 
 
-aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
-
-
 async def on_startup(app):
-    app['client_session'] = aiohttp.ClientSession(
+    session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient(app['client_session'])
+    app['client_session'] = session
+    app['github_client'] = gh_aiohttp.GitHubAPI(session, 'ci', oauth_token=oauth_token)
+    app['batch_client'] = await BatchClient(session=session)
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())
@@ -354,10 +348,14 @@ async def on_cleanup(app):
 
 
 def run():
+    app = web.Application()
+    setup_aiohttp_jinja2(app, 'ci')
+    setup_aiohttp_session(app)
+
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-    app.add_routes(routes)
-    routes.static('/static', 'ci/static')
 
-    deploy_config = get_deploy_config()
+    setup_common_static_routes(routes)
+    app.add_routes(routes)
+
     web.run_app(deploy_config.prefix_application(app, 'ci'), host='0.0.0.0', port=5000)

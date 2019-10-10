@@ -5,8 +5,43 @@ import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
 
 object InferPType {
+  def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
+    ptypes.head match {
+      case x: PStreamable => {
+        val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStreamable].elementType))
+        x.copyStreamable(elementType, ptypes.forall(_.required))
+      }
+      case _: PSet => {
+        val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PSet].elementType))
+        PSet(elementType, ptypes.forall(_.required))
+      }
+      case x: PStruct => {
+        PStruct(ptypes.forall(_.required), x.fieldNames.map( fieldName =>
+          fieldName -> getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
+        ):_*)
+      }
+      case x: PTuple => {
+        PTuple( ptypes.forall(_.required), x._types.map( pTupleField =>
+          getNestedElementPTypes(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
+        ):_*)
+      }
+      case _: PDict => {
+        val keyType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].keyType))
+        val valueType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].valueType))
+
+        PDict(keyType, valueType, ptypes.forall(_.required))
+      }
+      case _:PInterval => {
+        val pointType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PInterval].pointType))
+        PInterval(pointType, ptypes.forall(_.required))
+      }
+      case _ => ptypes.head.setRequired(ptypes.forall(_.required))
+    }
+  }
+
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
+
     ir._pType2 = ir match {
       case I32(_) => PInt32(true)
       case I64(_) => PInt64(true)
@@ -24,7 +59,10 @@ object InferPType {
         InferPType(ir, env)
         PType.canonical(t, ir.pType2.required)
       }
-      case NA(t) => PType.canonical(t, false)
+      case NA(t) => {
+        val ptype = PType.canonical(t, false)
+        ptype.deepInnerRequired(false)
+      }
       case IsNA(ir) => {
         InferPType(ir, env)
         PBoolean(true)
@@ -149,7 +187,11 @@ object InferPType {
       case ToDict(a) => {
         InferPType(a, env)
         val elt = coerce[PBaseStruct](coerce[PIterable](a.pType2).elementType)
-        PDict(elt.types(0), elt.types(1), a.pType2.required)
+        // Dict key/value types don't depend on PIterable's requiredeness because we have an interface guarantee that
+        // null PIterables are filtered out before dict construction
+        val keyRequired = elt.types(0).required
+        val valRequired =  elt.types(1).required
+        PDict(elt.types(0).setRequired(keyRequired), elt.types(1).setRequired(valRequired), a.pType2.required)
       }
       case ToArray(a) => {
         InferPType(a, env)
@@ -191,6 +233,15 @@ object InferPType {
 
         zero.pType2.setRequired(body.pType2.required)
       }
+      case ArrayFold2(a, acc, valueName, seq, res) =>
+        InferPType(a, env)
+        acc.foreach { case (_, accIR) => InferPType(accIR, env) }
+        InferPType(a, env)
+        val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2)}: _*)
+        val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PArray].elementType)
+        seq.foreach(InferPType(_, seqEnv))
+        InferPType(res, resEnv)
+        res.pType2.setRequired(res.pType2.required && a.pType2.required)
       case ArrayScan(a, zero, accumName, valueName, body) => {
         InferPType(zero, env)
 
@@ -238,7 +289,7 @@ object InferPType {
       }
       case NDArrayRef(nd, idxs) => {
         InferPType(nd, env)
-        
+
         var allRequired = nd.pType2.required
         val it = idxs.iterator
         while(it.hasNext) {
@@ -247,8 +298,8 @@ object InferPType {
           InferPType(idxIR, env)
 
           assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
-          
-          if(allRequired == true && idxIR.pType2.required == false) {
+
+          if (allRequired == true && idxIR.pType2.required == false) {
             allRequired = false
           }
         }
@@ -309,6 +360,20 @@ object InferPType {
           InferPType(v._2, env)
           v._2.pType2
       }):_*)
+      case MakeArray(irs, t) => {
+        if (irs.length == 0) {
+          PType.canonical(t, true).deepInnerRequired(true)
+        } else {
+          val elementTypes = irs.map { elt =>
+            InferPType(elt, env)
+            elt.pType2
+          }
+
+          val inferredElementType = getNestedElementPTypes(elementTypes)
+
+          PArray(inferredElementType, true)
+        }
+      }
       case GetTupleElement(o, idx) => {
         InferPType(o, env)
         val t = coerce[PTuple](o.pType2)
@@ -323,8 +388,7 @@ object InferPType {
         InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
         PArray(body.pType2)
       }
-      case ReadPartition(_, _, rowType) => throw new Exception("node not supported")
-      case _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
+      case _: ReadPartition | _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge

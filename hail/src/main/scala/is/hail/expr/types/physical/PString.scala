@@ -17,6 +17,7 @@ case object PStringRequired extends PString(true)
 class PString(override val required: Boolean) extends PType {
   lazy val virtualType: TString = TString(required)
 
+  def _asIdent = "string"
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -42,9 +43,14 @@ object PString {
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 
+  def loadString(boff: Long): String = {
+    val length = PBinary.loadLength(boff)
+    new String(Region.loadBytes(PBinary.bytesOffset(boff), length))
+  }
+
   def loadString(region: Region, boff: Long): String = {
     val length = PBinary.loadLength(region, boff)
-    new String(region.loadBytes(PBinary.bytesOffset(boff), length))
+    new String(Region.loadBytes(PBinary.bytesOffset(boff), length))
   }
 
   def loadString(boff: Code[Long]): Code[String] = {

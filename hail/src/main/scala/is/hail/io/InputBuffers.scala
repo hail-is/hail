@@ -86,7 +86,7 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   }
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
-    toRegion.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
+    Region.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
   }
 
   def skipByte(): Unit = in.skip(1)
@@ -280,7 +280,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
         readBlock()
       val p = math.min(end - off, n)
       assert(p > 0)
-      toRegion.storeBytes(toOff, buf, off, p)
+      Region.storeBytes(toOff, buf, off, p)
       toOff += p
       n -= p
       off += p

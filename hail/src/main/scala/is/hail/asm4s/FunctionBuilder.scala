@@ -56,10 +56,16 @@ object FunctionBuilder {
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
+class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
 
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
+  val mname = {
+    val s = _mname.substring(0, scala.math.min(_mname.length, 65535))
+    require(java.lang.Character.isJavaIdentifierStart(s.head), "invalid java identifier, " + s)
+    require(s.forall(java.lang.Character.isJavaIdentifierPart(_)), "invalid java identifer, " + s)
+    s
+  }
   val mn = new MethodNode(ACC_PUBLIC, mname, descriptor, null, null)
   fb.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
 
@@ -184,7 +190,7 @@ class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
 ) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F]
 
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
-  val packageName: String = "is/hail/codegen/generated")(implicit val interfaceTi: TypeInfo[F]) {
+  val packageName: String = "is/hail/codegen/generated", namePrefix: String = null)(implicit val interfaceTi: TypeInfo[F]) {
 
   import FunctionBuilder._
 
@@ -192,7 +198,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   cn.version = V1_8
   cn.access = ACC_PUBLIC
 
-  val name = packageName + "/C" + newUniqueID()
+  val name = packageName + "/C" + Option(namePrefix).map(n => s"_${n}_").getOrElse("") + newUniqueID()
   cn.name = name
   cn.superName = "java/lang/Object"
   cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
@@ -206,7 +212,12 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   init.instructions.add(new IntInsnNode(ALOAD, 0))
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
-  init.instructions.add(new InsnNode(RETURN))
+
+  def addInitInstructions(c: Code[Unit]): Unit = {
+    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+    c.emit(l)
+    l.foreach(init.instructions.add _)
+  }
 
   protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
@@ -265,11 +276,14 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def emit(insn: AbstractInsnNode) = apply_method.emit(insn)
 
-  def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
-    val mb = new MethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
+  def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
+    val mb = new MethodBuilder(this, s"${ prefix }_${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb
   }
+
+  def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder =
+    newMethod("method", argsInfo, returnInfo)
 
   def newMethod[R: TypeInfo]: MethodBuilder =
     newMethod(Array[TypeInfo[_]](), typeInfo[R])
@@ -290,6 +304,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+    init.instructions.add(new InsnNode(RETURN))
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
 
@@ -301,18 +316,26 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
         val count = method.instructions.size
         log.info(s"${ cn.name }.${ method.name } instruction count: $count")
         if (count > 8000)
-          log.info(s"${ cn.name }.${ method.name } instruction count > 8000")
+          log.warn(s"big method: ${ cn.name }.${ method.name }: $count")
       }
 
       cn.accept(cw)
       bytes = cw.toByteArray
+//       This next line should always be commented out!
+//      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
     } catch {
       case e: Exception =>
         // if we fail with frames, try without frames for better error message
         val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
         val sw2 = new StringWriter()
         cn.accept(cwNoFrames)
-        CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+        try {
+          CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+        } catch {
+          case e: Exception =>
+            log.error("Verify Output 1 for " + name + ":")
+            throw e
+        }
 
         if (sw2.toString().length() != 0) {
           System.err.println("Verify Output 2 for " + name + ":")
@@ -320,7 +343,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
           throw new IllegalStateException("Bytecode failed verification 1", e)
         } else {
           if (sw1.toString().length() != 0) {
-            System.err.println("Verifiy Output 1 for " + name + ":")
+            System.err.println("Verify Output 1 for " + name + ":")
             System.err.println(sw1)
           }
           throw e
@@ -380,16 +403,16 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   }
 }
 
-class Function2Builder[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo]
-  extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
+class Function2Builder[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R], namePrefix = name) {
 
   def arg1 = getArg[A1](1)
 
   def arg2 = getArg[A2](2)
 }
 
-class Function3Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, R : TypeInfo]
-  extends FunctionBuilder[AsmFunction3[A1, A2, A3, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R]) {
+class Function3Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction3[A1, A2, A3, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R], namePrefix = name) {
 
   def arg1 = getArg[A1](1)
 
@@ -398,8 +421,8 @@ class Function3Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, R : TypeInfo
   def arg3 = getArg[A3](3)
 }
 
-class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, R : TypeInfo]
-  extends FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R]) {
+class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R], namePrefix = name) {
 
   def arg1 = getArg[A1](1)
 
@@ -409,3 +432,18 @@ class Function4Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInf
 
   def arg4 = getArg[A4](4)
 }
+
+class Function5Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInfo, A5 : TypeInfo, R : TypeInfo](name: String)
+  extends FunctionBuilder[AsmFunction5[A1, A2, A3, A4, A5, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4], GenericTypeInfo[A5]), GenericTypeInfo[R], namePrefix = name) {
+
+  def arg1 = getArg[A1](1)
+
+  def arg2 = getArg[A2](2)
+
+  def arg3 = getArg[A3](3)
+
+  def arg4 = getArg[A4](4)
+
+  def arg5 = getArg[A5](5)
+}
+

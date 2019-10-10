@@ -8,9 +8,10 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
-from hailtop.gear import get_deploy_config, setup_aiohttp_session, create_database_pool
-from hailtop.gear.auth import rest_authenticated_users_only, \
-    web_maybe_authenticated_user, create_session
+from hailtop.config import get_deploy_config
+from gear import setup_aiohttp_session, create_database_pool, \
+    rest_authenticated_users_only, \
+    web_maybe_authenticated_user, create_session, check_csrf_token
 
 log = logging.getLogger('auth')
 
@@ -41,13 +42,13 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @routes.get('')
 @routes.get('/')
 async def get_index(request):  # pylint: disable=unused-argument
-    return aiohttp.web.HTTPFound('/login')
+    return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/login'))
 
 
 @routes.get('/login')
 @web_maybe_authenticated_user
 async def login(request, userdata):
-    next = request.query.get('next', deploy_config.external_url('notebook2', ''))
+    next = request.query.get('next', deploy_config.external_url('notebook', ''))
     if userdata:
         return aiohttp.web.HTTPFound(next)
 
@@ -101,10 +102,11 @@ async def callback(request):
 
 
 @routes.post('/logout')
+@check_csrf_token
 @web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('notebook2', ''))
+        return web.HTTPFound(deploy_config.external_url('notebook', ''))
 
     dbpool = request.app['dbpool']
     session_id = userdata['session_id']
@@ -116,7 +118,7 @@ async def logout(request, userdata):
     if 'session_id' in session:
         del session['session_id']
 
-    return web.HTTPFound(deploy_config.external_url('notebook2', ''))
+    return web.HTTPFound(deploy_config.external_url('notebook', ''))
 
 
 @routes.get('/api/v1alpha/login')
@@ -183,15 +185,18 @@ async def rest_logout(request, userdata):
 @routes.get('/api/v1alpha/userinfo')
 async def userinfo(request):
     if 'Authorization' not in request.headers:
+        log.info('Authorization not in request.headers')
         raise web.HTTPUnauthorized()
 
     auth_header = request.headers['Authorization']
     if not auth_header.startswith('Bearer '):
+        log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
     session_id = auth_header[7:]
 
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
+        log.info('Session id != 44 bytes')
         raise web.HTTPUnauthorized()
 
     dbpool = request.app['dbpool']
@@ -205,6 +210,7 @@ WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < 
             users = await cursor.fetchall()
 
     if len(users) != 1:
+        log.info(f'Unknown session id: {session_id}')
         raise web.HTTPUnauthorized()
     user = users[0]
 

@@ -1,7 +1,9 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.CodeOrdering
+import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{TTuple, TupleField}
 import is.hail.utils._
 
@@ -17,9 +19,9 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
   lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
 
   val types = _types.map(_.typ).toArray
-  val fieldRequired: Array[Boolean] = types.map(_.required)
 
   val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
+  val nFields: Int = fields.size
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
@@ -28,17 +30,17 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb)
   }
 
-  val size: Int = types.length
-
   override def truncate(newSize: Int): PTuple =
     PTuple(_types.take(newSize), required)
 
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = PBaseStruct.getMissingness(types, missingIdx)
+  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
+
+  def identBase: String = "tuple"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")
@@ -62,5 +64,20 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
       this
     else
       PTuple(fundamentalFieldTypes, required)
+  }
+}
+
+class CodePTuple(
+  val pType: PTuple,
+  val region: Code[Region],
+  val offset: Code[Long]
+) {
+  def apply[T](i: Int): Code[T] =
+    Region.loadIRIntermediate(pType.types(i))(
+      pType.loadField(offset, i)
+    ).asInstanceOf[Code[T]]
+
+  def isMissing(i: Int): Code[Boolean] = {
+    pType.isFieldMissing(offset, i)
   }
 }

@@ -5,7 +5,7 @@ import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, SortField}
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -93,11 +93,122 @@ class SimplifySuite extends HailSuite {
     val r2 = Ref("row2", TStruct(("x", TInt32()), ("y", TFloat64())))
 
     val ir1 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD))))
-    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "y").toI))))
+    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
     val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct()), FastSeq(("z", GetField(r2, "y").toI))))
 
-    assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD))))
-    assert(Simplify(ir2) == ir2)
-    assert(Simplify(ir3) == ir3)
+    assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ir3) == InsertFields(Ref("something_else", TStruct()), FastSeq(("z", I32(0)))))
+
+    val shouldNotRewrite = Let("row2", InsertFields(r, FastSeq(("y", Ref("other", TFloat64())))), InsertFields(r2, FastSeq(("z", invoke("str", TString(), r2)))))
+
+    assert(Simplify(shouldNotRewrite) == shouldNotRewrite)
+  }
+
+  @Test def testNestedInsertsSimplifyAcrossLets() {
+    val l = Let("a",
+      Let("b",
+        I32(1) + Ref("OTHER_1", TInt32()),
+        InsertFields(
+          Ref("TOP", TStruct("foo" -> TInt32())),
+          FastSeq(
+            ("field0", Ref("b", TInt32())),
+            ("field1", I32(1) + Ref("b", TInt32()))))),
+      InsertFields(
+        Ref("a", TStruct("foo" -> TInt32(), "field0" -> TInt32(), "field1" -> TInt32())),
+        FastSeq(
+          ("field2", I32(1) + GetField(Ref("a", TStruct("foo" -> TInt32(), "field0" -> TInt32(), "field1" -> TInt32())), "field1"))
+        )
+      )
+    )
+    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(l))
+    val expected = Let("1",
+      I32(1) + Ref("OTHER_1", TInt32()),
+      Let("2", I32(1) + Ref("1", TInt32()),
+        InsertFields(Ref("TOP", TStruct("foo" -> TInt32())),
+          FastSeq(
+            ("field0", Ref("1", TInt32())),
+            ("field1", Ref("2", TInt32())),
+            ("field2", I32(1) + Ref("2", TInt32()))
+          ),
+          Some(FastSeq("foo", "field0", "field1", "field2")))))
+
+    assert(simplified == expected)
+  }
+
+  @Test def testArrayAggNoAggRewrites(): Unit = {
+    val doesRewrite: Array[ArrayAgg] = Array(
+      ArrayAgg(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
+      ArrayAgg(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true)))
+
+    doesRewrite.foreach { a =>
+      assert(Simplify(a) == a.query)
+    }
+
+    val doesNotRewrite: Array[ArrayAgg] = Array(
+      ArrayAgg(In(0, TArray(TInt32())), "foo",
+        ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(Ref("foo", TInt32())),
+          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt32())))),
+      ArrayAgg(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false))
+    )
+
+    doesNotRewrite.foreach { a =>
+      assert(Simplify(a) == a)
+    }
+  }
+
+  @Test def testArrayAggScanNoAggRewrites(): Unit = {
+    val doesRewrite: Array[ArrayAggScan] = Array(
+      ArrayAggScan(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
+      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false)))
+
+    doesRewrite.foreach { a =>
+      assert(Simplify(a) == a.query)
+    }
+
+    val doesNotRewrite: Array[ArrayAggScan] = Array(
+      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+        ApplyScanOp(FastIndexedSeq(), None, FastIndexedSeq(Ref("foo", TInt32())),
+          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt32())))),
+      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+        AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true))
+    )
+
+    doesNotRewrite.foreach { a =>
+      assert(Simplify(a) == a)
+    }
+  }
+
+
+  @Test def testFilterParallelize() {
+    for (rowsAndGlobals <- Array(
+      MakeStruct(FastSeq(
+      ("rows", In(0, TArray(TStruct("x" -> TInt32())))),
+      ("global", In(1, TStruct())))),
+      In(0, TStruct("rows" -> TArray(TStruct("x" -> TInt32())), "global" -> TStruct())))
+    ) {
+      val tp = TableParallelize(rowsAndGlobals, None)
+      val tf = TableFilter(tp, GetField(Ref("row", tp.typ.rowType), "x") < 100)
+
+      val rw = Simplify(tf)
+      TypeCheck(rw)
+      assert(!Exists(rw, _.isInstanceOf[TableFilter]))
+    }
+  }
+
+  @Test def testFilterIntervalsKeyByToFilter() {
+    var t: TableIR = TableRange(100, 10)
+    t = TableMapRows(t, InsertFields(Ref("row", t.typ.rowType), FastSeq(("x", I32(1) - GetField(Ref("row", t.typ.rowType), "idx")))))
+    t = TableKeyBy(t, FastIndexedSeq("x"))
+    t = TableFilterIntervals(t, FastIndexedSeq(Interval(Row(-10), Row(10), includesStart = true, includesEnd = false)), keep = true)
+
+    val t2 = Simplify(t)
+    assert(t2 match {
+      case TableKeyBy(TableFilter(child, _), _, _) => !Exists(child, _.isInstanceOf[TableFilterIntervals])
+      case _ => false
+    })
   }
 }

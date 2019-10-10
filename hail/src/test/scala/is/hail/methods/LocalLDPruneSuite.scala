@@ -323,34 +323,6 @@ class LocalLDPruneSuite extends HailSuite {
     Spec.check()
   }
 
-  @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
-    Region.scoped { r =>
-      val rvb = new RegionValueBuilder(r)
-      val t = BitPackedVectorView.rvRowPType(
-        +PLocus(ReferenceGenome.GRCh37),
-        +PArray(+PString()))
-      val bpv = new BitPackedVectorView(t)
-      r.appendInt(0xbeef)
-      rvb.start(t)
-      rvb.startStruct()
-      rvb.startStruct()
-      rvb.addString("X")
-      rvb.addInt(42)
-      rvb.endStruct()
-      rvb.startArray(0)
-      rvb.endArray()
-      rvb.startArray(0)
-      rvb.endArray()
-      rvb.addInt(0)
-      rvb.addDouble(0.0)
-      rvb.addDouble(0.0)
-      rvb.endStruct()
-      bpv.setRegion(r, rvb.end())
-      assert(bpv.getContig == "X")
-      assert(bpv.getStart == 42)
-    }
-  }
-
   @Test def testIsLocallyUncorrelated() {
     val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))

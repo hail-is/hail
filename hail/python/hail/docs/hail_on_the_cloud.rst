@@ -5,7 +5,10 @@ Hail on the Cloud
 =================
 
 Public clouds are a natural place to run Hail, offering the ability to run
-on-demand workloads with high elasticity.
+on-demand workloads with high elasticity. For example, Google and Amazon make it
+possible to rent Spark clusters with many thousands of cores on-demand,
+providing for the elastic compute requirements of scientific research without
+an up-front capital investment in hardware.
 
 Google Cloud Platform
 ---------------------
@@ -44,7 +47,7 @@ To submit a Python job to that cluster, use:
 
 .. code-block:: text
 
-    hailctl dataproc submit CLUSTER_NAME SCRIPT [optional args...]
+    hailctl dataproc submit CLUSTER_NAME SCRIPT [optional args to your python script...]
 
 To connect to a Jupyter notebook running on that cluster, use:
 

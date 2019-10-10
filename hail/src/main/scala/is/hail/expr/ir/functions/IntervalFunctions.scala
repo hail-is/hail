@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PInterval, PType}
-import is.hail.expr.types.virtual.{TBoolean, TBooleanOptional, TInterval}
+import is.hail.expr.types.virtual.{TArray, TBoolean, TBooleanOptional, TInt32, TInterval}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -53,7 +53,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
-          region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv))
+          Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv))
         )
     }
 
@@ -64,7 +64,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
-          region.loadIRIntermediate(tv("T").t)(intervalT.endOffset(iv))
+          Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv))
         )
     }
 
@@ -125,6 +125,17 @@ object IntervalFunctions extends RegistryFunctions {
             interval1.isAboveOnNonempty(interval2))
         )
     }
+
+    registerIR("sortedNonOverlappingIntervalsContain",
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean()) { case (intervals, value) =>
+      val uid = genUID()
+      val uid2 = genUID()
+      Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
+        (Let(uid2, Ref(uid, TInt32()) - I32(1), (Ref(uid2, TInt32()) >= 0)
+          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid2, TInt32())), value)))
+          || ((Ref(uid, TInt32()) < ArrayLen(intervals))
+          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid, TInt32())), value)))
+    }
   }
 }
 
@@ -138,9 +149,9 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   def storeToLocal: Code[Unit] = ref := value
 
   def start: (Code[Boolean], Code[_]) =
-    (!typ.startDefined(ref), region.getIRIntermediate(typ.pointType)(typ.startOffset(ref)))
+    (!typ.startDefined(ref), Region.getIRIntermediate(typ.pointType)(typ.startOffset(ref)))
   def end: (Code[Boolean], Code[_]) =
-    (!typ.endDefined(ref), region.getIRIntermediate(typ.pointType)(typ.endOffset(ref)))
+    (!typ.endDefined(ref), Region.getIRIntermediate(typ.pointType)(typ.endOffset(ref)))
   def includeStart: Code[Boolean] = typ.includeStart(ref)
   def includeEnd: Code[Boolean] = typ.includeEnd(ref)
 

@@ -741,6 +741,7 @@ class Expression(object):
         1:3	["A","C"]	1/1	0/1	0/1	0/0
         1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
+
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
@@ -750,6 +751,7 @@ class Expression(object):
         1:3	["A","C"]	1/1	0/1	0/1	0/0
         1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
+
         >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
@@ -760,6 +762,7 @@ class Expression(object):
         2	0
         3	2
         <BLANKLINE>
+
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
         ...     for line in f:
@@ -770,6 +773,7 @@ class Expression(object):
         1:3	["A","C"]	4.3765e-01
         1:4	["A","C"]	7.6300e-01
         <BLANKLINE>
+
         >>> mt = small_mt
         >>> small_mt.bn.export('output/bn.tsv')
         >>> with open('output/bn.tsv', 'r') as f:

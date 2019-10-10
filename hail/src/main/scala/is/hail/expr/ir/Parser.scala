@@ -2,23 +2,23 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
-import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2}
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.bgen.MatrixBGENReaderSerializer
+import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.json4s.{Formats, MappingException}
+import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
 
 abstract class Token extends Positional {
@@ -157,15 +157,7 @@ object IRParser {
   def error(t: Token, msg: String): Nothing = ParserUtils.error(t.pos, msg)
 
   def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
-    try {
-      Serialization.read[T](str)
-    } catch {
-      case e: MappingException =>
-        if (e.cause != null)
-          throw e.cause
-        else
-          throw e
-    }
+    Serialization.read[T](str)
   }
 
   def consumeToken(it: TokenIterator): Token = {
@@ -326,14 +318,17 @@ object IRParser {
     i -> t
   }
 
-  def type_field(env: TypeParserEnvironment)(it: TokenIterator): (String, Type) = {
+  def struct_field[T](f: TokenIterator => T)(it: TokenIterator): (String, T) = {
     val name = identifier(it)
     punctuation(it, ":")
-    val typ = type_expr(env)(it)
+    val typ = f(it)
     while (it.hasNext && it.head == PunctuationToken("@")) {
       decorator(it)
     }
     (name, typ)
+  }
+  def type_field(env: TypeParserEnvironment)(it: TokenIterator): (String, Type) = {
+    struct_field(type_expr(env))(it)
   }
 
   def type_exprs(env: TypeParserEnvironment)(it: TokenIterator): Array[Type] = {
@@ -709,7 +704,9 @@ object IRParser {
         val rName = identifier(it)
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
-        val body = ir_value_expr(env)(it)
+        val body_env = (env + (lName -> -(coerce[TNDArray](l.typ).elementType))
+                            + (rName -> -(coerce[TNDArray](r.typ).elementType)))
+        val body = ir_value_expr(body_env)(it)
         NDArrayMap2(l, r, lName, rName, body)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
@@ -770,6 +767,17 @@ object IRParser {
         val eltType = -coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayFold(a, zero, accumName, valueName, body)
+      case "ArrayFold2" =>
+        val accumNames = identifiers(it)
+        val valueName = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val accs = accumNames.map(name => (name, ir_value_expr(env)(it)))
+        val eltType = -coerce[TStreamable](a.typ).elementType
+        val resultEnv = env.update(accs.map { case (name, value) => (name, value.typ) }.toMap)
+        val seqEnv = resultEnv.update(Map(valueName -> eltType))
+        val seqs = Array.tabulate(accs.length)(_ => ir_value_expr(seqEnv)(it))
+        val res = ir_value_expr(resultEnv)(it)
+        ArrayFold2(a, accs, valueName, seqs, res)
       case "ArrayScan" =>
         val accumName = identifier(it)
         val valueName = identifier(it)
@@ -1014,7 +1022,7 @@ object IRParser {
         env.irMap(name).asInstanceOf[IR]
       case "ReadPartition" =>
         implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec2]
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
         ReadPartition(path, spec, rowType)
@@ -1406,7 +1414,7 @@ object IRParser {
         val child = ir_value_expr(env)(it)
         ValueToBlockMatrix(child, shape, blockSize)
       case "BlockMatrixRandom" =>
-        val seed = int32_literal(it)
+        val seed = int64_literal(it)
         val gaussian = boolean_literal(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)

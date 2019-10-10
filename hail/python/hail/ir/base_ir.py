@@ -1,9 +1,19 @@
 import abc
 
-from typing import List
-
 from hail.utils.java import Env
-from .renderer import Renderer, Renderable, RenderableStr
+from .renderer import Renderer, PlainRenderer, Renderable
+
+
+def _env_bind(env, bindings):
+    if bindings:
+        if env:
+            res = env.copy()
+            res.update(bindings)
+            return res
+        else:
+            return dict(bindings)
+    else:
+        return env
 
 
 class BaseIR(Renderable):
@@ -13,22 +23,25 @@ class BaseIR(Renderable):
         self.children = children
 
     def __str__(self):
-        r = Renderer(stop_at_jir=False)
+        r = PlainRenderer(stop_at_jir=False)
         return r(self)
 
-    def render_head(self, r):
+    def render_head(self, r: Renderer):
         head_str = self.head_str()
         if head_str != '':
             head_str = f' {head_str}'
-        return f'({self._ir_name()}{head_str}'
+        trailing_space = ''
+        if len(self.children) > 0:
+            trailing_space = ' '
+        return f'({self._ir_name()}{head_str}{trailing_space}'
 
-    def render_tail(self, r):
+    def render_tail(self, r: Renderer):
         return ')'
 
     def _ir_name(self):
         return self.__class__.__name__
 
-    def render_children(self, r):
+    def render_children(self, r: Renderer):
         return self.children
 
     def head_str(self):
@@ -44,7 +57,8 @@ class BaseIR(Renderable):
     def parse(self, code, ref_map, ir_map):
         return
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def typ(self):
         return
 
@@ -70,6 +84,66 @@ class BaseIR(Renderable):
 
     def __hash__(self):
         return 31 + hash(str(self))
+
+    @abc.abstractmethod
+    def new_block(self, i: int) -> bool:
+        ...
+
+    def renderable_new_block(self, i: int) -> bool:
+        return self.new_block(i)
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return False
+
+    def bindings(self, i: int, default_value=None):
+        """Compute variables bound in child 'i'.
+
+        Returns
+        -------
+        dict
+            mapping from bound variables to 'default_value', if provided,
+            otherwise to their types
+        """
+        return {}
+
+    def agg_bindings(self, i: int, default_value=None):
+        return {}
+
+    def scan_bindings(self, i: int, default_value=None):
+        return {}
+
+    def uses_agg_context(self, i: int) -> bool:
+        return False
+
+    def renderable_uses_agg_context(self, i: int) -> bool:
+        return self.uses_agg_context(i)
+
+    def uses_scan_context(self, i: int) -> bool:
+        return False
+
+    def renderable_uses_scan_context(self, i: int) -> bool:
+        return self.uses_scan_context(i)
+
+    def child_context_without_bindings(self, i: int, parent_context):
+        (eval_c, agg_c, scan_c) = parent_context
+        if self.uses_agg_context(i):
+            return (agg_c, None, None)
+        elif self.uses_scan_context(i):
+            return (scan_c, None, None)
+        else:
+            return parent_context
+
+    def child_context(self, i: int, parent_context, default_value=None):
+        base = self.child_context_without_bindings(i, parent_context)
+        eval_b = self.bindings(i, default_value)
+        agg_b = self.agg_bindings(i, default_value)
+        scan_b = self.scan_bindings(i, default_value)
+        if eval_b or agg_b or scan_b:
+            (eval_c, agg_c, scan_c) = base
+            return _env_bind(eval_c, eval_b), _env_bind(agg_c, agg_b), _env_bind(scan_c, scan_b)
+        else:
+            return base
 
 
 class IR(BaseIR):
@@ -108,7 +182,7 @@ class IR(BaseIR):
 
     @property
     def bound_variables(self):
-        return {v for child in self.children for v in child.bound_variables}
+        return {v for child in self.children if isinstance(child, IR) for v in child.bound_variables}
 
     @property
     def typ(self):
@@ -116,6 +190,9 @@ class IR(BaseIR):
             self._compute_type({}, None)
             assert self._type is not None, self
         return self._type
+
+    def new_block(self, i: int) -> bool:
+        return False
 
     @abc.abstractmethod
     def _compute_type(self, env, agg_env):
@@ -143,8 +220,14 @@ class TableIR(BaseIR):
             assert self._type is not None, self
         return self._type
 
+    def new_block(self, i: int) -> bool:
+        return True
+
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_table_ir(code, ref_map, ir_map)
+
+    global_env = {'global'}
+    row_env = {'global', 'row'}
 
 
 class MatrixIR(BaseIR):
@@ -162,8 +245,16 @@ class MatrixIR(BaseIR):
             assert self._type is not None, self
         return self._type
 
+    def new_block(self, i: int) -> bool:
+        return True
+
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_matrix_ir(code, ref_map, ir_map)
+
+    global_env = {'global'}
+    row_env = {'global', 'va'}
+    col_env = {'global', 'sa'}
+    entry_env = {'global', 'sa', 'va', 'g'}
 
 
 class BlockMatrixIR(BaseIR):
@@ -180,6 +271,9 @@ class BlockMatrixIR(BaseIR):
             self._compute_type()
             assert self._type is not None, self
         return self._type
+
+    def new_block(self, i: int) -> bool:
+        return True
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, ref_map, ir_map)

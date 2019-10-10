@@ -1,7 +1,7 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.annotations.RegionValue
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
@@ -34,7 +34,7 @@ object RegressionUtils {
         val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, k)
         if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
           val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-          val e = region.loadDouble(fieldOffset)
+          val e = Region.loadDouble(fieldOffset)
           sum += e
           data(offset + j) = e
         } else

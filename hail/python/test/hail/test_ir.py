@@ -1,7 +1,9 @@
 import unittest
 import hail as hl
 import hail.ir as ir
+from hail.ir.renderer import CSERenderer
 from hail.expr import construct_expr
+from hail.expr.types import tint32
 from hail.utils.java import Env
 from hail.utils import new_temp_file
 from .helpers import *
@@ -94,7 +96,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableGetGlobals(table),
-            ir.TableCollect(table),
+            ir.TableCollect(ir.TableKeyBy(table, [], False)),
             ir.TableToValueApply(table, {'name': 'ForceCountTable'}),
             ir.MatrixToValueApply(matrix_read, {'name': 'ForceCountMatrixTable'}),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
@@ -357,3 +359,79 @@ class ValueTests(unittest.TestCase):
                     None))
             new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
             self.assertEqual(new_globals, hl.Struct(foo=v))
+
+
+class CSETests(unittest.TestCase):
+    def test_cse(self):
+        x = ir.I32(5)
+        x = ir.ApplyBinaryPrimOp('+', x, x)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (ApplyBinaryPrimOp `+`'
+                ' (Ref __cse_1)'
+                ' (Ref __cse_1)))')
+        assert expected == CSERenderer()(x)
+
+    def test_cse2(self):
+        x = ir.I32(5)
+        y = ir.I32(4)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        prod = ir.ApplyBinaryPrimOp('*', sum, y)
+        div = ir.ApplyBinaryPrimOp('/', prod, sum)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            ' (ApplyBinaryPrimOp `/`'
+                ' (ApplyBinaryPrimOp `*`'
+                    ' (Ref __cse_2)'
+                    ' (I32 4))'
+                ' (Ref __cse_2))))')
+        assert expected == CSERenderer()(div)
+
+    def test_cse_ifs(self):
+        outer_repeated = ir.I32(5)
+        inner_repeated = ir.I32(1)
+        sum = ir.ApplyBinaryPrimOp('+', inner_repeated, inner_repeated)
+        prod = ir.ApplyBinaryPrimOp('*', sum, outer_repeated)
+        cond = ir.If(ir.TrueIR(), prod, outer_repeated)
+        expected = (
+            '(If (True)'
+                ' (Let __cse_1 (I32 1)'
+                ' (ApplyBinaryPrimOp `*`'
+                    ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+                    ' (I32 5)))'
+                ' (I32 5))'
+        )
+        assert expected == CSERenderer()(cond)
+
+    def test_agg_cse(self):
+        x = ir.GetField(ir.Ref('row'), 'idx')
+        inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
+        agg = ir.ApplyAggOp('AggOp', [], [], [inner_sum])
+        outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
+        table_agg = ir.TableAggregate(ir.TableRange(5, 1), outer_sum)
+        expected = (
+            '(TableAggregate (TableRange 5 1)'
+                ' (AggLet __cse_1 False (GetField idx (Ref row))'
+                ' (Let __cse_2 (ApplyAggOp AggOp () None'
+                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
+                ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
+        assert expected == CSERenderer()(table_agg)
+
+    def test_init_op(self):
+        x = ir.I32(5)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        agg = ir.ApplyAggOp('CallStats', [sum], [sum], [sum])
+        top = ir.ApplyBinaryPrimOp('+', sum, agg)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (AggLet __cse_4 False (I32 5)'
+            ' (ApplyBinaryPrimOp `+`'
+                ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+                ' (ApplyAggOp CallStats'
+                    ' ((Let __cse_3 (I32 5)'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
+                    ' ((Let __cse_3 (I32 5)'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
+                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
+        assert expected == CSERenderer()(top)

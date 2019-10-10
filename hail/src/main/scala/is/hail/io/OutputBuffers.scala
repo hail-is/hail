@@ -27,6 +27,8 @@ trait OutputBuffer extends Closeable {
 
   def writeBytes(region: Region, off: Long, n: Int): Unit
 
+  def writeBytes(addr: Long, n: Int): Unit
+
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit
 
   def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
@@ -73,7 +75,9 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
     out.write(buf, 0, 8)
   }
 
-  def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(region.loadBytes(off, n))
+  def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(Region.loadBytes(off, n))
+
+  def writeBytes(addr: Long, n: Int): Unit = out.write(Region.loadBytes(addr, n))
 
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
     var i = 0
@@ -102,6 +106,8 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
   def writeDouble(d: Double): Unit = mb.writeDouble(d)
 
   def writeBytes(region: Region, off: Long, n: Int): Unit = mb.writeBytes(region, off, n)
+
+  def writeBytes(addr: Long, n: Int): Unit = mb.writeBytes(addr, n)
 
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = ???
 }
@@ -144,6 +150,8 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def writeDouble(d: Double): Unit = out.writeDouble(d)
 
   def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
+
+  def writeBytes(addr: Long, n: Int): Unit = out.writeBytes(addr, n)
 
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = out.writeDoubles(from, fromOff, n)
 }
@@ -207,21 +215,23 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     off += 8
   }
 
-  def writeBytes(fromRegion: Region, fromOff0: Long, n0: Int) {
+  def writeBytes(fromRegion: Region, fromOff0: Long, n0: Int) = writeBytes(fromOff0, n0)
+
+  def writeBytes(addr0: Long, n0: Int) {
     assert(n0 >= 0)
-    var fromOff = fromOff0
+    var addr = addr0
     var n = n0
 
     while (off + n > buf.length) {
       val p = buf.length - off
-      fromRegion.loadBytes(fromOff, buf, off, p)
+      Region.loadBytes(addr, buf, off, p)
       off += p
-      fromOff += p
+      addr += p
       n -= p
       assert(off == buf.length)
       writeBlock()
     }
-    fromRegion.loadBytes(fromOff, buf, off, n)
+    Region.loadBytes(addr, buf, off, n)
     off += n
   }
 
@@ -276,4 +286,3 @@ final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
   def getPos(): Long = out.getPos()
 }
-

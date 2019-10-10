@@ -37,6 +37,7 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
       this.copy(elementType = elementType.fundamentalType)
   }
 
+  def _asIdent = s"stream_of_${elementType.asIdent}"
   def _toPretty = s"Stream[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

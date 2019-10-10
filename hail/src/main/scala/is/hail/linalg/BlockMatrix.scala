@@ -133,7 +133,7 @@ object BlockMatrix {
   
   // uniform or Gaussian
   def random(hc: HailContext, nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
-    seed: Int = 0, gaussian: Boolean): M =
+    seed: Long = 0, gaussian: Boolean): M =
     BlockMatrix(hc.sc, GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
       val blockSeed = seed + 15485863 * pi // millionth prime
@@ -1511,8 +1511,9 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     })
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-    val (blockRow, newBlockCol) = newGP.blockCoordinates(newGP.partitionToBlock(split.index))
-    val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
+    val blockIndex = newGP.partitionToBlock(split.index)
+    val (blockRow, newBlockCol) = newGP.blockCoordinates(blockIndex)
+    val (blockNRows, newBlockNCols) = newGP.blockDims(blockIndex)
     val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
     val newBlock = BDM.zeros[Double](blockNRows, newBlockNCols)
     var j = 0
@@ -1536,7 +1537,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           val ei = endIndices(colRangeIndex)
           k = j + ei - si
 
-          newBlock(::, j until k) := block(::, si until ei)
+          newBlock(::, j until k) := block(0 until newBlock.rows, si until ei)
 
           j = k
           colRangeIndex += 1
@@ -1862,7 +1863,7 @@ class WriteBlocksRDD(path: String,
                 val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
                 if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
                   val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-                  data(j) = region.loadDouble(fieldOffset)
+                  data(j) = Region.loadDouble(fieldOffset)
                 } else {
                   val rowIdx = blockRow * blockSize + i
                   fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")

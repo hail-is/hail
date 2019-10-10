@@ -31,10 +31,21 @@ trait AbstractIndexMetadata {
   def rootOffset: Long
 
   def attributes: Map[String, Any]
+}
 
-  def leafSpec: CodecSpec2
-
-  def intSpec: CodecSpec2
+case class IndexMetadataUntypedJSON(
+  fileVersion: Int,
+  branchingFactor: Int,
+  height: Int,
+  nKeys: Long,
+  indexPath: String,
+  rootOffset: Long,
+  attributes: Map[String, Any]
+) {
+  def toMetadata(keyType: Type, annotationType: Type): IndexMetadata = IndexMetadata(
+    fileVersion, branchingFactor,
+    height, keyType, annotationType,
+    nKeys, indexPath, rootOffset, attributes)
 }
 
 case class IndexMetadata(
@@ -47,16 +58,7 @@ case class IndexMetadata(
   indexPath: String,
   rootOffset: Long,
   attributes: Map[String, Any]
-) extends AbstractIndexMetadata {
-  val baseSpec = LEB128BufferSpec(
-      BlockingBufferSpec(32 * 1024,
-        LZ4BlockBufferSpec(32 * 1024,
-          new StreamBlockBufferSpec)))
-
-  def leafSpec: CodecSpec2 = PackCodecSpec2(LeafNodeBuilder.legacyTyp(keyType.physicalType, annotationType.physicalType), baseSpec)
-
-  def intSpec: CodecSpec2 = PackCodecSpec2(InternalNodeBuilder.legacyTyp(keyType.physicalType, annotationType.physicalType), baseSpec)
-}
+) extends AbstractIndexMetadata
 
 case class IndexNodeInfo(
   indexFileOffset: Long,
@@ -67,7 +69,7 @@ case class IndexNodeInfo(
 )
 
 object IndexWriter {
-  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+  val version: SemanticVersion = SemanticVersion(1, 1, 0)
 
   def builder(
     keyType: PType,
@@ -76,10 +78,10 @@ object IndexWriter {
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (FS, String) => IndexWriter = {
     val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
-    val makeLeafEnc = CodecSpec.default.makeCodecSpec2(leafPType).buildEncoder(leafPType)
+    val makeLeafEnc = TypedCodecSpec(leafPType, BufferSpec.default).buildEncoder(leafPType)
 
     val intPType = InternalNodeBuilder.typ(keyType, annotationType)
-    val makeIntEnc = CodecSpec.default.makeCodecSpec2(intPType).buildEncoder(intPType)
+    val makeIntEnc = TypedCodecSpec(intPType, BufferSpec.default).buildEncoder(intPType)
 
 
     { (fs: FS, path: String) =>
@@ -90,8 +92,6 @@ object IndexWriter {
         annotationType,
         makeLeafEnc,
         makeIntEnc,
-        leafPType,
-        intPType,
         branchingFactor,
         attributes)
     }
@@ -106,8 +106,6 @@ class IndexWriter(
   annotationType: PType,
   makeLeafEncoder: (OutputStream) => Encoder,
   makeInternalEncoder: (OutputStream) => Encoder,
-  leafPType: PType,
-  intPType: PType,
   branchingFactor: Int = 4096,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
   require(branchingFactor > 1)

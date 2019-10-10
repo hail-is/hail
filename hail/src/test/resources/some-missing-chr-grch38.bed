@@ -1,0 +1,6 @@
+track name="BedTest"
+20    2	10	gene0
+20    1          14000000  gene1
+20    17000000   18000000  gene2
+chr20    63025510	 63025520  gene3
+chr20    5		 5	   gene4

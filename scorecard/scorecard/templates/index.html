@@ -1,72 +1,34 @@
-<html lang="en">
-<head>
-    <title>Scorecard</title>
-    <style type="text/css">
-      td {
-          padding: 3px 10px 3px 10px;
-          vertical-align: top;
-      }
-      tr:nth-child(even) { background-color: #f2f2f2; }
-      th { padding: 0px 10px 3px 10px; }
-
-      h1 { font-size: 1.4em; }
-      h2 { font-size: 1.2em; }
-
-      #avatar {
-          float: left;
-          width: 44px;
-          height: 44px;
-          margin: 0 8px 0 0;
-          border-radius: 3px;
-      }
-      #urgent {
-        color: red;
-        font-weight: bold;
-      }
-      .grid-container {
-          display: inline-grid;
-          justify-content: space-evenly;
-          grid-template-columns: auto;
-      }
-      .grid-item { padding: 10px 5px 10px 5px; }
-
-    body {
-        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-    }
-
-    </style>
-</head>
-<body>
-<div class="grid-container">
-    <div class="grid-item">
+{% extends "layout.html" %}
+{% block title %}Scorecard{% endblock %}
+{% block content %}
         <h1>Scorecard!</h1>
 
-        <table>
+        <table class="data-table">
             <thead>
             <tr>
-                <th align="left">user</th>
-                <th align="left">needs review</th>
-                <th align="left">changes requested</th>
-                <th align="left">issues</th>
+                <th>user</th>
+                <th>needs review</th>
+                <th>changes requested</th>
+                <th>issues</th>
             </tr>
             </thead>
             <tbody>
             {% for user, d in user_data.items() %}
             <tr>
-                <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
-                <td align="left">
+                <td><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
+                <td>
                     {% for pr in d['NEEDS_REVIEW'] %}
-                    <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+                    <a href="{{ pr.html_url }}">#{{ pr.id }}</a>
                     {% endfor %}
                 </td>
-                <td align="left">
+                <td>
                     {% for pr in d['CHANGES_REQUESTED'] %}
-                    <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+                    <a href="{{ pr.html_url }}">#{{ pr.id }}</a>
                     {% endfor %}
                 </td>
-                <td align="left">
+                <td>
                     {% for issue in d['ISSUES'] %}
-                    <a href="{{ issue.html_url }}">{{ issue.id }}</a>
+                    <a href="{{ issue.html_url }}">#{{ issue.id }}</a>
                     {% endfor %}
                 </td>
             </tr>
@@ -76,59 +38,49 @@
 
         <p>Unassigned:
             {% for pr in unassigned %}
-            <a href="{{ pr.html_url }}">{{ pr.id }}</a>
+            <a href="{{ pr.html_url }}">#{{ pr.id }}</a>
             {% endfor %}
         </p>
-    </div>
 
     {% if urgent_issues %}
-    <div class="grid-item">
         <h2 id="urgent">&#x1F525;&#x1F525;&#x1F525;URGENT&#x1F525;&#x1F525;&#x1F525;</h2>
 
         <table>
             <thead>
                 <tr>
-                    <th align="left">assignee</th>
-                    <th align="left">time outstanding</th>
-                    <th align="left">issue</th>
+                    <th>assignee</th>
+                    <th>time outstanding</th>
+                    <th>issue</th>
                 </tr>
             </thead>
             <tbody>
             {% for issue in urgent_issues %}
                 <tr>
-                    <td align="left"><a href="/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
-                    <td align="left">{{ issue['AGE'] }}</td>
-                    <td align="left">
+                    <td><a href="{{ base_path }}/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
+                    <td>{{ issue['AGE'] }}</td>
+                    <td>
                         <a href="{{ issue['ISSUE'].html_url }}">{{ issue['ISSUE'].title }}</a>
                     </td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
-    </div>
     {% endif %}
 
-    <div class="grid-item">
-      <table>
-	<thead>
-          <th align="left">component</th>
-          <th align="left">reviewers</th>
-	</thead>
-	<tbody>
-          {% for component, user in component_user.items() %}
-	  <tr>
-            <td align="left">{{ component }}</td>
-            <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
-	  </tr>
-	  {% endfor %}
-	</tbody>
-      </table>
-    </div>
-    
-    <div class="grid-item">
-      <p><small>last updated {{ updated }}</small></p>
-    </div>
-</div>
+    <table class="data-table">
+      <thead>
+        <th>component</th>
+        <th>reviewer</th>
+      </thead>
+      <tbody>
+        {% for component, user in component_user.items() %}
+        <tr>
+          <td>{{ component }}</td>
+          <td><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
 
-</body>
-</html>
+    <p><small>last updated {{ updated }}</small></p>
+{% endblock %}

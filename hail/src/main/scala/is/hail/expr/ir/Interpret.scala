@@ -1,19 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.{HailContext, stats}
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
+import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s.AsmFunction3
-import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
-import is.hail.expr.types._
+import is.hail.expr.TypedAggregator
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
+import is.hail.io.BufferSpec
 import is.hail.methods._
 import is.hail.rvd.RVDContext
 import is.hail.utils._
+import is.hail.{HailContext, stats}
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
@@ -351,8 +349,22 @@ object Interpret {
               assert(onKey)
               d.count { case (k, _) => elem.typ.ordering.lt(k, eValue) }
             case a: IndexedSeq[_] =>
-              assert(!onKey)
-              a.count(elem.typ.ordering.lt(_, eValue))
+              if (onKey) {
+                val (eltF, eltT) = orderedCollection.typ.asInstanceOf[TContainer].elementType match {
+                  case t: TBaseStruct => ( { (x: Any) =>
+                    val r = x.asInstanceOf[Row]
+                    if (r == null) null else r.get(0)
+                  }, t.types(0))
+                  case i: TInterval => ( { (x: Any) =>
+                    val i = x.asInstanceOf[Interval]
+                    if (i == null) null else i.start
+                  }, i.pointType)
+                }
+                val ordering = eltT.ordering
+                val lb = a.count(elem => ordering.lt(eltF(elem), eValue))
+                lb
+              } else
+                a.count(elem.typ.ordering.lt(_, eValue))
           }
         }
 
@@ -403,6 +415,21 @@ object Interpret {
             zeroValue = interpret(body, env.bind(accumName -> zeroValue, valueName -> element), args, aggArgs)
           }
           zeroValue
+        }
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val aValue = interpret(a, env, args, aggArgs)
+        if (aValue == null)
+          null
+        else {
+          val accVals = accum.map { case (name, value) => (name, interpret(value, env, args, aggArgs)) }
+          var e = env.bindIterable(accVals)
+          aValue.asInstanceOf[IndexedSeq[Any]].foreach { elt =>
+            e = e.bind(valueName, elt)
+            accVals.indices.foreach { i =>
+              e = e.bind(accum(i)._1, interpret(seq(i), e, args, aggArgs))
+            }
+          }
+          interpret(res, e.delete(valueName), args, aggArgs)
         }
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args, aggArgs)
@@ -754,7 +781,7 @@ object Interpret {
                 SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
               }
             } else {
-              val spec = CodecSpec.defaultUncompressedBuffer
+              val spec = BufferSpec.defaultUncompressed
 
               val (_, initOp) = CompileWithAggregators2[Long, Unit](
                 extracted.aggs,
@@ -776,6 +803,11 @@ object Interpret {
                 "global", value.globals.t,
                 Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
               assert(rTyp.types(0).virtualType == query.typ)
+
+              val useTreeAggregate = extracted.shouldTreeAggregate
+              val isCommutative = extracted.isCommutative
+              log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
+              log.info(s"Aggregate: commutative=${ isCommutative }")
 
               val aggResults = value.rvd.combine[Array[Byte]](
                 Region.scoped { region =>
@@ -802,7 +834,7 @@ object Interpret {
                     }
                     write(aggRegion, seqOps.getAggOffset())
                   }
-                }, combOpF, commutative = extracted.isCommutative)
+                }, combOpF, commutative = isCommutative, tree = useTreeAggregate)
 
               Region.scoped { r =>
                 val resF = f(0, r)

@@ -60,6 +60,26 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.hadoop_exists(resource('ls_test')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
 
+    def test_hadoop_mkdir_p(self):
+        test_text = "HELLO WORLD"
+
+        with hadoop_open(resource('./some/foo/bar.txt'), 'w') as out:
+            out.write(test_text)
+
+        self.assertTrue(hl.hadoop_exists(resource('./some/foo/bar.txt')))
+
+        with hadoop_open(resource('./some/foo/bar.txt')) as f:
+            assert(f.read() == test_text)
+
+        import shutil
+        shutil.rmtree(resource('./some'))
+
+    def test_hadoop_mkdir_p(self):
+        with self.assertRaises(Exception):
+            hadoop_open(resource('./some2/foo/bar.txt'), 'r')
+
+        self.assertFalse(hl.hadoop_exists(resource('./some2')))
+
     def test_hadoop_copy_log(self):
         r = new_local_temp_file('log')
         hl.copy_log(r)

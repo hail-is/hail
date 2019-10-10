@@ -50,7 +50,7 @@ async def wait_for_pod_complete(v1, namespace, name):
         await asyncio.sleep(1)
 
 
-# this needs to agree with hailtop.gear.DeployConfig
+# this needs to agree with hailtop.config
 def internal_base_url(namespace, service, port):
     if namespace == 'default':
         return f'http://{service}.default:{port}'

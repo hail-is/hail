@@ -183,6 +183,9 @@ class BlockMatrix(object):
     - :meth:`sum` along an axis realizes those blocks for which at least one
       block summand is realized.
 
+    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
+      and :meth:`filter_cols`.
+
     These following methods always result in a block-dense matrix:
 
     - :meth:`fill`
@@ -190,9 +193,6 @@ class BlockMatrix(object):
     - Addition or subtraction of a scalar or broadcasted vector.
 
     - Matrix multiplication, ``@``.
-
-    - Matrix slicing, and more generally :meth:`filter`, :meth:`filter_rows`,
-      and :meth:`filter_cols`.
 
     The following methods fail if any operand is block-sparse, but can be forced
     by first applying :meth:`densify`.
@@ -417,9 +417,9 @@ class BlockMatrix(object):
     @typecheck_method(n_rows=int,
                       n_cols=int,
                       block_size=nullable(int),
-                      seed=int,
+                      seed=nullable(int),
                       gaussian=bool)
-    def random(cls, n_rows, n_cols, block_size=None, seed=0, gaussian=True):
+    def random(cls, n_rows, n_cols, block_size=None, seed=None, gaussian=True) -> 'BlockMatrix':
         """Creates a block matrix with standard normal or uniform random entries.
 
         Examples
@@ -449,6 +449,8 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
+
+        seed = seed if seed is not None else Env.next_seed()
 
         rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size)
         return BlockMatrix(rand)

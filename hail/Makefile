@@ -11,7 +11,8 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).21
+HAIL_PATCH_VERSION := 24
+HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -139,7 +140,9 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	cp ../README.md build/deploy/
 	rsync -rv \
 	    --exclude '__pycache__/' \
+	    --exclude 'benchmark_hail/' \
 	    --exclude 'docs/' \
+	    --exclude 'dist/' \
 	    --exclude 'test/' \
 	    --exclude '*.log' \
 	    python/ build/deploy/
@@ -233,10 +236,13 @@ TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION)
 check-tag:
 	if [ -z "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
+GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
 tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
+	@echo Please make a release: $(GITHUB_RELEASE_URL)
+	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
 
 docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
 local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
@@ -256,34 +262,13 @@ deploy: tag
 install-deps:
 	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
 
-BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
-PROJECT = $(shell gcloud config get-value project)
-BENCHMARK_LATEST = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG):latest
-
-.PHONY: build-benchmark-image
-build-benchmark-image: wheel
-	cp $(WHEEL) benchmark
-	cp python/requirements.txt benchmark
-	cd benchmark && docker build -t $(BENCHMARK_DOCKER_TAG) . --build-arg WHEEL=$(notdir $(WHEEL))
-	rm benchmark/$(notdir $(WHEEL))
-	rm benchmark/requirements.txt
-
-.PHONY: push-benchmark-image
-push-benchmark-image: build-benchmark-image
-	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
-	docker push $(BENCHMARK_LATEST)
-
-BENCHMARK_ITERS ?= 5
-BENCHMARK_REPLICATES ?= 5
 .PHONY: benchmark
-benchmark: push-benchmark-image install
-	python benchmark/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_PIP_VERSION)-$(SHORT_REVISION) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
+benchmark: install
+	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
-clean: clean-env clean-docs native-lib-clean
-	./gradlew clean $(GRADLE_ARGS)
-	rm -rf build/
-	rm -rf python/hail/hail-all-spark.jar
-	rm -rf python/README.md
+.PHONY: install-benchmark
+install-benchmark:
+	HAIL_WHEEL=DUMMY HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark install
 
 .PHONY: clean-docs
 clean-docs:
@@ -303,6 +288,7 @@ docs: install $(PYTHON_VERSION_INFO)
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
 	$(MAKE) -C build/www
+	rm build/www/*.md
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -312,7 +298,7 @@ docs: install $(PYTHON_VERSION_INFO)
 
 .PHONY: upload-docs
 upload-docs: docs
-	cd build && tar cvf www.tar.gz www
+	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)
 	gsutil -m acl set public-read $(docs_location)
@@ -321,7 +307,7 @@ upload-docs: docs
 test: pytest jvm-test doctest tutorial-test
 
 .PHONY: tutorial-test
-docs-no-test: $(PYTHON_VERSION_INFO)
+docs-no-test: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
@@ -332,6 +318,7 @@ docs-no-test: $(PYTHON_VERSION_INFO)
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
 	$(MAKE) -C build/www
+	rm build/www/*.md
 	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)

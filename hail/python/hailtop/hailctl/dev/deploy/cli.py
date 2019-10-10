@@ -2,8 +2,8 @@ import asyncio
 import webbrowser
 import aiohttp
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import service_auth_headers
 
 
 def init_parser(parser):
@@ -17,11 +17,14 @@ def init_parser(parser):
 
 
 class CIClient:
-    def __init__(self):
+    def __init__(self, deploy_config=None):
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+        self._deploy_config = deploy_config
         self._session = None
 
     async def __aenter__(self):
-        headers = auth_headers('ci')
+        headers = service_auth_headers(self._deploy_config, 'ci')
         self._session = aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers)
         return self
@@ -35,24 +38,23 @@ class CIClient:
             self._session = None
 
     async def dev_deploy_branch(self, branch, steps):
-        deploy_config = get_deploy_config()
         data = {
             'branch': branch,
             'steps': steps
         }
         async with self._session.post(
-                deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
+                self._deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
             resp_data = await resp.json()
             return resp_data['batch_id']
 
 
 async def submit(args):
+    deploy_config = get_deploy_config()
     steps = args.steps.split(',')
     steps = [s.strip() for s in steps]
     steps = [s for s in steps if s]
-    async with CIClient() as ci_client:
+    async with CIClient(deploy_config) as ci_client:
         batch_id = await ci_client.dev_deploy_branch(args.branch, steps)
-        deploy_config = get_deploy_config()
         url = deploy_config.url('ci', f'/batches/{batch_id}')
         print(f'Created deploy batch, see {url}')
         if args.open:

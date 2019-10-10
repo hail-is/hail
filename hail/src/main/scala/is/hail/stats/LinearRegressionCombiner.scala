@@ -61,7 +61,7 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
       if (xType.isElementMissing(region, xOffset, i))
         return
 
-      x(i) = region.loadDouble(xType.loadElement(region, xOffset, i))
+      x(i) = Region.loadDouble(xType.loadElement(region, xOffset, i))
       i += 1
     }
 

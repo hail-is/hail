@@ -194,7 +194,7 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode("format", TString(), tv("T", "tuple"), TString(), null) {
       case (r, rt, (fmtT: PString, format: Code[Long]), (argsT: PTuple, args: Code[Long])) =>
-        r.region.appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
+        unwrapReturn(r, rt)(Code.invokeScalaObject[String, Row, String](thisClass, "format",
           asm4s.coerce[String](wrapArg(r, fmtT)(format)),
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }

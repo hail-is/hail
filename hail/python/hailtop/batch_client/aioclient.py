@@ -4,13 +4,32 @@ import asyncio
 import aiohttp
 from asyncinit import asyncinit
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import async_get_userinfo, auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import async_get_userinfo, service_auth_headers
+from hailtop.utils import AsyncWorkerPool
 
 from .globals import complete_states
 
-job_array_size = 50
-max_job_submit_attempts = 3
+job_array_size = 1000
+
+
+async def retry_request(f, *args, **kwargs):
+    delay = 0.1
+    while True:
+        try:
+            return await f(*args, **kwargs)
+        except aiohttp.ClientResponseError as e:
+            # 408 request timeout, 503 service unavailable, 504 gateway timeout
+            if e.status == 408 or e.status == 503 or e.status == 504:
+                pass
+            else:
+                raise
+        except aiohttp.ServerTimeoutError:
+            pass
+        # exponentially back off, up to (expected) max of 30s
+        delay = min(delay * 2, 60.0)
+        t = delay * random.random()
+        await asyncio.sleep(t)
 
 
 def filter_params(complete, success, attributes):
@@ -56,17 +75,14 @@ class Job:
             return None
 
         durations = job_status['duration']
-        durations = [durations[task] for task in ['setup', 'main', 'cleanup'] if task in durations]
 
-        i = 0
-        duration = 0
-        while i < len(durations):
-            d = durations[i]
-            if d is None:
-                return None
-            duration += d
-            i += 1
-        return duration
+        setup_duration = durations.get('setup', 0)
+        main_duration = durations.get('main', 0)
+        cleanup_duration = durations.get('cleanup', 0)
+        if setup_duration is None or main_duration is None or cleanup_duration is None:
+            return None
+
+        return setup_duration + max(main_duration, cleanup_duration)
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
@@ -262,6 +278,7 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
+        self.pool = AsyncWorkerPool(2)
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
@@ -371,52 +388,39 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_job_with_retry(self, batch_id, docs):
-        n_attempts = 0
-        saved_err = None
-        while n_attempts < max_job_submit_attempts:
-            try:
-                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
-            except Exception as err:  # pylint: disable=W0703
-                saved_err = err
-                n_attempts += 1
-                await asyncio.sleep(1)
-        raise saved_err
+    async def _submit_job(self, batch_id, docs):
+        return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
 
     async def submit(self):
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        batch_doc = {}
+        batch_doc = {'n_jobs': len(self._job_docs)}
         if self.attributes:
             batch_doc['attributes'] = self.attributes
         if self.callback:
             batch_doc['callback'] = self.callback
 
-        batch = None
-        try:
-            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-            batch = Batch(self._client, b['id'], b.get('attributes'))
+        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+        batch = Batch(self._client, b['id'], b.get('attributes'))
 
-            docs = []
-            n = 0
-            for jdoc in self._job_docs:
-                n += 1
-                docs.append(jdoc)
-                if n == job_array_size:
-                    await self._submit_job_with_retry(batch.id, docs)
-                    n = 0
-                    docs = []
+        docs = []
+        n = 0
+        for jdoc in self._job_docs:
+            n += 1
+            docs.append(jdoc)
+            if n == job_array_size:
+                await self.pool.call(self._submit_job, batch.id, docs)
+                n = 0
+                docs = []
 
-            if docs:
-                await self._submit_job_with_retry(batch.id, docs)
+        if docs:
+            await self.pool.call(self._submit_job, batch.id, docs)
 
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-        except Exception as err:  # pylint: disable=W0703
-            if batch:
-                await batch.cancel()
-            raise err
+        await self.pool.wait()
+
+        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -430,16 +434,20 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, session=None, headers=None, _token=None):
-        deploy_config = get_deploy_config()
-        self.url = deploy_config.base_url('batch')
+    async def __init__(self, deploy_config=None, session=None, headers=None,
+                       _token=None, _service='batch'):
+        assert _service in ('batch', 'batch2')
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+
+        self.url = deploy_config.base_url(_service)
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
                                             timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
 
-        userinfo = await async_get_userinfo()
+        userinfo = await async_get_userinfo(deploy_config)
         self.bucket = userinfo['bucket_name']
 
         h = {}
@@ -448,25 +456,29 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(auth_headers('batch'))
+            h.update(service_auth_headers(deploy_config, _service))
         self._headers = h
 
     async def _get(self, path, params=None):
-        response = await self._session.get(
+        response = await retry_request(
+            self._session.get,
             self.url + path, params=params, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):
-        response = await self._session.post(
+        response = await retry_request(
+            self._session.post,
             self.url + path, json=json, headers=self._headers)
         return await response.json()
 
     async def _patch(self, path):
-        await self._session.patch(
+        await retry_request(
+            self._session.patch,
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        await self._session.delete(
+        await retry_request(
+            self._session.delete,
             self.url + path, headers=self._headers)
 
     async def _refresh_k8s_state(self):

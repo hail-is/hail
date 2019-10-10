@@ -84,16 +84,6 @@ object SetFunctions extends RegistryFunctions {
           FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t))), TBoolean()))
     }
 
-    registerIR("sum", TSet(tnum("T")), tv("T")) { s =>
-      ArrayFunctions.sum(ToArray(s))
-    }
-
-    registerIR("product", TSet(tnum("T")), tv("T")) { s =>
-      ArrayFunctions.product(ToArray(s))
-    }
-
-    registerIR("mean", TSet(tnum("T")), TFloat64()) { s => ArrayFunctions.mean(ToArray(s)) }
-
     registerIR("median", TSet(tnum("T")), tv("T")) { s =>
       val t = -s.typ.asInstanceOf[TSet].elementType
       val a = Ref(genUID(), TArray(t))

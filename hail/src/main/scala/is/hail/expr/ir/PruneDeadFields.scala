@@ -70,7 +70,6 @@ object PruneDeadFields {
   }
 
   def apply(ir: BaseIR): BaseIR = {
-
     try {
       val irCopy = ir.deepCopy()
       val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
@@ -958,6 +957,24 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val aType = a.typ.asInstanceOf[TStreamable]
+        val zeroEnvs = accum.map { case (name, zval) => memoizeValueIR(zval, zval.typ, memo) }
+        val seqEnvs = seq.map { seq => memoizeValueIR(seq, seq.typ, memo) }
+        val resEnv = memoizeValueIR(res, requestedType, memo)
+        val valueType = unifySeq(
+          aType.elementType,
+          resEnv.eval.lookupOption(valueName).map(_.result()).getOrElse(Array()) ++
+          seqEnvs.flatMap(_.eval.lookupOption(valueName).map(_.result()).getOrElse(Array())))
+
+        val accumNames = accum.map(_._1)
+        val seqNames = accumNames ++ Array(valueName)
+        unifyEnvsSeq(
+          zeroEnvs
+            ++ Array(resEnv.copy(eval = resEnv.eval.delete(accumNames)))
+            ++ seqEnvs.map(e => e.copy(eval = e.eval.delete(seqNames)))
+            ++ Array(memoizeValueIR(a, aType.copyStreamable(valueType), memo))
+        )
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val zeroEnv = memoizeValueIR(zero, zero.typ, memo)
@@ -1184,7 +1201,6 @@ object PruneDeadFields {
         memoizeTableIR(child, TableType(
           key = child.typ.key,
           rowType = unify(child.typ.rowType,
-            selectKey(child.typ.rowType, child.typ.key),
             rStruct.fieldOption("rows").map(_.typ.asInstanceOf[TStreamable].elementType.asInstanceOf[TStruct]).getOrElse(TStruct())),
           globalType = rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())),
           memo)
@@ -1198,7 +1214,6 @@ object PruneDeadFields {
         BindingEnv.empty
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
-        // FIXME look at aggregator commutativity to prune keys
         val dep = TableType(
           key = child.typ.key,
           rowType = unify(child.typ.rowType, queryDep.rowType, selectKey(child.typ.rowType, child.typ.key)),

@@ -60,7 +60,7 @@ class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[In
         }.dropWhile { rv =>
           ur.set(rv)
           pord.lt(key, range.left)
-        }.filter { rv =>
+        }.takeWhile { rv =>
           ur.set(rv)
           pord.lteq(key, range.right)
         }

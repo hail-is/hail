@@ -16,14 +16,14 @@ final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
   def writeByte(b: Byte): Unit = out.writeByte(b)
 
   def writeBinary(region: Region, offset: Long) {
-    val boff = region.loadAddress(offset)
-    val length = region.loadInt(boff)
+    val boff = Region.loadAddress(offset)
+    val length = Region.loadInt(boff)
     out.writeInt(length)
     out.writeBytes(region, boff + 4, length)
   }
 
   def writeArray(t: PArray, region: Region, aoff: Long) {
-    val length = region.loadInt(aoff)
+    val length = Region.loadInt(aoff)
 
     out.writeInt(length)
     if (!t.elementType.required) {
@@ -38,7 +38,7 @@ final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
       while (i < length) {
         if (t.isElementDefined(region, aoff, i)) {
           val off = elemsOff + i * elemSize
-          out.writeInt(region.loadInt(off))
+          out.writeInt(Region.loadInt(off))
         }
         i += 1
       }
@@ -49,11 +49,11 @@ final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
           val off = elemsOff + i * elemSize
           t.elementType match {
             case t2: PBaseStruct => writeBaseStruct(t2, region, off)
-            case t2: PArray => writeArray(t2, region, region.loadAddress(off))
-            case _: PBoolean => out.writeBoolean(region.loadByte(off) != 0)
-            case _: PInt64 => out.writeLong(region.loadLong(off))
-            case _: PFloat32 => out.writeFloat(region.loadFloat(off))
-            case _: PFloat64 => out.writeDouble(region.loadDouble(off))
+            case t2: PArray => writeArray(t2, region, Region.loadAddress(off))
+            case _: PBoolean => out.writeBoolean(Region.loadByte(off) != 0)
+            case _: PInt64 => out.writeLong(Region.loadLong(off))
+            case _: PFloat32 => out.writeFloat(Region.loadFloat(off))
+            case _: PFloat64 => out.writeDouble(Region.loadDouble(off))
             case _: PBinary => writeBinary(region, off)
           }
         }
@@ -73,12 +73,12 @@ final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
         val off = offset + t.byteOffsets(i)
         t.types(i) match {
           case t2: PBaseStruct => writeBaseStruct(t2, region, off)
-          case t2: PArray => writeArray(t2, region, region.loadAddress(off))
-          case _: PBoolean => out.writeBoolean(region.loadByte(off) != 0)
-          case _: PInt32 => out.writeInt(region.loadInt(off))
-          case _: PInt64 => out.writeLong(region.loadLong(off))
-          case _: PFloat32 => out.writeFloat(region.loadFloat(off))
-          case _: PFloat64 => out.writeDouble(region.loadDouble(off))
+          case t2: PArray => writeArray(t2, region, Region.loadAddress(off))
+          case _: PBoolean => out.writeBoolean(Region.loadByte(off) != 0)
+          case _: PInt32 => out.writeInt(Region.loadInt(off))
+          case _: PInt64 => out.writeLong(Region.loadLong(off))
+          case _: PFloat32 => out.writeFloat(Region.loadFloat(off))
+          case _: PFloat64 => out.writeDouble(Region.loadDouble(off))
           case _: PBinary => writeBinary(region, off)
         }
       }

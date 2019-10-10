@@ -124,11 +124,15 @@ def skip_unless_spark_backend():
 def run_with_cxx_compile():
     @decorator
     def wrapper(func, *args, **kwargs):
-        old_flags = hl._get_flags('cpp')
-        try:
-            hl._set_flags(cpp='t')
-            func(*args, **kwargs)
-        finally:
-            hl._set_flags(**old_flags)
+        return
 
     return wrapper
+
+
+def assert_evals_to(e, v):
+    assert hl.eval(e) == v
+
+
+def assert_all_eval_to(*expr_and_expected):
+    exprs, expecteds = zip(*expr_and_expected)
+    assert_evals_to(hl.tuple(exprs), expecteds)

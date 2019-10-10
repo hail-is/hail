@@ -2,27 +2,9 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.check.Gen
-import is.hail.cxx
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
-import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
-
-import scala.reflect.{ClassTag, classTag}
 
 object PBaseStruct {
-  def getMissingness(types: Array[PType], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
-    var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    i
-  }
-
   def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
     assert(byteOffsets.length == types.length)
     val bp = new BytePacker()
@@ -58,17 +40,48 @@ object PBaseStruct {
 }
 
 abstract class PBaseStruct extends PType {
-  def types: Array[PType]
+  val types: Array[PType]
 
-  def fields: IndexedSeq[PField]
+  val fields: IndexedSeq[PField]
 
-  def fieldRequired: Array[Boolean]
+  lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  def size: Int
+  lazy val fieldIdx: Map[String, Int] =
+    fields.map(f => (f.name, f.index)).toMap
+
+  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
+
+  def fieldByName(name: String): PField = fields(fieldIdx(name))
+
+  def index(str: String): Option[Int] = fieldIdx.get(str)
+
+  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
+
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
+
+  def field(name: String): PField = fields(fieldIdx(name))
+
+  def fieldType(name: String): PType = types(fieldIdx(name))
+
+  def size: Int = fields.length
 
   def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
+    sb.result()
+  }
+
+  def identBase: String
+  def _asIdent: String = {
+    val sb = new StringBuilder
+    sb.append(identBase)
+    sb.append("_of_")
+    types.foreachBetween { ty =>
+      sb.append(ty.asIdent)
+    } {
+      sb.append("AND")
+    }
+    sb.append("END")
     sb.result()
   }
 
@@ -140,7 +153,7 @@ abstract class PBaseStruct extends PType {
   def clearMissingBits(region: Region, off: Long) {
     var i = 0
     while (i < nMissingBytes) {
-      region.storeByte(off + i, 0)
+      Region.storeByte(off + i, 0.toByte)
       i += 1
     }
   }
@@ -162,7 +175,7 @@ abstract class PBaseStruct extends PType {
     isFieldDefined(rv.region, rv.offset, fieldIdx)
 
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
-    fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
+    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
@@ -186,12 +199,12 @@ abstract class PBaseStruct extends PType {
 
   def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
+    Region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     assert(!fieldRequired(fieldIdx))
-    Region.setBit(offset, missingIdx(fieldIdx))
+    Region.setBit(offset, missingIdx(fieldIdx).toLong)
   }
 
   def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
@@ -199,7 +212,7 @@ abstract class PBaseStruct extends PType {
 
   def setFieldPresent(region: Region, offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
-    region.clearBit(offset, missingIdx(fieldIdx))
+    Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
@@ -221,7 +234,7 @@ abstract class PBaseStruct extends PType {
   def loadField(region: Region, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     types(fieldIdx).fundamentalType match {
-      case _: PArray | _: PBinary => region.loadAddress(off)
+      case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
   }
@@ -240,13 +253,9 @@ abstract class PBaseStruct extends PType {
   }
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
-
-  def cxxIsFieldMissing(o: cxx.Code, fieldIdx: Int): cxx.Code = {
-    s"load_bit($o, ${ missingIdx(fieldIdx) })"
-  }
-
-  def cxxLoadField(o: cxx.Code, fieldIdx: Int): cxx.Code = {
-    val a = s"(((char *)$o) + (${ byteOffsets(fieldIdx) }))"
-    cxx.loadIRIntermediate(fields(fieldIdx).typ, a)
-  }
 }
+
+final class StaticallyKnownField[T, U](
+  val pType: T,
+  val load: (Code[Region], Code[Long]) => Code[U]
+)

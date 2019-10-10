@@ -7,12 +7,12 @@ from aiohttp import web
 import jinja2
 import aiohttp_jinja2
 import uvloop
-
-from hailtop import gear
+from hailtop.config import get_deploy_config
+from gear import configure_logging
 
 uvloop.install()
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('scheduler')
 
 
@@ -466,6 +466,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response(status=200)
 
 
+@routes.get('')
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
@@ -493,4 +494,5 @@ async def on_startup(app):  # pylint: disable=unused-argument
 
 app.on_startup.append(on_startup)
 
-web.run_app(app, host='0.0.0.0', port=5000)
+deploy_config = get_deploy_config()
+web.run_app(deploy_config.prefix_application(app, 'scheduler'), host='0.0.0.0', port=5000)

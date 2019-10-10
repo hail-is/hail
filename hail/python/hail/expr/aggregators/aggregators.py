@@ -88,7 +88,7 @@ class AggFunc(object):
     @typecheck_method(f=func_spec(1, expr_any),
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
     def explode(self, f, array_agg_expr):
-        if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if array_agg_expr._aggregations:
             raise ExpressionException("'{}.explode' does not support an already-aggregated expression as the argument to 'collection'".format(self.correct_prefix()))
         _check_agg_bindings(array_agg_expr, self._agg_bindings)
 
@@ -102,7 +102,7 @@ class AggFunc(object):
         _check_agg_bindings(aggregated, self._agg_bindings)
         self._agg_bindings.remove(var)
 
-        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not self._as_scan and not aggregated._aggregations:
             raise ExpressionException("'{}.explode' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
 
         indices, _ = unify_all(array_agg_expr, aggregated)
@@ -117,10 +117,10 @@ class AggFunc(object):
     @typecheck_method(condition=expr_bool,
                       aggregation=agg_expr(expr_any))
     def filter(self, condition, aggregation):
-        if len(condition._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if condition._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.filter' does not "
                                       f"support an already-aggregated expression as the argument to 'condition'")
-        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not self._as_scan and not aggregation._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.filter' "
                                       f"must have aggregation in argument to 'aggregation'")
 
@@ -137,10 +137,10 @@ class AggFunc(object):
                               aggregations)
 
     def group_by(self, group, aggregation):
-        if len(group._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if group._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.group_by' "
                                       f"does not support an already-aggregated expression as the argument to 'group'")
-        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not self._as_scan and not aggregation._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.group_by' "
                                       f"must have aggregation in argument to 'aggregation'")
 
@@ -158,7 +158,7 @@ class AggFunc(object):
                               aggregations)
 
     def array_agg(self, array, f):
-        if len(array._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+        if array._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.array_agg' "
                                       f"does not support an already-aggregated expression as the argument to 'array'")
         _check_agg_bindings(array, self._agg_bindings)
@@ -171,7 +171,7 @@ class AggFunc(object):
         _check_agg_bindings(aggregated, self._agg_bindings)
         self._agg_bindings.remove(var)
 
-        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+        if not self._as_scan and not aggregated._aggregations:
             raise ExpressionException(f"'hl.{self.correct_prefix()}.array_agg' "
                                       f"must take mapping that contains aggregation expression.")
 
@@ -1089,7 +1089,7 @@ def inbreeding(expr, prior) -> StructExpression:
                     ), _ctx=_agg_func.context)
 
 
-@typecheck(call=expr_call, alleles=expr_array(expr_str))
+@typecheck(call=expr_call, alleles=expr_oneof(expr_int32, expr_array(expr_str)))
 def call_stats(call, alleles) -> StructExpression:
     """Compute useful call statistics.
 
@@ -1138,15 +1138,18 @@ def call_stats(call, alleles) -> StructExpression:
     Parameters
     ----------
     call : :class:`.CallExpression`
-    alleles : :class:`.ArrayStringExpression`
-        Variant alleles.
+    alleles : :class:`.ArrayStringExpression` or :class:`.Int32Expression`
+        Variant alleles array, or number of alleles (including reference).
 
     Returns
     -------
     :class:`.StructExpression`
         Struct expression with fields `AC`, `AF`, `AN`, and `homozygote_count`.
     """
-    n_alleles = hl.len(alleles)
+    if alleles.dtype == tint32:
+        n_alleles = alleles
+    else:
+        n_alleles = hl.len(alleles)
     t = tstruct(AC=tarray(tint32),
                 AF=tarray(tfloat64),
                 AN=tint32,
@@ -1253,7 +1256,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     .. include: _templates/experimental.rst
 
     Parameters
-    ---------
+    ----------
     x : :class:`.NumericExpression`
         X-values to be downsampled.
     y : :class:`.NumericExpression`

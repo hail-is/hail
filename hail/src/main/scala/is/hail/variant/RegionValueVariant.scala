@@ -40,7 +40,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
   }
 
   def position(): Int = {
-    region.loadInt(tl.loadField(region, locusOffset, 1))
+    Region.loadInt(tl.loadField(region, locusOffset, 1))
   }
 
   def alleles(): Array[String] = {

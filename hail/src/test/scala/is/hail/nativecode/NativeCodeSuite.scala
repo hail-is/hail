@@ -1,7 +1,6 @@
 package is.hail.nativecode
 
 import is.hail.HailSuite
-import is.hail.cxx._
 import org.testng.annotations.Test
 
 class NativeCodeSuite extends HailSuite {
@@ -210,35 +209,5 @@ class NativeCodeSuite extends HailSuite {
     assert(testPlus(st, holder.get(), 0, 44) == 1044)
     assert(testPlus(st, holder.get(), 1, 55) == 2055)
     testPlus.close()
-  }
-
-  @Test def testCXXCodeFunctions(): Unit = {
-    val tub = new TranslationUnitBuilder()
-    tub.include("hail/hail.h")
-    tub.include("hail/Upcalls.h")
-    tub.include("<cstdio>")
-
-    val fb = tub.buildFunction("testUpcall", Array("NativeStatus*" -> "st", "long" -> "a0"), "long")
-
-    fb +=
-      s"""
-         |UpcallEnv up {};
-         |up.set_test_msg("Hello!");
-         |return 1000+${fb.getArg(1)};
-       """.stripMargin
-
-    val f = fb.end()
-
-    val mod = tub.end().build("")
-
-    val st = new NativeStatus()
-    val testUpcall = mod.findLongFuncL1(st, f.name)
-    mod.close()
-    assert(st.ok, st.toString())
-    Upcalls.testMsg = "InitialValueOfTestMsg"
-    assert(testUpcall(st, 99) == 1099)
-    assert(Upcalls.testMsg.equals("Hello!"))
-    st.close()
-    testUpcall.close()
   }
 }

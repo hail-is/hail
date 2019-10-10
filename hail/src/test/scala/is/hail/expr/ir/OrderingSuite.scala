@@ -28,7 +28,7 @@ class OrderingSuite extends HailSuite {
   }
 
   def getStagedOrderingFunction[T: TypeInfo](t: PType, comp: String, r: Region): AsmFunction3[Region, Long, Long, T] = {
-    val fb = EmitFunctionBuilder[Region, Long, Long, T]
+    val fb = EmitFunctionBuilder[Region, Long, Long, T]("ord")
     val stagedOrdering = t.codeOrdering(fb.apply_method)
     val cv1 = coerce[stagedOrdering.T](Region.getIRIntermediate(t)(fb.getArg[Long](2)))
     val cv2 = coerce[stagedOrdering.T](Region.getIRIntermediate(t)(fb.getArg[Long](3)))
@@ -41,17 +41,6 @@ class OrderingSuite extends HailSuite {
       case "gteq" => fb.emit(stagedOrdering.gteq((const(false), cv1), (const(false), cv2)))
     }
     fb.resultWithIndex()(0, r)
-  }
-
-  def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
-    val rvb = new RegionValueBuilder(region)
-    args.map { case (t, a) =>
-      rvb.start(TTuple(t).physicalType)
-      rvb.startTuple()
-      rvb.addAnnotation(t, a)
-      rvb.endTuple()
-      rvb.end()
-    }.toArray
   }
 
   @Test def testRandomOpsAgainstExtended() {
@@ -244,13 +233,13 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(TTuple(t), Row(elem))
         val eoff = rvb.end()
 
-        val fb = EmitFunctionBuilder[Region, Long, Long, Int]
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search")
         val cregion = fb.getArg[Region](1).load()
         val cset = fb.getArg[Long](2)
         val cetuple = fb.getArg[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pset, keyOnly = false)
-        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(pTuple.fieldOffset(cetuple, 0))))
+        fb.emit(bs.getClosestIndex(cset, false, Region.loadIRIntermediate(pt)(pTuple.fieldOffset(cetuple, 0))))
 
         val asArray = SafeIndexedSeq(pArray, region, soff)
 
@@ -284,14 +273,14 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()
 
-        val fb = EmitFunctionBuilder[Region, Long, Long, Int]
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search_dict")
         val cregion = fb.getArg[Region](1).load()
         val cdict = fb.getArg[Long](2)
         val cktuple = fb.getArg[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pDict, keyOnly = true)
         val m = ptuple.isFieldMissing(cregion, cktuple, 0)
-        val v = cregion.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
+        val v = Region.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 
         val asArray = SafeIndexedSeq(PArray(pDict.elementType), region, soff)

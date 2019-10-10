@@ -13,7 +13,7 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-from hailtop.gear import get_deploy_config
+from hailtop.config import get_deploy_config
 
 from .serverthread import ServerThread
 
@@ -33,10 +33,7 @@ def poll_until(p, max_polls=None):
 
 class Test(unittest.TestCase):
     def setUp(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self.client = BatchClient(session)
+        self.client = BatchClient()
 
     def tearDown(self):
         self.client.close()
@@ -336,10 +333,7 @@ class Test(unittest.TestCase):
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        bc = BatchClient(session, _token=token)
+        bc = BatchClient(_token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])

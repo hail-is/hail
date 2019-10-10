@@ -66,6 +66,7 @@ object Streamify {
     case ToSet(a) => ToSet(streamify(a))
     case ToDict(a) => ToDict(streamify(a))
     case ArrayFold(a, zero, zn, an, body) => ArrayFold(streamify(a), zero, zn, an, body)
+    case ArrayFold2(a, acc, vn, seq, res) => ArrayFold2(streamify(a), acc, vn, seq, res)
     case ArrayFor(a, n, b) => ArrayFor(streamify(a), n, b)
     case x: ApplyIR => apply(x.explicitNode)
     case _ if node.typ.isInstanceOf[TStreamable] => unstreamify(node)

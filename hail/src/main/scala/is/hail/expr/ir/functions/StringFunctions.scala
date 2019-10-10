@@ -175,8 +175,8 @@ object StringFunctions extends RegistryFunctions {
         Code(n := 0,
           i := 0,
           Code.whileLoop(i < len,
-            region.loadByte(PBinary.bytesOffset(v1) + i.toL)
-              .cne(region.loadByte(PBinary.bytesOffset(v2) + i.toL)).mux(
+            Region.loadByte(PBinary.bytesOffset(v1) + i.toL)
+              .cne(Region.loadByte(PBinary.bytesOffset(v2) + i.toL)).mux(
               n += 1,
               Code._empty[Unit]),
             i += 1),

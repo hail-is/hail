@@ -1,19 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailContext, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
-import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.{TableType, virtual}
-import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PTuple, PType}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
+import is.hail.expr.{Nat, ir}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
@@ -21,6 +19,7 @@ import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus, MatrixTable}
+import is.hail.{ExecStrategy, HailContext, HailSuite}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
@@ -125,6 +124,20 @@ class IRSuite extends HailSuite {
     assertPType(Str("HELLO WORLD"), PString(true))
     assertPType(True(), PBoolean(true))
     assertPType(False(), PBoolean(true))
+  }
+
+  @Test def testRefInferPtype() {
+    val env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PDict(PInt32(true), PString(true), true))
+    )
+
+    var ir = Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())))
+
+    assertPType(ir, PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), env)
+
+    ir = Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())))
+    assertPType(ir, PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PDict(PInt32(true), PString(true), true)), env)
   }
 
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
@@ -742,6 +755,637 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
   }
 
+  @Test def testMakeArrayInferPTypeFromNestedRef() {
+    var ir = MakeArray(FastSeq(), TArray(TInt32()))
+    assertPType(ir, PArray(PInt32(true), true))
+
+    var ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())) )
+    )
+
+    var env = Env[PType](
+      "1" -> PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)),
+      "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PDict(PInt32(true), PString(true), true))
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString()))))
+
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), true), env)
+
+    ref = FastSeq(
+      Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())) ),
+      Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())) )
+    )
+
+    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString()))))
+    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), true), env)
+  }
+
+  @Test def testMakeArrayInferPType() {
+    var ir = MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32()))
+
+    assertPType(ir, PArray(PInt32(false), true))
+
+    ir = MakeArray(FastSeq(I32(5), I32(1), I32(-3)), TArray(TInt32()))
+
+    assertPType(ir, PArray(PInt32(true), true))
+
+    ir = MakeArray(FastSeq(I32(5), I32(1), I32(-3)), TArray(TInt32()))
+  }
+
+  @Test def testGetNestedElementPTypesI32() {
+    var types = Seq(PInt32(true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt32(true))
+
+    types = Seq(PInt32(false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt32(false))
+
+    types = Seq(PInt32(false), PInt32(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt32(false))
+
+    types = Seq(PInt32(true), PInt32(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt32(true))
+  }
+
+  @Test def testGetNestedElementPTypesI64() {
+    var types = Seq(PInt64(true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt64(true))
+
+    types = Seq(PInt64(false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt64(false))
+
+    types = Seq(PInt64(false), PInt64(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt64(false))
+
+    types = Seq(PInt64(true), PInt64(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PInt64(true))
+  }
+
+  @Test def testGetNestedElementPFloat32() {
+    var types = Seq(PFloat32(true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat32(true))
+
+    types = Seq(PFloat32(false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat32(false))
+
+    types = Seq(PFloat32(false), PFloat32(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat32(false))
+
+    types = Seq(PFloat32(true), PFloat32(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat32(true))
+  }
+
+  @Test def testGetNestedElementPFloat64() {
+    var types = Seq(PFloat64(true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat64(true))
+
+    types = Seq(PFloat64(false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat64(false))
+
+    types = Seq(PFloat64(false), PFloat64(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat64(false))
+
+    types = Seq(PFloat64(true), PFloat64(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PFloat64(true))
+  }
+
+  @Test def testGetNestedElementPString() {
+    var types = Seq(PString(true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PString(true))
+
+    types = Seq(PString(false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PString(false))
+
+    types = Seq(PString(false), PString(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PString(false))
+
+    types = Seq(PString(true), PString(true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PString(true))
+  }
+
+  @Test def testGetNestedPArray() {
+    var types = Seq(PArray(PInt32(true), true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(true), true))
+
+    types = Seq(PArray(PInt32(true), false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(true), false))
+
+    types = Seq(PArray(PInt32(false), true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(false), true))
+
+    types = Seq(PArray(PInt32(false), false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(false), false))
+
+    types = Seq(
+      PArray(PInt32(true), true),
+      PArray(PInt32(true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(true), true))
+
+    types = Seq(
+      PArray(PInt32(false), true),
+      PArray(PInt32(true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(false), true))
+
+    types = Seq(
+      PArray(PInt32(false), true),
+      PArray(PInt32(true), false)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PInt32(false), false))
+
+    types = Seq(
+      PArray(PArray(PInt32(true), true), true),
+      PArray(PArray(PInt32(true), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PArray(PInt32(true), true), true))
+
+    types = Seq(
+      PArray(PArray(PInt32(true), true), true),
+      PArray(PArray(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PArray(PInt32(false), true), true))
+
+    types = Seq(
+      PArray(PArray(PInt32(true), false), true),
+      PArray(PArray(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PArray(PInt32(false), false), true))
+
+    types = Seq(
+      PArray(PArray(PInt32(true), false), false),
+      PArray(PArray(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PArray(PArray(PInt32(false), false), false))
+  }
+
+  @Test def testGetNestedPStream() {
+    var types = Seq(PStream(PInt32(true), true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(true), true))
+
+    types = Seq(PStream(PInt32(true), false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(true), false))
+
+    types = Seq(PStream(PInt32(false), true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(false), true))
+
+    types = Seq(PStream(PInt32(false), false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(false), false))
+
+    types = Seq(
+      PStream(PInt32(true), true),
+      PStream(PInt32(true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(true), true))
+
+    types = Seq(
+      PStream(PInt32(false), true),
+      PStream(PInt32(true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(false), true))
+
+    types = Seq(
+      PStream(PInt32(false), true),
+      PStream(PInt32(true), false)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PInt32(false), false))
+
+    types = Seq(
+      PStream(PStream(PInt32(true), true), true),
+      PStream(PStream(PInt32(true), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PStream(PInt32(true), true), true))
+
+    types = Seq(
+      PStream(PStream(PInt32(true), true), true),
+      PStream(PStream(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PStream(PInt32(false), true), true))
+
+    types = Seq(
+      PStream(PStream(PInt32(true), false), true),
+      PStream(PStream(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PStream(PInt32(false), false), true))
+
+    types = Seq(
+      PStream(PStream(PInt32(true), false), false),
+      PStream(PStream(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PStream(PStream(PInt32(false), false), false))
+  }
+
+  @Test def testGetNestedElementPDict() {
+    var types = Seq(PDict(PInt32(true), PString(true), true))
+    var res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PString(true), true))
+
+    types = Seq(PDict(PInt32(false), PString(true), true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(false), PString(true), true))
+
+    types = Seq(PDict(PInt32(true), PString(false), true))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PString(false), true))
+
+    types = Seq(PDict(PInt32(true), PString(true), false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PString(true), false))
+
+    types = Seq(PDict(PInt32(false), PString(false), false))
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(false), PString(false), false))
+
+    types = Seq(
+      PDict(PInt32(true), PString(true), true),
+      PDict(PInt32(true), PString(true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PString(true), true))
+
+    types = Seq(
+      PDict(PInt32(true), PString(true), false),
+      PDict(PInt32(true), PString(true), false)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PString(true), false))
+
+    types = Seq(
+      PDict(PInt32(false), PString(true), true),
+      PDict(PInt32(true), PString(true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(false), PString(true), true))
+
+    types = Seq(
+      PDict(PInt32(false), PString(true), true),
+      PDict(PInt32(true), PString(false), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(false), PString(false), true))
+
+    types = Seq(
+      PDict(PInt32(false), PString(true), false),
+      PDict(PInt32(true), PString(false), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(false), PString(false), false))
+
+    types = Seq(
+      PDict(PInt32(true), PDict(PInt32(true), PString(true), true), true),
+      PDict(PInt32(true), PDict(PInt32(true), PString(true), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PDict(PInt32(true), PString(true), true), true))
+
+    types = Seq(
+      PDict(PInt32(true), PDict(PInt32(false), PString(true), true), true),
+      PDict(PInt32(true), PDict(PInt32(true), PString(true), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PDict(PInt32(false), PString(true), true), true))
+
+    types = Seq(
+      PDict(PInt32(true), PDict(PInt32(false), PString(true), true), true),
+      PDict(PInt32(true), PDict(PInt32(true), PString(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PDict(PInt32(false), PString(false), true), true))
+
+    types = Seq(
+      PDict(PInt32(true), PDict(PInt32(false), PString(true), true), true),
+      PDict(PInt32(true), PDict(PInt32(true), PString(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PDict(PInt32(false), PString(false), true), true))
+
+    types = Seq(
+      PDict(PInt32(true), PDict(PInt32(false), PString(true), false), true),
+      PDict(PInt32(true), PDict(PInt32(true), PString(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PDict(PInt32(true), PDict(PInt32(false), PString(false), false), true))
+  }
+
+  @Test def testGetNestedElementPStruct() {
+    var types = Seq(PStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
+    var res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
+
+    types = Seq(PStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
+
+    types = Seq(PStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
+
+    types = Seq(PStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
+
+    types = Seq(PStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
+
+    types = Seq(
+      PStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
+      PStruct(true, "a" -> PInt32(true), "b" -> PInt32(true))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
+
+    types = Seq(
+      PStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
+      PStruct(true, "a" -> PInt32(false), "b" -> PInt32(false))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PInt32(false), "b" -> PInt32(false)))
+
+    types = Seq(
+      PStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)),
+      PStruct(true, "a" -> PInt32(false), "b" -> PInt32(false))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
+
+    types = Seq(
+      PStruct(true, "a" -> PStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)),"b" -> PInt32(true))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)), "b" -> PInt32(true)))
+
+    types = Seq(
+      PStruct(true, "a" -> PStruct(true, "c" -> PInt32(false), "d" -> PInt32(true)),"b" -> PInt32(true))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PStruct(true, "c" -> PInt32(false), "d" -> PInt32(true)), "b" -> PInt32(true)))
+
+    types = Seq(
+      PStruct(true, "a" -> PStruct(true, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)),
+      PStruct(true, "a" -> PStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)), "b" -> PInt32(true)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PStruct(true, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)))
+
+    types = Seq(
+      PStruct(true, "a" -> PStruct(false, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)),
+      PStruct(true, "a" -> PStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)), "b" -> PInt32(true)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PStruct(true, "a" -> PStruct(false, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)))
+  }
+
+  @Test def testGetNestedElementPTuple() {
+    var types = Seq(PTuple(true, PInt32(true)))
+    var res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(true, PInt32(true)))
+
+    types = Seq(PTuple(false, PInt32(true)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(false, PInt32(true)))
+
+    types = Seq(PTuple(true, PInt32(false)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(true, PInt32(false)))
+
+    types = Seq(PTuple(false, PInt32(false)))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(false, PInt32(false)))
+
+    types = Seq(
+      PTuple(true, PInt32(true)),
+      PTuple(true, PInt32(true))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(true, PInt32(true)))
+
+    types = Seq(
+      PTuple(true, PInt32(true)),
+      PTuple(false, PInt32(true))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(false, PInt32(true)))
+
+    types = Seq(
+      PTuple(true, PInt32(false)),
+      PTuple(false, PInt32(true))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(false, PInt32(false)))
+
+    types = Seq(
+      PTuple(true, PTuple(true, PInt32(true))),
+      PTuple(true, PTuple(true, PInt32(false)))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(true, PTuple(true, PInt32(false))))
+
+    types = Seq(
+      PTuple(true, PTuple(false, PInt32(true))),
+      PTuple(true, PTuple(true, PInt32(false)))
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PTuple(true, PTuple(false, PInt32(false))))
+  }
+
+  @Test def testGetNestedElementPSet() {
+    var types = Seq(PSet(PInt32(true), true))
+    var res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(true), true))
+
+    types = Seq(PSet(PInt32(true), false))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(true), false))
+
+    types = Seq(PSet(PInt32(false), true))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(false), true))
+
+    types = Seq(PSet(PInt32(false), false))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(false), false))
+
+    types = Seq(
+      PSet(PInt32(true), true),
+      PSet(PInt32(true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(true), true))
+
+    types = Seq(
+      PSet(PInt32(false), true),
+      PSet(PInt32(true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(false), true))
+
+    types = Seq(
+      PSet(PInt32(false), true),
+      PSet(PInt32(true), false)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PInt32(false), false))
+
+    types = Seq(
+      PSet(PSet(PInt32(true), true), true),
+      PSet(PSet(PInt32(true), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PSet(PInt32(true), true), true))
+
+    types = Seq(
+      PSet(PSet(PInt32(true), true), true),
+      PSet(PSet(PInt32(false), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PSet(PInt32(false), true), true))
+
+    types = Seq(
+      PSet(PSet(PInt32(true), false), true),
+      PSet(PSet(PInt32(false), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PSet(PSet(PInt32(false), false), true))
+  }
+
+  @Test def testGetNestedElementPInterval() {
+    var types = Seq(PInterval(PInt32(true), true))
+    var res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(true), true))
+
+    types = Seq(PInterval(PInt32(true), false))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(true), false))
+
+    types = Seq(PInterval(PInt32(false), true))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(false), true))
+
+    types = Seq(PInterval(PInt32(false), false))
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(false), false))
+
+    types = Seq(
+      PInterval(PInt32(true), true),
+      PInterval(PInt32(true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(true), true))
+
+    types = Seq(
+      PInterval(PInt32(false), true),
+      PInterval(PInt32(true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(false), true))
+
+    types = Seq(
+      PInterval(PInt32(true), true),
+      PInterval(PInt32(true), false)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(true), false))
+
+    types = Seq(
+      PInterval(PInt32(false), true),
+      PInterval(PInt32(true), false)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInt32(false), false))
+
+    types = Seq(
+      PInterval(PInterval(PInt32(true), true), true),
+      PInterval(PInterval(PInt32(true), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInterval(PInt32(true), true), true))
+
+    types = Seq(
+      PInterval(PInterval(PInt32(true), false), true),
+      PInterval(PInterval(PInt32(true), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInterval(PInt32(true), false), true))
+
+    types = Seq(
+      PInterval(PInterval(PInt32(false), true), true),
+      PInterval(PInterval(PInt32(true), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInterval(PInt32(false), true), true))
+
+    types = Seq(
+      PInterval(PInterval(PInt32(true), false), true),
+      PInterval(PInterval(PInt32(false), true), true)
+    )
+    res = InferPType.getNestedElementPTypes(types)
+    assert(res == PInterval(PInterval(PInt32(false), false), true))
+  }
+
+  @Test def testToDictInferPtype() {
+    val allRequired = ToDict(MakeArray(FastIndexedSeq(
+      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("a"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(10), Str("b")))
+    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*))))
+
+    assertPType(allRequired, PDict(PInt32(true), PString(true), true))
+
+    var notAllRequired = ToDict(MakeArray(FastIndexedSeq(
+      MakeTuple.ordered(FastIndexedSeq(NA(TInt32()), Str("a"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(10), Str("b")))
+    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*))))
+
+    assertPType(notAllRequired, PDict(PInt32(false), PString(true), true))
+
+    notAllRequired = ToDict(MakeArray(FastIndexedSeq(
+      MakeTuple.ordered(FastIndexedSeq(NA(TInt32()), Str("a"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(10), NA(TString(false)))
+    )),TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*))))
+
+    assertPType(notAllRequired, PDict(PInt32(false), PString(false), true))
+  }
+
   @Test def testMakeStruct() {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32()), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
@@ -1053,6 +1697,19 @@ class IRSuite extends HailSuite {
     assertEvalsTo(fold(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => I32(5) + I32(5)), 10)
   }
 
+  @Test def testArrayFold2() {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+
+    val af = ArrayFold2(In(0, TArray(TInt32())),
+      FastIndexedSeq(("x", I32(0)), ("y", NA(TInt32()))),
+      "val",
+      FastIndexedSeq(Ref("val", TInt32()) + Ref("x", TInt32()), Coalesce(FastSeq(Ref("y", TInt32()), Ref("val", TInt32())))),
+      MakeStruct(FastSeq(("x", Ref("x", TInt32())), ("y", Ref("y", TInt32()))))
+    )
+
+    assertEvalsTo(af, FastIndexedSeq((FastIndexedSeq(1, 2, 3), TArray(TInt32()))), Row(6, 1))
+  }
+
   @Test def testArrayScan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1064,6 +1721,8 @@ class IRSuite extends HailSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), NA(TInt32()), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
     assertEvalsTo(scan(NA(TArray(TInt32())), 0, (accum, elt) => accum + elt), null)
+    assertEvalsTo(scan(MakeArray(Seq(), TArray(TInt32())), 99, (accum, elt) => accum + elt), FastIndexedSeq(99))
+    assertEvalsTo(scan(ArrayFlatMap(ArrayRange(0, 5, 1), "z", MakeArray(Seq(), TArray(TInt32()))), 99, (accum, elt) => accum + elt), FastIndexedSeq(99))
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
@@ -1083,7 +1742,7 @@ class IRSuite extends HailSuite {
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
   @Test def testNDArrayShape() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
     assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
@@ -1091,7 +1750,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayRef() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
     assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
@@ -1117,7 +1776,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayReshape() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
     val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple.ordered(Seq(I64(2), I64(2))))
 
@@ -1128,7 +1787,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val data = 0 until 10
     val shape = FastSeq(2L, 5L)
@@ -1154,7 +1813,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap2() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
     val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())), shape, True())
@@ -1169,7 +1828,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayReindex() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val transpose = NDArrayReindex(matrixRowMajor, FastIndexedSeq(1, 0))
     val identity = NDArrayReindex(matrixRowMajor, FastIndexedSeq(0, 1))
@@ -1192,7 +1851,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayBroadcasting() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val scalarWithMatrix = NDArrayMap2(
       NDArrayReindex(scalarRowMajor, FastIndexedSeq(1, 0)),
@@ -1223,7 +1882,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayAgg() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
     assertEvalsTo(three, 3.0)
@@ -1241,7 +1900,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMatMul() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
     val zero = makeNDArrayRef(dotProduct, IndexedSeq())
@@ -1262,7 +1921,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArraySlice() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    implicit val execStrats: Set[ExecStrategy] = Set()
 
     val rightCol = NDArraySlice(matrixRowMajor, MakeTuple.ordered(Seq(MakeTuple.ordered(Seq(I64(0), I64(2), I64(1))), I64(1))))
     assertEvalsTo(NDArrayShape(rightCol), Row(2L))
@@ -1277,14 +1936,6 @@ class IRSuite extends HailSuite {
 
     val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple.ordered(FastSeq()))
     assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
-  }
-
-  @Test def testNDArrayWrite() {
-    implicit val execStrats = Set(ExecStrategy.CxxCompile)
-
-    val path = tmpDir.createLocalTempFile()
-    val write = NDArrayWrite(threeTensorRowMajor, Str(path))
-    nativeExecute(write, Env.empty, FastIndexedSeq.empty, None)
   }
 
   @Test def testLeftJoinRightDistinct() {
@@ -1543,7 +2194,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testLiteral() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
     val types = Array(
       TTuple(TInt32(), TString(), TArray(TInt32())),
@@ -1568,7 +2219,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testTableCount() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
@@ -1726,6 +2377,7 @@ class IRSuite extends HailSuite {
       ArrayFilter(a, "v", b),
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
+      ArrayFold2(ArrayFold(a, I32(0), "x", "v", v)),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
@@ -1744,8 +2396,8 @@ class IRSuite extends HailSuite {
       SeqOp2(0, FastIndexedSeq(i), collectSig2),
       CombOp2(0, 1, collectSig2),
       ResultOp2(0, FastSeq(collectSig2)),
-      SerializeAggs(0, 0, CodecSpec.defaultBufferSpec, FastSeq(collectSig2)),
-      DeserializeAggs(0, 0, CodecSpec.defaultBufferSpec, FastSeq(collectSig2)),
+      SerializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig2)),
+      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig2)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -1777,7 +2429,7 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
-      ReadPartition(Str("foo"), CodecSpec.default.makeCodecSpec2(PStruct("foo" -> PInt32(), "bar" -> PString())), TStruct("foo" -> TInt32())),
+      ReadPartition(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32())),
       RelationalLet("x", I32(0), I32(0))
     )
     irs.map(x => Array(x))
@@ -1949,6 +2601,13 @@ class IRSuite extends HailSuite {
       slice)
 
     blockMatrixIRs.map(ir => Array(ir))
+  }
+
+  @Test def testIRConstruction(): Unit = {
+    matrixIRs()
+    tableIRs()
+    valueIRs()
+    blockMatrixIRs()
   }
 
   @Test(dataProvider = "valueIRs")

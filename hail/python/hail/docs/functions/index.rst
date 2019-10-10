@@ -63,6 +63,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     set
     empty_set
     dict
+    empty_dict
 
 .. rubric:: Collection functions
 
@@ -199,6 +200,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     is_complex
     is_valid_contig
     is_valid_locus
+    contig_length
     allele_type
     pl_dosage
     gp_dosage

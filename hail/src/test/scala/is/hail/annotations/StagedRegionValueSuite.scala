@@ -41,7 +41,11 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.appendString(input))
+    val bytes = input.getBytes()
+    val boff = PBinary.allocate(region2, bytes.length)
+    Region.storeInt(boff, bytes.length)
+    Region.storeBytes(PBinary.bytesOffset(boff), bytes)
+    rv2.setOffset(boff)
 
     if (showRVInfo) {
       printRegion(region2, "string")
@@ -79,7 +83,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.appendInt(input))
+    rv2.setOffset(region2.allocate(4, 4))
+    Region.storeInt(rv2.offset, input)
 
     if (showRVInfo) {
       printRegion(region2, "int")
@@ -87,7 +92,7 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.region.loadInt(rv.offset) == rv2.region.loadInt(rv2.offset))
+    assert(Region.loadInt(rv.offset) == Region.loadInt(rv2.offset))
   }
 
   @Test
@@ -126,8 +131,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     assert(rt.loadLength(rv.region, rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
-      rv2.region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
+    assert(Region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
+      Region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
   }
 
   @Test
@@ -168,8 +173,8 @@ class StagedRegionValueSuite extends HailSuite {
     assert(rv.pretty(rt) == rv2.pretty(rt))
     assert(PString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
       PString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
-      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
+    assert(Region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
+      Region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
   }
 
   @Test
@@ -308,10 +313,10 @@ class StagedRegionValueSuite extends HailSuite {
     rv2.setOffset(rvb2.end())
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
-      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(rv.region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
-      rv2.region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
+    assert(Region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
+      Region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(Region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
+      Region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
   }
 
   @Test
@@ -448,9 +453,9 @@ class StagedRegionValueSuite extends HailSuite {
     val f = fb.result()()
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
-      (region.loadInt(t.loadField(region, off, 0)),
-        region.loadBoolean(t.loadField(region, off, 1)),
-        region.loadDouble(t.loadField(region, off, 2)))
+      (Region.loadInt(t.loadField(region, off, 0)),
+        Region.loadBoolean(t.loadField(region, off, 1)),
+        Region.loadDouble(t.loadField(region, off, 2)))
     }
 
     assert(run(3, true, 42.0) == ((3, true, 42.0)))
@@ -469,9 +474,9 @@ class StagedRegionValueSuite extends HailSuite {
         val copyOff = Region.scoped { srcRegion =>
           val src = ScalaToRegionValue(srcRegion, t, a)
 
-          val fb = EmitFunctionBuilder[Region, Long, Long]
+          val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
           fb.emit(
-            StagedRegionValueBuilder.deepCopy(
+            StagedRegionValueBuilder.deepCopyFromOffset(
               EmitRegion.default(fb.apply_method),
               t,
               fb.getArg[Long](2).load()))
@@ -481,7 +486,7 @@ class StagedRegionValueSuite extends HailSuite {
 
           //clear old stuff
           val len = srcRegion.allocate(0) - src
-          srcRegion.storeBytes(src, Array.fill(len.toInt)(0.toByte))
+          Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
           newOff
         }
         SafeRow(t, region, copyOff)

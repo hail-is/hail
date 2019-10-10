@@ -1,13 +1,9 @@
 import unittest
-from hailtop.gear.deploy_config import DeployConfig
+from hailtop.config.deploy_config import DeployConfig
 
 class Test(unittest.TestCase):
     def test_deploy_external_default(self):
-        deploy_config = DeployConfig(_config={
-            'location': 'external',
-            'default_namespace': 'default',
-            'service_namespace': {'foo': 'bar'}
-        })
+        deploy_config = DeployConfig('external', 'default', {'foo': 'bar'})
 
         self.assertEqual(deploy_config.location(), 'external')
         self.assertEqual(deploy_config.service_ns('quam'), 'default')
@@ -27,11 +23,7 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.external_url('foo', '/moo'), 'https://internal.hail.is/bar/foo/moo')
 
     def test_deploy_k8s_default(self):
-        deploy_config = DeployConfig(_config={
-            'location': 'k8s',
-            'default_namespace': 'default',
-            'service_namespace': {'foo': 'bar'}
-        })
+        deploy_config = DeployConfig('k8s', 'default', {'foo': 'bar'})
 
         self.assertEqual(deploy_config.location(), 'k8s')
         self.assertEqual(deploy_config.service_ns('quam'), 'default')

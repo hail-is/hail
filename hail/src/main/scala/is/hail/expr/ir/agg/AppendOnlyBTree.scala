@@ -230,26 +230,28 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     { srcRoot: Code[Long] => f.invoke(root, srcRoot) }
   }
 
-  def bulkStore(ob: Code[OutputBuffer])(keyStore: (Code[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("bulkStore", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
+  def bulkStore(obCode: Code[OutputBuffer])(keyStore: (Code[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
+    val f = fb.newMethod("bulkStore", Array[TypeInfo[_]](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
+    val ob = f.getArg[OutputBuffer](2).load()
 
     f.emit(Code(
       ob.writeBoolean(!isLeaf(node)),
-      (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, -1))),
+      (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, -1), ob)),
       Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
         hasKey(node, i).mux(Code(
           ob.writeBoolean(true),
           keyStore(ob, loadKey(node, i)),
-          (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, i))),
+          (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, i), ob)),
           cont),
           ob.writeBoolean(false)) }))
-    f.invoke(root)
+    f.invoke(root, obCode)
   }
 
-  def bulkLoad(ib: Code[InputBuffer])(keyLoad: (Code[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("bulkLoad", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
+  def bulkLoad(ibCode: Code[InputBuffer])(keyLoad: (Code[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
+    val f = fb.newMethod("bulkLoad", Array[TypeInfo[_]](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
+    val ib = f.getArg[InputBuffer](2).load()
     val newNode = f.newLocal[Long]
     val isInternalNode = f.newLocal[Boolean]
 
@@ -259,7 +261,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
         Code(
           createNode(newNode),
           setChild(node, -1, newNode),
-          f.invoke(newNode)
+          f.invoke(newNode, ib)
       )),
       Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
         ib.readBoolean().orEmpty(Code(
@@ -268,9 +270,9 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
           isInternalNode.orEmpty(
             Code(createNode(newNode),
             setChild(node, i, newNode),
-            f.invoke(newNode))),
+            f.invoke(newNode, ib))),
           cont))
       }))
-    f.invoke(root)
+    f.invoke(root, ibCode)
   }
 }

@@ -56,16 +56,16 @@ class BitPackedVectorView(rvRowType: PStruct) {
     if (idx < 0 || idx >= bpvLength)
       throw new ArrayIndexOutOfBoundsException(idx)
     val packOffset = bpvElementOffset + idx * BitPackedVectorView.bpvElementSize
-    m.loadLong(packOffset)
+    Region.loadLong(packOffset)
   }
 
   def getNPacks: Int = bpvLength
 
-  def getNSamples: Int = m.loadInt(nSamplesOffset)
+  def getNSamples: Int = Region.loadInt(nSamplesOffset)
 
-  def getMean: Double = m.loadDouble(meanOffset)
+  def getMean: Double = Region.loadDouble(meanOffset)
 
-  def getCenteredLengthRec: Double = m.loadDouble(centeredLengthRecOffset)
+  def getCenteredLengthRec: Double = Region.loadDouble(centeredLengthRecOffset)
 }
 
 object LocalLDPrune {

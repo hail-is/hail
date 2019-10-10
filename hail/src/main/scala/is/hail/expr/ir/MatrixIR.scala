@@ -11,6 +11,7 @@ import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
+import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
@@ -44,6 +45,8 @@ abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
+
+  val rowCountUpperBound: Option[Long]
 
   def columnCount: Option[Int] = None
 
@@ -93,6 +96,8 @@ object MatrixLiteral {
 case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
+  lazy val rowCountUpperBound: Option[Long] = None
+
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
     MatrixLiteral(typ, tl)
@@ -103,9 +108,15 @@ case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
 
 object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader],
-      classOf[MatrixBGENReader], classOf[MatrixPLINKReader], classOf[MatrixGENReader],
-      classOf[TextInputFilterAndReplace])) + new NativeReaderOptionsSerializer()
+    List(classOf[MatrixNativeReader],
+      classOf[MatrixRangeReader],
+      classOf[MatrixVCFReader],
+      classOf[MatrixBGENReader],
+      classOf[MatrixPLINKReader],
+      classOf[MatrixGENReader],
+      classOf[TextInputFilterAndReplace],
+      classOf[TextMatrixReader])
+  ) + new NativeReaderOptionsSerializer()
 }
 
 trait MatrixReader {
@@ -294,6 +305,8 @@ case class MatrixRead(
       reader.partitionCounts
   }
 
+  lazy val rowCountUpperBound: Option[Long] = partitionCounts.map(_.sum)
+
   override def columnCount: Option[Int] = {
     if (dropCols)
       Some(0)
@@ -316,6 +329,8 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
   val typ: MatrixType = child.typ
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
@@ -330,6 +345,8 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
   def typ: MatrixType = child.typ
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extends MatrixIR {
@@ -345,6 +362,8 @@ case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extend
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = Some(oldIndices.length)
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
@@ -364,6 +383,8 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR) extends MatrixIR {
@@ -382,6 +403,8 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
   )
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR) extends MatrixIR {
@@ -399,6 +422,8 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
     colType = child.typ.colKeyStruct ++ coerce[TStruct](colExpr.typ))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
@@ -413,6 +438,13 @@ case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
 
   override def columnCount: Option[Int] =
     left.columnCount.flatMap(leftCount => right.columnCount.map(rightCount => leftCount + rightCount))
+
+  lazy val rowCountUpperBound: Option[Long] = (left.rowCountUpperBound, right.rowCountUpperBound) match {
+    case (Some(l), Some(r)) => Some(l.min(r))
+    case (Some(l), None) => Some(l)
+    case (None, Some(r)) => Some(r)
+    case (None, None) => None
+  }
 }
 
 case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
@@ -429,6 +461,8 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: Boolean = false) extends MatrixIR {
@@ -445,6 +479,8 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
   }
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
@@ -463,6 +499,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[String]]) extends MatrixIR {
@@ -482,6 +520,8 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
@@ -498,6 +538,8 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
@@ -513,6 +555,8 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixAnnotateColsTable(
@@ -536,6 +580,8 @@ case class MatrixAnnotateColsTable(
       newChildren(1).asInstanceOf[TableIR],
       root)
   }
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixAnnotateRowsTable(
@@ -553,6 +599,8 @@ case class MatrixAnnotateRowsTable(
   override def columnCount: Option[Int] = child.columnCount
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   private val annotationType =
     if (product)
@@ -573,6 +621,8 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   assert(path.nonEmpty)
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  lazy val rowCountUpperBound: Option[Long] = None
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixExplodeRows = {
     val IndexedSeq(newChild) = newChildren
@@ -611,12 +661,21 @@ case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends Mat
   }
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   require(children.length > 1)
-  require(children.map(_.typ).toSet.size == 1, children.map(_.typ))
+  require(children.tail.forall(c => compatible(c.typ, children.head.typ)), children.map(_.typ))
   val typ: MatrixType = children.head.typ
+
+  def compatible(t1: MatrixType, t2: MatrixType): Boolean = {
+    t1.colKeyStruct == t2.colKeyStruct &&
+      t1.rowType == t2.rowType &&
+      t1.rowKey == t2.rowKey &&
+      t1.entryType == t2.entryType
+  }
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
     MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
@@ -626,6 +685,14 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
       require(c1.forall { i1 => c2.forall(i1 == _) })
       c1.orElse(c2)
     }
+
+  lazy val rowCountUpperBound: Option[Long] = {
+    val definedChildren = children.flatMap(_.rowCountUpperBound)
+    if (definedChildren.length == children.length)
+      Some(definedChildren.sum)
+    else
+      None
+  }
 }
 
 case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
@@ -640,6 +707,8 @@ case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
   }
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
@@ -654,6 +723,11 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
   }
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound match {
+    case Some(c) => Some(c.min(n))
+    case None => Some(n)
+  }
 }
 
 case class MatrixColsHead(child: MatrixIR, n: Int) extends MatrixIR {
@@ -670,6 +744,8 @@ case class MatrixColsHead(child: MatrixIR, n: Int) extends MatrixIR {
   override def columnCount: Option[Int] = child.columnCount.map(math.min(_, n))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
@@ -684,6 +760,8 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
   override def columnCount: Option[Int] = None
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   private val (keysType, querier) = child.typ.colType.queryTyped(path.toList)
   private val keyType = keysType match {
@@ -724,6 +802,8 @@ case class CastTableToMatrix(
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
@@ -738,6 +818,8 @@ case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None
+
+  lazy val rowCountUpperBound: Option[Long] = if (function.preservesPartitionCounts) child.rowCountUpperBound else None
 }
 
 case class MatrixRename(child: MatrixIR,
@@ -759,6 +841,8 @@ case class MatrixRename(child: MatrixIR,
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
+
   override def columnCount: Option[Int] = child.columnCount
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRename = {
@@ -778,6 +862,8 @@ case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval
   override lazy val typ: MatrixType = child.typ
 
   override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
 case class RelationalLetMatrixTable(name: String, value: IR, body: MatrixIR) extends MatrixIR {
@@ -789,4 +875,6 @@ case class RelationalLetMatrixTable(name: String, value: IR, body: MatrixIR) ext
     val IndexedSeq(newValue: IR, newBody: MatrixIR) = newChildren
     RelationalLetMatrixTable(name, newValue, newBody)
   }
+
+  lazy val rowCountUpperBound: Option[Long] = body.rowCountUpperBound
 }

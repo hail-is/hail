@@ -6,7 +6,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2}
+import is.hail.io.BufferSpec
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
@@ -35,7 +35,7 @@ object TableMapIRNew {
       else
         null
 
-    val spec = CodecSpec.defaultUncompressedBuffer
+    val spec = BufferSpec.defaultUncompressed
 
     // Order of operations:
     // 1. init op on all aggs and serialize to byte array.
@@ -162,11 +162,18 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
-    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && (agg.op match {
-      case Take() | Collect() | PrevNonnull() | TakeBy() => false
-      case _ => true
-    })
+    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
     aggs.forall(aggCommutes)
+  }
+
+  def shouldTreeAggregate: Boolean = {
+    def containsBigAggregator(agg: AggSignature2): Boolean = agg.nested.exists(_.exists(containsBigAggregator)) || (agg.op match {
+      case AggElements() => true
+      case AggElementsLengthCheck() => true
+      case Downsample() => true
+      case _ => false
+    })
+    aggs.exists(containsBigAggregator)
   }
 
   def deserializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
@@ -272,6 +279,7 @@ object Extract {
       CountAggregator
     case AggSignature2(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
     case AggSignature2(CallStats(), _, Seq(tCall: TCall), _) => new CallStatsAggregator(tCall.physicalType)
+    case AggSignature2(TakeBy(), _, Seq(value, key), _) => new TakeByAggregator(value.physicalType, key.physicalType)
     case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
       val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
@@ -281,6 +289,10 @@ object Extract {
       new PrevNonNullAggregator(t.physicalType)
     case AggSignature2(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
       new GroupedAggregator(PType.canonical(kt), nestedAggs.map(getAgg).toArray)
+    case AggSignature2(CollectAsSet(), _, Seq(t), _) =>
+      new CollectAsSetAggregator(PType.canonical(t))
+    case AggSignature2(Collect(), _, Seq(t), _) =>
+      new CollectAggregator(t.physicalType)
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 

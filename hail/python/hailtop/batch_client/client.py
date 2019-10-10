@@ -1,5 +1,4 @@
 import asyncio
-import aiohttp
 
 from . import aioclient
 
@@ -12,6 +11,10 @@ class Job:
     @staticmethod
     def exit_code(job_status):
         return aioclient.Job.exit_code(job_status)
+
+    @staticmethod
+    def total_duration(job_status):
+        return aioclient.Job.total_duration(job_status)
 
     @classmethod
     def from_async_job(cls, job):
@@ -135,11 +138,10 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self, session=None, headers=None, _token=None):
-        if session is None:
-            session = aiohttp.ClientSession(raise_for_status=True,
-                                            timeout=aiohttp.ClientTimeout(total=60))
-        self._async_client = async_to_blocking(aioclient.BatchClient(session, headers=headers, _token=_token))
+    def __init__(self, deploy_config=None, session=None, headers=None,
+                 _token=None, _service='batch'):
+        self._async_client = async_to_blocking(
+            aioclient.BatchClient(deploy_config, session, headers=headers, _token=_token, _service=_service))
 
     @property
     def bucket(self):

@@ -166,7 +166,7 @@ object TypeCheck {
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType  body.typ)
       case x@NDArrayReindex(nd, indexExpr) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         val nInputDims = coerce[TNDArray](nd.typ).nDims
@@ -206,7 +206,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TIterable])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = -coerce[TIterable](orderedCollection.typ).elementType
-        assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
+        assert(-elem.typ == (if (onKey) elt match {
+          case t: TBaseStruct => -t.types(0)
+          case t: TInterval => -t.pointType
+        } else elt))
       case x@GroupByKey(collection) =>
         val telt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         val td = coerce[TDict](x.typ)
@@ -225,6 +228,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
+      case x@ArrayFold2(a, accum, valueName, seq, res) =>
+        assert(a.typ.isInstanceOf[TStreamable])
+        assert(x.typ == res.typ)
+        assert(accum.zip(seq).forall { case ((_, z), s) => s.typ == z.typ })
       case x@ArrayScan(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
@@ -332,7 +339,8 @@ object TypeCheck {
       case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
-      case TableCollect(_) =>
+      case TableCollect(child) =>
+        assert(child.typ.key.isEmpty)
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
