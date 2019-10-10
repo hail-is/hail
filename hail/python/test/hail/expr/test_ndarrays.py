@@ -1,8 +1,9 @@
-import hail as hl
 import numpy as np
 from ..helpers import *
 import tempfile
 import pytest
+
+from hail.utils.java import FatalError
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
@@ -45,6 +46,10 @@ def test_ndarray_ref():
         (h_np_cube[1, 1, 0], 6),
         (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
         (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3))
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl._ndarray([1, 2, 3])[4])
+    assert "Index out of bounds" in str(exc)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
