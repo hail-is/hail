@@ -14,23 +14,11 @@ from .instance import Instance
 log = logging.getLogger('instance_pool')
 
 
-class Cores(int):
-    def __new__(cls, value):
-        i = int.__new__(cls, value * 1000)
-        return i
-
-    def __init__(self, value):
-        self.value = round(value, 3)
-
-    def __str__(self):
-        return f'{self.value}'
-
-
 class InstancePool:
     def __init__(self, driver):
         self.driver = driver
         self.worker_type = WORKER_TYPE
-        self.worker_cores = Cores(WORKER_CORES)
+        self.worker_cores = WORKER_CORES
 
         if WORKER_TYPE == 'standard':
             m = 3.75
@@ -45,12 +33,6 @@ class InstancePool:
         self.worker_disk_size_gb = WORKER_DISK_SIZE_GB
         self.pool_size = POOL_SIZE
         self.max_instances = MAX_INSTANCES
-
-        log.info(f'WORKER_CORES={WORKER_CORES}')
-        log.info(f'WORKER_TYPE={WORKER_TYPE}')
-        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
-        log.info(f'POOL_SIZE={POOL_SIZE}')
-        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
 
         self.token = new_token()
         self.machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
@@ -67,7 +49,7 @@ class InstancePool:
         self.n_active_instances = 0
 
         # for pending and active
-        self.free_cores = Cores(0)
+        self.free_cores = 0
 
         self.token_inst = {}
 
@@ -307,6 +289,13 @@ retry docker run \
 
     async def control_loop(self):
         log.info(f'starting control loop')
+
+        log.info(f'WORKER_CORES={WORKER_CORES}')
+        log.info(f'WORKER_TYPE={WORKER_TYPE}')
+        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
+        log.info(f'POOL_SIZE={POOL_SIZE}')
+        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
+        
         while True:
             try:
                 log.info(f'n_pending_instances {self.n_pending_instances}'
