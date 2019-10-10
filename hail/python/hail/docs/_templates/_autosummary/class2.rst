@@ -2,7 +2,11 @@
 
 .. currentmodule:: {{ module }}
 
-.. autoclass:: {{ objname }}
+.. autoclass:: {{ objname }}()
+    :show-inheritance:
+    :special-members:
+    :inherited-members:
+    :no-undoc-members:
 
     {% block attributes %}
     {% if attributes %}
