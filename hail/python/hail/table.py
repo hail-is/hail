@@ -1446,11 +1446,7 @@ class Table(ExprContainer):
             n = n_rows
         del n_rows
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = hl.utils.default_handler()
         handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
@@ -3220,11 +3216,7 @@ class Table(ExprContainer):
         """
 
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = hl.utils.default_hander()
         handler(self.row._summarize())
 
     @typecheck_method(parts=sequenceof(int), keep=bool)

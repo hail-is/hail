@@ -11,7 +11,7 @@ from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
-from hail.utils import storage_level, LinkedList
+from hail.utils import storage_level, LinkedList, default_handler
 from hail.utils.java import warn, jiterable_to_list, Env, scala_object, joption, jnone
 from hail.utils.misc import *
 
@@ -2598,11 +2598,7 @@ class MatrixTable(ExprContainer):
             **{f: t[f] for f in self.row_value if include_row_fields},
             **entries)
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = default_handler()
         handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
@@ -3997,12 +3993,7 @@ class MatrixTable(ExprContainer):
         """
 
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
-
+            handler = default_handler()
         if cols:
             handler(self.col._summarize(header='Columns'))
         if rows:

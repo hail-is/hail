@@ -1069,11 +1069,7 @@ class Expression(object):
                 prefix = '<expr>'
 
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = hl.utils.default_handler()
         handler(self._summarize(name=prefix))
 
     def _selector_and_agg_method(self):
