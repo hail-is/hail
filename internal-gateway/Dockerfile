@@ -5,7 +5,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 RUN rm -f /etc/nginx/sites-enabled/default
-ADD gateway-internal.nginx.conf /etc/nginx/conf.d/gateway-internal.conf
+ADD internal-gateway.nginx.conf /etc/nginx/conf.d/internal-gateway.conf
 ADD gzip.conf /etc/nginx/conf.d/gzip.conf
 
 RUN ln -sf /dev/stdout /var/log/nginx/access.log

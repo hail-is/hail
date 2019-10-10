@@ -210,6 +210,33 @@ class ASM4SSuite extends TestNGSuite {
     }
   }
 
+  @Test def switchLookup(): Unit = {
+    val fb = functionBuilder[Int, Int]
+    fb.emit(
+      Code.switch[Int](fb.getArg[Int](1),
+        999,
+        (0 until 50).map { i => const(i * i) }))
+    val f = fb.result()()
+    for (i <- -20 to 100) {
+      if (i >= 0 && i < 50)
+        assert((i * i) == f(i), i)
+      else
+        assert(999 == f(i), i)
+    }
+  }
+
+  @Test def emptySwitch(): Unit = {
+    val fb = functionBuilder[Int]
+    fb.emit({
+      val v = fb.newLocal[Int]
+      Code(v := 5,
+        Code.switch[Unit](1, v := 6, Seq()),
+        _return(v))
+    })
+    val f = fb.result()()
+    assert(f() == 6)
+  }
+
   @Test def nanAlwaysComparesFalse(): Unit = {
     Prop.forAll { (x: Double) =>
       {

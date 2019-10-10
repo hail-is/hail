@@ -26,6 +26,7 @@ Expressions
     SetExpression
     StringExpression
     StructExpression
+    TupleExpression
 
 
 .. autoclass:: Expression
@@ -86,3 +87,7 @@ Expressions
 .. autoclass:: StructExpression
     :show-inheritance:
     :special-members: __getitem__
+
+.. autoclass:: TupleExpression
+    :show-inheritance:
+    :special-members: __getitem__, __len__

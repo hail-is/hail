@@ -463,21 +463,6 @@ def timestamp_path(base, suffix=''):
                     datetime.datetime.now().strftime("%Y%m%d-%H%M"),
                     suffix])
 
-
-def np_type_to_hl_type(t):
-    if t == np.int64:
-        return hail.tint64
-    elif t == np.int32:
-        return hail.tint32
-    elif t == np.float64:
-        return hail.tfloat64
-    elif t == np.float32:
-        return hail.tfloat32
-    elif t == np.bool:
-        return hail.tbool
-    else:
-        raise TypeError(f'Unsupported numpy type: {t}')
-
 def upper_hex(n, num_digits=None):
     if num_digits is None:
         return "{0:X}".format(n)
