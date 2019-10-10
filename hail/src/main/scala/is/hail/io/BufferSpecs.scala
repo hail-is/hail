@@ -74,10 +74,6 @@ trait BufferSpec extends Spec {
   def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer]
 
   def buildCodeOutputBuffer(in: Code[OutputStream]): Code[OutputBuffer]
-
-  def nativeOutputBufferType: String
-
-  def nativeInputBufferType(inputStreamType: String): String
 }
 
 final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
@@ -90,11 +86,6 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
     Code.newInstance[LEB128OutputBuffer, OutputBuffer](child.buildCodeOutputBuffer(out))
-
-  def nativeOutputBufferType: String = s"LEB128OutputBuffer<${ child.nativeOutputBufferType }>"
-
-  def nativeInputBufferType(inputStreamType: String): String =
-    s"LEB128InputBuffer<${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
@@ -109,11 +100,6 @@ final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
     Code.newInstance[BlockingOutputBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
-
-  def nativeOutputBufferType: String = s"BlockingOutputBuffer<$blockSize, ${ child.nativeOutputBufferType }>"
-
-  def nativeInputBufferType(inputStreamType: String): String =
-    s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 trait BlockBufferSpec extends Spec {
@@ -124,10 +110,6 @@ trait BlockBufferSpec extends Spec {
   def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer]
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer]
-
-  def nativeOutputBufferType: String
-
-  def nativeInputBufferType(inputStreamType: String): String
 }
 
 sealed abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
@@ -150,11 +132,6 @@ sealed abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
     Code.newInstance[LZ4OutputBlockBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
-
-  def nativeOutputBufferType: String = s"$typeName<${ 4 + lz4.maxCompressedLength(blockSize) }, ${ child.nativeOutputBufferType }>"
-
-  def nativeInputBufferType(inputStreamType: String): String =
-    s"$typeName<${ 4 + lz4.maxCompressedLength(blockSize) }, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 @deprecated("LZ4HCBlockBufferSpec is a drop-in replacement for this class", "Hail 0.2.24")
@@ -191,10 +168,6 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
     Code.newInstance[StreamBlockOutputBuffer, OutputStream](out)
 
-  def nativeOutputBufferType: String = s"StreamOutputBlockBuffer"
-
-  def nativeInputBufferType(inputStreamType: String): String = s"StreamInputBlockBuffer<$inputStreamType>"
-
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
 }
 
@@ -208,10 +181,6 @@ final class StreamBufferSpec extends BufferSpec {
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
     Code.newInstance[StreamOutputBuffer, OutputStream](out)
-
-  override def nativeOutputBufferType: String = s"StreamOutputBuffer"
-
-  override def nativeInputBufferType(inputStreamType: String): String = s"StreamInputBuffer<$inputStreamType>"
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBufferSpec]
 }
