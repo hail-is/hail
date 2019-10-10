@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
+import is.hail.table.SortOrder
 import is.hail.utils._
 
 object PBaseStruct {
@@ -84,6 +85,11 @@ abstract class PBaseStruct extends PType {
     sb.append("END")
     sb.result()
   }
+
+  def codeOrdering(mb: EmitMethodBuilder, so: Array[SortOrder]): CodeOrdering =
+    codeOrdering(mb, this, so)
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering
 
   def isIsomorphicTo(other: PBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)
