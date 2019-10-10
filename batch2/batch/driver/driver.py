@@ -11,14 +11,13 @@ import traceback
 from hailtop.config import get_deploy_config
 from hailtop.utils import AsyncWorkerPool
 
-from .google_compute import GServices
+from ..google_compute import GServices
+from ..utils import parse_cpu
+from ..globals import tasks
+
 from .instance_pool import InstancePool
-from .utils import parse_cpu
-from .globals import get_db, tasks
 
 log = logging.getLogger('driver')
-
-db = get_db()
 
 
 class DriverException(Exception):
@@ -63,8 +62,8 @@ class Pod:
                             f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
         cores = max(container_cores)
 
-        await db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
-                                 cores=cores, instance=None)
+        await driver.db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
+                                        cores=cores, instance=None)
 
         return Pod(driver, name, spec, output_directory, cores)
 
@@ -108,7 +107,7 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        asyncio.ensure_future(db.pods.update_record(self.name, status=json.dumps(status)))
+        asyncio.ensure_future(self.driver.db.pods.update_record(self.name, status=json.dumps(status)))
 
     def mark_deleted(self):
         assert not self.deleted
@@ -122,7 +121,7 @@ class Pod:
         log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
         self.instance.unschedule(self)
         self.instance = None
-        await db.pods.update_record(self.name, instance=None)
+        await self.driver.db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
         async with self.lock:
@@ -155,7 +154,7 @@ class Pod:
             self.instance = inst
 
             # FIXME: is there a way to eliminate this blocking the scheduler?
-            await db.pods.update_record(self.name, instance=inst.token)
+            await self.driver.db.pods.update_record(self.name, instance=inst.token)
             return True
 
     async def put_on_ready(self):
@@ -249,7 +248,7 @@ class Pod:
                     log.info(f'failed to delete {self.name} on inst {inst} due to err {err}, ignoring')
 
             await self.unschedule()
-            asyncio.ensure_future(db.pods.delete_record(self.name))
+            asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
 
     async def read_pod_log(self, container):
         assert container in tasks
@@ -299,7 +298,8 @@ class Pod:
 
 
 class Driver:
-    def __init__(self, k8s, batch_bucket, batch_gsa_key=None):
+    def __init__(self, db, k8s, batch_bucket, batch_gsa_key=None):
+        self.db = db
         self.k8s = k8s
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
@@ -452,7 +452,7 @@ class Driver:
             pod = Pod.from_record(self, record)
             return pod.name, pod
 
-        records = await db.pods.get_all_records()
+        records = await self.db.pods.get_all_records()
         self.pods = dict(_pod(record) for record in records)
 
         for pod in self.pods.values():

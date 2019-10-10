@@ -4,10 +4,7 @@ import googleapiclient.errors
 import asyncio
 import aiohttp
 
-from .globals import get_db
-
 log = logging.getLogger('instance')
-db = get_db()
 
 
 class Instance:
@@ -38,8 +35,9 @@ class Instance:
 
     @staticmethod
     async def create(inst_pool, name, token):
-        await db.instances.new_record(name=name,
-                                      token=token)  # FIXME: maybe add machine type, cores, batch_image etc.
+        # FIXME: maybe add machine type, cores, batch_image etc.
+        await inst_pool.driver.db.instances.new_record(name=name,
+                                                       token=token)
 
         inst_pool.n_pending_instances += 1
         inst_pool.free_cores += inst_pool.worker_capacity
@@ -113,8 +111,8 @@ class Instance:
             self.inst_pool.free_cores += self.inst_pool.worker_capacity
             self.inst_pool.driver.changed.set()
 
-            await db.instances.update_record(self.name,
-                                             ip_address=ip_address)
+            await self.inst_pool.driver.db.instances.update_record(
+                self.name, ip_address=ip_address)
 
             log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
@@ -190,7 +188,7 @@ class Instance:
         self.inst_pool.instances.remove(self)
         if self.token in self.inst_pool.token_inst:
             del self.inst_pool.token_inst[self.token]
-        await db.instances.delete_record(self.name)
+        await self.inst_pool.driver.db.instances.delete_record(self.name)
 
     async def handle_call_delete_event(self):
         log.info(f'handling call delete event for {self.name}')

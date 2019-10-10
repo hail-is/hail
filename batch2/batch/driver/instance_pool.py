@@ -4,15 +4,14 @@ import logging
 import time
 import math
 
-from .utils import new_token
-from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
+from ..utils import new_token
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
+
 from .instance import Instance
-from .globals import get_db
 
 log = logging.getLogger('instance_pool')
-db = get_db()
 
 
 class InstancePool:
@@ -66,7 +65,7 @@ class InstancePool:
     async def initialize(self):
         log.info('initializing instance pool')
 
-        for record in await db.instances.get_all_records():
+        for record in await self.driver.db.instances.get_all_records():
             inst = Instance.from_record(self, record)
             self.token_inst[inst.token] = inst
             self.instances.add(inst)
@@ -108,7 +107,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
-                    'sourceImage': 'projects/hail-vdc/global/images/batch2-worker-1',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-1',
                 }
             }],
 
