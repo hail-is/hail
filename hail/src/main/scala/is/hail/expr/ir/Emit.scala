@@ -1519,6 +1519,30 @@ private class Emit(
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
         EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
+      case NDArrayRef(nd, idxs) =>
+        val ndt = emit(nd)
+        val idxst = idxs.map(emit(_))
+        val childPType = coerce[PNDArray](nd.pType)
+        val ndAddress = mb.newField[Long]
+        val overallMissing = mb.newField[Boolean]
+
+        val setup = coerce[Unit](Code(
+          ndt.setup,
+          overallMissing := ndt.m,
+          Code(idxst.map(_.setup))
+        ))
+
+        val idxValues = idxst.map(_.value[Long]).toArray
+
+        val targetElementPosition = childPType.getElementAddress(idxValues, ndAddress, region, mb)
+
+        val value = Code(
+          ndAddress := ndt.value[Long],
+          childPType.outOfBounds(idxValues, ndAddress, region, mb).orEmpty(Code._fatal("Index out of bounds")),
+          Region.loadIRIntermediate(childPType.data.pType.elementType)(targetElementPosition)
+        )
+
+        EmitTriplet(setup, overallMissing, value)
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childAddress = mb.newField[Long]
@@ -2246,7 +2270,7 @@ private class Emit(
         new NDArrayEmitter(mb, nDims, shapeArray,
           xP.shape.pType, xP.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val elementLocation = xP.getElementPosition(idxVars, ndAddress, er.region, mb)
+            val elementLocation = xP.getElementAddress(idxVars, ndAddress, er.region, mb)
             Region.loadIRIntermediate(outputElementPType)(elementLocation)
           }
         }
