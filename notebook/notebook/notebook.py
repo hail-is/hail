@@ -420,12 +420,16 @@ async def _get_error(service, request, userdata):
 
     session = await aiohttp_session.get_session(request)
     if notebook:
+        if new_status['state'] == 'Ready':
+            return web.HTTPFound(deploy_config.external_url(
+                service,
+                f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'))
         set_message(session,
-                    f'Cloud not connect to notebook.  Please try again.',
+                    f'Could not connect to Jupyter instance.  Please wait for Jupyter to be ready and try again.',
                     'error')
     else:
         set_message(session,
-                    f'Notebook not found.  Please create a new notebook.',
+                    f'Jupyter instance not found.  Please launch a new instance.',
                     'error')
     return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 
