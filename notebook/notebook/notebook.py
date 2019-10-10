@@ -419,9 +419,14 @@ async def _get_error(service, request, userdata):
     await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
 
     session = await aiohttp_session.get_session(request)
-    set_message(session,
-                f'Notebook not found.  Please create a new notebook.',
-                'error')
+    if notebook:
+        set_message(session,
+                    f'Cloud not connect to notebook.  Please try again.',
+                    'error')
+    else:
+        set_message(session,
+                    f'Notebook not found.  Please create a new notebook.',
+                    'error')
     return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 
 
