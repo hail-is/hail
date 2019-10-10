@@ -1458,7 +1458,7 @@ case class TableKeyByAndAggregate(
 
         return prev.copy(
           typ = typ,
-          rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd))
+          rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd, ctx))
       } catch {
         case e: agg.UnsupportedExtraction =>
           log.info(s"couldn't lower TableKeyByAndAggregate: $e")
@@ -1629,7 +1629,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
         val newRVDType = prevRVD.typ.copy(rowType = rowType)
 
         val newRVD = prevRVD
-          .repartition(prevRVD.partitioner.strictify)
+          .repartition(prevRVD.partitioner.strictify, ctx)
           .boundary
           .mapPartitionsWithIndex(newRVDType, { (i, ctx, it) =>
             val partRegion = ctx.freshRegion

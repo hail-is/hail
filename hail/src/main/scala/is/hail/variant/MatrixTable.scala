@@ -219,7 +219,8 @@ object MatrixTable {
 
             rv
           }
-        }))
+        },
+        ctx))
     ds
   }
 
