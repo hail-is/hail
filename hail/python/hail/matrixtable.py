@@ -3102,7 +3102,7 @@ class MatrixTable(ExprContainer):
     def _process_joins(self, *exprs) -> 'MatrixTable':
         return process_joins(self, exprs)
 
-    def describe(self, handler=print, widget=False):
+    def describe(self, handler=print, *, widget=False):
         """Print information about the fields in the matrix table.
 
         Note

@@ -1830,7 +1830,7 @@ class Table(ExprContainer):
         else:
             return e
 
-    def describe(self, handler=print, widget=False):
+    def describe(self, handler=print, *, widget=False):
         """Print information about the fields in the table.
 
         Note
