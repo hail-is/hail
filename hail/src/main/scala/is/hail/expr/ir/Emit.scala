@@ -1611,16 +1611,22 @@ private class Emit(
         val rightND = mb.newField[Long]
 
         val leftShape = lPType.shape.load(region, leftND)
+        val rightShape = rPType.shape.load(region, rightND)
 
         val lShapeTuple = new CodePTuple(lPType.shape.pType, region, leftShape)
+        val rShapeTuple = new CodePTuple(rPType.shape.pType, region, rightShape)
 
         val leftShapeArray = (0 until lPType.nDims).map(i => coerce[Long](lShapeTuple(i))).toArray
+        val rightShapeArray = (0 until rPType.nDims).map(i => coerce[Long](rShapeTuple(i))).toArray
+
+        val (unifyShapeSetup, unifiedShapeArray) = NDArrayEmitter.matmulShape(leftShapeArray, rightShapeArray)
 
         val setup = Code(
           lT.setup,
           rT.setup,
           leftND := lT.value[Long],
-          rightND := rT.value[Long]
+          rightND := rT.value[Long],
+          unifyShapeSetup
         )
 
         val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
@@ -1648,8 +1654,7 @@ private class Emit(
 
         val eVti = typeToTypeInfo(lPType.elementType.virtualType)
 
-        // FIXME Only going to work if same shape as left
-        val emitter = new NDArrayEmitter(mb, outputPType.nDims, leftShapeArray, lPType.shape.pType, lPType.elementType, setup) {
+        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val seqIdxVars = idxVars.toSeq
             val element = coerce[Any](mb.newField("foo")(eVti))//mb.newLocal
@@ -2475,16 +2480,20 @@ object NDArrayEmitter {
   }
 
   def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
+    assert(leftShape.length == rightShape.length)
     val leftLen = leftShape.length
     val rightLen = rightShape.length
     val mRows = leftShape(leftLen - 2)
     val mCols = rightShape(rightLen - 1)
     val mustMatch = leftShape(leftLen - 1) ceq rightShape(rightLen - 2)
 
-    val compatibilityCheck =
+    val compatibilityCheck = mustMatch.mux(Code._empty[Unit], Code._fatal("Matrix dimensions incompatible"))
 
+    val upperShape = unifyShapes2(leftShape.slice(0, leftLen - 2), rightShape.slice(0, rightLen - 2))
 
-    ???
+    val lastTwoDims = Array(mRows, mCols)
+
+    (compatibilityCheck, upperShape  ++ lastTwoDims)
   }
 }
 
