@@ -65,16 +65,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
-  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
     assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val bufferSpec: BufferSpec = if (codecSpecJSONStr != null) {
-      implicit val formats = AbstractRVDSpec.formats
-      val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-      codecSpecJSON.extract[BufferSpec]
-    } else BufferSpec.default
+    val bufferSpec = BufferSpec.parse(codecSpecJSON)
 
     if (overwrite)
       fs.delete(path, recursive = true)

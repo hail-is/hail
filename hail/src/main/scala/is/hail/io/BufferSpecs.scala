@@ -1,9 +1,11 @@
 package is.hail.io
 
+import is.hail.rvd.AbstractRVDSpec
 import java.io._
 
 import is.hail.asm4s._
-import is.hail.io.compress.LZ4Utils
+import is.hail.io.compress.LZ4
+import org.json4s.{ DefaultFormats, Formats, ShortTypeHints }
 
 import org.json4s.jackson.JsonMethods
 import org.json4s.{Extraction, JValue}
@@ -31,8 +33,27 @@ object BufferSpec {
     Array(blockSpec, LEB128BufferSpec(blockSpec))
   }
 
-  val wireSpec: BufferSpec = default
-  val memorySpec: BufferSpec = default
+  def parse(s: String): BufferSpec = {
+    import AbstractRVDSpec.formats
+    JsonMethods.parse(s).extract[BufferSpec]
+  }
+
+  def parseOrDefault(
+    s: String,
+    default: BufferSpec = BufferSpec.default
+  ): BufferSpec = if (s == null) default else parse(s)
+
+  val shortTypeHints = ShortTypeHints(List(
+      classOf[BlockBufferSpec],
+      classOf[LZ4BlockBufferSpec],
+      classOf[LZ4HCBlockBufferSpec],
+      classOf[LZ4FastBlockBufferSpec],
+      classOf[StreamBlockBufferSpec],
+      classOf[BufferSpec],
+      classOf[LEB128BufferSpec],
+      classOf[BlockingBufferSpec],
+      classOf[StreamBufferSpec]
+    ))
 }
 
 trait BufferSpec extends Spec {
