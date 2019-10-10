@@ -1661,8 +1661,14 @@ private class Emit(
             val kLocal = mb.newLocal[Long]
             val k = kLocal.load()
 
-            val (lIdxVars, rIdxVars) = (lNDims, rNDims) match {
+            val (lIdxVars: Array[Code[Long]], rIdxVars: Array[Code[Long]]) = (lNDims, rNDims) match {
               case (1, 1) => (Array(k), Array(k))
+              case (1, _) =>
+                val stackDims :+ m = seqIdxVars
+
+                val rStackVars = stackDims //Need to zero broadcast blah blah
+                //broadcastingLoopVars?
+                (Array(k), (rStackVars :+ k :+ m).toArray)
               case (_, _) => {
                 val stackDims :+ n :+ m = seqIdxVars
 
@@ -2480,14 +2486,21 @@ object NDArrayEmitter {
   }
 
   def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
-    assert(leftShape.length == rightShape.length)
     val leftLen = leftShape.length
     val rightLen = rightShape.length
     val mRows = leftShape(leftLen - 2)
     val mCols = rightShape(rightLen - 1)
     val mustMatch = leftShape(leftLen - 1) ceq rightShape(rightLen - 2)
 
+    assert(leftLen >= 1)
+    assert(rightLen >= 1)
+
     val compatibilityCheck = mustMatch.mux(Code._empty[Unit], Code._fatal("Matrix dimensions incompatible"))
+
+    if (leftLen == 1 && rightLen == 1) {
+      return (compatibilityCheck, Array())
+    }
+
 
     val upperShape = unifyShapes2(leftShape.slice(0, leftLen - 2), rightShape.slice(0, rightLen - 2))
 
