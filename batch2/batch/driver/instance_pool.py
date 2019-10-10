@@ -17,8 +17,10 @@ log = logging.getLogger('instance_pool')
 class Cores(int):
     def __new__(cls, value):
         i = int.__new__(cls, value * 1000)
-        i.value = round(value, 3)
         return i
+
+    def __init__(self, value):
+        self.value = round(value, 3)
 
     def __str__(self):
         return f'{self.value}'
