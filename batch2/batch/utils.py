@@ -18,8 +18,12 @@ def parse_cpu(cpu_string):
         number = float(match.group(1))
         if match.group(2) == 'm':
             number /= 1000
-        return round(number, 3)
+        return int(number * 1000)  # mCPU
     return None
+
+
+def mcpu_to_cpu(mcpu):
+    return round(mcpu / 1000, 3)
 
 
 image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")

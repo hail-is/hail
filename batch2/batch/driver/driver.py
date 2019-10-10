@@ -12,7 +12,7 @@ from hailtop.config import get_deploy_config
 from hailtop.utils import AsyncWorkerPool
 
 from ..google_compute import GServices
-from ..utils import parse_cpu
+from ..utils import parse_cpu, mcpu_to_cpu
 from ..globals import tasks
 
 from .instance_pool import InstancePool
@@ -58,8 +58,8 @@ class Pod:
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
         container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
-            raise Exception(f'invalid value(s) for cpu: '
-                            f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
+            raise DriverException(409, f'invalid value(s) for cpu: '
+                                  f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
         cores = max(container_cores)
 
         await driver.db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
@@ -118,7 +118,8 @@ class Pod:
         if not self.instance:
             return
 
-        log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
+        log.info(f'unscheduling {self.name} with {mcpu_to_cpu(self.cores)} cores from {self.instance}')
+
         self.instance.unschedule(self)
         self.instance = None
         await self.driver.db.pods.update_record(self.name, instance=None)
@@ -147,7 +148,7 @@ class Pod:
                 asyncio.ensure_future(self.put_on_ready())
                 return False
 
-            log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
+            log.info(f'scheduling {self.name} with {mcpu_to_cpu(self.cores)} cores on {inst}')
 
             inst.schedule(self)
 
