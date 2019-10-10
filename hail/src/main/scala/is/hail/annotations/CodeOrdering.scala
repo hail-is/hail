@@ -6,22 +6,30 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.asm4s.coerce
 import is.hail.expr.types.physical._
+import is.hail.table.{ Ascending, Descending, SortOrder }
 import is.hail.utils._
 
 object CodeOrdering {
 
-  type Op = Int
-  val compare: Op = 0
-  val equiv: Op = 1
-  val lt: Op = 2
-  val lteq: Op = 3
-  val gt: Op = 4
-  val gteq: Op = 5
-  val neq: Op = 6
+  sealed trait Op { type ReturnType }
+  final case object compare extends Op { type ReturnType = Int }
+  sealed trait BooleanOp extends Op { type ReturnType = Boolean }
+  final case object equiv extends BooleanOp
+  final case object lt extends BooleanOp
+  final case object lteq extends BooleanOp
+  final case object gt extends BooleanOp
+  final case object gteq extends BooleanOp
+  final case object neq extends BooleanOp
 
   type F[R] = ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[R]
 
-  def rowOrdering(t1: PBaseStruct, t2: PBaseStruct, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
+  def rowOrdering(
+    t1: PBaseStruct,
+    t2: PBaseStruct,
+    mb: EmitMethodBuilder,
+    sortOrders: Array[SortOrder] = null
+  ): CodeOrdering = new CodeOrdering {
+    require(sortOrders == null || sortOrders.size == t1.size)
     type T = Long
 
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]
@@ -40,11 +48,18 @@ object CodeOrdering {
         v2s(i).storeAny(m2.mux(ir.defaultValue(tf2), Region.loadIRIntermediate(tf2)(t2.fieldOffset(y, i)))))
     }
 
+    private[this] def fieldOrdering(i: Int, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+      mb.getCodeOrdering(
+        t1.types(i),
+        t2.types(i),
+        if (sortOrders == null) Ascending else sortOrders(i),
+        op)
+
     override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
       val cmp = mb.newLocal[Int]
 
       val c = Array.tabulate(t1.size) { i =>
-        val mbcmp = mb.getCodeOrdering[Int](t1.types(i), t2.types(i), CodeOrdering.compare)
+        val mbcmp = fieldOrdering(i, CodeOrdering.compare)
         Code(setup(i)(x, y),
           mbcmp((m1, v1s(i)), (m2, v2s(i))))
       }.foldRight[Code[Int]](cmp.load()) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
@@ -52,45 +67,51 @@ object CodeOrdering {
       Code(cmp := 0, c)
     }
 
-    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+    private[this] def dictionaryOrderingFromFields(
+      op: CodeOrdering.BooleanOp,
+      zero: Code[Boolean],
+      combine: (Code[Boolean], Code[Boolean], Code[Boolean]) => Code[Boolean]
+    )(x: Code[Long],
+      y: Code[Long]
+    ): Code[Boolean] =
       Array.tabulate(t1.size) { i =>
-        val mblt = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.lt)
-        val mbequiv = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.equiv)
+        val mblt = fieldOrdering(i, op)
+        val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
         (Code(setup(i)(x, y), mblt((m1, v1s(i)), (m2, v2s(i)))),
           mbequiv((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight[Code[Boolean]](false) { case ((clt, ceq), cont) => clt || (ceq && cont) }
-    }
+      }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
 
-    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      Array.tabulate(t1.size) { i =>
-        val mblteq = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.lteq)
-        val mbequiv = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.equiv)
-        (Code(setup(i)(x, y), mblteq((m1, v1s(i)), (m2, v2s(i)))),
-          mbequiv((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight[Code[Boolean]](true) { case ((clteq, ceq), cont) => clteq && (!ceq || cont) }
-    }
+    val _ltNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.lt,
+      false,
+      { (isLessThan, isEqual, subsequentLt) =>
+        isLessThan || (isEqual && subsequentLt) }) _
+    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _ltNonnull(x, y)
 
-    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      Array.tabulate(t1.size) { i =>
-        val mbgt = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.gt)
-        val mbequiv = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.equiv)
-        (Code(setup(i)(x, y), mbgt((m1, v1s(i)), (m2, v2s(i)))),
-          mbequiv((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight[Code[Boolean]](false) { case ((cgt, ceq), cont) => cgt || (ceq && cont) }
-    }
+    val _lteqNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.lteq,
+      true,
+      { (isLessThanEq, isEqual, subsequentLtEq) =>
+        isLessThanEq || (!isEqual || subsequentLtEq) }) _
+    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _lteqNonnull(x, y)
 
-    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      Array.tabulate(t1.size) { i =>
-        val mbgteq = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.gteq)
-        val mbequiv = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.equiv)
-        (Code(setup(i)(x, y), mbgteq((m1, v1s(i)), (m2, v2s(i)))),
-          mbequiv((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight[Code[Boolean]](true) { case ((cgteq, ceq), cont) => cgteq && (!ceq || cont) }
-    }
+    val _gtNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.gt,
+      false,
+      { (isGreaterThan, isEqual, subsequentGt) =>
+        isGreaterThan || (isEqual && subsequentGt) }) _
+    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gtNonnull(x, y)
+
+    val _gteqNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.gteq,
+      false,
+      { (isGreaterThanEq, isEqual, subsequentGteq) =>
+        isGreaterThanEq && (!isEqual || subsequentGteq) }) _
+    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gteqNonnull(x, y)
 
     override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
       Array.tabulate(t1.size) { i =>
-        val mbequiv = mb.getCodeOrdering[Boolean](t1.types(i), t2.types(i), CodeOrdering.equiv)
+        val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
         Code(setup(i)(x, y),
           mbequiv((m1, v1s(i)), (m2, v2s(i))))
       }.foldRight[Code[Boolean]](const(true))(_ && _)
@@ -127,7 +148,7 @@ object CodeOrdering {
     }
 
     override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
-      val mbcmp = mb.getCodeOrdering[Int](t1.elementType, t2.elementType, CodeOrdering.compare)
+      val mbcmp = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.compare)
       val cmp = mb.newLocal[Int]
 
       Code(cmp := 0,
@@ -138,8 +159,8 @@ object CodeOrdering {
     }
 
     override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mblt = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.lt)
-      val mbequiv = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.equiv)
+      val mblt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.lt)
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.equiv)
       val lt = mb.newLocal[Boolean]
       val lcmp = Code(
         lt := mblt((m1, v1), (m2, v2)),
@@ -151,8 +172,8 @@ object CodeOrdering {
     }
 
     override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mblteq = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.lteq)
-      val mbequiv = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.equiv)
+      val mblteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.lteq)
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.equiv)
 
       val lteq = mb.newLocal[Boolean]
       val lcmp = Code(
@@ -165,8 +186,8 @@ object CodeOrdering {
     }
 
     override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mbgt = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.gt)
-      val mbequiv = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.equiv)
+      val mbgt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.gt)
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.equiv)
       val gt = mb.newLocal[Boolean]
       val lcmp = Code(
         gt := mbgt((m1, v1), (m2, v2)),
@@ -180,8 +201,8 @@ object CodeOrdering {
     }
 
     override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mbgteq = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.gteq)
-      val mbequiv = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.equiv)
+      val mbgteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.gteq)
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.equiv)
 
       val gteq = mb.newLocal[Boolean]
       val lcmp = Code(
@@ -195,7 +216,7 @@ object CodeOrdering {
     }
 
     override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mbequiv = mb.getCodeOrdering[Boolean](t1.elementType, t2.elementType, CodeOrdering.equiv)
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.equiv)
       val lcmp = eq := mbequiv((m1, v1), (m2, v2))
       Code(eq := true,
         loop(lcmp, eq)(x, y),
@@ -227,7 +248,7 @@ object CodeOrdering {
     }
 
     override def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
-      val mbcmp = mb.getCodeOrdering[Int](t1.pointType, t2.pointType, CodeOrdering.compare)
+      val mbcmp = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.compare)
 
       val cmp = mb.newLocal[Int]
       Code(loadStart(x, y),
@@ -247,7 +268,7 @@ object CodeOrdering {
     }
 
     override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mbeq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.equiv)
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
       Code(loadStart(x, y), mbeq((mp1, p1), (mp2, p2))) &&
         t1.includeStart(x).ceq(t2.includeStart(y)) &&
@@ -256,8 +277,8 @@ object CodeOrdering {
     }
 
     override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mblt = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.lt)
-      val mbeq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.equiv)
+      val mblt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.lt)
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
       Code(loadStart(x, y), mblt((mp1, p1), (mp2, p2))) || (
         mbeq((mp1, p1), (mp2, p2)) && (
@@ -268,8 +289,8 @@ object CodeOrdering {
     }
 
     override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mblteq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.lteq)
-      val mbeq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.equiv)
+      val mblteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.lteq)
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
       Code(loadStart(x, y), mblteq((mp1, p1), (mp2, p2))) && (
         !mbeq((mp1, p1), (mp2, p2)) || ( // if not equal, then lt
@@ -280,8 +301,8 @@ object CodeOrdering {
     }
 
     override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mbgt = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.gt)
-      val mbeq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.equiv)
+      val mbgt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.gt)
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
       Code(loadStart(x, y), mbgt((mp1, p1), (mp2, p2))) || (
         mbeq((mp1, p1), (mp2, p2)) && (
@@ -292,8 +313,8 @@ object CodeOrdering {
     }
 
     override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mbgteq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.gteq)
-      val mbeq = mb.getCodeOrdering[Boolean](t1.pointType, t2.pointType, CodeOrdering.equiv)
+      val mbgteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.gteq)
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
       Code(loadStart(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
         !mbeq((mp1, p1), (mp2, p2)) || ( // if not equal, then lt
