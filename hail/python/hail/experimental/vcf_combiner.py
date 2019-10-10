@@ -200,3 +200,28 @@ def calculate_new_intervals(ht, n, reference_genome='default'):
     interval = hl.Interval(start=last_st, end=end, includes_end=True)
     intervals.append(interval)
     return intervals
+
+@typecheck(reference_genome=reference_genome_type)
+def default_exome_intervals(reference_genome='default'):
+    """create a list of locus intervals suitable for importing and merging exome gvcfs. As exomes
+    are small. One partition per chromosome works well here.
+
+    Parameters
+    ----------
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use. NOTE: only GRCh37 and GRCh38 references
+        are supported.
+
+    Returns
+    -------
+    :obj:`List[Interval]`
+    """
+    if reference_genome.name == 'GRCh37':
+        contigs = [f'{i}' for i in range(1, 23)] + ['X', 'Y', 'MT']
+    elif reference_genome.name == 'GRCh38':
+        contigs = [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM']
+    else:
+        raise ValueError(f"Invalid reference genome '{reference_genome.name}', only 'GRCh37' and 'GRCh38' are supported")
+    return [hl.Interval(start=hl.Locus(contig=contig, position=1, reference_genome=reference_genome),
+                        end=hl.Locus.parse(f'{contig}:END', reference_genome=reference_genome),
+                        includes_end=True) for contig in contigs]
