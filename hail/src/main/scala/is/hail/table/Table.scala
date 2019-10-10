@@ -12,6 +12,7 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
+import java.nio.charset.StandardCharsets
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
@@ -20,11 +21,24 @@ import org.json4s.jackson.JsonMethods
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
-sealed abstract class SortOrder
+object SortOrder {
+  def deserialize(b: Byte): SortOrder =
+    if (b == 0.toByte) Ascending
+    else if (b == 1.toByte) Descending
+    else throw new RuntimeException(s"invalid sort order: $b")
+}
 
-case object Ascending extends SortOrder
+sealed abstract class SortOrder {
+  def serialize: Byte
+}
 
-case object Descending extends SortOrder
+case object Ascending extends SortOrder {
+  def serialize: Byte = 0.toByte
+}
+
+case object Descending extends SortOrder {
+  def serialize: Byte = 1.toByte
+}
 
 case class SortField(field: String, sortOrder: SortOrder)
 
