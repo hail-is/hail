@@ -4,7 +4,7 @@ import is.hail.rvd.AbstractRVDSpec
 import java.io._
 
 import is.hail.asm4s._
-import is.hail.io.compress.LZ4
+import is.hail.io.compress.LZ4Utils
 import org.json4s.{ DefaultFormats, Formats, ShortTypeHints }
 
 import org.json4s.jackson.JsonMethods
