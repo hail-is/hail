@@ -17,7 +17,7 @@ from hailtop.config import get_deploy_config
 
 from .serverthread import ServerThread
 
-deploy_config = get_deploy_config()`
+deploy_config = get_deploy_config()
 
 
 def poll_until(p, max_polls=None):
