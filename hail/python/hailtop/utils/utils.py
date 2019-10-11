@@ -50,3 +50,28 @@ class AsyncWorkerPool:
 
     async def wait(self):
         await self._done.wait()
+
+
+async def request_retry_transient_errors(f, *args, **kwargs):
+    delay = 0.1
+    while True:
+        try:
+            return await f(*args, **kwargs)
+        except aiohttp.ClientResponseError as e:
+            # 408 request timeout, 503 service unavailable, 504 gateway timeout
+            if e.status == 408 or e.status == 503 or e.status == 504:
+                pass
+            else:
+                raise
+        except aiohttp.ClientOSError as e:
+            if e.errno == errno.ETIMEDOUT:
+                pass
+            else:
+                log.exception('request failed ClientOSError errno {e.errno} {os.strerror(e.errno)}')
+                raise
+        except aiohttp.ServerTimeoutError:
+            pass
+        # exponentially back off, up to (expected) max of 30s
+        delay = min(delay * 2, 60.0)
+        t = delay * random.random()
+        await asyncio.sleep(t)
