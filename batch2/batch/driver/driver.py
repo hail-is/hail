@@ -434,10 +434,10 @@ class Driver:
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
-                i = self.ready.bisect_key_right(inst.free_cores)
+                i = self.ready.bisect_key_right(inst.free_cores_mcpu)
                 if i > 0:
                     pod = self.ready[i - 1]
-                    assert pod.cores_mcpu <= inst.free_cores
+                    assert pod.cores_mcpu <= inst.free_cores_mcpu
                     self.ready.remove(pod)
                     should_wait = False
                     scheduled = await pod.schedule(inst)  # This cannot go in the pool!

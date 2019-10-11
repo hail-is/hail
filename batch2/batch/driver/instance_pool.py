@@ -42,7 +42,7 @@ class InstancePool:
         self.instances = sortedcontainers.SortedSet(key=lambda inst: (inst.healthy, inst.last_updated))
 
         # for active instances only
-        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
+        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
 
         self.n_pending_instances = 0
         self.n_active_instances = 0
