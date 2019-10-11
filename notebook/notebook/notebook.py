@@ -393,7 +393,7 @@ async def _wait_websocket(service, request, userdata):
                 log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
                 break
         except Exception:  # pylint: disable=broad-except
-            log.exception(f"/wait: error while checking or updating status for pod: {notebook['pod_name']}")
+            log.exception(f"/wait: error while updating status for pod: {notebook['pod_name']}")
         await asyncio.sleep(1)
         count += 1
 
