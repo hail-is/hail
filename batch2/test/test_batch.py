@@ -17,6 +17,8 @@ from hailtop.config import get_deploy_config
 
 from .serverthread import ServerThread
 
+deploy_config = get_deploy_config()`
+
 
 def poll_until(p, max_polls=None):
     i = 0
@@ -41,7 +43,8 @@ class Test(unittest.TestCase):
     def test_job(self):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
-        builder.submit()
+        assert self.assertEqual(j._job_id, 1)
+        b = builder.submit()
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
@@ -51,6 +54,17 @@ class Test(unittest.TestCase):
         j.pod_status()
 
         self.assertTrue(j.is_complete())
+
+        # test ui
+        headers = service_auth_headers(deploy_config, 'batch2')
+        ui_urls = [
+            f'/batches/{b.id}',
+            f'/batches/{b.id}/jobs/1/log',
+            f'/batches/{b.id}/jobs/1/pod_status'
+        ]
+        for url in ui_urls:
+            r = requests.get(deploy_config.url('batch2', url), headers=headers)
+            self.assertEqual(r.status_code, 200)
 
     def test_attributes(self):
         a = {
@@ -330,7 +344,6 @@ class Test(unittest.TestCase):
         self.assertTrue(j.is_complete())
 
     def test_authorized_users_only(self):
-        deploy_config = get_deploy_config()
         endpoints = [
             (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
@@ -348,6 +361,11 @@ class Test(unittest.TestCase):
         for f, url, expected in endpoints:
             r = f(deploy_config.url('batch2', url))
             assert r.status_code == 401, r
+
+    def test_ui_index(self):
+        headers = service_auth_headers(deploy_config, 'batch2')
+        r = requests.get(deploy_config.url('batch2', '/', allow_redirects=True), headers=headers)
+        assert self.assertEqual(r.status_code, 200)
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
