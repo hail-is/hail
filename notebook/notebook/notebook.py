@@ -245,7 +245,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                             log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
                             status['state'] = 'Ready'
                         else:
-                            log.error(f'GET on jupyter pod {pod_name} failed: {resp}')
+                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
                 log.exception(f'GET on jupyter pod {pod_name} timed out: {resp}')
 
@@ -390,7 +390,7 @@ async def _wait_websocket(service, request, userdata):
             new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
-                log.info(f"pod {notebook['pod_name']} status changed: old status: {notebook['state']}, new status: {new_status['state']}")
+                log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
                 break
         except Exception:  # pylint: disable=broad-except
             log.exception(f"/wait: error while check/update status for pod: {notebook['pod_name']}")
