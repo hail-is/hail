@@ -365,7 +365,7 @@ class Test(unittest.TestCase):
 
     def test_ui_index(self):
         headers = service_auth_headers(deploy_config, 'batch2')
-        r = requests.get(deploy_config.url('batch2', '/', allow_redirects=True), headers=headers)
+        r = requests.get(deploy_config.url('batch2', '/'), allow_redirects=True, headers=headers)
         assert self.assertEqual(r.status_code, 200)
 
     def test_bad_token(self):
