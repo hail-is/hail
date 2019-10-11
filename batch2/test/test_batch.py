@@ -14,6 +14,7 @@ from flask import Flask, Response, request
 import requests
 
 from hailtop.config import get_deploy_config
+from hailtop.auth import service_auth_headers
 
 from .serverthread import ServerThread
 
