@@ -40,7 +40,7 @@ class Instance:
                                                        token=token)
 
         inst_pool.n_pending_instances += 1
-        inst_pool.free_cores_mcpu += inst_pool.worker_capacity
+        inst_pool.free_cores_mcpu += inst_pool.worker_capacity_mcpu
 
         return Instance(inst_pool, name, token, ip_address=None, pending=True,
                         active=False, deleted=False)
@@ -54,7 +54,7 @@ class Instance:
         self.lock = asyncio.Lock()
 
         self.pods = set()
-        self.free_cores_mcpu = inst_pool.worker_capacity
+        self.free_cores_mcpu = inst_pool.worker_capacity_mcpu
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = pending
@@ -102,13 +102,13 @@ class Instance:
             if self.pending:
                 self.pending = False
                 self.inst_pool.n_pending_instances -= 1
-                self.inst_pool.free_cores_mcpu -= self.inst_pool.worker_capacity
+                self.inst_pool.free_cores_mcpu -= self.inst_pool.worker_capacity_mcpu
 
             self.active = True
             self.ip_address = ip_address
             self.inst_pool.n_active_instances += 1
             self.inst_pool.instances_by_free_cores.add(self)
-            self.inst_pool.free_cores_mcpu += self.inst_pool.worker_capacity
+            self.inst_pool.free_cores_mcpu += self.inst_pool.worker_capacity_mcpu
             self.inst_pool.driver.changed.set()
 
             await self.inst_pool.driver.db.instances.update_record(
@@ -123,7 +123,7 @@ class Instance:
             if self.pending:
                 self.pending = False
                 self.inst_pool.n_pending_instances -= 1
-                self.inst_pool.free_cores_mcpu -= self.inst_pool.worker_capacity
+                self.inst_pool.free_cores_mcpu -= self.inst_pool.worker_capacity_mcpu
                 assert not self.active
                 log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
                 return
