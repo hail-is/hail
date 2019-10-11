@@ -722,7 +722,11 @@ async def workshop_post_logout(request, userdata):
 
 @workshop_routes.get('/resources')
 async def workshop_get_faq(request):
-    return await render_template('notebook', request, {}, 'workshop/resources.html', {})
+    page_context = {
+        'notebook_service': 'workshop'
+    }
+
+    return await render_template('notebook', request, {}, 'workshop/resources.html', page_context)
 
 
 @workshop_routes.get('/notebook')
