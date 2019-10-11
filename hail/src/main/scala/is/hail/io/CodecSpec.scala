@@ -48,8 +48,7 @@ trait AbstractTypedCodecSpec extends Spec {
   def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[RVDContext, RegionValue]) = {
     val (pt, dec) = buildDecoder(requestedType)
     (pt, ContextRDD.weaken[RVDContext](bytes).cmapPartitions { (ctx, it) =>
-      val rv = RegionValue(ctx.region)
-      RegionValue.fromBytes(dec, ctx.region, rv)(it)
+      RegionValue.fromBytes(dec, ctx.region, it)
     })
   }
 

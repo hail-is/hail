@@ -668,7 +668,7 @@ class RVD(
     val encodedData = collectAsBytes(enc)
     val (pType: PStruct, dec) = enc.buildDecoder(rowType)
     Region.scoped { region =>
-      RegionValue.fromBytes(dec, region, RegionValue(region))(encodedData.iterator)
+      RegionValue.fromBytes(dec, region, encodedData.iterator)
         .map { rv =>
           val row = SafeRow(pType, rv)
           region.clear()
@@ -1172,8 +1172,7 @@ class RVD(
   ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
     val (rowPType: PStruct, dec) = enc.buildDecoder(rowType)
     (rowPType, ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
-      val rv = RegionValue(ctx.region)
-      RegionValue.fromBytes(dec, ctx.region, rv)(it)
+      RegionValue.fromBytes(dec, ctx.region, it)
     })
   }
 
