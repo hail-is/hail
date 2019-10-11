@@ -238,6 +238,11 @@ steps:
    publishAs: batch2
    dependsOn:
      - service_base_image
+ - kind: buildImage
+   name: batch2_worker_image
+   dockerFile: batch2/Dockerfile.worker
+   contextPath: .
+   publishAs: batch2-worker
  - kind: runImage
    name: check_batch2
    image:
@@ -772,6 +777,7 @@ steps:
     - deploy_batch2_sa
     - create_accounts
     - batch2_image
+    - batch2_worker_image
     - batch2_database
     - deploy_auth
     - create_batch2_tables
