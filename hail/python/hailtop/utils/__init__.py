@@ -10,5 +10,6 @@ __all__ = [
     'CalledProcessError',
     'check_shell',
     'check_shell_output',
-    'request_retry_transient_errors'
+    'request_retry_transient_errors',
+    'request_raise_transient_errors'
 ]

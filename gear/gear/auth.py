@@ -16,7 +16,7 @@ async def _userdata_from_session_id(session_id):
     try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            resp = request_raise_transient_error(
+            resp = request_raise_transient_errors(
                 session, 'GET', deploy_config.url('auth', '/api/v1alpha/userinfo'),
                 headers=headers)
             assert resp.status == 200
