@@ -388,9 +388,18 @@ class CollectionExpression(Expression):
             'Mean Size': agg_result[2],
         }
 
+    def _nested_summary(self, count, agg_result):
+        elt = construct_variable(Env.get_uid(), self.dtype.element_type)
+        return {'<elements>': elt._summarize(count, agg_result[3])}
+
     def _summary_aggs(self):
         length = hl.len(self)
-        return hl.tuple((hl.agg.min(length), hl.agg.max(length), hl.agg.mean(length)))
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: elt._summary_aggs(), self)))
+
 
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.tarray`.
@@ -1390,9 +1399,21 @@ class DictExpression(Expression):
             'Mean Size': agg_result[2],
         }
 
+    def _nested_summary(self, count, agg_result):
+        elt = construct_variable(Env.get_uid(), self.dtype.element_type)
+        return {
+            '<keys>': elt._summarize(count, agg_result[3][0]),
+            '<values>': elt._summarize(count, agg_result[3][1]),
+
+        }
+
     def _summary_aggs(self):
         length = hl.len(self)
-        return hl.tuple((hl.agg.min(length), hl.agg.max(length), hl.agg.mean(length)))
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: hl.tuple(elt[0]._summary_aggs(), elt[1]._summary_aggs()), hl.array(self))))
 
 
 class StructExpression(Mapping[str, Expression], Expression):
@@ -1712,7 +1733,7 @@ class TupleExpression(Expression, Sequence):
             yield self[i]
 
     def _nested_summary(self, count, agg_result):
-        return {str(i): f._summarize((count, agg_result[i])) for i in range(len(self))}
+        return {str(i): self[i]._summarize((count, agg_result[i])) for i in range(len(self))}
 
     def _summary_aggs(self):
         return hl.tuple([self[i]._all_summary_aggs() for i in range(len(self))])
