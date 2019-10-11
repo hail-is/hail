@@ -101,7 +101,7 @@ async def run(args, i):
 
             data = aiohttp.FormData()
             data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-            async with session.delete(
+            async with session.post(
                     deploy_config.url('workshop', '/notebook/delete'),
                     data=data,
                     headers=headers) as resp:
