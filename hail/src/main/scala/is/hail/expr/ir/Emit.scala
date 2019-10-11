@@ -2272,7 +2272,6 @@ private class Emit(
           // Keep a running product. Also keep a count of -1s. If there's more than one -1, break. If the running product doesn't
           // divide number of elements, break. If there's one -1, loop over elements and replace the -1 with total / product.
 
-
           val countNegs = mb.newLocal[Int]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
@@ -2282,6 +2281,7 @@ private class Emit(
           val setup = coerce[Unit](Code(
             countNegs := 0,
             runningProduct := 1L,
+            Code._println("countNegs and runningProduct initialized"),
 
             // Compute negative 1 count and product
             // TODO Handle zero, more negatives
@@ -2291,18 +2291,29 @@ private class Emit(
                 runningProduct := runningProduct * requestedShapeElement
               )
             },
+            Code._println("Finished counting negative ones and computing runningPRudct"),
 
             (countNegs > 1).mux(
               Code._fatal("Can't infer shape, more than one -1"),
               Code._empty
             ),
+            Code._println("Shape had less than 2 negative 1s"),
+            Code._println("About to print num elements"),
+            Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+              "println", numElements.toL),
+            Code._println("About to print running product"),
+            Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+              "println", runningProduct),
             ((numElements.toL % runningProduct) > 0L).mux(
               Code._fatal("Can't reshape since requested shape is incompatible with number of elements"),
               Code._empty
             ),
+            Code._println("Shape seems compatible"),
             quotient := numElements.toL / runningProduct,
+            Code._println("Computed quotient"),
             // Loop over the elements, replace if it's a negative one. For now, let's not.
-            Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := shapeElement})
+            Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := shapeElement}),
+            Code._println("Bound all variables")
           ))
 
           (setup, newShapeVars.map(_.load()).toArray)
@@ -2310,18 +2321,30 @@ private class Emit(
 
         val childEmitter = deforest(nd)
         val shapet = emit(shape, env, resultRegion, None) // Double check
+        val requestedShapeAddress = mb.newField[Long]
+        val requestedShapePType = shape.pType.asInstanceOf[PTuple]
 
-        val numElements = ???
+        val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
+        val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
 
-        val (reshapeSetup, reshapedShape) = compatibleShape(???, ???)
+        val numElements = coerce[PNDArray](nd.pType).numElements(childEmitter.outputShape, mb)
+
+        val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements.toI, requestedShapeArray)
 
         val setup = Code(
+          childEmitter.setup,
           shapet.setup,
-          reshapeSetup
+          requestedShapeAddress := shapet.value[Long],
+          Code._println("shapeAddress bound"),
+          reshapeSetup,
+          Code._println("Reshape setup complete")
         )
 
-        new NDArrayEmitter(mb, ???, reshapedShape, ???, childEmitter.outputElementPType, setup){
-          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = ???
+        // I suspect that shape.pType not being required will cause problems, because everything causes problems these days.
+        new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup){
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            childEmitter.outputElement(idxVars)
+          }
         }
 
       case _ =>

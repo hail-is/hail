@@ -1,3 +1,5 @@
+import hail as hl
+from hail.utils.java import FatalError
 import numpy as np
 from ..helpers import *
 import tempfile
@@ -127,23 +129,33 @@ def test_ndarray_shape():
         (m.transpose().shape, np_m.transpose().shape))
 
 @skip_unless_spark_backend()
-@run_with_cxx_compile()
 def test_ndarray_reshape():
     np_a = np.array([1, 2, 3, 4, 5, 6])
     a = hl._ndarray(np_a)
 
     np_cube = np.array([0, 1, 2, 3, 4, 5, 6, 7], order='F').reshape((2, 2, 2))
-    cube = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7], row_major=False).reshape((2, 2, 2))
+    cube = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7]).reshape((2, 2, 2))
     cube_to_rect = cube.reshape((2, 4))
     np_cube_to_rect = np_cube.reshape((2, 4))
     cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
     np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
 
     assert_ndarrays_eq(
-        (a.reshape((2, 3)), np_a.reshape((2, 3))),
-        (a.reshape((3, 2)), np_a.reshape((3, 2))),
-        (cube_to_rect, np_cube_to_rect),
-        (cube_t_to_rect, np_cube_t_to_rect))
+        (a.reshape((6,)), np_a))
+        # (a.reshape((2, 3)), np_a.reshape((2, 3))),
+        # (a.reshape((3, 2)), np_a.reshape((3, 2))),
+        # (cube_to_rect, np_cube_to_rect),
+        # (cube_t_to_rect, np_cube_t_to_rect))
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl.literal(np_cube).reshape((-1, -1)))
+    assert "more than one -1" in str(exc)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl.literal(np_cube).reshape((20,)))
+    assert "requested shape is incompatible with number of elements" in str(exc)
+
+
 
 @skip_unless_spark_backend()
 def test_ndarray_map():
