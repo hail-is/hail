@@ -55,28 +55,43 @@ class AsyncWorkerPool:
         await self._done.wait()
 
 
+def is_transient_error(e):
+    # observed exceptions:
+    # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host <host> ssl:None [Connect call failed ('<ip>', 80)]
+    if isinstance(e, aiohttp.ClientResponseError):
+        # 408 request timeout, 503 service unavailable, 504 gateway timeout
+        if e.status == 408 or e.status == 503 or e.status == 504:
+            return True
+    elif isinstance(e, aiohttp.ClientOSError):
+        if e.errno == errno.ETIMEDOUT:
+            return True
+    elif isinstance(e, aiohttp.ServerTimeoutError):
+        return True
+    return False
+
+
 async def request_retry_transient_errors(f, *args, **kwargs):
     delay = 0.1
     while True:
         try:
             return await f(*args, **kwargs)
-        # observed exceptions:
-        # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host <host> ssl:None [Connect call failed ('<ip>', 80)]
-        except aiohttp.ClientResponseError as e:
-            # 408 request timeout, 503 service unavailable, 504 gateway timeout
-            if e.status == 408 or e.status == 503 or e.status == 504:
+        except Exception as e:  # pylint: disable=broad-except
+            if is_transient_error(e):
                 pass
             else:
                 raise
-        except aiohttp.ClientOSError as e:
-            if e.errno == errno.ETIMEDOUT:
-                pass
-            else:
-                log.exception('request failed ClientOSError errno {e.errno} {os.strerror(e.errno)}')
-                raise
-        except aiohttp.ServerTimeoutError:
-            pass
         # exponentially back off, up to (expected) max of 30s
         delay = min(delay * 2, 60.0)
         t = delay * random.random()
         await asyncio.sleep(t)
+
+
+async def request_raise_transient_error(session, method, url, *, **kwargs):
+    try:
+        return await session.request(method, url, **kwargs)
+    except Exception as e:  # pylint: disable=broad-except
+        if is_transient_error(e):
+            log.exception('request failed with transient exception: {method} {url}')
+            raise web.HTTPServiceUnavailable()
+        else:
+            raise
