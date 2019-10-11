@@ -28,7 +28,7 @@ async def finish(request):
         except sp.CalledProcessError as err:
             log.error(f'bad exit code {err.returncode}: {err.output}')
             log.exception(f'exiting 1 due to exception')
-            server.stop(1)
+            await server.stop(1)
     log.info(f'exiting cleanly')
     await server.stop(0)
     return web.Response()
