@@ -786,10 +786,14 @@ date
 
 
 class CreateDatabaseStep(Step):
-    def __init__(self, params, database_name, namespace):
+    def __init__(self, params, database_name, namespace, instance='db-gh0um',
+                 host='10.80.0.3', port=3306):
         super().__init__(params)
         # FIXME validate
         self.database_name = database_name
+        self.instance = instance
+        self.host = host
+        self.port = port
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
 
@@ -807,8 +811,12 @@ class CreateDatabaseStep(Step):
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
 
-        self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
-        self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
+        if self.instance == 'db-gh0um':
+            self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
+            self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
+        else:
+            self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-{self.instance}-config'
+            self.user_secret_name = f'sql-{self._name}-{self.user_username}-{self.instance}-config'
 
     def wrapped_job(self):
         if self.job:
@@ -820,7 +828,10 @@ class CreateDatabaseStep(Step):
         json = params.json
         return CreateDatabaseStep(params,
                                   json['databaseName'],
-                                  json['namespace'])
+                                  json['namespace'],
+                                  json.get('instance'),
+                                  json.get('host'),
+                                  json.get('port'))
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {
@@ -833,14 +844,12 @@ class CreateDatabaseStep(Step):
         }
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        if scope == 'dev':
-            return
         script = f'''
 set -e
 echo date
 date
 
-DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --host=10.80.0.3 -u root -s)
+DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --host={self.host} -u root -s)
 if [ "$DBS" == "{self._name}" ]; then
     exit 0
 fi
@@ -848,7 +857,7 @@ fi
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
-cat | mysql --host=10.80.0.3 -u root <<EOF
+cat | mysql --host={self.host} -u root <<EOF
 CREATE DATABASE \\`{self._name}\\`;
 
 CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
@@ -859,23 +868,23 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON \\`{self._name}\\`.* TO '{self.user_user
 EOF
 
 echo create database, admin and user...
-echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
+echo "$SQL_SCRIPT" | mysql --host={self.host} -u root
 
 echo create admin secret...
 cat > sql-config.json <<EOF
 {{
-  "host": "10.80.0.3",
-  "port": 3306,
+  "host": "{self.host}",
+  "port": {self.port},
   "user": "{self.admin_username}",
   "password": "$ADMIN_PASSWORD",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "instance": "{self.instance}",
+  "connection_name": "hail-vdc:us-central1:{self.instance}",
   "db": "{self._name}"
 }}
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-host=10.80.0.3
+host={self.host}
 user={self.admin_username}
 password="$ADMIN_PASSWORD"
 database={self._name}
@@ -885,18 +894,18 @@ kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_na
 echo create user secret...
 cat > sql-config.json <<EOF
 {{
-  "host": "10.80.0.3",
-  "port": 3306,
+  "host": "{self.host}",
+  "port": {self.port},
   "user": "{self.user_username}",
   "password": "$USER_PASSWORD",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "instance": "{self.instance}",
+  "connection_name": "hail-vdc:us-central1:{self.instance}",
   "db": "{self._name}"
 }}
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-host=10.80.0.3
+host={self.host}
 user={self.user_username}
 password="$USER_PASSWORD"
 database={self._name}
@@ -929,7 +938,7 @@ echo done.
 set -x
 date
 
-cat | mysql --host=10.80.0.3 -u root <<EOF
+cat | mysql --host={self.host} -u root <<EOF
 DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
