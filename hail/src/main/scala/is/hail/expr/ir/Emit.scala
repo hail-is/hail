@@ -2267,37 +2267,60 @@ private class Emit(
       case NDArrayReshape(nd, shape) =>
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
-        def compatibleShape(numElements: Int, requestedShape: Array[Code[Long]]): Array[Code[Long]] = {
+        def compatibleShape(numElements: Code[Int], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
           // Steps:
           // Keep a running product. Also keep a count of -1s. If there's more than one -1, break. If the running product doesn't
           // divide number of elements, break. If there's one -1, loop over elements and replace the -1 with total / product.
+
+
           val countNegs = mb.newLocal[Int]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
 
-          Code(
+          val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long])
+
+          val setup = coerce[Unit](Code(
             countNegs := 0,
             runningProduct := 1L,
+
+            // Compute negative 1 count and product
+            // TODO Handle zero, more negatives
+            Code.foreach(requestedShape){ requestedShapeElement =>
+              (requestedShapeElement.toI ceq -1).mux(
+                countNegs := countNegs + 1,
+                runningProduct := runningProduct * requestedShapeElement
+              )
+            },
 
             (countNegs > 1).mux(
               Code._fatal("Can't infer shape, more than one -1"),
               Code._empty
             ),
-            ((const(numElements.toLong) % runningProduct) > 0L).mux(
+            ((numElements.toL % runningProduct) > 0L).mux(
               Code._fatal("Can't reshape since requested shape is incompatible with number of elements"),
               Code._empty
             ),
-            quotient := const(numElements.toLong) / runningProduct,
-            (countNegs >= 1).mux(
-              ???,
-              Code._empty
-            )
-          )
-          //
-          ???
+            quotient := numElements.toL / runningProduct,
+            // Loop over the elements, replace if it's a negative one. For now, let's not.
+            Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := shapeElement})
+          ))
+
+          (setup, newShapeVars.map(_.load()).toArray)
         }
 
-        new NDArrayEmitter(mb, ???, ???, ???, ???, ???){
+        val childEmitter = deforest(nd)
+        val shapet = emit(shape, env, resultRegion, None) // Double check
+
+        val numElements = ???
+
+        val (reshapeSetup, reshapedShape) = compatibleShape(???, ???)
+
+        val setup = Code(
+          shapet.setup,
+          reshapeSetup
+        )
+
+        new NDArrayEmitter(mb, ???, reshapedShape, ???, childEmitter.outputElementPType, setup){
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = ???
         }
 
