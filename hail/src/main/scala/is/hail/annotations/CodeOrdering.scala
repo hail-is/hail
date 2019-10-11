@@ -75,9 +75,9 @@ object CodeOrdering {
       y: Code[Long]
     ): Code[Boolean] =
       Array.tabulate(t1.size) { i =>
-        val mblt = fieldOrdering(i, op)
+        val mbop = fieldOrdering(i, op)
         val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
-        (Code(setup(i)(x, y), mblt((m1, v1s(i)), (m2, v2s(i)))),
+        (Code(setup(i)(x, y), mbop((m1, v1s(i)), (m2, v2s(i)))),
           mbequiv((m1, v1s(i)), (m2, v2s(i))))
       }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
 
@@ -92,7 +92,7 @@ object CodeOrdering {
       CodeOrdering.lteq,
       true,
       { (isLessThanEq, isEqual, subsequentLtEq) =>
-        isLessThanEq || (!isEqual || subsequentLtEq) }) _
+        isLessThanEq && (!isEqual || subsequentLtEq) }) _
     override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _lteqNonnull(x, y)
 
     val _gtNonnull = dictionaryOrderingFromFields(
@@ -104,7 +104,7 @@ object CodeOrdering {
 
     val _gteqNonnull = dictionaryOrderingFromFields(
       CodeOrdering.gteq,
-      false,
+      true,
       { (isGreaterThanEq, isEqual, subsequentGteq) =>
         isGreaterThanEq && (!isEqual || subsequentGteq) }) _
     override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gteqNonnull(x, y)
