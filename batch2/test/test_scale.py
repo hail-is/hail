@@ -3,6 +3,8 @@ import random
 
 from hailtop.batch_client.client import BatchClient
 
+logging.basicConfig(level=logging.INFO)
+
 
 @pytest.fixture
 def client():

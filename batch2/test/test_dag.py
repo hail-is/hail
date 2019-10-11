@@ -10,6 +10,8 @@ from hailtop.auth import get_userinfo
 
 from .serverthread import ServerThread
 
+logging.basicConfig(level=logging.INFO)
+
 
 @pytest.fixture
 def client():

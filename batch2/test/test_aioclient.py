@@ -1,6 +1,8 @@
 import pytest
 from hailtop.batch_client.aioclient import BatchClient
 
+logging.basicConfig(level=logging.INFO)
+
 pytestmark = pytest.mark.asyncio
 
 
