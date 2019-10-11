@@ -70,7 +70,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val bufferSpec = BufferSpec.parse(codecSpecJSON)
+    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
     if (overwrite)
       fs.delete(path, recursive = true)
