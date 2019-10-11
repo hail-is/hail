@@ -236,7 +236,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                 f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
             try:
                 async with aiohttp.ClientSession(
-                        timeout=aiohttp.ClientTimeout(total=1),
+                        timeout=aiohttp.ClientTimeout(total=10),
                         headers=headers,
                         cookies=cookies) as session:
                     async with session.get(ready_url) as resp:
