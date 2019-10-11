@@ -110,25 +110,53 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def getElementIndex(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+//  def getElementIndex(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     // Probably inlining pretty badly here with nd load
-    val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
-    val index = mb.newField[Long]
-    Code(
-      index := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], shapeIndex: Int)) =>
-        Code(
-          codeSoFar,
-          index := index + requestedIndex * shapeTuple(shapeIndex))
-      },
-      index
-    )
-  }
+//  def getElementIndex(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+//    val index = mb.newField[Long]
+//    Code(
+//      index := 0L,
+//      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], shapeIndex: Int)) =>
+//        Code(
+//          codeSoFar,
+//          index := index + requestedIndex * shapeArray(shapeIndex))
+//      },
+//      index
+//    )
+//  }
+def getElementIndex(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  val index = mb.newField[Long]
+  val elementsBeneathThisLevel = mb.newField[Long]
+  Code(
+    index := 0L,
+    elementsBeneathThisLevel := 1L,
+    Code.foreach((shapeArray.length - 1) to 0 by - 1){ dimIndex =>
+      Code(
+        index := index + indices(dimIndex) * elementsBeneathThisLevel,
+        elementsBeneathThisLevel := elementsBeneathThisLevel * shapeArray(dimIndex)
+      )
+    },
+    index
+  )
+}
 
-  def elementIndexToIndices(index: Code[Long], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Array[Code[Long]] = {
+  def elementIndexToIndices(index: Code[Long], nd: Code[Long], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
-    
-    ???
+    val nDim = ???
+
+    val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+
+    val remainingWork = mb.newField[Long]
+    val setupShape = Code(
+      remainingWork := index,
+      Code.foreach(0 until nDim){ dimIndex =>
+        Code(
+          newIndices(dimIndex) := remainingWork / shapeTuple(dimIndex),
+          remainingWork := remainingWork % shapeTuple(dimIndex)
+        )
+      }
+    )
+    (setupShape, newIndices.map(_.load()))
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),

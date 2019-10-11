@@ -2264,7 +2264,7 @@ private class Emit(
           }
         }
 
-      case NDArrayReshape(nd, shape) =>
+      case x@NDArrayReshape(childND, shape) =>
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
         def compatibleShape(numElements: Code[Int], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
@@ -2319,7 +2319,7 @@ private class Emit(
           (setup, newShapeVars.map(_.load()).toArray)
         }
 
-        val childEmitter = deforest(nd)
+        val childEmitter = deforest(childND)
         val shapet = emit(shape, env, resultRegion, None) // Double check
         val requestedShapeAddress = mb.newField[Long]
         val requestedShapePType = shape.pType.asInstanceOf[PTuple]
@@ -2327,7 +2327,7 @@ private class Emit(
         val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
         val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
 
-        val numElements = coerce[PNDArray](nd.pType).numElements(childEmitter.outputShape, mb)
+        val numElements = coerce[PNDArray](childND.pType).numElements(childEmitter.outputShape, mb)
 
         val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements.toI, requestedShapeArray)
 
@@ -2343,7 +2343,14 @@ private class Emit(
         // I suspect that shape.pType not being required will cause problems, because everything causes problems these days.
         new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup){
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            childEmitter.outputElement(idxVars)
+            val newPType = x.pType
+            val temp = mb.newField[Long]
+            Code(
+              temp := newPType.getElementIndex(idxVars, reshapedShapeArray, region, mb),
+              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+                "println", temp),
+              childEmitter.outputElement(idxVars)
+            )
           }
         }
 
