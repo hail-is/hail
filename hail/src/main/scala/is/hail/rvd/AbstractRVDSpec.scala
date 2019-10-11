@@ -25,17 +25,11 @@ object AbstractRVDSpec {
       classOf[compatibility.IndexedRVDSpec],
       classOf[compatibility.IndexSpec],
       classOf[compatibility.UnpartitionedRVDSpec],
-      classOf[BlockBufferSpec],
-      classOf[LZ4BlockBufferSpec],
-      classOf[StreamBlockBufferSpec],
-      classOf[BufferSpec],
-      classOf[LEB128BufferSpec],
-      classOf[BlockingBufferSpec],
-      classOf[StreamBufferSpec],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]))
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
     override val typeHintFieldName = "name"
-  } +
+  }  +
     new TStructSerializer +
     new TypeSerializer +
     new PTypeSerializer +
@@ -189,7 +183,7 @@ abstract class AbstractRVDSpec {
 
   def write(fs: FS, path: String) {
     fs.writeTextFile(path + "/metadata.json.gz") { out =>
-      implicit val formats = AbstractRVDSpec.formats
+      import AbstractRVDSpec.formats
       Serialization.write(this, out)
     }
   }

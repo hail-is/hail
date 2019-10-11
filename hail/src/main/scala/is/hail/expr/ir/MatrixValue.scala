@@ -185,20 +185,14 @@ case class MatrixValue(
   def write(path: String,
     overwrite: Boolean,
     stageLocally: Boolean,
-    codecSpecJSONStr: String,
+    codecSpecJSON: String,
     partitions: String,
     partitionsTypeStr: String) = {
     assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val bufferSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = AbstractRVDSpec.formats
-        val codecSpecJSON = parse(codecSpecJSONStr)
-        codecSpecJSON.extract[BufferSpec]
-      } else
-        BufferSpec.default
+    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
     if (overwrite)
       fs.delete(path, recursive = true)
