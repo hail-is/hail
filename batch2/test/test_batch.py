@@ -44,8 +44,8 @@ class Test(unittest.TestCase):
     def test_job(self):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
-        assert self.assertEqual(j.id(), 1)
         b = builder.submit()
+        assert self.assertEqual(j.id(), 1)
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
@@ -365,7 +365,9 @@ class Test(unittest.TestCase):
 
     def test_ui_index(self):
         headers = service_auth_headers(deploy_config, 'batch2')
-        r = requests.get(deploy_config.url('batch2', '/'), allow_redirects=True, headers=headers)
+        url = deploy_config.url('batch2', '/')
+        r = requests.get(url, allow_redirects=True, headers=headers)
+        print(f'info {url} {headers} {r}')
         assert self.assertEqual(r.status_code, 200)
 
     def test_bad_token(self):
