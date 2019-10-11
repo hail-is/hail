@@ -2,6 +2,7 @@ package is.hail.compatibility
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.virtual._
 import is.hail.io._
@@ -82,7 +83,14 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   override def partitioner: RVDPartitioner = shim.partitioner
 
-  override def read(hc: HailContext, path: String, requestedType: TStruct, newPartitioner: Option[RVDPartitioner], filterIntervals: Boolean): RVD = shim.read(hc, path, requestedType, newPartitioner, filterIntervals)
+  override def read(
+    hc: HailContext,
+    path: String,
+    requestedType: TStruct,
+    ctx: ExecuteContext,
+    newPartitioner: Option[RVDPartitioner],
+    filterIntervals: Boolean
+  ): RVD = shim.read(hc, path, requestedType, ctx, newPartitioner, filterIntervals)
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
