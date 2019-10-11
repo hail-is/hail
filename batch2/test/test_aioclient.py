@@ -1,3 +1,4 @@
+import logging
 import pytest
 from hailtop.batch_client.aioclient import BatchClient
 

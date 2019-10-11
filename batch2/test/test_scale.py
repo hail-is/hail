@@ -1,5 +1,6 @@
-import pytest
 import random
+import logging
+import pytest
 
 from hailtop.batch_client.client import BatchClient
 
