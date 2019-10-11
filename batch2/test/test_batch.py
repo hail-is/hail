@@ -45,7 +45,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
         b = builder.submit()
-        assert self.assertEqual(j.id(), 1)
+        assert self.assertEqual(j.job_id(), 1)
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
