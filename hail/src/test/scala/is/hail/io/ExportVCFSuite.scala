@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
@@ -23,8 +24,10 @@ class ExportVCFSuite extends HailSuite {
 
     ExportVCF(vdsOrig, outFile)
 
-    assert(vdsOrig.same(TestUtils.importVCF(hc, outFile, nPartitions = Some(10)),
-      tolerance = 1e-3))
+    ExecuteContext.scoped { ctx =>
+      assert(vdsOrig.same(TestUtils.importVCF(hc, outFile, nPartitions = Some(10)),
+        ctx, tolerance = 1e-3))
+    }
   }
 
   @Test def testSorted() {
@@ -48,19 +51,21 @@ class ExportVCFSuite extends HailSuite {
   }
 
   @Test def testReadWrite() {
-    val out = tmpDir.createTempFile("foo", "vcf.bgz")
-    val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
-    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
-      Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
-      sFS.delete(out, recursive = true)
-      sFS.delete(out2, recursive = true)
-      ExportVCF(vds, out)
-      val vds2 = TestUtils.importVCF(hc, out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
-      ExportVCF(vds, out2)
-      TestUtils.importVCF(hc, out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2)
-    }
+    ExecuteContext.scoped { ctx =>
+      val out = tmpDir.createTempFile("foo", "vcf.bgz")
+      val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
+      val p = forAll(MatrixTable.gen(hc, VSMSubgen.random, ctx), Gen.choose(1, 10),
+        Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
+          sFS.delete(out, recursive = true)
+          sFS.delete(out2, recursive = true)
+          ExportVCF(vds, out)
+          val vds2 = TestUtils.importVCF(hc, out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
+          ExportVCF(vds, out2)
+          TestUtils.importVCF(hc, out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2, ctx)
+      }
 
-    p.check()
+      p.check()
+    }
   }
 
   @Test def testEmptyReadWrite() {
@@ -73,8 +78,11 @@ class ExportVCFSuite extends HailSuite {
 
     assert(sFS.getFileSize(out) > 0)
     assert(sFS.getFileSize(out2) > 0)
-    assert(TestUtils.importVCF(hc, out).same(vds))
-    assert(TestUtils.importVCF(hc, out2).same(vds))
+
+    ExecuteContext.scoped { ctx =>
+      assert(TestUtils.importVCF(hc, out).same(vds, ctx))
+      assert(TestUtils.importVCF(hc, out2).same(vds, ctx))
+    }
   }
 
   @Test def testVCFFormatHeader() {
