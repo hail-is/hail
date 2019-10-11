@@ -5,7 +5,6 @@ from hailtop.batch_client.client import BatchClient
 import json
 import os
 import base64
-import logging
 import pkg_resources
 import secrets
 import time
@@ -16,8 +15,6 @@ import requests
 from hailtop.config import get_deploy_config
 
 from .serverthread import ServerThread
-
-logging.basicConfig(level=logging.INFO)
 
 
 def poll_until(p, max_polls=None):

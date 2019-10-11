@@ -1,6 +1,5 @@
 import os
 import time
-import logging
 import re
 import pytest
 import aiohttp
@@ -10,8 +9,6 @@ import hailtop.batch_client.aioclient as aioclient
 from hailtop.auth import get_userinfo
 
 from .serverthread import ServerThread
-
-logging.basicConfig(level=logging.INFO)
 
 
 @pytest.fixture
