@@ -294,7 +294,7 @@ retry docker run \
         log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
         log.info(f'POOL_SIZE={POOL_SIZE}')
         log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
-        
+
         while True:
             try:
                 log.info(f'n_pending_instances {self.n_pending_instances}'
