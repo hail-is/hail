@@ -26,86 +26,88 @@ async def run(args, i):
     headers = service_auth_headers(deploy_config, 'workshop', authorize_target=False)
 
     async with aiohttp.ClientSession(raise_for_status=True) as session:
-        # make sure notebook is up
-        async with session.get(
-                deploy_config.url('workshop', ''),
-                headers=headers) as resp:
-            await resp.text()
+        try:
+            # make sure notebook is up
+            async with session.get(
+                    deploy_config.url('workshop', ''),
+                    headers=headers) as resp:
+                await resp.text()
 
-        log.info(f'{i} loaded notebook home page')
+            log.info(f'{i} loaded notebook home page')
 
-        # log in as workshop guest
-        # get csrf token
-        async with session.get(
-                deploy_config.url('workshop', '/login'),
-                headers=headers) as resp:
-            pass
+            # log in as workshop guest
+            # get csrf token
+            async with session.get(
+                    deploy_config.url('workshop', '/login'),
+                    headers=headers) as resp:
+                pass
 
-        data = aiohttp.FormData()
-        data.add_field(name='name', value=args.workshop)
-        data.add_field(name='password', value=args.password)
-        data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-        async with session.post(
-                deploy_config.url('workshop', '/login'),
-                data=data,
-                headers=headers) as resp:
-            pass
+            data = aiohttp.FormData()
+            data.add_field(name='name', value=args.workshop)
+            data.add_field(name='password', value=args.password)
+            data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
+            async with session.post(
+                    deploy_config.url('workshop', '/login'),
+                    data=data,
+                    headers=headers) as resp:
+                pass
 
-        log.info(f'{i} logged in')
+            log.info(f'{i} logged in')
 
-        # create notebook
-        # get csrf token
-        async with session.get(
-                deploy_config.url('workshop', '/notebook'),
-                headers=headers) as resp:
-            pass
+            # create notebook
+            # get csrf token
+            async with session.get(
+                    deploy_config.url('workshop', '/notebook'),
+                    headers=headers) as resp:
+                pass
 
-        data = aiohttp.FormData()
-        data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-        async with session.post(
-                deploy_config.url('workshop', '/notebook'),
-                data=data,
-                headers=headers) as resp:
-            pass
+            data = aiohttp.FormData()
+            data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
+            async with session.post(
+                    deploy_config.url('workshop', '/notebook'),
+                    data=data,
+                    headers=headers) as resp:
+                pass
 
-        log.info(f'{i} created notebook')
+            log.info(f'{i} created notebook')
 
-        start = time.time()
+            start = time.time()
 
-        # wait for notebook ready
-        ready = False
-        attempt = 0
-        # 5 attempts overkill, should only take 2: Scheduling => Running => Ready
-        while not ready and attempt < 5:
-            async with session.ws_connect(
-                    deploy_config.url('workshop', '/notebook/wait', base_scheme='ws'),
-                    headers=headers) as ws:
-                async for msg in ws:
-                    if msg.data == '1':
-                        ready = True
-            attempt += 1
+            # wait for notebook ready
+            ready = False
+            attempt = 0
+            # 5 attempts overkill, should only take 2: Scheduling => Running => Ready
+            while not ready and attempt < 5:
+                async with session.ws_connect(
+                        deploy_config.url('workshop', '/notebook/wait', base_scheme='ws'),
+                        headers=headers) as ws:
+                    async for msg in ws:
+                        if msg.data == '1':
+                            ready = True
+                attempt += 1
 
-        end = time.time()
-        duration = end - start
+            end = time.time()
+            duration = end - start
 
-        log.info(f'{i} notebook state {ready} duration {duration}')
+            log.info(f'{i} notebook state {ready} duration {duration}')
 
-        # delete notebook
-        # get csrf token
-        async with session.get(
-                deploy_config.url('workshop', '/notebook'),
-                headers=headers) as resp:
-            pass
+        finally:
+            # delete notebook
+            # get csrf token
+            async with session.get(
+                    deploy_config.url('workshop', '/notebook'),
+                    headers=headers) as resp:
+                pass
 
-        data = aiohttp.FormData()
-        data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-        async with session.post(
-                deploy_config.url('workshop', '/notebook/delete'),
-                data=data,
-                headers=headers) as resp:
-            pass
+            data = aiohttp.FormData()
+            data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
+            async with session.delete(
+                    deploy_config.url('workshop', '/notebook/delete'),
+                    data=data,
+                    headers=headers) as resp:
+                pass
 
-        log.info(f'{i} notebook delete, done.')
+            log.info(f'{i} notebook delete, done.')
 
     return duration, ready
 
