@@ -1,6 +1,6 @@
 import aiohttp
 from hailtop.config import get_deploy_config
-from hailtop.utils import async_to_blocking
+from hailtop.utils import async_to_blocking, request_retry_transient_errors
 
 from .tokens import get_tokens
 
