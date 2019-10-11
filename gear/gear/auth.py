@@ -21,6 +21,8 @@ async def _userdata_from_session_id(session_id):
                 headers=headers)
             assert resp.status == 200
             return await resp.json()
+    except web.HTTPServiceUnavailable:
+        raise
     except aiohttp.ClientResponseError as e:
         if e.status == 401:
             return None
