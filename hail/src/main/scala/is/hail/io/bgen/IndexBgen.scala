@@ -1,6 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
