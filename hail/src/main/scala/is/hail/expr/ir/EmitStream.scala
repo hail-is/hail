@@ -11,7 +11,6 @@ import scala.language.existentials
 object EmitStream {
   sealed trait Init[+S]
   object Missing extends Init[Nothing]
-  object Empty extends Init[Nothing]
   case class Start[S](s0: S) extends Init[S]
 
   sealed trait Step[+A, +S]
@@ -25,7 +24,12 @@ object EmitStream {
   trait Parameterized[-P, +A] { self =>
     type S
     val stateP: ParameterPack[S]
-    def dummyState: S
+
+    // - 'step' must maintain the following invariant: step(..., emptyState, k) = k(EOS); it should
+    // hopefully be a cheap operation to compute this.
+    // - emptyState is unfortunately needed in some situations to get around the lack of "Option[T]"s
+    // being (easily) possible in bytecode.
+    def emptyState: S
 
     def length(s0: S): Option[Code[Int]]
 
@@ -51,11 +55,11 @@ object EmitStream {
     ): Parameterized[P, B] = new Parameterized[P, B] {
       type S = self.S
       val stateP = self.stateP
-      def dummyState = self.dummyState
+      def emptyState = self.emptyState
       def length(s0: S): Option[Code[Int]] = self.length(s0)
       def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
         self.init(mb, jb, param) {
-          case m@(Missing | Empty) => k(m)
+          case Missing => k(Missing)
           case Start(s) => Code(setup, k(Start(s)))
         }
       def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] =
@@ -69,7 +73,7 @@ object EmitStream {
     def filterMap[B](f: (A, Option[B] => Code[Ctrl]) => Code[Ctrl]): Parameterized[P, B] = new Parameterized[P, B] {
       type S = self.S
       val stateP = self.stateP
-      def dummyState = self.dummyState
+      def emptyState = self.emptyState
       def length(s0: S): Option[Code[Int]] = None
       def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
         self.init(mb, jb, param)(k)
@@ -88,7 +92,7 @@ object EmitStream {
   val missing: Parameterized[Any, Nothing] = new Parameterized[Any, Nothing] {
     type S = Unit
     val stateP: ParameterPack[S] = implicitly
-    def dummyState: S = ()
+    def emptyState: S = ()
     def length(s0: S): Option[Code[Int]] = Some(0)
     def init(mb: MethodBuilder, jb: JoinPointBuilder, param: Any)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
       k(Missing)
@@ -103,7 +107,7 @@ object EmitStream {
   ): Parameterized[P, Code[Int]] = new Parameterized[P, Code[Int]] {
     type S = (Code[Int], Code[Int])
     val stateP: ParameterPack[S] = implicitly
-    def dummyState: S = (0, 0)
+    def emptyState: S = (0, 0)
     def length(s0: S): Option[Code[Int]] = Some(s0._1)
 
     def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
@@ -124,7 +128,7 @@ object EmitStream {
   ): Parameterized[P, A] = new Parameterized[P, A] {
     type S = Code[Int]
     val stateP: ParameterPack[S] = implicitly
-    def dummyState: S = elements.length
+    def emptyState: S = elements.length
     def length(s0: S): Option[Code[Int]] = Some(elements.length)
 
     def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
@@ -291,17 +295,13 @@ case class EmitStream(
       Code._empty,
       stream.length(state.load),
       (cont: (Code[Boolean], Code[_]) => Code[Unit]) => {
-        // status == 2 iff the inner stream is missing
-        // status == 1 iff the inner stream is actually empty (so the state is invalid)
-        // status == 0 otherwise
-        val status = mb.newField[Int]("stream_status")
+        val m = mb.newField[Boolean]("stream_missing")
 
         val setup =
           state := JoinPoint.CallCC[stream.S] { (jb, ret) =>
             stream.init(mb, jb, ()) {
-              case Missing => Code(status := 2, ret(stream.dummyState))
-              case Empty => Code(status := 1, ret(stream.dummyState))
-              case Start(s0) => Code(status := 0, ret(s0))
+              case Missing => Code(m := true, ret(stream.emptyState))
+              case Start(s0) => Code(m := false, ret(s0))
             }
           }
 
@@ -317,10 +317,10 @@ case class EmitStream(
                 state := s1,
                 loop(()))
             } }
-            JoinPoint.mux((status ceq 0), loop, ret)
+            loop(())
           }
 
-        EmitArrayTriplet(setup, Some(status ceq 2), addElements)
+        EmitArrayTriplet(setup, Some(m), addElements)
       })
   }
 }

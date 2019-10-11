@@ -48,7 +48,7 @@ class EmitStreamSuite extends TestNGSuite {
         val str = stream.stream
         val mb = fb.apply_method
         str.init(mb, jb, ()) {
-          case EmitStream.Missing | EmitStream.Empty => ret(0)
+          case EmitStream.Missing => ret(0)
           case EmitStream.Start(s0) =>
             str.length(s0) match {
               case Some(len) => ret(len)
