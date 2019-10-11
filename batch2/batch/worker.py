@@ -20,7 +20,7 @@ from aiodocker.exceptions import DockerError
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import jsonify, abort, parse_cpu, parse_image_tag
+from .utils import parse_cpu, parse_image_tag
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
@@ -364,7 +364,7 @@ class BatchPod:
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    async with session.post(self.worker.deploy_config.url('batch2', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
+                    async with session.post(self.worker.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
                         self.last_updated = time.time()
                         if resp.status == 200:
                             log.info(f'sent pod complete for {self.name}')
@@ -474,48 +474,48 @@ class Worker:
         self.last_updated = time.time()
         parameters = await request.json()
         await asyncio.shield(self._create_pod(parameters))
-        return jsonify({})
+        return web.Response()
 
     async def get_container_log(self, request):
         pod_name = request.match_info['pod_name']
         container_name = request.match_info['container_name']
 
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
 
         if container_name not in bp.containers:
-            abort(404, 'unknown container name')
+            raise web.HTTPNotFound(reason='unknown container name')
         result = await bp.log(container_name)
 
-        return jsonify(result)
+        return web.json_response(result)
 
     async def get_container_status(self, request):
         pod_name = request.match_info['pod_name']
         container_name = request.match_info['container_name']
 
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
 
         if container_name not in bp.containers:
-            abort(404, 'unknown container name')
+            raise web.HTTPNotFound(reason='unknown container name')
         result = bp.container_status(container_name)
 
-        return jsonify(result)
+        return web.json_response(result)
 
     async def get_pod(self, request):
         pod_name = request.match_info['pod_name']
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
-        return jsonify(bp.to_dict())
+        return web.json_response(bp.to_dict())
 
     async def _delete_pod(self, request):
         pod_name = request.match_info['pod_name']
 
         if pod_name not in self.pods:
-            abort(404, 'unknown pod name')
+            raise web.HTTPNotFound(reason='unknown pod name')
         bp = self.pods[pod_name]
         del self.pods[pod_name]
 
@@ -523,14 +523,14 @@ class Worker:
 
     async def delete_pod(self, request):  # pylint: disable=unused-argument
         await asyncio.shield(self._delete_pod(request))
-        return jsonify({})
+        return web.Response()
 
     async def list_pods(self, request):  # pylint: disable=unused-argument
         pods = [pod.to_dict() for _, pod in self.pods.items()]
-        return jsonify(pods)
+        return web.json_response(pods)
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
-        return jsonify({})
+        return web.Response()
 
     async def run(self):
         app_runner = None
@@ -570,7 +570,7 @@ class Worker:
                 body = {'inst_token': self.token}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2', '/api/v1alpha/instances/deactivate')
+                    url = self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate')
                     async with session.post(url, json=body):
                         log.info('deactivated')
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
@@ -595,7 +595,7 @@ class Worker:
                         'ip_address': self.ip_address}
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2', '/api/v1alpha/instances/activate')
+                    url = self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate')
                     async with session.post(url, json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
@@ -616,10 +616,12 @@ cores = int(os.environ['CORES'])
 namespace = os.environ['NAMESPACE']
 inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
-batch_image = os.environ['BATCH_IMAGE']
+batch_worker_image = os.environ['BATCH_WORKER_IMAGE']
+
+log.info(f'BATCH_WORKER_IMAGE={batch_worker_image}')
 
 deploy_config = DeployConfig('gce', namespace, {})
-worker = Worker(batch_image, cores, deploy_config, inst_token, ip_address)
+worker = Worker(batch_worker_image, cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())

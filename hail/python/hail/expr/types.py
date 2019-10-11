@@ -609,11 +609,12 @@ class tndarray(HailType):
 
     def _traverse(self, obj, f):
         if f(self, obj):
-            for elt in obj:
-                self.element_type._traverse(elt, f)
+            for elt in np.nditer(obj):
+                self.element_type._traverse(elt.item(), f)
 
     def _typecheck_one_level(self, annotation):
-        raise NotImplementedError
+        if annotation is not None and not isinstance(annotation, np.ndarray):
+            raise TypeError("type 'ndarray' expected Python 'numpy.ndarray', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "ndarray<{}, {}>".format(self.element_type, self.ndim)
@@ -636,7 +637,15 @@ class tndarray(HailType):
         return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
 
     def _convert_to_json(self, x):
-        raise NotImplementedError
+        data = x.reshape(x.size).tolist()
+        json_dict = {
+            "shape": x.shape,
+            "strides": x.strides,
+            "flags": 0,
+            "data": data,
+            "offset": 0
+        }
+        return json_dict
 
     def clear(self):
         self._element_type.clear()
@@ -1646,6 +1655,20 @@ def is_compound(t) -> bool:
 def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
+def from_numpy(np_dtype):
+    if np_dtype == np.int32:
+        return tint32
+    elif np_dtype == np.int64:
+        return tint64
+    elif np_dtype == np.float32:
+        return tfloat32
+    elif np_dtype == np.float64:
+        return tfloat64
+    elif np_dtype == np.bool:
+        return tbool
+    else:
+        raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
 
 
 class tvariable(HailType):

@@ -4,15 +4,14 @@ import logging
 import time
 import math
 
-from .utils import new_token
-from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
+from ..utils import new_token
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
+
 from .instance import Instance
-from .globals import get_db
 
 log = logging.getLogger('instance_pool')
-db = get_db()
 
 
 class InstancePool:
@@ -66,7 +65,7 @@ class InstancePool:
     async def initialize(self):
         log.info('initializing instance pool')
 
-        for record in await db.instances.get_all_records():
+        for record in await self.driver.db.instances.get_all_records():
             inst = Instance.from_record(self, record)
             self.token_inst[inst.token] = inst
             self.instances.add(inst)
@@ -108,7 +107,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
-                    'sourceImage': 'projects/hail-vdc/global/images/batch2-worker-1',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-5',
                 }
             }],
 
@@ -141,7 +140,7 @@ class InstancePool:
 #!/bin/bash
 set -ex
 
-export BATCH_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_image")
+export BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 export HOME=/root
 
 function retry {{
@@ -172,18 +171,20 @@ function retry {{
 retry docker run \
            -v /var/run/docker.sock:/var/run/docker.sock \
            -v /usr/bin/docker:/usr/bin/docker \
+           -v /snap/bin/gcloud:/usr/bin/gcloud \
+           -v /snap/bin/gsutil:/usr/bin/gsutil \
            -v /batch:/batch \
            -p 5000:5000 \
            -d --entrypoint "/bin/bash" \
-           $BATCH_IMAGE \
+           $BATCH_WORKER_IMAGE \
            -c "sh /run-worker.sh"
 '''
                 }, {
                     'key': 'inst_token',
                     'value': inst_token
                 }, {
-                    'key': 'batch_image',
-                    'value': BATCH_IMAGE
+                    'key': 'batch_worker_image',
+                    'value': BATCH_WORKER_IMAGE
                 }, {
                     'key': 'batch_instance',
                     'value': INSTANCE_ID

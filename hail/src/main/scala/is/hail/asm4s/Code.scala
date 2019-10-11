@@ -173,6 +173,20 @@ object Code {
     }
   }
 
+  def switch[T: TypeInfo](target: Code[Int], dflt: Code[T], cases: Seq[Code[T]]): Code[T] = {
+    import is.hail.asm4s.joinpoint._
+    JoinPoint.CallCC[Code[T]] { (jb, ret) =>
+      def thenReturn(c: Code[T]): JoinPoint[Unit] = {
+        val j = jb.joinPoint()
+        j.define { _ => ret(c) }
+        j
+      }
+      JoinPoint.switch(target,
+        thenReturn(dflt),
+        cases.map(thenReturn))
+    }
+  }
+
   def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
