@@ -8,7 +8,7 @@ import bokeh
 import bokeh.io
 from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
     ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
-    Select, Column, Span, DataRange1d, Slope
+    Select, Column, Span, DataRange1d, Slope, Label
 from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import gridplot
@@ -1205,9 +1205,9 @@ def qq(
         pvals: Union[NumericExpression, Tuple[str, NumericExpression]],
         label: Union[Expression, Dict[str, Expression]] = None,
         title: str = 'Q-Q plot',
-        xlabel: str = 'Expected p-value (-log10 scale)',
-        ylabel: str = 'Observed p-value (-log10 scale)',
-        size: int =4,
+        xlabel: str = 'Expected -log10(p)',
+        ylabel: str = 'Observed -log10(p)',
+        size: int = 6,
         legend: bool = True,
         hover_fields: Dict[str, Expression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
@@ -1285,15 +1285,17 @@ def qq(
     label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
     source = pvals._indices.source
     if isinstance(source, Table):
-        ht = source.select(pval=pvals, **hover_fields, **label)
+        ht = source.select(p_value=pvals, **hover_fields, **label)
     else:
-        ht = source.select_rows(pval=pvals, **hover_fields, **label).rows()
-    ht = ht.key_by().select('pval', *hover_fields, *label).key_by('pval').persist()
+        ht = source.select_rows(p_value=pvals, **hover_fields, **label).rows()
+    ht = ht.key_by().select('p_value', *hover_fields, *label).key_by('p_value').persist()
     n = ht.count()
     ht = ht.annotate(
-        observed_p=-hail.log10(ht.pval),
+        observed_p=-hail.log10(ht['p_value']),
         expected_p=-hail.log10((hail.scan.count() + 1) / n)
     ).persist()
+    if 'p' not in hover_fields:
+        hover_fields['p_value'] = ht['p_value']
     p = scatter(
         ht.expected_p,
         ht.observed_p,
@@ -1312,7 +1314,8 @@ def qq(
         missing_label=missing_label
 
     )
-    max_p = ht.aggregate(hail.agg.max(hail.max(ht.observed_p, ht.expected_p)))
+    from hail.methods.statgen import _lambda_gc_agg
+    lambda_gc, max_p = ht.aggregate((_lambda_gc_agg(ht['p_value']), hail.agg.max(hail.max(ht.observed_p, ht.expected_p))))
     if isinstance(p, Column):
         qq = p.children[1]
     else:
@@ -1320,6 +1323,12 @@ def qq(
     qq.x_range = DataRange1d(start=0, end=max_p + 1)
     qq.y_range = DataRange1d(start=0, end=max_p + 1)
     qq.add_layout(Slope(gradient=1, y_intercept=0, line_color='red'))
+
+    label_color = 'red' if lambda_gc > 1.25 else 'orange' if lambda_gc > 1.1 else 'black'
+    lgc_label = Label(x=max_p * 0.85, y=1, text=f'λ GC: {lambda_gc:.2f}',
+                      text_font_style='bold', text_color=label_color, text_font_size='14pt')
+    p.add_layout(lgc_label)
+
     return p
 
 
