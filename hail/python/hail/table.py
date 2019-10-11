@@ -3216,7 +3216,7 @@ class Table(ExprContainer):
         """
 
         if handler is None:
-            handler = hl.utils.default_hander()
+            handler = hl.utils.default_handler()
         handler(self.row._summarize())
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
