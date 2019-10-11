@@ -389,8 +389,8 @@ class CollectionExpression(Expression):
         }
 
     def _nested_summary(self, count, agg_result):
-        elt = construct_variable(Env.get_uid(), self.dtype.element_type)
-        return {'<elements>': elt._summarize(count, agg_result[3])}
+        elt = construct_variable(Env.get_uid(), self.dtype.element_type, indices=self._indices)
+        return {'<elements>': elt._summarize((count, agg_result[3]))}
 
     def _summary_aggs(self):
         length = hl.len(self)
@@ -398,7 +398,7 @@ class CollectionExpression(Expression):
             hl.agg.min(length),
             hl.agg.max(length),
             hl.agg.mean(length),
-            hl.agg.explode(lambda elt: elt._summary_aggs(), self)))
+            hl.agg.explode(lambda elt: elt._all_summary_aggs(), self)))
 
 
 class ArrayExpression(CollectionExpression):
@@ -1400,10 +1400,10 @@ class DictExpression(Expression):
         }
 
     def _nested_summary(self, count, agg_result):
-        elt = construct_variable(Env.get_uid(), self.dtype.element_type)
+        elt = construct_variable(Env.get_uid(), self.dtype.element_type, indices=self._indices)
         return {
-            '<keys>': elt._summarize(count, agg_result[3][0]),
-            '<values>': elt._summarize(count, agg_result[3][1]),
+            '<keys>': elt._summarize((count, agg_result[3][0])),
+            '<values>': elt._summarize((count, agg_result[3][1])),
 
         }
 
@@ -1413,7 +1413,7 @@ class DictExpression(Expression):
             hl.agg.min(length),
             hl.agg.max(length),
             hl.agg.mean(length),
-            hl.agg.explode(lambda elt: hl.tuple(elt[0]._summary_aggs(), elt[1]._summary_aggs()), hl.array(self))))
+            hl.agg.explode(lambda elt: hl.tuple(elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs()), hl.array(self))))
 
 
 class StructExpression(Mapping[str, Expression], Expression):
