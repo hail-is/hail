@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS `pods` (
   `name` VARCHAR(100) NOT NULL,
   `spec` TEXT(65535) NOT NULL,
   `output_directory` VARCHAR(100) NOT NULL,
-  `cores` INT NOT NULL,
+  `cores_mcpu` INT NOT NULL,
   `instance` VARCHAR(100),
   `status` TEXT(65535),
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -2,9 +2,8 @@ import asyncio
 import sortedcontainers
 import logging
 import time
-import math
 
-from ..utils import new_token, mcpu_to_cpu
+from ..utils import new_token
 from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
@@ -18,7 +17,7 @@ class InstancePool:
     def __init__(self, driver):
         self.driver = driver
         self.worker_type = WORKER_TYPE
-        self.worker_cores = WORKER_CORES * 1000  # mCPU
+        self.worker_cores = WORKER_CORES
 
         if WORKER_TYPE == 'standard':
             m = 3.75
@@ -29,7 +28,7 @@ class InstancePool:
             m = 0.9
         self.worker_memory = 0.9 * m
 
-        self.worker_capacity = 2 * self.worker_cores  # mCPU
+        self.worker_capacity_mcpu = 2 * self.worker_cores * 1000
         self.worker_disk_size_gb = WORKER_DISK_SIZE_GB
         self.pool_size = POOL_SIZE
         self.max_instances = MAX_INSTANCES
@@ -49,7 +48,7 @@ class InstancePool:
         self.n_active_instances = 0
 
         # for pending and active
-        self.free_cores = 0
+        self.free_cores_mcpu = 0
 
         self.token_inst = {}
 
@@ -303,11 +302,11 @@ retry docker run \
                          f' pool_size {self.pool_size}'
                          f' n_instances {len(self.instances)}'
                          f' max_instances {self.max_instances}'
-                         f' free_cores {mcpu_to_cpu(self.free_cores)}'
-                         f' ready_cores {mcpu_to_cpu(self.driver.ready_cores)}')
+                         f' free_cores {self.free_cores_mcpu / 1000}'
+                         f' ready_cores {self.driver.ready_cores_mcpu / 1000}')
 
-                if self.driver.ready_cores > 0:
-                    instances_needed = (self.driver.ready_cores - self.free_cores + self.worker_capacity - 1) // self.worker_capacity
+                if self.driver.ready_cores_mcpu > 0:
+                    instances_needed = (self.driver.ready_cores_mcpu - self.free_cores_mcpu + self.worker_capacity_mcpu - 1) // self.worker_capacity_mcpu
                     instances_needed = min(instances_needed,
                                            self.pool_size - (self.n_pending_instances + self.n_active_instances),
                                            self.max_instances - len(self.instances),
