@@ -28,6 +28,7 @@ Plot functions in Hail accept data in the form of either Python objects or :clas
     scatter
     qq
     manhattan
+    output_notebook
 
 .. autofunction:: cdf
 .. autofunction:: pdf
@@ -38,3 +39,4 @@ Plot functions in Hail accept data in the form of either Python objects or :clas
 .. autofunction:: scatter
 .. autofunction:: qq
 .. autofunction:: manhattan
+.. autofunction:: output_notebook
