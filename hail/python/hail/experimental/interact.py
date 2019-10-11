@@ -1,5 +1,5 @@
 from IPython.display import display
-from ipywidgets import widgets, link
+from ipywidgets import widgets
 
 import hail as hl
 
@@ -154,7 +154,7 @@ def interact(obj):
             tab.selected_index = selection
 
     selection_handler.observe(handle_selection)
-    link((tab, 'selected_index'), (selection_handler, 'value'))
+    widgets.jslink((tab, 'selected_index'), (selection_handler, 'value'))
 
     def button_action(b):
         selection_handler.value = button_idx[b]
@@ -190,106 +190,106 @@ def get_type_html(t):
     if isinstance(t, hl.tdict):
         return f'<p>A dictionary mapping keys to values.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" DictExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.DictExpression")}</li>' \
-               f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" DictExpression", "https://hail.is/docs/0.2/hail.expr.DictExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/hail.expr.CollectionExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>\n' \
                f'<p>Access elements using square brackets: {html_code("x[k]")}</p>'
     elif isinstance(t, hl.tset):
         return f'<p>A set of unique values.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" SetExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.SetExpression")}</li>' \
-               f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" SetExpression", "https://hail.is/docs/0.2/hail.expr.SetExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/hail.expr.CollectionExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>\n'
     elif isinstance(t, hl.tarray):
         if hl.expr.types.is_numeric(t.element_type):
             return f'<p>A variable-length array of homogenous numeric values.</p>\n' \
                    f'Documentation:\n<ul>' \
-                   f'<li>class: {html_link(" ArrayNumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.ArrayNumericExpression")}</li>' \
-                   f'<li>inherited class: {html_link(" ArrayExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.ArrayExpression")}</li>' \
-                   f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
-                   f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+                   f'<li>class: {html_link(" ArrayNumericExpression", "https://hail.is/docs/0.2/hail.expr.ArrayNumericExpression.html")}</li>' \
+                   f'<li>inherited class: {html_link(" ArrayExpression", "https://hail.is/docs/0.2/hail.expr.ArrayExpression.html")}</li>' \
+                   f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/hail.expr.CollectionExpression.html")}</li>' \
+                   f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                    f'</ul>\n' \
                    f'<p>Access elements using square brackets: {html_code("x[i]")} or slice using Python syntax: {html_code("x[:end], x[start:], x[start:end]")}</p>'
         else:
             return f'<p>A variable-length array of homogenous values.</p>\n' \
                    f'Documentation:\n<ul>' \
-                   f'<li>class: {html_link(" ArrayExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.ArrayExpression")}</li>' \
-                   f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CollectionExpression")}</li>' \
-                   f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+                   f'<li>class: {html_link(" ArrayExpression", "https://hail.is/docs/0.2/hail.expr.ArrayExpression.html")}</li>' \
+                   f'<li>inherited class: {html_link(" CollectionExpression", "https://hail.is/docs/0.2/hail.expr.CollectionExpression.html")}</li>' \
+                   f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                    f'</ul>\n' \
                    f'<p>Access elements using square brackets: {html_code("x[i]")} or slice using Python syntax: {html_code("x[:end], x[start:], x[start:end]")}</p>'
     elif isinstance(t, hl.tstruct):
         bracket_str = html_code("x[\"foo\"]")
         return f'<p>A structure of named heterogeneous values.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" StructExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.StructExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" StructExpression", "https://hail.is/docs/0.2/hail.expr.StructExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>\n' \
                f'<p>Access an element by name with dots: {html_code("x.foo")} or with square brackets: {bracket_str}</p>'
     elif isinstance(t, hl.ttuple):
         return f'<p>A tuple of heterogeneous values.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" TupleExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.TupleExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" TupleExpression", "https://hail.is/docs/0.2/hail.expr.TupleExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>\n' \
                f'<p>Access an element using square brackets: {html_code("x[0]")} for the first element, {html_code("x[1]")} for the second, etc.</p>'
     elif isinstance(t, hl.tinterval):
         return f'<p>An object representing an interval.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" IntervalExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.IntervalExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" IntervalExpression", "https://hail.is/docs/0.2/hail.expr.IntervalExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>'
     elif isinstance(t, hl.tlocus):
         return f'<p>An object representing a genomic locus (chromomsome and position).</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" LocusExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.LocusExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" LocusExpression", "https://hail.is/docs/0.2/hail.expr.LocusExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'<li>{html_link("Genetics functions", "https://hail.is/docs/0.2/functions/genetics.html")}</li>' \
                f'</ul>'
     elif t == hl.tint32:
         return f'<p>A 32-bit integer.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" Int32Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Int32Expression")}</li>' \
-               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" Int32Expression", "https://hail.is/docs/0.2/hail.expr.Int32Expression.html")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/hail.expr.NumericExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
                f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
                f'</ul>'
     elif t == hl.tint64:
         return f'<p>A 64-bit integer.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" Int64Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Int64Expression")}</li>' \
-               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" Int64Expression", "https://hail.is/docs/0.2/hail.expr.Int64Expression.html")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/hail.expr.NumericExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
                f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
                f'</ul>'
     elif t == hl.tfloat32:
         return f'<p>A 32-bit floating point number.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" Float32Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Float32Expression")}</li>' \
-               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" Float32Expression", "https://hail.is/docs/0.2/hail.expr.Float32Expression.html")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/hail.expr.NumericExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
                f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
                f'</ul>'
     elif t == hl.tfloat64:
         return f'<p>A 64-bit floating point number.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" Float64Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Float64Expression")}</li>' \
-               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" Float64Expression", "https://hail.is/docs/0.2/hail.expr.Float64Expression.html")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/hail.expr.NumericExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
                f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
                f'</ul>'
     elif t == hl.tbool:
         return f'<p>A 64-bit floating point number.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" BooleanExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.BooleanExpression")}</li>' \
-               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.NumericExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" BooleanExpression", "https://hail.is/docs/0.2/hail.expr.BooleanExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" NumericExpression", "https://hail.is/docs/0.2/hail.expr.NumericExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'<li>{html_link("Numeric functions", "https://hail.is/docs/0.2/functions/numeric.html")}</li>' \
                f'<li>{html_link("Statistical functions", "https://hail.is/docs/0.2/functions/stats.html")}</li>' \
                f'</ul>'
@@ -297,14 +297,14 @@ def get_type_html(t):
     elif t == hl.tstr:
         return f'<p>A text string.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" StringExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.StringExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" StringExpression", "https://hail.is/docs/0.2/hail.expr.StringExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>'
     elif t == hl.tcall:
         return f'<p>An object representing a genotype call.</p>\n' \
                f'Documentation:\n<ul>' \
-               f'<li>class: {html_link(" CallExpression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.CallExpression")}</li>' \
-               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/expressions.html#hail.expr.expressions.Expression")}</li>' \
+               f'<li>class: {html_link(" CallExpression", "https://hail.is/docs/0.2/hail.expr.CallExpression.html")}</li>' \
+               f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>'
 
 
