@@ -27,7 +27,7 @@ deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
 # Must be int for Kubernetes V1 api timeout_seconds property
-KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 60))
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
 POD_PORT = 8888
 
