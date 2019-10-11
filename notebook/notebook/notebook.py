@@ -215,7 +215,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
         return notebook_status_from_pod(pod)
     except kube.client.rest.ApiException as e:
         if e.status == 404:
-            log.exception(f"k8s_notebook_status_from_notebook: 404 for pod: {notebook['pod_name']}")
+            log.exception(f"404 for pod: {notebook['pod_name']}")
             return None
         raise
 
