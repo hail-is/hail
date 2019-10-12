@@ -45,7 +45,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
         b = builder.submit()
-        assert self.assertEqual(j.job_id(), 1)
+        assert self.assertEqual(j.job_id, 1)
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
@@ -55,17 +55,6 @@ class Test(unittest.TestCase):
         j.pod_status()
 
         self.assertTrue(j.is_complete())
-
-        # test ui
-        headers = service_auth_headers(deploy_config, 'batch2')
-        ui_urls = [
-            f'/batches/{b.id}',
-            f'/batches/{b.id}/jobs/1/log',
-            f'/batches/{b.id}/jobs/1/pod_status'
-        ]
-        for url in ui_urls:
-            r = requests.get(deploy_config.url('batch2', url), headers=headers)
-            self.assertEqual(r.status_code, 200)
 
     def test_attributes(self):
         a = {
@@ -303,13 +292,11 @@ class Test(unittest.TestCase):
         @app.route('/test', methods=['POST'])
         def test():
             body = request.get_json()
-            print(f'body {body}')
             d['status'] = body
             return Response(status=200)
 
         server = ServerThread(app)
         try:
-            print('1starting...')
             server.start()
             b = self.client.create_batch()
             j = b.create_job(
@@ -318,7 +305,6 @@ class Test(unittest.TestCase):
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
             b = b.submit()
-            print(f'1ids {j.job_id}')
             j.wait()
 
             poll_until(lambda: 'status' in d)
@@ -326,10 +312,8 @@ class Test(unittest.TestCase):
             self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
         finally:
-            print(f'1shutting down...')
             server.shutdown()
             server.join()
-            print(f'1shut down, joined')
 
     def test_log_after_failing_job(self):
         b = self.client.create_batch()
@@ -362,13 +346,6 @@ class Test(unittest.TestCase):
         for f, url, expected in endpoints:
             r = f(deploy_config.url('batch2', url))
             assert r.status_code == 401, r
-
-    def test_ui_index(self):
-        headers = service_auth_headers(deploy_config, 'batch2')
-        url = deploy_config.url('batch2', '/')
-        r = requests.get(url, allow_redirects=True, headers=headers)
-        print(f'info {url} {headers} {r}')
-        assert self.assertEqual(r.status_code, 200)
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
