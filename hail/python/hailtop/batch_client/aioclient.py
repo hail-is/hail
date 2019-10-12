@@ -6,30 +6,11 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import AsyncWorkerPool
+from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
 
 from .globals import complete_states
 
 job_array_size = 1000
-
-
-async def retry_request(f, *args, **kwargs):
-    delay = 0.1
-    while True:
-        try:
-            return await f(*args, **kwargs)
-        except aiohttp.ClientResponseError as e:
-            # 408 request timeout, 503 service unavailable, 504 gateway timeout
-            if e.status == 408 or e.status == 503 or e.status == 504:
-                pass
-            else:
-                raise
-        except aiohttp.ServerTimeoutError:
-            pass
-        # exponentially back off, up to (expected) max of 30s
-        delay = min(delay * 2, 60.0)
-        t = delay * random.random()
-        await asyncio.sleep(t)
 
 
 def filter_params(complete, success, attributes):
@@ -465,22 +446,22 @@ class BatchClient:
         self._headers = h
 
     async def _get(self, path, params=None):
-        return await retry_request(
+        return await request_retry_transient_errors(
             self._session.get,
             self.url + path, params=params, headers=self._headers)
 
     async def _post(self, path, json=None):
-        return await retry_request(
+        return await request_retry_transient_errors(
             self._session.post,
             self.url + path, json=json, headers=self._headers)
 
     async def _patch(self, path):
-        return await retry_request(
+        return await request_retry_transient_errors(
             self._session.patch,
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        return await retry_request(
+        return await request_retry_transient_errors(
             self._session.delete,
             self.url + path, headers=self._headers)
 

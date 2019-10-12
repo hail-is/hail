@@ -90,7 +90,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       }
     } else
       ContextRDD.empty(sc)
-    val rvd = RVD.coerce(RVDType(rowType, mv.typ.rowKey), crdd)
+    val rvd = RVD.coerce(RVDType(rowType, mv.typ.rowKey), crdd, ctx)
 
     val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64()), "eigenvalues")
     val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64()), "scores")

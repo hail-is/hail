@@ -1,8 +1,8 @@
 import os
 import time
+import re
 import pytest
 import aiohttp
-import re
 from flask import Response
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient

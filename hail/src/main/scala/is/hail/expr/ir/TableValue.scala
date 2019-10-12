@@ -22,14 +22,14 @@ object TableValue {
     val tt = TableType(rowType.virtualType, key, TStruct.empty())
     TableValue(tt,
       BroadcastRow.empty(ctx),
-      RVD.coerce(RVDType(rowType, key), rdd))
+      RVD.coerce(RVDType(rowType, key), rdd, ctx))
   }
 
   def apply(ctx: ExecuteContext, rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     val tt = TableType(rowType, key, TStruct.empty())
     TableValue(tt,
         BroadcastRow.empty(ctx),
-        RVD.coerce(tt.canonicalRVDType, rdd))
+        RVD.coerce(tt.canonicalRVDType, rdd, ctx))
   }
 
   def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue = {
@@ -37,7 +37,10 @@ object TableValue {
     val tt = TableType(rowType, key, TStruct.empty())
     TableValue(tt,
       BroadcastRow.empty(ctx),
-      RVD.coerce(RVDType(canonicalRowType, key), ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType)))
+      RVD.coerce(
+        RVDType(canonicalRowType, key),
+        ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType),
+        ctx))
   }
 }
 
@@ -65,16 +68,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
-  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
     assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val bufferSpec: BufferSpec = if (codecSpecJSONStr != null) {
-      implicit val formats = AbstractRVDSpec.formats
-      val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-      codecSpecJSON.extract[BufferSpec]
-    } else BufferSpec.default
+    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
     if (overwrite)
       fs.delete(path, recursive = true)

@@ -220,7 +220,7 @@ class IndexWriter(
         "index",
         rootOffset,
         attributes)
-      implicit val formats: Formats = AbstractRVDSpec.formats
+      import AbstractRVDSpec.formats
       Serialization.write(metadata, out)
     }
   }

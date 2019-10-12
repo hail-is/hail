@@ -192,7 +192,8 @@ case class MatrixGENReader(
     val gpType = requestedEntryType.fieldOption("GP").map(_.typ)
 
     val localRVDType = tr.typ.canonicalRVDType
-    val rvd = RVD.coerce(localRVDType,
+    val rvd = RVD.coerce(
+      localRVDType,
       ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = new RegionValueBuilder(region)
@@ -225,7 +226,8 @@ case class MatrixGENReader(
           rv.setOffset(rvb.end())
           rv
         }
-      })
+      },
+      ctx)
 
     val globalValue = makeGlobalValue(ctx, requestedType, samples.map(Row(_)))
 

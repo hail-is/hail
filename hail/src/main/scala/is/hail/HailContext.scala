@@ -9,7 +9,7 @@ import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.ir.{BaseIR, TextTableReader}
+import is.hail.expr.ir.{BaseIR, TextTableReader, ExecuteContext}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
@@ -671,7 +671,9 @@ class HailContext private(
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false) {
-    IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
+    ExecuteContext.scoped { ctx =>
+      IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci, ctx)
+    }
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 

@@ -490,14 +490,19 @@ object TestUtils {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, MatrixType(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = TStruct("s" -> TString()),
-      rowKey = Array("locus", "alleles"),
-      rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
-        "alleles" -> TArray(TString())),
-      entryType = Genotype.htsGenotypeType),
-      Annotation.empty, sampleIds.map(Annotation(_)), rdd)
+    ExecuteContext.scoped { ctx =>
+      MatrixTable.fromLegacy(hc, MatrixType(
+        globalType = TStruct.empty(),
+        colKey = Array("s"),
+        colType = TStruct("s" -> TString()),
+        rowKey = Array("locus", "alleles"),
+        rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
+          "alleles" -> TArray(TString())),
+        entryType = Genotype.htsGenotypeType),
+        Annotation.empty,
+        sampleIds.map(Annotation(_)),
+        rdd,
+        ctx)
+    }
   }
 }

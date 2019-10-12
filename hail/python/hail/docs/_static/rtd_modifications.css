@@ -49,6 +49,25 @@
   width: 3px;
 }
 
+.rst-content dl:not(.docutils) dt,
+.rst-content dl:not(.docutils) dt:first-child {
+  position: relative;
+  border-top: 51px solid transparent;
+  margin-top: -48px;
+  background-clip: padding-box;
+}
+
+.rst-content dl:not(.docutils) dt:before {
+  display: block;
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  border-top: 3px solid #6ab0de;
+}
+
+
 .wy-nav-content {
   max-width: 1140px !important;
   background-color: #fff;
