@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: batch2-driver
@@ -119,7 +119,7 @@ spec:
   selector:
     matchLabels:
       app: batch2
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
@@ -130,6 +130,19 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - auth
+              topologyKey: "kubernetes.io/hostname"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
       - name: batch2
         image: {{ batch2_image.image }}
@@ -152,6 +165,13 @@ spec:
 {% endif %}
         ports:
          - containerPort: 5000
+        resources:
+          requests:
+            memory: "250M"
+            cpu: "100m"
+          limits:
+            memory: "1G"
+            cpu: "1"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
@@ -228,3 +248,20 @@ spec:
     targetPort: 5000
   selector:
     app: batch2-driver
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: batch2
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: batch2
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80

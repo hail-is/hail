@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth
@@ -16,7 +16,9 @@ spec:
         app: auth
         hail.is/sha: "{{ code.sha }}"
     spec:
-      priorityClassName: infrastructure
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
