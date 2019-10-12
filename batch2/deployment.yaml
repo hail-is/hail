@@ -150,10 +150,6 @@ spec:
          - python3
          - -m
          - batch.front_end
-        resources:
-          requests:
-            memory: "1G"
-            cpu: "1"
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
