@@ -94,5 +94,4 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
         if is_transient_error(e):
             log.exception('request failed with transient exception: {method} {url}')
             raise web.HTTPServiceUnavailable()
-        else:
-            raise
+        raise
