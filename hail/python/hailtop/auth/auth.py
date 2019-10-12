@@ -13,7 +13,7 @@ async def async_get_userinfo(deploy_config=None):
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         resp = await request_retry_transient_errors(
-            session.get, userinfo_url, headers=headers)
+            session, 'GET', userinfo_url, headers=headers)
         return await resp.json()
 
 
