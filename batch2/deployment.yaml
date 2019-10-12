@@ -103,7 +103,7 @@ spec:
            optional: false
            secretName: batch2-tokens
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: batch2
