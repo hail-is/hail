@@ -102,11 +102,6 @@ spec:
          secret:
            optional: false
            secretName: batch2-tokens
-      tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
 ---
 apiVersion: apps/v1beta2
 kind: Deployment
@@ -140,9 +135,6 @@ spec:
                     values:
                     - auth
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
       - name: batch2
         image: {{ batch2_image.image }}
@@ -212,10 +204,8 @@ spec:
            optional: false
            secretName: batch2-tokens
       tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
+       - key: preemptible
+         value: "true"
 ---
 apiVersion: v1
 kind: Service

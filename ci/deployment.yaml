@@ -96,11 +96,6 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
-      tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Service
