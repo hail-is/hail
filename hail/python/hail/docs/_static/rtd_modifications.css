@@ -6,6 +6,10 @@
   padding-top: 50px;
 }
 
+dl+dl {
+  margin-top: 50px;
+}
+
 .rst-content dl.class:not(.docutils)>dt,
 .rst-content dl.class:not(.docutils)>dt:first-child,
 .rst-content dl.function:not(.docutils)>dt,
