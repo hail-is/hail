@@ -37,8 +37,8 @@
 .rst-content dl:not(.docutils) dl.classmethod dt:first-child,
 .rst-content dl:not(.docutils) dl.staticmethod dt,
 .rst-content dl:not(.docutils) dl.staticmethod dt:first-child {
-  border-top: 50px solid transparent;
-  margin-top: -50px;
+  border-top: 49px solid transparent;
+  margin-top: -49px;
   background-clip: padding-box;
   border-left: 0px;
   padding-left: 9px;
