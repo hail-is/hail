@@ -3,6 +3,7 @@ import random
 import logging
 import asyncio
 import aiohttp
+from aiohttp import web
 
 log = logging.getLogger('hailtop.utils')
 
@@ -74,7 +75,7 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
     delay = 0.1
     while True:
         try:
-            return await f(*args, **kwargs)
+            return await session.request(method, url, **kwargs)
         except Exception as e:  # pylint: disable=broad-except
             if is_transient_error(e):
                 pass
