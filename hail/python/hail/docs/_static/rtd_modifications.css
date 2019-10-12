@@ -52,7 +52,8 @@ dl {
 
 .rst-content dl.method:not(.docutils)>dt:before,
 .rst-content dl.attribute:not(.docutils)>dt:before,
-.rst-content dl.classmethod:not(.docutils)>dt:before {
+.rst-content dl.classmethod:not(.docutils)>dt:before,
+.rst-content dl.staticmethod:not(.docutils)>dt:before {
   display: block;
   content: "";
   position: absolute;
@@ -126,7 +127,7 @@ div.nboutput div.output_area.stderr {
 
 .bolditalic {
   font-weight: bold;
-  font-italic: italic;
+  font-style: italic;
 }
 
 .container.annotation {
