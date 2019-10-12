@@ -27,7 +27,9 @@
 }
 
 .rst-content dl:not(.docutils) dl.method dt,
-.rst-content dl:not(.docutils) dl.method dt:first-child {
+.rst-content dl:not(.docutils) dl.method dt:first-child,
+.rst-content dl:not(.docutils) dl.attribute dt,
+.rst-content dl:not(.docutils) dl.attribute dt:first-child {
   border-top: 50px solid transparent;
   margin-top: -50px;
   background-clip: padding-box;
@@ -35,7 +37,8 @@
   padding-left: 9px;
 }
 
-.rst-content dl.method:not(.docutils)>dt:before {
+.rst-content dl.method:not(.docutils)>dt:before,
+.rst-content dl.attribute:not(.docutils)>dt:before {
   display: block;
   content: "";
   position: absolute;
