@@ -9,14 +9,17 @@
 .rst-content dl.class:not(.docutils)>dt,
 .rst-content dl.class:not(.docutils)>dt:first-child,
 .rst-content dl.function:not(.docutils)>dt,
-.rst-content dl.function:not(.docutils)>dt:first-child {
+.rst-content dl.function:not(.docutils)>dt:first-child,
+.rst-content dl.data:not(.docutils)>dt,
+.rst-content dl.data:not(.docutils)>dt:first-child {
   border-top: 52px solid transparent;
   margin-top: -52px;
   background-clip: padding-box;
 }
 
 .rst-content dl.class:not(.docutils)>dt:before,
-.rst-content dl.function:not(.docutils)>dt:before {
+.rst-content dl.function:not(.docutils)>dt:before,
+.rst-content dl.data:not(.docutils)>dt:before {
   display: block;
   content: "";
   position: absolute;
@@ -29,7 +32,11 @@
 .rst-content dl:not(.docutils) dl.method dt,
 .rst-content dl:not(.docutils) dl.method dt:first-child,
 .rst-content dl:not(.docutils) dl.attribute dt,
-.rst-content dl:not(.docutils) dl.attribute dt:first-child {
+.rst-content dl:not(.docutils) dl.attribute dt:first-child,
+.rst-content dl:not(.docutils) dl.classmethod dt,
+.rst-content dl:not(.docutils) dl.classmethod dt:first-child,
+.rst-content dl:not(.docutils) dl.staticmethod dt,
+.rst-content dl:not(.docutils) dl.staticmethod dt:first-child {
   border-top: 50px solid transparent;
   margin-top: -50px;
   background-clip: padding-box;
@@ -38,7 +45,8 @@
 }
 
 .rst-content dl.method:not(.docutils)>dt:before,
-.rst-content dl.attribute:not(.docutils)>dt:before {
+.rst-content dl.attribute:not(.docutils)>dt:before,
+.rst-content dl.classmethod:not(.docutils)>dt:before {
   display: block;
   content: "";
   position: absolute;
