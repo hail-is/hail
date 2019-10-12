@@ -53,9 +53,9 @@ def summary_type(t):
     elif isinstance(t, hl.tarray):
         return f'array<{summary_type(t.element_type)}>'
     elif isinstance(t, hl.tstruct):
-        return 'struct'
+        return f'struct with {len(t)} fields'
     elif isinstance(t, hl.ttuple):
-        return 'tuple'
+        return f'tuple with {len(t)} fields'
     elif isinstance(t, hl.tinterval):
         return f'interval<{summary_type(t.point_type)}>'
     else:
