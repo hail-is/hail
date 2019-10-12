@@ -130,7 +130,7 @@ async def main():
 
     print(f'successes: {len(times)} / {n} = {len(times) / n}')
     print(f'mean time: {sum(times) / n}')
-    print(f'quantiles min/50%/95%/99%/max:: {np.quantile(times, [0.0, .5, .95, .99, 1.0])}')
+    print(f'quantiles min/50%/95%/99%/max: {np.quantile(times, [0.0, .5, .95, .99, 1.0])}')
     print(f'histogram:\n{np.histogram(times, density=True)}')
 
 
