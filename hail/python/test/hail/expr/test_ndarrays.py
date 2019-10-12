@@ -1,8 +1,9 @@
-import hail as hl
 import numpy as np
 from ..helpers import *
 import tempfile
 import pytest
+
+from hail.utils.java import FatalError
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
@@ -23,7 +24,6 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 @skip_unless_spark_backend()
-@run_with_cxx_compile()
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -45,12 +45,11 @@ def test_ndarray_ref():
         (h_np_cube[0, 0, 1], 1),
         (h_np_cube[1, 1, 0], 6),
         (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
-        (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
-        (h_np_cube[0, :, :][:, 0][1], 2))
+        (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3))
 
-    with pytest.raises(ValueError) as exc:
-        hl._ndarray([[4], [1, 2, 3], 5])
-    assert "inner dimensions do not match" in str(exc.value)
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl._ndarray([1, 2, 3])[4])
+    assert "Index out of bounds" in str(exc)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
@@ -93,6 +92,10 @@ def test_ndarray_eval():
 
     assert np.array_equal(evaled_zero_array, zero_array)
     assert zero_array.dtype == evaled_zero_array.dtype
+
+    with pytest.raises(ValueError) as exc:
+        hl._ndarray([[4], [1, 2, 3], 5])
+    assert "inner dimensions do not match" in str(exc.value)
 
 
 @skip_unless_spark_backend()

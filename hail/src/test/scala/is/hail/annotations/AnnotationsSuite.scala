@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.virtual._
 import is.hail.testUtils._
 import is.hail.utils._
@@ -70,12 +71,16 @@ class AnnotationsSuite extends HailSuite {
   @Test def testReadWrite() {
     val vds1 = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val vds2 = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    assert(vds1.same(vds2))
+    ExecuteContext.scoped { ctx =>
+      assert(vds1.same(vds2, ctx))
+    }
 
     val f = tmpDir.createTempFile("sample", extension = ".vds")
     vds1.write(f)
     val vds3 = hc.readVDS(f)
-    assert(vds3.same(vds1))
+    ExecuteContext.scoped { ctx =>
+      assert(vds3.same(vds1, ctx))
+    }
   }
 
   @Test def testExtendedOrdering() {

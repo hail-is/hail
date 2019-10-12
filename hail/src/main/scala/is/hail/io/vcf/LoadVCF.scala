@@ -1561,7 +1561,7 @@ case class MatrixVCFReader(
     }
   }
 
-  private lazy val coercer = RVD.makeCoercer(
+  private def coercer(ctx: ExecuteContext) = RVD.makeCoercer(
     fullMatrixType.canonicalTableType.canonicalRVDType,
     1,
     parseLines(
@@ -1572,7 +1572,8 @@ case class MatrixVCFReader(
       referenceGenome.map(_.broadcast),
       contigRecoding,
       arrayElementsRequired,
-      skipInvalidLoci))
+      skipInvalidLoci),
+    ctx)
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val localCallFields = callFields
@@ -1590,13 +1591,15 @@ case class MatrixVCFReader(
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      coercer.coerce(requestedType.canonicalRVDType, parseLines { () =>
-        new ParseLineContext(requestedType,
-          localInfoFlagFieldNames,
-          localSampleIDs.length)
-      } { (c, l, rvb) => LoadVCF.parseLine(c, l, rvb, dropSamples) }(
-        lines, requestedType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
-      ))
+      coercer(ctx).coerce(
+        requestedType.canonicalRVDType,
+        parseLines { () =>
+          new ParseLineContext(requestedType,
+            localInfoFlagFieldNames,
+            localSampleIDs.length)
+        } { (c, l, rvb) => LoadVCF.parseLine(c, l, rvb, dropSamples) }(
+          lines, requestedType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
+        ))
 
     val globalValue = makeGlobalValue(ctx, requestedType, sampleIDs.map(Row(_)))
 

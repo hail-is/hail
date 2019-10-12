@@ -80,7 +80,8 @@ case class MatrixValue(
 
   def referenceGenome: ReferenceGenome = typ.referenceGenome
 
-  def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
+  def colsTableValue(ctx: ExecuteContext): TableValue =
+    TableValue(typ.colsTableType, globals, colsRVD(ctx))
 
   private def writeCols(fs: FS, path: String, bufferSpec: BufferSpec) {
     val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", colValues.t.elementType.asInstanceOf[PStruct], bufferSpec, colValues.javaValue)
@@ -185,20 +186,14 @@ case class MatrixValue(
   def write(path: String,
     overwrite: Boolean,
     stageLocally: Boolean,
-    codecSpecJSONStr: String,
+    codecSpecJSON: String,
     partitions: String,
     partitionsTypeStr: String) = {
     assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val bufferSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = AbstractRVDSpec.formats
-        val codecSpecJSON = parse(codecSpecJSONStr)
-        codecSpecJSON.extract[BufferSpec]
-      } else
-        BufferSpec.default
+    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
     if (overwrite)
       fs.delete(path, recursive = true)
@@ -222,7 +217,7 @@ case class MatrixValue(
     finalizeWrite(fs, path, bufferSpec, partitionCounts)
   }
 
-  def colsRVD(): RVD = {
+  def colsRVD(ctx: ExecuteContext): RVD = {
     // only used in exportPlink
     assert(typ.colKey.isEmpty)
     val hc = HailContext.get
@@ -231,7 +226,8 @@ case class MatrixValue(
     RVD.coerce(
       typ.colsTableType.canonicalRVDType,
       ContextRDD.parallelize(hc.sc, colValues.safeJavaValue)
-        .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
+        .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) },
+      ctx
     )
   }
 

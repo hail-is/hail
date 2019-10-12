@@ -215,6 +215,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
         return notebook_status_from_pod(pod)
     except kube.client.rest.ApiException as e:
         if e.status == 404:
+            log.exception(f"404 for pod: {notebook['pod_name']}")
             return None
         raise
 
@@ -246,7 +247,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                         else:
                             log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
-                log.info(f'GET on jupyter pod {pod_name} timed out: {resp}')
+                log.exception(f'GET on jupyter pod {pod_name} timed out: {resp}')
 
     return status
 
@@ -389,9 +390,10 @@ async def _wait_websocket(service, request, userdata):
             new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
+                log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
                 break
         except Exception:  # pylint: disable=broad-except
-            log.exception('while updating status in /wait')
+            log.exception(f"/wait: error while updating status for pod: {notebook['pod_name']}")
         await asyncio.sleep(1)
         count += 1
 
