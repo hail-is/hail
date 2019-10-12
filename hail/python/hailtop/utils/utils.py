@@ -70,7 +70,7 @@ def is_transient_error(e):
     return False
 
 
-async def request_retry_transient_errors(session, method, url, *, **kwargs):
+async def request_retry_transient_errors(session, method, url, **kwargs):
     delay = 0.1
     while True:
         try:
@@ -86,7 +86,7 @@ async def request_retry_transient_errors(session, method, url, *, **kwargs):
         await asyncio.sleep(t)
 
 
-async def request_raise_transient_errors(session, method, url, *, **kwargs):
+async def request_raise_transient_errors(session, method, url, **kwargs):
     try:
         return await session.request(method, url, **kwargs)
     except Exception as e:  # pylint: disable=broad-except
