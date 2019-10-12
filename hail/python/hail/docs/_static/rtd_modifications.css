@@ -6,8 +6,10 @@
   padding-top: 50px;
 }
 
-dl+dl {
-  margin-top: 50px;
+dl {
+  /*2*50px for the header, needed when dl's contain no inner elements
+  and are therefore very closely packed*/
+  min-height: 100px;
 }
 
 .rst-content dl.class:not(.docutils)>dt,
