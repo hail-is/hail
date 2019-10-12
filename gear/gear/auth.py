@@ -5,7 +5,7 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
-from hailtop.utils import request_raise_transient_errors
+from hailtop.utils import request_retry_transient_errors
 
 log = logging.getLogger('gear.auth')
 
