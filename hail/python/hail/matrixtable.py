@@ -3995,11 +3995,11 @@ class MatrixTable(ExprContainer):
         if handler is None:
             handler = default_handler()
         if cols:
-            handler(self.col._summarize(header='Columns'))
+            handler(self.col._summarize(header='Columns', top=True))
         if rows:
-            handler(self.row._summarize(header='Rows'))
+            handler(self.row._summarize(header='Rows', top=True))
         if entries:
-            handler(self.entry._summarize(header='Entries'))
+            handler(self.entry._summarize(header='Entries', top=True))
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self

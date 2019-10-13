@@ -45,6 +45,21 @@ __all__ = [
     'hts_entry_schema',
 ]
 
+def summary_type(t):
+    if isinstance(t, hl.tdict):
+        return f'dict<{summary_type(t.key_type)}, {summary_type(t.value_type)}>'
+    elif isinstance(t, hl.tset):
+        return f'set<{summary_type(t.element_type)}>'
+    elif isinstance(t, hl.tarray):
+        return f'array<{summary_type(t.element_type)}>'
+    elif isinstance(t, hl.tstruct):
+        return 'struct'
+    elif isinstance(t, hl.ttuple):
+        return 'tuple'
+    elif isinstance(t, hl.tinterval):
+        return f'interval<{summary_type(t.point_type)}>'
+    else:
+        return str(t)
 
 def dtype(type_str):
     r"""Parse a type from its string representation.

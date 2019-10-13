@@ -3217,7 +3217,7 @@ class Table(ExprContainer):
 
         if handler is None:
             handler = hl.utils.default_handler()
-        handler(self.row._summarize())
+        handler(self.row._summarize(top=True))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
