@@ -2345,11 +2345,22 @@ private class Emit(
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val newPType = x.pType
             val temp = mb.newField[Long]
+
+            val (newIdxVarsSetup, newIdxVars) = x.pType.elementIndexToIndices(temp, childEmitter.outputShape, region, mb)
+
             Code(
               temp := newPType.getElementIndex(idxVars, reshapedShapeArray, region, mb),
+              newIdxVarsSetup,
+              Code._println("elementIndex:"),
               Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
                 "println", temp),
-              childEmitter.outputElement(idxVars)
+              Code._println("newIdxVars"),
+              Code.foreach(newIdxVars){v =>
+                Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+                  "println", v)
+              },
+
+              childEmitter.outputElement(newIdxVars)
             )
           }
         }

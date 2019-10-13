@@ -140,26 +140,55 @@ def getElementIndex(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], r
   )
 }
 
-  def elementIndexToIndices(index: Code[Long], nd: Code[Long], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
-    val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
-    val nDim = ???
+//  def elementIndexToIndices(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+//    //val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
+//    val nDim = shapeArray.length
+//
+//    val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+//
+//    val remainingWork = mb.newField[Long]
+//    val setupShape = Code(
+//      remainingWork := index,
+//      Code.foreach(0 until nDim){ dimIndex =>
+//        Code(
+//          newIndices(dimIndex) := remainingWork / shapeArray(dimIndex),
+//          remainingWork := remainingWork % shapeArray(dimIndex)
+//        )
+//      }
+//    )
+//    (setupShape, newIndices.map(_.load()))
+//  }
 
-    val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+  def elementIndexToIndices(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+    val nDim = shapeArray.length
 
-    val remainingWork = mb.newField[Long]
-    val setupShape = Code(
-      remainingWork := index,
-      Code.foreach(0 until nDim){ dimIndex =>
-        Code(
-          newIndices(dimIndex) := remainingWork / shapeTuple(dimIndex),
-          remainingWork := remainingWork % shapeTuple(dimIndex)
-        )
-      }
-    )
-    (setupShape, newIndices.map(_.load()))
+    if (nDim <= 1) {
+      (Code._empty, Array(index))
+    }
+    else {
+      val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+      val elementsAboveThisLevel = mb.newField[Long]
+
+      val setupShape = Code(
+        elementsAboveThisLevel := 1L,
+        // Compute product of all elements of shape but the first one.
+        Code.foreach(shapeArray.drop(1)){ shapeElement =>
+          elementsAboveThisLevel := elementsAboveThisLevel * shapeElement
+        },
+        //Now walk backwards through shape generating the elements
+        Code.foreach(0 until nDim){ dimIndex =>
+          Code(
+            newIndices(dimIndex) := shapeArray(dimIndex) / elementsAboveThisLevel,
+            elementsAboveThisLevel := shapeArray(dimIndex) % elementsAboveThisLevel
+          )
+        }
+      )
+      (setupShape, newIndices.map(_.load()))
+    }
+
   }
 
-  def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
+    def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
     stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
 
