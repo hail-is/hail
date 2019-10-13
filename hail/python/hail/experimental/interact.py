@@ -211,14 +211,14 @@ def get_type_html(t):
                f'<li>class: {html_link(" StructExpression", "https://hail.is/docs/0.2/hail.expr.StructExpression.html")}</li>' \
                f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>\n' \
-               f'<p>Access an element by name with dots: {html_code("x.foo")} or with square brackets: {bracket_str}</p>'
+               f'<p>Access an element by name with dots or with square brackets: {html_code(f"x.foo, {bracket_str}")}</p>'
     elif isinstance(t, hl.ttuple):
-        return f'<p>A tuple of heterogeneous values.</p>\n' \
+        return f'<p>A 0-indexed tuple of heterogeneous values.</p>\n' \
                f'Documentation:\n<ul>' \
                f'<li>class: {html_link(" TupleExpression", "https://hail.is/docs/0.2/hail.expr.TupleExpression.html")}</li>' \
                f'<li>inherited class: {html_link(" Expression", "https://hail.is/docs/0.2/hail.expr.Expression.html")}</li>' \
                f'</ul>\n' \
-               f'<p>Access an element using square brackets: {html_code("x[0]")} for the first element, {html_code("x[1]")} for the second, etc.</p>'
+               f'<p>Access an element using square brackets. For instance, get the first element: {html_code("x[0]")}</p>'
     elif isinstance(t, hl.tinterval):
         return f'<p>An object representing an interval.</p>\n' \
                f'Documentation:\n<ul>' \
