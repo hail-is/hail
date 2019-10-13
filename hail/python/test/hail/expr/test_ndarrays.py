@@ -141,11 +141,11 @@ def test_ndarray_reshape():
     np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
 
     assert_ndarrays_eq(
-        (a.reshape((6,)), np_a))
-        # (a.reshape((2, 3)), np_a.reshape((2, 3))),
-        # (a.reshape((3, 2)), np_a.reshape((3, 2))),
-        # (cube_to_rect, np_cube_to_rect),
-        # (cube_t_to_rect, np_cube_t_to_rect))
+        (a.reshape((6,)), np_a),
+        (a.reshape((2, 3)), np_a.reshape((2, 3))),
+        (a.reshape((3, 2)), np_a.reshape((3, 2))),
+        (cube_to_rect, np_cube_to_rect),
+        (cube_t_to_rect, np_cube_t_to_rect))
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))

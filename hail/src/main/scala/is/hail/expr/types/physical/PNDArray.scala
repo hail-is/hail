@@ -168,18 +168,21 @@ def getElementIndex(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], r
     else {
       val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
       val elementsAboveThisLevel = mb.newField[Long]
+      val workRemaining = mb.newField[Long]
 
       val setupShape = Code(
         elementsAboveThisLevel := 1L,
-        // Compute product of all elements of shape but the first one.
-        Code.foreach(shapeArray.drop(1)){ shapeElement =>
+        workRemaining := index,
+        // Compute product of all elements of shape
+        Code.foreach(shapeArray){ shapeElement =>
           elementsAboveThisLevel := elementsAboveThisLevel * shapeElement
         },
         //Now walk backwards through shape generating the elements
         Code.foreach(0 until nDim){ dimIndex =>
           Code(
-            newIndices(dimIndex) := shapeArray(dimIndex) / elementsAboveThisLevel,
-            elementsAboveThisLevel := shapeArray(dimIndex) % elementsAboveThisLevel
+            elementsAboveThisLevel := elementsAboveThisLevel / shapeArray(dimIndex),
+            newIndices(dimIndex) := workRemaining / elementsAboveThisLevel,
+            workRemaining := workRemaining % elementsAboveThisLevel
           )
         }
       )
