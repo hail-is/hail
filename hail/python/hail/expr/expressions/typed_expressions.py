@@ -1400,10 +1400,11 @@ class DictExpression(Expression):
         }
 
     def _nested_summary(self, agg_result, top):
-        elt = construct_variable(Env.get_uid(), self.dtype.element_type, indices=self._indices)
+        k = construct_variable(Env.get_uid(), self.dtype.key_type, indices=self._indices)
+        v = construct_variable(Env.get_uid(), self.dtype.value_type, indices=self._indices)
         return {
-            '[<keys>]': elt._summarize(agg_result[3][0]),
-            '[<values>]': elt._summarize(agg_result[3][1]),
+            '[<keys>]': k._summarize(agg_result[3][0]),
+            '[<values>]': v._summarize(agg_result[3][1]),
 
         }
 
@@ -1413,7 +1414,7 @@ class DictExpression(Expression):
             hl.agg.min(length),
             hl.agg.max(length),
             hl.agg.mean(length),
-            hl.agg.explode(lambda elt: hl.tuple(elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs()), hl.array(self))))
+            hl.agg.explode(lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self))))
 
 
 class StructExpression(Mapping[str, Expression], Expression):
@@ -2204,7 +2205,7 @@ class Float64Expression(NumericExpression):
             'Minimum': agg_result['min'],
             'Maximum': agg_result['max'],
             'Mean': agg_result['mean'],
-            'Std Dev.': agg_result['stdev']
+            'Std Dev': agg_result['stdev']
         }
 
     def _summary_aggs(self):
@@ -2219,7 +2220,7 @@ class Float32Expression(NumericExpression):
             'Minimum': agg_result['min'],
             'Maximum': agg_result['max'],
             'Mean': agg_result['mean'],
-            'Std Dev.': agg_result['stdev']
+            'Std Dev': agg_result['stdev']
         }
 
     def _summary_aggs(self):
@@ -2233,7 +2234,7 @@ class Int32Expression(NumericExpression):
             'Minimum': int(agg_result['min']),
             'Maximum': int(agg_result['max']),
             'Mean': agg_result['mean'],
-            'Std Dev.': agg_result['stdev']
+            'Std Dev': agg_result['stdev']
         }
 
     def _summary_aggs(self):
@@ -2247,7 +2248,7 @@ class Int64Expression(NumericExpression):
             'Minimum': int(agg_result['min']),
             'Maximum': int(agg_result['max']),
             'Mean': agg_result['mean'],
-            'Std Dev.': agg_result['stdev']
+            'Std Dev': agg_result['stdev']
         }
 
     def _summary_aggs(self):
