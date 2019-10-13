@@ -381,6 +381,25 @@ class CollectionExpression(Expression):
         """
         return apply_expr(lambda x: ArrayLen(x), tint32, hl.array(self))
 
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Min Size': agg_result[0],
+            'Max Size': agg_result[1],
+            'Mean Size': agg_result[2],
+        }
+
+    def _nested_summary(self, agg_result, top):
+        elt = construct_variable(Env.get_uid(), self.dtype.element_type, indices=self._indices)
+        return {'[<elements>]': elt._summarize(agg_result[3])}
+
+    def _summary_aggs(self):
+        length = hl.len(self)
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: elt._all_summary_aggs(), self)))
+
 
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.tarray`.
@@ -1373,6 +1392,30 @@ class DictExpression(Expression):
         """
         return self._method("values", tarray(self.dtype.value_type))
 
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Min Size': agg_result[0],
+            'Max Size': agg_result[1],
+            'Mean Size': agg_result[2],
+        }
+
+    def _nested_summary(self, agg_result, top):
+        k = construct_variable(Env.get_uid(), self.dtype.key_type, indices=self._indices)
+        v = construct_variable(Env.get_uid(), self.dtype.value_type, indices=self._indices)
+        return {
+            '[<keys>]': k._summarize(agg_result[3][0]),
+            '[<values>]': v._summarize(agg_result[3][1]),
+
+        }
+
+    def _summary_aggs(self):
+        length = hl.len(self)
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self))))
+
 
 class StructExpression(Mapping[str, Expression], Expression):
     """Expression of type :class:`.tstruct`.
@@ -1635,6 +1678,14 @@ class StructExpression(Mapping[str, Expression], Expression):
                 return [(prefix, s)]
         return self.select(**{k: v for (f, e) in self.items() for (k, v) in _flatten(f, e)})
 
+    def _nested_summary(self, agg_result, top):
+        sep = '' if top else '.'
+        return {f'{sep}{k}': f._summarize(agg_result[k]) for k, f in self.items()}
+
+    def _summary_aggs(self):
+        return hl.struct(**{k: f._all_summary_aggs() for k, f in self.items()})
+
+
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
 
@@ -1682,6 +1733,12 @@ class TupleExpression(Expression, Sequence):
     def __iter__(self):
         for i in range(len(self)):
             yield self[i]
+
+    def _nested_summary(self, agg_result, top):
+        return {f'[{i}]': self[i]._summarize(agg_result[i]) for i in range(len(self))}
+
+    def _summary_aggs(self):
+        return hl.tuple([self[i]._all_summary_aggs() for i in range(len(self))])
 
 
 class NumericExpression(Expression):
@@ -2133,25 +2190,69 @@ class BooleanExpression(NumericExpression):
         """
         return self._unary_op("!")
 
+    def _extra_summary_fields(self, agg_result):
+        return {'Counts': agg_result}
+
+    def _summary_aggs(self):
+        return hl.agg.filter(hl.is_defined(self), hl.agg.counter(self))
+
 
 class Float64Expression(NumericExpression):
     """Expression of type :py:data:`.tfloat64`."""
-    pass
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': agg_result['min'],
+            'Maximum': agg_result['max'],
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class Float32Expression(NumericExpression):
     """Expression of type :py:data:`.tfloat32`."""
-    pass
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': agg_result['min'],
+            'Maximum': agg_result['max'],
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class Int32Expression(NumericExpression):
     """Expression of type :py:data:`.tint32`."""
-    pass
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': int(agg_result['min']),
+            'Maximum': int(agg_result['max']),
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class Int64Expression(NumericExpression):
     """Expression of type :py:data:`.tint64`."""
-    pass
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': int(agg_result['min']),
+            'Maximum': int(agg_result['max']),
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class StringExpression(Expression):
@@ -2530,6 +2631,22 @@ class StringExpression(Expression):
         """
         return to_expr(regex, tstr)._method("~", tbool, self)
 
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Min Size': agg_result[0],
+            'Max Size': agg_result[1],
+            'Mean Size': agg_result[2],
+            'Sample Values': agg_result[3],
+        }
+
+    def _summary_aggs(self):
+        length = hl.len(self)
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.filter(hl.is_defined(self), hl.agg.take(self, 5))))
+
 
 class CallExpression(Expression):
     """Expression of type :py:data:`.tcall`.
@@ -2813,6 +2930,23 @@ class CallExpression(Expression):
         """
         return self._method("unphasedDiploidGtIndex", tint32)
 
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Homozygous Reference': agg_result[0],
+            'Heterozygous': agg_result[1],
+            'Homozygous Variant': agg_result[2],
+            'Ploidy': agg_result[3],
+            'Phased': agg_result[4]
+        }
+
+    def _summary_aggs(self):
+        return hl.tuple((
+            hl.agg.count_where(self.is_hom_ref()),
+            hl.agg.count_where(self.is_het()),
+            hl.agg.count_where(self.is_hom_var()),
+            hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.ploidy)),
+            hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.phased))))
+
 
 class LocusExpression(Expression):
     """Expression of type :class:`.tlocus`.
@@ -3094,6 +3228,12 @@ class LocusExpression(Expression):
                            end=hl.locus(self.contig, end_pos),
                            includes_start=True,
                            includes_end=True)
+
+    def _extra_summary_fields(self, agg_result):
+        return {'Contig Counts': agg_result}
+
+    def _summary_aggs(self):
+        return hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.contig))
 
 
 class IntervalExpression(Expression):

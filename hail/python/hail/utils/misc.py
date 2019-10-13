@@ -18,7 +18,6 @@ from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
 
 
-
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
@@ -522,9 +521,11 @@ def escape_id(s):
 def dump_json(obj):
     return f'"{escape_str(json.dumps(obj))}"'
 
+
 def parsable_strings(strs):
     strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
     return f"({strs})"
+
 
 def _dumps_partitions(partitions, row_key_type):
     parts_type = partitions.dtype
@@ -551,3 +552,11 @@ def _dumps_partitions(partitions, row_key_type):
     
     s = json.dumps(partitions.dtype._convert_to_json(hl.eval(partitions)))
     return s, partitions.dtype
+
+
+def default_handler():
+    try:
+        from IPython.display import display
+        return display
+    except ImportError:
+        return print

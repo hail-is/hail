@@ -11,7 +11,7 @@ from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
-from hail.utils import storage_level, LinkedList
+from hail.utils import storage_level, LinkedList, default_handler
 from hail.utils.java import warn, jiterable_to_list, Env, scala_object, joption, jnone
 from hail.utils.misc import *
 
@@ -2598,11 +2598,7 @@ class MatrixTable(ExprContainer):
             **{f: t[f] for f in self.row_value if include_row_fields},
             **entries)
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = default_handler()
         handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
@@ -3980,8 +3976,8 @@ class MatrixTable(ExprContainer):
 
         return t
 
-    @typecheck_method(rows=bool, cols=bool, entries=bool)
-    def summarize(self, *, rows=True, cols=True, entries=True):
+    @typecheck_method(rows=bool, cols=bool, entries=bool, handler=nullable(anyfunc))
+    def summarize(self, *, rows=True, cols=True, entries=True, handler=None):
         """Compute and print summary information about the fields in the matrix table.
 
         .. include:: _templates/experimental.rst
@@ -3996,42 +3992,14 @@ class MatrixTable(ExprContainer):
             Compute summary for the entry fields.
         """
 
+        if handler is None:
+            handler = default_handler()
         if cols:
-            computations, printers = hl.expr.generic_summary(self.col, prefix='[col]', skip_top=True)
-            results = self.aggregate_cols(computations)
-            print('Columns')
-            print('=======')
-            for name, fields in printers:
-                print(f'* {name}:')
-
-                max_k_len = max(len(f) for f in fields)
-                for k, v in fields.items():
-                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
-                print()
+            handler(self.col._summarize(header='Columns', top=True))
         if rows:
-            computations, printers = hl.expr.generic_summary(self.row, prefix='[row]', skip_top=True)
-            results = self.aggregate_rows(computations)
-            print('Rows')
-            print('====')
-            for name, fields in printers:
-                print(f'* {name}:')
-
-                max_k_len = max(len(f) for f in fields)
-                for k, v in fields.items():
-                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
-                print()
+            handler(self.row._summarize(header='Rows', top=True))
         if entries:
-            computations, printers = hl.expr.generic_summary(self.entry, prefix='[entry]', skip_top=True)
-            results = self.aggregate_entries(computations)
-            print('Entries')
-            print('=======')
-            for name, fields in printers:
-                print(f'* {name}:')
-
-                max_k_len = max(len(f) for f in fields)
-                for k, v in fields.items():
-                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
-                print()
+            handler(self.entry._summarize(header='Entries', top=True))
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
