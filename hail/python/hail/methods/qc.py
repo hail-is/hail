@@ -926,8 +926,102 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         return dataset.annotate(**{name: annotations[dataset.key].nirvana})
 
 
-@typecheck(mt=MatrixTable, show=bool)
-def summarize_variants(mt: MatrixTable, show=True):
+class _VariantSummary(object):
+    def __init__(self, rg, n_variants, alleles_per_variant, variants_per_contig, allele_types):
+        self.rg = rg
+        self.n_variants = n_variants
+        self.alleles_per_variant = alleles_per_variant
+        self.variants_per_contig = variants_per_contig
+        self.allele_types = allele_types
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _repr_html_(self):
+        return self._html_string()
+
+    def __str__(self):
+        contig_idx = {contig: i for i, contig in enumerate(self.rg.contigs)}
+        max_contig_len = max(len(contig) for contig in self.variants_per_contig)
+        contig_formatter = f'%{max_contig_len}s'
+
+        max_allele_count_len = max(len(str(x)) for x in self.alleles_per_variant)
+        allele_count_formatter = f'%{max_allele_count_len}s'
+
+        max_allele_type_len = max(len(x) for x in self.allele_types)
+        allele_type_formatter = f'%{max_allele_type_len}s'
+
+        line_break = '=============================='
+        
+        builder = []
+        builder.append(line_break)
+        builder.append(f'Number of variants: {self.n_variants}')
+        builder.append(line_break)
+        builder.append('Alleles per variant')
+        builder.append('-------------------')
+        for n_alleles, count in sorted(self.alleles_per_variant.items(), key=lambda x: x[0]):
+            builder.append(f'  {allele_count_formatter % n_alleles} alleles: {count} variants')
+        builder.append(line_break)
+        builder.append('Variants per contig')
+        builder.append('-------------------')
+        for contig, count in sorted(self.variants_per_contig.items(), key=lambda x: contig_idx[x[0]]):
+            builder.append(f'  {contig_formatter % contig}: {count} variants')
+        builder.append(line_break)
+        builder.append('Allele type distribution')
+        builder.append('------------------------')
+        for allele_type, count in Counter(self.allele_types).most_common():
+            builder.append(f'  {allele_type_formatter % allele_type}: {count} alternate alleles')
+        builder.append(line_break)
+        return '\n'.join(builder)
+
+    def _html_string(self):
+        contig_idx = {contig: i for i, contig in enumerate(self.rg.contigs)}
+
+        import html
+        builder = []
+        builder.append(f'<p><b>Variant summary:</b></p>')
+        builder.append('<ul>')
+        builder.append(f'<li><p>Total variants: {self.n_variants}</p></li>')
+
+        builder.append(f'<li><p>Alleles per variant:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Number of alleles</th><th>Count</th></tr></thead><tbody>')
+        for n_alleles, count in sorted(self.alleles_per_variant.items(), key=lambda x: x[0]):
+            builder.append(f'<tr>')
+            builder.append(f'<td>{n_alleles}</td>')
+            builder.append(f'<td>{count}</td>')
+            builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append(f'<li><p>Counts by allele type:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Allele type</th><th>Count</th></tr></thead><tbody>')
+        for allele_type, count in Counter(self.allele_types).most_common():
+            builder.append(f'<tr>')
+            builder.append(f'<td>{html.escape(allele_type)}</td>')
+            builder.append(f'<td>{count}</td>')
+            builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append(f'<li><p>Variants per contig:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Contig</th><th>Count</th></tr></thead><tbody>')
+        for contig, count in sorted(self.variants_per_contig.items(), key=lambda x: contig_idx[x[0]]):
+            builder.append(f'<tr>')
+            builder.append(f'<td>{html.escape(contig)}</td>')
+            builder.append(f'<td>{count}</td>')
+            builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append('</ul>')
+        return ''.join(builder)
+
+
+@typecheck(mt=oneof(Table, MatrixTable), show=bool, handler=anytype)
+def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handler=None):
     """Summarize the variants present in a dataset and print the results.
 
     Examples
@@ -953,10 +1047,11 @@ def summarize_variants(mt: MatrixTable, show=True):
 
     Parameters
     ----------
-    mt : :class:`.MatrixTable`
+    mt : :class:`.MatrixTable` or :class:`.Table`
         Matrix table with a variant (locus / alleles) row key.
     show : :obj:`bool`
         If ``True``, print results instead of returning them.
+    handler
 
     Notes
     -----
@@ -976,44 +1071,22 @@ def summarize_variants(mt: MatrixTable, show=True):
         Returns ``None`` if `show` is ``True``, or returns results as a struct.
     """
     require_row_key_variant(mt, 'summarize_variants')
-    alleles_per_variant = hl.range(1, hl.len(mt.alleles)).map(lambda i: hl.allele_type(mt.alleles[0], mt.alleles[i]))
-    allele_types, contigs, allele_counts, n_variants = mt.aggregate_rows(
+    if isinstance(mt, MatrixTable):
+        ht = mt.rows()
+    else:
+        ht = mt
+    alleles_per_variant = hl.range(1, hl.len(ht.alleles)).map(lambda i: hl.allele_type(ht.alleles[0], ht.alleles[i]))
+    allele_types, contigs, allele_counts, n_variants = ht.aggregate(
         (hl.agg.explode(lambda elt: hl.agg.counter(elt), alleles_per_variant),
-         hl.agg.counter(mt.locus.contig),
-         hl.agg.counter(hl.len(mt.alleles)),
+         hl.agg.counter(ht.locus.contig),
+         hl.agg.counter(hl.len(ht.alleles)),
          hl.agg.count()))
-    rg = mt.locus.dtype.reference_genome
-    contig_idx = {contig: i for i, contig in enumerate(rg.contigs)}
+    rg = ht.locus.dtype.reference_genome
     if show:
-        max_contig_len = max(len(contig) for contig in contigs)
-        contig_formatter = f'%{max_contig_len}s'
-
-        max_allele_count_len = max(len(str(x)) for x in allele_counts)
-        allele_count_formatter = f'%{max_allele_count_len}s'
-
-        max_allele_type_len = max(len(x) for x in allele_types)
-        allele_type_formatter = f'%{max_allele_type_len}s'
-
-        line_break = '=============================='
-
-        print(line_break)
-        print(f'Number of variants: {n_variants}')
-        print(line_break)
-        print('Alleles per variant')
-        print('-------------------')
-        for n_alleles, count in sorted(allele_counts.items(), key=lambda x: x[0]):
-            print(f'  {allele_count_formatter % n_alleles} alleles: {count} variants')
-        print(line_break)
-        print('Variants per contig')
-        print('-------------------')
-        for contig, count in sorted(contigs.items(), key=lambda x: contig_idx[x[0]]):
-            print(f'  {contig_formatter % contig}: {count} variants')
-        print(line_break)
-        print('Allele type distribution')
-        print('------------------------')
-        for allele_type, count in Counter(allele_types).most_common():
-            print(f'  {allele_type_formatter % allele_type}: {count} alternate alleles')
-        print(line_break)
+        summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types)
+        if handler is None:
+            handler = hl.utils.default_handler()
+        handler(summary)
     else:
         return hl.Struct(allele_types=allele_types,
                          contigs=contigs,
