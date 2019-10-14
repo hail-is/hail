@@ -144,6 +144,8 @@ def test_ndarray_reshape():
         (a.reshape((6,)), np_a),
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),
+        (a.reshape((3, -1)), np_a.reshape((3, -1))),
+        (a.reshape((-1, 2)), np_a.reshape((-1, 2))),
         (cube_to_rect, np_cube_to_rect),
         (cube_t_to_rect, np_cube_t_to_rect))
 
