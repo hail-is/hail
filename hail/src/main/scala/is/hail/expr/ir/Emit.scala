@@ -2278,10 +2278,9 @@ private class Emit(
             runningProduct := 1L,
 
             // Compute negative 1 count and product
-            // TODO Handle zero, more negatives
             Code.foreach(requestedShape){ requestedShapeElement =>
-              (requestedShapeElement.toI ceq -1).mux(
-                countNegs := countNegs + 1,
+              (requestedShapeElement.toI <= 0).mux(
+                (requestedShapeElement ceq -1L).mux(countNegs := countNegs + 1, Code._fatal("Can't reshape, new shape must contain only positive numbers or -1")),
                 runningProduct := runningProduct * requestedShapeElement
               )
             },
