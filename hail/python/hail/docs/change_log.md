@@ -24,6 +24,28 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.25
+
+Released 2019-10-14
+
+### New features
+- (hail#7240) Add interactive schema widget to `{MatrixTable, Table}.describe`. Use this by passing the argument `widget=True`.
+- (hail#7250) `{Table, MatrixTable, Expression}.summarize()` now summarizes elements of collections (arrays, sets, dicts).
+- (hail#7271) Improve `hl.plot.qq` by increasing point size, adding the unscaled p-value to hover data, and printing lambda-GC on the plot.
+- (hail#7280) Add HTML output for `{Table, MatrixTable, Expression}.summarize()`.
+- (hail#7294) Add HTML output for `hl.summarize_variants()`.
+
+### Bug fixes
+- (hail#7200) Fix VCF parsing with missingness inside arrays of floating-point values in the FORMAT field.
+- (hail#7219) Fix crash due to invalid optimizer rule.
+
+### Performance improvements
+- (hail#7187) Dramatically improve performance of chained `BlockMatrix` multiplies without checkpoints in between.
+- (hail#7195)(hail#7194) Improve performance of `group[_rows]_by` / `aggregate`.
+- (hail#7201) Permit code generation of larger aggregation pipelines.
+
+---
+
 ## Version 0.2.24
 
 Released 2019-10-03
