@@ -2335,31 +2335,20 @@ private class Emit(
           childEmitter.setup,
           shapet.setup,
           requestedShapeAddress := shapet.value[Long],
-          Code._println("shapeAddress bound"),
-          reshapeSetup,
-          Code._println("Reshape setup complete")
+          reshapeSetup
         )
 
         // I suspect that shape.pType not being required will cause problems, because everything causes problems these days.
         new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup){
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val newPType = x.pType
-            val temp = mb.newField[Long]
+            val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.elementIndexToIndices(temp, childEmitter.outputShape, region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.elementIndexToIndices(storeElementIndex, childEmitter.outputShape, region, mb)
 
             Code(
-              temp := newPType.getElementIndex(idxVars, reshapedShapeArray, region, mb),
+              storeElementIndex := newPType.getElementIndex(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
-              Code._println("elementIndex:"),
-              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-                "println", temp),
-              Code._println("newIdxVars"),
-              Code.foreach(newIdxVars){v =>
-                Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-                  "println", v)
-              },
-
               childEmitter.outputElement(newIdxVars)
             )
           }
