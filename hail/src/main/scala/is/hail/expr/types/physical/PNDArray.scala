@@ -140,11 +140,9 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       val setupShape = Code(
         elementsAboveThisLevel := 1L,
         workRemaining := index,
-        // Compute product of all elements of shape
         Code.foreach(shapeArray){ shapeElement =>
           elementsAboveThisLevel := elementsAboveThisLevel * shapeElement
         },
-        //Now walk backwards through shape generating the elements
         Code.foreach(0 until nDim){ dimIndex =>
           Code(
             elementsAboveThisLevel := elementsAboveThisLevel / shapeArray(dimIndex),

@@ -2268,10 +2268,6 @@ private class Emit(
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
         def compatibleShape(numElements: Code[Int], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
-          // Steps:
-          // Keep a running product. Also keep a count of -1s. If there's more than one -1, break. If the running product doesn't
-          // divide number of elements, break. If there's one -1, loop over elements and replace the -1 with total / product.
-
           val countNegs = mb.newLocal[Int]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
@@ -2281,7 +2277,6 @@ private class Emit(
           val setup = coerce[Unit](Code(
             countNegs := 0,
             runningProduct := 1L,
-            Code._println("countNegs and runningProduct initialized"),
 
             // Compute negative 1 count and product
             // TODO Handle zero, more negatives
@@ -2291,29 +2286,18 @@ private class Emit(
                 runningProduct := runningProduct * requestedShapeElement
               )
             },
-            Code._println("Finished counting negative ones and computing runningPRudct"),
 
             (countNegs > 1).mux(
               Code._fatal("Can't infer shape, more than one -1"),
               Code._empty
             ),
-            Code._println("Shape had less than 2 negative 1s"),
-            Code._println("About to print num elements"),
-            Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-              "println", numElements.toL),
-            Code._println("About to print running product"),
-            Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-              "println", runningProduct),
             ((numElements.toL % runningProduct) > 0L).mux(
               Code._fatal("Can't reshape since requested shape is incompatible with number of elements"),
               Code._empty
             ),
-            Code._println("Shape seems compatible"),
             quotient := numElements.toL / runningProduct,
-            Code._println("Computed quotient"),
             // Loop over the elements, replace if it's a negative one. For now, let's not.
-            Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := shapeElement}),
-            Code._println("Bound all variables")
+            Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := shapeElement})
           ))
 
           (setup, newShapeVars.map(_.load()).toArray)
