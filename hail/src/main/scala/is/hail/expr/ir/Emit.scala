@@ -2242,7 +2242,6 @@ private class Emit(
         val outputPType = x.pType
         val outputShapePType = outputPType.shape.pType
 
-
         val shapeSeq = indexExpr.map {childIndex =>
           if (childIndex < childPType.nDims) {
             childEmitter.outputShape(childIndex)
@@ -2287,14 +2286,8 @@ private class Emit(
               )
             },
 
-            (countNegs > 1).mux(
-              Code._fatal("Can't infer shape, more than one -1"),
-              Code._empty
-            ),
-            ((numElements.toL % runningProduct) > 0L).mux(
-              Code._fatal("Can't reshape since requested shape is incompatible with number of elements"),
-              Code._empty
-            ),
+            (countNegs > 1).orEmpty(Code._fatal("Can't infer shape, more than one -1")),
+            ((numElements.toL % runningProduct) > 0L).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
             quotient := numElements.toL / runningProduct,
             // Loop over the elements, replace if it's a negative one. For now, let's not.
             Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := shapeElement})
