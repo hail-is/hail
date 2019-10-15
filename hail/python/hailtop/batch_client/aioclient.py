@@ -265,8 +265,8 @@ class BatchBuilder:
         self.callback = callback
         self.pool = AsyncWorkerPool(2)
 
-    def create_job(self, image, command=None, args=None, env=None, ports=None,
-                   resources=None, tolerations=None, volumes=None, security_context=None,
+    def create_job(self, image, command=None, args=None, env=None,
+                   resources=None, volumes=None,
                    service_account_name=None, attributes=None, callback=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if self._submitted:
@@ -304,20 +304,6 @@ class BatchBuilder:
 
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        else:
-            env = []
-        env.extend([{
-            'name': 'POD_IP',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'status.podIP'}
-            }
-        }, {
-            'name': 'POD_NAME',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'metadata.name'}
-            }
-        }])
-
         container = {
             'image': image,
             'name': 'main'
@@ -328,11 +314,6 @@ class BatchBuilder:
             container['args'] = args
         if env:
             container['env'] = env
-        if ports:
-            container['ports'] = [{
-                'containerPort': p,
-                'protocol': 'TCP'
-            } for p in ports]
         if resources:
             container['resources'] = resources
         if volumes:
@@ -343,10 +324,6 @@ class BatchBuilder:
         }
         if volumes:
             spec['volumes'] = [v['volume'] for v in volumes]
-        if tolerations:
-            spec['tolerations'] = tolerations
-        if security_context:
-            spec['securityContext'] = security_context
         if service_account_name:
             spec['serviceAccountName'] = service_account_name
 
