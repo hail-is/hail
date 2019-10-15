@@ -2296,30 +2296,33 @@ private class Emit(
         }
 
         val childEmitter = deforest(childND)
-        val shapet = emit(shape, env, resultRegion, None) // Double check
+
+        val requestedShapet = emit(shape, env, resultRegion, None) // Double check
         val requestedShapeAddress = mb.newField[Long]
         val requestedShapePType = shape.pType.asInstanceOf[PTuple]
-
         val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
         val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
 
-        val numElements = coerce[PNDArray](childND.pType).numElements(childEmitter.outputShape, mb)
+        val childShapeCached = (0 until childEmitter.nDims).map(_ => mb.newField[Long]).toArray
+
+        val numElements = coerce[PNDArray](childND.pType).numElements(childShapeCached.map(_.load()), mb)
 
         val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements.toI, requestedShapeArray)
 
         val setup = Code(
           childEmitter.setup,
-          shapet.setup,
-          requestedShapeAddress := shapet.value[Long],
+          Code(childShapeCached.zip(childEmitter.outputShape).map{ case (cacheVariable, childShapeElement) => cacheVariable := childShapeElement}:_*),
+          requestedShapet.setup,
+          requestedShapeAddress := requestedShapet.value[Long],
           reshapeSetup
         )
 
-        new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup){
+        new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val newPType = x.pType
             val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.elementIndexToIndices(storeElementIndex, childEmitter.outputShape, region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.elementIndexToIndices(storeElementIndex, childShapeCached.map(_.load()), region, mb)
 
             Code(
               storeElementIndex := newPType.getElementIndex(idxVars, reshapedShapeArray, region, mb),
