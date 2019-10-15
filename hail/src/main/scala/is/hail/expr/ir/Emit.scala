@@ -2314,7 +2314,6 @@ private class Emit(
           reshapeSetup
         )
 
-        // I suspect that shape.pType not being required will cause problems, because everything causes problems these days.
         new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup){
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val newPType = x.pType
