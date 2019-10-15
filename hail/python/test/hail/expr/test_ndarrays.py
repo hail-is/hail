@@ -131,7 +131,7 @@ def test_ndarray_shape():
 @skip_unless_spark_backend()
 def test_ndarray_reshape():
     np_single = np.array([8])
-    #single = hl._ndarray([np_single])
+    single = hl._ndarray([8])
 
     np_a = np.array([1, 2, 3, 4, 5, 6])
     a = hl._ndarray(np_a)
@@ -144,7 +144,7 @@ def test_ndarray_reshape():
     np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
 
     assert_ndarrays_eq(
-        #(single.reshape(()), np_single.reshape(())),
+        (single.reshape(()), np_single.reshape(())),
         (a.reshape((6,)), np_a),
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),
