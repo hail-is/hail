@@ -278,7 +278,7 @@ async def get_user_notebook(dbpool, user_id):
 
     if len(notebooks) == 1:
         return notebooks[0]
-    assert len(notebooks) == 0
+    assert len(notebooks) == 0, len(notebooks)
     return None
 
 
