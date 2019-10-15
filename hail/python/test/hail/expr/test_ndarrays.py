@@ -162,6 +162,10 @@ def test_ndarray_reshape():
     assert "requested shape is incompatible with number of elements" in str(exc)
 
     with pytest.raises(FatalError) as exc:
+        hl.eval(a.reshape((3,)))
+    assert "requested shape is incompatible with number of elements" in str(exc)
+
+    with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((0, 2, 2)))
     assert "must contain only positive numbers or -1" in str(exc)
 

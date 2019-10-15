@@ -2284,9 +2284,11 @@ private class Emit(
                 runningProduct := runningProduct * requestedShapeElement
               )
             },
-
             (countNegs > 1).orEmpty(Code._fatal("Can't infer shape, more than one -1")),
-            ((numElements.toL % runningProduct) > 0L).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
+            (countNegs ceq 1).mux(
+              (numElements.toL % runningProduct) > 0L,
+              numElements.toL cne runningProduct
+            ).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
             quotient := numElements.toL / runningProduct,
             // Loop over the elements, replace if it's a negative one.
             Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := (shapeElement ceq -1L).mux(quotient, shapeElement)})
