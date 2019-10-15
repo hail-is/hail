@@ -14,4 +14,4 @@ gsutil -m cp worker.log $WORKER_LOGS_DIRECTORY/$INST_TOKEN/
 
 export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-gcloud -q compute instances delete $NAME --zone=$ZONE
+#gcloud -q compute instances delete $NAME --zone=$ZONE
