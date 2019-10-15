@@ -447,22 +447,22 @@ class BatchClient:
 
     async def _get(self, path, params=None):
         return await request_retry_transient_errors(
-            self._session.get,
+            self._session, 'GET',
             self.url + path, params=params, headers=self._headers)
 
     async def _post(self, path, json=None):
         return await request_retry_transient_errors(
-            self._session.post,
+            self._session, 'POST',
             self.url + path, json=json, headers=self._headers)
 
     async def _patch(self, path):
         return await request_retry_transient_errors(
-            self._session.patch,
+            self._session, 'PATCH',
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
         return await request_retry_transient_errors(
-            self._session.delete,
+            self._session, 'DELETE',
             self.url + path, headers=self._headers)
 
     async def list_batches(self, complete=None, success=None, attributes=None):
