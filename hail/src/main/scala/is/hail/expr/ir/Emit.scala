@@ -2281,7 +2281,9 @@ private class Emit(
             // Compute negative 1 count and product
             Code.foreach(requestedShape){ requestedShapeElement =>
               (requestedShapeElement.toI <= 0).mux(
-                (requestedShapeElement ceq -1L).mux(countNegs := countNegs + 1, Code._fatal("Can't reshape, new shape must contain only positive numbers or -1")),
+                (requestedShapeElement ceq -1L).mux(
+                  countNegs := countNegs + 1,
+                  Code._fatal("Can't reshape, new shape must contain only positive numbers or -1")),
                 runningProduct := runningProduct * requestedShapeElement
               )
             },
@@ -2325,10 +2327,10 @@ private class Emit(
             val newPType = x.pType
             val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.elementIndexToIndices(storeElementIndex, childShapeCached.map(_.load()), region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached.map(_.load()), region, mb)
 
             Code(
-              storeElementIndex := newPType.getElementIndex(idxVars, reshapedShapeArray, region, mb),
+              storeElementIndex := newPType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
