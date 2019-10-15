@@ -2306,15 +2306,15 @@ private class Emit(
         val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
         val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
 
-        val childShapeCached = (0 until childEmitter.nDims).map(_ => mb.newField[Long]).toArray
-
-        val numElements = coerce[PNDArray](childND.pType).numElements(childShapeCached.map(_.load()), mb)
+        val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
+        
+        val numElements = coerce[PNDArray](childND.pType).numElements(childShapeCached, mb)
 
         val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements.toI, requestedShapeArray)
 
         val setup = Code(
           childEmitter.setup,
-          Code(childShapeCached.zip(childEmitter.outputShape).map{ case (cacheVariable, childShapeElement) => cacheVariable := childShapeElement}:_*),
+          childShapeCachingCode,
           requestedShapet.setup,
           requestedShapeAddress := requestedShapet.value[Long],
           reshapeSetup
@@ -2325,7 +2325,7 @@ private class Emit(
             val newPType = x.pType
             val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached.map(_.load()), region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
 
             Code(
               storeElementIndex := newPType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
