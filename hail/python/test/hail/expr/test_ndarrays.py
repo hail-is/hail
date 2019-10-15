@@ -93,7 +93,9 @@ def test_ndarray_eval():
     assert np.array_equal(evaled_zero_array, zero_array)
     assert zero_array.dtype == evaled_zero_array.dtype
 
+    # Testing from hail arrays
     assert np.array_equal(hl.eval(hl._ndarray(hl.range(6))), np.arange(6))
+    assert np.array_equal(hl.eval(hl._ndarray(hl.int64(4))), np.array(4))
 
     with pytest.raises(ValueError) as exc:
         hl._ndarray([[4], [1, 2, 3], 5])
