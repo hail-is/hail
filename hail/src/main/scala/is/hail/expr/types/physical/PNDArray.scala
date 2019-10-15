@@ -116,10 +116,10 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     Code(
       index := 0L,
       elementsInProcessedDimensions := 1L,
-      Code.foreach((shapeArray.length - 1) to 0 by - 1){ dimIndex =>
+      Code.foreach(shapeArray.zip(indices).reverse) { case (shapeElement, currentIndex) =>
         Code(
-          index := index + indices(dimIndex) * elementsInProcessedDimensions,
-          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeArray(dimIndex)
+          index := index + currentIndex * elementsInProcessedDimensions,
+          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
         )
       },
       index
@@ -131,8 +131,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
     if (nDim <= 1) {
       (Code._empty, Array(index))
-    }
-    else {
+    } else {
       val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
       val elementsInProcessedDimensions = mb.newField[Long]
       val workRemaining = mb.newField[Long]
@@ -140,13 +139,11 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       val createShape = Code(
         elementsInProcessedDimensions := 1L,
         workRemaining := index,
-        Code.foreach(shapeArray) { shapeElement =>
-          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
-        },
-        Code.foreach(0 until nDim) { dimIndex =>
+        elementsInProcessedDimensions := shapeArray.reduce(_ * _),
+        Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
           Code(
-            elementsInProcessedDimensions := elementsInProcessedDimensions / shapeArray(dimIndex),
-            newIndices(dimIndex) := workRemaining / elementsInProcessedDimensions,
+            elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
+            newIndex := workRemaining / elementsInProcessedDimensions,
             workRemaining := workRemaining % elementsInProcessedDimensions
           )
         }

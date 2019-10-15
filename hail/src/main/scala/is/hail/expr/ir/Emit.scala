@@ -2323,13 +2323,12 @@ private class Emit(
 
         new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val newPType = x.pType
             val storeElementIndex = mb.newField[Long]
 
             val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
 
             Code(
-              storeElementIndex := newPType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
+              storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
