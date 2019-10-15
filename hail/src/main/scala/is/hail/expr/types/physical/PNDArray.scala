@@ -137,7 +137,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       val elementsInProcessedDimensions = mb.newField[Long]
       val workRemaining = mb.newField[Long]
 
-      val setupShape = Code(
+      val createShape = Code(
         elementsInProcessedDimensions := 1L,
         workRemaining := index,
         Code.foreach(shapeArray){ shapeElement =>
@@ -151,7 +151,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
           )
         }
       )
-      (setupShape, newIndices.map(_.load()))
+      (createShape, newIndices.map(_.load()))
     }
 
   }
