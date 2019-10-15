@@ -103,7 +103,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val outOfBounds = mb.newField[Boolean]
     Code(
       outOfBounds := false,
-      Code.foreach(0 until nDims){ dimIndex =>
+      Code.foreach(0 until nDims) { dimIndex =>
         outOfBounds := outOfBounds || (indices(dimIndex) >= shapeTuple(dimIndex))
       },
       outOfBounds
@@ -140,10 +140,10 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       val createShape = Code(
         elementsInProcessedDimensions := 1L,
         workRemaining := index,
-        Code.foreach(shapeArray){ shapeElement =>
+        Code.foreach(shapeArray) { shapeElement =>
           elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
         },
-        Code.foreach(0 until nDim){ dimIndex =>
+        Code.foreach(0 until nDim) { dimIndex =>
           Code(
             elementsInProcessedDimensions := elementsInProcessedDimensions / shapeArray(dimIndex),
             newIndices(dimIndex) := workRemaining / elementsInProcessedDimensions,

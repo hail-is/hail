@@ -2268,34 +2268,35 @@ private class Emit(
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
         def compatibleShape(numElements: Code[Int], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
-          val countNegs = mb.newLocal[Int]
+          val numNegs = mb.newLocal[Int]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
 
-          val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long])
+          val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long]).toArray
 
           val setup = coerce[Unit](Code(
-            countNegs := 0,
+            numNegs := 0,
             runningProduct := 1L,
 
-            Code.foreach(requestedShape){ requestedShapeElement =>
+            Code.foreach(requestedShape) { requestedShapeElement =>
               (requestedShapeElement.toI <= 0).mux(
                 (requestedShapeElement ceq -1L).mux(
-                  countNegs := countNegs + 1,
+                  numNegs := numNegs + 1,
                   Code._fatal("Can't reshape, new shape must contain only positive numbers or -1")),
                 runningProduct := runningProduct * requestedShapeElement
               )
             },
-            (countNegs > 1).orEmpty(Code._fatal("Can't infer shape, more than one -1")),
-            (countNegs ceq 1).mux(
+            (numNegs > 1).orEmpty(Code._fatal("Can't infer shape, more than one -1")),
+            (numNegs ceq 1).mux(
               (numElements.toL % runningProduct) > 0L,
               numElements.toL cne runningProduct
             ).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
             quotient := numElements.toL / runningProduct,
-            Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := (shapeElement ceq -1L).mux(quotient, shapeElement)})
+            Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
+              variable := (shapeElement ceq -1L).mux(quotient, shapeElement)}:_*)
           ))
 
-          (setup, newShapeVars.map(_.load()).toArray)
+          (setup, newShapeVars.map(_.load()))
         }
 
         val childEmitter = deforest(childND)
