@@ -3,7 +3,7 @@ kind: ServiceAccount
 metadata:
   name: batch
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: batch
@@ -91,11 +91,6 @@ spec:
          secret:
            optional: false
            secretName: batch-tokens
-      tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Service
