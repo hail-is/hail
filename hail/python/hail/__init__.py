@@ -1,11 +1,11 @@
 import pkg_resources
 import sys
 
-__pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
-
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
+
+__pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
 del pkg_resources
 del sys
 
