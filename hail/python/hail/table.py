@@ -1568,7 +1568,7 @@ class Table(ExprContainer):
 
 
     @typecheck_method(indexer=expr_any, all_matches=bool)
-    def _maybe_flexindex_table_by_expr(self, indexer, all_matches):
+    def _maybe_flexindex_table_by_expr(self, indexer, all_matches=False):
         truncated_indexer = Table._maybe_truncate_for_flexindex(
             indexer, self.key.dtype)
         if truncated_indexer is not None:
