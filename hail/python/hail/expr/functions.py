@@ -3890,15 +3890,15 @@ def _ndarray(collection, row_major=None):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
             shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
+            ndim = 1
 
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
             shape_expr = hl.tuple([])
+            ndim = 0
         else:
             raise ValueError(f"{collection} cannot be converted into an ndarray")
 
-        ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
-        return construct_expr(ndir, tndarray(data_expr.dtype.element_type, 1))
     else:
         if isinstance(collection, np.ndarray):
             return hl.literal(collection)
@@ -3911,9 +3911,10 @@ def _ndarray(collection, row_major=None):
 
         shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
         data_expr = hl.array(data) if data else hl.empty_array("float64")
-        ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
+        ndim = builtins.len(shape)
 
-        return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
+    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim))
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
