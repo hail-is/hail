@@ -3499,11 +3499,6 @@ class NDArrayExpression(Expression):
         :class:`.NDArrayExpression`.
         """
         shape = wrap_to_list(shape)
-        # if len(shape) == 0:
-        #     if self.ndim == 0:
-        #         return self
-        #     else:
-        #         raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
 
         return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
                               tndarray(self._type.element_type, len(shape)),
