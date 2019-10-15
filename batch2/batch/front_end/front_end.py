@@ -13,7 +13,7 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop.utils import blocking_to_async
+from hailtop.utils import blocking_to_async, request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
@@ -292,9 +292,9 @@ async def _cancel_batch(app, batch_id, user):
     await batch.cancel()
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        async with session.patch(
-                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel')):
-            pass
+        request_retry_transient_errors(
+            session, 'PATCH',
+            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'))
     return web.Response()
 
 
@@ -332,9 +332,9 @@ async def close_batch(request, userdata):
     await batch.close()
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        async with session.patch(
-                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close')):
-            pass
+        request_retry_transient_errors(
+            session, 'PATCH',
+            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'))
     return web.Response()
 
 
@@ -349,9 +349,9 @@ async def delete_batch(request, userdata):
         raise web.HTTPNotFound()
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        async with session.delete(
-                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}')):
-            pass
+        request_retry_transient_errors(
+            session, 'DELETE',
+            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
     return web.Response()
 
 
