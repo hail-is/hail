@@ -2301,7 +2301,7 @@ private class Emit(
 
         val childEmitter = deforest(childND)
 
-        val requestedShapet = emit(shape, env, resultRegion, None) // Double check
+        val requestedShapet = emit(shape, env, resultRegion, None)
         val requestedShapeAddress = mb.newField[Long]
         val requestedShapePType = coerce[PTuple](shape.pType)
         val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
