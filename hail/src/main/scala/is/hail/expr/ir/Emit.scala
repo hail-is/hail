@@ -2278,7 +2278,6 @@ private class Emit(
             countNegs := 0,
             runningProduct := 1L,
 
-            // Compute negative 1 count and product
             Code.foreach(requestedShape){ requestedShapeElement =>
               (requestedShapeElement.toI <= 0).mux(
                 (requestedShapeElement ceq -1L).mux(
@@ -2293,7 +2292,6 @@ private class Emit(
               numElements.toL cne runningProduct
             ).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
             quotient := numElements.toL / runningProduct,
-            // Loop over the elements, replace if it's a negative one.
             Code(newShapeVars.zip(requestedShape).map{ case (variable, shapeElement) => variable := (shapeElement ceq -1L).mux(quotient, shapeElement)})
           ))
 
