@@ -118,9 +118,9 @@ class DB:
     @staticmethod
     def _row_lens(rel):
         if isinstance(rel, hl.MatrixTable):
-            return lens.MatrixRowTableLens(rel)
+            return lens.MatrixRows(rel)
         elif isinstance(rel, hl.Table):
-            return lens.NoLens(rel)
+            return lens.TableRows(rel)
         else:
             raise ValueError(
                 'annotation database can only annotate Hail MatrixTable or Table')
