@@ -7,7 +7,7 @@ gcsfs==0.2.1
 hurry.filesize==0.9
 nest_asyncio
 numpy<2
-pandas>0.22,<0.24
+pandas>0.24,<0.26
 parsimonious<0.9
 PyJWT
 pyspark>=2.4,<2.4.2
