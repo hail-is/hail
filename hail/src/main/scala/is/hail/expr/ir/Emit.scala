@@ -2302,12 +2302,12 @@ private class Emit(
 
         val requestedShapet = emit(shape, env, resultRegion, None) // Double check
         val requestedShapeAddress = mb.newField[Long]
-        val requestedShapePType = shape.pType.asInstanceOf[PTuple]
+        val requestedShapePType = coerce[PTuple](shape.pType)
         val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
         val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
 
         val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
-        
+
         val numElements = coerce[PNDArray](childND.pType).numElements(childShapeCached, mb)
 
         val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements.toI, requestedShapeArray)
