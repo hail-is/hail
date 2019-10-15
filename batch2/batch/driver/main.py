@@ -1,7 +1,6 @@
 import asyncio
 import concurrent
 import logging
-import os
 import traceback
 
 from aiohttp import web
@@ -214,14 +213,11 @@ async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
-    if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-        kube.config.load_kube_config()
-    else:
-        kube.config.load_incluster_config()
-    v1 = kube.client.CoreV1Api()
-    app['k8s_client'] = v1
+    kube.config.load_incluster_config()
+    k8s_client = kube.client.CoreV1Api()
+    app['k8s_client'] = k8s_client
 
-    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, v1)
+    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, k8s_client)
 
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
