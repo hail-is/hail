@@ -66,9 +66,6 @@ spec:
            - mountPath: /user-tokens
              name: ci-tokens
              readOnly: true
-           - mountPath: /secrets/db-config
-             name: database-server-config
-             readOnly: true
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -99,9 +96,6 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
-       - name: database-server-config
-         secret:
-           secretName: database-server-config
 ---
 apiVersion: v1
 kind: Service
