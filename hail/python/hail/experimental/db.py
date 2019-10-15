@@ -1,3 +1,6 @@
+import json
+import os
+import pkg_resources
 import requests
 import hail as hl
 
@@ -5,6 +8,7 @@ from ..utils.java import Env
 from ..typecheck import typecheck_method, oneof
 from ..table import table_type
 from ..matrixtable import matrix_table_type
+from . import lens
 
 
 class DatasetVersion:
@@ -66,86 +70,6 @@ class Dataset:
         return compatible_indexed_values[0]
 
 
-class RowLens:
-    def __init__(self, mt):
-        assert isinstance(mt, hl.MatrixTable)
-        self.mt = mt
-        self.key = mt.row_key
-
-    def annotate(self, *args, **kwargs):
-        return RowLens(self.mt.annotate_rows(*args, **kwargs))
-
-    def drop(self, *args, **kwargs):
-        return RowLens(self.mt.drop(*args, **kwargs))
-
-    def select(self, *args, **kwargs):
-        return RowLens(self.mt.select_rows(*args, **kwargs))
-
-    def explode(self, *args, **kwargs):
-        return RowLens(self.mt.explode_rows(*args, **kwargs))
-
-    def group_by(self, *args, **kwargs):
-        return GroupedRowLens(self.mt.group_rows_by(*args, **kwargs))
-
-    def __getitem__(self, *args, **kwargs):
-        return self.mt.__getitem__(*args, **kwargs)
-
-    def index(self, *args, **kwargs):
-        return self.mt.rows().index(*args, **kwargs)
-
-    def unlens(self):
-        return self.mt
-
-
-class GroupedRowLens:
-    def __init__(self, mt):
-        assert isinstance(mt, hl.GroupedMatrixTable)
-        self.mt = mt
-
-    def aggregate(self, *args, **kwargs):
-        return RowLens(self.mt.aggregate_rows(*args, **kwargs).result())
-
-
-class NoLens:
-    def __init__(self, t):
-        assert isinstance(t, hl.Table)
-        self.t = t
-        self.key = t.key
-
-    def annotate(self, *args, **kwargs):
-        return NoLens(self.t.annotate(*args, **kwargs))
-
-    def drop(self, *args, **kwargs):
-        return NoLens(self.t.drop(*args, **kwargs))
-
-    def select(self, *args, **kwargs):
-        return NoLens(self.t.select(*args, **kwargs))
-
-    def explode(self, *args, **kwargs):
-        return NoLens(self.t.explode(*args, **kwargs))
-
-    def group_by(self, *args, **kwargs):
-        return GroupedNoLens(self.t.group_by(*args, **kwargs))
-
-    def __getitem__(self, *args, **kwargs):
-        return self.t.__getitem__(*args, **kwargs)
-
-    def index(self, *args, **kwargs):
-        return self.t.index(*args, **kwargs)
-
-    def unlens(self):
-        return self.t
-
-
-class GroupedNoLens:
-    def __init__(self, t):
-        assert isinstance(t, hl.GroupedTable)
-        self.t = t
-
-    def aggregate(self, *args, **kwargs):
-        return NoLens(self.t.aggregate(*args, **kwargs))
-
-
 class DB:
     """An annotation database instance.
 
@@ -165,25 +89,28 @@ class DB:
     _valid_key_properties = {'gene', 'unique'}
 
     def __init__(self,
+                 *,
                  url=None,
-                 json=None):
-        if json is not None and url is not None:
-            raise ValueError(f'Only specify one of the parameters url and json, '
-                             f'received: url={url} and json={json}')
-        if json is None:
+                 config=None):
+        if config is not None and url is not None:
+            raise ValueError(f'Only specify one of the parameters url and config, '
+                             f'received: url={url} and config={config}')
+        if config is None:
             if url is None:
-                url = ('https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f' +
-                       str(hl.__pip_version__) +
-                       '%2fannotation_db.json?alt=media')
-            response = requests.get(url)
-            json = response.json()
-            assert isinstance(json, dict)
+                config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
+                assert os.path.exists(config_path), f'{config_path} does not exist'
+                with open(config_path) as f:
+                    config = json.load(f)
+            else:
+                response = requests.get(url)
+                config = response.json()
+            assert isinstance(config, dict)
         else:
-            if not isinstance(json, dict):
+            if not isinstance(config, dict):
                 raise ValueError(f'expected a dict mapping dataset names to '
-                                 f'configurations, but found {json}')
+                                 f'configurations, but found {config}')
         self.__by_name = {k: Dataset.from_name_and_json(k, v)
-                          for k, v in json.items()}
+                          for k, v in config.items()}
 
     def available_databases(self):
         return self._by_name().keys()
@@ -191,9 +118,9 @@ class DB:
     @staticmethod
     def _row_lens(rel):
         if isinstance(rel, hl.MatrixTable):
-            return RowLens(rel)
+            return lens.MatrixRowTableLens(rel)
         elif isinstance(rel, hl.Table):
-            return NoLens(rel)
+            return lens.NoLens(rel)
         else:
             raise ValueError(
                 'annotation database can only annotate Hail MatrixTable or Table')
