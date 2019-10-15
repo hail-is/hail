@@ -15,13 +15,13 @@ _merge_function_map = {}
 def parse_as_ints(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.cond(has_non_ref, ints[:-1], ints)
-    return ints.map(lambda i: hl.cond(hl.len(i) == 0 | i == '.', hl.null(hl.tint32), hl.int32(i)))
+    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_doubles(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.cond(has_non_ref, ints[:-1], ints)
-    return ints.map(lambda i: hl.cond(hl.len(i) == 0 | i == '.', hl.null(hl.tfloat64), hl.float64(i)))
+    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_sb_table(string, has_non_ref):
@@ -31,14 +31,16 @@ def parse_as_sb_table(string, has_non_ref):
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_ranksum(string, has_non_ref):
-    # FIXME handle AS_RAW_RankSum=|NaN|NaN;
     typ = hl.ttuple(hl.tfloat64, hl.tint32)
     items = string.split(r'\|')
     items = hl.cond(has_non_ref, items[:-1], items)
     return items.map(lambda s: hl.cond(
-        hl.len(s) == 0 | s == '.',
+        (hl.len(s) == 0) | (s == '.'),
         hl.null(typ),
-        hl.rbind(s.split(','), lambda ss: hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])]))))
+        hl.rbind(s.split(','), lambda ss: hl.cond(
+            hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
+            hl.null(hl.ttuple(hl.tfloat64, hl.tint32)),
+            hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
 
 _as_function_map = {
     'AS_QUALapprox': parse_as_ints,
