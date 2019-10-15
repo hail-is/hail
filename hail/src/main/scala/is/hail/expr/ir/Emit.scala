@@ -2242,7 +2242,7 @@ private class Emit(
         val outputPType = x.pType
         val outputShapePType = outputPType.shape.pType
 
-        
+
         val shapeSeq = indexExpr.map {childIndex =>
           if (childIndex < childPType.nDims) {
             childEmitter.outputShape(childIndex)
