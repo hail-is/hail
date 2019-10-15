@@ -12,13 +12,13 @@ def new_token(n=5):
 cpu_regex = re.compile(r"^(\d*\.\d+|\d+)([m]?)$")
 
 
-def parse_cpu(cpu_string):
+def parse_cpu_in_mcpu(cpu_string):
     match = cpu_regex.fullmatch(cpu_string)
     if match:
         number = float(match.group(1))
         if match.group(2) == 'm':
             number /= 1000
-        return round(number, 3)
+        return int(number * 1000)
     return None
 
 

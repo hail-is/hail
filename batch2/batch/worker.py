@@ -20,7 +20,7 @@ from aiodocker.exceptions import DockerError
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import parse_cpu, parse_image_tag
+from .utils import parse_cpu_in_mcpu, parse_image_tag
 from .semaphore import NullWeightedSemaphore, WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
@@ -72,7 +72,7 @@ class Container:
         self._container = None
         self.name = spec['name']
         self.spec = spec
-        self.cores = parse_cpu(spec['resources']['requests']['cpu'])
+        self.cores_mcpu = parse_cpu_in_mcpu(spec['resources']['requests']['cpu'])
         self.exit_code = None
         self.id = pod.name + '-' + self.name
         self.error = None
@@ -95,7 +95,7 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.spec['image'],
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': int(self.cores * 100000)}
+                           'CpuQuota': self.cores_mcpu * 100}
         }
 
         volume_mounts = []
@@ -397,8 +397,8 @@ class BatchPod:
 
             last_ec = None
             for _, container in self.containers.items():
-                async with semaphore(container.cores):
-                    log.info(f'running container ({self.name}, {container.name}) with {container.cores} cores')
+                async with semaphore(container.cores_mcpu):
+                    log.info(f'running container ({self.name}, {container.name}) with {container.cores_mcpu / 1000} cores')
                     await container.run()
                     last_ec = container.exit_code
                     log.info(f'ran container {container.id} with exit code {container.exit_code} and error {container.error}')
@@ -445,13 +445,13 @@ class BatchPod:
 class Worker:
     def __init__(self, image, cores, deploy_config, token, ip_address):
         self.image = image
-        self.cores = cores
+        self.cores_mcpu = cores * 1000
         self.deploy_config = deploy_config
         self.token = token
-        self.free_cores = cores
+        self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time.time()
         self.pods = {}
-        self.cpu_sem = WeightedSemaphore(cores)
+        self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
         self.ip_address = ip_address
 
         pool = concurrent.futures.ThreadPoolExecutor()
@@ -557,7 +557,7 @@ class Worker:
             last_ping = time.time() - self.last_updated
             while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
                     or last_ping < MAX_IDLE_TIME_WITHOUT_PODS:
-                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores} age {last_ping}')
+                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores_mcpu / 1000} age {last_ping}')
                 await asyncio.sleep(15)
                 last_ping = time.time() - self.last_updated
 

@@ -20,7 +20,7 @@ class Instance:
                         ip_address=ip_address, pending=pending,
                         active=active, deleted=deleted)
 
-        inst_pool.free_cores += inst_pool.worker_capacity  # FIXME: this should get cores from db in future
+        inst_pool.free_cores_mcpu += inst_pool.worker_capacity_mcpu  # FIXME: this should get cores from db in future
 
         if active:
             inst_pool.n_active_instances += 1
@@ -40,7 +40,7 @@ class Instance:
                                                        token=token)
 
         inst_pool.n_pending_instances += 1
-        inst_pool.free_cores += inst_pool.worker_capacity
+        inst_pool.free_cores_mcpu += inst_pool.worker_capacity_mcpu
 
         return Instance(inst_pool, name, token, ip_address=None, pending=True,
                         active=False, deleted=False)
@@ -54,7 +54,7 @@ class Instance:
         self.lock = asyncio.Lock()
 
         self.pods = set()
-        self.free_cores = inst_pool.worker_capacity
+        self.free_cores_mcpu = inst_pool.worker_capacity_mcpu
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = pending
@@ -74,20 +74,20 @@ class Instance:
 
         if self.healthy:
             self.inst_pool.instances_by_free_cores.remove(self)
-            self.free_cores += pod.cores
-            self.inst_pool.free_cores += pod.cores
+            self.free_cores_mcpu += pod.cores_mcpu
+            self.inst_pool.free_cores_mcpu += pod.cores_mcpu
             self.inst_pool.instances_by_free_cores.add(self)
             self.inst_pool.driver.changed.set()
         else:
-            self.free_cores += pod.cores
+            self.free_cores_mcpu += pod.cores_mcpu
 
     def schedule(self, pod):
         assert not self.pending and self.active and self.healthy
         self.pods.add(pod)
         self.inst_pool.instances_by_free_cores.remove(self)
-        self.free_cores -= pod.cores
-        self.inst_pool.free_cores -= pod.cores
-        assert self.inst_pool.free_cores >= 0, (self.inst_pool.free_cores, pod.cores)
+        self.free_cores_mcpu -= pod.cores_mcpu
+        self.inst_pool.free_cores_mcpu -= pod.cores_mcpu
+        assert self.inst_pool.free_cores_mcpu >= 0, (self.inst_pool.free_cores_mcpu, pod.cores_mcpu)
         self.inst_pool.instances_by_free_cores.add(self)
         # can't create more scheduling opportunities, don't set changed
 
@@ -102,13 +102,13 @@ class Instance:
             if self.pending:
                 self.pending = False
                 self.inst_pool.n_pending_instances -= 1
-                self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+                self.inst_pool.free_cores_mcpu -= self.inst_pool.worker_capacity_mcpu
 
             self.active = True
             self.ip_address = ip_address
             self.inst_pool.n_active_instances += 1
             self.inst_pool.instances_by_free_cores.add(self)
-            self.inst_pool.free_cores += self.inst_pool.worker_capacity
+            self.inst_pool.free_cores_mcpu += self.inst_pool.worker_capacity_mcpu
             self.inst_pool.driver.changed.set()
 
             await self.inst_pool.driver.db.instances.update_record(
@@ -123,7 +123,7 @@ class Instance:
             if self.pending:
                 self.pending = False
                 self.inst_pool.n_pending_instances -= 1
-                self.inst_pool.free_cores -= self.inst_pool.worker_capacity
+                self.inst_pool.free_cores_mcpu -= self.inst_pool.worker_capacity_mcpu
                 assert not self.active
                 log.info(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
                 return
@@ -162,7 +162,7 @@ class Instance:
         if self in self.inst_pool.instances_by_free_cores:
             self.inst_pool.instances_by_free_cores.remove(self)
             self.inst_pool.n_active_instances -= 1
-            self.inst_pool.free_cores -= self.free_cores
+            self.inst_pool.free_cores_mcpu -= self.free_cores_mcpu
 
         self.update_timestamp()
 
@@ -179,7 +179,7 @@ class Instance:
         if self not in self.inst_pool.instances_by_free_cores:
             self.inst_pool.n_active_instances += 1
             self.inst_pool.instances_by_free_cores.add(self)
-            self.inst_pool.free_cores += self.free_cores
+            self.inst_pool.free_cores_mcpu += self.free_cores_mcpu
             self.inst_pool.driver.changed.set()
 
     async def remove(self):
