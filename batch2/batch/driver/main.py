@@ -4,7 +4,7 @@ import logging
 import traceback
 
 from aiohttp import web
-import kubernetes_asyncio as kube
+import kubernetes as kube
 
 import prometheus_client as pc
 from prometheus_async.aio.web import server_stats
@@ -217,7 +217,7 @@ async def on_startup(app):
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
-    k8s = K8s(KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, k8s_client)
+    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, k8s_client)
 
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
