@@ -5,6 +5,11 @@ RUN apt-get update && \
     curl && \
   rm -rf /var/lib/apt/lists/*
 
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
+    mv /root/google-cloud-sdk /
+ENV PATH $PATH:/google-cloud-sdk/bin
+
 COPY docker/requirements.txt .
 RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
 
