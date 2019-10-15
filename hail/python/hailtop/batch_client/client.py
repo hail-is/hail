@@ -115,17 +115,17 @@ class BatchBuilder:
     def callback(self):
         return self._async_builder.callback
 
-    def create_job(self, image, command=None, args=None, env=None, ports=None,
-                   resources=None, tolerations=None, volumes=None, security_context=None,
+    def create_job(self, image, command=None, args=None, env=None,
+                   resources=None, volumes=None,
                    service_account_name=None, attributes=None, callback=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if parents:
             parents = [parent._async_job for parent in parents]
 
         async_job = self._async_builder.create_job(
-            image, command=command, args=args, env=env, ports=ports,
-            resources=resources, tolerations=tolerations, volumes=volumes,
-            security_context=security_context, service_account_name=service_account_name,
+            image, command=command, args=args, env=env,
+            resources=resources, volumes=volumes,
+            service_account_name=service_account_name,
             attributes=attributes, callback=callback, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
             pvc_size=pvc_size)
