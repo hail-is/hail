@@ -4,6 +4,7 @@ import java.io._
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.types.encoded.EncoderAsmFunction
 
 trait Encoder extends Closeable {
   def flush(): Unit
@@ -17,7 +18,7 @@ trait Encoder extends Closeable {
   def indexOffset(): Long
 }
 
-final class CompiledEncoder(out: OutputBuffer, f: () => AsmFunction2[Long, OutputBuffer, Unit]) extends Encoder {
+final class CompiledEncoder(out: OutputBuffer, f: () => EncoderAsmFunction) extends Encoder {
   def flush() {
     out.flush()
   }
@@ -26,8 +27,9 @@ final class CompiledEncoder(out: OutputBuffer, f: () => AsmFunction2[Long, Outpu
     out.close()
   }
 
+  private[this] val compiled = f()
   def writeRegionValue(region: Region, offset: Long) {
-    f()(offset, out)
+    compiled(offset, out)
   }
 
   def writeByte(b: Byte) {

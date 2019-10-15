@@ -93,11 +93,13 @@ class RandomFunctionsSuite extends HailSuite {
       Interval(Row(10), Row(14), false, true))
     val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
-    val repartitioned = mapped.repartition(newPartitioner)
-    val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner)
+    ExecuteContext.scoped { ctx =>
+      val repartitioned = mapped.repartition(newPartitioner, ctx)
+      val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner, ctx)
 
-    assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
-    assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())
+      assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
+      assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())
+    }
   }
 
   @Test def testInterpretIncrementsCorrectly() {

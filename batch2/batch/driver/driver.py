@@ -11,14 +11,13 @@ import traceback
 from hailtop.config import get_deploy_config
 from hailtop.utils import AsyncWorkerPool
 
-from .google_compute import GServices
+from ..google_compute import GServices
+from ..utils import parse_cpu_in_mcpu
+from ..globals import tasks
+
 from .instance_pool import InstancePool
-from .utils import parse_cpu
-from .globals import get_db, tasks
 
 log = logging.getLogger('driver')
-
-db = get_db()
 
 
 class DriverException(Exception):
@@ -44,7 +43,7 @@ class Pod:
             name=record['name'],
             spec=spec,
             output_directory=record['output_directory'],
-            cores=record['cores'],
+            cores_mcpu=record['cores_mcpu'],
             status=status,
             instance=inst
         )
@@ -57,23 +56,23 @@ class Pod:
     @staticmethod
     async def create_pod(driver, name, spec, output_directory):
         container_cpu_requests = [container['resources']['requests']['cpu'] for container in spec['spec']['containers']]
-        container_cores = [parse_cpu(cpu) for cpu in container_cpu_requests]
+        container_cores = [parse_cpu_in_mcpu(cpu) for cpu in container_cpu_requests]
         if any([cores is None for cores in container_cores]):
-            raise Exception(f'invalid value(s) for cpu: '
-                            f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
-        cores = max(container_cores)
+            raise DriverException(409, f'invalid value(s) for cpu: '
+                                  f'{[cpu for cpu, cores in zip(container_cpu_requests, container_cores) if cores is None]}')
+        cores_mcpu = max(container_cores)
 
-        await db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
-                                 cores=cores, instance=None)
+        await driver.db.pods.new_record(name=name, spec=json.dumps(spec), output_directory=output_directory,
+                                        cores_mcpu=cores_mcpu, instance=None)
 
-        return Pod(driver, name, spec, output_directory, cores)
+        return Pod(driver, name, spec, output_directory, cores_mcpu)
 
-    def __init__(self, driver, name, spec, output_directory, cores, instance=None, on_ready=False, status=None):
+    def __init__(self, driver, name, spec, output_directory, cores_mcpu, instance=None, on_ready=False, status=None):
         self.driver = driver
         self.name = name
         self.spec = spec
         self.output_directory = output_directory
-        self.cores = cores
+        self.cores_mcpu = cores_mcpu
         self.instance = instance
         self.on_ready = on_ready
         self._status = status
@@ -108,7 +107,7 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        asyncio.ensure_future(db.pods.update_record(self.name, status=json.dumps(status)))
+        asyncio.ensure_future(self.driver.db.pods.update_record(self.name, status=json.dumps(status)))
 
     def mark_deleted(self):
         assert not self.deleted
@@ -119,10 +118,11 @@ class Pod:
         if not self.instance:
             return
 
-        log.info(f'unscheduling {self.name} cores {self.cores} from {self.instance}')
+        log.info(f'unscheduling {self.name} with {self.cores_mcpu / 1000} cores from {self.instance}')
+
         self.instance.unschedule(self)
         self.instance = None
-        await db.pods.update_record(self.name, instance=None)
+        await self.driver.db.pods.update_record(self.name, instance=None)
 
     async def schedule(self, inst):
         async with self.lock:
@@ -148,14 +148,14 @@ class Pod:
                 asyncio.ensure_future(self.put_on_ready())
                 return False
 
-            log.info(f'scheduling {self.name} cores {self.cores} on {inst}')
+            log.info(f'scheduling {self.name} with {self.cores_mcpu / 1000} cores on {inst}')
 
             inst.schedule(self)
 
             self.instance = inst
 
             # FIXME: is there a way to eliminate this blocking the scheduler?
-            await db.pods.update_record(self.name, instance=inst.token)
+            await self.driver.db.pods.update_record(self.name, instance=inst.token)
             return True
 
     async def put_on_ready(self):
@@ -174,13 +174,13 @@ class Pod:
 
         await self.driver.ready_queue.put(self)
         self.on_ready = True
-        self.driver.ready_cores += self.cores
+        self.driver.ready_cores_mcpu += self.cores_mcpu
         self.driver.changed.set()
 
     def remove_from_ready(self):
         if self.on_ready:
             self.on_ready = False
-            self.driver.ready_cores -= self.cores
+            self.driver.ready_cores_mcpu -= self.cores_mcpu
 
     async def _request(self, f):
         try:
@@ -249,7 +249,7 @@ class Pod:
                     log.info(f'failed to delete {self.name} on inst {inst} due to err {err}, ignoring')
 
             await self.unschedule()
-            asyncio.ensure_future(db.pods.delete_record(self.name))
+            asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
 
     async def read_pod_log(self, container):
         assert container in tasks
@@ -299,14 +299,15 @@ class Pod:
 
 
 class Driver:
-    def __init__(self, k8s, batch_bucket, batch_gsa_key=None):
+    def __init__(self, db, k8s, batch_bucket, batch_gsa_key=None):
+        self.db = db
         self.k8s = k8s
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue(maxsize=1000)
-        self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores)
-        self.ready_cores = 0
+        self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores_mcpu)
+        self.ready_cores_mcpu = 0
         self.changed = asyncio.Event()
 
         self.pool = None  # created in run
@@ -433,10 +434,10 @@ class Driver:
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
-                i = self.ready.bisect_key_right(inst.free_cores)
+                i = self.ready.bisect_key_right(inst.free_cores_mcpu)
                 if i > 0:
                     pod = self.ready[i - 1]
-                    assert pod.cores <= inst.free_cores
+                    assert pod.cores_mcpu <= inst.free_cores_mcpu
                     self.ready.remove(pod)
                     should_wait = False
                     scheduled = await pod.schedule(inst)  # This cannot go in the pool!
@@ -452,7 +453,7 @@ class Driver:
             pod = Pod.from_record(self, record)
             return pod.name, pod
 
-        records = await db.pods.get_all_records()
+        records = await self.db.pods.get_all_records()
         self.pods = dict(_pod(record) for record in records)
 
         for pod in self.pods.values():

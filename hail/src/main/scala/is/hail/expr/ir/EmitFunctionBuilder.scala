@@ -576,9 +576,13 @@ class EmitFunctionBuilder[F >: Null](
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val hasLiterals: Boolean = literalsMap.nonEmpty
-    val literals: Array[Byte] = if (hasLiterals) encodeLiterals() else Array()
 
-    val literalsBc = HailContext.get.backend.broadcast(literals)
+    val literalsBc = if (hasLiterals) {
+      HailContext.get.backend.broadcast(encodeLiterals())
+    } else {
+      // if there are no literals, there might not be a HailContext
+      null
+    }
 
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")

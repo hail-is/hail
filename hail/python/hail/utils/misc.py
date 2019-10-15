@@ -18,7 +18,6 @@ from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
 
 
-
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
@@ -463,21 +462,6 @@ def timestamp_path(base, suffix=''):
                     datetime.datetime.now().strftime("%Y%m%d-%H%M"),
                     suffix])
 
-
-def np_type_to_hl_type(t):
-    if t == np.int64:
-        return hail.tint64
-    elif t == np.int32:
-        return hail.tint32
-    elif t == np.float64:
-        return hail.tfloat64
-    elif t == np.float32:
-        return hail.tfloat32
-    elif t == np.bool:
-        return hail.tbool
-    else:
-        raise TypeError(f'Unsupported numpy type: {t}')
-
 def upper_hex(n, num_digits=None):
     if num_digits is None:
         return "{0:X}".format(n)
@@ -537,9 +521,11 @@ def escape_id(s):
 def dump_json(obj):
     return f'"{escape_str(json.dumps(obj))}"'
 
+
 def parsable_strings(strs):
     strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
     return f"({strs})"
+
 
 def _dumps_partitions(partitions, row_key_type):
     parts_type = partitions.dtype
@@ -566,3 +552,11 @@ def _dumps_partitions(partitions, row_key_type):
     
     s = json.dumps(partitions.dtype._convert_to_json(hl.eval(partitions)))
     return s, partitions.dtype
+
+
+def default_handler():
+    try:
+        from IPython.display import display
+        return display
+    except ImportError:
+        return print

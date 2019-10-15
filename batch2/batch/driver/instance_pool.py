@@ -2,17 +2,15 @@ import asyncio
 import sortedcontainers
 import logging
 import time
-import math
 
-from .utils import new_token
-from .batch_configuration import BATCH_NAMESPACE, BATCH_IMAGE, INSTANCE_ID, \
+from ..utils import new_token
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
+
 from .instance import Instance
-from .globals import get_db
 
 log = logging.getLogger('instance_pool')
-db = get_db()
 
 
 class InstancePool:
@@ -30,16 +28,10 @@ class InstancePool:
             m = 0.9
         self.worker_memory = 0.9 * m
 
-        self.worker_capacity = 2 * WORKER_CORES
+        self.worker_capacity_mcpu = 2 * self.worker_cores * 1000
         self.worker_disk_size_gb = WORKER_DISK_SIZE_GB
         self.pool_size = POOL_SIZE
         self.max_instances = MAX_INSTANCES
-
-        log.info(f'WORKER_CORES={WORKER_CORES}')
-        log.info(f'WORKER_TYPE={WORKER_TYPE}')
-        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
-        log.info(f'POOL_SIZE={POOL_SIZE}')
-        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
 
         self.token = new_token()
         self.machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
@@ -50,13 +42,13 @@ class InstancePool:
         self.instances = sortedcontainers.SortedSet(key=lambda inst: (inst.healthy, inst.last_updated))
 
         # for active instances only
-        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
+        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
 
         self.n_pending_instances = 0
         self.n_active_instances = 0
 
         # for pending and active
-        self.free_cores = 0
+        self.free_cores_mcpu = 0
 
         self.token_inst = {}
 
@@ -66,7 +58,7 @@ class InstancePool:
     async def initialize(self):
         log.info('initializing instance pool')
 
-        for record in await db.instances.get_all_records():
+        for record in await self.driver.db.instances.get_all_records():
             inst = Instance.from_record(self, record)
             self.token_inst[inst.token] = inst
             self.instances.add(inst)
@@ -108,7 +100,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
-                    'sourceImage': 'projects/hail-vdc/global/images/batch2-worker-1',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-5',
                 }
             }],
 
@@ -141,7 +133,7 @@ class InstancePool:
 #!/bin/bash
 set -ex
 
-export BATCH_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_image")
+export BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 export HOME=/root
 
 function retry {{
@@ -172,18 +164,20 @@ function retry {{
 retry docker run \
            -v /var/run/docker.sock:/var/run/docker.sock \
            -v /usr/bin/docker:/usr/bin/docker \
+           -v /snap/bin/gcloud:/usr/bin/gcloud \
+           -v /snap/bin/gsutil:/usr/bin/gsutil \
            -v /batch:/batch \
            -p 5000:5000 \
            -d --entrypoint "/bin/bash" \
-           $BATCH_IMAGE \
+           $BATCH_WORKER_IMAGE \
            -c "sh /run-worker.sh"
 '''
                 }, {
                     'key': 'inst_token',
                     'value': inst_token
                 }, {
-                    'key': 'batch_image',
-                    'value': BATCH_IMAGE
+                    'key': 'batch_worker_image',
+                    'value': BATCH_WORKER_IMAGE
                 }, {
                     'key': 'batch_instance',
                     'value': INSTANCE_ID
@@ -294,6 +288,13 @@ retry docker run \
 
     async def control_loop(self):
         log.info(f'starting control loop')
+
+        log.info(f'WORKER_CORES={WORKER_CORES}')
+        log.info(f'WORKER_TYPE={WORKER_TYPE}')
+        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
+        log.info(f'POOL_SIZE={POOL_SIZE}')
+        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
+
         while True:
             try:
                 log.info(f'n_pending_instances {self.n_pending_instances}'
@@ -301,11 +302,11 @@ retry docker run \
                          f' pool_size {self.pool_size}'
                          f' n_instances {len(self.instances)}'
                          f' max_instances {self.max_instances}'
-                         f' free_cores {self.free_cores}'
-                         f' ready_cores {self.driver.ready_cores}')
+                         f' free_cores {self.free_cores_mcpu / 1000}'
+                         f' ready_cores {self.driver.ready_cores_mcpu / 1000}')
 
-                if self.driver.ready_cores > 0:
-                    instances_needed = (math.ceil(self.driver.ready_cores - self.free_cores) + self.worker_capacity - 1) // self.worker_capacity
+                if self.driver.ready_cores_mcpu > 0:
+                    instances_needed = (self.driver.ready_cores_mcpu - self.free_cores_mcpu + self.worker_capacity_mcpu - 1) // self.worker_capacity_mcpu
                     instances_needed = min(instances_needed,
                                            self.pool_size - (self.n_pending_instances + self.n_active_instances),
                                            self.max_instances - len(self.instances),

@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
 import is.hail.expr.ir
-import is.hail.expr.ir.{Interpret, MatrixRepartition, RepartitionStrategy, TableRead, TableRepartition}
+import is.hail.expr.ir.{ ExecuteContext, Interpret, MatrixRepartition, RepartitionStrategy, TableRead, TableRepartition }
 import is.hail.linalg.BlockMatrix
 import is.hail.table.Table
 import is.hail.utils._
@@ -22,9 +22,9 @@ class VSMSuite extends HailSuite {
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 
-    def vsmOfSize(size: Int): MatrixTable = {
+    def vsmOfSize(size: Int, ctx: ExecuteContext): MatrixTable = {
       val parameters = Parameters.default.copy(size = size, count = 1)
-      MatrixTable.gen(hc, VSMSubgen.random).apply(parameters)
+      MatrixTable.gen(hc, VSMSubgen.random, ctx).apply(parameters)
     }
 
     def spaceStatsOf[T](factory: () => T): SummaryStatistics = {
@@ -38,20 +38,22 @@ class VSMSuite extends HailSuite {
 
     val sizes = 2500 to 20000 by 2500
 
-    val statsBySize = sizes.map(size => (size, spaceStatsOf(() => vsmOfSize(size))))
+    ExecuteContext.scoped { ctx =>
+      val statsBySize = sizes.map(size => (size, spaceStatsOf(() => vsmOfSize(size, ctx))))
 
-    println("xs = " + sizes)
-    println("mins = " + statsBySize.map { case (_, stats) => stats.getMin })
-    println("maxs = " + statsBySize.map { case (_, stats) => stats.getMax })
-    println("means = " + statsBySize.map { case (_, stats) => stats.getMean })
+      println("xs = " + sizes)
+      println("mins = " + statsBySize.map { case (_, stats) => stats.getMin })
+      println("maxs = " + statsBySize.map { case (_, stats) => stats.getMax })
+      println("means = " + statsBySize.map { case (_, stats) => stats.getMean })
 
-    val sr = new SimpleRegression
-    statsBySize.foreach { case (size, stats) => sr.addData(size, stats.getMean) }
+      val sr = new SimpleRegression
+      statsBySize.foreach { case (size, stats) => sr.addData(size, stats.getMean) }
 
-    println("R² = " + sr.getRSquare)
+      println("R² = " + sr.getRSquare)
 
-    assert(sr.getRSquare >= minimumRSquareValue,
-      "The VSM generator seems non-linear because the magnitude of the R coefficient is less than 0.9")
+      assert(sr.getRSquare >= minimumRSquareValue,
+        "The VSM generator seems non-linear because the magnitude of the R coefficient is less than 0.9")
+    }
   }
 
   @Test def testOverwrite() {

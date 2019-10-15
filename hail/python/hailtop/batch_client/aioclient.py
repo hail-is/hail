@@ -6,30 +6,11 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import AsyncWorkerPool
+from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
 
 from .globals import complete_states
 
 job_array_size = 1000
-
-
-async def retry_request(f, *args, **kwargs):
-    delay = 0.1
-    while True:
-        try:
-            return await f(*args, **kwargs)
-        except aiohttp.ClientResponseError as e:
-            # 408 request timeout, 503 service unavailable, 504 gateway timeout
-            if e.status == 408 or e.status == 503 or e.status == 504:
-                pass
-            else:
-                raise
-        except aiohttp.ServerTimeoutError:
-            pass
-        # exponentially back off, up to (expected) max of 30s
-        delay = min(delay * 2, 60.0)
-        t = delay * random.random()
-        await asyncio.sleep(t)
 
 
 def filter_params(complete, success, attributes):
@@ -211,7 +192,8 @@ class SubmittedJob:
         return state in complete_states
 
     async def status(self):
-        self._status = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
+        self._status = await resp.json()
         return self._status
 
     async def wait(self):
@@ -226,10 +208,12 @@ class SubmittedJob:
                 i = i + 1
 
     async def log(self):
-        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        return await resp.json()
 
     async def pod_status(self):
-        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
+        return await resp.json()
 
 
 class Batch:
@@ -251,7 +235,8 @@ class Batch:
             if limit is None:
                 raise ValueError("cannot define 'offset' without a 'limit'")
             params['offset'] = str(offset)
-        return await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
+        return await resp.json()
 
     async def wait(self):
         i = 0
@@ -389,7 +374,7 @@ class BatchBuilder:
         return j
 
     async def _submit_job(self, batch_id, docs):
-        return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
 
     async def submit(self):
         if self._submitted:
@@ -402,7 +387,8 @@ class BatchBuilder:
         if self.callback:
             batch_doc['callback'] = self.callback
 
-        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+        b_resp = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+        b = await b_resp.json()
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         docs = []
@@ -460,33 +446,29 @@ class BatchClient:
         self._headers = h
 
     async def _get(self, path, params=None):
-        response = await retry_request(
+        return await request_retry_transient_errors(
             self._session.get,
             self.url + path, params=params, headers=self._headers)
-        return await response.json()
 
     async def _post(self, path, json=None):
-        response = await retry_request(
+        return await request_retry_transient_errors(
             self._session.post,
             self.url + path, json=json, headers=self._headers)
-        return await response.json()
 
     async def _patch(self, path):
-        await retry_request(
+        return await request_retry_transient_errors(
             self._session.patch,
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        await retry_request(
+        return await request_retry_transient_errors(
             self._session.delete,
             self.url + path, headers=self._headers)
 
-    async def _refresh_k8s_state(self):
-        await self._post('/refresh_k8s_state')
-
     async def list_batches(self, complete=None, success=None, attributes=None):
         params = filter_params(complete, success, attributes)
-        batches = await self._get('/api/v1alpha/batches', params=params)
+        batches_resp = await self._get('/api/v1alpha/batches', params=params)
+        batches = await batches_resp.json()
         return [Batch(self,
                       b['id'],
                       attributes=b.get('attributes'))
@@ -494,7 +476,8 @@ class BatchClient:
 
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)
-        j = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
+        j_resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
+        j = await j_resp.json()
         return Job.submitted_job(
             b,
             j['job_id'],
@@ -503,7 +486,8 @@ class BatchClient:
             _status=j)
 
     async def get_batch(self, id):
-        b = await self._get(f'/api/v1alpha/batches/{id}')
+        b_resp = await self._get(f'/api/v1alpha/batches/{id}')
+        b = await b_resp.json()
         return Batch(self,
                      b['id'],
                      attributes=b.get('attributes'))

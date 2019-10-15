@@ -264,7 +264,9 @@ class MatrixIRSuite extends HailSuite {
     val path = tmpDir.createLocalTempFile(extension = "mt")
     Interpret[Unit](ctx, MatrixWrite(range.ast, MatrixNativeWriter(path)))
     val read = MatrixTable.read(hc, path)
-    assert(read.same(range))
+    ExecuteContext.scoped { ctx =>
+      assert(read.same(range, ctx))
+    }
   }
 
   @Test def testMatrixVCFWrite() {
@@ -280,13 +282,17 @@ class MatrixIRSuite extends HailSuite {
     Interpret[Unit](ctx, MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
     val read0 = MatrixTable.read(hc, path + "0.mt")
     val read1 = MatrixTable.read(hc, path + "1.mt")
-    assert(ranges(0).same(read0))
-    assert(ranges(1).same(read1))
+    ExecuteContext.scoped { ctx =>
+      assert(ranges(0).same(read0, ctx))
+      assert(ranges(1).same(read1, ctx))
+    }
 
     val pathRef = tmpDir.createLocalTempFile(extension = "mt")
     Interpret[Unit](ctx, MatrixWrite(ranges(1).ast, MatrixNativeWriter(path)))
     val readRef = MatrixTable.read(hc, path)
-    assert(readRef.same(read1))
+    ExecuteContext.scoped { ctx =>
+      assert(readRef.same(read1, ctx))
+    }
   }
 
   @Test def testMatrixMultiWriteDifferentTypesFails() {

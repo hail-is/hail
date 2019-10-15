@@ -77,7 +77,10 @@ object TypeCheck {
       case Str(x) =>
       case Literal(_, _) =>
       case Void() =>
-      case Cast(v, typ) => assert(Casts.valid(v.typ, typ))
+      case Cast(v, typ) => if (!Casts.valid(v.typ, typ))
+        throw new RuntimeException(s"invalid cast:\n  " +
+          s"child type: ${ v.typ.parsableString() }\n  " +
+          s"cast type:  ${ typ.parsableString() }")
       case CastRename(v, typ) =>
         if (!v.typ.canCastTo(typ))
           throw new RuntimeException(s"invalid cast:\n  " +

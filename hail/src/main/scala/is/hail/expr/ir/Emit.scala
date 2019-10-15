@@ -1519,6 +1519,40 @@ private class Emit(
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
         EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
+      case NDArrayRef(nd, idxs) =>
+        val ndt = emit(nd)
+        val idxst = idxs.map(emit(_))
+        val childPType = coerce[PNDArray](nd.pType)
+        val ndAddress = mb.newField[Long]
+        val overallMissing = mb.newField[Boolean]
+
+        val idxFields = idxst.map(_ => mb.newField[Long])
+        val idxFieldsBinding = Code(
+          idxFields.zip(idxst).map{ case (field, idxTriplet) =>
+            field := idxTriplet.value[Long]
+          }
+        )
+        val cachedIdxVals = idxFields.map(_.load()).toArray
+
+        val targetElementPosition = childPType.getElementAddress(cachedIdxVals, ndAddress, region, mb)
+
+        val setup = coerce[Unit](Code(
+          ndt.setup,
+          overallMissing := ndt.m,
+          Code(idxst.map(_.setup)),
+          Code.foreach(idxst.map(_.m)){ idxMissingness =>
+            overallMissing := overallMissing || idxMissingness
+          }
+        ))
+
+        val value = Code(
+          ndAddress := ndt.value[Long],
+          idxFieldsBinding,
+          childPType.outOfBounds(cachedIdxVals, ndAddress, region, mb).orEmpty(Code._fatal("Index out of bounds")),
+          Region.loadIRIntermediate(childPType.data.pType.elementType)(targetElementPosition)
+        )
+
+        EmitTriplet(setup, overallMissing, value)
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childAddress = mb.newField[Long]
@@ -2246,7 +2280,7 @@ private class Emit(
         new NDArrayEmitter(mb, nDims, shapeArray,
           xP.shape.pType, xP.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val elementLocation = xP.getElementPosition(idxVars, ndAddress, er.region, mb)
+            val elementLocation = xP.getElementAddress(idxVars, ndAddress, er.region, mb)
             Region.loadIRIntermediate(outputElementPType)(elementLocation)
           }
         }

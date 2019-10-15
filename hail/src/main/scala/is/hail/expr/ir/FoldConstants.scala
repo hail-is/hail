@@ -1,5 +1,5 @@
 package is.hail.expr.ir
-
+import is.hail.utils._
 import is.hail.utils.HailException
 
 object FoldConstants {

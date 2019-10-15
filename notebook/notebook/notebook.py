@@ -215,6 +215,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
         return notebook_status_from_pod(pod)
     except kube.client.rest.ApiException as e:
         if e.status == 404:
+            log.exception(f"404 for pod: {notebook['pod_name']}")
             return None
         raise
 
@@ -246,7 +247,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                         else:
                             log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
-                log.info(f'GET on jupyter pod {pod_name} timed out: {resp}')
+                log.exception(f'GET on jupyter pod {pod_name} timed out: {resp}')
 
     return status
 
@@ -277,7 +278,7 @@ async def get_user_notebook(dbpool, user_id):
 
     if len(notebooks) == 1:
         return notebooks[0]
-    assert len(notebooks) == 0
+    assert len(notebooks) == 0, len(notebooks)
     return None
 
 
@@ -389,9 +390,10 @@ async def _wait_websocket(service, request, userdata):
             new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
+                log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
                 break
         except Exception:  # pylint: disable=broad-except
-            log.exception('while updating status in /wait')
+            log.exception(f"/wait: error while updating status for pod: {notebook['pod_name']}")
         await asyncio.sleep(1)
         count += 1
 
@@ -419,9 +421,18 @@ async def _get_error(service, request, userdata):
     await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
 
     session = await aiohttp_session.get_session(request)
-    set_message(session,
-                f'Notebook not found.  Please create a new notebook.',
-                'error')
+    if notebook:
+        if new_status['state'] == 'Ready':
+            return web.HTTPFound(deploy_config.external_url(
+                service,
+                f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'))
+        set_message(session,
+                    f'Could not connect to Jupyter instance.  Please wait for Jupyter to be ready and try again.',
+                    'error')
+    else:
+        set_message(session,
+                    f'Jupyter instance not found.  Please launch a new instance.',
+                    'error')
     return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 
 
@@ -668,7 +679,7 @@ WHERE name = %s AND password = %s AND active = 1;
                 assert len(workshops) == 0
                 set_message(
                     session,
-                    'No such workshop.  Check the workshop name and password and try again.',
+                    'Workshop Inactive!',
                     'error')
                 return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
             workshop = workshops[0]
@@ -688,7 +699,7 @@ WHERE name = %s AND password = %s AND active = 1;
 
 @workshop_routes.post('/logout')
 @check_csrf_token
-@web_authenticated_workshop_guest_only(redirect=False)
+@web_authenticated_workshop_guest_only(redirect=True)
 async def workshop_post_logout(request, userdata):
     app = request.app
     dbpool = app['dbpool']
@@ -709,6 +720,15 @@ async def workshop_post_logout(request, userdata):
         del session['workshop_session']
 
     return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+
+
+@workshop_routes.get('/resources')
+async def workshop_get_faq(request):
+    page_context = {
+        'notebook_service': 'workshop'
+    }
+
+    return await render_template('notebook', request, {}, 'workshop/resources.html', page_context)
 
 
 @workshop_routes.get('/notebook')

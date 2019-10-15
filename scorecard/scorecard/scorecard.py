@@ -19,7 +19,6 @@ deploy_config = get_deploy_config()
 component_users = {
     'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231', 'iitalics'],
     'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231', 'iitalics'],
-    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'akotlar', 'iitalics'],
     'hailctl dataproc': ['tpoterba', 'danking', 'konradjk'],
     'k8s, services': ['danking', 'jigold', 'akotlar', 'johnc1231'],
     'Web app (JS)': ['akotlar', 'danking'],

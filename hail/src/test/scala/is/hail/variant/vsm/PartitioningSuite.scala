@@ -3,7 +3,7 @@ package is.hail.variant.vsm
 import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
-import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
+import is.hail.expr.ir.{ ExecuteContext, Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue }
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
@@ -58,9 +58,11 @@ class PartitioningSuite extends HailSuite {
     val nonEmptyRVD = mt.rvd
     val emptyRVD = RVD.empty(hc.sc, rvdType)
 
-    emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType).count()
-    emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType).count()
-    nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType).count()
-    nonEmptyRVD.orderedJoin(emptyRVD, "inner", (_, it) => it.map(_._1), rvdType).count()
+    ExecuteContext.scoped { ctx =>
+      emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()
+      emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType, ctx).count()
+      nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()
+      nonEmptyRVD.orderedJoin(emptyRVD, "inner", (_, it) => it.map(_._1), rvdType, ctx).count()
+    }
   }
 }

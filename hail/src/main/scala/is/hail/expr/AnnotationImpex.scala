@@ -236,6 +236,8 @@ object JSONAnnotationImpex {
         }
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]
+      case (JObject(_), t@TNDArray(_, _, _)) =>
+        imp(jv, t.representation, parent)
       case (_, TInterval(pointType, _)) =>
         jv match {
           case JObject(list) =>

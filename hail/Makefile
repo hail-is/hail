@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 24
+HAIL_PATCH_VERSION := 25
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
@@ -281,6 +281,7 @@ docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
+	rm -rf build/docs
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
 	cp python/hail/hail_version build/
@@ -311,6 +312,7 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
+	rm -rf build/docs
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
 	cp python/hail/hail_version build/
@@ -337,3 +339,11 @@ native-lib-prebuilt:
 	$(MAKE) -C src/main/c prebuilt
 native-lib-reset-prebuilt:
 	$(MAKE) -C src/main/c reset-prebuilt
+
+clean: clean-env clean-docs native-lib-clean
+	./gradlew clean $(GRADLE_ARGS)
+	rm -rf build/
+	rm -rf python/hail/hail-all-spark.jar
+	rm -rf python/README.md
+	rm -rf $(SCALA_BUILD_INFO)
+	rm -rf $(PYTHON_VERSION_INFO)

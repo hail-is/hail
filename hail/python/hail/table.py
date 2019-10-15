@@ -1,5 +1,3 @@
-from collections import Counter
-
 import itertools
 import pandas
 import pyspark
@@ -1448,11 +1446,7 @@ class Table(ExprContainer):
             n = n_rows
         del n_rows
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = hl.utils.default_handler()
         handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
@@ -1832,8 +1826,23 @@ class Table(ExprContainer):
         else:
             return e
 
-    def describe(self, handler=print):
-        """Print information about the fields in the table."""
+    def describe(self, handler=print, *, widget=False):
+        """Print information about the fields in the table.
+
+        Note
+        ----
+        The `widget` argument is **experimental**.
+
+        Parameters
+        ----------
+        handler : Callable[[str], None]
+            Handler function for returned string.
+        widget : bool
+            Create an interactive IPython widget.
+        """
+        if widget:
+            from hail.experimental.interact import interact
+            return interact(self)
 
         def format_type(typ):
             return typ.pretty(indent=4).lstrip()
@@ -3200,21 +3209,15 @@ class Table(ExprContainer):
 
         return Table(TableDistinct(self._tir))
 
-    def summarize(self):
+    def summarize(self, handler=None):
         """Compute and print summary information about the fields in the table.
 
         .. include:: _templates/experimental.rst
         """
 
-        computations, printers = hl.expr.generic_summary(self.row, skip_top=True)
-        results = self.aggregate(computations)
-        for name, fields in printers:
-            print(f'* {name}:')
-
-            max_k_len = max(len(f) for f in fields)
-            for k, v in fields.items():
-                print(f'    {k.rjust(max_k_len)} : {v(results)}')
-            print()
+        if handler is None:
+            handler = hl.utils.default_handler()
+        handler(self.row._summarize(top=True))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
@@ -3274,5 +3277,6 @@ class Table(ExprContainer):
             raise TypeError('All input tables to multi_way_zip_join must have the same global type')
         return Table(TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
+
 
 table_type.set(Table)

@@ -13,7 +13,7 @@ async def client():
 
 async def test_job(client):
     b = client.create_batch()
-    j = b.create_job('alpine', ['echo', 'test'])
+    j = b.create_job('ubuntu:18.04', ['echo', 'test'])
     await b.submit()
     status = await j.wait()
     assert 'attributes' not in status, (status, await j.log())

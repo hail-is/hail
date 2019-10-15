@@ -81,7 +81,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def getElementPosition(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
@@ -96,6 +96,18 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       },
       bytesAway + data.pType.elementOffset(dataStore, data.pType.loadLength(dataStore), 0)
     ))
+  }
+
+  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Boolean] = {
+    val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
+    val outOfBounds = mb.newField[Boolean]
+    Code(
+      outOfBounds := false,
+      Code.foreach(0 until nDims){ dimIndex =>
+        outOfBounds := outOfBounds || (indices(dimIndex) >= shapeTuple(dimIndex))
+      },
+      outOfBounds
+    )
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),

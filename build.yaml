@@ -238,6 +238,11 @@ steps:
    publishAs: batch2
    dependsOn:
      - service_base_image
+ - kind: buildImage
+   name: batch2_worker_image
+   dockerFile: batch2/Dockerfile.worker
+   contextPath: .
+   publishAs: batch2-worker
  - kind: runImage
    name: check_batch2
    image:
@@ -610,23 +615,6 @@ steps:
      - default_ns
      - base_image
      - ci_database
- - kind: deploy
-   name: deploy_ci
-   namespace:
-     valueFrom: default_ns.name
-   config: ci/deployment.yaml
-   wait:
-    - kind: Service
-      name: ci
-      for: alive
-   dependsOn:
-    - default_ns
-    - ci_image
-    - ci_utils_image
-    - create_accounts
-    - ci_database
-    - create_ci_tables
-    - deploy_auth
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -762,6 +750,9 @@ steps:
     - kind: Service
       name: batch2
       for: alive
+    - kind: Service
+      name: batch2-driver
+      for: alive
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -769,6 +760,7 @@ steps:
     - deploy_batch2_sa
     - create_accounts
     - batch2_image
+    - batch2_worker_image
     - batch2_database
     - deploy_auth
     - create_batch2_tables
@@ -813,7 +805,7 @@ steps:
      set -e
      ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     gcloud -q compute instances list --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' --format="value(name)" | xargs gcloud -q compute instances delete --zone $ZONE
+     gcloud -q compute instances list --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' --format="value(name)" | xargs gcloud -q compute instances delete --zone $ZONE || true
    secrets:
     - name: test-gsa-key
       mountPath: /test-gsa-key
@@ -824,6 +816,24 @@ steps:
     - default_ns
     - base_image    
     - test_batch2
+ - kind: deploy
+   name: deploy_ci
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/deployment.yaml
+   wait:
+    - kind: Service
+      name: ci
+      for: alive
+   dependsOn:
+    - default_ns
+    - ci_image
+    - ci_utils_image
+    - create_accounts
+    - ci_database
+    - create_ci_tables
+    - deploy_auth
+    - deploy_batch
  - kind: runImage
    name: setup_pipeline
    image:
