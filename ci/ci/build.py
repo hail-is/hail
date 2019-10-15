@@ -763,6 +763,20 @@ class CreateDatabaseStep(Step):
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
+        self.volumes = [{
+            'volume': {
+                'name': 'database-server-config',
+                'secret': {
+                    'optional': False,
+                    'secretName': 'database-server-config'
+                }
+            },
+            'volume_mount': {
+                'mountPath': '/secrets/db-config',
+                'name': 'database-server-config'
+            }
+        }]
+
     def wrapped_job(self):
         if self.job:
             return [self.job]
@@ -786,6 +800,9 @@ class CreateDatabaseStep(Step):
         }
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        if scope == 'dev':
+            return
+
         script = f'''
 set -e
 echo date
@@ -872,7 +889,7 @@ echo done.
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
-                                    # FIXME configuration
+                                    volumes=self.volumes,
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
@@ -897,7 +914,7 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    # FIXME configuration
+                                    volumes=self.volumes,
                                     service_account_name='ci-agent',
                                     parents=parents,
                                     always_run=True)
