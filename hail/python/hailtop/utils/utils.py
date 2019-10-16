@@ -59,6 +59,8 @@ class AsyncWorkerPool:
 def is_transient_error(e):
     # observed exceptions:
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host <host> ssl:None [Connect call failed ('<ip>', 80)]
+    # concurrent.futures._base.TimeoutError
+    #   from aiohttp/helpers.py:585:TimerContext: raise asyncio.TimeoutError from None
     if isinstance(e, aiohttp.ClientResponseError):
         # 408 request timeout, 503 service unavailable, 504 gateway timeout
         if e.status == 408 or e.status == 503 or e.status == 504:
@@ -67,6 +69,8 @@ def is_transient_error(e):
         if e.errno == errno.ETIMEDOUT or e.errno == errno.ECONNREFUSED:
             return True
     elif isinstance(e, aiohttp.ServerTimeoutError):
+        return True
+    elif isinstance(e, asyncio.TimeoutError):
         return True
     return False
 
