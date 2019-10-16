@@ -219,7 +219,7 @@ async def create_jobs(request, userdata):
     try:
         batch_client.validate.validate_jobs(jobs)
     except batch_client.validate.ValidationError as e:
-        raise web.HTTPBadRequest(reason=f'bad request: {e.reason}')
+        raise web.HTTPBadRequest(reason=e.reason)
     log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
     start4 = time.time()

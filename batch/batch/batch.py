@@ -1008,7 +1008,7 @@ async def create_jobs(request, userdata):
     try:
         batch_client.validate.validate_jobs(jobs)
     except batch_client.validate.ValidationError as e:
-        abort(400, f'bad request: {e.reason}')
+        abort(400, e.reason)
 
     jobs_builder = JobsBuilder(db)
     try:
