@@ -62,8 +62,9 @@ def is_transient_error(e):
     # concurrent.futures._base.TimeoutError
     #   from aiohttp/helpers.py:585:TimerContext: raise asyncio.TimeoutError from None
     if isinstance(e, aiohttp.ClientResponseError):
-        # 408 request timeout, 503 service unavailable, 504 gateway timeout
-        if e.status == 408 or e.status == 503 or e.status == 504:
+        # nginx returns 502 if it cannot connect to the upstream server
+        # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout
+        if e.status == 408 or e.status == 502 or e.status == 503 or e.status == 504:
             return True
     elif isinstance(e, aiohttp.ClientOSError):
         if e.errno == errno.ETIMEDOUT or e.errno == errno.ECONNREFUSED:
