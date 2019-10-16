@@ -428,5 +428,9 @@ def test_ndarray_matmul():
     with pytest.raises(ValueError):
         cube @ hl._ndarray(5)
 
+    with pytest.raises(FatalError) as exc:
+        hl.eval(r @ r)
+    assert "Matrix dimensions incompatible" in str(exc)
+
 def test_ndarray_big():
     assert hl.eval(hl._ndarray(hl.range(100_000))).size == 100_000
