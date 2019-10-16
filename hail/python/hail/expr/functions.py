@@ -3848,7 +3848,7 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
 
 
 def _ndarray(collection, row_major=None):
-    """Construct a Hail ndarray from either a `NumPy` ndarray or python value/nested lists.
+    """Construct a Hail ndarray from either a flat Hail array, a `NumPy` ndarray or python value/nested lists.
 
     Parameters
     ----------
@@ -3886,20 +3886,35 @@ def _ndarray(collection, row_major=None):
 
         return result
 
-    if isinstance(collection, np.ndarray):
-        return hl.literal(collection)
-    elif isinstance(collection, list):
-        shape = list_shape(collection)
-        data = deep_flatten(collection)
+    if isinstance(collection, Expression):
+        if isinstance(collection, ArrayNumericExpression):
+            data_expr = collection
+            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
+            ndim = 1
+
+        elif isinstance(collection, NumericExpression):
+            data_expr = array([collection])
+            shape_expr = hl.tuple([])
+            ndim = 0
+        else:
+            raise ValueError(f"{collection} cannot be converted into an ndarray")
+
     else:
-        shape = []
-        data = [collection]
+        if isinstance(collection, np.ndarray):
+            return hl.literal(collection)
+        elif isinstance(collection, list):
+            shape = list_shape(collection)
+            data = deep_flatten(collection)
+        else:
+            shape = []
+            data = [collection]
 
-    shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-    data_expr = hl.array(data) if data else hl.empty_array("float64")
+        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+        data_expr = hl.array(data) if data else hl.empty_array("float64")
+        ndim = builtins.len(shape)
+
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
-
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
+    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim))
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
