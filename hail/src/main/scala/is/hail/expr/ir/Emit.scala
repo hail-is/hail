@@ -1517,7 +1517,7 @@ private class Emit(
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
-        EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
+        EmitTriplet(ndt.setup, ndt.m, ndP.shape.load(region, ndt.value[Long]))
       case NDArrayRef(nd, idxs) =>
         val ndt = emit(nd)
         val idxst = idxs.map(emit(_))

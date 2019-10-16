@@ -118,6 +118,7 @@ def test_ndarray_shape():
     col = hl._ndarray(np_col)
     m = hl._ndarray(np_m)
     nd = hl._ndarray(np_nd)
+    missing = hl._ndarray(hl.null(hl.tarray(hl.tint32)))
 
     assert_all_eval_to(
         (e.shape, np_e.shape),
@@ -127,7 +128,9 @@ def test_ndarray_shape():
         (nd.shape, np_nd.shape),
         ((row + nd).shape, (np_row + np_nd).shape),
         ((row + col).shape, (np_row + np_col).shape),
-        (m.transpose().shape, np_m.transpose().shape))
+        (m.transpose().shape, np_m.transpose().shape),
+        (missing.shape, None)
+    )
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
