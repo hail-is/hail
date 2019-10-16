@@ -305,35 +305,14 @@ date
 
         log.info(f'step {self.name}, script:\n{script}')
 
-        volumes = [{
-            'volume': {
-                'name': 'docker-sock-volume',
-                'hostPath': {
-                    'path': '/var/run/docker.sock',
-                    'type': 'File'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/var/run/docker.sock',
-                'name': 'docker-sock-volume'
-            }
-        }, {
-            'volume': {
-                'name': 'gcr-push-service-account-key',
-                'secret': {
-                    'optional': False,
-                    'secretName': 'gcr-push-service-account-key'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/secrets/gcr-push-service-account-key',
-                'name': 'gcr-push-service-account-key',
-                'readOnly': True
-            }
-        }]
-
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
+                                    mount_docker_socket=True,
+                                    secrets=[{
+                                        'namespace': None,  # FIXME unused
+                                        'name': 'gcr-push-service-account-key',
+                                        'mount_path': '/secrets/gcr-push-service-account-key'
+                                    }],
                                     resources={
                                         'requests': {
                                             'memory': '2G',
@@ -345,28 +324,12 @@ date
                                         }
                                     },
                                     attributes={'name': self.name},
-                                    volumes=volumes,
                                     input_files=input_files,
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
         if scope == 'deploy' and self.publish_as:
             return
-
-        volumes = [{
-            'volume': {
-                'name': 'gcr-push-service-account-key',
-                'secret': {
-                    'optional': False,
-                    'secretName': 'gcr-push-service-account-key'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/secrets/gcr-push-service-account-key',
-                'name': 'gcr-push-service-account-key',
-                'readOnly': True
-            }
-        }]
 
         script = f'''
 set -x
@@ -384,7 +347,11 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    volumes=volumes,
+                                    secrets=[{
+                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'name': 'gcr-push-service-account-key',
+                                        'mount_path': '/secrets/gcr-push-service-account-key'
+                                    }],
                                     parents=parents,
                                     always_run=True)
 
@@ -445,23 +412,15 @@ class RunImageStep(Step):
         else:
             output_files = None
 
-        volumes = []
+        secrets = []
         if self.secrets:
             for secret in self.secrets:
                 name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
-                volumes.append({
-                    'volume': {
-                        'name': name,
-                        'secret': {
-                            'optional': False,
-                            'secretName': name
-                        }
-                    },
-                    'volume_mount': {
-                        'mountPath': mount_path,
-                        'name': name
-                    }
+                secrets.append({
+                    'namespace': 'batch-pods',  # FIXME unused
+                    'name': name,
+                    'mount_path': mount_path
                 })
 
         self.job = batch.create_job(
@@ -471,7 +430,7 @@ class RunImageStep(Step):
             attributes={'name': self.name},
             input_files=input_files,
             output_files=output_files,
-            volumes=volumes,
+            secrets=secrets,
             service_account_name=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run)

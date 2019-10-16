@@ -265,8 +265,8 @@ class BatchBuilder:
         self.callback = callback
         self.pool = AsyncWorkerPool(2)
 
-    def create_job(self, image, command=None, args=None, env=None,
-                   resources=None, volumes=None,
+    def create_job(self, image, command, env=None, mount_docker_socket=False,
+                   resources=None, secrets=None,
                    service_account_name=None, attributes=None, callback=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if self._submitted:
@@ -302,56 +302,43 @@ class BatchBuilder:
         if error_msg:
             raise ValueError("\n".join(error_msg))
 
-        if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        container = {
-            'image': image,
-            'name': 'main'
-        }
-        if command:
-            container['command'] = command
-        if args:
-            container['args'] = args
-        if env:
-            container['env'] = env
-        if resources:
-            container['resources'] = resources
-        if volumes:
-            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
-        spec = {
-            'containers': [container],
-            'restartPolicy': 'Never'
-        }
-        if volumes:
-            spec['volumes'] = [v['volume'] for v in volumes]
-        if service_account_name:
-            spec['serviceAccountName'] = service_account_name
-
-        doc = {
-            'spec': spec,
-            'parent_ids': parent_ids,
+        job_spec = {
             'always_run': always_run,
-            'job_id': self._job_idx
+            'command': command,
+            'image': image,
+            'job_id': self._job_idx,
+            'mount_docker_socket': mount_docker_socket,
+            'parent_ids': parent_ids
         }
-        if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
-        if input_files:
-            doc['input_files'] = input_files
-        if output_files:
-            doc['output_files'] = output_files
-        if pvc_size:
-            doc['pvc_size'] = pvc_size
 
-        self._job_docs.append(doc)
+        if env:
+            job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
+        if resources:
+            job_spec['resources'] = resources
+        if secrets:
+            job_spec['secrets'] = secrets
+        if service_account_name:
+            job_spec['service_account_name'] = service_account_name
+
+        if attributes:
+            job_spec['attributes'] = attributes
+        if callback:
+            job_spec['callback'] = callback
+        if input_files:
+            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in input_files]
+        if output_files:
+            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in output_files]
+        if pvc_size:
+            job_spec['pvc_size'] = pvc_size
+
+        self._job_docs.append(job_spec)
 
         j = Job.unsubmitted_job(self, self._job_idx, attributes, parent_ids)
         self._jobs.append(j)
         return j
 
     async def _submit_job(self, batch_id, docs):
-        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=docs)
 
     async def submit(self):
         if self._submitted:

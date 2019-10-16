@@ -7,4 +7,4 @@ RUN python3 -m pip install --no-cache-dir /hailtop \
 
 COPY batch/test/ /test/
 
-CMD ["python3", "-m", "pytest", "-v", "--instafail", "/test/"]
+CMD ["python3", "-m", "pytest", "--log-cli-level=INFO", "-s", "-v", "--instafail", "/test/"]

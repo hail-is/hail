@@ -29,7 +29,7 @@ def copy(files):
             mkdirs = ""
         return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
-    copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
+    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'{authenticate} && {copies}'
 
 

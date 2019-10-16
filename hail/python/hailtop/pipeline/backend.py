@@ -285,11 +285,11 @@ class BatchBackend(Backend):
                 attributes['name'] = task.name
             attributes.update(task.attributes)
 
-            resources = {'requests': {}}
+            resources = {}
             if task._cpu:
-                resources['requests']['cpu'] = task._cpu
+                resources['cpu'] = task._cpu
             if task._memory:
-                resources['requests']['memory'] = task._memory
+                resources['memory'] = task._memory
 
             j = batch.create_job(image=task._image if task._image else default_image,
                                  command=['/bin/bash', '-c', cmd],

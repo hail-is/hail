@@ -18,6 +18,7 @@ import uvloop
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
+from hailtop import batch_client
 from hailtop.utils import unzip, blocking_to_async
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
@@ -127,7 +128,7 @@ def copy(files):
             mkdirs = ""
         return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
-    copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
+    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'set -ex; {resiliently_authenticate("/gsa-key/privateKeyData")} && {copies}'
 
 
@@ -705,40 +706,17 @@ class Job:
         return result
 
 
-def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
-    pod_spec = v1.api_client._ApiClient__deserialize(
-        parameters['spec'], kube.client.V1PodSpec)
-
-    job_id = parameters.get('job_id')
-    parent_ids = parameters.get('parent_ids', [])
-    input_files = parameters.get('input_files')
-    output_files = parameters.get('output_files')
-    pvc_size = parameters.get('pvc_size')
+def create_job(jobs_builder, batch_id, userdata, job_spec):  # pylint: disable=R0912
+    job_id = job_spec['job_id']
+    parent_ids = job_spec.get('parent_ids', [])
+    input_files = job_spec.get('input_files')
+    output_files = job_spec.get('output_files')
+    pvc_size = job_spec.get('pvc_size')
     if pvc_size is None and (input_files or output_files):
         pvc_size = POD_VOLUME_SIZE
-    always_run = parameters.get('always_run', False)
+    always_run = job_spec.get('always_run', False)
 
-    if len(pod_spec.containers) != 1:
-        abort(400, f'only one container allowed in pod_spec {pod_spec}')
-
-    if pod_spec.containers[0].name != 'main':
-        abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
-
-    if not pod_spec.containers[0].resources:
-        pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
-    if not pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests = {}
-    if 'cpu' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['cpu'] = '100m'
-    if 'memory' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['memory'] = '500M'
-
-    if not pod_spec.tolerations:
-        pod_spec.tolerations = []
-    pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
-
-    # pod_spec.automount_service_account_token = False
-    pod_spec.service_account = "batch-output-pod"
+    pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(job_spec)
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
@@ -747,8 +725,8 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         batch_id=batch_id,
         job_id=job_id,
         pod_spec=pod_spec,
-        attributes=parameters.get('attributes'),
-        callback=parameters.get('callback'),
+        attributes=job_spec.get('attributes'),
+        callback=job_spec.get('callback'),
         parent_ids=parent_ids,
         input_files=input_files,
         output_files=output_files,
@@ -1026,22 +1004,22 @@ async def create_jobs(request, userdata):
     if batch.closed:
         abort(400, f'batch {batch_id} is already closed')
 
-    jobs_parameters = await request.json()
-
-    validator = cerberus.Validator(schemas.job_array_schema)
-    if not validator.validate(jobs_parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
+    jobs = await request.json()
+    try:
+        batch_client.validate.validate_jobs(jobs)
+    except batch_client.validate.ValidationError as e:
+        abort(400, e.reason)
 
     jobs_builder = JobsBuilder(db)
     try:
-        for job_params in jobs_parameters['jobs']:
-            create_job(jobs_builder, batch.id, userdata, job_params)
+        for job in jobs:
+            create_job(jobs_builder, batch.id, userdata, job)
 
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
 
-        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
+        log.info(f"created {len(jobs)} jobs for batch {batch_id}")
     finally:
         await jobs_builder.close()
 
