@@ -723,12 +723,12 @@ async def workshop_post_logout(request, userdata):
 
 
 @workshop_routes.get('/resources')
-async def workshop_get_faq(request):
+@web_maybe_authenticated_workshop_guest
+async def workshop_get_faq(request, userdata):
     page_context = {
         'notebook_service': 'workshop'
     }
-
-    return await render_template('notebook', request, {}, 'workshop/resources.html', page_context)
+    return await render_template('workshop', request, userdata, 'workshop/resources.html', page_context)
 
 
 @workshop_routes.get('/notebook')
