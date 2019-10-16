@@ -59,7 +59,7 @@ def validate_job(i, job):
         raise ValidationError(f'jobs[{i}] not dict')
 
     for k in job:
-        if k not in JOB_SPEC_KEYS:
+        if k not in JOB_KEYS:
             raise ValidationError(f'unknown key in jobs[{i}]: {k}')
 
     if 'command' not in job:
@@ -88,6 +88,7 @@ def validate_job(i, job):
                 raise ValidationError(f'jobs[{i}].env[{j}].name is not str')
             if 'value' not in e:
                 raise ValidationError(f'no required key value in jobs[{i}].env[{j}]')
+            value = e['value']
             if not isinstance(value, str):
                 raise ValidationError(f'jobs[{i}].env[{j}].value is not str')
 
@@ -113,17 +114,17 @@ def validate_job(i, job):
             if k not in RESOURCES_KEYS:
                 raise ValidationError(f'unknown key in jobs[{i}].resources: {k}')
 
-        if 'memory' not in secret:
+        if 'memory' not in resources:
             raise ValidationError(f'no required key memory in jobs[{i}].resources')
-        memory = secret['memory']
+        memory = resources['memory']
         if not isinstance(memory, str):
             raise ValidationError(f'jobs[{i}].resources.memory is not str')
         if not MEMORY_REGEX.fullmatch(memory):
             raise ValidationError(f'jobs[{i}].resources.memory must match regex: {MEMORY_REGEXPAT}')
 
-        if 'cpu' not in secret:
+        if 'cpu' not in resources:
             raise ValidationError(f'no required key cpu in jobs[{i}].resources')
-        cpu = secret['cpu']
+        cpu = resources['cpu']
         if not isinstance(cpu, str):
             raise ValidationError(f'jobs[{i}].resources.cpu is not str')
         if not CPU_REGEX.fullmatch(memory):
@@ -146,7 +147,7 @@ def validate_job(i, job):
                 if not isinstance(namespace, str):
                     raise ValidationError(f'jobs[{i}].secrets[{j}].namespace is not str')
                 if len(namespace) > 253:
-                    raies ValidationError(f'length of jobs[{i}].secrets[{j}].namespace must be <= 253')
+                    raise ValidationError(f'length of jobs[{i}].secrets[{j}].namespace must be <= 253')
                 if not K8S_NAME_REGEX.fullmatch(namespace):
                     raise ValidationError(f'jobs[{i}].secrets[{j}].namespace must match regex: {K8S_NAME_REGEXPAT}')
 
@@ -193,7 +194,7 @@ def job_spec_to_k8s_pod_spec(job_spec):
             'name': 'docker-sock-volume'
         })
 
-    if secrets in job_spec:
+    if 'secrets' in job_spec:
         secrets = job_spec['secrets']
         for secret in secrets:
             volumes.append({
@@ -234,7 +235,7 @@ def job_spec_to_k8s_pod_spec(job_spec):
         }
     pod_spec = {
         'containers': [container],
-        'restartPolicy': 'Never'
+        'restartPolicy': 'Never',
         'volumeMounts': volume_mounts
     }
     if 'service_account_name' in job_spec:
