@@ -11,10 +11,10 @@ import re
 #     'value': str
 #   }],
 #   'image': str,
-#   'input_files': [str],
+#   'input_files': [{"from": str, "to": str}],
 #   'job_id': int,
 #   'mount_docker_socket': bool,
-#   'output_files': [str],
+#   'output_files': [{"from": str, "to": str}],
 #   'parent_ids': [int],
 #   'pvc_size': str,
 #   'resoures': {
@@ -38,6 +38,8 @@ ENV_VAR_KEYS = {'name', 'value'}
 SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 
 RESOURCES_KEYS = {'memory', 'cpu'}
+
+FILE_KEYS = {'from', 'to'}
 
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
@@ -124,7 +126,7 @@ def validate_job(i, job):
         raise ValidationError(f'no required key image in jobs[{i}]')
     image = job['image']
     if not isinstance(image, str):
-        raise ValidationError(f'jobs[{i}].image not str')
+        raise ValidationError(f'jobs[{i}].image is not str')
     # FIXME validate image
     # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
 
@@ -133,8 +135,23 @@ def validate_job(i, job):
         if not isinstance(input_files, list):
             raise ValidationError(f'jobs[{i}].input_files not list')
         for j, f in enumerate(input_files):
-            if not isinstance(f, str):
-                raise ValidationError(f'jobs[{i}].input_files[j] not str')
+            if not isinstance(f, dict):
+                raise ValidationError(f'jobs[{i}].input_files[{j}] not dict')
+            for k in f:
+                if k not in FILE_KEYS:
+                    raise ValidationError(f'unknown key in jobs[{i}].input_files[{j}]: {k}')
+
+                if 'from' not in f:
+                    raise ValidationError(f'no required key from in jobs[{i}].input_files[{j}]')
+                src = f['from']
+                if not isinstance(src, str):
+                    raise ValidationError(f'jobs[{i}].input_files[{j}].from is not str')
+
+                if 'to' not in f:
+                    raise ValidationError(f'no required key to in jobs[{i}].input_files[{j}]')
+                dst = f['to']
+                if not isinstance(dst, str):
+                    raise ValidationError(f'jobs[{i}].input_files[{j}].to is not str')
 
     if 'job_id' not in job:
         raise ValidationError(f'no required key job_id in jobs[{i}]')
@@ -154,7 +171,23 @@ def validate_job(i, job):
             raise ValidationError(f'jobs[{i}].output_files not list')
         for j, f in enumerate(output_files):
             if not isinstance(f, str):
-                raise ValidationError(f'jobs[{i}].output_files[j] not str')
+                raise ValidationError(f'jobs[{i}].output_files[{j}] not dict')
+
+            for k in f:
+                if k not in FILE_KEYS:
+                    raise ValidationError(f'unknown key in jobs[{i}].output_files[{j}]: {k}')
+
+            if 'from' not in f:
+                raise ValidationError(f'no required key from in jobs[{i}].output_files[{j}]')
+            src = f['from']
+            if not isinstance(src, str):
+                raise ValidationError(f'jobs[{i}].output_files[{j}].from is not str')
+
+            if 'to' not in f:
+                raise ValidationError(f'no required key to in jobs[{i}].output_files[{j}]')
+            dst = f['to']
+            if not isinstance(dst, str):
+                raise ValidationError(f'jobs[{i}].output_files[{j}].to is not str')
 
     if 'parent_ids' not in job:
         raise ValidationError(f'no required key parent_ids in jobs[{i}]')

@@ -312,8 +312,7 @@ class BatchBuilder:
         }
 
         if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-            job_spec['env'] = env
+            job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
         if resources:
             job_spec['resources'] = resources
         if secrets:
@@ -326,9 +325,9 @@ class BatchBuilder:
         if callback:
             job_spec['callback'] = callback
         if input_files:
-            job_spec['input_files'] = input_files
+            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dest) in input_files]
         if output_files:
-            job_spec['output_files'] = output_files
+            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dest) in output_files]
         if pvc_size:
             job_spec['pvc_size'] = pvc_size
 
