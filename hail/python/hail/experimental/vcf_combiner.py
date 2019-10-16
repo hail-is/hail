@@ -45,8 +45,8 @@ def parse_as_ranksum(string, has_non_ref):
 _as_function_map = {
     'AS_QUALapprox': parse_as_ints,
     'AS_RAW_MQ': parse_as_doubles,
-    'AS_RAW_MQRankSum': parse_as_ranksum,  # FIXME |NaN| issue
-    'AS_RAW_ReadPosRankSum': parse_as_ranksum,  # FIXME |NaN| issue
+    'AS_RAW_MQRankSum': parse_as_ranksum,
+    'AS_RAW_ReadPosRankSum': parse_as_ranksum,
     'AS_SB_TABLE': parse_as_sb_table,
     'AS_VarDP': parse_as_ints,
 }
