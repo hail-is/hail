@@ -18,6 +18,7 @@ import uvloop
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
+from hailtop import batch_client
 from hailtop.utils import unzip, blocking_to_async
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
@@ -1026,22 +1027,23 @@ async def create_jobs(request, userdata):
     if batch.closed:
         abort(400, f'batch {batch_id} is already closed')
 
-    jobs_parameters = await request.json()
-
-    validator = cerberus.Validator(schemas.job_array_schema)
-    if not validator.validate(jobs_parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
+    jobs = await request.json()
+    try:
+        batch_client.validate.validate_jobs(jobs)
+    except batch_client.validate.ValidationError as e:
+        abort(400, f'bad request: {e.reason}')
 
     jobs_builder = JobsBuilder(db)
     try:
-        for job_params in jobs_parameters['jobs']:
-            create_job(jobs_builder, batch.id, userdata, job_params)
+        for job in jobs:
+            k8s_pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(job)
+            create_job(jobs_builder, batch.id, userdata, k8s_pod_spec)
 
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
 
-        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
+        log.info(f"created {len(jobs)} jobs for batch {batch_id}")
     finally:
         await jobs_builder.close()
 

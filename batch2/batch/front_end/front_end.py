@@ -13,9 +13,10 @@ import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 
-from hailtop.utils import blocking_to_async, request_retry_transient_errors
+from hailtop.utils import request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
+from hailtop import batch_client
 from gear import setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     check_csrf_token
@@ -227,20 +228,22 @@ async def create_jobs(request, userdata):
         raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
 
     start2 = time.time()
-    jobs_parameters = await request.json()
+    jobs = await request.json()
     log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
     start3 = time.time()
-    validator = cerberus.Validator(schemas.job_array_schema)
-    if not await blocking_to_async(app['blocking_pool'], validator.validate, jobs_parameters):
-        raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
+    try:
+        batch_client.validate.validate_jobs(jobs)
+    except batch_client.validate.ValidationError as e:
+        raise web.HTTPBadRequest(reason=f'bad request: {e.reason}')
     log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
 
     start4 = time.time()
     jobs_builder = JobsBuilder(app['db'])
     try:
-        for job_params in jobs_parameters['jobs']:
-            create_job(app, jobs_builder, batch.id, userdata, job_params)
+        for job in jobs:
+            k8s_pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(job)
+            create_job(app, jobs_builder, batch.id, userdata, k8s_pod_spec)
 
         success = await jobs_builder.commit()
         if not success:
