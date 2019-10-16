@@ -1,4 +1,4 @@
-"""A work in progress pipeline to combine (g)VCFs into an alternate format"""
+"""An experimental library for combining (g)VCFS into sparse matrix tables"""
 
 import hail as hl
 from hail import MatrixTable, Table
