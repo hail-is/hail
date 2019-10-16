@@ -97,11 +97,12 @@ def test_ndarray_eval():
     assert np.array_equal(hl.eval(hl._ndarray(hl.range(6))), np.arange(6))
     assert np.array_equal(hl.eval(hl._ndarray(hl.int64(4))), np.array(4))
 
+    # Testing missing data
+    assert hl.eval(hl._ndarray(hl.null(hl.tarray(hl.tint32)))) is None
+
     with pytest.raises(ValueError) as exc:
         hl._ndarray([[4], [1, 2, 3], 5])
     assert "inner dimensions do not match" in str(exc.value)
-
-
 
 
 @skip_unless_spark_backend()

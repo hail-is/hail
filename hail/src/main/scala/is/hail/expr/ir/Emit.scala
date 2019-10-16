@@ -1512,7 +1512,7 @@ private class Emit(
           },
           xP.construct(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
         )
-        EmitTriplet(setup, shapet.m, result)
+        EmitTriplet(setup, datat.m || shapet.m, result)
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
