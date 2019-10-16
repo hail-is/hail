@@ -2116,27 +2116,28 @@ def import_vcfs(path,
                 find_replace=None,
                 _external_sample_ids=None,
                 _external_header=None) -> List[MatrixTable]:
-    """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
+    """(Experimental) Import multiple vcfs as multiple :class:`.MatrixTable`.
+
+    .. include:: ../_templates/experimental.rst
 
     The arguments to this function are almost identical to
     :func:`.import_vcf`, the only difference is the `partitions`
     argument, which is used to divide and filter the vcfs.  It must be
-    an expression or literal of type `array<interval<struct{locus:locus<RG>}>>`.  A
+    an expression or literal of type ``array<interval<struct{locus:locus<RG>}>>``.  A
     partition will be created for every element of the array. Loci
     that fall outside of any interval will not be imported. For
     example:
 
-    .. include:: ../_templates/experimental.rst
+    .. code-block:: python
 
-    .. code-block:: text
         [hl.Interval(hl.Locus("chr22", 1), hl.Locus("chr22", 5332423), includes_end=True)]
 
-    The `include_start` and `include_end` keys must be `True`. The
-    `contig` fields must be the same.
+    The ``includes_start`` and ``includes_end`` keys must be ``True``. The
+    ``contig`` fields must be the same.
 
     One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
-    :func:`.import_vcfs` only keys the resulting matrix tables by `locus`
-    rather than `locus, alleles`.
+    :func:`.import_vcfs` only keys the resulting matrix tables by ``locus``
+    rather than ``locus, alleles``.
     """
 
     rg = reference_genome.name if reference_genome else None

@@ -70,10 +70,21 @@ def transform_one(mt, info_to_keep=[]) -> Table:
     """transforms a gvcf into a form suitable for combining
 
     The input to this should be some result of either :func:`.import_vcf` or
-    :func:`.import_vcfs` with `array_elements_required=False`.
+    :func:`.import_vcfs` with ``array_elements_required=False``.
 
-    There is a strong assumption that this function will be called on a matrix
-    table with one column.
+    There is an assumption that this function will be called on a matrix table
+    with one column (or a localized table version of the same).
+
+    Parameters
+    ----------
+    mt : :obj:`Union[Table, MatrixTable]`
+        The gvcf being transformed, if it is a table, then it must be a localized matrix
+        table with the entries array named ``__entries``
+
+    Returns
+    -------
+    :obj:`.Table`
+        A localized matrix table that can be used as part of the input to :func:`.combine_gvcfs`
     """
     if not info_to_keep:
         info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
@@ -194,15 +205,47 @@ def combine(ts):
                                            TopLevelReference('global'))))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
+@typecheck(mts=sequenceof(oneof(Table, MatrixTable)))
 def combine_gvcfs(mts):
-    """merges vcfs using multi way join"""
+    """Merges gvcfs and/or sparse matrix tables
+
+    Parameters
+    ----------
+    mts : :obj:`List[Union[Table, MatrixTable]]`
+        The matrix tables (or localized versions) therove to combine
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+
+    Notes
+    -----
+    All of the input tables/matrix tables must have the same partitioning. This
+    module provides no method of repartitioning data.
+    """
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     return unlocalize(combined)
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
-    """A method for transforming Local GT and Local Alleles into the true GT"""
+    """Transforming Local GT and Local Alleles into the true GT
+
+    Parameters
+    ----------
+    lgt : :class:`.CallExpression`
+        The LGT value
+    la : :class:`.ArrayExpression`
+        The Local Alleles array
+
+    Returns
+    -------
+    :class:`.CallExpression`
+
+    Notes
+    -----
+    This function assumes diploid genotypes.
+    """
     return hl.call(la[lgt[0]], la[lgt[1]])
 
 @typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)

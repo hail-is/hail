@@ -76,3 +76,10 @@ Genetics Methods
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
+
+`vcf_combiner`
+--------------
+
+.. toctree::
+
+   vcf_combiner: a small set of functions for consuming gvcfs and outputting sparse matrix tables <vcf_combiner>
