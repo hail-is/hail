@@ -232,15 +232,14 @@ def validate_job(i, job):
                 if not isinstance(name, str):
                     raise ValidationError(f'jobs[{i}].secrets[{j}].mount_path is not str')
 
-    if 'service_account_name' not in job:
-        raise ValidationError(f'no required key service_account_name in jobs[{i}]')
-    service_account_name = job['service_account_name']
-    if not isinstance(service_account_name, str):
-        raise ValidationError(f'jobs[{i}].service_account_name not str')
-    if len(service_account_name) > 253:
-        raise ValidationError(f'length of jobs[{i}].service_account_name must be <= 253')
-    if not K8S_NAME_REGEX.fullmatch(service_account_name):
-        raise ValidationError(f'jobs[{i}].service_account_name must match regex: {K8S_NAME_REGEXPAT}')
+    if 'service_account_name' in job:
+        service_account_name = job['service_account_name']
+        if not isinstance(service_account_name, str):
+            raise ValidationError(f'jobs[{i}].service_account_name not str')
+        if len(service_account_name) > 253:
+            raise ValidationError(f'length of jobs[{i}].service_account_name must be <= 253')
+        if not K8S_NAME_REGEX.fullmatch(service_account_name):
+            raise ValidationError(f'jobs[{i}].service_account_name must match regex: {K8S_NAME_REGEXPAT}')
 
 
 def job_spec_to_k8s_pod_spec(job_spec):
