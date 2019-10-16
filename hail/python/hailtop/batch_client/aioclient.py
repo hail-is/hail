@@ -303,9 +303,12 @@ class BatchBuilder:
             raise ValueError("\n".join(error_msg))
 
         job_spec = {
+            'always_run': always_run,
             'command': command,
             'image': image,
-            'mount_docker_socket': mount_docker_socket
+            'job_id': self._job_idx,
+            'mount_docker_socket': mount_docker_socket,
+            'parent_ids': parent_ids
         }
 
         if env:
@@ -318,22 +321,16 @@ class BatchBuilder:
         if service_account_name:
             job_spec['service_account_name'] = service_account_name
 
-        doc = {
-            'job_spec': job_spec,
-            'parent_ids': parent_ids,
-            'always_run': always_run,
-            'job_id': self._job_idx
-        }
         if attributes:
-            doc['attributes'] = attributes
+            job_spec['attributes'] = attributes
         if callback:
-            doc['callback'] = callback
+            job_spec['callback'] = callback
         if input_files:
-            doc['input_files'] = input_files
+            job_spec['input_files'] = input_files
         if output_files:
-            doc['output_files'] = output_files
+            job_spec['output_files'] = output_files
         if pvc_size:
-            doc['pvc_size'] = pvc_size
+            sjob_spec['pvc_size'] = pvc_size
 
         self._job_docs.append(doc)
 

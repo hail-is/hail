@@ -2,13 +2,21 @@ import re
 
 # rough schema (without requiredness, value validation):
 # jobs_schema = [{
-#   'command': [str]
+#   'always_run': bool,
+#   'attributes': {str: str},
+#   'callback': str,
+#   'command': [str],
 #   'env': [{
 #     'name': str,
 #     'value': str
 #   }],
 #   'image': str,
+#   'input_files': [str],
+#   'job_id': int,
 #   'mount_docker_socket': bool,
+#   'output_files': [str],
+#   'parent_ids': [int],
+#   'pvc_size': str,
 #   'resoures': {
 #     'memory': str,
 #     'cpu': str
@@ -22,7 +30,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'command', 'env', 'image', 'mount_docker_socket', 'resources', 'secrets', 'service_account_name'
+    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'job_id', 'mount_docker_socket', 'parent_ids', 'resources', 'secrets', 'service_account_name'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -62,6 +70,26 @@ def validate_job(i, job):
         if k not in JOB_KEYS:
             raise ValidationError(f'unknown key in jobs[{i}]: {k}')
 
+    if 'always_run' in job:
+        always_run = job['always_run']
+        if not isinstance(always_run, bool):
+            raise ValidationError(f'jobs[{i}].always_run is not bool')
+
+    if 'attributes' in job:
+        attributes = job['attributes']
+        if not isinstance(attributes, dict):
+            raise ValidationError(f'jobs[{i}].attributes is not dict')
+        for k, v in attributes.items():
+            if not isinstance(k, str):
+                raise ValidationError(f'jobs[{i}].attributes has non-str key')
+            if not isinstance(v, str):
+                raise ValidationError(f'jobs[{i}].attributes has non-str value')
+
+    if 'callback' in job:
+        callback = job['callback']
+        if not isinstance(callback, str):
+            raise ValidationError(f'jobs[{i}].callback not str')
+
     if 'command' not in job:
         raise ValidationError(f'no required key command in jobs[{i}]')
     command = job['command']
@@ -100,11 +128,49 @@ def validate_job(i, job):
     # FIXME validate image
     # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
 
+    if 'input_files' not in job:
+        input_files = job['input_files']
+        if not isinstance(input_files, list):
+            raise ValidationError(f'jobs[{i}].input_files not list')
+        for j, f in enumerate(input_files):
+            if not isinstance(f, str):
+                raise ValidationError(f'jobs[{i}].input_files[j] not str')
+
+    if 'job_id' not in job:
+        raise ValidationError(f'no required key job_id in jobs[{i}]')
+    job_id = jobs['job_id']
+    if not isinstance(job_id, int):
+        raise ValidationError(f'jobs[{i}].job_id is not int')
+
     if 'mount_docker_socket' not in job:
         raise ValidationError(f'no required key mount_docker_socket in jobs[{i}]')
     mount_docker_socket = job['mount_docker_socket']
     if not isinstance(mount_docker_socket, bool):
         raise ValidationError(f'jobs[{i}].mount_docker_socket not bool')
+
+    if 'output_files' not in job:
+        output_files = job['output_files']
+        if not isinstance(output_files, list):
+            raise ValidationError(f'jobs[{i}].output_files not list')
+        for j, f in enumerate(output_files):
+            if not isinstance(f, str):
+                raise ValidationError(f'jobs[{i}].output_files[j] not str')
+
+    if 'parent_ids' not in job:
+        raise ValidationError(f'no required key parent_ids in jobs[{i}]')
+    parent_ids = jobs['parent_ids']
+    if not isinstance(parent_ids, list):
+        raise ValidationError(f'jobs[{i}].job_id is not list')
+    for j, id in enumerate(parent_ids):
+        if not isinstance(id, int):
+            raise ValidationError(f'jobs[{i}].parent_ids[{j} is not int')
+
+    if 'pvc_size' in job:
+        pvc_size = job['pvc_size']
+        if not isinstance(pvc_size, str):
+            raise ValidationError(f'jobs[{i}].pvc_size not str')
+        if not MEMORY_REGEX.fullmatch(pvc_size):
+            raise ValidationError(f'jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
 
     if 'resources' in job:
         resources = job['resources']
@@ -210,29 +276,37 @@ def job_spec_to_k8s_pod_spec(job_spec):
             })
 
     container = {
+        'command': job_spec['command'],
         'image': job_spec['image'],
         'name': 'main',
-        'command': job_spec['command'],
+        'tolerations': [{
+            'key': 'preemptible',
+            'value': 'true'
+        }],
         'volumes': volumes
     }
     if 'env' in job_spec:
         container['env'] = job_spec['env']
+
+    # defaults
+    cpu = '100m'
+    memory = '500M'
     if 'resources' in job_spec:
-        requests = {}
-        limits = {}
-        job_resources = job_spec['resources']
-        if 'memory' in job_resources:
-            memory = job_resources['memory']
-            requests['memory'] = memory
-            limits['memory'] = memory
-        if 'cpu' in job_resources:
-            cpu = job_resources['cpu']
-            requests['cpu'] = cpu
-            limits['cpu'] = cpu
-        container['resources'] = {
-            'requests': requests,
-            'limits': limits
+        resources = job_spec['resources']
+        if 'memory' in resources:
+            memory = resources['memory']
+        if 'cpu' in resources:
+            cpu = resources['cpu']
+    container['resources'] = {
+        'requests': {
+            'cpu': cpu,
+            'memory': memory
+        },
+        'limits': {
+            'cpu': cpu,
+            'memory': memory
         }
+    }
     pod_spec = {
         'containers': [container],
         'restartPolicy': 'Never',
