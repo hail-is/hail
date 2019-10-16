@@ -30,6 +30,7 @@ def test_ndarray_ref():
     np_scalar = np.array(scalar)
     h_scalar = hl._ndarray(scalar)
     h_np_scalar = hl._ndarray(np_scalar)
+
     assert_evals_to(h_scalar[()], 5.0)
     assert_evals_to(h_np_scalar[()], 5.0)
 
@@ -39,13 +40,17 @@ def test_ndarray_ref():
              [6, 7]]]
     h_cube = hl._ndarray(cube)
     h_np_cube = hl._ndarray(np.array(cube))
+    missing = hl._ndarray(hl.null(hl.tarray(hl.tint32)))
+
     assert_all_eval_to(
         (h_cube[0, 0, 1], 1),
         (h_cube[1, 1, 0], 6),
         (h_np_cube[0, 0, 1], 1),
         (h_np_cube[1, 1, 0], 6),
         (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
-        (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3))
+        (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
+        (missing[1], None)
+    )
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl._ndarray([1, 2, 3])[4])
