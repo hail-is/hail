@@ -698,6 +698,14 @@ class PruneSuite extends HailSuite {
       Array(subsetTable(tab.typ, "row.3", "global.g2")))
   }
 
+  @Test def testTableHeadMemo() {
+    checkMemo(
+      TableHead(tab, 10L),
+      subsetTable(tab.typ.copy(key = FastIndexedSeq()), "global.g1"),
+      Array(subsetTable(tab.typ, "row.3", "global.g1")))
+
+  }
+
   @Test def testTableToValueApplyMemo() {
     checkMemo(
       TableToValueApply(tab, ForceCountTable()),
