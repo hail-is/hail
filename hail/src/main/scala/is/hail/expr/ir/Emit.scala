@@ -1676,8 +1676,8 @@ private class Emit(
               }
             }
 
-            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementPosition(lIdxVars, leftND, region, mb))
-            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementPosition(rIdxVars, rightND, region, mb))
+            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress(lIdxVars, leftND, region, mb))
+            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress(rIdxVars, rightND, region, mb))
             val maxK = mb.newLocal[Long]
 
             Code(
