@@ -30,7 +30,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'resources', 'secrets', 'service_account_name'
+    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'resources', 'secrets', 'service_account_name'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
