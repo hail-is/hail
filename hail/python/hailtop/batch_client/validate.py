@@ -215,21 +215,19 @@ def validate_job(i, job):
             if k not in RESOURCES_KEYS:
                 raise ValidationError(f'unknown key in jobs[{i}].resources: {k}')
 
-        if 'memory' not in resources:
-            raise ValidationError(f'no required key memory in jobs[{i}].resources')
-        memory = resources['memory']
-        if not isinstance(memory, str):
-            raise ValidationError(f'jobs[{i}].resources.memory is not str')
-        if not MEMORY_REGEX.fullmatch(memory):
-            raise ValidationError(f'jobs[{i}].resources.memory must match regex: {MEMORY_REGEXPAT}')
+        if 'memory' in resources:
+            memory = resources['memory']
+            if not isinstance(memory, str):
+                raise ValidationError(f'jobs[{i}].resources.memory is not str')
+            if not MEMORY_REGEX.fullmatch(memory):
+                raise ValidationError(f'jobs[{i}].resources.memory must match regex: {MEMORY_REGEXPAT}')
 
-        if 'cpu' not in resources:
-            raise ValidationError(f'no required key cpu in jobs[{i}].resources')
-        cpu = resources['cpu']
-        if not isinstance(cpu, str):
-            raise ValidationError(f'jobs[{i}].resources.cpu is not str')
-        if not CPU_REGEX.fullmatch(memory):
-            raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
+        if 'cpu' in resources:
+            cpu = resources['cpu']
+            if not isinstance(cpu, str):
+                raise ValidationError(f'jobs[{i}].resources.cpu is not str')
+            if not CPU_REGEX.fullmatch(memory):
+                raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
 
     if 'secrets' in job:
         secrets = job['secrets']
