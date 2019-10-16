@@ -1669,6 +1669,11 @@ private class Emit(
                 val rStackVars = stackDims //Need to zero broadcast blah blah
                 //broadcastingLoopVars?
                 (Array(k), (rStackVars :+ k :+ m).toArray)
+              case (_, 1) =>
+                val stackDims :+ n = seqIdxVars
+
+                val lStackVars = stackDims
+                ((lStackVars :+ n :+ k).toArray, Array(k))
               case (_, _) => {
                 val stackDims :+ n :+ m = seqIdxVars
 
@@ -2502,10 +2507,11 @@ object NDArrayEmitter {
       return (compatibilityCheck, Array())
     }
     else if (leftLen == 1) {
-      return ???
+      return (compatibilityCheck, rightShape.slice(0, rightInnerDim) :+ rightShape.last)
     }
     else if (rightLen == 1) {
-      return ???
+      // All but the last element of left shape
+      return (compatibilityCheck, leftShape.slice(0, leftInnerDim))
     }
 
     val mRows = leftShape(leftLen - 2)
