@@ -170,13 +170,13 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         ],
         volumes=volumes)
 
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook-worker-',
             labels={
                 'app': 'notebook-worker',
-                'user_id': str(user_id)
+                'user_id': user_id
             }),
         spec=pod_spec)
     pod = await k8s.create_namespaced_pod(
@@ -308,7 +308,7 @@ async def _get_notebook(service, request, userdata):
     app = request.app
     dbpool = app['dbpool']
     page_context = {
-        'notebook': await get_user_notebook(dbpool, userdata['id']),
+        'notebook': await get_user_notebook(dbpool, str(userdata['id'])),
         'notebook_service': service
     }
     return await render_template(service, request, userdata, 'notebook.html', page_context)
@@ -328,7 +328,7 @@ async def _post_notebook(service, request, userdata):
     else:
         state = 'Scheduling'
 
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(
@@ -346,7 +346,7 @@ async def _delete_notebook(service, request, userdata):
     app = request.app
     dbpool = app['dbpool']
     k8s = app['k8s_client']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
@@ -362,7 +362,7 @@ async def _wait_websocket(service, request, userdata):
     app = request.app
     k8s = app['k8s_client']
     dbpool = app['dbpool']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if not notebook:
         return web.HTTPNotFound()
@@ -412,7 +412,7 @@ async def _get_error(service, request, userdata):
     app = request.app
     k8s = app['k8s_client']
     dbpool = app['dbpool']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
 
     # we just failed a check, so update status from k8s without probe,
     # best we can do is 'Initializing'
@@ -441,7 +441,7 @@ async def _get_auth(request, userdata):
     app = request.app
     dbpool = app['dbpool']
 
-    notebook = await get_user_notebook(dbpool, userdata['id'])
+    notebook = await get_user_notebook(dbpool, str(userdata['id']))
     if notebook and notebook['notebook_token'] == requested_notebook_token:
         pod_ip = notebook['pod_ip']
         if pod_ip:
@@ -704,7 +704,7 @@ async def workshop_post_logout(request, userdata):
     app = request.app
     dbpool = app['dbpool']
     k8s = app['k8s_client']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if notebook:
         # Notebook is inaccessible since login creates a new random
