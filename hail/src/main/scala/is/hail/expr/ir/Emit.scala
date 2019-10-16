@@ -2268,26 +2268,30 @@ private class Emit(
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
         def compatibleShape(numElements: Code[Long], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
-          val numNegs = mb.newLocal[Int]
+          val hasNegativeOne = mb.newLocal[Boolean]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
+          val tempShapeElement = mb.newLocal[Long]
 
           val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long]).toArray
 
           val setup = coerce[Unit](Code(
-            numNegs := 0,
+            hasNegativeOne := false,
             runningProduct := 1L,
 
-            Code.foreach(requestedShape) { requestedShapeElement =>
-              (requestedShapeElement.toI <= 0).mux(
-                (requestedShapeElement ceq -1L).mux(
-                  numNegs := numNegs + 1,
+            Code.foreach(requestedShape) { requestedShapeElement => Code(
+              tempShapeElement := requestedShapeElement,
+              (tempShapeElement <= 0L).mux(
+                (tempShapeElement ceq -1L).mux(
+                  hasNegativeOne.mux(
+                    Code._fatal("Can't infer shape, more than one -1"),
+                    hasNegativeOne := true
+                  ),
                   Code._fatal("Can't reshape, new shape must contain only positive numbers or -1")),
-                runningProduct := runningProduct * requestedShapeElement
+                runningProduct := runningProduct * tempShapeElement
               )
-            },
-            (numNegs > 1).orEmpty(Code._fatal("Can't infer shape, more than one -1")),
-            (numNegs ceq 1).mux(
+            )},
+            hasNegativeOne.mux(
               (numElements % runningProduct) > 0L,
               numElements cne runningProduct
             ).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
