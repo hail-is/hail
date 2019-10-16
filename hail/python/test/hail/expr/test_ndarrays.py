@@ -143,15 +143,20 @@ def test_ndarray_reshape():
     cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
     np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
 
+    np_hypercube = np.arange(3 * 5 * 7 * 9).reshape((3, 5, 7, 9))
+    hypercube = hl._ndarray(np_hypercube)
+
     assert_ndarrays_eq(
         (single.reshape(()), np_single.reshape(())),
-        (a.reshape((6,)), np_a),
+        (a.reshape((6,)), np_a.reshape((6,))),
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),
         (a.reshape((3, -1)), np_a.reshape((3, -1))),
         (a.reshape((-1, 2)), np_a.reshape((-1, 2))),
         (cube_to_rect, np_cube_to_rect),
-        (cube_t_to_rect, np_cube_t_to_rect))
+        (cube_t_to_rect, np_cube_t_to_rect),
+        (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5)))
+    )
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
