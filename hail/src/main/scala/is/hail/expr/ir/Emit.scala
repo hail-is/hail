@@ -2504,24 +2504,26 @@ object NDArrayEmitter {
     val compatibilityCheck = mustMatch.mux(Code._empty[Unit], Code._fatal("Matrix dimensions incompatible"))
 
     if (leftLen == 1 && rightLen == 1) {
-      return (compatibilityCheck, Array())
+      (compatibilityCheck, Array())
     }
     else if (leftLen == 1) {
-      return (compatibilityCheck, rightShape.slice(0, rightInnerDim) :+ rightShape.last)
+      (compatibilityCheck, rightShape.slice(0, rightInnerDim) :+ rightShape.last)
     }
     else if (rightLen == 1) {
       // All but the last element of left shape
-      return (compatibilityCheck, leftShape.slice(0, leftInnerDim))
+      (compatibilityCheck, leftShape.slice(0, leftInnerDim))
     }
+    else {
+      assert(leftLen == rightLen)
+      val mRows = leftShape(leftLen - 2)
+      val mCols = rightShape(rightLen - 1)
 
-    val mRows = leftShape(leftLen - 2)
-    val mCols = rightShape(rightLen - 1)
+      val upperShape = unifyShapes2(leftShape.slice(0, leftLen - 2), rightShape.slice(0, rightLen - 2))
 
-    val upperShape = unifyShapes2(leftShape.slice(0, leftLen - 2), rightShape.slice(0, rightLen - 2))
+      val lastTwoDims = Array(mRows, mCols)
 
-    val lastTwoDims = Array(mRows, mCols)
-
-    (compatibilityCheck, upperShape  ++ lastTwoDims)
+      (compatibilityCheck, upperShape  ++ lastTwoDims)
+    }
   }
 }
 
