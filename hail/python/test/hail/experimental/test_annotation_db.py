@@ -34,7 +34,7 @@ class AnnotationDBTests(unittest.TestCase):
     tearDownClass = tearDownAnnotationDBTests
 
     def test_uniqueness(self):
-        db = hl.experimental.DB(json=AnnotationDBTests.db_json)
+        db = hl.experimental.DB(config=AnnotationDBTests.db_json)
         t = hl.utils.range_table(10)
         t = t.annotate(locus=hl.locus('1', t.idx + 1))
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')
