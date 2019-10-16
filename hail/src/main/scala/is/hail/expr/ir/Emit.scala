@@ -2488,19 +2488,28 @@ object NDArrayEmitter {
   def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
     val leftLen = leftShape.length
     val rightLen = rightShape.length
-    val mRows = leftShape(leftLen - 2)
-    val mCols = rightShape(rightLen - 1)
-    val mustMatch = leftShape(leftLen - 1) ceq rightShape(rightLen - 2)
 
     assert(leftLen >= 1)
     assert(rightLen >= 1)
+
+    val leftInnerDim = leftLen - 1
+    val rightInnerDim = if (rightLen == 1) 0 else rightLen - 2
+    val mustMatch = leftShape(leftInnerDim) ceq rightShape(rightInnerDim)
 
     val compatibilityCheck = mustMatch.mux(Code._empty[Unit], Code._fatal("Matrix dimensions incompatible"))
 
     if (leftLen == 1 && rightLen == 1) {
       return (compatibilityCheck, Array())
     }
+    else if (leftLen == 1) {
+      return ???
+    }
+    else if (rightLen == 1) {
+      return ???
+    }
 
+    val mRows = leftShape(leftLen - 2)
+    val mCols = rightShape(rightLen - 1)
 
     val upperShape = unifyShapes2(leftShape.slice(0, leftLen - 2), rightShape.slice(0, rightLen - 2))
 

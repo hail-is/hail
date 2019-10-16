@@ -401,7 +401,7 @@ def test_ndarray_matmul():
     np_broadcasted_mat = np.array([[[1, 2],
                                     [3, 4]]])
 
-    #assert(hl.eval(v @ v) == np_v @ np_v)
+    assert(hl.eval(v @ v) == np_v @ np_v)
 
     assert_ndarrays_eq(
         (m @ m, np_m @ np_m),
@@ -430,6 +430,10 @@ def test_ndarray_matmul():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(r @ r)
+    assert "Matrix dimensions incompatible" in str(exc)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl._ndarray([1, 2]) @ hl._ndarray([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc)
 
 def test_ndarray_big():
