@@ -49,7 +49,9 @@ def test_ndarray_ref():
         (h_np_cube[1, 1, 0], 6),
         (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
         (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
-        (missing[1], None)
+        (missing[1], None),
+        (hl._ndarray([1, 2, 3])[hl.null(hl.tint32)], None),
+        (h_cube[0, 0, hl.null(hl.tint32)], None)
     )
 
     with pytest.raises(FatalError) as exc:
