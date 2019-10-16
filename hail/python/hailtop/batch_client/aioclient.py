@@ -330,9 +330,9 @@ class BatchBuilder:
         if output_files:
             job_spec['output_files'] = output_files
         if pvc_size:
-            sjob_spec['pvc_size'] = pvc_size
+            job_spec['pvc_size'] = pvc_size
 
-        self._job_docs.append(doc)
+        self._job_docs.append(job_spec)
 
         j = Job.unsubmitted_job(self, self._job_idx, attributes, parent_ids)
         self._jobs.append(j)

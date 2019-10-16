@@ -138,7 +138,7 @@ def validate_job(i, job):
 
     if 'job_id' not in job:
         raise ValidationError(f'no required key job_id in jobs[{i}]')
-    job_id = jobs['job_id']
+    job_id = job['job_id']
     if not isinstance(job_id, int):
         raise ValidationError(f'jobs[{i}].job_id is not int')
 
@@ -158,7 +158,7 @@ def validate_job(i, job):
 
     if 'parent_ids' not in job:
         raise ValidationError(f'no required key parent_ids in jobs[{i}]')
-    parent_ids = jobs['parent_ids']
+    parent_ids = job['parent_ids']
     if not isinstance(parent_ids, list):
         raise ValidationError(f'jobs[{i}].job_id is not list')
     for j, id in enumerate(parent_ids):
