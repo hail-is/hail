@@ -325,9 +325,9 @@ class BatchBuilder:
         if callback:
             job_spec['callback'] = callback
         if input_files:
-            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dest) in input_files]
+            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in input_files]
         if output_files:
-            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dest) in output_files]
+            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in output_files]
         if pvc_size:
             job_spec['pvc_size'] = pvc_size
 
