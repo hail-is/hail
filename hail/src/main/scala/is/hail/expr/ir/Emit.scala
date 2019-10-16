@@ -2267,7 +2267,7 @@ private class Emit(
       case x@NDArrayReshape(childND, shape) =>
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
-        def compatibleShape(numElements: Code[Int], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
+        def compatibleShape(numElements: Code[Long], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
           val numNegs = mb.newLocal[Int]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
@@ -2288,10 +2288,10 @@ private class Emit(
             },
             (numNegs > 1).orEmpty(Code._fatal("Can't infer shape, more than one -1")),
             (numNegs ceq 1).mux(
-              (numElements.toL % runningProduct) > 0L,
-              numElements.toL cne runningProduct
+              (numElements % runningProduct) > 0L,
+              numElements cne runningProduct
             ).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
-            quotient := numElements.toL / runningProduct,
+            quotient := numElements / runningProduct,
             Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
               variable := (shapeElement ceq -1L).mux(quotient, shapeElement)}:_*)
           ))
@@ -2309,15 +2309,16 @@ private class Emit(
 
         val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
 
-        val numElements = coerce[PNDArray](childND.pType).numElements(childShapeCached, mb)
+        val numElements = mb.newField[Long]
 
-        val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements.toI, requestedShapeArray)
+        val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements, requestedShapeArray)
 
         val setup = Code(
           childEmitter.setup,
           childShapeCachingCode,
           requestedShapet.setup,
           requestedShapeAddress := requestedShapet.value[Long],
+          numElements := coerce[PNDArray](childND.pType).numElements(childShapeCached, mb),
           reshapeSetup
         )
 
