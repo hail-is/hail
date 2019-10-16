@@ -409,14 +409,14 @@ def test_ndarray_matmul():
         (r @ r.T, np_r @ np_r.T),
         (v @ m, np_v @ np_m),
         (m @ v, np_m @ np_v),
-        # (cube @ cube, np_cube @ np_cube),
+        (cube @ cube, np_cube @ np_cube),
         (cube @ v, np_cube @ np_v),
         (v @ cube, np_v @ np_cube),
-        # (cube @ m, np_cube @ np_m),
-        # (m @ cube, np_m @ np_cube),
-        # (rect_prism @ m, np_rect_prism @ np_m),
-        # (m @ rect_prism, np_m @ np_rect_prism),
-        # (m @ rect_prism.T, np_m @ np_rect_prism.T),
+        (cube @ m, np_cube @ np_m),
+        (m @ cube, np_m @ np_cube),
+        (rect_prism @ m, np_rect_prism @ np_m),
+        (m @ rect_prism, np_m @ np_rect_prism),
+        (m @ rect_prism.T, np_m @ np_rect_prism.T),
         # (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism)
     )
 
