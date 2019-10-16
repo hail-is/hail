@@ -226,7 +226,7 @@ def validate_job(i, job):
             cpu = resources['cpu']
             if not isinstance(cpu, str):
                 raise ValidationError(f'jobs[{i}].resources.cpu is not str')
-            if not CPU_REGEX.fullmatch(memory):
+            if not CPU_REGEX.fullmatch(cpu):
                 raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
 
     if 'secrets' in job:
