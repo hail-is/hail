@@ -30,7 +30,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'job_id', 'mount_docker_socket', 'parent_ids', 'resources', 'secrets', 'service_account_name'
+    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'resources', 'secrets', 'service_account_name'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -45,7 +45,7 @@ K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
 MEMORY_REGEXPAT = r'[+]?(?:[0-9]*[.])?[0-9]+[KMGTP]?'
 MEMORY_REGEX = re.compile(MEMORY_REGEXPAT)
 
-CPU_REGEXPAT = r'[+]?(?:[0-9]*[.])?[0-9]+[u]?'
+CPU_REGEXPAT = r'[+]?(?:[0-9]*[.])?[0-9]+[m]?'
 CPU_REGEX = re.compile(CPU_REGEXPAT)
 
 
