@@ -128,7 +128,7 @@ def validate_job(i, job):
     # FIXME validate image
     # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
 
-    if 'input_files' not in job:
+    if 'input_files' in job:
         input_files = job['input_files']
         if not isinstance(input_files, list):
             raise ValidationError(f'jobs[{i}].input_files not list')
@@ -148,7 +148,7 @@ def validate_job(i, job):
     if not isinstance(mount_docker_socket, bool):
         raise ValidationError(f'jobs[{i}].mount_docker_socket not bool')
 
-    if 'output_files' not in job:
+    if 'output_files' in job:
         output_files = job['output_files']
         if not isinstance(output_files, list):
             raise ValidationError(f'jobs[{i}].output_files not list')
