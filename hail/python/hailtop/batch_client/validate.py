@@ -134,6 +134,7 @@ def validate_job(i, job):
         input_files = job['input_files']
         if not isinstance(input_files, list):
             raise ValidationError(f'jobs[{i}].input_files not list')
+
         for j, f in enumerate(input_files):
             if not isinstance(f, dict):
                 raise ValidationError(f'jobs[{i}].input_files[{j}] not dict')
@@ -169,8 +170,9 @@ def validate_job(i, job):
         output_files = job['output_files']
         if not isinstance(output_files, list):
             raise ValidationError(f'jobs[{i}].output_files not list')
+
         for j, f in enumerate(output_files):
-            if not isinstance(f, str):
+            if not isinstance(f, dict):
                 raise ValidationError(f'jobs[{i}].output_files[{j}] not dict')
 
             for k in f:
