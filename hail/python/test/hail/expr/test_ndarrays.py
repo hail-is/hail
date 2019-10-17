@@ -383,27 +383,18 @@ def test_ndarray_matmul():
     np_v = np.array([1, 2])
     np_m = np.array([[1, 2], [3, 4]])
     np_r = np.array([[1, 2, 3], [4, 5, 6]])
-    np_cube = np.array([[[1, 2],
-                         [3, 4]],
-                        [[5, 6],
-                         [7, 8]]])
-    np_rect_prism = np.array([[[1, 2],
-                               [3, 4]],
-                              [[5, 6],
-                               [7, 8]],
-                              [[9, 10],
-                               [11, 12]]])
+    np_cube = np.arange(8).reshape((2, 2, 2))
+    np_rect_prism = np.arange(12).reshape((3, 2, 2))
+
     v = hl._ndarray(np_v)
     m = hl._ndarray(np_m)
     r = hl._ndarray(np_r)
     cube = hl._ndarray(np_cube)
     rect_prism = hl._ndarray(np_rect_prism)
-    np_broadcasted_mat = np.array([[[1, 2],
-                                    [3, 4]]])
-
-    assert(hl.eval(v @ v) == np_v @ np_v)
+    np_broadcasted_mat = np.arange(4).reshape((1, 2, 2))
 
     assert_ndarrays_eq(
+        (v @ v, np_v @ np_v),
         (m @ m, np_m @ np_m),
         (m @ m.T, np_m @ np_m.T),
         (r @ r.T, np_r @ np_r.T),
