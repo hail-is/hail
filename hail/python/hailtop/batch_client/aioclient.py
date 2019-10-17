@@ -270,7 +270,7 @@ class BatchBuilder:
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
-                   service_account_name=None, attributes=None, callback=None, parents=None,
+                   service_account_name=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
@@ -325,8 +325,6 @@ class BatchBuilder:
 
         if attributes:
             job_spec['attributes'] = attributes
-        if callback:
-            job_spec['callback'] = callback
         if input_files:
             job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in input_files]
         if output_files:
