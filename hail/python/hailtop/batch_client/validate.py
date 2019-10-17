@@ -321,8 +321,8 @@ def job_spec_to_k8s_pod_spec(job_spec):
         container['env'] = job_spec['env']
 
     # defaults
-    cpu = '100m'
-    memory = '500M'
+    cpu = '1'
+    memory = '3.75G'
     if 'resources' in job_spec:
         resources = job_spec['resources']
         if 'memory' in resources:
