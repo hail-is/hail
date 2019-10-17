@@ -308,9 +308,8 @@ steps:
    image:
      valueFrom: hail_build_image.image
    resources:
-     requests:
-       memory: "4G"
-       cpu: "1"
+     memory: "4G"
+     cpu: "1"
    script: |
      set -ex
      cd /io
@@ -358,9 +357,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "1G"
+     cpu: "1"
    script: |
      set -ex
      cd /io
@@ -453,9 +451,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "1G"
+     cpu: "1"
    script: |
      set -ex
      cd /io
@@ -974,9 +971,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "1G"
+     cpu: "1"
    script: |
      set -ex
      cd /io
