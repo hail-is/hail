@@ -1,3 +1,4 @@
+import os
 import re
 
 # rough schema (without requiredness, value validation):
@@ -273,6 +274,10 @@ def validate_job(i, job):
             raise ValidationError(f'length of jobs[{i}].service_account_name must be <= 253')
         if not K8S_NAME_REGEX.fullmatch(service_account_name):
             raise ValidationError(f'jobs[{i}].service_account_name must match regex: {K8S_NAME_REGEXPAT}')
+
+
+BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
 
 def job_spec_to_k8s_pod_spec(job_spec):
