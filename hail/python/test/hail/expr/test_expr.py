@@ -274,6 +274,10 @@ class Tests(unittest.TestCase):
     def test_rbind_placement(self):
         self.assertEqual(hl.eval(5 / hl.rbind(5, lambda x: x)), 1.0)
 
+    def test_translate(self):
+        strs = [None, '', 'TATAN']
+        assert hl.eval(hl.literal(strs, 'array<str>').map(lambda x: x.translate({'T': 'A', 'A': 'T'}))) == [None, '', 'ATATN']
+
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
         string = hl.literal('12345')
