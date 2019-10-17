@@ -311,10 +311,6 @@ def job_spec_to_k8s_pod_spec(job_spec):
         'command': job_spec['command'],
         'image': job_spec['image'],
         'name': 'main',
-        'tolerations': [{
-            'key': 'preemptible',
-            'value': 'true'
-        }],
         'volumeMounts': volume_mounts
     }
     if 'env' in job_spec:
@@ -342,6 +338,10 @@ def job_spec_to_k8s_pod_spec(job_spec):
     pod_spec = {
         'containers': [container],
         'restartPolicy': 'Never',
+        'tolerations': [{
+            'key': 'preemptible',
+            'value': 'true'
+        }],
         'volumes': volumes
     }
     if 'service_account_name' in job_spec:
