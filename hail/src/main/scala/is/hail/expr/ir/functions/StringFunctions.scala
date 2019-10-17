@@ -12,6 +12,12 @@ import org.json4s.jackson.JsonMethods
 
 object StringFunctions extends RegistryFunctions {
 
+  def reverse(s: String): String = {
+    val sb = new StringBuilder
+    sb.append(s)
+    sb.reverseContents().result()
+  }
+
   def upper(s: String): String = s.toUpperCase
 
   def lower(s: String): String = s.toLowerCase
@@ -101,6 +107,7 @@ object StringFunctions extends RegistryFunctions {
       EmitTriplet(Code._empty, false, unwrapReturn(r, rt)(str))
     }
 
+    registerWrappedScalaFunction("reverse", TString(), TString(), null)(thisClass,"reverse")
     registerWrappedScalaFunction("upper", TString(), TString(), null)(thisClass,"upper")
     registerWrappedScalaFunction("lower", TString(), TString(), null)(thisClass,"lower")
     registerWrappedScalaFunction("strip", TString(), TString(), null)(thisClass,"strip")
