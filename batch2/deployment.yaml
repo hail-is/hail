@@ -153,9 +153,9 @@ spec:
 {% endif %}
 {% if not deploy %}
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
-           value: 0.1
+           value: "0.1"
          - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
-           value: 375M
+           value: "375M"
 {% endif %}
         ports:
          - containerPort: 5000
