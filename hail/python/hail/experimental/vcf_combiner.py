@@ -3,13 +3,57 @@
 import hail as hl
 from hail import MatrixTable, Table
 from hail.expr import StructExpression
-from hail.expr.expressions import expr_call, expr_array, expr_int32
+from hail.expr.expressions import expr_bool, expr_call, expr_array, expr_int32, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_ints(string, has_non_ref):
+    ints = string.split(r'\|')
+    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_doubles(string, has_non_ref):
+    ints = string.split(r'\|')
+    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_sb_table(string, has_non_ref):
+    ints = string.split(r'\|')
+    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda xs: xs.split(",").map(hl.int32))
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_ranksum(string, has_non_ref):
+    typ = hl.ttuple(hl.tfloat64, hl.tint32)
+    items = string.split(r'\|')
+    items = hl.cond(has_non_ref, items[:-1], items)
+    return items.map(lambda s: hl.cond(
+        (hl.len(s) == 0) | (s == '.'),
+        hl.null(typ),
+        hl.rbind(s.split(','), lambda ss: hl.cond(
+            hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
+            hl.null(hl.ttuple(hl.tfloat64, hl.tint32)),
+            hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
+
+_as_function_map = {
+    'AS_QUALapprox': parse_as_ints,
+    'AS_RAW_MQ': parse_as_doubles,
+    'AS_RAW_MQRankSum': parse_as_ranksum,
+    'AS_RAW_ReadPosRankSum': parse_as_ranksum,
+    'AS_SB_TABLE': parse_as_sb_table,
+    'AS_VarDP': parse_as_ints,
+}
+
+def parse_as_fields(info, has_non_ref):
+    return hl.struct(**{f: info[f] if f not in _as_function_map
+                        else _as_function_map[f](info[f], has_non_ref) for f in info})
 
 def localize(mt):
     if isinstance(mt, MatrixTable):
@@ -69,7 +113,11 @@ def transform_one(mt, info_to_keep=[]) -> Table:
                             SB=e.SB,
                             gvcf_info=hl.case()
                                 .when(hl.is_missing(row.info.END),
-                                      hl.struct(**(row.info.select(*info_to_keep))))
+                                      hl.struct(**(
+                                          parse_as_fields(
+                                              row.info.select(*info_to_keep),
+                                              has_non_ref)
+                                      )))
                                 .or_missing()
                         ))),
             ),
