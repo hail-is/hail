@@ -1,5 +1,6 @@
 import math
 import random
+import logging
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
@@ -9,6 +10,8 @@ from hailtop.auth import async_get_userinfo, service_auth_headers
 from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
 
 from .globals import complete_states
+
+log = logging.getLogger('batch_client.aioclient')
 
 job_array_size = 1000
 
@@ -353,6 +356,7 @@ class BatchBuilder:
 
         b_resp = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
         b = await b_resp.json()
+        log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         docs = []
@@ -371,6 +375,7 @@ class BatchBuilder:
         await self.pool.wait()
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+        log.info(f'closed batch {b["id"]}')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
