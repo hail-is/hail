@@ -63,9 +63,9 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 
-def create_job(app, jobs_builder, batch_id, spec):  # pylint: disable=R0912
-    job_id = spec['job_id']
-    parent_ids = spec.pop('parent_ids', [])
+def create_job(app, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
+    job_id = job_spec['job_id']
+    parent_ids = job_spec.pop('parent_ids', [])
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
@@ -78,7 +78,7 @@ def create_job(app, jobs_builder, batch_id, spec):  # pylint: disable=R0912
         batch_id=batch_id,
         job_id=job_id,
         state=state,
-        spec=json.dumps(spec),
+        spec=json.dumps(job_spec),
         directory=directory,
         exit_codes=json.dumps(exit_codes),
         durations=json.dumps(durations),
@@ -207,12 +207,12 @@ async def create_jobs(request, userdata):
         raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
 
     start2 = time.time()
-    jobs = await request.json()
+    job_specs = await request.json()
     log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
 
     start3 = time.time()
     try:
-        batch_client.validate.validate_jobs(jobs)
+        batch_client.validate.validate_jobs(job_specs)
     except batch_client.validate.ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
     log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
@@ -220,8 +220,8 @@ async def create_jobs(request, userdata):
     start4 = time.time()
     jobs_builder = JobsBuilder(app['db'])
     try:
-        for job in jobs:
-            create_job(app, jobs_builder, batch.id, job)
+        for job_spec in job_specs:
+            create_job(app, jobs_builder, batch.id, job_spec)
 
         success = await jobs_builder.commit()
         if not success:
