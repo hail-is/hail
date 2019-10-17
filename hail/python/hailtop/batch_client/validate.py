@@ -1,3 +1,4 @@
+import os
 import re
 
 # rough schema (without requiredness, value validation):
@@ -275,6 +276,10 @@ def validate_job(i, job):
             raise ValidationError(f'jobs[{i}].service_account_name must match regex: {K8S_NAME_REGEXPAT}')
 
 
+BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
+
+
 def job_spec_to_k8s_pod_spec(job_spec):
     volumes = []
     volume_mounts = []
@@ -317,8 +322,8 @@ def job_spec_to_k8s_pod_spec(job_spec):
         container['env'] = job_spec['env']
 
     # defaults
-    cpu = '1'
-    memory = '3.75G'
+    cpu = BATCH_JOB_DEFAULT_CPU
+    memory = BATCH_JOB_DEFAULT_MEMORY
     if 'resources' in job_spec:
         resources = job_spec['resources']
         if 'memory' in resources:

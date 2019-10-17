@@ -46,6 +46,12 @@ spec:
          - name: HAIL_INSTANCE_ID
            value: cd50b95a89914efb897965a5e982a29d
 {% endif %}
+{% if not deploy %}
+         - name: HAIL_BATCH_JOB_DEFAULT_CPU
+           value: "0.1"
+         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
+           value: "375M"
+{% endif %}
         ports:
          - containerPort: 5000
         volumeMounts:
