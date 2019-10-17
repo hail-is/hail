@@ -309,19 +309,13 @@ date
                                     command=['bash', '-c', script],
                                     mount_docker_socket=True,
                                     secrets=[{
-                                        'namespace': None,  # FIXME unused
+                                        'namespace': 'batch-pods',  # FIXME unused
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
                                     resources={
-                                        'requests': {
-                                            'memory': '2G',
-                                            'cpu': '1'
-                                        },
-                                        'limits': {
-                                            'memory': '2G',
-                                            'cpu': '1'
-                                        }
+                                        'memory': '2G',
+                                        'cpu': '1'
                                     },
                                     attributes={'name': self.name},
                                     input_files=input_files,

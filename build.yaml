@@ -308,9 +308,8 @@ steps:
    image:
      valueFrom: hail_build_image.image
    resources:
-     requests:
-       memory: "4G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -358,9 +357,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -453,9 +451,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -518,6 +515,9 @@ steps:
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
+   resources:
+     memory: "7.5G"
+     cpu: "2"
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
@@ -973,10 +973,6 @@ steps:
    name: test_hail_java_distributed_backend
    image:
      valueFrom: hail_run_image.image
-   resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
    script: |
      set -ex
      cd /io

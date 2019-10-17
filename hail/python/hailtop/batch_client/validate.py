@@ -315,14 +315,14 @@ def job_spec_to_k8s_pod_spec(job_spec):
             'key': 'preemptible',
             'value': 'true'
         }],
-        'volumes': volumes
+        'volumeMounts': volume_mounts
     }
     if 'env' in job_spec:
         container['env'] = job_spec['env']
 
     # defaults
-    cpu = '100m'
-    memory = '500M'
+    cpu = '1'
+    memory = '3.75G'
     if 'resources' in job_spec:
         resources = job_spec['resources']
         if 'memory' in resources:
@@ -342,7 +342,7 @@ def job_spec_to_k8s_pod_spec(job_spec):
     pod_spec = {
         'containers': [container],
         'restartPolicy': 'Never',
-        'volumeMounts': volume_mounts
+        'volumes': volumes
     }
     if 'service_account_name' in job_spec:
         pod_spec['serviceAccountName'] = job_spec['service_account_name']
