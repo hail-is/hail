@@ -309,7 +309,7 @@ date
                                     command=['bash', '-c', script],
                                     mount_docker_socket=True,
                                     secrets=[{
-                                        'namespace': None,  # FIXME unused
+                                        'namespace': 'batch-pods',  # FIXME unused
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
