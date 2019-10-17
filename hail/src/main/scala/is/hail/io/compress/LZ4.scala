@@ -1,12 +1,18 @@
 package is.hail.io.compress
 
-import net.jpountz.lz4.LZ4Factory
+import net.jpountz.lz4.{ LZ4Compressor, LZ4Factory, LZ4FastDecompressor }
 
-object LZ4Utils {
+object LZ4 {
   val factory = LZ4Factory.fastestInstance()
-  val compressor = factory.highCompressor()
-  val decompressor = factory.fastDecompressor()
 
+  val hc = new LZ4(factory.highCompressor(), factory.fastDecompressor())
+  val fast = new LZ4(factory.fastCompressor(), factory.fastDecompressor())
+}
+
+class LZ4 private (
+  compressor: LZ4Compressor,
+  decompressor: LZ4FastDecompressor
+) {
   def maxCompressedLength(decompLen: Int): Int =
     compressor.maxCompressedLength(decompLen)
 

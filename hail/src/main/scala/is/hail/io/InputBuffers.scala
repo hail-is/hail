@@ -4,7 +4,7 @@ import java.io._
 import java.util
 
 import is.hail.annotations.{Memory, Region}
-import is.hail.io.compress.LZ4Utils
+import is.hail.io.compress.LZ4
 import is.hail.utils._
 
 trait InputBuffer extends Closeable {
@@ -363,8 +363,8 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 }
 
-final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
+final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
   private var decompBuf = new Array[Byte](blockSize)
   private var lim = 0
 
@@ -381,7 +381,7 @@ final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     } else {
       val compLen = blockLen - 4
       val decompLen = Memory.loadInt(comp, 0)
-      LZ4Utils.decompress(buf, 0, decompLen, comp, 4, compLen)
+      lz4.decompress(buf, 0, decompLen, comp, 4, compLen)
       decompLen
     }
     lim = result

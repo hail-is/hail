@@ -8,7 +8,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
 import is.hail.expr.types.physical.{PArray, PCall, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TInt64Required, TLocus, TString, TStruct, Type}
-import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4BlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
 import is.hail.sparkextras._
@@ -31,7 +31,7 @@ object BgenSettings {
   def indexCodecSpecs(rg: Option[ReferenceGenome]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
     val bufferSpec = LEB128BufferSpec(
       BlockingBufferSpec(32 * 1024,
-        LZ4BlockBufferSpec(32 * 1024,
+        LZ4HCBlockBufferSpec(32 * 1024,
           new StreamBlockBufferSpec)))
 
     val keyVType = indexKeyType(rg)

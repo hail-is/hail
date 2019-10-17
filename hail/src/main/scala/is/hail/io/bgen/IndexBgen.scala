@@ -33,7 +33,7 @@ object IndexBgen {
 
   val bufferSpec: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024,
-      LZ4BlockBufferSpec(32 * 1024,
+      LZ4HCBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec)))
 
   def apply(
