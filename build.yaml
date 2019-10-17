@@ -308,8 +308,8 @@ steps:
    image:
      valueFrom: hail_build_image.image
    resources:
-     memory: "4G"
-     cpu: "1"
+     memory: "6G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -357,8 +357,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     memory: "2G"
-     cpu: "1"
+     memory: "6G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -451,8 +451,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     memory: "2G"
-     cpu: "1"
+     memory: "6G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -516,8 +516,8 @@ steps:
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
    resources:
-     memory: "2G"
-     cpu: "1"
+     memory: "6G"
+     cpu: "2"
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
@@ -974,7 +974,7 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     memory: "1G"
+     memory: "3G"
      cpu: "1"
    script: |
      set -ex
