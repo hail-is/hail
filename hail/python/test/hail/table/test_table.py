@@ -760,6 +760,11 @@ class Tests(unittest.TestCase):
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
+    def test_take_order(self):
+        t = hl.utils.range_table(20, n_partitions=2)
+        t = t.key_by(rev_idx=-t.idx)
+        assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
+
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
