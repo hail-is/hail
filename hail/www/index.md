@@ -1,18 +1,5 @@
 # Hail
 
-<div class='callout'>
-# ASHG 2019 Invited Workshop
-
-We're excited to demonstrate Hail at the American Society of Human Genetics 2019 conference in Houston, TX!
-
-
-<a href="https://www.ashg.org/2019meeting/asp/soe/webroot/soe.shtml#?type=Workshops%2FTicketed%20Events" target="_blank">7:15am - 8:45am Wednesday, October 16</a>
-
-
-<a href="https://workshop.hail.is" target="_blank">For participants</a>
-
-</div>
-
 Hail is an open-source, general-purpose, Python-based data analysis library with additional data types and methods for working with genomic data.
 
 Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS).
