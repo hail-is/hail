@@ -417,7 +417,7 @@ def test_ndarray_matmul():
         (rect_prism @ m, np_rect_prism @ np_m),
         (m @ rect_prism, np_m @ np_rect_prism),
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
-        # (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism)
+        (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism)
     )
 
     with pytest.raises(ValueError):

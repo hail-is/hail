@@ -1621,6 +1621,9 @@ private class Emit(
 
         val (unifyShapeSetup, unifiedShapeArray) = NDArrayEmitter.matmulShape(leftShapeArray, rightShapeArray)
 
+        val leftBroadcastFlags = if (lNDims > 2) NDArrayEmitter.broadcastFlags(leftShapeArray) else Array[Code[Long]]()
+        val rightBroadcastFlags = if (rNDims > 2) NDArrayEmitter.broadcastFlags(rightShapeArray) else Array[Code[Long]]()
+
         val setup = Code(
           lT.setup,
           rT.setup,
@@ -1666,18 +1669,19 @@ private class Emit(
               case (1, _) =>
                 val stackDims :+ m = seqIdxVars
 
-                val rStackVars = stackDims //Need to zero broadcast blah blah
-                //broadcastingLoopVars?
-                (Array(k), (rStackVars :+ k :+ m).toArray)
+                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
+                (Array(k), rStackVars :+ k :+ m)
               case (_, 1) =>
                 val stackDims :+ n = seqIdxVars
 
-                val lStackVars = stackDims
-                ((lStackVars :+ n :+ k).toArray, Array(k))
+                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
+                (lStackVars :+ n :+ k, Array(k))
               case (_, _) => {
                 val stackDims :+ n :+ m = seqIdxVars
+                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
+                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
 
-                ((stackDims :+ n :+ k).toArray, (stackDims :+ k :+  m).toArray)
+                (lStackVars :+ n :+ k, rStackVars :+ k :+  m)
               }
             }
 
@@ -2476,6 +2480,16 @@ object NDArrayEmitter {
     val broadcasted = 0L
     val notBroadcasted = 1L
     Array.tabulate(nDims)(dim => (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
+  }
+
+  def broadcastFlags(shapeArray: Array[Code[Long]]): Array[Code[Long]] = {
+    val broadcasted = 0L
+    val notBroadcasted = 1L
+    shapeArray.map(shapeElement => (shapeElement > 1L).mux(notBroadcasted, broadcasted))
+  }
+
+  def zeroBroadcastedDims(indices: Array[Code[Long]], broadcastFlags: Array[Code[Long]]): Array[Code[Long]] = {
+    indices.zip(broadcastFlags).map { case (shapeElement, flag) => shapeElement * flag }
   }
 
   def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
