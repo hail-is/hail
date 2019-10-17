@@ -385,13 +385,18 @@ def test_ndarray_matmul():
     np_r = np.array([[1, 2, 3], [4, 5, 6]])
     np_cube = np.arange(8).reshape((2, 2, 2))
     np_rect_prism = np.arange(12).reshape((3, 2, 2))
+    np_broadcasted_mat = np.arange(4).reshape((1, 2, 2))
+    np_six_dim_tensor = np.arange(3 * 7 * 1 * 9 * 4 * 5).reshape((3, 7, 1, 9, 4, 5))
+    np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
 
     v = hl._ndarray(np_v)
     m = hl._ndarray(np_m)
     r = hl._ndarray(np_r)
     cube = hl._ndarray(np_cube)
     rect_prism = hl._ndarray(np_rect_prism)
-    np_broadcasted_mat = np.arange(4).reshape((1, 2, 2))
+    broadcasted_mat = hl._ndarray(np_broadcasted_mat)
+    six_dim_tensor = hl._ndarray(np_six_dim_tensor)
+    five_dim_tensor = hl._ndarray(np_five_dim_tensor)
 
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
@@ -408,7 +413,8 @@ def test_ndarray_matmul():
         (rect_prism @ m, np_rect_prism @ np_m),
         (m @ rect_prism, np_m @ np_rect_prism),
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
-        (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism)
+        (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
+        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
     )
 
     with pytest.raises(ValueError):
