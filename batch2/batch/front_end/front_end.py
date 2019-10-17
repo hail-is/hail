@@ -65,7 +65,7 @@ deploy_config = get_deploy_config()
 
 def create_job(app, jobs_builder, batch_id, spec):  # pylint: disable=R0912
     job_id = spec['job_id']
-    parent_ids = spec.get('parent_ids', [])
+    parent_ids = spec.pop('parent_ids', [])
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
