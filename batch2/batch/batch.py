@@ -2,12 +2,12 @@ import json
 import logging
 import os
 import threading
-import uuid
 import traceback
 from shlex import quote as shq
 import asyncio
 import requests
 import kubernetes as kube
+from hailtop import batch_client
 
 from .globals import states, complete_states, valid_state_transitions, tasks
 from .batch_configuration import INSTANCE_ID
@@ -74,16 +74,16 @@ class Job:
                 mount_path='/gsa-key',
                 name='gsa-key')]  # FIXME: this shouldn't be mounted to every container
 
-        if self._pvc_name is not None:
+        if self.pvc_size or (self.input_files or self.output_files):
             volumes.append(kube.client.V1Volume(
-                empty_dir=kube.client.V1EmptyDirVolumeSource(
-                    size_limit=self._pvc_size),
-                name=self._pvc_name))
+                empty_dir=kube.client.V1EmptyDirVolumeSource(),
+                name='pvc'))
             volume_mounts.append(kube.client.V1VolumeMount(
                 mount_path='/io',
-                name=self._pvc_name))
+                name='pvc'))
 
-        pod_spec = self.app['k8s_client'].api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
+        pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(self._spec)
+        pod_spec = self.app['k8s_client'].api_client._ApiClient__deserialize(pod_spec, kube.client.V1PodSpec)
         pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
 
         if pod_spec.volumes is None:
@@ -186,25 +186,21 @@ class Job:
 
     @staticmethod
     def from_record(app, record):
-        if record is not None:
-            attributes = json.loads(record['attributes'])
-            userdata = json.loads(record['userdata'])
-            pod_spec = json.loads(record['pod_spec'])
-            input_files = json.loads(record['input_files'])
-            output_files = json.loads(record['output_files'])
-            exit_codes = json.loads(record['exit_codes'])
-            durations = json.loads(record['durations'])
-            messages = json.loads(record['messages'])
+        if not record:
+            return None
 
-            return Job(app, batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
-                       callback=record['callback'], userdata=userdata, user=record['user'],
-                       always_run=record['always_run'], exit_codes=exit_codes, messages=messages,
-                       durations=durations, state=record['state'], pvc_size=record['pvc_size'],
-                       cancelled=record['cancelled'], directory=record['directory'],
-                       token=record['token'], pod_spec=pod_spec, input_files=input_files,
-                       output_files=output_files)
+        userdata = json.loads(record['userdata'])
+        spec = json.loads(record['spec'])
+        exit_codes = json.loads(record['exit_codes'])
+        durations = json.loads(record['durations'])
+        messages = json.loads(record['messages'])
 
-        return None
+        return Job(app, batch_id=record['batch_id'], job_id=record['job_id'],
+                   userdata=userdata, user=record['user'],
+                   exit_codes=exit_codes, messages=messages,
+                   durations=durations, state=record['state'],
+                   cancelled=record['cancelled'], directory=record['directory'],
+                   spec=spec)
 
     @staticmethod
     async def from_pod(app, pod):
@@ -230,79 +226,50 @@ class Job:
         jobs = [Job.from_record(app, record) for record in records]
         return jobs
 
-    @staticmethod
-    def create_job(app, jobs_builder, pod_spec, batch_id, job_id, attributes, callback,
-                   parent_ids, input_files, output_files, userdata, always_run,
-                   pvc_size, state):
-        cancelled = False
-        user = userdata['username']
-        token = uuid.uuid4().hex[:6]
-
-        exit_codes = [None for _ in tasks]
-        durations = [None for _ in tasks]
-        messages = [None for _ in tasks]
-        directory = app['log_store'].gs_job_output_directory(batch_id, job_id, token)
-        pod_spec = app['k8s_client'].api_client.sanitize_for_serialization(pod_spec)
-
-        jobs_builder.create_job(
-            batch_id=batch_id,
-            job_id=job_id,
-            state=state,
-            pvc_size=pvc_size,
-            callback=callback,
-            attributes=json.dumps(attributes),
-            always_run=always_run,
-            token=token,
-            pod_spec=json.dumps(pod_spec),
-            input_files=json.dumps(input_files),
-            output_files=json.dumps(output_files),
-            directory=directory,
-            exit_codes=json.dumps(exit_codes),
-            durations=json.dumps(durations),
-            messages=json.dumps(messages))
-
-        for parent in parent_ids:
-            jobs_builder.create_job_parent(
-                batch_id=batch_id,
-                job_id=job_id,
-                parent_id=parent)
-
-        job = Job(app, batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
-                  userdata=userdata, user=user, always_run=always_run, exit_codes=exit_codes,
-                  messages=messages, durations=durations, state=state, pvc_size=pvc_size,
-                  cancelled=cancelled, directory=directory, token=token,
-                  pod_spec=pod_spec, input_files=input_files, output_files=output_files)
-
-        return job
-
-    def __init__(self, app, batch_id, job_id, attributes, callback, userdata, user, always_run,
-                 exit_codes, messages, durations, state, pvc_size, cancelled, directory,
-                 token, pod_spec, input_files, output_files):
+    def __init__(self, app, batch_id, job_id, userdata, user,
+                 exit_codes, messages, durations, state, cancelled, directory,
+                 spec):
         self.app = app
         self.batch_id = batch_id
         self.job_id = job_id
         self.id = (batch_id, job_id)
 
-        self.attributes = attributes
-        self.callback = callback
-        self.always_run = always_run
         self.userdata = userdata
         self.user = user
         self.exit_codes = exit_codes
         self.messages = messages
         self.directory = directory
         self.durations = durations
-        self.token = token
-        self.input_files = input_files
-        self.output_files = output_files
 
-        name = f'batch-{batch_id}-job-{job_id}-{token}'
+        name = f'batch-{batch_id}-job-{job_id}'
         self._pod_name = name
-        self._pvc_name = name if pvc_size else None
-        self._pvc_size = pvc_size
         self._state = state
         self._cancelled = cancelled
-        self._pod_spec = pod_spec
+        self._spec = spec
+
+    @property
+    def attributes(self):
+        return self._spec.get('attributes')
+
+    @property
+    def callback(self):
+        return self._spec.get('callback')
+
+    @property
+    def input_files(self):
+        return self._spec.get('input_files')
+
+    @property
+    def output_files(self):
+        return self._spec.get('output_files')
+
+    @property
+    def always_run(self):
+        return self._spec.get('always_run', False)
+
+    @property
+    def pvc_size(self):
+        return self._spec.get('pvc_size')
 
     async def refresh_parents_and_maybe_create(self):
         for record in await self.app['db'].jobs.get_parents(*self.id):

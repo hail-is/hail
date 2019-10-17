@@ -24,11 +24,12 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
+from ..globals import tasks
 from ..batch import Batch, Job
 from ..log_store import LogStore
 from ..database import BatchDatabase, JobsBuilder
 from ..datetime_json import JSON_ENCODER
-from ..batch_configuration import POD_VOLUME_SIZE, INSTANCE_ID
+from ..batch_configuration import INSTANCE_ID
 
 from . import schemas
 
@@ -55,7 +56,6 @@ REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id
 
 READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
 
-log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
 routes = web.RouteTableDef()
@@ -63,37 +63,32 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 
-def create_job(app, jobs_builder, batch_id, userdata, job_spec):  # pylint: disable=R0912
-    job_id = job_spec['job_id']
-    parent_ids = job_spec.get('parent_ids', [])
-    input_files = job_spec.get('input_files')
-    output_files = job_spec.get('output_files')
-    pvc_size = job_spec.get('pvc_size')
-    if pvc_size is None and (input_files or output_files):
-        pvc_size = POD_VOLUME_SIZE
-    always_run = job_spec.get('always_run', False)
-
-    pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(job_spec)
+def create_job(app, jobs_builder, batch_id, spec):  # pylint: disable=R0912
+    job_id = spec['job_id']
+    parent_ids = spec.get('parent_ids', [])
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
-    job = Job.create_job(
-        app,
-        jobs_builder,
+    exit_codes = [None for _ in tasks]
+    durations = [None for _ in tasks]
+    messages = [None for _ in tasks]
+    directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
+
+    jobs_builder.create_job(
         batch_id=batch_id,
         job_id=job_id,
-        pod_spec=pod_spec,
-        attributes=job_spec.get('attributes'),
-        callback=job_spec.get('callback'),
-        parent_ids=parent_ids,
-        input_files=input_files,
-        output_files=output_files,
-        userdata=userdata,
-        always_run=always_run,
-        pvc_size=pvc_size,
-        state=state)
+        state=state,
+        spec=json.dumps(spec),
+        directory=directory,
+        exit_codes=json.dumps(exit_codes),
+        durations=json.dumps(durations),
+        messages=json.dumps(messages))
 
-    return job
+    for parent in parent_ids:
+        jobs_builder.create_job_parent(
+            batch_id=batch_id,
+            job_id=job_id,
+            parent_id=parent)
 
 
 @routes.get('/healthcheck')
@@ -226,7 +221,7 @@ async def create_jobs(request, userdata):
     jobs_builder = JobsBuilder(app['db'])
     try:
         for job in jobs:
-            create_job(app, jobs_builder, batch.id, userdata, job)
+            create_job(app, jobs_builder, batch.id, job)
 
         success = await jobs_builder.commit()
         if not success:

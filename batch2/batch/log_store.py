@@ -31,8 +31,8 @@ class LogStore:
 
         self.gcs = GCS(blocking_pool, credentials)
 
-    def gs_job_output_directory(self, batch_id, job_id, token):
-        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/{token}/'
+    def gs_job_output_directory(self, batch_id, job_id):
+        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/'
 
     async def write_gs_file(self, uri, data):
         return await self.gcs.write_gs_file(uri, data)
