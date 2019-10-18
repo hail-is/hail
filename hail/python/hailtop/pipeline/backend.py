@@ -337,7 +337,6 @@ class BatchBackend(Backend):
 
         if status['state'] == 'success':
             print('Pipeline completed successfully!')
-            self._batch_client.close()
             return
 
         failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
@@ -353,7 +352,5 @@ class BatchBackend(Backend):
                 f"  Task name:\t{name}\n"
                 f"  Command:\t{jobs_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
-
-        self._batch_client.close()
 
         raise PipelineException(fail_msg)
