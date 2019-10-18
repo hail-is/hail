@@ -14,6 +14,7 @@ from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
+from hailtop.utils import request_retry_transient_errors
 
 # import uvloop
 
@@ -55,36 +56,6 @@ async def docker_call_retry(f, *args, **kwargs):
         delay = min(delay * 2, 60.0)
 
 
-class Error:
-    def __init__(self, reason, msg):
-        self.reason = reason
-        self.message = msg
-
-    def to_dict(self):
-        return {
-            'reason': self.reason,
-            'message': self.message
-        }
-
-    def __str__(self):
-        return f'{self.reason}: {self.message}'
-
-
-class UnknownVolume(Error):
-    def __init__(self, msg):
-        super(UnknownVolume, self).__init__('UnknownVolume', msg)
-
-
-class ImagePullBackOff(Error):
-    def __init__(self, msg):
-        super(ImagePullBackOff, self).__init__('ImagePullBackOff', msg)
-
-
-class RunContainerError(Error):
-    def __init__(self, msg):
-        super(RunContainerError, self).__init__('RunContainerError', msg)
-
-
 class Container:
     def __init__(self, spec, pod, log_directory):
         self.pod = pod
@@ -121,6 +92,7 @@ class Container:
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
+        # make sure we have container
         try:
             await docker_call_retry(docker.images.get, image)
         except DockerError as e:
@@ -326,24 +298,15 @@ class BatchPod:
             'events': self.events
         }
 
-        while True:
-            try:
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    async with session.post(self.worker.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'), json=body) as resp:
-                        self.last_updated = time.time()
-                        if resp.status == 200:
-                            log.info(f'sent pod complete for {self.name}')
-                        elif resp.status == 404:
-                            log.info(f'sent pod complete for {self.name}, but driver did not recognize pod, ignoring')
-                        else:
-                            log.info(f'unknown response for {self.name}, {resp!r}')
-                        return
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f'caught exception while marking {self.name} complete, will try again later')
-            await asyncio.sleep(15)
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                await request_retry_transient_errors(
+                    session, 'POST',
+                    self.worker.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
+                    json=body)
+        except Exception:
+            log.exception('failed to mark {self.name} complete')
 
     async def run(self, semaphore=None):
         start = time.time()
@@ -535,17 +498,14 @@ class Worker:
             else:
                 log.info(f'idle {MAX_IDLE_TIME_WITHOUT_PODS} seconds with no pods, exiting')
 
-            try:
-                body = {'inst_token': self.token}
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate')
-                    async with session.post(url, json=body):
-                        log.info('deactivated')
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception('caught exception while deactivating')
+            body = {'inst_token': self.token}
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                await request_retry_transient_errors(
+                    session, 'POST',
+                    self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
+                    json=body)
+                log.info('deactivated')
         finally:
             log.info('shutting down')
             if site:
@@ -556,29 +516,16 @@ class Worker:
                 log.info('cleaned up app runner')
 
     async def register(self):
-        tries = 0
-        while True:
-            try:
-                log.info('registering')
-                body = {'inst_token': self.token,
-                        'ip_address': self.ip_address}
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    url = self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate')
-                    async with session.post(url, json=body) as resp:
-                        if resp.status == 200:
-                            self.last_updated = time.time()
-                            log.info('registered')
-                            return
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception as e:  # pylint: disable=broad-except
-                log.exception('caught exception while registering')
-                if tries == 12:
-                    log.info('register: giving up')
-                    raise e
-                tries += 1
-            await asyncio.sleep(5 * random.uniform(1, 1.25))
+        body = {
+            'inst_token': self.token,
+            'ip_address': self.ip_address
+        }
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            await request_retry_transient_errors(
+                session, 'POST',
+                self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
+                json=body)
 
 
 cores = int(os.environ['CORES'])
