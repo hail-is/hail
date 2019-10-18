@@ -5,11 +5,16 @@ Library functions for combining gVCFS and sparse matrix tables into
 larger sparse matrix tables.
 
 What this module provides:
-    - Sensible ways to transform input gVCFS.
-    - Combining functions
+    - A Sensible way to transform input gVCFS.
+    - The combining function.
 
 What this module does not provide:
     - Any way to repartition the data.
+
+There are two additional functions of note for working with sparse data in the
+main experimental module :func:`.sparse_split_multi`, which splits multi-alleleics
+in a sparse matrix table, and :func:`.densify` which converts a sparse matrix table
+to a dense one.
 
 .. currentmodule:: hail.experimental.vcf_combiner
 
