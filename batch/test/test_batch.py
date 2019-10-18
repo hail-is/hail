@@ -10,7 +10,6 @@ import secrets
 import time
 import unittest
 import aiohttp
-from flask import Flask, Response, request
 import requests
 
 from hailtop.config import get_deploy_config
