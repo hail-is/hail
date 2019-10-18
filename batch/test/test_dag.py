@@ -138,13 +138,13 @@ def test_callback(client):
             if i > 14:
                 break
 
-        assert (received_callback == {
+        assert (callback_body == {
             'id': b.id,
             'state': 'success',
             'complete': True,
             'closed': True,
             'attributes': {'foo': 'bar'},
-        }), received_callback
+        }), callback_body
     finally:
         if server:
             server.shutdown()
