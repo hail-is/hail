@@ -133,6 +133,9 @@ def test_ndarray_reshape():
     np_single = np.array([8])
     single = hl._ndarray([8])
 
+    np_zero_dim = np.array(4)
+    zero_dim = hl._ndarray(4)
+
     np_a = np.array([1, 2, 3, 4, 5, 6])
     a = hl._ndarray(np_a)
 
@@ -148,6 +151,7 @@ def test_ndarray_reshape():
 
     assert_ndarrays_eq(
         (single.reshape(()), np_single.reshape(())),
+        (zero_dim.reshape(()), np_zero_dim.reshape(())),
         (a.reshape((6,)), np_a.reshape((6,))),
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),

@@ -129,7 +129,10 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
 
-    if (nDim <= 1) {
+    if (nDim == 0) {
+      (Code._empty, Array(index))
+    }
+    else if (nDim == 1) {
       (Code._empty, Array(index))
     } else {
       val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
@@ -137,7 +140,6 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       val workRemaining = mb.newField[Long]
 
       val createShape = Code(
-        elementsInProcessedDimensions := 1L,
         workRemaining := index,
         elementsInProcessedDimensions := shapeArray.reduce(_ * _),
         Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
