@@ -261,10 +261,12 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     Examples
     --------
     Estimate the median of the `HT` field.
+
     >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +SKIP_OUTPUT_CHECK
     64
 
     Estimate the quartiles of the `HT` field.
+
     >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +SKIP_OUTPUT_CHECK
     [50, 60, 64, 71, 86]
 
