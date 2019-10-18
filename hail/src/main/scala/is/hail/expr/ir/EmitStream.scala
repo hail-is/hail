@@ -129,7 +129,7 @@ object EmitStream {
     type S = Code[Int]
     val stateP: ParameterPack[S] = implicitly
     def emptyState: S = elements.length
-    def length(s0: S): Option[Code[Int]] = Some(elements.length)
+    def length(s0: S): Option[Code[Int]] = Some(const(elements.length) - s0)
 
     def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
       Code(initialize(param), k(Start(0)))
