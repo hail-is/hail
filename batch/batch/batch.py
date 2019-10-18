@@ -909,10 +909,12 @@ class Batch:
 
     async def mark_job_complete(self):
         if self.complete and self.callback:
+            log.info(f'making callback for batch {self.id}: {self.callback}')
             try:
                 await app['client_session'].post(self.callback, json=await self.to_dict(include_jobs=False))
+                log.info(f'callback for batch {self.id} successful')
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'callback for batch {self.id}, will not retry.')
+                log.exception(f'callback for batch {self.id} failed, will not retry.')
 
     def is_complete(self):
         return self.complete
