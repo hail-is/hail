@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS `instances` (
 
 CREATE TABLE IF NOT EXISTS `pods` (
   `name` VARCHAR(100) NOT NULL,
-  `spec` TEXT(65535) NOT NULL,
+  `batch_id` BIGINT NOT NULL,
+  `job_spec` TEXT(65535) NOT NULL,
+  `userdata` TEXT(65535) NOT NULL,
   `output_directory` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `instance` VARCHAR(100),

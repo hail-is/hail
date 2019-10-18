@@ -1,6 +1,6 @@
-import abc
 import os
 import sys
+from shlex import quote as shq
 import time
 import logging
 import asyncio
@@ -72,7 +72,7 @@ class Container:
         self._container = None
         self.name = spec['name']
         self.spec = spec
-        self.cores_mcpu = parse_cpu_in_mcpu(spec['resources']['requests']['cpu'])
+        self.cores_mcpu = parse_cpu_in_mcpu(spec['cpu'])
         self.exit_code = None
         self.id = pod.name + '-' + self.name
         self.error = None
@@ -83,7 +83,7 @@ class Container:
             log.info(f'adding latest tag to image {self.spec["image"]} for container {self.id}')
             self.spec['image'] += ':latest'
 
-    async def create(self, volumes):
+    async def create(self):
         log.info(f'creating container {self.id}')
 
         config = {
@@ -98,25 +98,7 @@ class Container:
                            'CpuQuota': self.cores_mcpu * 100}
         }
 
-        volume_mounts = []
-        errs = []
-        for mount in self.spec['volume_mounts']:
-            mount_name = mount['name']
-            mount_path = mount['mount_path']
-            if mount_name in volumes:
-                volume_path = volumes[mount_name].path
-                if volume_path:
-                    volume_mounts.append(f'{volume_path}:{mount_path}')
-                else:
-                    errs.append(f'unknown secret {mount_name} specified in volume_mounts')
-            else:
-                errs.append(f'unknown volume {mount_name} specified in volume_mounts')
-
-        if errs:
-            self.error = UnknownVolume('\n'.join(errs))
-            log.info(f'caught {self.error.reason} error while creating container {self.id}: {self.error.message}')
-            return False
-
+        volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
@@ -243,99 +225,126 @@ class Container:
 
 
 class Volume:
-    @staticmethod
-    @abc.abstractmethod
-    def create(*args):
-        return
-
-    @abc.abstractmethod
-    def path(self):
-        return
-
-    @abc.abstractmethod
-    def delete(self):
-        return
-
-
-class Secret(Volume):
-    @staticmethod
-    async def create(name, file_path, secret_data):
-        if secret_data is None:
-            return Secret(name, None)
-
-        os.makedirs(file_path)
-        for file_name, data in secret_data.items():
-            with open(f'{file_path}/{file_name}', 'w') as f:
-                f.write(base64.b64decode(data).decode())
-        return Secret(name, file_path)
-
-    def __init__(self, name, file_path):
+    def __init__(self, name):
         self.name = name
-        self.file_path = file_path
+        self.volume = None
 
-    @property
-    def path(self):
-        return self.file_path
-
-    async def delete(self):
-        shutil.rmtree(self.path, ignore_errors=True)
-
-
-class EmptyDir(Volume):
-    # FIXME add size parameter
-    @staticmethod
-    async def create(name):
+    async def create(self):
         config = {
-            'Name': name
+            'Name': self.name
         }
-        volume = await docker.volumes.create(config)
-        return EmptyDir(name, volume)
-
-    def __init__(self, name, volume):
-        self.name = name
-        self.volume = volume
+        self.volume = await docker.volumes.create(config)
 
     @property
-    def path(self):
+    def volume_path(self):
         return self.name
 
     async def delete(self):
-        await self.volume.delete()
+        if self.volume:
+            await self.volume.delete()
+            self.volume = None
+
+
+def populate_secret_host_path(host_path, secret_data):
+    os.makedirs(host_path)
+    if secret_data is not None:
+        for filename, data in secret_data.items():
+            with open(f'{host_path}/{filename}', 'w') as f:
+                f.write(base64.b64decode(data).decode())
+
+
+def copy(files):
+    if files is None:
+        return 'true'
+
+    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
+
+    def copy_command(src, dst):
+        if not dst.startswith('gs://'):
+            mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
+        else:
+            mkdirs = ""
+        return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
+
+    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
+    return f'{authenticate} && {copies}'
 
 
 class BatchPod:
-    async def _create_volumes(self):
-        log.info(f'creating volumes for pod {self.name}')
-        volumes = {}
-        for volume_spec in self.spec['spec']['volumes']:
-            name = volume_spec['name']
-            if volume_spec['empty_dir'] is not None:
-                volume = await EmptyDir.create(name)
-                volumes[name] = volume
-            elif volume_spec['secret'] is not None:
-                secret_name = volume_spec['secret']['secret_name']
-                path = f'{self.scratch}/secrets/{secret_name}'
-                secret = await Secret.create(name, path, self.secrets_data.get(secret_name))
-                volumes[name] = secret
-            else:
-                raise Exception(f'Unsupported volume type for {volume_spec}')
-        return volumes
-
     def __init__(self, worker, parameters, cpu_sem):
         self.worker = worker
-        self.spec = parameters['spec']
-        self.secrets_data = parameters['secrets']
-        self.output_directory = parameters['output_directory']
 
-        self.metadata = self.spec['metadata']
-        self.name = self.metadata['name']
+        job_spec = parameters['job_spec']
+
+        self.name = parameters['name']
+        self.batch_id = parameters['batch_id']
+        self.job_id = parameters['job_id']
+        self.user = parameters['user']
+        self.output_directory = parameters['output_directory']
         self.token = uuid.uuid4().hex
         self.events = []
-        self.volumes = {}
-
-        self.containers = {cspec['name']: Container(cspec, self, self.output_directory) for cspec in self.spec['spec']['containers']}
-        self.phase = 'Pending'
         self.scratch = f'/batch/pods/{self.name}/{self.token}'
+
+        input_files = job_spec.get('input_files')
+        output_files = job_spec.get('output_files')
+        pvc_size = job_spec.get('pvc_size')
+
+        # create volumes
+        self.volumes = []
+
+        copy_volume_mounts = []
+        main_volume_mounts = []
+
+        if job_spec.get('mount_docker_socket'):
+            main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
+
+        if pvc_size or input_files or output_files:
+            v = Volume('io')
+            self.volumes.append(v)
+            volume_mount = 'io:/io'
+            main_volume_mounts.append(volume_mount)
+            copy_volume_mounts.append(volume_mount)
+
+        secrets = job_spec.get('secrets')
+        if secrets:
+            for secret in job_spec['secrets']:
+                host_path = f'{self.scratch}/{secret["name"]}'
+                populate_secret_host_path(host_path, secret['data'])
+                volume_mount = f'{host_path}:{secret["mount_path"]}'
+                main_volume_mounts.append(volume_mount)
+                # this will be the user gsa-key
+                if secret.get('mount_in_copy', False):
+                    copy_volume_mounts.append(volume_mount)
+
+        # create containers
+        def copy_container(files, name):
+            sh_expression = copy(files)
+            cspec = {
+                'image': 'google/cloud-sdk:237.0.0-alpine',
+                'name': name,
+                'command': ['/bin/sh', '-c', sh_expression],
+                'cpu': '500m' if files else '100m',
+                'volume_mounts': copy_volume_mounts
+            }
+            return Container(cspec, self, self.output_directory)
+
+        # main container
+        main_cspec = {
+            'command': job_spec['command'],
+            'image': job_spec['image'],
+            'name': 'main',
+            # FIXME env
+            'cpu': job_spec['resources']['cpu'],
+            'volume_mounts': main_volume_mounts
+        }
+
+        self.containers = {
+            'setup': copy_container(input_files, 'setup'),
+            'main': Container(main_cspec, self, self.output_directory),
+            'cleanup': copy_container(output_files, 'cleanup')
+        }
+
+        self.phase = 'Pending'
 
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
@@ -343,14 +352,16 @@ class BatchPod:
 
     async def _create(self):
         log.info(f'creating pod {self.name}')
-        self.volumes = await self._create_volumes()
-        created = await asyncio.gather(*[container.create(self.volumes) for container in self.containers.values()])  # FIXME: errors not handled properly
+        for v in self.volumes:
+            await v.create()
+        # FIXME: errors not handled properly
+        created = await asyncio.gather(*[c.create() for _, c in self.containers.items()])
         return all(created)
 
     async def _cleanup(self):
         log.info(f'cleaning up pod {self.name}')
         await asyncio.gather(*[c.delete() for _, c in self.containers.items()])
-        await asyncio.gather(*[v.delete() for _, v in self.volumes.items()])
+        await asyncio.gather(*[v.delete() for v in self.volumes])
         shutil.rmtree(self.scratch, ignore_errors=True)
 
     async def _mark_complete(self):
@@ -434,7 +445,14 @@ class BatchPod:
 
     def to_dict(self):
         return {
-            'metadata': self.metadata,
+            'metadata': {
+                'name': self.name,
+                'labels': {
+                    'batch_id': self.batch_id,
+                    'job_id': self.job_id,
+                    'user': self.user
+                }
+            },
             'status': {
                 'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
                 'phase': self.phase

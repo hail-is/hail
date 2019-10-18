@@ -692,6 +692,84 @@ class Job:
         return result
 
 
+BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
+
+
+def job_spec_to_k8s_pod_spec(job_spec):
+    volumes = []
+    volume_mounts = []
+
+    if job_spec.get('mount_docker_socket', False):
+        volumes.append({
+            'name': 'docker-sock-volume',
+            'hostPath': {
+                'path': '/var/run/docker.sock',
+                'type': 'File'
+            }
+        })
+        volume_mounts.append({
+            'mountPath': '/var/run/docker.sock',
+            'name': 'docker-sock-volume'
+        })
+
+    if 'secrets' in job_spec:
+        secrets = job_spec['secrets']
+        for secret in secrets:
+            volumes.append({
+                'name': secret['name'],
+                'secret': {
+                    'secretName': secret['name']
+                }
+            })
+            volume_mounts.append({
+                'mountPath': secret['mount_path'],
+                'name': secret['name'],
+                'readOnly': True
+            })
+
+    container = {
+        'command': job_spec['command'],
+        'image': job_spec['image'],
+        'name': 'main',
+        'volumeMounts': volume_mounts
+    }
+    if 'env' in job_spec:
+        container['env'] = job_spec['env']
+
+    # defaults
+    cpu = BATCH_JOB_DEFAULT_CPU
+    memory = BATCH_JOB_DEFAULT_MEMORY
+    if 'resources' in job_spec:
+        resources = job_spec['resources']
+        if 'memory' in resources:
+            memory = resources['memory']
+        if 'cpu' in resources:
+            cpu = resources['cpu']
+    container['resources'] = {
+        'requests': {
+            'cpu': cpu,
+            'memory': memory
+        },
+        'limits': {
+            'cpu': cpu,
+            'memory': memory
+        }
+    }
+    pod_spec = {
+        'containers': [container],
+        'restartPolicy': 'Never',
+        'tolerations': [{
+            'key': 'preemptible',
+            'value': 'true'
+        }],
+        'volumes': volumes
+    }
+    if 'service_account_name' in job_spec:
+        pod_spec['serviceAccountName'] = job_spec['service_account_name']
+    return pod_spec
+
+
 def create_job(jobs_builder, batch_id, userdata, job_spec):  # pylint: disable=R0912
     job_id = job_spec['job_id']
     parent_ids = job_spec.get('parent_ids', [])
@@ -702,7 +780,7 @@ def create_job(jobs_builder, batch_id, userdata, job_spec):  # pylint: disable=R
         pvc_size = POD_VOLUME_SIZE
     always_run = job_spec.get('always_run', False)
 
-    pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(job_spec)
+    pod_spec = job_spec_to_k8s_pod_spec(job_spec)
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 

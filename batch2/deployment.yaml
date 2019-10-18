@@ -56,6 +56,10 @@ spec:
            value: "1"
          - name: MAX_INSTANCES
            value: "2"
+         - name: HAIL_BATCH_JOB_DEFAULT_CPU
+           value: "0.1"
+         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
+           value: "375M"
 {% endif %}
 {% if not deploy %}
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
