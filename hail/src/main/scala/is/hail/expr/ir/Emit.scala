@@ -1500,25 +1500,24 @@ private class Emit(
         val setup = Code(
           shapet.setup,
           datat.setup,
-          rowMajort.setup,
-          shapet.m.mux(
-            Code._fatal("Missing shape"),
-            shapeAddress := shapet.value[Long]
-          ),
+          rowMajort.setup
+        )
+        val result = Code(
+          shapeAddress := shapet.value[Long],
           Code.foreach(0 until nDims) {index =>
             shapeTuple.isMissing(index).mux[Unit](
               Code._fatal(s"shape missing at index $index"),
               shapeVariables(index) := shapeTuple(index)
             )
-          }
+          },
+          xP.construct(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
         )
-        val result = xP.construct(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
-        EmitTriplet(setup, false, result)
+        EmitTriplet(setup, datat.m || shapet.m, result)
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
-        EmitTriplet(ndt.setup, false, ndP.shape.load(region, ndt.value[Long]))
+        EmitTriplet(ndt.setup, ndt.m, ndP.shape.load(region, ndt.value[Long]))
       case NDArrayRef(nd, idxs) =>
         val ndt = emit(nd)
         val idxst = idxs.map(emit(_))

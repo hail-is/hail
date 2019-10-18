@@ -30,6 +30,7 @@ def test_ndarray_ref():
     np_scalar = np.array(scalar)
     h_scalar = hl._ndarray(scalar)
     h_np_scalar = hl._ndarray(np_scalar)
+
     assert_evals_to(h_scalar[()], 5.0)
     assert_evals_to(h_np_scalar[()], 5.0)
 
@@ -39,13 +40,19 @@ def test_ndarray_ref():
              [6, 7]]]
     h_cube = hl._ndarray(cube)
     h_np_cube = hl._ndarray(np.array(cube))
+    missing = hl._ndarray(hl.null(hl.tarray(hl.tint32)))
+
     assert_all_eval_to(
         (h_cube[0, 0, 1], 1),
         (h_cube[1, 1, 0], 6),
         (h_np_cube[0, 0, 1], 1),
         (h_np_cube[1, 1, 0], 6),
         (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
-        (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3))
+        (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
+        (missing[1], None),
+        (hl._ndarray([1, 2, 3])[hl.null(hl.tint32)], None),
+        (h_cube[0, 0, hl.null(hl.tint32)], None)
+    )
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl._ndarray([1, 2, 3])[4])
@@ -97,6 +104,9 @@ def test_ndarray_eval():
     assert np.array_equal(hl.eval(hl._ndarray(hl.range(6))), np.arange(6))
     assert np.array_equal(hl.eval(hl._ndarray(hl.int64(4))), np.array(4))
 
+    # Testing missing data
+    assert hl.eval(hl._ndarray(hl.null(hl.tarray(hl.tint32)))) is None
+
     with pytest.raises(ValueError) as exc:
         hl._ndarray([[4], [1, 2, 3], 5])
     assert "inner dimensions do not match" in str(exc.value)
@@ -115,6 +125,7 @@ def test_ndarray_shape():
     col = hl._ndarray(np_col)
     m = hl._ndarray(np_m)
     nd = hl._ndarray(np_nd)
+    missing = hl._ndarray(hl.null(hl.tarray(hl.tint32)))
 
     assert_all_eval_to(
         (e.shape, np_e.shape),
@@ -124,7 +135,9 @@ def test_ndarray_shape():
         (nd.shape, np_nd.shape),
         ((row + nd).shape, (np_row + np_nd).shape),
         ((row + col).shape, (np_row + np_col).shape),
-        (m.transpose().shape, np_m.transpose().shape))
+        (m.transpose().shape, np_m.transpose().shape),
+        (missing.shape, None)
+    )
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
