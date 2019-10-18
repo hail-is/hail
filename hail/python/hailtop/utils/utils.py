@@ -38,7 +38,7 @@ class AsyncThrottledGather:
                 await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception:  # pylint: disable=broad-except,try-except-raise
                 raise
             finally:
                 assert self._count > 0
