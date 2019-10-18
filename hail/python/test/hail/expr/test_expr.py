@@ -280,6 +280,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(string.matches('\d+')))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
 
+    def test_string_reverse(self):
+        inputs = ['', None, 'ATAT', 'foo']
+        assert hl.eval(hl.literal(inputs, 'array<str>').map(lambda s: s.reverse())) == ['', None, 'TATA', 'oof']
+
     def test_first_match_in(self):
         string = hl.literal('1:25-100')
         self.assertTrue(hl.eval(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)")) == ['1', '25', '100'])

@@ -2631,6 +2631,21 @@ class StringExpression(Expression):
         """
         return to_expr(regex, tstr)._method("~", tbool, self)
 
+    def reverse(self):
+        """Returns the reversed value.
+        Examples
+        --------
+
+        >>> string = hl.literal('ATGCC')
+        >>> hl.eval(string.reverse())
+        'CCGTA'
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('reverse', tstr)
+
     def _extra_summary_fields(self, agg_result):
         return {
             'Min Size': agg_result[0],
