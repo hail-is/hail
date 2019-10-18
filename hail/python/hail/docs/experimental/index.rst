@@ -5,7 +5,9 @@ This module serves two functions: as a staging area for extensions of Hail
 not ready for inclusion in the main package, and as a library of lightly reviewed
 community submissions.
 
-There are a few experimental submodules:
+At present, the experimental module is organized into a few freestanding
+modules, linked immediately below, and many freestanding functions, documented
+on this page.
 
 .. toctree::
 
