@@ -7,7 +7,7 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
+from hailtop.utils import AsyncGather, request_retry_transient_errors
 
 from .globals import complete_states
 
@@ -266,7 +266,7 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
-        self.pool = AsyncWorkerPool(2)
+        self.pool = AsyncGather(2)
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
@@ -372,7 +372,8 @@ class BatchBuilder:
         if specs:
             await self.pool.call(self._submit_job, batch.id, specs)
 
-        await self.pool.wait()
+        if len(self._job_specs) > 0:
+            await self.pool.wait()
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         log.info(f'closed batch {b["id"]}')

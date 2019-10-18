@@ -26,7 +26,7 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-class AsyncWorkerPool:
+class AsyncGather:
     def __init__(self, parallelism):
         self._sem = asyncio.Semaphore(parallelism)
         self._count = 0
@@ -39,7 +39,7 @@ class AsyncWorkerPool:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
+                raise
             finally:
                 assert self._count > 0
                 self._count -= 1
@@ -54,6 +54,27 @@ class AsyncWorkerPool:
 
     async def wait(self):
         await self._done.wait()
+
+
+class AsyncWorkerPool:
+    def __init__(self, parallelism, queue_size=1000):
+        self._queue = asyncio.Queue(maxsize=queue_size)
+
+        for _ in range(parallelism):
+            asyncio.ensure_future(self._worker())
+
+    async def _worker(self):
+        while True:
+            f, args, kwargs = await self._queue.get()
+            try:
+                await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'worker pool caught exception')
+
+    async def call(self, f, *args, **kwargs):
+        await self._queue.put((f, args, kwargs))
 
 
 def is_transient_error(e):

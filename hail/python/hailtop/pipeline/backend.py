@@ -202,7 +202,7 @@ class BatchBackend(Backend):
         remote_tmpdir = f'gs://{bucket}/pipeline/{subdir_name}'
         local_tmpdir = f'/io/pipeline/{subdir_name}'
 
-        default_image = 'ubuntu:latest'
+        default_image = 'ubuntu:18.04'
 
         attributes = pipeline.attributes
         if pipeline.name is not None:
@@ -321,15 +321,15 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
-        print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+        print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds')
         start = time.time()
         batch = batch.submit()
-        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds')
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
@@ -337,6 +337,7 @@ class BatchBackend(Backend):
 
         if status['state'] == 'success':
             print('Pipeline completed successfully!')
+            self._batch_client.close()
             return
 
         failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
@@ -352,5 +353,7 @@ class BatchBackend(Backend):
                 f"  Task name:\t{name}\n"
                 f"  Command:\t{jobs_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
+
+        self._batch_client.close()
 
         raise PipelineException(fail_msg)
