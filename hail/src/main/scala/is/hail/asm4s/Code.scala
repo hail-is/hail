@@ -328,6 +328,8 @@ object Code {
   }
 
   def foreach[A](it: Seq[A])(f: A => Code[_]): Code[Unit] = Code(it.map(f): _*).asInstanceOf[Code[Unit]]
+
+  def timeMillis(): Code[Long] = Code.invokeStatic[java.lang.System, Long]("currentTimeMillis")
 }
 
 trait Code[+T] {

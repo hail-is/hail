@@ -1598,7 +1598,7 @@ private class Emit(
       case x: NDArrayReshape => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
-        val lT = emit(lChild)  //Daniel calls emit rather than deforest?
+        val lT = emit(lChild)
         val rT = emit(rChild)
 
         val lPType = lChild.pType.asInstanceOf[PNDArray]
@@ -1624,12 +1624,17 @@ private class Emit(
         val leftBroadcastFlags = if (lNDims > 2) NDArrayEmitter.broadcastFlags(leftShapeArray) else Array[Code[Long]]()
         val rightBroadcastFlags = if (rNDims > 2) NDArrayEmitter.broadcastFlags(rightShapeArray) else Array[Code[Long]]()
 
+        val time = mb.newLocal[Long]
+
         val setup = Code(
           lT.setup,
           rT.setup,
           leftND := lT.value[Long],
           rightND := rT.value[Long],
-          unifyShapeSetup
+          unifyShapeSetup,
+          time := Code.timeMillis()
+//          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+//            "println", time)
         )
 
         val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
@@ -1660,7 +1665,7 @@ private class Emit(
         val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val seqIdxVars = idxVars.toSeq
-            val element = coerce[Any](mb.newField("foo")(eVti))//mb.newLocal
+            val element = coerce[Any](mb.newField("matmul_element")(eVti))
             val kLocal = mb.newLocal[Long]
             val k = kLocal.load()
 
@@ -2556,10 +2561,15 @@ abstract class NDArrayEmitter(
   def emit(targetType: PNDArray): EmitTriplet = {
     val dataSrvb = new StagedRegionValueBuilder(mb, targetType.data.pType)
 
+    val time = mb.newLocal[Long]
     val dataAddress: Code[Long] =
       Code(
+        time := Code.timeMillis(),
         dataSrvb.start(targetType.numElements(outputShapeVariables.map(_.load()), mb).toI),
         emitLoops(dataSrvb),
+        time := Code.timeMillis() - time,
+        Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+          "println", time),
         dataSrvb.end()
       )
 
