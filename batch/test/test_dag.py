@@ -139,7 +139,7 @@ def test_callback(client):
                 break
 
         assert (received_callback == {
-            'id': batch.id,
+            'id': b.id,
             'state': 'success',
             'complete': True,
             'closed': True,
