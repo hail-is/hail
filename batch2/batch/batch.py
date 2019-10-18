@@ -554,7 +554,7 @@ class Batch:
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    await session.post(self.callback, json=self.to_dict(include_jobs=False))
+                    await session.post(self.callback, json=await self.to_dict(include_jobs=False))
             except Exception:  # pylint: disable=broad-except
                 log.exception(f'callback for batch {self.id}, will not retry.')
 
