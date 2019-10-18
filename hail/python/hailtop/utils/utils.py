@@ -26,7 +26,7 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-class AsyncGather:
+class AsyncThrottledGather:
     def __init__(self, parallelism):
         self._sem = asyncio.Semaphore(parallelism)
         self._count = 0
