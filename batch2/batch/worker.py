@@ -36,6 +36,25 @@ MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
 MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
 
 
+async def docker_call_retry(f, *args, **kwargs):
+    delay = 0.1
+    while True:
+        try:
+            return f(*args, **kwargs)
+        except DockerError as e:
+            # 408 request timeout, 503 service unavailable
+            if e.status == 408 or e.status == 503:
+                pass
+            else:
+                raise
+        except asyncio.TimeoutError:
+            pass
+        # exponentially back off, up to (expected) max of 30s
+        t = delay * random.random()
+        await asyncio.sleep(t)
+        delay = min(delay * 2, 60.0)
+
+
 class Error:
     def __init__(self, reason, msg):
         self.reason = reason
@@ -75,7 +94,6 @@ class Container:
         self.cores_mcpu = parse_cpu_in_mcpu(spec['cpu'])
         self.exit_code = None
         self.id = pod.name + '-' + self.name
-        self.error = None
         self.log_directory = log_directory
 
         tag = parse_image_tag(self.spec['image'])
@@ -86,6 +104,7 @@ class Container:
     async def create(self):
         log.info(f'creating container {self.id}')
 
+        image = self.spec['image']
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
@@ -93,7 +112,7 @@ class Container:
             "Tty": False,
             'OpenStdin': False,
             'Cmd': self.spec['command'],
-            'Image': self.spec['image'],
+            'Image': image,
             'HostConfig': {'CpuPeriod': 100000,
                            'CpuQuota': self.cores_mcpu * 100}
         }
@@ -102,85 +121,43 @@ class Container:
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
-        n_tries = 1
-        error = None
-        image = config['Image']
-        while n_tries <= 3:
-            try:
-                self._container = await docker.containers.create(config, name=self.id)
-                self._container = await docker.containers.get(self._container._id)
-                return True
-            except DockerError as create_error:
-                log.info(f'Attempt {n_tries}: caught error while creating container {self.id}: {create_error.message}')
-                if create_error.status == 404:
-                    try:
-                        log.info(f'pulling image {image} for container {self.id}')
-                        await docker.pull(image)
-                    except DockerError as pull_error:
-                        log.info(f'caught error pulling image {image} for container {self.id}: {pull_error.status} {pull_error.message}')
-                        error = ImagePullBackOff(msg=pull_error.message)
-                else:
-                    error = Error(reason='Unknown', msg=create_error.message)
+        try:
+            await docker_call_retry(docker.images.get, image)
+        except DockerError as e:
+            if e.status == 404:
+                await docker_call_retry(docker.images.pull, image)
 
-            await asyncio.sleep(1)
-            n_tries += 1
-
-        self.error = error
-        return False
+        self._container = await docker.containers.create(config)
 
     async def run(self):
-        assert self.error is None
         log.info(f'running container {self.id}')
 
-        n_tries = 1
-        error = None
+        await docker_call_retry(self._container.start)
+        await docker_call_retry(await self._container.wait)
 
-        while n_tries <= 5:
-            try:
-                await self._container.start()
-                await self._container.wait()
-                error = None
-                break
-            except DockerError as err:
-                log.info(f'Attempt {n_tries}: caught error while starting container {self.id}: {err.message}, retrying')
-                error = RunContainerError(err.message)
-
-            await asyncio.sleep(1)
-            n_tries += 1
-
-        if error:
-            self.error = error
-
-        self._container = await docker.containers.get(self._container._id)
+        cinfo = await docker_call_retry(self._container.show)
         self.exit_code = self._container['State']['ExitCode']
 
         log_path = LogStore.container_log_path(self.log_directory, self.name)
-        status_path = LogStore.container_status_path(self.log_directory, self.name)
-        log.info(f'writing log for {self.id} to {log_path}')
-        log.info(f'writing status for {self.id} to {status_path}')
-
         log_data = await self.log()
-        status_data = json.dumps(self._container._container, indent=4)
-
         upload_log = self.pod.worker.gcs_client.write_gs_file(log_path, log_data)
+
+        status_path = LogStore.container_status_path(self.log_directory, self.name)
+        status_data = json.dumps(cinfo, indent=4)
         upload_status = self.pod.worker.gcs_client.write_gs_file(status_path, status_data)
+
         await asyncio.gather(upload_log, upload_status)
-        log.info(f'uploaded all logs for container {self.id}')
+
+        log.info(f'wrote log to {log_path}, status to {status_path} for container {self.id}')
 
     async def delete(self):
         if self._container is not None:
-            await self._container.stop()
-            await self._container.delete()
+            await docker_call_retry(self._container.stop)
+            await docker_call_retry(self._container.delete)
             self._container = None
 
-    @property
-    def status(self):
-        if self._container is not None:
-            return self._container._container
-        return None
-
     async def log(self):
-        logs = await self._container.log(stderr=True, stdout=True)
+        logs = await docker_call_retry(self._container.log, stderr=True, stdout=True)
         return "".join(logs)
 
     def to_dict(self):
@@ -189,7 +166,7 @@ class Container:
                 'state': 'pending'
             }
 
-        cinfo = self.container.show()
+        cinfo = await docker_call_retry(self.container.show)
         log.info(f'container info {cinfo}')
 
         cstate = cinfo['State']

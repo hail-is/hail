@@ -94,9 +94,9 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
             else:
                 raise
         # exponentially back off, up to (expected) max of 30s
-        delay = min(delay * 2, 60.0)
         t = delay * random.random()
         await asyncio.sleep(t)
+        delay = min(delay * 2, 60.0)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):
