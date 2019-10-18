@@ -5,6 +5,13 @@ This module serves two functions: as a staging area for extensions of Hail
 not ready for inclusion in the main package, and as a library of lightly reviewed
 community submissions.
 
+There are a few experimental submodules:
+
+.. toctree::
+
+    vcf_combiner
+    ldscsim
+
 Contribution Guidelines
 -----------------------
 Submissions from the community are welcome! The criteria for inclusion in the
@@ -51,12 +58,8 @@ Genetics Methods
     separate
     spread
 
-`ldscsim`
+Functions
 ---------
-
-.. toctree::
-
-   ldscsim: a statistical genetics phenotype simulation framework <ldscsim>
 
 .. autofunction:: load_dataset
 .. autofunction:: ld_score
@@ -76,10 +79,3 @@ Genetics Methods
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
-
-`vcf_combiner`
---------------
-
-.. toctree::
-
-   vcf_combiner: a small set of functions for consuming gvcfs and outputting sparse matrix tables <vcf_combiner>

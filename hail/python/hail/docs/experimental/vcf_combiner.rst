@@ -1,5 +1,5 @@
-`vcf_combiner`
-==============
+VCF Combiner
+============
 
 Library functions for combining gVCFS and sparse matrix tables into
 larger sparse matrix tables.
