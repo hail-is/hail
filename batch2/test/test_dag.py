@@ -113,11 +113,12 @@ def test_cancel_left_after_tail(client):
 def test_callback(client):
     from flask import Flask, request
     app = Flask('test-client')
-    callback_body = None
+    callback_body = []
 
     @app.route('/test', methods=['POST'])
     def test():
-        callback_body = request.get_json()
+        body = request.get_json()
+        callback_body.append(body)
         return Response(status=200)
 
     try:
@@ -137,6 +138,7 @@ def test_callback(client):
             i += 1
             if i > 14:
                 break
+        callback_body = callback_body[0]
 
         assert (callback_body == {
             'id': b.id,
@@ -176,7 +178,6 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
-    print(head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
