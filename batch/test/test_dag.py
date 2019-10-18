@@ -138,14 +138,13 @@ def test_callback(client):
             if i > 14:
                 break
 
-        self.assertDictEqual(
-            received_callback, {
-                'id': batch.id,
-                'state': 'success',
-                'complete': True,
-                'closed': True,
-                'attributes': {'foo': 'bar'},
-            })
+        assert (received_callback == {
+            'id': batch.id,
+            'state': 'success',
+            'complete': True,
+            'closed': True,
+            'attributes': {'foo': 'bar'},
+        }), received_callback
     finally:
         if server:
             server.shutdown()
