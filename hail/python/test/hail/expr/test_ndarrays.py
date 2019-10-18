@@ -139,7 +139,7 @@ def test_ndarray_reshape():
     np_a = np.array([1, 2, 3, 4, 5, 6])
     a = hl._ndarray(np_a)
 
-    np_cube = np.array([0, 1, 2, 3, 4, 5, 6, 7], order='F').reshape((2, 2, 2))
+    np_cube = np.array([0, 1, 2, 3, 4, 5, 6, 7]).reshape((2, 2, 2))
     cube = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7]).reshape((2, 2, 2))
     cube_to_rect = cube.reshape((2, 4))
     np_cube_to_rect = np_cube.reshape((2, 4))
@@ -152,6 +152,7 @@ def test_ndarray_reshape():
     assert_ndarrays_eq(
         (single.reshape(()), np_single.reshape(())),
         (zero_dim.reshape(()), np_zero_dim.reshape(())),
+        (zero_dim.reshape((1,)), np_zero_dim.reshape((1,))),
         (a.reshape((6,)), np_a.reshape((6,))),
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),

@@ -2332,10 +2332,12 @@ private class Emit(
 
             val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
 
+            assert(newIdxVars.length == childEmitter.nDims)
+
             Code(
               storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
-              childEmitter.outputElement(newIdxVars)
+              childEmitter.outputElement(newIdxVars) // Error comes from something inside this call.
             )
           }
         }

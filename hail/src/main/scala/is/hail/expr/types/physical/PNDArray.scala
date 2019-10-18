@@ -128,31 +128,22 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
+    val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+    val elementsInProcessedDimensions = mb.newField[Long]
+    val workRemaining = mb.newField[Long]
 
-    if (nDim == 0) {
-      (Code._empty, Array(index))
-    }
-    else if (nDim == 1) {
-      (Code._empty, Array(index))
-    } else {
-      val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
-      val elementsInProcessedDimensions = mb.newField[Long]
-      val workRemaining = mb.newField[Long]
-
-      val createShape = Code(
-        workRemaining := index,
-        elementsInProcessedDimensions := shapeArray.reduce(_ * _),
-        Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
-          Code(
-            elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
-            newIndex := workRemaining / elementsInProcessedDimensions,
-            workRemaining := workRemaining % elementsInProcessedDimensions
-          )
-        }
-      )
-      (createShape, newIndices.map(_.load()))
-    }
-
+    val createShape = Code(
+      workRemaining := index,
+      elementsInProcessedDimensions := shapeArray.fold(const(1L))(_ * _),
+      Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
+        Code(
+          elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
+          newIndex := workRemaining / elementsInProcessedDimensions,
+          workRemaining := workRemaining % elementsInProcessedDimensions
+        )
+      }
+    )
+    (createShape, newIndices.map(_.load()))
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
