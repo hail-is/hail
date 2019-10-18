@@ -7,6 +7,7 @@ from shlex import quote as shq
 import asyncio
 import requests
 import kubernetes as kube
+
 from hailtop import batch_client
 
 from .globals import states, complete_states, valid_state_transitions, tasks
@@ -465,7 +466,8 @@ class Batch:
                          complete=complete,
                          deleted=record['deleted'],
                          cancelled=record['cancelled'],
-                         closed=record['closed'])
+                         closed=record['closed'],
+                         n_jobs=record['n_jobs'])
         return None
 
     @staticmethod
@@ -498,7 +500,7 @@ class Batch:
         batch = Batch(app, id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
                       complete=False, deleted=False, cancelled=False,
-                      closed=False)
+                      closed=False, n_jobs=n_jobs)
 
         if attributes is not None:
             items = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
@@ -510,7 +512,7 @@ class Batch:
         return batch
 
     def __init__(self, app, id, attributes, callback, userdata, user,
-                 state, complete, deleted, cancelled, closed):
+                 state, complete, deleted, cancelled, closed, n_jobs):
         self.app = app
         self.id = id
         self.attributes = attributes
@@ -522,6 +524,7 @@ class Batch:
         self.deleted = deleted
         self.cancelled = cancelled
         self.closed = closed
+        self.n_jobs = n_jobs
 
     async def get_jobs(self, limit=None, offset=None):
         jobs = await self.app['db'].jobs.get_records_by_batch(self.id, limit, offset)
@@ -529,7 +532,10 @@ class Batch:
 
     # called by driver
     async def _cancel_jobs(self):
-        await asyncio.gather(*[j.cancel() for j in await self.get_jobs()])
+        limit = 1000
+        for offset in range(0, self.n_jobs, limit):
+            for j in await self.get_jobs(offset=offset, limit=limit):
+                await j.cancel()
 
     # called by front end
     async def cancel(self):
@@ -540,8 +546,12 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
-                               if j._state == 'Running'])
+        limit = 1000
+        for offset in range(0, self.n_jobs, limit):
+            jobs = await self.get_jobs(offset=offset, limit=limit)
+            for j in jobs:
+                if j._state == 'Running':
+                    await j._create_pod()
 
     # called by front end
     async def close(self):

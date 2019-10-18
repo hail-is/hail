@@ -324,12 +324,13 @@ class BatchBackend(Backend):
         print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds')
         start = time.time()
         batch = batch.submit()
-        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds')
+        end = time.time()
+        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(end - start, 3)} seconds')
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds')
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(end - start, 3)} seconds')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 

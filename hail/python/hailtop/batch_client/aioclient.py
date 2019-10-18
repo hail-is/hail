@@ -359,7 +359,7 @@ class BatchBuilder:
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         specs = []
-        runner = AsyncThrottledGather(2)
+        runner = AsyncThrottledGather(10)
         n = 0
         for job_spec in self._job_specs:
             n += 1

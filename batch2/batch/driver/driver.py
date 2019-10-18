@@ -173,6 +173,7 @@ class Pod:
         await self.unschedule()
 
         await self.driver.ready_queue.put(self)
+        log.info(f'put {self.name} on the ready queue')
         self.on_ready = True
         self.driver.ready_cores_mcpu += self.cores_mcpu
         self.driver.changed.set()
@@ -304,13 +305,16 @@ class Driver:
         self.k8s = k8s
         self.batch_bucket = batch_bucket
         self.pods = None  # populated in run
+
         self.complete_queue = asyncio.Queue()
         self.ready_queue = asyncio.Queue(maxsize=1000)
+
         self.ready = sortedcontainers.SortedSet(key=lambda pod: pod.cores_mcpu)
         self.ready_cores_mcpu = 0
         self.changed = asyncio.Event()
 
-        self.pool = None  # created in run
+        self.create_pool = None  # created in run
+        self.delete_pool = None  # created in run
 
         deploy_config = get_deploy_config()
 
@@ -386,14 +390,14 @@ class Driver:
             return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
 
         self.pods[name] = pod
-        asyncio.ensure_future(pod.put_on_ready())
+        await pod.put_on_ready()
 
     async def delete_pod(self, name):
         pod = self.pods.get(name)
         if pod is None:
             return DriverException(409, f'pod {name} does not exist')
         pod.mark_deleted()
-        await self.pool.call(pod.delete)
+        await self.delete_pool.call(pod.delete)
         del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
 
     async def read_pod_log(self, name, container):
@@ -442,12 +446,13 @@ class Driver:
                     should_wait = False
                     scheduled = await pod.schedule(inst)  # This cannot go in the pool!
                     if scheduled:
-                        await self.pool.call(pod.create)
+                        await self.create_pool.call(pod.create)
 
     async def initialize(self):
         await self.inst_pool.initialize()
 
-        self.pool = AsyncWorkerPool(100)
+        self.create_pool = AsyncWorkerPool(100)
+        self.delete_pool = AsyncWorkerPool(100)
 
         def _pod(record):
             pod = Pod.from_record(self, record)
@@ -456,9 +461,12 @@ class Driver:
         records = await self.db.pods.get_all_records()
         self.pods = dict(_pod(record) for record in records)
 
-        for pod in self.pods.values():
-            if not pod.instance and not pod._status:
-                asyncio.ensure_future(pod.put_on_ready())
+        async def _put_on_ready():
+            for pod in self.pods.values():
+                if not pod.instance and not pod._status:
+                    await pod.put_on_ready()
+
+        asyncio.ensure_future(_put_on_ready())
 
     async def run(self):
         await self.inst_pool.start()
