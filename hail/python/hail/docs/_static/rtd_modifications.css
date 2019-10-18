@@ -12,6 +12,11 @@ dl {
   min-height: 100px;
 }
 
+.section>.toctree-wrapper {
+  position: relative;
+  z-index: 998;
+}
+
 .rst-content dl.class:not(.docutils)>dt,
 .rst-content dl.class:not(.docutils)>dt:first-child,
 .rst-content dl.function:not(.docutils)>dt,
@@ -29,7 +34,7 @@ dl {
   display: block;
   content: "";
   position: absolute;
-  top: -3px;
+  transform: translate(0px, -9px);
   left: 0;
   right: 0;
   border-top: 3px solid #6ab0de;
