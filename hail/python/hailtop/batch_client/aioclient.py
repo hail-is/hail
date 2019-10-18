@@ -1,5 +1,6 @@
 import math
 import random
+import logging
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
@@ -9,6 +10,8 @@ from hailtop.auth import async_get_userinfo, service_auth_headers
 from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
 
 from .globals import complete_states
+
+log = logging.getLogger('batch_client.aioclient')
 
 job_array_size = 1000
 
@@ -258,7 +261,7 @@ class BatchBuilder:
     def __init__(self, client, attributes, callback):
         self._client = client
         self._job_idx = 0
-        self._job_docs = []
+        self._job_specs = []
         self._jobs = []
         self._submitted = False
         self.attributes = attributes
@@ -331,51 +334,53 @@ class BatchBuilder:
         if pvc_size:
             job_spec['pvc_size'] = pvc_size
 
-        self._job_docs.append(job_spec)
+        self._job_specs.append(job_spec)
 
         j = Job.unsubmitted_job(self, self._job_idx, attributes, parent_ids)
         self._jobs.append(j)
         return j
 
-    async def _submit_job(self, batch_id, docs):
-        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=docs)
+    async def _submit_job(self, batch_id, job_specs):
+        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=job_specs)
 
     async def submit(self):
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        batch_doc = {'n_jobs': len(self._job_docs)}
+        batch_spec = {'n_jobs': len(self._job_specs)}
         if self.attributes:
-            batch_doc['attributes'] = self.attributes
+            batch_spec['attributes'] = self.attributes
         if self.callback:
-            batch_doc['callback'] = self.callback
+            batch_spec['callback'] = self.callback
 
-        b_resp = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+        b_resp = await self._client._post('/api/v1alpha/batches/create', json=batch_spec)
         b = await b_resp.json()
+        log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
-        docs = []
+        specs = []
         n = 0
-        for jdoc in self._job_docs:
+        for job_spec in self._job_specs:
             n += 1
-            docs.append(jdoc)
+            specs.append(job_spec)
             if n == job_array_size:
-                await self.pool.call(self._submit_job, batch.id, docs)
+                await self.pool.call(self._submit_job, batch.id, specs)
                 n = 0
-                docs = []
+                specs = []
 
-        if docs:
-            await self.pool.call(self._submit_job, batch.id, docs)
+        if specs:
+            await self.pool.call(self._submit_job, batch.id, specs)
 
         await self.pool.wait()
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+        log.info(f'closed batch {b["id"]}')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
 
-        self._job_docs = []
+        self._job_specs = []
         self._jobs = []
         self._job_idx = 0
 
