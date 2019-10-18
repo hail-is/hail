@@ -72,9 +72,9 @@ def is_transient_error(e):
         if e.status == 408 or e.status == 502 or e.status == 503 or e.status == 504:
             return True
     elif isinstance(e, aiohttp.ClientOSError):
-        if (e.errno == errno.ETIMEDOUT
-            or e.errno == errno.ECONNREFUSED
-            or e.errno == errno.EHOSTUNREACH):
+        if (e.errno == errno.ETIMEDOUT or
+                e.errno == errno.ECONNREFUSED or
+                e.errno == errno.EHOSTUNREACH):
             return True
     elif isinstance(e, aiohttp.ServerTimeoutError):
         return True
