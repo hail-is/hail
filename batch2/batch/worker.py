@@ -185,42 +185,20 @@ class Container:
 
     def to_dict(self):
         if self._container is None:
-            waiting_reason = self.error.to_dict() if self.error else {}
             return {
-                'image': self.spec['image'],
-                'imageID': 'unknown',
-                'name': self.name,
-                'ready': False,
-                'restartCount': 0,
-                'state': {'waiting': waiting_reason}
+                'state': 'pending'
             }
 
-        state = {}
-        if self.status['State']['Status'] == 'created' and not self.error:
-            state['waiting'] = {}
-        elif self.status['State']['Status'] == 'running':
-            state['running'] = {
-                'started_at': self.status['State']['StartedAt']
-            }
-        elif self.status['State']['Status'] == 'exited' or \
-                (self.error and isinstance(self.error, RunContainerError)):  # FIXME: there's other docker states such as dead and oomed
-            state['terminated'] = {
-                'exitCode': self.status['State']['ExitCode'],
-                'startedAt': self.status['State']['StartedAt'],  # This is 0 if RunContainerError, different from k8s
-                'finishedAt': self.status['State']['FinishedAt'],  # This is 0 if RunContainerError, different from k8s
-                'message': self.status['State']['Error']
-            }
-        else:
-            raise Exception(f'unknown docker state {self.status["State"]}')
+        cinfo = self.container.show()
+        log.info(f'container info {cinfo}')
 
+        cstate = cinfo['State']
         return {
-            'containerID': f'docker://{self.status["Id"]}',
-            'image': self.spec['image'],
-            'imageID': self.status['Image'],
-            'name': self.name,
-            'ready': False,
-            'restartCount': self.status['RestartCount'],
-            'state': state
+            'state': cstate['Status'],
+            'exit_code': cstate['ExitCode'],
+            'error': cstate['Error'],
+            'started_at': cstate['StartedAt'],
+            'finished_at:' cstate['FinishedAt']
         }
 
 
@@ -344,7 +322,7 @@ class BatchPod:
             'cleanup': copy_container(output_files, 'cleanup')
         }
 
-        self.phase = 'Pending'
+        self.state = 'Pending'
 
         self._run_task = asyncio.ensure_future(self.run(cpu_sem))
 
@@ -401,7 +379,7 @@ class BatchPod:
                 await self._mark_complete()
                 return
 
-            self.phase = 'Running'
+            self.state = 'Running'
 
             if not semaphore:
                 semaphore = NullWeightedSemaphore()
@@ -416,7 +394,7 @@ class BatchPod:
                     if container.error or last_ec != 0:  # Docker sets exit code to 0 by default even if container errors
                         break
 
-            self.phase = 'Succeeded' if last_ec == 0 else 'Failed'
+            self.state = 'Succeeded' if last_ec == 0 else 'Failed'
 
             await self._mark_complete()
             log.info(f'took {time.time() - start} seconds to run pod {self.name}')
@@ -445,17 +423,13 @@ class BatchPod:
 
     def to_dict(self):
         return {
-            'metadata': {
-                'name': self.name,
-                'labels': {
-                    'batch_id': self.batch_id,
-                    'job_id': self.job_id,
-                    'user': self.user
-                }
-            },
+            'name': self.name,
+            'batch_id': self.batch_id,
+            'job_id': self.job_id,
+            'user': self.user
             'status': {
-                'containerStatuses': [c.to_dict() for _, c in self.containers.items()],
-                'phase': self.phase
+                'state': self.state
+                'container_statuses': [c.to_dict() for _, c in self.containers.items()],
             }
         }
 
