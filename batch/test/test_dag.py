@@ -126,8 +126,8 @@ def test_callback(client):
         b = client.create_batch(
             callback=server.url_for('/test'),
             attributes={'foo': 'bar'})
-        b.create_job('alpine:3.8', command=['echo', 'head'])
-        b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+        head = b.create_job('alpine:3.8', command=['echo', 'head'])
+        tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
         b.wait()
 
