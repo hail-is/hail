@@ -14,7 +14,7 @@ $(document).ready(function () {
         window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
     }
 
-    $('.wy-nav-content').on('click', 'a', function (e) {
+    $(document).on('click', 'a', function (e) {
         var hashName = this.href.split('#');
 
         if (hashName.length == 1) {
