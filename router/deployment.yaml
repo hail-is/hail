@@ -58,6 +58,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: batch2-driver
+  labels:
+    app: batch2-driver
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch2-driver
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: ci
   labels:
     app: ci
