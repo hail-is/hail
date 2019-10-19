@@ -25,14 +25,19 @@ if ((window.history && window.history.pushState)) {
             }, 0)
         }
 
-
         $(document).on('click', 'a', function (e) {
+            var currentHref = location.href.split("#")[0];
             var hrefParts = this.href.split('#');
-            var hash = hrefParts[1];
 
+            if (hrefParts.length == 1 || hrefParts[0] !== currentHref) {
+                return;
+            }
+
+            var hash = hrefParts[1];
             var elem = document.getElementById(hash);
 
             if (!elem) {
+                console.warn(`Couldn't find element with id ${hash}`)
                 return;
             }
 
