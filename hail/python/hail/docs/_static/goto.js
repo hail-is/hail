@@ -2,6 +2,8 @@
 if ((window.history && window.history.pushState)) {
     var startingHash = window.location.hash ? window.location.hash.replace('#', '') : null;
 
+    // necessary to prevent browser from overriding our initial scroll
+    // browser scroll is otherwise undefeatable
     history.pushState("", document.title, window.location.pathname);
 
     $(document).ready(function () {
@@ -14,8 +16,11 @@ if ((window.history && window.history.pushState)) {
                 return;
             }
 
-            window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
-            history.pushState({}, null, `#${startingHash}`);
+            // setTimeout is necessary for safari, but not firefox or chrome
+            setTimeout(() => {
+                window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
+                history.pushState({}, null, `#${startingHash}`);
+            }, 0)
         }
 
 
