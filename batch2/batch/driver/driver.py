@@ -137,7 +137,7 @@ class Pod:
             'name': self.name,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
-            'user': self.userdata['user'],
+            'user': self.userdata['username'],
             'job_spec': job_spec,
             'output_directory': self.output_directory
         }
