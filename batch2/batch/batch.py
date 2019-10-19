@@ -1,35 +1,13 @@
 import json
 import logging
-import os
 import traceback
-from shlex import quote as shq
 import asyncio
 import aiohttp
-import kubernetes as kube
-from hailtop import batch_client
 
 from .globals import states, complete_states, valid_state_transitions, tasks
-from .batch_configuration import INSTANCE_ID
 from .log_store import LogStore
 
 log = logging.getLogger('batch')
-
-
-def copy(files):
-    if files is None:
-        return 'true'
-
-    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
-
-    def copy_command(src, dst):
-        if not dst.startswith('gs://'):
-            mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
-        else:
-            mkdirs = ""
-        return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
-
-    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
-    return f'{authenticate} && {copies}'
 
 
 class JobStateWriteFailure(Exception):
@@ -37,76 +15,17 @@ class JobStateWriteFailure(Exception):
 
 
 class Job:
-    @staticmethod
-    def _copy_container(name, files):
-        sh_expression = copy(files)
-        return kube.client.V1Container(
-            image='google/cloud-sdk:237.0.0-alpine',
-            name=name,
-            command=['/bin/sh', '-c', sh_expression],
-            resources=kube.client.V1ResourceRequirements(
-                requests={'cpu': '500m' if files else '100m'}),
-            volume_mounts=[kube.client.V1VolumeMount(
-                mount_path='/batch-gsa-key',
-                name='batch-gsa-key')])
-
     async def _create_pod(self):
         assert self.userdata is not None
         assert self._state in states
         assert self._state == 'Running'
 
-        input_container = Job._copy_container('setup', self.input_files)
-        output_container = Job._copy_container('cleanup', self.output_files)
-
-        volumes = [
-            kube.client.V1Volume(
-                secret=kube.client.V1SecretVolumeSource(
-                    secret_name=self.userdata['gsa_key_secret_name']),
-                name='gsa-key'),
-            kube.client.V1Volume(
-                secret=kube.client.V1SecretVolumeSource(
-                    secret_name='batch-gsa-key'),
-                name='batch-gsa-key')]
-
-        volume_mounts = [
-            kube.client.V1VolumeMount(
-                mount_path='/gsa-key',
-                name='gsa-key')]  # FIXME: this shouldn't be mounted to every container
-
-        if self.pvc_size or (self.input_files or self.output_files):
-            volumes.append(kube.client.V1Volume(
-                empty_dir=kube.client.V1EmptyDirVolumeSource(),
-                name='pvc'))
-            volume_mounts.append(kube.client.V1VolumeMount(
-                mount_path='/io',
-                name='pvc'))
-
-        pod_spec = batch_client.validate.job_spec_to_k8s_pod_spec(self._spec)
-        pod_spec = self.app['k8s_client'].api_client._ApiClient__deserialize(pod_spec, kube.client.V1PodSpec)
-        pod_spec.containers = [input_container, pod_spec.containers[0], output_container]
-
-        if pod_spec.volumes is None:
-            pod_spec.volumes = []
-        pod_spec.volumes.extend(volumes)
-
-        for container in pod_spec.containers:
-            if container.volume_mounts is None:
-                container.volume_mounts = []
-            container.volume_mounts.extend(volume_mounts)
-
-        pod_template = kube.client.V1Pod(
-            metadata=kube.client.V1ObjectMeta(
-                name=self._pod_name,
-                labels={'app': 'batch-job',
-                        'hail.is/batch-instance': INSTANCE_ID,
-                        'batch_id': str(self.batch_id),
-                        'job_id': str(self.job_id),
-                        'user': self.user
-                        }),
-            spec=pod_spec)
-
-        err = await self.app['driver'].create_pod(spec=pod_template.to_dict(),
-                                                  output_directory=self.directory)
+        err = await self.app['driver'].create_pod(
+            name=self._pod_name,
+            batch_id=self.batch_id,
+            job_spec=self._spec,
+            userdata=self.userdata,
+            output_directory=self.directory)
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.id}')
