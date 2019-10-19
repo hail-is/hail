@@ -1,7 +1,6 @@
 //https://caniuse.com/#feat=history
 if ((window.history && window.history.pushState)) {
-    var startingHash = window.location.hash,
-        startingHash = startingHash.replace('#', '');
+    var startingHash = window.location.hash ? window.location.hash.replace('#', '') : null;
 
     history.pushState("", document.title, window.location.pathname);
 
@@ -9,15 +8,14 @@ if ((window.history && window.history.pushState)) {
         var navHeight = $('nav').height();
 
         if (startingHash) {
-            var hashName = startingHash;
-            var elem = document.getElementById(hashName);
+            var elem = document.getElementById(startingHash);
 
             if (!elem) {
                 return;
             }
 
             window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
-            history.pushState({}, null, `#${hashName}`);
+            history.pushState({}, null, `#${startingHash}`);
         }
 
 
