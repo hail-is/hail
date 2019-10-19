@@ -5,6 +5,8 @@ if ((window.history && window.history.pushState)) {
     // necessary to prevent browser from overriding our initial scroll
     // browser scroll is otherwise undefeatable
     history.pushState("", document.title, window.location.pathname);
+    // necessary for chrome
+    window.history.scrollRestoration = "manual"
 
     $(document).ready(function () {
         var navHeight = $('nav').height();
