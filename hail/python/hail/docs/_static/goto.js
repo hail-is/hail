@@ -7,9 +7,7 @@ $(document).ready(function () {
         var hashName = hash.substring(1, hash.length);
         var elem = $(document.getElementById(hashName));
 
-        //if element has this id then scroll to it
         if (elem === null) {
-            console.info("NULL");
             return;
         }
 
@@ -22,7 +20,6 @@ $(document).ready(function () {
 
         var elem = $(document.getElementById(hashName));
 
-        //if element has this id then scroll to it
         if (elem === null) {
             return;
         }
