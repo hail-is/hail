@@ -14,15 +14,20 @@ $(document).ready(function () {
         window.scrollTo(0, parseInt(elem.offset().top, 10) - navHeight);
     }
 
-    $(document).on('click', 'a', function (e) {
-        e.preventDefault();
-        var hashName = this.href.split('#')[1];
+    $('.wy-nav-content').on('click', 'a', function (e) {
+        var hashName = this.href.split('#');
 
-        var elem = $(document.getElementById(hashName));
+        if (hashName.length == 1) {
+            return;
+        }
+
+        var elem = $(document.getElementById(hashName[1]));
 
         if (elem === null) {
             return;
         }
+
+        e.preventDefault();
 
         window.scrollTo(0, parseInt(elem.offset().top, 10) - navHeight);
     })
