@@ -209,7 +209,7 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
             await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
-    set_message(session, 'SHA {sha} authorized.', 'info')
+    set_message(session, f'SHA {sha} authorized.', 'info')
     raise web.HTTPFound('/')
 
 
