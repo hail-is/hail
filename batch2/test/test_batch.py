@@ -10,7 +10,6 @@ import secrets
 import time
 import unittest
 import aiohttp
-from flask import Flask, Response, request
 import requests
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
@@ -281,37 +280,6 @@ class Test(unittest.TestCase):
         b4.wait()
         b4s = b4.status()
         assert b4s['complete'] and b4s['state'] == 'cancelled', b4s
-
-    def test_callback(self):
-        app = Flask('test-client')
-
-        d = {}
-
-        @app.route('/test', methods=['POST'])
-        def test():
-            body = request.get_json()
-            d['status'] = body
-            return Response(status=200)
-
-        server = ServerThread(app)
-        try:
-            server.start()
-            b = self.client.create_batch()
-            j = b.create_job(
-                'ubuntu:18.04',
-                ['echo', 'test'],
-                attributes={'foo': 'bar'},
-                callback=server.url_for('/test'))
-            b = b.submit()
-            j.wait()
-
-            poll_until(lambda: 'status' in d)
-            status = d['status']
-            self.assertEqual(status['state'], 'Success')
-            self.assertEqual(status['attributes'], {'foo': 'bar'})
-        finally:
-            server.shutdown()
-            server.join()
 
     def test_log_after_failing_job(self):
         b = self.client.create_batch()

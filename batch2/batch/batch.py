@@ -1,11 +1,10 @@
 import json
 import logging
 import os
-import threading
 import traceback
 from shlex import quote as shq
 import asyncio
-import requests
+import aiohttp
 import kubernetes as kube
 from hailtop import batch_client
 
@@ -252,10 +251,6 @@ class Job:
         return self._spec.get('attributes')
 
     @property
-    def callback(self):
-        return self._spec.get('callback')
-
-    @property
     def input_files(self):
         return self._spec.get('input_files')
 
@@ -403,21 +398,10 @@ class Job:
 
         log.info('job {} complete with state {}, exit_codes {}'.format(self.id, self._state, self.exit_codes))
 
-        if self.callback:
-            def handler(id, callback, json):
-                try:
-                    requests.post(callback, json=json, timeout=120)
-                except requests.exceptions.RequestException as exc:
-                    log.warning(
-                        f'callback for job {id} failed due to an error, I will not retry. '
-                        f'Error: {exc}')
-
-            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
-
         if self.batch_id:
             batch = await Batch.from_db(self.app, self.batch_id, self.user)
             if batch is not None:
-                await batch.mark_job_complete(self)
+                await batch.mark_job_complete()
 
     def to_dict(self):
         result = {
@@ -565,20 +549,16 @@ class Batch:
         await self.app['db'].batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
-    async def mark_job_complete(self, job):
-        if self.callback:
-            def handler(id, job_id, callback, json):
-                try:
-                    requests.post(callback, json=json, timeout=120)
-                except requests.exceptions.RequestException as exc:
-                    log.warning(
-                        f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
-                        f'Error: {exc}')
-
-            threading.Thread(
-                target=handler,
-                args=(self.id, job.id, self.callback, job.to_dict())
-            ).start()
+    async def mark_job_complete(self):
+        if self.complete and self.callback:
+            log.info(f'making callback for batch {self.id}: {self.callback}')
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    await session.post(self.callback, json=await self.to_dict(include_jobs=False))
+                    log.info(f'callback for batch {self.id} successful')
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'callback for batch {self.id} failed, will not retry.')
 
     def is_complete(self):
         return self.complete

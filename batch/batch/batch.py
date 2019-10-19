@@ -2,7 +2,6 @@ import asyncio
 import concurrent
 import logging
 import os
-import threading
 import traceback
 import json
 import uuid
@@ -13,7 +12,6 @@ from aiohttp import web
 import aiohttp_session
 import cerberus
 import kubernetes as kube
-import requests
 import uvloop
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
@@ -391,7 +389,7 @@ class Job:
             durations = json.loads(record['durations'])
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
-                       callback=record['callback'], userdata=userdata, user=record['user'],
+                       userdata=userdata, user=record['user'],
                        always_run=record['always_run'], exit_codes=exit_codes, durations=durations,
                        state=record['state'], pvc_size=record['pvc_size'], cancelled=record['cancelled'],
                        directory=record['directory'], token=record['token'], pod_spec=pod_spec,
@@ -424,7 +422,7 @@ class Job:
         return jobs
 
     @staticmethod
-    def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes, callback,
+    def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes,
                    parent_ids, input_files, output_files, userdata, always_run,
                    pvc_size, state):
         cancelled = False
@@ -441,7 +439,7 @@ class Job:
             job_id=job_id,
             state=state,
             pvc_size=pvc_size,
-            callback=callback,
+            callback=None,  # legacy
             attributes=json.dumps(attributes),
             always_run=always_run,
             token=token,
@@ -458,7 +456,7 @@ class Job:
                 job_id=job_id,
                 parent_id=parent)
 
-        job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
+        job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes,
                   userdata=userdata, user=user, always_run=always_run,
                   exit_codes=exit_codes, durations=durations, state=state, pvc_size=pvc_size,
                   cancelled=cancelled, directory=directory, token=token,
@@ -466,7 +464,7 @@ class Job:
 
         return job
 
-    def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
+    def __init__(self, batch_id, job_id, attributes, userdata, user, always_run,
                  exit_codes, durations, state, pvc_size, cancelled, directory,
                  token, pod_spec, input_files, output_files):
         self.batch_id = batch_id
@@ -474,7 +472,6 @@ class Job:
         self.id = (batch_id, job_id)
 
         self.attributes = attributes
-        self.callback = callback
         self.always_run = always_run
         self.userdata = userdata
         self.user = user
@@ -673,21 +670,10 @@ class Job:
         await self.set_state(new_state, durations, exit_codes)
         await self._delete_k8s_resources()
         self.log_info(f'complete with state {self._state}, exit_codes {self.exit_codes}')
-        if self.callback:
-            def handler(job, callback, json):
-                try:
-                    requests.post(callback, json=json, timeout=120)
-                except requests.exceptions.RequestException as exc:
-                    job.log_warning(
-                        f'callback failed due to an error, I will not retry. '
-                        f'Error: {exc}')
-
-            threading.Thread(target=handler, args=(self, self.callback, self.to_dict())).start()
-
         if self.batch_id:
             batch = await Batch.from_db(self.batch_id, self.user)
             if batch is not None:
-                await batch.mark_job_complete(self)
+                await batch.mark_job_complete()
 
     def to_dict(self):
         result = {
@@ -726,7 +712,6 @@ def create_job(jobs_builder, batch_id, userdata, job_spec):  # pylint: disable=R
         job_id=job_id,
         pod_spec=pod_spec,
         attributes=job_spec.get('attributes'),
-        callback=job_spec.get('callback'),
         parent_ids=parent_ids,
         input_files=input_files,
         output_files=output_files,
@@ -922,20 +907,14 @@ class Batch:
         await db.batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
-    async def mark_job_complete(self, job):
-        if self.callback:
-            def handler(id, job_id, callback, json):
-                try:
-                    requests.post(callback, json=json, timeout=120)
-                except requests.exceptions.RequestException as exc:
-                    log.warning(
-                        f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
-                        f'Error: {exc}')
-
-            threading.Thread(
-                target=handler,
-                args=(self.id, job.id, self.callback, job.to_dict())
-            ).start()
+    async def mark_job_complete(self):
+        if self.complete and self.callback:
+            log.info(f'making callback for batch {self.id}: {self.callback}')
+            try:
+                await app['client_session'].post(self.callback, json=await self.to_dict(include_jobs=False))
+                log.info(f'callback for batch {self.id} successful')
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'callback for batch {self.id} failed, will not retry.')
 
     def is_complete(self):
         return self.complete
