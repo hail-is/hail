@@ -301,6 +301,7 @@ abstract class RegistryFunctions {
       case TArray(_: TFloat64, _) => classTag[IndexedSeq[Double]]
       case TArray(_: TString, _) => classTag[IndexedSeq[String]]
       case TSet(_: TString, _) => classTag[Set[String]]
+      case TDict(_: TString, _: TString, _) => classTag[Map[String, String]]
       case t => TypeToIRIntermediateClassTag(t)
     }
 

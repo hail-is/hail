@@ -2593,6 +2593,31 @@ class StringExpression(Expression):
         """
         return self._method('firstMatchIn', tarray(tstr), regex)
 
+    @typecheck_method(mapping=expr_dict(expr_str, expr_str))
+    def translate(self, mapping):
+        """Translates characters of the string using `mapping`.
+
+        Examples
+        --------
+        >>> string = hl.literal('ATTTGCA')
+        >>> hl.eval(string.translate({'T': 'U'}))
+        'AUUUGCA'
+
+        Parameters
+        ----------
+        mapping : :class:`.DictExpression`
+            Dictionary of character-character translations.
+
+        Returns
+        -------
+        :class:`.StringExpression`
+
+        See Also
+        --------
+        :meth:`.replace`
+        """
+        return self._method('translate', tstr, mapping)
+
     @typecheck_method(regex=str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
