@@ -42,7 +42,7 @@ object StringFunctions extends RegistryFunctions {
   def translate(s: String, d: Map[String, String]): String = {
     val charD = new mutable.HashMap[Char, String]
     d.foreach { case (k, v) =>
-      if (k.length > 1)
+      if (k.length != 1)
         fatal(s"translate: mapping keys must be one character, found '$k'")
         charD += ((k(0), v))
     }
