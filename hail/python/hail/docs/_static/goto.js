@@ -1,34 +1,45 @@
-$(document).ready(function () {
-    var navHeight = $('nav').height();
+//https://caniuse.com/#feat=history
+if ((window.history && window.history.pushState)) {
+    var startingHash = window.location.hash,
+        startingHash = startingHash.replace('#', '');
 
-    if (window.location.hash) {
-        var hash = window.location.hash
+    history.pushState("", document.title, window.location.pathname);
 
-        var hashName = hash.substring(1, hash.length);
-        var elem = document.getElementById(hashName);
+    $(document).ready(function () {
+        var navHeight = $('nav').height();
 
-        if (!elem) {
-            return;
+        if (startingHash) {
+            console.info("ya", startingHash)
+
+            var hashName = startingHash;
+            console.info('fff');
+            var elem = document.getElementById(hashName);
+
+            if (!elem) {
+                return;
+            }
+
+            window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
+            history.pushState({}, null, `#${hashName}`);
         }
 
-        window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
-    }
 
-    $(document).on('click', 'a', function (e) {
-        var hashName = this.href.split('#');
+        $(document).on('click', 'a', function (e) {
+            var hrefParts = this.href.split('#');
+            var hash = hrefParts[1];
 
-        if (hashName.length == 1) {
-            return;
-        }
+            var elem = document.getElementById(hash);
 
-        var elem = document.getElementById(hashName[1]);
+            if (!elem) {
+                return;
+            }
 
-        if (!elem) {
-            return;
-        }
-
-        e.preventDefault();
-
-        window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
+            e.preventDefault();
+            e.stopPropagation();
+            window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
+            history.pushState({}, null, `#${hash}`);
+        })
     })
-});
+} else {
+    console.warn("Histroy API unsupported. Please consider updating your browser");
+}
