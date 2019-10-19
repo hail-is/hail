@@ -9,10 +9,7 @@ if ((window.history && window.history.pushState)) {
         var navHeight = $('nav').height();
 
         if (startingHash) {
-            console.info("ya", startingHash)
-
             var hashName = startingHash;
-            console.info('fff');
             var elem = document.getElementById(hashName);
 
             if (!elem) {
