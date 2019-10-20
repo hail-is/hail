@@ -252,6 +252,7 @@ class Test(unittest.TestCase):
         b3 = b3.submit()
         b3s = b3.status()
         assert not b3s['complete'] and b3s['state'] == 'running', b3s
+        b3.cancel()
 
         b4 = self.client.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
