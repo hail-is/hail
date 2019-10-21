@@ -69,9 +69,6 @@ def create_job(app, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
-    exit_codes = [None for _ in tasks]
-    durations = [None for _ in tasks]
-    messages = [None for _ in tasks]
     directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
 
     jobs_builder.create_job(
@@ -80,9 +77,7 @@ def create_job(app, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
         state=state,
         spec=json.dumps(job_spec),
         directory=directory,
-        exit_codes=json.dumps(exit_codes),
-        durations=json.dumps(durations),
-        messages=json.dumps(messages))
+        status=None)
 
     for parent in parent_ids:
         jobs_builder.create_job_parent(
