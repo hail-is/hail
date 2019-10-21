@@ -6,11 +6,10 @@ if ((window.history && window.history.pushState)) {
     // browser scroll is otherwise undefeatable
     history.pushState("", document.title, window.location.pathname);
     // necessary for chrome
-    window.history.scrollRestoration = "manual"
+    window.history.scrollRestoration = "manual";
 
     $(document).ready(function () {
         MathJax.Hub.Register.StartupHook("End", function () {
-
             var navHeight = $('nav').height();
 
             if (startingHash) {
@@ -47,11 +46,8 @@ if ((window.history && window.history.pushState)) {
                 window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
                 history.pushState({}, null, `#${hash}`);
             });
-
         });
-
-
-    })
+    });
 } else {
     console.warn("Histroy API unsupported. Please consider updating your browser");
 }
