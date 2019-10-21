@@ -42,7 +42,7 @@ async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
     while True:
         try:
-            return f(*args, **kwargs)
+            return await f(*args, **kwargs)
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:

@@ -7,7 +7,7 @@ from hailtop.utils import blocking_to_async
 class GCS:
     @staticmethod
     def _parse_uri(uri):
-        assert uri.startswith('gs://')
+        assert uri.startswith('gs://'), uri
         uri = uri.lstrip('gs://').split('/')
         bucket = uri[0]
         path = '/'.join(uri[1:])
