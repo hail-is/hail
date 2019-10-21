@@ -1616,8 +1616,8 @@ private class Emit(
         val lShapeTuple = new CodePTuple(lPType.shape.pType, region, leftShape)
         val rShapeTuple = new CodePTuple(rPType.shape.pType, region, rightShape)
 
-        val leftShapeArray = (0 until lPType.nDims).map(i => coerce[Long](lShapeTuple(i))).toArray
-        val rightShapeArray = (0 until rPType.nDims).map(i => coerce[Long](rShapeTuple(i))).toArray
+        val (leftShapeArraySetup, leftShapeArray) = (0 until lPType.nDims).map(i => coerce[Long](lShapeTuple(i))).toArray.cacheEntries(mb, LongInfo)
+        val (rightShapeArraySetup, rightShapeArray) = (0 until rPType.nDims).map(i => coerce[Long](rShapeTuple(i))).toArray.cacheEntries(mb, LongInfo)
 
         val (unifyShapeSetup, unifiedShapeArray) = NDArrayEmitter.matmulShape(leftShapeArray, rightShapeArray)
 
@@ -1631,8 +1631,9 @@ private class Emit(
           rT.setup,
           leftND := lT.value[Long],
           rightND := rT.value[Long],
-          unifyShapeSetup,
-          time := Code.timeMillis()
+          leftShapeArraySetup,
+          rightShapeArraySetup,
+          unifyShapeSetup
 //          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
 //            "println", time)
         )
@@ -1696,14 +1697,17 @@ private class Emit(
 
             Code(
               kLocal := 0L,
-              maxK := lShapeTuple(lNDims - 1),
+              maxK := leftShapeArray(lNDims - 1),
               element := elementZero,
+              //time := Code.timeMillis(),
               Code.whileLoop(k < maxK,
                 Code(
                   element := elementAdd(elementMul(lElem, rElem), element),
                   kLocal := kLocal + 1L
                 )
               ),
+//              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
+//                "println", (time - Code.timeMillis())),
               element
             )
           }
