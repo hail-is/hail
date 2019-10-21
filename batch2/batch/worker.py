@@ -364,13 +364,13 @@ class Pod:
                 LogStore.pod_status_path(self.output_directory),
                 json.dumps(self.status, indent=4))
         except Exception:
-            log.info(f'while running pod {self.name}')
+            log.exception(f'while running pod {self.name}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
             log.info(f'pod {self.name}: marking complete')
-            await worker.pod_complete(status)
+            await worker.post_pod_complete(status)
 
             log.info(f'pod {self.name}: cleaning up')
             try:
