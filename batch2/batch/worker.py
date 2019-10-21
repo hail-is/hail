@@ -421,13 +421,17 @@ class Worker:
 
     async def _create_pod(self, parameters):
         name = parameters['name']
+        # FIXME think through logic to make sure this is sensible
+        if name in self.pods:
+            return
+
         batch_id = parameters['batch_id']
         user = parameters['user']
         job_spec = parameters['job_spec']
         output_directory = parameters['output_directory']
 
         pod = Pod(name, batch_id, user, job_spec, output_directory)
-        self.pods[pod.name] = pod
+        self.pods[name] = pod
         await pod.run(self)
 
     async def create_pod(self, request):
@@ -497,7 +501,7 @@ class Worker:
 
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await request_retry_transient_errors(
                     session, 'POST',
                     self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
@@ -520,13 +524,13 @@ class Worker:
 
         try:
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await request_retry_transient_errors(
                     session, 'POST',
                     self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
                     json=body)
         except Exception:
-            log.exception('failed to mark pod {status["name"]} complete')
+            log.exception(f'failed to mark pod {status["name"]} complete')
 
     async def activate(self):
         body = {
@@ -534,7 +538,7 @@ class Worker:
             'ip_address': self.ip_address
         }
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
