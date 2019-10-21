@@ -327,7 +327,7 @@ class Pod:
             log.info(f'pod {self.name}: running setup')
 
             setup = self.containers['setup']
-            await setup.run(worker, self.output_directory)
+            await setup.run(worker)
 
             log.info(f'pod {self.name} setup: {setup.state}')
 
@@ -335,14 +335,14 @@ class Pod:
                 log.info(f'pod {self.name}: running main')
 
                 main = self.containers['main']
-                await main.run(worker, self.output_directory)
+                await main.run(worker)
 
                 log.info(f'pod {self.name} main: {main.state}')
 
                 log.info(f'pod {self.name}: running cleanup')
 
                 cleanup = self.containers['cleanup']
-                await cleanup.run(worker, self.output_directory)
+                await cleanup.run(worker)
 
                 log.info(f'pod {self.name} cleanup: {cleanup.state}')
 
@@ -356,13 +356,11 @@ class Pod:
             else:
                 self.state = setup.state
 
-            status = await self.status()
-
-            log.info(f'pod {self.name}: uploading status {status}')
+            log.info(f'pod {self.name}: uploading status')
 
             await worker.gcs_client.write_gs_file(
                 LogStore.pod_status_path(self.output_directory),
-                json.dumps(self.status, indent=4))
+                json.dumps(await self.status(), indent=4))
         except Exception:
             log.exception(f'while running pod {self.name}')
 
@@ -370,7 +368,7 @@ class Pod:
             self.error = traceback.format_exc()
         finally:
             log.info(f'pod {self.name}: marking complete')
-            await worker.post_pod_complete(status)
+            await worker.post_pod_complete(await self.status())
 
             log.info(f'pod {self.name}: cleaning up')
             try:
