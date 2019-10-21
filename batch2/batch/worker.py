@@ -99,6 +99,7 @@ class Container:
 
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
+        log.info(f'container {self.pod.name}/{self.name} info {c}')
         cstate = c['State']
         status = {
             'state': cstate['Status'],
