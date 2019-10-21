@@ -7,7 +7,7 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['/vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js'] %}
+{%- set script_files = script_files + ['/vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js', '_static/goto.js'] %}
 {%- set css_files = css_files + ['/navbar.css', '_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotation_database_ui" %}
@@ -40,7 +40,6 @@
     {% endif %}
 
   {% endif %}
-  
   <script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
   <link rel='stylesheet' href='/vendors/bootstrap/css/bootstrap.min.css' type='text/css'/>
 
@@ -188,6 +187,12 @@
   {% include "versions.html" %}
 
   {% if not embedded %}
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        positionToHash: false,
+      });
+    </script>
 
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
