@@ -281,7 +281,7 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     qs : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
         Number or array of numbers between 0 and 1.
     k : :obj:`int`
-        Parameter controlling the accuracy vs. memory usage tradeoff.
+        Parameter controlling the accuracy vs. memory usage tradeoff. Increasing k increases both memory use and accuracy.
 
     Returns
     -------
@@ -296,9 +296,9 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
 
 @typecheck(expr=expr_numeric, k=int)
 def approx_median(expr, k=100) -> Expression:
-    """Compute the approximate median.
+    """Compute the approximate median. This function is a shorthand for `approx_quantiles(expr, .5, k)`
 
-    ..include: _templates/experimental.rst
+    .. include: _templates/experimental.rst
 
     Examples
     --------
@@ -306,6 +306,21 @@ def approx_median(expr, k=100) -> Expression:
 
     >>> table1.aggregate(hl.agg.approx_median(table1.HT)) # doctest: +SKIP_OUTPUT_CHECK
     64
+
+    Warning
+    -------
+    This is an approximate and nondeterministic method.
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Expression to collect.
+    k : :obj:`int`
+        Parameter controlling the accuracy vs. memory usage tradeoff. Increasing k increases both memory use and accuracy.
+
+    See Also
+    --------
+    :func:`approx_quantiles`
 
     Returns
     -------
