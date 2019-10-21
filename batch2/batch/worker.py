@@ -100,13 +100,17 @@ class Container:
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
         cstate = c['State']
-        return {
+        status = {
             'state': cstate['Status'],
-            'exit_code': cstate['ExitCode'],
-            'error': cstate['Error'],
             'started_at': cstate['StartedAt'],
             'finished_at': cstate['FinishedAt']
         }
+        cerror = cstate['Error']
+        if cerror:
+            status['error'] = cerror
+        else:
+            status['exit_code'] = cstate['ExitCode']
+        return status
 
     async def run(self, worker):
         try:
@@ -151,8 +155,9 @@ class Container:
             await docker_call_retry(self.container.delete)
             self.container = None
 
-            if (self.container_status['State']['ExitCode'] == 0 and
-                    not self.container_status['State']['Error']):
+            if 'error' in self.container_status:
+                self.state = 'error'
+            elif self.container_status['exit_code'] == 0:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
