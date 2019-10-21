@@ -115,8 +115,7 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100,
-                           'Binds': None}
+                           'CpuQuota': self.cpu_in_mcpu * 100}
         }
 
         volume_mounts = self.spec.get('volume_mounts')
