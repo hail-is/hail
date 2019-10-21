@@ -66,7 +66,7 @@ def unlocalize(mt):
     return mt
 
 @typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
-def transform_one(mt, info_to_keep=[]) -> Table:
+def transform_gvcf(mt, info_to_keep=[]) -> Table:
     """transforms a gvcf into a form suitable for combining
 
     The input to this should be some result of either :func:`.import_vcf` or
@@ -86,6 +86,10 @@ def transform_one(mt, info_to_keep=[]) -> Table:
     :obj:`.Table`
         A localized matrix table that can be used as part of the input to :func:`.combine_gvcfs`
     """
+    return transform_one(mt, info_to_keep)
+
+@typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
+def transform_one(mt, info_to_keep=[]) -> Table:
     if not info_to_keep:
         info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
     mt = localize(mt)
