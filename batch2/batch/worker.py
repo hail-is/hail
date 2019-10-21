@@ -344,7 +344,8 @@ class Pod:
         finally:
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
-                await docker_call_retry(io.delete)
+                if io:
+                    await docker_call_retry(io.delete)
             except Exception:
                 log.exception('while deleting volumes')
 
