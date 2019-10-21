@@ -48,6 +48,6 @@ class LogStore:
 
     async def delete_gs_files(self, directory):
         files = [LogStore.container_log_path(directory, container) for container in tasks]
-        files.extend(LogStore.pod_status_path(directory))
+        files.append(LogStore.pod_status_path(directory))
         errors = await asyncio.gather(*[self.delete_gs_file(file) for file in files])
         return list(zip(files, errors))
