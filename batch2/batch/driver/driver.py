@@ -126,7 +126,7 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        asyncio.ensure_future(self.driver.db.pods.update_record(self.name, status=json.dumps(status)))
+        self.driver.db.pods.update_record(self.name, status=json.dumps(status))
 
     def mark_deleted(self):
         assert not self.deleted
@@ -254,7 +254,7 @@ class Pod:
                     log.exception(f'failed to delete {self.name} on inst {inst} due to exception, ignoring')
 
             await self.unschedule()
-            asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
+            await self.driver.db.pods.delete_record(self.name)
 
     async def read_pod_logs(self):
         log.info(f'reading pod {self.name} logs from instance {self.instance}')
@@ -374,7 +374,7 @@ class Driver:
         assert name not in self.pods
         pod = await Pod.create_pod(self, name, batch_id, job_spec, userdata, output_directory)
         self.pods[name] = pod
-        asyncio.ensure_future(pod.put_on_ready())
+        await pod.put_on_ready()
 
     async def delete_pod(self, name):
         pod = self.pods[name]
@@ -435,9 +435,12 @@ class Driver:
         records = await self.db.pods.get_all_records()
         self.pods = dict(_pod(record) for record in records)
 
-        for pod in self.pods.values():
-            if not pod.instance and not pod._status:
-                asyncio.ensure_future(pod.put_on_ready())
+        async def _put_on_ready():
+            for pod in self.pods.values():
+                if not pod.instance and not pod._status:
+                    await pod.put_on_ready()
+
+        asyncio.ensure_future(_put_on_ready())
 
     async def run(self):
         await self.inst_pool.start()
