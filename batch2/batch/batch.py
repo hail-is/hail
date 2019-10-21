@@ -374,14 +374,17 @@ class Batch:
         self.cancelled = cancelled
         self.closed = closed
 
-    async def get_jobs(self, limit=None, offset=None):
-        jobs = await self.app['db'].jobs.get_records_by_batch(self.id, limit, offset)
-        return [Job.from_record(self.app, record) for record in jobs]
+    async def get_jobs(self, limit=None, offset=None, size=None):
+        records = await self.app['db'].jobs.get_records_by_batch(
+            self.id, limit=limit, offset=offset, size=size)
+
+        async for record in records:
+            yield Job.from_record(self.app, record)
 
     # called by driver
     async def _cancel_jobs(self):
-        for j in await self.get_jobs():
-            await j.cancel()
+        async for job in self.get_jobs(size=1000):
+            await job.cancel()
 
     # called by front end
     async def cancel(self):
@@ -392,9 +395,9 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        for j in await self.get_jobs():
-            if j._state == 'Running':
-                await j._create_pod()
+        async for job in self.get_jobs(size=1000):
+            if job._state == 'Running':
+                await job._create_pod()
 
     # called by front end
     async def close(self):
@@ -414,8 +417,8 @@ class Batch:
 
     async def delete(self):
         # Job deleted from database when batch is deleted with delete cascade
-        for j in await self.get_jobs():
-            await j._delete_gs_files()
+        async for job in self.get_jobs(size=1000):
+            await job._delete_gs_files()
         await self.app['db'].batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
@@ -446,6 +449,6 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = await self.get_jobs(limit, offset)
+            jobs = [job async for job in self.get_jobs(limit=limit, offset=offset)]
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result

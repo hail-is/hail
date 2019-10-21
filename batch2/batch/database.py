@@ -92,6 +92,10 @@ async def fetchall_with_retry(cursor):
     return await _retry(lambda c: c.fetchall(), cursor)
 
 
+async def fetchmany_with_retry(cursor, size=None):
+    return await _retry(lambda c: c.fetchmany(size=size), cursor)
+
+
 async def fetchone_with_retry(cursor):
     return await _retry(lambda c: c.fetchone(), cursor)
 
@@ -268,8 +272,7 @@ class JobsTable(Table):
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           WHERE {where_template}"""
                 await execute_with_retry(cursor, sql, tuple(where_values))
-                result = await fetchall_with_retry(cursor)
-        return result
+                return await fetchall_with_retry(cursor)
 
     async def get_undeleted_records(self, batch_id, ids, user):
         async with self._db.pool.acquire() as conn:
@@ -282,8 +285,7 @@ class JobsTable(Table):
                 WHERE {where_template} AND EXISTS
                 (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
                 await execute_with_retry(cursor, sql, tuple(where_values))
-                result = await fetchall_with_retry(cursor)
-        return result
+                return await fetchall_with_retry(cursor)
 
     async def has_record(self, batch_id, job_id):
         return await super().has_record({'batch_id': batch_id, 'job_id': job_id})
@@ -303,16 +305,19 @@ class JobsTable(Table):
                 result = await fetchall_with_retry(cursor)
                 return [(record['batch_id'], record['job_id']) for record in result]
 
-    async def get_records_by_batch(self, batch_id, limit=None, offset=None):
+    async def get_records_by_batch(self, batch_id, limit=None, offset=None, size=None):
         if offset is not None:
             assert limit is not None
-        return await self.get_records_where({'batch_id': batch_id},
-                                            limit=limit,
-                                            offset=offset,
-                                            order_by='batch_id, job_id',
-                                            ascending=True)
 
-    async def get_records_where(self, condition, limit=None, offset=None, order_by=None, ascending=None):
+        return self.get_records_where({'batch_id': batch_id},
+                                      limit=limit,
+                                      offset=offset,
+                                      order_by='batch_id, job_id',
+                                      ascending=True,
+                                      size=size)
+
+    async def get_records_where(self, condition, limit=None, offset=None,
+                                order_by=None, ascending=None, size=None):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
@@ -335,7 +340,12 @@ class JobsTable(Table):
                           {order_by} {ascending}
                           {limit} {offset}"""
                 await execute_with_retry(cursor, sql, where_values)
-                return await fetchall_with_retry(cursor)
+
+                records = await fetchmany_with_retry(cursor, size)
+                while records:
+                    for record in records:
+                        yield record
+                    records = await fetchmany_with_retry(cursor, size)
 
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:
@@ -458,8 +468,7 @@ class BatchTable(Table):
             async with conn.cursor() as cursor:
                 sql = f"SELECT * FROM `{self.name}` WHERE `deleted` = TRUE AND `n_completed` = `n_jobs`"
                 await execute_with_retry(cursor, sql)
-                result = await fetchall_with_retry(cursor)
-        return result
+                return await fetchall_with_retry(cursor)
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})
