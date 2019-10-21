@@ -42,7 +42,6 @@ if ((window.history && window.history.pushState)) {
             }
 
             e.preventDefault();
-            e.stopPropagation();
             window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
             history.pushState({}, null, `#${hash}`);
         })
