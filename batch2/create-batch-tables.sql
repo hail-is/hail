@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `directory` VARCHAR(1024),
   `spec` VARCHAR(65535),
-  `status` VARCHAR(65535)
+  `status` VARCHAR(65535),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
