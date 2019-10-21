@@ -40,11 +40,10 @@ class LogStore:
         return await self.gcs.read_gs_file(uri)
 
     async def delete_gs_file(self, uri):
-        err = await self.gcs.delete_gs_file(uri)
-        if isinstance(err, google.api_core.exceptions.NotFound):
-            log.info(f'ignoring: cannot delete file that does not exist: {err}')
-            err = None
-        return err
+        try:
+            await self.gcs.delete_gs_file(uri)
+        except google.api_core.exceptions.NotFound:
+            log.exception(f'file not found: {uri}, ignoring')
 
     async def delete_gs_files(self, directory):
         files = [LogStore.container_log_path(directory, container) for container in tasks]

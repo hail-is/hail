@@ -6,7 +6,6 @@ from aiohttp import web
 import logging
 import google.oauth2.service_account
 import sortedcontainers
-import traceback
 
 from hailtop.config import get_deploy_config
 from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
@@ -125,7 +124,6 @@ class Pod:
 
         # FIXME failure to get secrets needs to be an error
         for secret, k8s_secret in zip(secrets, k8s_secrets):
-            name = secret['name']
             if k8s_secret:
                 secret['data'] = k8s_secret.data
 
@@ -278,7 +276,7 @@ class Pod:
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/logs'
-        resp = self._request('GET',  url)
+        resp = self._request('GET', url)
         return await resp.json()
 
     async def read_pod_status(self):

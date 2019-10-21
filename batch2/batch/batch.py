@@ -254,7 +254,7 @@ class Job:
             'state': self._state
         }
         # FIXME can't change this yet, batch and batch2 share client
-        if self.is_complete():
+        if self.status:
             if 'error' in self.status:
                 result['error'] = self.status['error']
             result['exit_code'] = {
