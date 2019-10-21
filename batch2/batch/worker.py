@@ -394,6 +394,7 @@ class Pod:
         status['container_statuses'] = {
             name: await c.status() for name, c in self.containers.items()
         }
+        return status
 
 
 class Worker:
