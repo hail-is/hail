@@ -125,11 +125,10 @@ class Pod:
 
         for secret, (k8s_secret, err) in zip(secrets, k8s_secrets):
             name = secret['name']
-            if not err:
+            if k8s_secret:
                 secret['data'] = k8s_secret.data
             else:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'could not get secret {name} due to {err!r}')
+                log.info(f'could not get secret {name} due to exception:\n{traceback.format_exception(*err)}')
                 secret['data'] = None
 
         return {
@@ -224,13 +223,13 @@ class Pod:
                 resp = await request_retry_transient_errors(session, method, *args, **kwargs)
                 if self.instance:
                     self.instance.mark_as_healthy()
-                return resp, None
+                return resp
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
-        except Exception as e:
+        except Exception:
             if self.instance:
                 self.instance.mark_as_unhealthy()
-            return None, e
+            raise
 
     async def create(self):
         async with self.lock:
@@ -249,17 +248,12 @@ class Pod:
 
             inst = self.instance
             url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/create'
-            resp, err = await self._request(url, 'POST', config)
-            if resp:
-                if resp.status == 200:
-                    log.info(f'created {self.name} on inst {inst}')
-                    return None
-                # FIXME need to put back on ready queue?
-                log.info(f'failed to create {self.name} on inst {inst} due to {resp}')
-                return
-            assert err
-            log.info(f'failed to create {self.name} on inst {inst} due to {err!r}, putting back on ready queue')
-            asyncio.ensure_future(self.put_on_ready())
+            try:
+                await self._request(url, 'POST', config)
+                log.info(f'created {self.name} on inst {inst}')
+            except Exception:
+                log.exception(f'failed to create {self.name} on inst {inst}, putting back on ready queue')
+                asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
         assert self.deleted
@@ -268,15 +262,11 @@ class Pod:
             inst = self.instance
             if inst:
                 url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/delete'
-                resp, err = await self._request(url, 'POST')
-                if resp:
-                    if resp.status == 200:
-                        log.info(f'deleted {self.name} from inst {inst}')
-                    else:
-                        log.info(f'failed to delete {self.name} from inst {inst} due to {resp}')
-                else:
-                    assert err
-                    log.info(f'failed to delete {self.name} on inst {inst} due to err {err!r}, ignoring')
+                try:
+                    await self._request(url, 'POST')
+                    log.info(f'deleted {self.name} from inst {inst}')
+                except Exception:
+                    log.info(f'failed to delete {self.name} on inst {inst} due to exception, ignoring')
 
             await self.unschedule()
             asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
@@ -285,31 +275,25 @@ class Pod:
         log.info(f'reading pod {self.name} logs from instance {self.instance}')
 
         if self.instance is None:
-            return None, None
+            # FIXME error?
+            return None
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/logs'
-        resp, err = self._request(url, 'GET')
-        if resp:
-            return resp.json(), None
-        assert err
-        log.info(f'failed to pod {self.name} logs on {inst} due to err {err!r}, ignoring')
-        return None, err
+        resp = self._request(url, 'GET')
+        return await resp.json()
 
     async def read_pod_status(self):
         log.info(f'reading status for pod {self.name} from instance {self.instance}')
 
         if self.instance is None:
-            return None, None
+            # FIXME error?
+            return None
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/status'
-        resp, err = self._request(url, 'GET')
-        if resp:
-            return resp.json(), None
-        assert err
-        log.info(f'failed to read status for pod {self.name} on {inst} due to err {err!r}, ignoring')
-        return None, err
+        resp = self._request(url, 'GET')
+        return await resp.json()
 
     def status(self):
         if self._status is None:
@@ -403,14 +387,17 @@ class Driver:
         await self.complete_queue.put(status)
         return web.Response()
 
+    # FIXME return value
     async def create_pod(self, name, batch_id, job_spec, userdata, output_directory):
         if name in self.pods:
             return DriverException(409, f'pod {name} already exists')
 
         try:
             pod = await Pod.create_pod(self, name, batch_id, job_spec, userdata, output_directory)
-        except Exception as err:
-            return DriverException(400, f'unknown error creating pod: {err!r}')  # FIXME: what error code should this be?
+        except Exception:
+            # FIXME: what error code should this be?
+            # FIXME chaining
+            DriverException(400, f'unknown error creating pod')
 
         self.pods[name] = pod
         asyncio.ensure_future(pod.put_on_ready())

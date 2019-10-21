@@ -1,6 +1,5 @@
 import json
 import logging
-import traceback
 import asyncio
 import aiohttp
 
@@ -20,42 +19,26 @@ class Job:
         assert self._state in states
         assert self._state == 'Running'
 
-        err = await self.app['driver'].create_pod(
+        # FIXME handle exceptions?
+        await self.app['driver'].create_pod(
             name=self._pod_name,
             batch_id=self.batch_id,
             job_spec=self._spec,
             userdata=self.userdata,
             output_directory=self.directory)
-        if err is not None:
-            if err.status == 409:
-                log.info(f'pod already exists for job {self.id}')
-                return
-            traceback.print_tb(err.__traceback__)
-            log.info(f'pod creation failed for job {self.id} '
-                     f'with the following error: {err}')
 
     async def _delete_pod(self):
-        err = await self.app['driver'].delete_pod(name=self._pod_name)
-        if err is not None:
-            traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
+        await self.app['driver'].delete_pod(name=self._pod_name)
 
     async def _read_logs(self):
         if self._state in ('Pending', 'Cancelled'):
             return None
 
         if self._state == 'Running':
-            pod_log, err = await self.app['driver'].read_pod_logs(self._pod_name)
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read logs for {self.id} due to {err}')
-            return pod_log
+            return await self.app['driver'].read_pod_logs(self._pod_name)
 
         async def _read_log_from_gcs(task_name):
-            pod_log, err = await self.app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id}, {task_name} due to {err}')
+            pod_log = await self.app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
             return task_name, pod_log
 
         assert self._state in ('Error', 'Failed', 'Success')
@@ -67,26 +50,12 @@ class Job:
             return None
 
         if self._state == 'Running':
-            status, err = await self.app['driver'].read_pod_status(self._pod_name)
-            log.info(f'status {status} err {err}')
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read pod status for {self.id} due to {err}')
-            return status
+            return await self.app['driver'].read_pod_status(self._pod_name)
 
-        status, err = await self.app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
-        if err is not None:
-            traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring: could not read container status for {self.id} '
-                     f'due to {err}')
-        return status
+        return await self.app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
 
     async def _delete_gs_files(self):
-        errs = await self.app['log_store'].delete_gs_files(self.directory)
-        for file, err in errs:
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'could not delete {self.directory}/{file} for job {self.id} due to {err}')
+        await self.app['log_store'].delete_gs_files(self.directory)
 
     @staticmethod
     def from_record(app, record):
