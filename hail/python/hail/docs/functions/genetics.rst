@@ -37,6 +37,7 @@ Genetics functions
     mendel_error_code
     liftover
     min_rep
+    reverse_complement
 
 .. autofunction:: locus
 .. autofunction:: locus_from_global_position
@@ -70,3 +71,4 @@ Genetics functions
 .. autofunction:: mendel_error_code
 .. autofunction:: liftover
 .. autofunction:: min_rep
+.. autofunction:: reverse_complement

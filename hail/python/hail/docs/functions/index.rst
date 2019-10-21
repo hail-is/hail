@@ -208,3 +208,4 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     mendel_error_code
     liftover
     min_rep
+    reverse_complement
