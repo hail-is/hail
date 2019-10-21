@@ -4,7 +4,7 @@ $("#checkAll").click(function(){
 
 $.ajax({type: 'GET',
         url: ('https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f' +
-              hail_pip_version +
+              hail_version +
               '%2fannotation_db.json?alt=media'),
         dataType: 'json',
         success: function (data) {

@@ -243,25 +243,25 @@ TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION)
 check-tag:
 	if [ -z "$(TAG_EXISTS)" ]; then echo "ERROR: tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
-annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)/annotation_db.json
-.PHONY: deploy-annotation-db
-deploy-annotation-db:
-	gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)
-	gsutil -m retention temp set $(annotation_db_json_url)
-
 GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
-tag: check-tag pypi-deploy deploy-annotation-db
+tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
 	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
 
+annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)-$(SHORT_REVISION)/annotation_db.json
+.PHONY: deploy-annotation-db
+deploy-annotation-db:
+	gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)
+	gsutil -m retention temp set $(annotation_db_json_url)
+
 docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
 local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
 cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
 .PHONY: set-docs-sha
-set-docs-sha:
+set-docs-sha: deploy-annotation-db
 	mkdir -p $(dir $(local_sha_location))
 	gsutil ls $(docs_location)  # make sure file exists
 	echo "$(REVISION)" > $(local_sha_location)
