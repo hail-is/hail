@@ -9,7 +9,7 @@ import sortedcontainers
 import traceback
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import AsyncWorkerPool
+from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
 
 from ..google_compute import GServices
 from ..utils import parse_cpu_in_mcpu
@@ -304,7 +304,7 @@ class Pod:
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/status'
-        resp, err = self._get(url)
+        resp, err = self._request(url, 'GET')
         if resp:
             return resp.json(), None
         assert err

@@ -522,15 +522,23 @@ class Worker:
             'status': pod_status
         }
 
-        try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await request_retry_transient_errors(
-                    session, 'POST',
-                    self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
-                    json=body)
-        except Exception:
-            log.exception(f'failed to mark pod {status["name"]} complete')
+        delay = 0.1
+        while True:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    await session.post(
+                        self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
+                        json=body)
+                    return
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                log.exception(f'failed to mark pod {pod_status["name"]} complete, retrying')
+            # exponentially back off, up to (expected) max of 30s
+            t = delay * random.random()
+            await asyncio.sleep(t)
+            delay = min(delay * 2, 60.0)
 
     async def activate(self):
         body = {
