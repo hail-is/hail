@@ -274,13 +274,23 @@ class Job:
                 await batch.mark_job_complete()
 
     def to_dict(self):
+        def getopt(obj, attr):
+            if obj is None:
+                return None
+            return obj.get(attr)
+
         result = {
             'batch_id': self.batch_id,
             'job_id': self.job_id,
             'state': self._state
         }
+        # FIXME can't change this yet, batch and batch2 share client
         if self.is_complete():
-            result['status'] = self.status
+            if 'error' in self.status:
+                result['error'] = self.status['error']
+            result['exit_code'] = {k: getopt(getopt(self.status[k], 'container_status'), 'exit_code') for k in tasks}
+            result['duration'] = {k: None for k in tasks}
+            result['message'] = {k: getopt(getopt(self.status[k], 'container_status'), 'message') for k in tasks}
         if self.attributes:
             result['attributes'] = self.attributes
         return result

@@ -75,7 +75,7 @@ class Test(unittest.TestCase):
 
     def test_bad_command(self):
         builder = self.client.create_batch()
-        j = builder.create_job('ubuntu:18.04', ['sleep 5'])
+        j = builder.create_job('ubuntu:18.04', ['sleep', '5'])
         builder.submit()
         status = j.wait()
         assert status['exit_code'] == {'setup': 0, 'main': 127, 'cleanup': None}, status
