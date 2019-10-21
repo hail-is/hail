@@ -126,7 +126,7 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        self.driver.db.pods.update_record(self.name, status=json.dumps(status))
+        await self.driver.db.pods.update_record(self.name, status=json.dumps(status))
 
     def mark_deleted(self):
         assert not self.deleted
