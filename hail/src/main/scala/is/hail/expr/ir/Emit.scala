@@ -2337,7 +2337,7 @@ private class Emit(
             Code(
               storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
-              childEmitter.outputElement(newIdxVars) // Error comes from something inside this call.
+              childEmitter.outputElement(newIdxVars)
             )
           }
         }
