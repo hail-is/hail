@@ -214,11 +214,11 @@ class Pod:
             self.on_ready = False
             self.driver.ready_cores_mcpu -= self.cores_mcpu
 
-    async def _request(self, session, method, *args, **kwargs):
+    async def _request(self, method, url, **kwargs):
         try:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                resp = await request_retry_transient_errors(session, method, *args, **kwargs)
+                resp = await request_retry_transient_errors(session, method, url, **kwargs)
                 if self.instance:
                     self.instance.mark_as_healthy()
                 return resp
@@ -247,7 +247,7 @@ class Pod:
             inst = self.instance
             url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/create'
             try:
-                await self._request(url, 'POST', config)
+                await self._request('POST', url, config)
                 log.info(f'created {self.name} on inst {inst}')
             except Exception:
                 log.exception(f'failed to create {self.name} on inst {inst}, putting back on ready queue')
@@ -261,7 +261,7 @@ class Pod:
             if inst:
                 url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/delete'
                 try:
-                    await self._request(url, 'POST')
+                    await self._request('POST', url)
                     log.info(f'deleted {self.name} from inst {inst}')
                 except Exception:
                     log.info(f'failed to delete {self.name} on inst {inst} due to exception, ignoring')
@@ -278,7 +278,7 @@ class Pod:
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/logs'
-        resp = self._request(url, 'GET')
+        resp = self._request('GET',  url)
         return await resp.json()
 
     async def read_pod_status(self):
@@ -290,7 +290,7 @@ class Pod:
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/status'
-        resp = self._request(url, 'GET')
+        resp = self._request('GET', url)
         return await resp.json()
 
     def status(self):
