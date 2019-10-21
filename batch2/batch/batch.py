@@ -95,7 +95,7 @@ class Job:
 
         userdata = json.loads(record['userdata'])
         spec = json.loads(record['spec'])
-        status = json.loads(record['status'])
+        status = json.loads(record['status']) if record['status'] else None
 
         return Job(app, batch_id=record['batch_id'], job_id=record['job_id'],
                    userdata=userdata, user=record['user'],
