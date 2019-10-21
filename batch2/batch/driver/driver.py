@@ -247,7 +247,7 @@ class Pod:
             inst = self.instance
             url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/create'
             try:
-                await self._request('POST', url, config)
+                await self._request('POST', url, json=config)
                 log.info(f'created {self.name} on inst {inst}')
             except Exception:
                 log.exception(f'failed to create {self.name} on inst {inst}, putting back on ready queue')
