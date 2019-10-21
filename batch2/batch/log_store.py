@@ -14,12 +14,11 @@ class LogStore:
     @staticmethod
     def container_log_path(directory, container_name):
         assert container_name in tasks
-        return f'{directory}{container_name}/job.log'
+        return f'{directory}/{container_name}/job.log'
 
     @staticmethod
-    def container_status_path(directory, container_name):
-        assert container_name in tasks
-        return f'{directory}{container_name}/status'
+    def pod_status_path(directory):
+        return f'{directory}/status'
 
     def __init__(self, blocking_pool, instance_id, bucket_name):
         self.instance_id = instance_id
@@ -32,7 +31,7 @@ class LogStore:
         self.gcs = GCS(blocking_pool, credentials)
 
     def gs_job_output_directory(self, batch_id, job_id):
-        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/'
+        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}'
 
     async def write_gs_file(self, uri, data):
         return await self.gcs.write_gs_file(uri, data)
@@ -49,6 +48,6 @@ class LogStore:
 
     async def delete_gs_files(self, directory):
         files = [LogStore.container_log_path(directory, container) for container in tasks]
-        files.extend([LogStore.container_status_path(directory, container) for container in tasks])
+        files.extend(LogStore.pod_status_path(directory))
         errors = await asyncio.gather(*[self.delete_gs_file(file) for file in files])
         return list(zip(files, errors))

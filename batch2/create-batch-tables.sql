@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `userdata` TEXT(65535) NOT NULL,
+  `userdata` VARCHAR(65535) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
-  `attributes` TEXT(65535),
-  `callback` TEXT(65535),
+  `attributes` VARCHAR(65535),
+  `callback` VARCHAR(65535),
   `deleted` BOOLEAN NOT NULL default false,
   `cancelled` BOOLEAN NOT NULL default false,
   `closed` BOOLEAN NOT NULL default false,
@@ -24,10 +24,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `state` VARCHAR(40) NOT NULL,
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `directory` VARCHAR(1024),
-  `spec` TEXT(65535),
-  `exit_codes` TEXT(65535),
-  `durations` TEXT(65535),
-  `messages` TEXT(65535),
+  `spec` VARCHAR(65535),
+  `status` VARCHAR(65535)
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -45,7 +43,7 @@ CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
 CREATE TABLE IF NOT EXISTS `batch-attributes` (
   `batch_id` BIGINT NOT NULL,
   `key` VARCHAR(100) NOT NULL,
-  `value` TEXT(65535),
+  `value` VARCHAR(65535),
   PRIMARY KEY (`batch_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
@@ -61,12 +59,12 @@ CREATE TABLE IF NOT EXISTS `instances` (
 CREATE TABLE IF NOT EXISTS `pods` (
   `name` VARCHAR(100) NOT NULL,
   `batch_id` BIGINT NOT NULL,
-  `job_spec` TEXT(65535) NOT NULL,
-  `userdata` TEXT(65535) NOT NULL,
+  `job_spec` VARCHAR(65535) NOT NULL,
+  `userdata` VARCHAR(65535) NOT NULL,
   `output_directory` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `instance` VARCHAR(100),
-  `status` TEXT(65535),
+  `status` VARCHAR(65535),
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`instance`) REFERENCES instances (`token`) ON DELETE SET NULL

@@ -44,25 +44,20 @@ class Job:
         if self._state in ('Pending', 'Cancelled'):
             return None
 
+        if self._state == 'Running':
+            pod_log, err = await self.app['driver'].read_pod_logs(self._pod_name)
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'ignoring: could not read logs for {self.id} due to {err}')
+            return pod_log
+
         async def _read_log_from_gcs(task_name):
             pod_log, err = await self.app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id}, {task_name} '
-                         f'due to {err}')
+                log.info(f'ignoring: could not read log for {self.id}, {task_name} due to {err}')
             return task_name, pod_log
 
-        async def _read_log_from_worker(task_name):
-            pod_log, err = await self.app['driver'].read_pod_log(self._pod_name, container=task_name)
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.id}, {task_name} '
-                         f'due to {err}; will still try to load other containers')
-            return task_name, pod_log
-
-        if self._state == 'Running':
-            future_logs = asyncio.gather(*[_read_log_from_worker(task) for task in tasks])
-            return {k: v for k, v in await future_logs}
         assert self._state in ('Error', 'Failed', 'Success')
         future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
         return {k: v for k, v in await future_logs}
@@ -71,29 +66,20 @@ class Job:
         if self._state in ('Pending', 'Cancelled'):
             return None
 
-        async def _read_status_from_gcs(task_name):
-            status, err = await self.app['log_store'].read_gs_file(LogStore.container_status_path(self.directory, task_name))
-            if err is not None:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read container status for {self.id} '
-                         f'due to {err}')
-            return task_name, status
-
-        async def _read_status_from_worker(task_name):
-            status, err = await self.app['driver'].read_container_status(self._pod_name, container=task_name)
+        if self._state == 'Running':
+            status, err = await self.app['driver'].read_pod_status(self._pod_name)
             log.info(f'status {status} err {err}')
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read container status for {self.id} '
-                         f'due to {err}; will still try to load other containers')
-            return task_name, status
+                log.info(f'ignoring: could not read pod status for {self.id} due to {err}')
+            return status
 
-        if self._state == 'Running':
-            future_statuses = asyncio.gather(*[_read_status_from_worker(task) for task in tasks])
-            return {k: v for k, v in await future_statuses}
-        assert self._state in ('Error', 'Failed', 'Success')
-        future_statuses = asyncio.gather(*[_read_status_from_gcs(task) for task in tasks])
-        return {k: v for k, v in await future_statuses}
+        status, err = await self.app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring: could not read container status for {self.id} '
+                     f'due to {err}')
+        return status
 
     async def _delete_gs_files(self):
         errs = await self.app['log_store'].delete_gs_files(self.directory)
@@ -109,14 +95,11 @@ class Job:
 
         userdata = json.loads(record['userdata'])
         spec = json.loads(record['spec'])
-        exit_codes = json.loads(record['exit_codes'])
-        durations = json.loads(record['durations'])
-        messages = json.loads(record['messages'])
+        status = json.loads(record['status'])
 
         return Job(app, batch_id=record['batch_id'], job_id=record['job_id'],
                    userdata=userdata, user=record['user'],
-                   exit_codes=exit_codes, messages=messages,
-                   durations=durations, state=record['state'],
+                   status=status, state=record['state'],
                    cancelled=record['cancelled'], directory=record['directory'],
                    spec=spec)
 
@@ -145,7 +128,7 @@ class Job:
         return jobs
 
     def __init__(self, app, batch_id, job_id, userdata, user,
-                 exit_codes, messages, durations, state, cancelled, directory,
+                 status, state, cancelled, directory,
                  spec):
         self.app = app
         self.batch_id = batch_id
@@ -154,10 +137,8 @@ class Job:
 
         self.userdata = userdata
         self.user = user
-        self.exit_codes = exit_codes
-        self.messages = messages
+        self.status = status
         self.directory = directory
-        self.durations = durations
 
         name = f'batch-{batch_id}-job-{job_id}'
         self._pod_name = name
@@ -258,51 +239,24 @@ class Job:
         if self._state == 'Running' and (not self._cancelled or self.always_run):
             await self._create_pod()
 
-    async def mark_complete(self, pod):  # pylint: disable=R0915
-        def process_container(status):
-            state = status.state
-            ec = None
-            duration = None
-            message = None
-
-            if state.terminated:
-                ec = state.terminated.exit_code
-                if state.terminated.started_at and state.terminated.finished_at:
-                    duration = max(0, (state.terminated.finished_at - state.terminated.started_at).total_seconds())
-                message = state.terminated.message
-            else:
-                assert state.waiting, state
-                if state.waiting.message:
-                    message = state.waiting.message
-
-            return ec, duration, message
-
-        exit_codes, durations, messages = zip(*[process_container(status)
-                                                for status in pod.status.container_statuses])  # FIXME: use gear unzip?
-        exit_codes = list(exit_codes)
-        durations = list(durations)
-        messages = list(messages)
-
-        if pod.status.phase == 'Succeeded':
+    async def mark_complete(self, status):
+        if status == 'succeeded':
             new_state = 'Success'
-        elif any(messages):
+        elif status == 'error':
             new_state = 'Error'
         else:
+            assert status == 'failed'
             new_state = 'Failed'
 
         n_updated = await self.app['db'].jobs.update_record(*self.id,
                                                             compare_items={'state': self._state},
-                                                            durations=json.dumps(durations),
-                                                            exit_codes=json.dumps(exit_codes),
-                                                            messages=json.dumps(messages),
+                                                            status=json.dumps(status),
                                                             state=new_state)
-
         if n_updated == 0:
             log.info(f'could not update job {self.id} due to db not matching expected state')
             raise JobStateWriteFailure()
 
-        self.exit_codes = exit_codes
-        self.durations = durations
+        self.status = status
 
         if self._state != new_state:
             log.info('job {} changed state: {} -> {}'.format(
@@ -315,7 +269,7 @@ class Job:
         await self._delete_pod()
         await self.notify_children(new_state)
 
-        log.info('job {} complete with state {}, exit_codes {}'.format(self.id, self._state, self.exit_codes))
+        log.info('job {} complete with state {}, status {}'.format(self.id, self._state, status))
 
         if self.batch_id:
             batch = await Batch.from_db(self.app, self.batch_id, self.user)
@@ -329,10 +283,7 @@ class Job:
             'state': self._state
         }
         if self.is_complete():
-            result['exit_code'] = {k: v for k, v in zip(tasks, self.exit_codes)}
-            result['duration'] = {k: v for k, v in zip(tasks, self.durations)}
-            result['message'] = {k: v for k, v in zip(tasks, self.messages)}
-
+            result['status'] = self.status
         if self.attributes:
             result['attributes'] = self.attributes
         return result

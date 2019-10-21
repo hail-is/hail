@@ -6,10 +6,11 @@ import logging
 import asyncio
 import random
 import json
-import aiohttp
+import traceback
 import base64
 import uuid
 import shutil
+import aiohttp
 from aiohttp import web
 import concurrent
 import aiodocker
@@ -22,7 +23,7 @@ from hailtop.config import DeployConfig
 from gear import configure_logging
 
 from .utils import parse_cpu_in_mcpu, parse_image_tag
-from .semaphore import NullWeightedSemaphore, WeightedSemaphore
+from .semaphore import WeightedSemaphore
 from .log_store import LogStore
 from .google_storage import GCS
 
@@ -56,139 +57,137 @@ async def docker_call_retry(f, *args, **kwargs):
         delay = min(delay * 2, 60.0)
 
 
-class Substep:
-    def __init__(self, name):
+class Container:
+    def __init__(self, pod, name, spec):
+        self.pod = pod
         self.name = name
+        self.spec = spec
 
-        self._container = None
-        self._status = {
-            'name': name,
-            'state': 'pending'
-        }
-        self._log = None
-
-    def _container_config(self, spec):
         image = spec['image']
+        tag = parse_image_tag(self.spec['image'])
+        if not tag:
+            log.info(f'adding latest tag to image {self.spec["image"]} for container {self.pod.name}/{self.name}')
+            image += ':latest'
+        self.image = image
+
+        self.cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+
+        self.container = None
+        self.state = 'pending'
+        self.error = None
+        self.container_status = None
+        self.log = None
+
+    def container_config(self):
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Cmd': spec['command'],
-            'Image': image,
+            'Cmd': self.spec['command'],
+            'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': cores_mcpu * 100}
+                           'CpuQuota': self.cpu_in_mcpu * 100}
         }
 
-        volume_mounts = spec.get('volume_mounts')
+        volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
         return config
 
-    def run(self, gcs_client, spec, log_directory):
+    async def get_container_status(self):
+        c = await docker_call_retry(self.container.show)
+        cstate = c['State']
+        return {
+            'state': cstate['Status'],
+            'exit_code': cstate['ExitCode'],
+            'error': cstate['Error'],
+            'started_at': cstate['StartedAt'],
+            'finished_at': cstate['FinishedAt']
+        }
+
+    async def run(self, worker):
         try:
-            self._status['state'] = 'pulling'
+            self.state = 'pulling'
 
             try:
-                await docker_call_retry(docker.images.get, image)
+                await docker_call_retry(docker.images.get, self.image)
             except DockerError as e:
                 if e.status == 404:
-                    await docker_call_retry(docker.images.pull, image)
+                    await docker_call_retry(docker.images.pull, self.image)
 
-            self._status['state'] = 'creating'
+            self.state = 'creating'
 
-            config = self._container_config(self, spec)
-            self._container = await docker_call_retry(docker.containers.create, config)
+            self.container = await docker_call_retry(docker.containers.create, self.container_config())
 
-            async with worker.cpu_sem(cores_mcpu):
-                self._status['state'] = 'starting'
+            async with worker.cpu_sem(self.cpu_in_mcpu):
+                self.state = 'starting'
 
-                await docker_call_retry(self._container.start)
+                await docker_call_retry(self.container.start)
 
-                self._status['state'] = 'running'
+                self.state = 'running'
 
-                await docker_call_retry(self._container.wait)
+                await docker_call_retry(self.container.wait)
 
-                cstatus = await self._container_status()
-                self._status['container_status'] = cstatus
+                cstatus = await self.get_container_status()
+                self.container_status = cstatus
 
-                await docker_call_retry(self._container.stop)
-                await docker_call_retry(self._container.delete)
-                self._container = None
+                await docker_call_retry(self.container.stop)
+                await docker_call_retry(self.container.delete)
+                self.container = None
 
-            self._status['state'] = 'uploading'
+            self.state = 'uploading_log'
 
-            complete_status = dict(self._status)
-            complete_status['state'] = 'succeeded' if cstatus['State']['ExitCode'] == 0 else 'failed'
+            self.log = await self.get_container_log()
+            log_path = LogStore.container_log_path(self.pod.output_directory, self.name)
+            await worker.gcs_client.write_gs_file(log_path, self.log)
 
-            self._log = await self._container_logs()
-            log_path = LogStore.container_log_path(self.log_directory, self.name)
-            upload_log = gcs_client.write_gs_file(log_path, self._log)
-
-            status_path = LogStore.container_status_path(self.log_directory, self.name)
-            upload_status = gcs_client.write_gs_file(
-                status_path, json.dumps(complete_status, indent=4))
-
-            self._status = complete_status
-        except Exception as e:
-            self._status['state'] = 'error'
-            self._status['error'] = traceback.format_exc()
+            if cstatus['State']['ExitCode'] == 0 and not cstatus['State']['Error']:
+                self.state = 'succeeded'
+            else:
+                self.state = 'failed'
+        except Exception:
+            self.state = 'error'
+            self.error = traceback.format_exc()
         finally:
-            if self._container:
+            if self.container:
                 try:
-                    await docker_call_retry(self._container.stop)
-                    await docker_call_retry(self._container.delete)
-                except Exception:  # pylint: disable=broad-except
+                    await docker_call_retry(self.container.stop)
+                    await docker_call_retry(self.container.delete)
+                except Exception:
                     log.exception('while deleting container')
                 finally:
-                    self._container = None
+                    self.container = None
 
-    async def _container_logs(self):
-        logs = await docker_call_retry(self._container.log, stderr=True, stdout=True)
+    async def get_container_log(self):
+        logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
         return "".join(logs)
 
-    async def log(self):
-        if self._log:
-            return self._log
+    async def get_log(self):
+        if self.log:
+            return self.log
 
-        if self._container:
-            return await self._container_logs()
+        if self.container:
+            return await self.get_container_log()
 
         return None
 
-    async def status(self):
-        if 'error' in self._status:
-            return self._status
-
-        if self._container and not 'container_status' not in self._status:
-            status = dict(self._status)
-            status['container_status'] = await self._container_status()
-            return status
-
-        return self._status
-
-
-class Volume:
-    def __init__(self, name):
-        self.name = name
-        self.volume = None
-
-    async def create(self):
-        config = {
-            'Name': self.name
+    async def status(self, state=None):
+        if not state:
+            state = self.state
+        status = {
+            'name': self.name,
+            'state': state
         }
-        self.volume = await docker_call_retry(docker.volumes.create, config)
-
-    @property
-    def volume_path(self):
-        return self.name
-
-    async def delete(self):
-        if self.volume:
-            await self.volume.delete()
-            self.volume = None
+        if self.error:
+            status['error'] = self.error
+        if self.container_status:
+            status['container_status'] = self.container_status
+        elif self.container:
+            status['container_status'] = await self.get_container_status()
+        return status
 
 
 def populate_secret_host_path(host_path, secret_data):
@@ -216,25 +215,38 @@ def copy(files):
     return f'{authenticate} && {copies}'
 
 
-def copy_substep(name, files, volume_mounts):
+def copy_container(pod, name, files, volume_mounts):
     sh_expression = copy(files)
     copy_spec = {
         'image': 'google/cloud-sdk:237.0.0-alpine',
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
-        'cpu': '500m',
+        'cpu': '500m' if files else '100m',
         'volume_mounts': volume_mounts
     }
-    return Substep(copy_spec)
+    return Container(pod, name, copy_spec)
 
 
-class Step:
-    def __init__(self, spec):
-        self._state = 'pending'
-        self._error = None
+class Pod:
+    def secret_host_path(self, secret):
+        return f'{self.scratch}/{secret["name"]}'
 
-        # create volumes
-        self.volumes = []
+    def __init__(self, name, batch_id, user, job_spec, output_directory):
+        self.name = name
+        self.batch_id = batch_id
+        self.user = user
+        self.job_spec = job_spec
+        self.output_directory = output_directory
+
+        token = uuid.uuid4().hex
+        self.scratch = f'/batch/pods/{token}'
+
+        self.state = 'pending'
+        self.error = None
+
+        pvc_size = job_spec.get('pvc_size')
+        input_files = job_spec.get('input_files')
+        output_files = job_spec.get('output_files')
 
         copy_volume_mounts = []
         main_volume_mounts = []
@@ -243,30 +255,32 @@ class Step:
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
         if pvc_size or input_files or output_files:
-            v = Volume('io')
-            self.volumes.append(v)
+            self.mount_io = True
             volume_mount = 'io:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
+        else:
+            self.mount_io = False
 
         secrets = job_spec.get('secrets')
+        self.secrets = secrets
         if secrets:
             for secret in job_spec['secrets']:
-                host_path = f'{self.scratch}/{secret["name"]}'
-                populate_secret_host_path(host_path, secret['data'])
-                volume_mount = f'{host_path}:{secret["mount_path"]}'
+                volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
                 main_volume_mounts.append(volume_mount)
                 # this will be the user gsa-key
                 if secret.get('mount_in_copy', False):
                     copy_volume_mounts.append(volume_mount)
 
-        # create substeps
-        substeps = {}
+        # create containers
+        containers = {}
 
-        if input_files:
-            substep['setup'] = copy_substep('setup', input_files, copy_volume_mounts)
+        # FIXME
+        # if input_files:
+        containers['setup'] = copy_container(
+            self, 'setup', input_files, copy_volume_mounts)
 
-        # main substep
+        # main container
         main_spec = {
             'command': job_spec['command'],
             'image': job_spec['image'],
@@ -275,81 +289,80 @@ class Step:
             'cpu': job_spec['resources']['cpu'],
             'volume_mounts': main_volume_mounts
         }
-        substeps['main'] = Step(main_spec)
+        containers['main'] = Container(self, 'main', main_spec)
 
-        if output_files:
-            substep['cleanup'] = copy_substep('cleanup', output_files, copy_volume_mounts)
+        # FIXME
+        # if output_files:
+        containers['cleanup'] = copy_container(
+            self, 'cleanup', output_files, copy_volume_mounts)
 
-        self._substeps = substeps
+        self.containers = containers
 
-    async def _mark_complete(self, worker):
-        body = {
-            'inst_token': self.worker.token,
-            'status': self.status()
-        }
-
+    async def run(self, worker):
+        io = None
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                await request_retry_transient_errors(
-                    session, 'POST',
-                    self.worker.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
-                    json=body)
-        except Exception:  # pylint: disable=broad-except
-            log.exception('failed to mark {self.name} complete')
+            self.state = 'initializing'
 
-    def run(self, worker):
-        try:
-            self._state = 'running'
+            if self.mount_io:
+                io = await docker_call_retry(docker.volumes.create, {'Name': 'io'})
 
-            setup = substeps.get('setup')
-            if setup:
-                await setup.run(worker)
+            if self.secrets:
+                for secret in self.secrets:
+                    populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                setup_state = setup.state()
-                if setup_state != 'succeeded':
-                    self._state = setup_state
-                return
+            self.state = 'running'
 
-            main = substeps['main']
-            await main.run(worker)
-            main_state = main.state()
+            setup = self.containers['setup']
+            await setup.run(worker, self.output_directory)
 
-            cleanup = substeps.get('cleanup')
-            if cleanup:
-                await cleanup.run(worker)
+            if setup.state == 'succeeded':
+                main = self.containers['main']
+                await main.run(worker, self.output_directory)
 
-            if main_state != 'succeeded':
-                self._state = main_state
-            else:
-                if cleanup:
-                    self._state = cleanup.state()
+                cleanup = self.containers['cleanup']
+                await cleanup.run(worker, self.output_directory)
+
+                if main.state != 'succeeded':
+                    self.state = main.state
                 else:
-                    self._state = 'succeeded'
+                    if cleanup:
+                        self.state = cleanup.state
+                    else:
+                        self.state = 'succeeded'
+            else:
+                self.state = setup.state
 
-            await self._mark_complete(worker)
-        except Exception:  # pylint: disable=broad-except
-            self._state = 'error'
-            self._error = traceback.format_exc()
+            status = await self.status()
+            await worker.gcs_client.write_gs_file(
+                LogStore.pod_status_path(self.output_directory),
+                json.dumps(status, indent=4))
+
+            await worker.pod_complete(status)
+        except Exception:
+            self.state = 'error'
+            self.error = traceback.format_exc()
         finally:
             try:
-                for v in self.volumes:
-                    await v.delete()
-                # FIXME remove scratch tree
-            except Exception:  # pylint: disable=broad-except
+                shutil.rmtree(self.scratch, ignore_errors=True)
+                await docker_call_retry(io.delete)
+            except Exception:
                 log.exception('while deleting volumes')
 
-    def log(self):
-        return {name: ss.log() for name, ss in self.substeps.items()}
+    async def get_log(self):
+        return {name: await c.get_log() for name, c in self.containers.items()}
 
-    def status(self):
+    async def status(self):
         status = {
-            'state': self._state
+            'name': self.name,
+            'batch_id': self.batch_id,
+            'job_id': self.job_spec['job_id'],
+            'user': self.user,
+            'state': self.state
         }
-        if self._error:
-            status['error'] = self._error
-        status['substep_statuses'] = {
-            name: ss.status() for name, ss in self.substeps.items()
+        if self.error:
+            status['error'] = self.error
+        status['container_statuses'] = {
+            name: await c.status() for name, c in self.containers.items()
         }
 
 
@@ -370,12 +383,15 @@ class Worker:
         self.gcs_client = GCS(pool)
 
     async def _create_pod(self, parameters):
-        # FIXME
-        ... = parameters.get(...)
+        name = parameters['name']
+        batch_id = parameters['batch_id']
+        user = parameters['user']
+        job_spec = parameters['job_spec']
+        output_directory = parameters['output_directory']
 
-        s = Step(...)
-        self.steps[s.name] = s
-        await s.run()
+        pod = Pod(name, batch_id, user, job_spec, output_directory)
+        self.pods[pod.name] = pod
+        await pod.run(self)
 
     async def create_pod(self, request):
         self.last_updated = time.time()
@@ -383,58 +399,29 @@ class Worker:
         await asyncio.shield(self._create_pod(parameters))
         return web.Response()
 
-    async def get_container_log(self, request):
+    async def get_pod_log(self, request):
         pod_name = request.match_info['pod_name']
-        container_name = request.match_info['container_name']
+        pod = self.pods.get(pod_name)
+        if not pod:
+            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
+        return web.json_response(await pod.get_log())
 
-        if pod_name not in self.pods:
-            raise web.HTTPNotFound(reason='unknown pod name')
-        bp = self.pods[pod_name]
-
-        if container_name not in bp.containers:
-            raise web.HTTPNotFound(reason='unknown container name')
-        result = await bp.log(container_name)
-
-        return web.json_response(result)
-
-    async def get_container_status(self, request):
+    async def get_pod_status(self, request):
         pod_name = request.match_info['pod_name']
-        container_name = request.match_info['container_name']
-
-        if pod_name not in self.pods:
-            raise web.HTTPNotFound(reason='unknown pod name')
-        bp = self.pods[pod_name]
-
-        if container_name not in bp.containers:
-            raise web.HTTPNotFound(reason='unknown container name')
-        result = bp.container_status(container_name)
-
-        return web.json_response(result)
-
-    async def get_pod(self, request):
-        pod_name = request.match_info['pod_name']
-        if pod_name not in self.pods:
-            raise web.HTTPNotFound(reason='unknown pod name')
-        bp = self.pods[pod_name]
-        return web.json_response(bp.to_dict())
+        pod = self.pods.get(pod_name)
+        if not pod:
+            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
+        return web.json_response(await pod.status())
 
     async def _delete_pod(self, request):
         pod_name = request.match_info['pod_name']
-
         if pod_name not in self.pods:
-            raise web.HTTPNotFound(reason='unknown pod name')
-        bp = self.pods[pod_name]
+            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
         del self.pods[pod_name]
-
-        asyncio.ensure_future(bp.delete())
 
     async def delete_pod(self, request):  # pylint: disable=unused-argument
         await asyncio.shield(self._delete_pod(request))
         return web.Response()
-
-    async def list_pods(self, request):  # pylint: disable=unused-argument
-        pods = [pod.to_dict() for _, pod in self.pods.items()]
-        return web.json_response(pods)
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
         return web.Response()
@@ -446,12 +433,9 @@ class Worker:
             app = web.Application()
             app.add_routes([
                 web.post('/api/v1alpha/pods/create', self.create_pod),
-                # FIXME only pod log, status, not container
-                web.get('/api/v1alpha/pods/{pod_name}/containers/{container_name}/log', self.get_container_log),
-                web.get('/api/v1alpha/pods/{pod_name}/containers/{container_name}/status', self.get_container_status),
-                web.get('/api/v1alpha/pods/{pod_name}', self.get_pod),
+                web.get('/api/v1alpha/pods/{pod_name}/log', self.get_pod_log),
+                web.get('/api/v1alpha/pods/{pod_name}/status', self.get_pod_status),
                 web.post('/api/v1alpha/pods/{pod_name}/delete', self.delete_pod),
-                web.get('/api/v1alpha/pods', self.list_pods),
                 web.get('/healthcheck', self.healthcheck)
             ])
 
@@ -460,7 +444,7 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            await self.register()
+            await self.activate()
 
             last_ping = time.time() - self.last_updated
             while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
@@ -491,7 +475,23 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def register(self):
+    async def post_pod_complete(self, pod_status):
+        body = {
+            'inst_token': self.token,
+            'status': pod_status
+        }
+
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                await request_retry_transient_errors(
+                    session, 'POST',
+                    self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
+                    json=body)
+        except Exception:
+            log.exception('failed to mark pod {status["name"]} complete')
+
+    async def activate(self):
         body = {
             'inst_token': self.token,
             'ip_address': self.ip_address

@@ -79,18 +79,23 @@ async def delete_batch(request):
     return web.Response()
 
 
-async def update_job_with_pod(app, job, pod):  # pylint: disable=R0911
-    log.info(f'update job {job.id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
+async def update_job_with_pod(app, job, pod_status):  # pylint: disable=R0911
+    if pod_status:
+        pod_name = pod_status["name"]
+    else:
+        pod_name = None
+
+    log.info(f'update job {job.id if job else "None"} with pod {pod_name}')
     if job and job._state == 'Pending':
-        if pod:
-            log.error(f'job {job.id} has pod {pod.metadata.name}, ignoring')
+        if pod_status:
+            log.error(f'job {job.id} has pod {pod_name}, ignoring')
         return
 
-    if pod and (not job or job.is_complete()):
-        err = await app['driver'].delete_pod(name=pod.metadata.name)
+    if pod_status and (not job or job.is_complete()):
+        err = await app['driver'].delete_pod(name=pod_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'failed to delete pod {pod.metadata.name} for job {job.id if job else "None"} due to {err}, ignoring')
+            log.info(f'failed to delete pod {pod_name} for job {job.id if job else "None"} due to {err}, ignoring')
         return
 
     if job and job._cancelled and not job.always_run and job._state == 'Running':
@@ -98,40 +103,25 @@ async def update_job_with_pod(app, job, pod):  # pylint: disable=R0911
         await job._delete_pod()
         return
 
-    if pod and pod.status and pod.status.phase == 'Pending':
-        all_container_statuses = pod.status.container_statuses or []
-        for container_status in all_container_statuses:
-            if (container_status.state and
-                    container_status.state.waiting and
-                    container_status.state.waiting.reason):
-                await job.mark_complete(pod)
-                return
-
-    if not pod:
+    if not pod_status:
         log.info(f'job {job.id} no pod found, rescheduling')
         await job.mark_unscheduled()
         return
 
-    if pod and pod.status and pod.status.reason == 'Evicted':
-        POD_EVICTIONS.inc()
-        log.info(f'job {job.id} mark unscheduled -- pod was evicted')
-        await job.mark_unscheduled()
-        return
+    if pod_status:
+        pod_state = pod_status["state"]
+    else:
+        pod_state = None
 
-    if pod and pod.status and pod.status.phase in ('Succeeded', 'Failed'):
+    if pod_state and pod_state in ('succeeded', 'error', 'failed'):
         log.info(f'job {job.id} mark complete')
-        await job.mark_complete(pod)
-        return
-
-    if pod and pod.status and pod.status.phase == 'Unknown':
-        log.info(f'job {job.id} mark unscheduled -- pod phase is unknown')
-        await job.mark_unscheduled()
+        await job.mark_complete(pod_status)
         return
 
 
-async def pod_changed(app, pod):
-    job = await Job.from_pod(app, pod)
-    await update_job_with_pod(app, job, pod)
+async def pod_changed(app, pod_status):
+    job = await Job.from_pod(app, pod_status)
+    await update_job_with_pod(app, job, pod_status)
 
 
 async def refresh_pods(app):
@@ -139,15 +129,14 @@ async def refresh_pods(app):
 
     pod_jobs = [Job.from_record(app, record) for record in await app['db'].jobs.get_records_where({'state': 'Running'})]
 
-    pods = app['driver'].list_pods()
-    log.info(f'batch had {len(pods)} pods')
+    pod_statuses = app['driver'].list_pods()
+    log.info(f'batch had {len(pod_statuses)} pods')
 
     seen_pods = set()
-    for pod_dict in pods:
-        pod = app['k8s_client'].api_client._ApiClient__deserialize(pod_dict, kube.client.V1Pod)
-        pod_name = pod.metadata.name
+    for pod_status in pod_statuses:
+        pod_name = pod_status["name"]
         seen_pods.add(pod_name)
-        asyncio.ensure_future(pod_changed(app, pod))
+        asyncio.ensure_future(pod_changed(app, pod_status))
 
     if len(seen_pods) != len(pod_jobs):
         log.info('restarting running jobs with pods not seen in batch')
@@ -164,9 +153,8 @@ async def driver_event_loop(app):
     await asyncio.sleep(1)
     while True:
         try:
-            object = await app['driver'].complete_queue.get()
-            pod = app['k8s_client'].api_client._ApiClient__deserialize(object, kube.client.V1Pod)
-            await pod_changed(app, pod)
+            pod_status = await app['driver'].complete_queue.get()
+            await pod_changed(app, pod_status)
         except Exception:  # pylint: disable=broad-except
             log.exception(f'driver event loop failed due to exception')
 

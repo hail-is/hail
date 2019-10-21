@@ -13,7 +13,6 @@ from hailtop.utils import AsyncWorkerPool
 
 from ..google_compute import GServices
 from ..utils import parse_cpu_in_mcpu
-from ..globals import tasks
 
 from .instance_pool import InstancePool
 
@@ -136,7 +135,6 @@ class Pod:
         return {
             'name': self.name,
             'batch_id': self.batch_id,
-            'job_id': self.job_spec['job_id'],
             'user': self.userdata['username'],
             'job_spec': job_spec,
             'output_directory': self.output_directory
@@ -288,48 +286,45 @@ class Pod:
             await self.unschedule()
             asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
 
-    async def read_pod_log(self, container):
-        assert container in tasks
-        log.info(f'reading container log for {self.name}, {container} from instance {self.instance}')
+    async def read_pod_logs(self):
+        log.info(f'reading pod {self.name} logs from instance {self.instance}')
 
         if self.instance is None:
             return None, None
 
         inst = self.instance
-        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log'
+        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/logs'
         resp, err = self._get(url)
         if resp:
             return resp.json(), None
         assert err
-        log.info(f'failed to read container log {self.name}, {container} on {inst} due to err {err}, ignoring')
+        log.info(f'failed to pod {self.name} logs on {inst} due to err {err}, ignoring')
         return None, err
 
-    async def read_container_status(self, container):
-        assert container in tasks
-        log.info(f'reading container status for {self.name}, {container} from instance {self.instance}')
+    async def read_pod_status(self):
+        log.info(f'reading status for pod {self.name} from instance {self.instance}')
 
         if self.instance is None:
             return None, None
 
         inst = self.instance
-        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status'
+        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/status'
         resp, err = self._get(url)
         if resp:
             return resp.json(), None
         assert err
-        log.info(f'failed to read container status {self.name}, {container} on {inst} due to err {err}, ignoring')
+        log.info(f'failed to read status for pod {self.name} on {inst} due to err {err}, ignoring')
         return None, err
 
     def status(self):
         if self._status is None:
+            # don't know yet
             return {
-                'metadata': {
-                    'name': self.name
-                },
-                'status': {
-                    'containerStatuses': None,
-                    'phase': 'Pending'
-                }
+                'name': self.name,
+                'batch_id': self.batch_id,
+                'job_id': self.job_spec['job_id'],
+                'user': self.userdata['username'],
+                'state': 'pending'
             }
         return self._status
 
@@ -403,7 +398,7 @@ class Driver:
             raise web.HTTPNotFound()
         inst.mark_as_healthy()
 
-        pod_name = status['metadata']['name']
+        pod_name = status['name']
         pod = self.pods.get(pod_name)
         if pod is None:
             log.warning(f'pod_complete from unknown pod {pod_name}, instance {inst_token}')
@@ -433,19 +428,17 @@ class Driver:
         await self.pool.call(pod.delete)
         del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
 
-    async def read_pod_log(self, name, container):
-        assert container in tasks
+    async def read_pod_logs(self, name):
         pod = self.pods.get(name)
         if pod is None:
             return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_pod_log(container)
+        return await pod.read_pod_logs()
 
-    async def read_container_status(self, name, container):
-        assert container in tasks
+    async def read_pod_status(self, name):
         pod = self.pods.get(name)
         if pod is None:
             return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_container_status(container)
+        return await pod.read_pod_status()
 
     def list_pods(self):
         return [pod.status() for _, pod in self.pods.items()]
