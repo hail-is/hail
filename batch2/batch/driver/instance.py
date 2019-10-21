@@ -138,7 +138,7 @@ class Instance:
             assert not self.pods
 
             for pod in pod_list:
-                await pod.put_on_ready()
+                asyncio.ensure_future(pod.put_on_ready())
 
             self.active = False
 
