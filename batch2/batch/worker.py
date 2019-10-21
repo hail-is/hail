@@ -46,11 +46,11 @@ async def docker_call_retry(f, *args, **kwargs):
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
-                pass
+                log.exception('in docker call, retrying')
             else:
                 raise
         except asyncio.TimeoutError:
-            pass
+            log.exception('in docker call, retrying')
         # exponentially back off, up to (expected) max of 30s
         t = delay * random.random()
         await asyncio.sleep(t)
@@ -110,6 +110,7 @@ class Container:
 
     async def run(self, worker):
         try:
+            log.info(f'container {self.pod.name}/{self.name}: pulling {self.image}')
             self.state = 'pulling'
 
             try:
@@ -118,26 +119,33 @@ class Container:
                 if e.status == 404:
                     await docker_call_retry(docker.images.pull, self.image)
 
+            log.info(f'container {self.pod.name}/{self.name}: creating')
             self.state = 'creating'
 
             self.container = await docker_call_retry(docker.containers.create, self.container_config())
 
             async with worker.cpu_sem(self.cpu_in_mcpu):
+                log.info(f'container {self.pod.name}/{self.name}: starting')
                 self.state = 'starting'
 
                 await docker_call_retry(self.container.start)
 
+                log.info(f'container {self.pod.name}/{self.name}: running')
                 self.state = 'running'
 
                 await docker_call_retry(self.container.wait)
 
                 cstatus = await self.get_container_status()
+                log.info(f'container {self.pod.name}/{self.name}: container status {cstatus}')
                 self.container_status = cstatus
+
+                log.info(f'container {self.pod.name}/{self.name}: deleting')
 
                 await docker_call_retry(self.container.stop)
                 await docker_call_retry(self.container.delete)
                 self.container = None
 
+            log.info(f'container {self.pod.name}/{self.name}: uploading log')
             self.state = 'uploading_log'
 
             self.log = await self.get_container_log()
@@ -149,10 +157,13 @@ class Container:
             else:
                 self.state = 'failed'
         except Exception:
+            log.exception(f'while running container {self.pod.name}/{self.name}')
+
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
             if self.container:
+                log.exception(f'cleaning up container')
                 try:
                     await docker_call_retry(self.container.stop)
                     await docker_call_retry(self.container.delete)
@@ -301,6 +312,7 @@ class Pod:
     async def run(self, worker):
         io = None
         try:
+            log.info(f'pod {self.name}: initializing')
             self.state = 'initializing'
 
             if self.mount_io:
@@ -312,15 +324,27 @@ class Pod:
 
             self.state = 'running'
 
+            log.info(f'pod {self.name}: running setup')
+
             setup = self.containers['setup']
             await setup.run(worker, self.output_directory)
 
+            log.info(f'pod {self.name} setup: {setup.state}')
+
             if setup.state == 'succeeded':
+                log.info(f'pod {self.name}: running main')
+
                 main = self.containers['main']
                 await main.run(worker, self.output_directory)
 
+                log.info(f'pod {self.name} main: {main.state}')
+
+                log.info(f'pod {self.name}: running cleanup')
+
                 cleanup = self.containers['cleanup']
                 await cleanup.run(worker, self.output_directory)
+
+                log.info(f'pod {self.name} cleanup: {cleanup.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
@@ -333,15 +357,22 @@ class Pod:
                 self.state = setup.state
 
             status = await self.status()
+
+            log.info(f'pod {self.name}: uploading status {status}')
+
             await worker.gcs_client.write_gs_file(
                 LogStore.pod_status_path(self.output_directory),
-                json.dumps(status, indent=4))
-
-            await worker.pod_complete(status)
+                json.dumps(self.status, indent=4))
         except Exception:
+            log.info(f'while running pod {self.name}')
+
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
+            log.info(f'pod {self.name}: marking complete')
+            await worker.pod_complete(status)
+
+            log.info(f'pod {self.name}: cleaning up')
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
                 if io:

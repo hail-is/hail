@@ -24,7 +24,6 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..globals import tasks
 from ..batch import Batch, Job
 from ..log_store import LogStore
 from ..database import BatchDatabase, JobsBuilder
