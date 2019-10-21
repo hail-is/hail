@@ -135,15 +135,8 @@ class Container:
 
                 await docker_call_retry(self.container.wait)
 
-                cstatus = await self.get_container_status()
-                log.info(f'container {self.pod.name}/{self.name}: container status {cstatus}')
-                self.container_status = cstatus
-
-                log.info(f'container {self.pod.name}/{self.name}: deleting')
-
-                await docker_call_retry(self.container.stop)
-                await docker_call_retry(self.container.delete)
-                self.container = None
+            self.container_status = await self.get_container_status()
+            log.info(f'container {self.pod.name}/{self.name}: container status {self.container_status}')
 
             log.info(f'container {self.pod.name}/{self.name}: uploading log')
             self.state = 'uploading_log'
@@ -152,7 +145,14 @@ class Container:
             log_path = LogStore.container_log_path(self.pod.output_directory, self.name)
             await worker.gcs_client.write_gs_file(log_path, self.log)
 
-            if cstatus['State']['ExitCode'] == 0 and not cstatus['State']['Error']:
+            log.info(f'container {self.pod.name}/{self.name}: deleting')
+
+            await docker_call_retry(self.container.stop)
+            await docker_call_retry(self.container.delete)
+            self.container = None
+
+            if (self.container_status['State']['ExitCode'] == 0 and
+                    not self.container_status['State']['Error']):
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
