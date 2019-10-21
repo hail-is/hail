@@ -191,6 +191,18 @@ class Container:
 
         return None
 
+    # {
+    #   name: str,
+    #   state: str,
+    #   error: str, (optional)
+    #   container_status: { (from docker container state)
+    #     state: str,
+    #     started_at: str, (date)
+    #     finished_at: str, (date)
+    #     error: str, (one of error, exit_code will be present)
+    #     exit_code: int
+    #   }
+    # }
     async def status(self, state=None):
         if not state:
             state = self.state
@@ -387,6 +399,15 @@ class Pod:
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
 
+    # {
+    #   name: str,
+    #   batch_id: int,
+    #   job_id: int,
+    #   user: str,
+    #   state: str,
+    #   error: str, (optional)
+    #   container_statuses: [Container.status]
+    # }
     async def status(self):
         status = {
             'name': self.name,
