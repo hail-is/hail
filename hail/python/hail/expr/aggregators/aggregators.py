@@ -294,6 +294,25 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     else:
         return _quantile_from_cdf(approx_cdf(expr, k), qs)
 
+@typecheck(expr=expr_numeric, k=int)
+def approx_median(expr, k=100) -> Expression:
+    """Compute the approximate median.
+
+    ..include: _templates/experimental.rst
+
+    Examples
+    --------
+    Estimate the median of the `HT` field.
+    >>> table1.aggregate(hl.agg.approx_median(table1.HT)) # doctest: +SKIP_OUTPUT_CHECK
+    64
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+        The estimated median.
+    """
+
+    return approx_quantiles(expr, .5, k)
 
 @typecheck(expr=expr_any)
 def collect(expr) -> ArrayExpression:
