@@ -1595,6 +1595,7 @@ private class Emit(
         EmitTriplet(setup, childt.m, value)
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
+      case x: NDArrayReshape => emitDeforestedNDArray(x)
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
@@ -2259,6 +2260,84 @@ private class Emit(
               idxVars(parentDim)
             }
             childEmitter.outputElement(concreteIdxsForChild)
+          }
+        }
+
+      case x@NDArrayReshape(childND, shape) =>
+
+        // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
+        def compatibleShape(numElements: Code[Long], requestedShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
+          val hasNegativeOne = mb.newLocal[Boolean]
+          val runningProduct = mb.newLocal[Long]
+          val quotient = mb.newLocal[Long]
+          val tempShapeElement = mb.newLocal[Long]
+
+          val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long]).toArray
+
+          val setup = coerce[Unit](Code(
+            hasNegativeOne := false,
+            runningProduct := 1L,
+
+            Code.foreach(requestedShape) { requestedShapeElement => Code(
+              tempShapeElement := requestedShapeElement,
+              (tempShapeElement <= 0L).mux(
+                (tempShapeElement ceq -1L).mux(
+                  hasNegativeOne.mux(
+                    Code._fatal("Can't infer shape, more than one -1"),
+                    hasNegativeOne := true
+                  ),
+                  Code._fatal("Can't reshape, new shape must contain only positive numbers or -1")),
+                runningProduct := runningProduct * tempShapeElement
+              )
+            )},
+            hasNegativeOne.mux(
+              (numElements % runningProduct) > 0L,
+              numElements cne runningProduct
+            ).orEmpty(Code._fatal("Can't reshape since requested shape is incompatible with number of elements")),
+            quotient := numElements / runningProduct,
+            Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
+              variable := (shapeElement ceq -1L).mux(quotient, shapeElement)}:_*)
+          ))
+
+          (setup, newShapeVars.map(_.load()))
+        }
+
+        val childEmitter = deforest(childND)
+
+        val requestedShapet = emit(shape, env, resultRegion, None)
+        val requestedShapeAddress = mb.newField[Long]
+        val requestedShapePType = coerce[PTuple](shape.pType)
+        val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
+        val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
+
+        val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
+
+        val numElements = mb.newField[Long]
+
+        val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements, requestedShapeArray)
+
+        val setup = Code(
+          childEmitter.setup,
+          childShapeCachingCode,
+          requestedShapet.setup,
+          requestedShapeAddress := requestedShapet.value[Long],
+          numElements := coerce[PNDArray](childND.pType).numElements(childShapeCached, mb),
+          reshapeSetup
+        )
+
+        new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val storeElementIndex = mb.newField[Long]
+
+            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
+
+            assert(newIdxVars.length == childEmitter.nDims)
+
+            Code(
+              storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
+              newIdxVarsSetup,
+              childEmitter.outputElement(newIdxVars)
+            )
           }
         }
 

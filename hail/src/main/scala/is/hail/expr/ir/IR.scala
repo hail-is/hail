@@ -267,9 +267,7 @@ final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends NDArrayI
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR {
-  require(shape.typ.asInstanceOf[TTuple].size > 0)
-}
+final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR

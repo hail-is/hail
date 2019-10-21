@@ -500,6 +500,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def /(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IDIV))
 
+  def %(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IREM))
+
   def >(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGT, rhs)
 
   def >=(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGE, rhs)
@@ -552,6 +554,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def *(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LMUL))
 
   def /(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LDIV))
+
+  def %(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LREM))
 
   def compare(rhs: Code[Long]): Code[Int] = Code(lhs, rhs, new InsnNode(LCMP))
 

@@ -103,11 +103,47 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val outOfBounds = mb.newField[Boolean]
     Code(
       outOfBounds := false,
-      Code.foreach(0 until nDims){ dimIndex =>
+      Code.foreach(0 until nDims) { dimIndex =>
         outOfBounds := outOfBounds || (indices(dimIndex) >= shapeTuple(dimIndex))
       },
       outOfBounds
     )
+  }
+
+  def linearizeIndices(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+    val index = mb.newField[Long]
+    val elementsInProcessedDimensions = mb.newField[Long]
+    Code(
+      index := 0L,
+      elementsInProcessedDimensions := 1L,
+      Code.foreach(shapeArray.zip(indices).reverse) { case (shapeElement, currentIndex) =>
+        Code(
+          index := index + currentIndex * elementsInProcessedDimensions,
+          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
+        )
+      },
+      index
+    )
+  }
+
+  def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+    val nDim = shapeArray.length
+    val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+    val elementsInProcessedDimensions = mb.newField[Long]
+    val workRemaining = mb.newField[Long]
+
+    val createShape = Code(
+      workRemaining := index,
+      elementsInProcessedDimensions := shapeArray.fold(const(1L))(_ * _),
+      Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
+        Code(
+          elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
+          newIndex := workRemaining / elementsInProcessedDimensions,
+          workRemaining := workRemaining % elementsInProcessedDimensions
+        )
+      }
+    )
+    (createShape, newIndices.map(_.load()))
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
