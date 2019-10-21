@@ -35,7 +35,7 @@ class DriverException(Exception):
 class Pod:
     @staticmethod
     def from_record(driver, record):
-        batch_id = json.loads(record['batch_id'])
+        batch_id = record['batch_id']
         job_spec = json.loads(record['job_spec'])
         userdata = json.loads(record['userdata'])
         status = json.loads(record['status']) if record['status'] else None
