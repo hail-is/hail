@@ -236,12 +236,13 @@ class Job:
             await self._create_pod()
 
     async def mark_complete(self, status):
-        if status == 'succeeded':
+        pod_state = status['state']
+        if pod_state == 'succeeded':
             new_state = 'Success'
-        elif status == 'error':
+        elif pod_state == 'error':
             new_state = 'Error'
         else:
-            assert status == 'failed'
+            assert pod_state == 'failed', pod_state
             new_state = 'Failed'
 
         n_updated = await self.app['db'].jobs.update_record(*self.id,
