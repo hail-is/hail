@@ -104,14 +104,10 @@ class Job:
                    spec=spec)
 
     @staticmethod
-    async def from_pod(app, pod):
-        if pod.metadata.labels is None:
-            return None
-        if not {'batch_id', 'job_id', 'user'}.issubset(set(pod.metadata.labels)):
-            return None
-        batch_id = pod.metadata.labels['batch_id']
-        job_id = pod.metadata.labels['job_id']
-        user = pod.metadata.labels['user']
+    async def from_pod(app, pod_status):
+        batch_id = pod_status['batch_id']
+        job_id = pod_status['job_id']
+        user = pod_status['user']
         return await Job.from_db(app, batch_id, job_id, user)
 
     @staticmethod
