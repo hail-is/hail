@@ -257,9 +257,17 @@ class Job:
         if self.is_complete():
             if 'error' in self.status:
                 result['error'] = self.status['error']
-            result['exit_code'] = {k: getopt(getopt(self.status[k], 'container_status'), 'exit_code') for k in tasks}
+            result['exit_code'] = {
+                # self.status['container_statuses'][k]['container_status']['exit_code']
+                k: getopt(getopt(getopt(self.status['container_statuses'], k), 'container_status'), 'exit_code') for
+                k in tasks
+            }
             result['duration'] = {k: None for k in tasks}
-            result['message'] = {k: getopt(getopt(self.status[k], 'container_status'), 'message') for k in tasks}
+            result['message'] = {
+                # self.status['container_statuses'][k]['container_status']['message']
+                k: getopt(getopt(getopt(self.status['container_statuses'], k), 'container_status'), 'message')
+                for k in tasks
+            }
         if self.attributes:
             result['attributes'] = self.attributes
         return result
