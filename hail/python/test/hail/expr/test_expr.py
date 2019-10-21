@@ -387,6 +387,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)
         table.aggregate(hl.agg.approx_quantiles(table.i, hl.float32(0.5)))
+        table.aggregate(hl.agg.approx_median(table.i))
         table.aggregate(hl.agg.approx_quantiles(table.i, [0.0, 0.1, 0.5, 0.9, 1.0]))
 
     def test_error_from_cdf(self):

@@ -303,6 +303,7 @@ def approx_median(expr, k=100) -> Expression:
     Examples
     --------
     Estimate the median of the `HT` field.
+
     >>> table1.aggregate(hl.agg.approx_median(table1.HT)) # doctest: +SKIP_OUTPUT_CHECK
     64
 
