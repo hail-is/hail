@@ -338,6 +338,29 @@ class Job:
         return result
 
 
+class JobsIterator:
+    def __init__(self, batch, limit=None, offset=0):
+        self.batch = batch
+        self.limit = limit if limit else batch.n_jobs
+        self.offset = offset
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.offset >= self.batch.n_jobs:
+            raise StopAsyncIteration()
+
+        result = await self.batch.app['db'].jobs.get_records_by_batch(
+            self.batch.id,
+            offset=self.offset,
+            limit=self.limit)
+
+        self.offset += self.limit
+
+        return result
+
+
 class Batch:
     @staticmethod
     def from_record(app, record, deleted=False):
@@ -368,7 +391,8 @@ class Batch:
                          complete=complete,
                          deleted=record['deleted'],
                          cancelled=record['cancelled'],
-                         closed=record['closed'])
+                         closed=record['closed'],
+                         n_jobs=record['n_jobs'])
         return None
 
     @staticmethod
@@ -401,7 +425,7 @@ class Batch:
         batch = Batch(app, id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
                       complete=False, deleted=False, cancelled=False,
-                      closed=False)
+                      closed=False, n_jobs=n_jobs)
 
         if attributes is not None:
             items = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
@@ -413,7 +437,7 @@ class Batch:
         return batch
 
     def __init__(self, app, id, attributes, callback, userdata, user,
-                 state, complete, deleted, cancelled, closed):
+                 state, complete, deleted, cancelled, closed, n_jobs):
         self.app = app
         self.id = id
         self.attributes = attributes
@@ -425,14 +449,16 @@ class Batch:
         self.deleted = deleted
         self.cancelled = cancelled
         self.closed = closed
+        self.n_jobs = n_jobs
 
-    async def get_jobs(self, limit=None, offset=None):
-        jobs = await self.app['db'].jobs.get_records_by_batch(self.id, limit, offset)
-        return [Job.from_record(self.app, record) for record in jobs]
+    async def jobs_iterator(self, limit=None, offset=None):
+        return JobsIterator(self, limit=limit, offset=offset)
 
     # called by driver
     async def _cancel_jobs(self):
-        await asyncio.gather(*[j.cancel() for j in await self.get_jobs()])
+        async for jobs in await self.jobs_iterator():
+            for j in jobs:
+                await j.cancel()
 
     # called by front end
     async def cancel(self):
@@ -443,8 +469,10 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
-                               if j._state == 'Running'])
+        async for jobs in await self.jobs_iterator():
+            for j in jobs:
+                if j._state == 'Running':
+                    await j._create_pod()
 
     # called by front end
     async def close(self):
@@ -464,7 +492,8 @@ class Batch:
 
     async def delete(self):
         # Job deleted from database when batch is deleted with delete cascade
-        await asyncio.gather(*[j._delete_gs_files() for j in await self.get_jobs()])
+        async for jobs in await self.jobs_iterator(limit=100):
+            await asyncio.gather(*[j._delete_gs_files() for j in jobs])
         await self.app['db'].batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
@@ -495,6 +524,6 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = await self.get_jobs(limit, offset)
+            jobs = next(await self.jobs_iterator(limit, offset))
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result

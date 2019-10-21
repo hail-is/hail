@@ -305,14 +305,24 @@ class JobsTable(Table):
                 result = await fetchall_with_retry(cursor)
                 return [(record['batch_id'], record['job_id']) for record in result]
 
-    async def get_records_by_batch(self, batch_id, limit=None, offset=None):
+    async def get_records_by_batch(self, batch_id, offset=None, limit=None):
         if offset is not None:
             assert limit is not None
-        return await self.get_records_where({'batch_id': batch_id},
-                                            limit=limit,
-                                            offset=offset,
-                                            order_by='batch_id, job_id',
-                                            ascending=True)
+
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                batch_name = self._db.batch.name
+
+                fields = ', '.join(self._select_fields())
+                limit = f'LIMIT {limit}' if limit else ''
+
+                sql = f"""SELECT {fields} FROM `{self.name}`
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
+                          WHERE batch_id = {batch_id} AND job_id > {offset}
+                          ORDER BY batch_id, job_id ASC
+                          OFFSET 0 {limit}"""
+                await execute_with_retry(cursor, sql)
+                return await fetchall_with_retry(cursor)
 
     async def get_records_where(self, condition, limit=None, offset=None, order_by=None, ascending=None):
         async with self._db.pool.acquire() as conn:
