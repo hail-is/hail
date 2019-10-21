@@ -284,6 +284,12 @@ class Tests(unittest.TestCase):
         with pytest.raises(hl.utils.FatalError, match='mapping keys must be one character'):
             hl.eval(hl.str('foo').translate({'': 'bar'}))
 
+    def test_reverse_complement(self):
+        strs = ['NNGATTACA', 'NNGATTACA'.lower(), 'foo']
+        rna_strs = ['NNGATTACA', 'NNGAUUACA'.lower(), 'foo']
+        assert hl.eval(hl.literal(strs).map(lambda s: hl.reverse_complement(s))) == ['TGTAATCNN', 'TGTAATCNN'.lower(), 'oof']
+        assert hl.eval(hl.literal(rna_strs).map(lambda s: hl.reverse_complement(s, rna=True))) == ['UGUAAUCNN', 'UGUAAUCNN'.lower(), 'oof']
+
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
         string = hl.literal('12345')

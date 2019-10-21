@@ -4383,6 +4383,40 @@ def bool(x) -> BooleanExpression:
     else:
         return x._method("toBoolean", tbool)
 
+@typecheck(s=expr_str,
+           rna=builtins.bool)
+def reverse_complement(s, rna=False):
+    """Reverses the string and translates base pairs into their complements
+    Examples
+    --------
+    >>> bases = hl.literal('NNGATTACA')
+    >>> hl.eval(hl.reverse_complement(bases))
+    'TGTAATCNN'
+
+    Parameters
+    ----------
+    s : :class:`.StringExpression`
+        Base string.
+    rna : :obj:`bool`
+        If ``True``, pair adenine (A) with uracil (U) instead of thymine (T).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+    s = s.reverse()
+
+    if rna:
+        pairs = [('A', 'U'), ('U', 'A'), ('T', 'A'), ('G', 'C'), ('C', 'G')]
+    else:
+        pairs = [('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')]
+
+    d = {}
+    for b1, b2 in pairs:
+        d[b1] = b2
+        d[b1.lower()] = b2.lower()
+
+    return s.translate(d)
 
 @typecheck(contig=expr_str,
            position=expr_int32,
