@@ -260,10 +260,11 @@ class Pod:
                 if resp.status == 200:
                     log.info(f'created {self.name} on inst {inst}')
                     return None
+                # FIXME need to put back on ready queue?
                 log.info(f'failed to create {self.name} on inst {inst} due to {resp}')
                 return
             assert err
-            log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
+            log.info(f'failed to create {self.name} on inst {inst} due to {err} {repr(err)}, putting back on ready queue')
             asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
