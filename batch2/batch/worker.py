@@ -480,6 +480,7 @@ class Worker:
         if pod_name not in self.pods:
             raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
         del self.pods[pod_name]
+        # FIXME delete pod
 
     async def delete_pod(self, request):  # pylint: disable=unused-argument
         await asyncio.shield(self._delete_pod(request))
