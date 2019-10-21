@@ -34,7 +34,7 @@ class GCS:
             return await blocking_to_async(self.blocking_pool,
                                            fun,
                                            *args,
-                                           **kwargs),
+                                           **kwargs)
         wrapped.__name__ = fun.__name__
         return wrapped
 
