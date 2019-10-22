@@ -27,6 +27,8 @@ to a dense one.
 Sparse Matrix Tables
 --------------------
 
+Sparse matrix tables are a new method of representing VCF style data in a space
+efficient way.
 
 Functions
 ---------
