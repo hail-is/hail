@@ -1626,11 +1626,20 @@ private class Emit(
 
         val time = mb.newLocal[Long]
 
+        val lDataLength = mb.newField[Int]
+        val lDataLocation = mb.newField[Long]
+        val rDataLength = mb.newField[Int]
+        val rDataLocation = mb.newField[Long]
+
         val setup = Code(
           lT.setup,
           rT.setup,
           leftND := lT.value[Long],
           rightND := rT.value[Long],
+          lDataLocation := lPType.data.load(region, leftND),
+          rDataLocation := rPType.data.load(region, rightND),
+          lDataLength := lPType.data.pType.loadLength(lDataLocation),
+          rDataLength := rPType.data.pType.loadLength(rDataLocation),
           leftShapeArraySetup,
           rightShapeArraySetup,
           unifyShapeSetup
@@ -1691,11 +1700,15 @@ private class Emit(
               }
             }
 
-            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress(lIdxVars, leftND, region, mb))
-            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress(rIdxVars, rightND, region, mb))
+
+
+            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress2(lIdxVars, leftND, region, mb, lDataLocation.load(), lDataLength.load()))
+            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress2(rIdxVars, rightND, region, mb, rDataLocation.load(), rDataLength.load()))
             val maxK = mb.newLocal[Long]
 
-            Code(
+            val innerMethod = mb.fb.newMethod(eVti)
+
+            val loopCode = Code(
               kLocal := 0L,
               maxK := leftShapeArray(lNDims - 1),
               element := elementZero,
@@ -1706,10 +1719,11 @@ private class Emit(
                   kLocal := kLocal + 1L
                 )
               ),
-//              Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-//                "println", (time - Code.timeMillis())),
+
               element
             )
+            innerMethod.emit(loopCode)
+            innerMethod.invoke()
           }
         }
         emitter.emit(outputPType)
