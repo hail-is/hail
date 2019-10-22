@@ -57,6 +57,32 @@ async def docker_call_retry(f, *args, **kwargs):
         delay = min(delay * 2, 60.0)
 
 
+class PodDeletedError(Exception):
+    pass
+
+
+class ContainerStepManager:
+    def __init__(self, container, state=None, name=None):
+        self.container = container
+        self.state = state
+        self.name = name or state
+        self.time = None
+        self.start_time = None
+
+    async def __aenter__(self):
+        if self.container.pod.deleted:
+            raise PodDeletedError()
+        if self.state:
+            log.info(f'container {self.container.pod.name}/{self.container.name} state changed: {self.container.state} => {self.state}')
+            self.container.state = self.state
+        self.start_time = time.time()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time.time()
+        if self.name:
+            self.container.timing[self.name] = finish_time - self.start_time
+
+
 class Container:
     def __init__(self, pod, name, spec):
         self.pod = pod
@@ -75,6 +101,7 @@ class Container:
         self.container = None
         self.state = 'pending'
         self.error = None
+        self.timing = {}
         self.container_status = None
         self.log = None
 
@@ -97,9 +124,12 @@ class Container:
 
         return config
 
+    def step(self, state=None, name=None):
+        return ContainerStepManager(self, state, name)
+
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
-        log.info(f'container {self.pod.name}/{self.name} info {c}')
+        log.info(f'container {self.pod.name}/{self.name}" container info {c}')
         cstate = c['State']
         status = {
             'state': cstate['Status'],
@@ -115,46 +145,34 @@ class Container:
 
     async def run(self, worker):
         try:
-            log.info(f'container {self.pod.name}/{self.name}: pulling {self.image}')
-            self.state = 'pulling'
+            async with self.step('pulling'):
+                try:
+                    await docker_call_retry(docker.images.get, self.image)
+                except DockerError as e:
+                    if e.status == 404:
+                        await docker_call_retry(docker.images.pull, self.image)
 
-            try:
-                await docker_call_retry(docker.images.get, self.image)
-            except DockerError as e:
-                if e.status == 404:
-                    await docker_call_retry(docker.images.pull, self.image)
+            async with self.step('creating'):
+                self.container = await docker_call_retry(docker.containers.create, self.container_config())
 
-            log.info(f'container {self.pod.name}/{self.name}: creating')
-            self.state = 'creating'
+            async with self.step(None, 'runtime'):
+                async with worker.cpu_sem(self.cpu_in_mcpu):
+                    async with self.step('starting'):
+                        await docker_call_retry(self.container.start)
 
-            self.container = await docker_call_retry(docker.containers.create, self.container_config())
-
-            async with worker.cpu_sem(self.cpu_in_mcpu):
-                log.info(f'container {self.pod.name}/{self.name}: starting')
-                self.state = 'starting'
-
-                await docker_call_retry(self.container.start)
-
-                log.info(f'container {self.pod.name}/{self.name}: running')
-                self.state = 'running'
-
-                await docker_call_retry(self.container.wait)
+                    async with self.step('running'):
+                        await docker_call_retry(self.container.wait)
 
             self.container_status = await self.get_container_status()
             log.info(f'container {self.pod.name}/{self.name}: container status {self.container_status}')
 
-            log.info(f'container {self.pod.name}/{self.name}: uploading log')
-            self.state = 'uploading_log'
+            async with self.step('uploading_log'):
+                self.log = await self.get_container_log()
+                log_path = LogStore.container_log_path(self.pod.output_directory, self.name)
+                await worker.gcs_client.write_gs_file(log_path, self.log)
 
-            self.log = await self.get_container_log()
-            log_path = LogStore.container_log_path(self.pod.output_directory, self.name)
-            await worker.gcs_client.write_gs_file(log_path, self.log)
-
-            log.info(f'container {self.pod.name}/{self.name}: deleting')
-
-            await docker_call_retry(self.container.stop)
-            await docker_call_retry(self.container.delete)
-            self.container = None
+            async with self.step('deleting'):
+                await self.delete_container()
 
             if 'error' in self.container_status:
                 self.state = 'error'
@@ -168,15 +186,7 @@ class Container:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            if self.container:
-                log.exception(f'cleaning up container')
-                try:
-                    await docker_call_retry(self.container.stop)
-                    await docker_call_retry(self.container.delete)
-                except Exception:
-                    log.exception('while deleting container')
-                finally:
-                    self.container = None
+            await self.delete_container()
 
     async def get_container_log(self):
         logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
@@ -191,9 +201,23 @@ class Container:
 
         return None
 
+    async def delete_container(self):
+        if self.container:
+            try:
+                log.info('container {self.pod.name}/{self.name}: deleting container')
+                await docker_call_retry(self.container.stop)
+                await docker_call_retry(self.container.delete)
+            except Exception:
+                log.exception('while deleting up container, ignoring')
+            self.container = None
+
+    async def delete(self):
+        await self.delete_container()
+
     # {
     #   name: str,
-    #   state: str,
+    #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, suceeded, error, failed)
+    #   timing: dict(str, float),
     #   error: str, (optional)
     #   container_status: { (from docker container state)
     #     state: str,
@@ -208,7 +232,8 @@ class Container:
             state = self.state
         status = {
             'name': self.name,
-            'state': state
+            'state': state,
+            'timing': self.timing
         }
         if self.error:
             status['error'] = self.error
@@ -266,6 +291,8 @@ class Pod:
         self.user = user
         self.job_spec = job_spec
         self.output_directory = output_directory
+
+        self.deleted = False
 
         token = uuid.uuid4().hex
         self.scratch = f'/batch/pods/{token}'
@@ -399,12 +426,17 @@ class Pod:
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
 
+    async def delete(self):
+        self.deleted = True
+        for _, c in self.containers:
+            await c.delete()
+
     # {
     #   name: str,
     #   batch_id: int,
     #   job_id: int,
     #   user: str,
-    #   state: str,
+    #   state: str, (pending, initializing, running, succeeded, error, failed)
     #   error: str, (optional)
     #   container_statuses: [Container.status]
     # }
@@ -477,10 +509,11 @@ class Worker:
 
     async def _delete_pod(self, request):
         pod_name = request.match_info['pod_name']
-        if pod_name not in self.pods:
+        pod = self.pods.get(pod_name)
+        if not pod:
             raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
         del self.pods[pod_name]
-        # FIXME delete pod
+        await pod.delete()
 
     async def delete_pod(self, request):  # pylint: disable=unused-argument
         await asyncio.shield(self._delete_pod(request))
