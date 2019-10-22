@@ -86,7 +86,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     val len = mb.newLocal[Int]("len")
     val i = mb.newLocal[Int]("i")
     val array = mb.newLocal[Long]("array")
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb)
+    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.fb)
 
     Code(
       len := in.readInt(),

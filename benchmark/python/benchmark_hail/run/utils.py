@@ -34,10 +34,10 @@ class Benchmark:
 
 
 class RunConfig:
-    def __init__(self, n_iter, handler, verbose):
+    def __init__(self, n_iter, handler, noisy):
         self.n_iter = n_iter
         self.handler = handler
-        self.verbose = verbose
+        self.noisy = noisy
 
 
 _registry = {}
@@ -136,7 +136,7 @@ def initialize(args):
     assert not _initialized
     init_logging()
     download_data(args.data_dir)
-    hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
+    hl.init(master=f'local[{args.cores}]', quiet=not args.verbose, log=args.log)
     _initialized = True
     _mt = hl.read_matrix_table(resource('profile.mt'))
 
@@ -145,16 +145,16 @@ def initialize(args):
 
 
 def _run(benchmark: Benchmark, config: RunConfig, context):
-    if config.verbose:
+    if config.noisy:
         logging.info(f'{context}Running {benchmark.name}...')
     times = []
 
     try:
         burn_in_time = timeit.Timer(benchmark.run).timeit(1)
-        if config.verbose:
+        if config.noisy:
             logging.info(f'    burn in: {burn_in_time:.2f}s')
     except Exception as e:  # pylint: disable=broad-except
-        if config.verbose:
+        if config.noisy:
             logging.error(f'    burn in: Caught exception: {e}')
         config.handler({'name': benchmark.name,
                         'failed': True})
@@ -164,10 +164,10 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
         try:
             time = timeit.Timer(lambda: benchmark.run()).timeit(1)  # pylint: disable=unnecessary-lambda
             times.append(time)
-            if config.verbose:
+            if config.noisy:
                 logging.info(f'    run {i + 1}: {time:.2f}s')
         except Exception as e:  # pylint: disable=broad-except
-            if config.verbose:
+            if config.noisy:
                 logging.error(f'    run ${i + 1}: Caught exception: {e}')
             config.handler({'name': benchmark.name,
                             'failed': True})
