@@ -1624,8 +1624,6 @@ private class Emit(
         val leftBroadcastFlags = if (lNDims > 2) NDArrayEmitter.broadcastFlags(leftShapeArray) else Array[Code[Long]]()
         val rightBroadcastFlags = if (rNDims > 2) NDArrayEmitter.broadcastFlags(rightShapeArray) else Array[Code[Long]]()
 
-        val time = mb.newLocal[Long]
-
         val lDataLength = mb.newField[Int]
         val lDataLocation = mb.newField[Long]
         val rDataLength = mb.newField[Int]
@@ -1643,8 +1641,6 @@ private class Emit(
           leftShapeArraySetup,
           rightShapeArraySetup,
           unifyShapeSetup
-//          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-//            "println", time)
         )
 
         val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
@@ -2579,15 +2575,10 @@ abstract class NDArrayEmitter(
   def emit(targetType: PNDArray): EmitTriplet = {
     val dataSrvb = new StagedRegionValueBuilder(mb, targetType.data.pType)
 
-    val time = mb.newLocal[Long]
     val dataAddress: Code[Long] =
       Code(
-        time := Code.timeMillis(),
         dataSrvb.start(targetType.numElements(outputShapeVariables.map(_.load()), mb).toI),
         emitLoops(dataSrvb),
-        time := Code.timeMillis() - time,
-        Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Long, Unit](
-          "println", time),
         dataSrvb.end()
       )
 
