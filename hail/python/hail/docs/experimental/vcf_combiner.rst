@@ -21,8 +21,15 @@ to a dense one.
 .. autosummary::
 
     combine_gvcfs
-    transform_one
+    transform_gvcf
     lgt_to_gt
+
+Sparse Matrix Tables
+--------------------
+
+
+Functions
+---------
 
 .. autofunction:: combine_gvcfs
 .. autofunction:: transform_one
