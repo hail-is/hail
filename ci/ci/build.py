@@ -763,18 +763,10 @@ class CreateDatabaseStep(Step):
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
-        self.volumes = [{
-            'volume': {
-                'name': 'database-server-config',
-                'secret': {
-                    'optional': False,
-                    'secretName': 'database-server-config'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/secrets/db-config',
-                'name': 'database-server-config'
-            }
+        self.secrets = [{
+            'namespace': 'batch-pods',  # FIXME unused
+            'name': 'database-server-config',
+            'mount_path': '/secrets/db-config'
         }]
 
     def wrapped_job(self):
@@ -889,7 +881,7 @@ echo done.
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
-                                    volumes=self.volumes,
+                                    secrets=self.secrets,
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
@@ -914,7 +906,7 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    volumes=self.volumes,
+                                    secrets=self.secrets,
                                     service_account_name='ci-agent',
                                     parents=parents,
                                     always_run=True)
