@@ -122,7 +122,6 @@ class Pod:
             secret_futures.append(self.driver.k8s.read_secret(secret['name']))
             k8s_secrets = await asyncio.gather(*secret_futures)
 
-        # FIXME failure to get secrets needs to be an error
         for secret, k8s_secret in zip(secrets, k8s_secrets):
             if k8s_secret:
                 secret['data'] = k8s_secret.data

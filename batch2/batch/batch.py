@@ -19,13 +19,23 @@ class Job:
         assert self._state in states
         assert self._state == 'Running'
 
-        # FIXME handle exceptions?
-        await self.app['driver'].create_pod(
-            name=self._pod_name,
-            batch_id=self.batch_id,
-            job_spec=self._spec,
-            userdata=self.userdata,
-            output_directory=self.directory)
+        try:
+            await self.app['driver'].create_pod(
+                name=self._pod_name,
+                batch_id=self.batch_id,
+                job_spec=self._spec,
+                userdata=self.userdata,
+                output_directory=self.directory)
+        except Exception:
+            pod_status = {
+                'name': self.name,
+                'batch_id': self.batch_id,
+                'job_id': self.job_id,
+                'user': self.user,
+                'state': 'error',
+                'error': traceback.format_exc()
+            }
+            await self.mark_complete(pod_status)
 
     async def _delete_pod(self):
         await self.app['driver'].delete_pod(name=self._pod_name)

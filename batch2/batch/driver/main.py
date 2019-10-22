@@ -88,14 +88,11 @@ async def update_job_with_pod(app, job, pod_status):  # pylint: disable=R0911
     log.info(f'update job {job.id if job else "None"} with pod {pod_name}')
     if job and job._state == 'Pending':
         if pod_status:
-            log.error(f'job {job.id} has pod {pod_name}, ignoring')
+            log.error(f'pending job {job.id} has pod {pod_name}, ignoring')
         return
 
     if pod_status and (not job or job.is_complete()):
-        err = await app['driver'].delete_pod(name=pod_name)
-        if err is not None:
-            traceback.print_tb(err.__traceback__)
-            log.info(f'failed to delete pod {pod_name} for job {job.id if job else "None"} due to {err}, ignoring')
+        await app['driver'].delete_pod(name=pod_name)
         return
 
     if job and job._cancelled and not job.always_run and job._state == 'Running':

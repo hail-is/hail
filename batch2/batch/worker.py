@@ -474,7 +474,6 @@ class Worker:
 
     async def _create_pod(self, parameters):
         name = parameters['name']
-        # FIXME think through logic to make sure this is sensible
         if name in self.pods:
             return
 
