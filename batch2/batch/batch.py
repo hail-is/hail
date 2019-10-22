@@ -262,7 +262,7 @@ class Job:
                 k: getopt(getopt(self.status['container_statuses'][k], 'container_status'), 'exit_code') for
                 k in tasks
             }
-            result['duration'] = {k: getopt(self.status['container_statuses']['k']['timing'], 'runtime') for k in tasks}
+            result['duration'] = {k: getopt(self.status['container_statuses'][k]['timing'], 'runtime') for k in tasks}
             result['message'] = {
                 # the execution of the pod container might have
                 # failed, or the docker container might have completed
