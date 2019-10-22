@@ -66,8 +66,10 @@ object Copy {
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case MakeNDArray(_, _, _) =>
+        assert(newChildren.length == 3)
         MakeNDArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case NDArrayShape(_) =>
+        assert(newChildren.length == 1)
         NDArrayShape(newChildren(0).asInstanceOf[IR])
       case NDArrayReshape(_, _) =>
         assert(newChildren.length ==  2)
