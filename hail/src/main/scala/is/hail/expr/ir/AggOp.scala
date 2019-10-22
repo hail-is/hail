@@ -12,7 +12,9 @@ case class AggSignature(
   op: AggOp,
   constructorArgs: Seq[Type],
   initOpArgs: Option[Seq[Type]],
-  seqOpArgs: Seq[Type])
+  seqOpArgs: Seq[Type]) {
+  lazy val returnType: Type = AggOp.getType(this)
+}
 
 case class AggSignature2(
   op: AggOp,
