@@ -124,7 +124,7 @@ object Copy {
         ArrayFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case ArrayFlatMap(_, name, _) =>
         assert(newChildren.length == 2)
-        ArrayFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(0).asInstanceOf[IR])
+        ArrayFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case ArrayFold(_, _, accumName, valueName, _) =>
         assert(newChildren.length == 3)
         ArrayFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(1).asInstanceOf[IR])
