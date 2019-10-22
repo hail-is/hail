@@ -260,7 +260,6 @@ class Pod:
         log.info(f'reading pod {self.name} logs from instance {self.instance}')
 
         if self.instance is None:
-            # FIXME error?
             return None
 
         inst = self.instance
@@ -272,7 +271,6 @@ class Pod:
         log.info(f'reading status for pod {self.name} from instance {self.instance}')
 
         if self.instance is None:
-            # FIXME error?
             return None
 
         inst = self.instance
