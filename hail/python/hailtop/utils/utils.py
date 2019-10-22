@@ -27,71 +27,6 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-class AsyncThrottledGather:
-    def __init__(self, parallelism):
-        self._sem = asyncio.Semaphore(parallelism)
-        self._count = 0
-        self._done = asyncio.Event()
-
-    async def _call(self, f, args, kwargs):
-        async with self._sem:
-            try:
-                await f(*args, **kwargs)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except,try-except-raise
-                raise
-            finally:
-                assert self._count > 0
-                self._count -= 1
-                if self._count == 0:
-                    self._done.set()
-
-    async def call(self, f, *args, **kwargs):
-        if self._count == 0:
-            self._done.clear()
-        self._count += 1
-        asyncio.ensure_future(self._call(f, args, kwargs))
-
-    async def wait(self):
-        await self._done.wait()
-
-
-class AsyncThrottledGather2:
-    def __init__(self, parallelism, queue_size=1000):
-        self._queue = asyncio.Queue(maxsize=queue_size)
-        self._count = 0
-        self._done = asyncio.Event()
-        self._done.set()
-
-        for _ in range(parallelism):
-            asyncio.ensure_future(self._worker())
-
-    async def _worker(self):
-        while True:
-            f, args, kwargs = await self._queue.get()
-            try:
-                await f(*args, **kwargs)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
-            finally:
-                assert self._count > 0
-                self._count -= 1
-                if self._count == 0:
-                    self._done.set()
-
-    async def call(self, f, *args, **kwargs):
-        if self._count == 0:
-            self._done.clear()
-        self._count += 1
-        await self._queue.put((f, args, kwargs))
-
-    async def wait(self):
-        await self._done.wait()
-
-
 class GatheringFuture(asyncio.futures.Future):
     """Helper for gather().
     This overrides cancel() to cancel all the children and act more
@@ -166,14 +101,6 @@ async def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=
             fut._log_destroy_pending = False
             fut.add_done_callback(functools.partial(_done_callback, i))
     return outer
-
-
-class AsyncThrottledGather3:
-    def __init__(self, *coros, parallelism=10):
-        self._sem = asyncio.Semaphore(parallelism)
-
-
-
 
 
 class AsyncWorkerPool:
