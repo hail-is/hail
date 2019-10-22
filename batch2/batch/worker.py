@@ -428,7 +428,7 @@ class Pod:
 
     async def delete(self):
         self.deleted = True
-        for _, c in self.containers:
+        for _, c in self.containers.items():
             await c.delete()
 
     # {
