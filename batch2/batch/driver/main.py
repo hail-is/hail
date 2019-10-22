@@ -1,7 +1,6 @@
 import asyncio
 import concurrent
 import logging
-import traceback
 
 from aiohttp import web
 import kubernetes as kube

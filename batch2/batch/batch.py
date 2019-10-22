@@ -2,6 +2,7 @@ import json
 import logging
 import asyncio
 import aiohttp
+import traceback
 
 from .globals import states, complete_states, valid_state_transitions, tasks
 from .log_store import LogStore
@@ -28,7 +29,7 @@ class Job:
                 output_directory=self.directory)
         except Exception:
             pod_status = {
-                'name': self.name,
+                'name': self._pod_name,
                 'batch_id': self.batch_id,
                 'job_id': self.job_id,
                 'user': self.user,
