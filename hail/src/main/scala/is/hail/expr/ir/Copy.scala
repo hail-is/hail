@@ -127,7 +127,7 @@ object Copy {
         ArrayFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case ArrayFold(_, _, accumName, valueName, _) =>
         assert(newChildren.length == 3)
-        ArrayFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(1).asInstanceOf[IR])
+        ArrayFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
       case ArrayFold2(_, accum, valueName, seq, _) =>
         val ncIR = newChildren.map(_.asInstanceOf[IR])
         assert(newChildren.length == 2 + accum.length + seq.length)
