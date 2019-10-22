@@ -13,7 +13,7 @@ from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
 log = logging.getLogger('ci')
 
 
-log_pretty_print = "jq -Rrc '. as $raw | try \
+pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
     ([.levelname, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
     else $raw end) \
@@ -674,7 +674,7 @@ set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
-kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {log_pretty_print}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
 (exit $EC)
 '''
@@ -688,7 +688,7 @@ kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name} && \
   python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
 EC=$?
-kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {log_pretty_print}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
 (exit $EC)
 '''
@@ -701,7 +701,7 @@ set +e
 kubectl -n {self.namespace} wait --timeout=1h pod --for=condition=podscheduled {name} \
   && python3 wait-for.py {timeout} {self.namespace} Pod {name}
 EC=$?
-kubectl -n {self.namespace} logs --tail=999999 {name} | {log_pretty_print}
+kubectl -n {self.namespace} logs --tail=999999 {name} | {pretty_print_log}
 set -e
 (exit $EC)
 '''
@@ -728,13 +728,13 @@ date
             for w in self.wait:
                 name = w['name']
                 if w['kind'] == 'Deployment':
-                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {log_pretty_print}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}\n'
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
-                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {log_pretty_print}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}\n'
                 else:
                     assert w['kind'] == 'Pod', w['kind']
-                    script += f'kubectl -n {self.namespace} logs --tail=999999 {name} | {log_pretty_print}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 {name} | {pretty_print_log}\n'
             script += 'date\n'
             self.job = batch.create_job(CI_UTILS_IMAGE,
                                         command=['bash', '-c', script],
