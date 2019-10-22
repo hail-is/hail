@@ -6,6 +6,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def add_fields(self, log_record, record, message_dict):
         super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
         log_record['funcNameAndLine'] = "{}:{}".format(record.funcName, record.lineno)
+        log_record['hail_log'] = 1
 
 
 def configure_logging():
