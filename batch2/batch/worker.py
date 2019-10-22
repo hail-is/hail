@@ -206,7 +206,8 @@ class Container:
             try:
                 log.info('container {self.pod.name}/{self.name}: deleting container')
                 await docker_call_retry(self.container.stop)
-                await docker_call_retry(self.container.delete)
+                # v=True deletes anonymous volumes created by the container
+                await docker_call_retry(self.container.delete, v=True)
             except Exception:
                 log.exception('while deleting up container, ignoring')
             self.container = None
