@@ -414,10 +414,10 @@ def test_ndarray_matmul():
         (m @ rect_prism, np_m @ np_rect_prism),
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
         (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
-        # (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
+        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
     )
 
-    assert np.array_equal(hl.eval(six_dim_tensor @ five_dim_tensor), np_six_dim_tensor @ np_five_dim_tensor)
+    #assert np.array_equal(hl.eval(six_dim_tensor @ five_dim_tensor), np_six_dim_tensor @ np_five_dim_tensor)
 
     with pytest.raises(ValueError):
         m @ 5

@@ -1672,7 +1672,7 @@ private class Emit(
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val seqIdxVars = idxVars.toSeq
             val element = coerce[Any](mb.newField("matmul_element")(eVti))
-            val kLocal = mb.newLocal[Long]
+            val kLocal = mb.newField[Long]
             val k = kLocal.load()
 
             val (lIdxVars: Array[Code[Long]], rIdxVars: Array[Code[Long]]) = (lNDims, rNDims) match {
@@ -1700,7 +1700,7 @@ private class Emit(
 
             val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress2(lIdxVars, leftND, region, mb, lDataLocation.load(), lDataLength.load()))
             val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress2(rIdxVars, rightND, region, mb, rDataLocation.load(), rDataLength.load()))
-            val maxK = mb.newLocal[Long]
+            val maxK = mb.newField[Long]
 
             val innerMethod = mb.fb.newMethod(eVti)
 
