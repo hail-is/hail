@@ -78,7 +78,7 @@ class Test(unittest.TestCase):
         j = builder.create_job('ubuntu:18.04', ['sleep 5'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code'] == {'setup': 0, 'main': 127, 'cleanup': None}, status
+        assert status['exit_code'] == {'setup': 0, 'main': None, 'cleanup': 0}, status
         assert status['message']['main'] is not None
         assert status['state'] == 'Error', status
 
