@@ -1,4 +1,3 @@
-import kubernetes as kube
 import prometheus_client as pc
 from hailtop.utils import blocking_to_async
 
@@ -19,10 +18,6 @@ class K8s:
         if 'namespace' not in kwargs:
             kwargs['namespace'] = self.namespace
         with READ_SECRET_TIME.time():
-            try:
-                v = await blocking_to_async(
-                    self.thread_pool,
-                    self.k8s_client.read_namespaced_secret, *args, **kwargs)
-                return (v, None)
-            except kube.client.rest.ApiException as err:
-                return (None, err)
+            return await blocking_to_async(
+                self.thread_pool,
+                self.k8s_client.read_namespaced_secret, *args, **kwargs)

@@ -14,12 +14,11 @@ class LogStore:
     @staticmethod
     def container_log_path(directory, container_name):
         assert container_name in tasks
-        return f'{directory}{container_name}/job.log'
+        return f'{directory}/{container_name}/job.log'
 
     @staticmethod
-    def container_status_path(directory, container_name):
-        assert container_name in tasks
-        return f'{directory}{container_name}/status'
+    def pod_status_path(directory):
+        return f'{directory}/status'
 
     def __init__(self, blocking_pool, instance_id, bucket_name):
         self.instance_id = instance_id
@@ -32,7 +31,7 @@ class LogStore:
         self.gcs = GCS(blocking_pool, credentials)
 
     def gs_job_output_directory(self, batch_id, job_id):
-        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}/'
+        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}'
 
     async def write_gs_file(self, uri, data):
         return await self.gcs.write_gs_file(uri, data)
@@ -41,14 +40,13 @@ class LogStore:
         return await self.gcs.read_gs_file(uri)
 
     async def delete_gs_file(self, uri):
-        err = await self.gcs.delete_gs_file(uri)
-        if isinstance(err, google.api_core.exceptions.NotFound):
-            log.info(f'ignoring: cannot delete file that does not exist: {err}')
-            err = None
-        return err
+        try:
+            await self.gcs.delete_gs_file(uri)
+        except google.api_core.exceptions.NotFound:
+            log.exception(f'file not found: {uri}, ignoring')
 
     async def delete_gs_files(self, directory):
         files = [LogStore.container_log_path(directory, container) for container in tasks]
-        files.extend([LogStore.container_status_path(directory, container) for container in tasks])
+        files.append(LogStore.pod_status_path(directory))
         errors = await asyncio.gather(*[self.delete_gs_file(file) for file in files])
         return list(zip(files, errors))
