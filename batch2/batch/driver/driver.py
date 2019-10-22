@@ -21,16 +21,6 @@ BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
 
-class DriverException(Exception):
-    def __init__(self, status, message):
-        super().__init__()
-        self.status = status
-        self.message = message
-
-    def __str__(self):
-        return f'{(self.status, self.message)}'
-
-
 class Pod:
     @staticmethod
     def from_record(driver, record):
@@ -261,7 +251,7 @@ class Pod:
                     await self._request('POST', url)
                     log.info(f'deleted {self.name} from inst {inst}')
                 except Exception:
-                    log.info(f'failed to delete {self.name} on inst {inst} due to exception, ignoring')
+                    log.exception(f'failed to delete {self.name} on inst {inst} due to exception, ignoring')
 
             await self.unschedule()
             asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
@@ -382,40 +372,24 @@ class Driver:
         await self.complete_queue.put(status)
         return web.Response()
 
-    # FIXME return value
     async def create_pod(self, name, batch_id, job_spec, userdata, output_directory):
-        if name in self.pods:
-            return DriverException(409, f'pod {name} already exists')
-
-        try:
-            pod = await Pod.create_pod(self, name, batch_id, job_spec, userdata, output_directory)
-        except Exception:
-            # FIXME: what error code should this be?
-            # FIXME chaining
-            DriverException(400, f'unknown error creating pod')
-
+        assert name not in self.pods
+        pod = await Pod.create_pod(self, name, batch_id, job_spec, userdata, output_directory)
         self.pods[name] = pod
         asyncio.ensure_future(pod.put_on_ready())
 
     async def delete_pod(self, name):
-        pod = self.pods.get(name)
-        if pod is None:
-            return DriverException(409, f'pod {name} does not exist')
+        pod = self.pods[name]
         pod.mark_deleted()
         await self.pool.call(pod.delete)
-        del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
+        # this must be after delete finishes successfully in case pod marks complete before delete call
+        del self.pods[name]
 
     async def read_pod_logs(self, name):
-        pod = self.pods.get(name)
-        if pod is None:
-            return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_pod_logs()
+        return await self.pods[name].read_pod_logs()
 
     async def read_pod_status(self, name):
-        pod = self.pods.get(name)
-        if pod is None:
-            return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_pod_status()
+        return await self.pods[name].read_pod_status()
 
     def list_pods(self):
         return [pod.status() for _, pod in self.pods.items()]
