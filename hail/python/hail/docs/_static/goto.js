@@ -1,6 +1,6 @@
 //https://caniuse.com/#feat=history
 if ((window.history && window.history.pushState)) {
-    var startingHash = window.location.hash ? window.location.hash.replace('#', '') : null;
+    var startingHash = window.location.hash ? decodeURIComponent(window.location.hash.replace('#', '')) : null;
 
     // necessary to prevent browser from overriding our initial scroll
     // browser scroll is otherwise undefeatable
@@ -34,7 +34,7 @@ if ((window.history && window.history.pushState)) {
                     return;
                 }
 
-                var hash = hrefParts[1];
+                var hash = decodeURIComponent(hrefParts[1]);
                 var elem = document.getElementById(hash);
 
                 if (!elem) {
