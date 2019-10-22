@@ -1,5 +1,6 @@
 import errno
 import random
+import functools
 import logging
 import asyncio
 import aiohttp
@@ -54,6 +55,125 @@ class AsyncThrottledGather:
 
     async def wait(self):
         await self._done.wait()
+
+
+class AsyncThrottledGather2:
+    def __init__(self, parallelism, queue_size=1000):
+        self._queue = asyncio.Queue(maxsize=queue_size)
+        self._count = 0
+        self._done = asyncio.Event()
+        self._done.set()
+
+        for _ in range(parallelism):
+            asyncio.ensure_future(self._worker())
+
+    async def _worker(self):
+        while True:
+            f, args, kwargs = await self._queue.get()
+            try:
+                await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'worker pool caught exception')
+            finally:
+                assert self._count > 0
+                self._count -= 1
+                if self._count == 0:
+                    self._done.set()
+
+    async def call(self, f, *args, **kwargs):
+        if self._count == 0:
+            self._done.clear()
+        self._count += 1
+        await self._queue.put((f, args, kwargs))
+
+    async def wait(self):
+        await self._done.wait()
+
+
+class GatheringFuture(asyncio.futures.Future):
+    """Helper for gather().
+    This overrides cancel() to cancel all the children and act more
+    like Task.cancel(), which doesn't immediately mark itself as
+    cancelled.
+    """
+
+    def __init__(self, *, loop=None):
+        super().__init__(loop=loop)
+        self._children = []
+
+    def add_child(self, fut):
+        self._children.append(fut)
+
+    def cancel(self):
+        if self.done():
+            return False
+        ret = False
+        for child in self._children:
+            if child.cancel():
+                ret = True
+        return ret
+
+
+async def throttled_gather(*coros, loop=None, parallelism=10, return_exceptions=False):
+    if not coros:
+        if loop is None:
+            loop = asyncio.get_event_loop()
+        outer = loop.create_future()
+        outer.set_result([])
+        return outer
+
+    sem = asyncio.Semaphore(parallelism)
+    outer = GatheringFuture(loop=loop)
+    n_finished = 0
+    n_children = len(coros)
+    results = [None] * n_children
+
+    def _done_callback(i, fut):
+        nonlocal n_finished
+        if outer.done():
+            if not fut.cancelled():
+                # Mark exception retrieved.
+                fut.exception()
+            return
+
+        if fut.cancelled():
+            res = asyncio.futures.CancelledError()
+            if not return_exceptions:
+                outer.set_exception(res)
+                return
+        elif fut._exception is not None:
+            res = fut.exception()  # Mark exception retrieved.
+            if not return_exceptions:
+                outer.set_exception(res)
+                return
+        else:
+            res = fut._result
+        results[i] = res
+        n_finished += 1
+        if n_finished == n_children:
+            outer.set_result(results)
+
+    for i, coro in enumerate(coros):
+        async with sem:
+            fut = asyncio.ensure_future(coro, loop=loop)
+            outer.add_child(fut)
+            if loop is None:
+                loop = fut._loop
+            # The caller cannot control this future, the "destroy pending task"
+            # warning should not be emitted.
+            fut._log_destroy_pending = False
+            fut.add_done_callback(functools.partial(_done_callback, i))
+    return outer
+
+
+class AsyncThrottledGather3:
+    def __init__(self, *coros, parallelism=10):
+        self._sem = asyncio.Semaphore(parallelism)
+
+
+
 
 
 class AsyncWorkerPool:
