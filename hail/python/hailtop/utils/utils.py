@@ -66,6 +66,15 @@ def is_transient_error(e):
     # Connected call failed caused by:
     # OSError: [Errno 113] Connect call failed ('<ip>', 80)
     # 113 is EHOSTUNREACH: No route to host
+    #
+    # Fatal read error on socket transport
+    # protocol: <asyncio.sslproto.SSLProtocol object at 0x12b47d320>
+    # transport: <_SelectorSocketTransport fd=13 read=polling write=<idle, bufsize=0>>
+    # Traceback (most recent call last):
+    #   File "/anaconda3/lib/python3.7/asyncio/selector_events.py", line 812, in _read_ready__data_received
+    #     data = self._sock.recv(self.max_size)
+    # TimeoutError: [Errno 60] Operation timed out
+    #
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout
@@ -80,6 +89,11 @@ def is_transient_error(e):
         return True
     elif isinstance(e, asyncio.TimeoutError):
         return True
+    elif isinstance(e, OSError):
+        if (e.errno == errno.ETIMEDOUT or
+                e.errno == errno.ECONNREFUSED or
+                e.errno == errno.EHOSTUNREACH):
+            return True
     return False
 
 
