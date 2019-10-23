@@ -435,12 +435,12 @@ class Driver:
         records = await self.db.pods.get_all_records()
         self.pods = dict(_pod(record) for record in records)
 
-        async def _put_on_ready():
+        async def put_all_on_ready():
             for pod in self.pods.values():
                 if not pod.instance and not pod._status:
                     await pod.put_on_ready()
 
-        asyncio.ensure_future(_put_on_ready())
+        asyncio.ensure_future(put_all_on_ready())
 
     async def run(self):
         await self.inst_pool.start()
