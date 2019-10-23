@@ -1699,21 +1699,18 @@ private class Emit(
 
             val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress2(lIdxVars, leftND, region, mb, lDataLocation.load(), lDataLength.load()))
             val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress2(rIdxVars, rightND, region, mb, rDataLocation.load(), rDataLength.load()))
-            val maxK = mb.newField[Long]
+            val kLen = mb.newField[Long]
 
             val innerMethod = mb.fb.newMethod(eVti)
 
             val loopCode = Code(
               k := 0L,
-              maxK := leftShapeArray(lNDims - 1),
+              kLen := leftShapeArray(lNDims - 1),
               element := elementZero,
-              Code.whileLoop(k < maxK,
-                Code(
+              Code.whileLoop(k < kLen,
                   element := elementAdd(elementMul(lElem, rElem), element),
                   k := k + 1L
-                )
               ),
-
               element
             )
             innerMethod.emit(loopCode)
