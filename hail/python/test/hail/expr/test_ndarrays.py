@@ -430,7 +430,7 @@ def test_ndarray_matmul():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(r @ r)
-    assert "Matrix dimensions incompatible" in str(exc)
+    assert "Matrix dimensions incompatible: 3 2" in str(exc)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl._ndarray([1, 2]) @ hl._ndarray([1, 2, 3]))

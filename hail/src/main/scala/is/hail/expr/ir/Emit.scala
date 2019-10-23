@@ -2503,7 +2503,7 @@ object NDArrayEmitter {
   }
 
   def zeroBroadcastedDims(indices: Array[Code[Long]], broadcastFlags: Array[Code[Long]]): Array[Code[Long]] = {
-    indices.zip(broadcastFlags).map { case (shapeElement, flag) => shapeElement * flag }
+    indices.zip(broadcastFlags).map { case (index, flag) => index * flag }
   }
 
   def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
@@ -2519,39 +2519,28 @@ object NDArrayEmitter {
   }
 
   def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
-    val leftLen = leftShape.length
-    val rightLen = rightShape.length
+    assert(leftShape.length >= 1)
+    assert(rightShape.length >= 1)
 
-    assert(leftLen >= 1)
-    assert(rightLen >= 1)
-
-    val leftInnerDim = leftLen - 1
-    val rightInnerDim = if (rightLen == 1) 0 else rightLen - 2
-    val mustMatch = leftShape(leftInnerDim) ceq rightShape(rightInnerDim)
-
-    val compatibilityCheck = mustMatch.mux(Code._empty[Unit], Code._fatal("Matrix dimensions incompatible"))
-
-    if (leftLen == 1 && rightLen == 1) {
-      (compatibilityCheck, Array())
+    val ((lK, rK), shape) = (leftShape.toSeq, rightShape.toSeq) match {
+      case (Seq(l), Seq(r)) =>
+        ((l, r), Array[Code[Long]]())
+      case (Seq(l), rs :+ r2 :+ r1) =>
+        ((l, r2), (rs :+ r1).toArray)
+      case (ls :+ l2 :+ l1, Seq(r)) =>
+        ((l1, r), (ls :+ l1).toArray)
+      case (
+        ls :+ l2 :+ l1,
+        rs :+ r2 :+ r1
+        ) => ((l1, r2), unifyShapes2(ls.toArray, rs.toArray) :+ l2 :+ r1)
+      case (l, r) =>
+        fatal(s"Matrix multiply compiler bug: $l $r")
     }
-    else if (leftLen == 1) {
-      (compatibilityCheck, rightShape.slice(0, rightInnerDim) :+ rightShape.last)
-    }
-    else if (rightLen == 1) {
-      // All but the last element of left shape
-      (compatibilityCheck, leftShape.slice(0, leftInnerDim))
-    }
-    else {
-      assert(leftLen == rightLen)
-      val mRows = leftShape(leftLen - 2)
-      val mCols = rightShape(rightLen - 1)
 
-      val upperShape = unifyShapes2(leftShape.slice(0, leftLen - 2), rightShape.slice(0, rightLen - 2))
+    val dimCheck = (lK cne rK).orEmpty(
+      Code._fatal(const("Matrix dimensions incompatible: ").concat(lK.toS).concat(" ").concat(rK.toS)))
 
-      val lastTwoDims = Array(mRows, mCols)
-
-      (compatibilityCheck, upperShape  ++ lastTwoDims)
-    }
+    (dimCheck, shape)
   }
 }
 
