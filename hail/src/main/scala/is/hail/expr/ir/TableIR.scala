@@ -467,7 +467,7 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
-    child.partitionCounts.map(getHeadPartitionCounts(_, n))
+    child.partitionCounts.map(PartitionCounts.getHeadPCs(_, n))
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound match {
     case Some(c) => Some(c.min(n))

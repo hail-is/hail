@@ -380,7 +380,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
     val (idxLast, nLast) = partitionCounts match {
       case Some(pcs) =>
-        val newPartitionCounts = getHeadPartitionCounts(pcs, n)
+        val newPartitionCounts = PartitionCounts.getHeadPCs(pcs, n)
         if (newPartitionCounts == pcs)
           return this
         else {
