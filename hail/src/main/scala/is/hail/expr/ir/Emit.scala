@@ -1677,17 +1677,17 @@ private class Emit(
             val (lIdxVars: Array[Code[Long]], rIdxVars: Array[Code[Long]]) = (lNDims, rNDims) match {
               case (1, 1) => (Array[Code[Long]](k), Array[Code[Long]](k))
               case (1, _) =>
-                val stackDims :+ m = seqIdxVars
+                val stackDims :+ m = idxVars.toSeq
 
                 val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
                 (Array[Code[Long]](k), rStackVars :+ k.load() :+ m)
               case (_, 1) =>
-                val stackDims :+ n = seqIdxVars
+                val stackDims :+ n = idxVars.toSeq
 
                 val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
                 (lStackVars :+ n :+ k.load(), Array[Code[Long]](k))
               case (_, _) => {
-                val stackDims :+ n :+ m = seqIdxVars
+                val stackDims :+ n :+ m = idxVars.toSeq
                 val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
                 val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
 
