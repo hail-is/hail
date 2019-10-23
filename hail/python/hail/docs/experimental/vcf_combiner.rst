@@ -27,8 +27,36 @@ to a dense one.
 Sparse Matrix Tables
 --------------------
 
-Sparse matrix tables are a new method of representing VCF style data in a space
-efficient way.
+Sparse matrix tables are a new method of representing VCF style data in a space efficient way. They
+are produced them using :func:`transform_gvcf` on an imported gVCF, or by using
+:func:`combine_gvcfs` on smaller sparse matrix tables. They have two components that differentiate
+them from matrix tables produced by importing VCFs.
+
+* `Sample Level Reference Blocks`
+* `Local Alleles`
+
+Sample Level Reference Blocks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+GVCFs represent blocks of homozygous reference calls of similar qualities using one record. For
+example:  ::text
+
+    #CHROM  POS    ID  REF  ALT  INFO       FORMAT    S01
+    chr1    14523  .   C    .    END=15000  GT:DP:GQ  0/0:19:40
+
+This record indicates that S01 is homozygous reference until position 15,000 with approximate ``GQ``
+of 40 across the few hundred base pair block.
+
+A sparse matrix table has an entry field ``END`` that corresponds to the gVCF ``INFO`` field,
+``END``. It has the same meaning, but only for the single column where the END resides. In a sparse
+matrix table, there should be no present entries for this sample between ``chr1:14524`` and
+``chr1:15000``, inclusive.
+
+Local Alleles
+^^^^^^^^^^^^^
+
+Local alleles are used to reduce the size of arrays such as ``AD``, or most notably ``PL`` at multi
+alleleic sites with many alternate alleles.
 
 Functions
 ---------
