@@ -10,6 +10,7 @@ modules, linked immediately below, and many freestanding functions, documented
 on this page.
 
 .. toctree::
+    :maxdepth: 1
 
     vcf_combiner
     ldscsim

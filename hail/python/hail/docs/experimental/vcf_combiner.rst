@@ -31,14 +31,14 @@ are produced them using :func:`transform_gvcf` on an imported gVCF, or by using
 :func:`combine_gvcfs` on smaller sparse matrix tables. They have two components that differentiate
 them from matrix tables produced by importing VCFs.
 
-* `Sample Level Reference Blocks`
-* `Local Alleles`
+* `Sample Level Reference Blocks`_
+* `Local Alleles`_
 
 Sample Level Reference Blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 GVCFs represent blocks of homozygous reference calls of similar qualities using one record. For
-example: text::
+example: ::
 
     #CHROM  POS    ID  REF  ALT  INFO       FORMAT    S01
     chr1    14523  .   C    .    END=15000  GT:DP:GQ  0/0:19:40
@@ -63,8 +63,18 @@ generally represented as a 4 byte integer, giving a full size of the ``PL`` arra
 over 3 terabytes. Even if we only had the minimum required ``PL`` arrays materialized, we would
 still be looking at gigabytes for a single row.
 
-A sparse matrix table solves this issue by creating new fields that are 'local'. A sparse matrix
-table only stores information that was present in the imported gVCFs.
+A sparse matrix table solves this issue by creating new fields that are 'local'. It only stores
+information that was present in the imported gVCFs. The :func:`transform_gvcf` does this initial
+conversion. The fields ``GT``, ``AD``, ``PGT``, ``PL``, are converted to their local versions,
+``LGT``, ``LAD``, ``LPGT``, ``LPL``, and a ``LA`` (local alleles) array is added.  The ``LA`` field
+serves as the map between the ``alleles`` field and the local fields. For example (using VCF-like
+notation): ::
+
+    LGT:LA:LAD    1/2:0,7,5:0,19,21
+
+For this genotype, the true ``GT`` is ``5/7``, and the depth of the ``5`` Allele is ``21`` and the
+depth of the ``7`` allele is ``19``. To get the appropriate ``LPL`` index one can still use
+:func:`.unphased_diploid_gt_index` of ``LGT``.
 
 Functions
 ---------
