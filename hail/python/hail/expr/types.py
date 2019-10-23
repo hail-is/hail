@@ -951,6 +951,16 @@ class tstruct(HailType, Mapping):
         super(tstruct, self).__init__()
 
     @property
+    def types(self):
+        """Struct field types.
+
+        Returns
+        -------
+        :obj:`tuple` of :class:`.HailType`
+        """
+        return tuple(self._field_types.values())
+
+    @property
     def fields(self):
         """Struct field names.
 

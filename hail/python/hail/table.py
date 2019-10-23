@@ -1546,7 +1546,7 @@ class Table(ExprContainer):
             indexer = hl.tuple([indexer])
 
         matching_prefix = 0
-        for x, y in zip(indexer.dtype.values(), indexee_dtype.values()):
+        for x, y in zip(indexer.dtype.types(), indexee_dtype.types()):
             if x != y:
                 break
             matching_prefix += 1
