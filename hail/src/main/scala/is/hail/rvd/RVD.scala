@@ -512,6 +512,12 @@ class RVD(
     RVD(typ, newPartitioner, newRDD)
   }
 
+  def tail(n: Long, partitionCounts: Option[IndexedSeq[Long]]): RVD = {
+    require(n >= 0)
+
+    fatal("TableTail not actually implemented!")
+  }
+
   def filter(p: (RegionValue) => Boolean): RVD =
     RVD(typ, partitioner, crddBoundary.filter(p))
 

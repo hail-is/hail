@@ -259,6 +259,10 @@ object PruneDeadFields {
         key = child.typ.key,
         rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, child.typ.key), requestedType.rowType),
         globalType = requestedType.globalType), memo)
+      case TableTail(child, _) => memoizeTableIR(child, TableType(
+        key = child.typ.key,
+        rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, child.typ.key), requestedType.rowType),
+        globalType = requestedType.globalType), memo)
       case TableJoin(left, right, _, joinKey) =>
         val lk = unifyKey(FastSeq(requestedType.key.take(left.typ.key.length), left.typ.key.take(joinKey)))
         val lkSet = lk.toSet

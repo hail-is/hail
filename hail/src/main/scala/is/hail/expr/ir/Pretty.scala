@@ -336,6 +336,7 @@ object Pretty {
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, strategy) => s"$n $strategy"
             case TableHead(_, n) => n.toString
+            case TableTail(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
             case TableIntervalJoin(_, _, root, product) =>
