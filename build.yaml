@@ -805,7 +805,6 @@ steps:
      set -e
      ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     sleep 60
      date
      gcloud -q compute instances list --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' --format="value(name)" | xargs gcloud -q compute instances delete --zone $ZONE || true
    secrets:
