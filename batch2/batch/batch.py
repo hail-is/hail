@@ -380,7 +380,8 @@ class Batch:
 
     # called by driver
     async def _cancel_jobs(self):
-        await asyncio.gather(*[j.cancel() for j in await self.get_jobs()])
+        for j in await self.get_jobs():
+            await j.cancel()
 
     # called by front end
     async def cancel(self):
@@ -391,8 +392,9 @@ class Batch:
 
     # called by driver
     async def _close_jobs(self):
-        await asyncio.gather(*[j._create_pod() for j in await self.get_jobs()
-                               if j._state == 'Running'])
+        for j in await self.get_jobs():
+            if j._state == 'Running':
+                await j._create_pod()
 
     # called by front end
     async def close(self):
@@ -412,7 +414,8 @@ class Batch:
 
     async def delete(self):
         # Job deleted from database when batch is deleted with delete cascade
-        await asyncio.gather(*[j._delete_gs_files() for j in await self.get_jobs()])
+        for j in await self.get_jobs():
+            await j._delete_gs_files()
         await self.app['db'].batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
