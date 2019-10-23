@@ -770,6 +770,12 @@ class CreateDatabaseStep(Step):
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
+        self.secrets = [{
+            'namespace': 'batch-pods',  # FIXME unused
+            'name': 'database-server-config',
+            'mount_path': '/secrets/db-config'
+        }]
+
     def wrapped_job(self):
         if self.job:
             return [self.job]
@@ -795,12 +801,17 @@ class CreateDatabaseStep(Step):
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         if scope == 'dev':
             return
+
         script = f'''
 set -e
 echo date
 date
 
-DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --host=10.80.0.3 -u root -s)
+HOST=$(cat /secrets/db-config/sql-config.json | jq -r '.host')
+INSTANCE=$(cat /secrets/db-config/sql-config.json | jq -r '.instance')
+PORT=$(cat /secrets/db-config/sql-config.json | jq -r '.port')
+
+DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf -s)
 if [ "$DBS" == "{self._name}" ]; then
     exit 0
 fi
@@ -808,7 +819,7 @@ fi
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
-cat | mysql --host=10.80.0.3 -u root <<EOF
+cat | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf <<EOF
 CREATE DATABASE \\`{self._name}\\`;
 
 CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
@@ -819,23 +830,23 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON \\`{self._name}\\`.* TO '{self.user_user
 EOF
 
 echo create database, admin and user...
-echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
+echo "$SQL_SCRIPT" | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf
 
 echo create admin secret...
 cat > sql-config.json <<EOF
 {{
-  "host": "10.80.0.3",
-  "port": 3306,
+  "host": "$HOST",
+  "port": $PORT,
   "user": "{self.admin_username}",
   "password": "$ADMIN_PASSWORD",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "instance": "$INSTANCE",
+  "connection_name": "hail-vdc:us-central1:$INSTANCE",
   "db": "{self._name}"
 }}
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-host=10.80.0.3
+host=$HOST
 user={self.admin_username}
 password="$ADMIN_PASSWORD"
 database={self._name}
@@ -845,18 +856,18 @@ kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_na
 echo create user secret...
 cat > sql-config.json <<EOF
 {{
-  "host": "10.80.0.3",
-  "port": 3306,
+  "host": "$HOST",
+  "port": $PORT,
   "user": "{self.user_username}",
   "password": "$USER_PASSWORD",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "instance": "$INSTANCE",
+  "connection_name": "hail-vdc:us-central1:$INSTANCE",
   "db": "{self._name}"
 }}
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-host=10.80.0.3
+host=$HOST
 user={self.user_username}
 password="$USER_PASSWORD"
 database={self._name}
@@ -877,7 +888,7 @@ echo done.
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
-                                    # FIXME configuration
+                                    secrets=self.secrets,
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
@@ -889,7 +900,7 @@ echo done.
 set -x
 date
 
-cat | mysql --host=10.80.0.3 -u root <<EOF
+cat | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf <<EOF
 DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
@@ -902,7 +913,7 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    # FIXME configuration
+                                    secrets=self.secrets,
                                     service_account_name='ci-agent',
                                     parents=parents,
                                     always_run=True)
