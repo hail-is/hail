@@ -11,10 +11,10 @@ What this module provides:
 What this module does not provide:
     - Any way to repartition the data.
 
-There are two additional functions of note for working with sparse data in the
-main experimental module :func:`.sparse_split_multi`, which splits multi-alleleics
-in a sparse matrix table, and :func:`.densify` which converts a sparse matrix table
-to a dense one.
+There are three additional functions of note for working with sparse data in the main experimental
+module :func:`.sparse_split_multi`, which splits multi-alleleics in a sparse matrix table,
+:func:`.lgt_to_gt`, which converts from local alleles and genotypes to true(global) genotypes, and
+:func:`.densify`, which converts a sparse matrix table to a dense one.
 
 .. currentmodule:: hail.experimental.vcf_combiner
 
@@ -22,7 +22,6 @@ to a dense one.
 
     combine_gvcfs
     transform_gvcf
-    lgt_to_gt
 
 Sparse Matrix Tables
 --------------------
@@ -39,7 +38,7 @@ Sample Level Reference Blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 GVCFs represent blocks of homozygous reference calls of similar qualities using one record. For
-example:  ::text
+example: text::
 
     #CHROM  POS    ID  REF  ALT  INFO       FORMAT    S01
     chr1    14523  .   C    .    END=15000  GT:DP:GQ  0/0:19:40
@@ -71,5 +70,4 @@ Functions
 ---------
 
 .. autofunction:: combine_gvcfs
-.. autofunction:: transform_one
-.. autofunction:: lgt_to_gt
+.. autofunction:: transform_gvcf

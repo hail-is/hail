@@ -79,6 +79,7 @@ Functions
 .. autofunction:: export_entries_by_col
 .. autofunction:: sparse_split_multi
 .. autofunction:: densify
+.. autofunction:: lgt_to_gt
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
