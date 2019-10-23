@@ -74,7 +74,7 @@ notation): ::
 
 For this genotype, the true ``GT`` is ``5/7``, and the depth of the ``5`` Allele is ``21`` and the
 depth of the ``7`` allele is ``19``. To get the appropriate ``LPL`` index one can still use
-:func:`.unphased_diploid_gt_index` of ``LGT``.
+:func:`hail.expr.CallExpression.unphased_diploid_gt_index` of ``LGT``.
 
 Functions
 ---------

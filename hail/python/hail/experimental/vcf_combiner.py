@@ -145,7 +145,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
     Notes
     -----
     This function will parse the following allele specific annotations from
-    pipe delimited strings into proper values.:: text
+    pipe delimited strings into proper values. ::
 
         AS_QUALapprox
         AS_RAW_MQ
