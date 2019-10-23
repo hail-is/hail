@@ -439,6 +439,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       .subsetPartitions((0 to idxLast).toArray)
   }
 
+  def tail(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] =
+    fatal("CRDD tail not actually implemented!")
+
   def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =
     sparkContext.runJob(
       rdd,
