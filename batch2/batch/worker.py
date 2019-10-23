@@ -638,6 +638,6 @@ log.info(f'closed')
 
 compute_client = googleapiclient.discovery.build('compute', 'v1',
                                                  cache_discovery=False)
-compute_client.instances().delete(project=project, zone=zone, instance=instance).execute()
+compute_client.instances().delete(project=project, zone=zone, instance=instance).execute() # pylint: disable=no-member
 
 sys.exit(0)

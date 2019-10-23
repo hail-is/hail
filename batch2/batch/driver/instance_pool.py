@@ -129,7 +129,7 @@ class InstancePool:
             'metadata': {
                 'items': [{
                     'key': 'startup-script',
-                    'value': f'''
+                    'value': '''
 #!/bin/bash
 set -ex
 
@@ -172,7 +172,7 @@ retry docker run \
            -c "sh /run-worker.sh"
 '''
                 }, {
-                   'key': 'shutdown-script',
+                    'key': 'shutdown-script',
                     'value': '''
 set -ex
 
