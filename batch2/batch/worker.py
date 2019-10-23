@@ -15,6 +15,8 @@ from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
+import googleapiclient.discovery
+
 from hailtop.utils import request_retry_transient_errors
 
 # import uvloop
@@ -153,7 +155,9 @@ class Container:
                         await docker_call_retry(docker.images.pull, self.image)
 
             async with self.step('creating'):
-                self.container = await docker_call_retry(docker.containers.create, self.container_config())
+                self.container = await docker_call_retry(docker.containers.create,
+                                                         self.container_config(),
+                                                         name=self.pod.name + '-' + self.name)
 
             async with self.step(None, 'runtime'):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
@@ -204,7 +208,7 @@ class Container:
     async def delete_container(self):
         if self.container:
             try:
-                log.info('container {self.pod.name}/{self.name}: deleting container')
+                log.info(f'container {self.pod.name}/{self.name}: deleting container')
                 await docker_call_retry(self.container.stop)
                 # v=True deletes anonymous volumes created by the container
                 await docker_call_retry(self.container.delete, v=True)
@@ -296,7 +300,7 @@ class Pod:
         self.deleted = False
 
         token = uuid.uuid4().hex
-        self.scratch = f'/batch/pods/{token}'
+        self.scratch = f'/batch2/pods/{token}'
 
         self.state = 'pending'
         self.error = None
@@ -613,8 +617,14 @@ namespace = os.environ['NAMESPACE']
 inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
 batch_worker_image = os.environ['BATCH_WORKER_IMAGE']
+project = os.environ['PROJECT']
+zone = os.environ['ZONE']
+instance = os.environ['INST_NAME']
 
 log.info(f'BATCH_WORKER_IMAGE={batch_worker_image}')
+log.info(f'PROJECT={project}')
+log.info(f'ZONE={zone}')
+log.info(f'INSTANCE={instance}')
 
 deploy_config = DeployConfig('gce', namespace, {})
 worker = Worker(batch_worker_image, cores, deploy_config, inst_token, ip_address)
@@ -625,4 +635,9 @@ loop.run_until_complete(docker.close())
 loop.run_until_complete(loop.shutdown_asyncgens())
 loop.close()
 log.info(f'closed')
+
+compute_client = googleapiclient.discovery.build('compute', 'v1',
+                                                 cache_discovery=False)
+compute_client.instances().delete(project=project, zone=zone, instance=instance).execute()
+
 sys.exit(0)

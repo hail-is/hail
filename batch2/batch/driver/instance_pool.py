@@ -164,11 +164,22 @@ function retry {{
 retry docker run \
            -v /var/run/docker.sock:/var/run/docker.sock \
            -v /usr/bin/docker:/usr/bin/docker \
-           -v /batch:/batch \
+           -v /batch2:/batch2 \
            -p 5000:5000 \
            -d --entrypoint "/bin/bash" \
+           --name batch2-worker \
            $BATCH_WORKER_IMAGE \
            -c "sh /run-worker.sh"
+'''
+                }, {
+                   'key': 'shutdown-script',
+                    'value': '''
+set -ex
+
+export INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
+export WORKER_LOGS_DIRECTORY=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_directory")
+
+gsutil -m cp /batch2/worker.log $WORKER_LOGS_DIRECTORY/$INST_TOKEN/
 '''
                 }, {
                     'key': 'inst_token',
@@ -185,13 +196,19 @@ retry docker run \
                 }, {
                     'key': 'worker_logs_directory',
                     'value': self.worker_logs_directory
+                }, {
+                    'key': 'project',
+                    'value': PROJECT
+                }, {
+                    'key': 'zone',
+                    'value': ZONE
                 }]
             },
             'tags': {
                 'items': [
                     "batch2-agent"
                 ]
-            },
+            }
         }
 
         await self.driver.gservices.create_instance(config)
