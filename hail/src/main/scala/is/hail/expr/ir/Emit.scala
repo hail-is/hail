@@ -1601,8 +1601,8 @@ private class Emit(
         val lT = emit(lChild)
         val rT = emit(rChild)
 
-        val lPType = lChild.pType.asInstanceOf[PNDArray]
-        val rPType = rChild.pType.asInstanceOf[PNDArray]
+        val lPType = coerce[PNDArray](lChild.pType)
+        val rPType = coerce[PNDArray](rChild.pType)
 
         val lNDims = lPType.nDims
         val rNDims = rPType.nDims
@@ -1672,27 +1672,26 @@ private class Emit(
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val seqIdxVars = idxVars.toSeq
             val element = coerce[Any](mb.newField("matmul_element")(eVti))
-            val kLocal = mb.newField[Long]
-            val k = kLocal.load()
+            val k = mb.newField[Long]
 
             val (lIdxVars: Array[Code[Long]], rIdxVars: Array[Code[Long]]) = (lNDims, rNDims) match {
-              case (1, 1) => (Array(k), Array(k))
+              case (1, 1) => (Array[Code[Long]](k), Array[Code[Long]](k))
               case (1, _) =>
                 val stackDims :+ m = seqIdxVars
 
                 val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
-                (Array(k), rStackVars :+ k :+ m)
+                (Array[Code[Long]](k), rStackVars :+ k.load() :+ m)
               case (_, 1) =>
                 val stackDims :+ n = seqIdxVars
 
                 val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
-                (lStackVars :+ n :+ k, Array(k))
+                (lStackVars :+ n :+ k.load(), Array[Code[Long]](k))
               case (_, _) => {
                 val stackDims :+ n :+ m = seqIdxVars
                 val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
                 val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
 
-                (lStackVars :+ n :+ k, rStackVars :+ k :+  m)
+                (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
               }
             }
 
@@ -1705,14 +1704,13 @@ private class Emit(
             val innerMethod = mb.fb.newMethod(eVti)
 
             val loopCode = Code(
-              kLocal := 0L,
+              k := 0L,
               maxK := leftShapeArray(lNDims - 1),
               element := elementZero,
-              //time := Code.timeMillis(),
               Code.whileLoop(k < maxK,
                 Code(
                   element := elementAdd(elementMul(lElem, rElem), element),
-                  kLocal := kLocal + 1L
+                  k := k + 1L
                 )
               ),
 
