@@ -42,7 +42,7 @@ from . import plot
 from . import experimental
 from . import ir
 from . import backend
-from . import nd
+from . import nd as _nd
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
@@ -79,7 +79,7 @@ __all__ = [
     'methods',
     'stats',
     'linalg',
-    'nd',
+    '_nd',
     'plot',
     'experimental',
     'ir',
