@@ -136,12 +136,12 @@ set -ex
 export BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 export HOME=/root
 
-function retry {{
+function retry {
     local n=1
     local max=5
     local delay=15
     while true; do
-        "$@" > worker.log 2>&1 && break || {{
+        "$@" > worker.log 2>&1 && break || {
             if [[ $n -lt $max ]]; then
                 ((n++))
                 echo "Command failed. Attempt $n/$max:"
@@ -157,9 +157,9 @@ function retry {{
                 export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
                 gcloud -q compute instances delete $NAME --zone=$ZONE
              fi
-        }}
+        }
     done
-}}
+}
 
 retry docker run \
            -v /var/run/docker.sock:/var/run/docker.sock \
