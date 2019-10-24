@@ -173,7 +173,8 @@ def test_ndarray_reshape():
         (a.reshape((-1, 2)), np_a.reshape((-1, 2))),
         (cube_to_rect, np_cube_to_rect),
         (cube_t_to_rect, np_cube_t_to_rect),
-        (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5)))
+        (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5))),
+        (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3)))
     )
 
     with pytest.raises(FatalError) as exc:

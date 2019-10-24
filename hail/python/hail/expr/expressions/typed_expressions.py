@@ -3533,7 +3533,7 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
-    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, shape):
         """Reshape this ndarray to a new shape.
 
@@ -3552,9 +3552,13 @@ class NDArrayExpression(Expression):
         -------
         :class:`.NDArrayExpression`.
         """
-        shape = wrap_to_list(shape)
+        if isinstance(shape, TupleExpression):
+            shape_ir = hl.tuple([hl.int64(i) for i in shape])._ir
+        else:
+            wrapped_shape = wrap_to_list(shape)
+            shape_ir = hl.tuple(wrapped_shape)._ir
 
-        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
+        return construct_expr(NDArrayReshape(self._ir, shape_ir),
                               tndarray(self._type.element_type, len(shape)),
                               self._indices,
                               self._aggregations)
