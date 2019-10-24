@@ -7,7 +7,7 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import gather, request_retry_transient_errors
+from hailtop.utils import gather, grouped, request_retry_transient_errors
 
 from .globals import complete_states
 
@@ -356,22 +356,9 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
-        specs = []
-        coros = []
-
-        n = 0
-        for job_spec in self._job_specs:
-            n += 1
-            specs.append(job_spec)
-            if n == job_array_size:
-                coros.append(self._submit_job(batch.id, specs))
-                n = 0
-                specs = []
-
-        if specs:
-            coros.append(self._submit_job(batch.id, specs))
-
-        await gather(*coros, parallelism=2)
+        await gather(*[self._submit_job(batch.id, specs)
+                       for specs in grouped(job_array_size, self._job_specs)],
+                     parallelism=2)
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         log.info(f'closed batch {b["id"]}')

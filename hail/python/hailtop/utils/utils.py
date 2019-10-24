@@ -8,6 +8,13 @@ from aiohttp import web
 log = logging.getLogger('hailtop.utils')
 
 
+def grouped(n, ls):
+    while len(ls) != 0:
+        group = ls[:n]
+        ls = ls[n:]
+        yield group
+
+
 def unzip(l):
     a = []
     b = []
@@ -26,38 +33,35 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def gather(*coros, parallelism=10, return_exceptions=False):
+async def gather(*coros, parallelism=10, raise_exceptions=False):
     gatherer = AsyncThrottledGather(*coros,
                                     parallelism=parallelism,
-                                    return_exceptions=return_exceptions)
+                                    raise_exceptions=raise_exceptions)
     return await gatherer.wait()
 
 
 class AsyncThrottledGather:
-    def __init__(self, *coros, parallelism=10, return_exceptions=False):
+    def __init__(self, *coros, parallelism=10, raise_exceptions=True):
         self.count = len(coros)
         self.n_finished = 0
 
-        self._queue = asyncio.Queue(maxsize=1000)
+        self._queue = asyncio.Queue()
         self._done = asyncio.Event()
-        self._return_exceptions = return_exceptions
-        self._futures = []
+        self._raise_exceptions = raise_exceptions
 
         self._results = [None] * len(coros)
-        self._error = None
+        self._errors = []
 
-        if self.count == 0:
-            self._done.set()
-            return
-
+        self._workers = []
         for _ in range(parallelism):
-            self._futures.append(asyncio.ensure_future(self._worker()))
+            self._workers.append(asyncio.ensure_future(self._worker()))
 
-        self._futures.append(asyncio.ensure_future(self._fill_queue(*coros)))
+        for i, coro in enumerate(coros):
+            self._queue.put_nowait((i, coro))
 
-    def _cancel_futures(self):
-        for fut in self._futures:
-            fut.cancel()
+    def _cancel_workers(self):
+        for worker in self._workers:
+            worker.cancel()
 
     async def _worker(self):
         while True:
@@ -69,8 +73,8 @@ class AsyncThrottledGather:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 res = err
-                if not self._return_exceptions:
-                    self._error = err
+                if self._raise_exceptions:
+                    self._errors.append(err)
                     self._done.set()
                     return
 
@@ -80,18 +84,16 @@ class AsyncThrottledGather:
             if self.n_finished == self.count:
                 self._done.set()
 
-    async def _fill_queue(self, *coros):
-        for i, coro in enumerate(coros):
-            await self._queue.put((i, coro))
-
     async def wait(self):
-        await self._done.wait()
-        self._cancel_futures()
+        if self.count > 0:
+            await self._done.wait()
 
-        if self._error:
-            raise self._error
-        else:
-            return self._results
+        self._cancel_workers()
+
+        if self._errors:
+            raise self._errors[0]
+
+        return self._results
 
 
 class AsyncWorkerPool:
