@@ -5,6 +5,7 @@ scorecard.@domain@
 www.@domain@
 batch.@domain@
 batch2.@domain@
+blog.@domain@
 internal.@domain@
 auth.@domain@
 ukbb-rg.@domain@
