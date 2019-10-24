@@ -10,6 +10,7 @@ modules, linked immediately below, and many freestanding functions, documented
 on this page.
 
 .. toctree::
+    :maxdepth: 1
 
     vcf_combiner
     ldscsim
@@ -79,6 +80,7 @@ Functions
 .. autofunction:: export_entries_by_col
 .. autofunction:: sparse_split_multi
 .. autofunction:: densify
+.. autofunction:: lgt_to_gt
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
