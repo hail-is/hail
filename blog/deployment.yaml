@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: blog
+  labels:
+    app: blog
+spec:
+  serviceName: blog
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blog
+  template:
+    metadata:
+      labels:
+        app: blog
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+      - name: blog
+        image: ghost:3.0-alpine
+        imagePullPolicy: Always
+        env:
+          - name: NODE_ENV
+            value: production
+          - name: url
+{% if deploy %}
+            value: http://blog.hail.is
+{% endif %}
+{% if not deploy %}
+            value: http://internal.hail.is/{{ default_ns.name }}/blog
+{% endif %}
+        ports:
+        - containerPort: 2368
+        volumeMounts:
+          - mountPath: /var/lib/ghost/content
+            name: blog-content
+  volumeClaimTemplates:
+    - metadata:
+        name: blog-content
+        namespace: {{ default_ns.name }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

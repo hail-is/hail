@@ -232,3 +232,19 @@ server {
     listen 80;
     listen [::]:80;
 }
+
+server {
+    server_name blog.*;
+
+    location / {
+        proxy_pass http://blog/;
+
+        proxy_set_header Host $updated_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    listen 80;
+    listen [::]:80;
+	client_max_body_size 8M;
+}
+
