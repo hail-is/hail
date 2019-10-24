@@ -26,6 +26,8 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.26
 
+Released 2019-10-24
+
 ### New Features
 - (hail#7325) Add `string.reverse` function.
 - (hail#7328) Add `string.translate` function.
