@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, TypeInfo, coerce, const, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
@@ -17,6 +17,8 @@ class PInt32(override val required: Boolean) extends PIntegral {
   lazy val virtualType: TInt32 = TInt32(required)
   def _asIdent = "int32"
   def _toPretty = "Int32"
+
+  override type NType = this.type
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("int32")
@@ -49,6 +51,16 @@ class PInt32(override val required: Boolean) extends PIntegral {
   }
 
   override def byteSize: Long = 4
+
+  override val zero = coerce[NType](const(0))
+
+  override def add(a: Code[_], b: Code[_]): Code[PInt32.this.type] = {
+    (a.asInstanceOf[Code[Int]] + b.asInstanceOf[Code[Int]]).asInstanceOf[Code[NType]]
+  }
+
+  override def multiply(a: Code[_], b: Code[_]): Code[PInt32.this.type] = {
+    coerce[NType](coerce[Int](a) * coerce[Int](b))
+  }
 }
 
 object PInt32 {

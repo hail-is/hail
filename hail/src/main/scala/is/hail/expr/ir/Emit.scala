@@ -1645,28 +1645,9 @@ private class Emit(
 
         val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
 
-        val elementMul = lPType.elementType match {
-          case PInt32(_) => (a: Code[_], b: Code[_]) => (coerce[Int](a) * coerce[Int](b)).asInstanceOf[Code[Any]]
-          case PInt64(_) => (a: Code[_], b: Code[_]) => (coerce[Long](a) * coerce[Long](b)).asInstanceOf[Code[Any]]
-          case PFloat32(_) => (a: Code[_], b: Code[_]) => (coerce[Float](a) * coerce[Float](b)).asInstanceOf[Code[Any]]
-          case PFloat64(_) => (a: Code[_], b: Code[_]) => (coerce[Double](a) * coerce[Double](b)).asInstanceOf[Code[Any]]
-        }
+        val numericElementType = coerce[PNumeric](lPType.elementType)
 
-        val elementAdd = lPType.elementType match {
-          case PInt32(_) => (a: Code[_], b: Code[_]) => (coerce[Int](a) + coerce[Int](b)).asInstanceOf[Code[Any]]
-          case PInt64(_) => (a: Code[_], b: Code[_]) => (coerce[Long](a) + coerce[Long](b)).asInstanceOf[Code[Any]]
-          case PFloat32(_) => (a: Code[_], b: Code[_]) => (coerce[Float](a) + coerce[Float](b)).asInstanceOf[Code[Any]]
-          case PFloat64(_) => (a: Code[_], b: Code[_]) => (coerce[Double](a) + coerce[Double](b)).asInstanceOf[Code[Any]]
-        }
-
-        val elementZero = lPType.elementType match {
-          case PInt32(_) => const(0).asInstanceOf[Code[Any]]
-          case PInt64(_) => const(0L).asInstanceOf[Code[Any]]
-          case PFloat32(_) => const(0.0f).asInstanceOf[Code[Any]]
-          case PFloat64(_) => const(0.0).asInstanceOf[Code[Any]]
-        }
-
-        val eVti = typeToTypeInfo(lPType.elementType.virtualType)
+        val eVti = typeToTypeInfo(numericElementType.virtualType)
 
         val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
@@ -1703,9 +1684,9 @@ private class Emit(
             val loopCode = Code(
               k := 0L,
               kLen := leftShapeArray(lNDims - 1),
-              element := elementZero,
+              element := numericElementType.zero,
               Code.whileLoop(k < kLen,
-                  element := elementAdd(elementMul(lElem, rElem), element),
+                  element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
                   k := k + 1L
               ),
               element
