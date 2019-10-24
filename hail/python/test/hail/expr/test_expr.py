@@ -3190,3 +3190,13 @@ class Tests(unittest.TestCase):
         t = hl.utils.range_table(3)
         t = t.key_by(-t.idx)
         assert t.idx.collect() == [2, 1, 0]
+
+    def test_struct_slice(self):
+        assert hl.eval(hl.struct(x=3, y=4, z=5, a=10)[1:]) == hl.Struct(y=4, z=5, a=10)
+        assert hl.eval(hl.struct(x=3, y=4, z=5, a=10)[0:4:2]) == hl.Struct(x=3, z=5)
+        assert hl.eval(hl.struct(x=3, y=4, z=5, a=10)[-2:]) == hl.Struct(z=5, a=10)
+
+    def test_tuple_slice(self):
+        assert hl.eval(hl.tuple((3, 4, 5, 10))[1:]) == (4, 5, 10)
+        assert hl.eval(hl.tuple((3, 4, 5, 10))[0:4:2]) == (3, 5)
+        assert hl.eval(hl.tuple((3, 4, 5, 10))[-2:]) == (5, 10)
