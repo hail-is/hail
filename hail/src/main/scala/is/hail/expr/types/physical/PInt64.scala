@@ -53,7 +53,7 @@ class PInt64(override val required: Boolean) extends PIntegral {
 
   override def byteSize: Long = 8
 
-  override val zero = coerce[NType](const(0L))
+  override def zero = coerce[NType](const(0L))
 
   override def add(a: Code[_], b: Code[_]): Code[PInt64.this.type] = {
     coerce[NType](coerce[Long](a) + coerce[Long](b))

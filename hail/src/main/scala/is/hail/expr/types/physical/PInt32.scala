@@ -52,7 +52,7 @@ class PInt32(override val required: Boolean) extends PIntegral {
 
   override def byteSize: Long = 4
 
-  override val zero = coerce[NType](const(0))
+  override def zero = coerce[NType](const(0))
 
   override def add(a: Code[_], b: Code[_]): Code[PInt32.this.type] = {
     (a.asInstanceOf[Code[Int]] + b.asInstanceOf[Code[Int]]).asInstanceOf[Code[NType]]

@@ -54,7 +54,7 @@ class PFloat64(override val required: Boolean) extends PNumeric {
 
   override def byteSize: Long = 8
 
-  override val zero = coerce[NType](const(0.0))
+  override def zero = coerce[NType](const(0.0))
 
   override def add(a: Code[_], b: Code[_]): Code[PFloat64.this.type] = {
     coerce[NType](coerce[Double](a) + coerce[Double](b))

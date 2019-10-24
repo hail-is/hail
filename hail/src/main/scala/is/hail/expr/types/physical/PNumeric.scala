@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, TypeInfo, coerce}
 abstract class PNumeric extends PType {
   type NType <: PType
 
-  val zero: Code[NType]
+  def zero: Code[NType]
 
   def add(a: Code[_], b: Code[_]): Code[NType]
 
