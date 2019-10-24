@@ -1670,7 +1670,6 @@ private class Emit(
 
         val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val seqIdxVars = idxVars.toSeq
             val element = coerce[Any](mb.newField("matmul_element")(eVti))
             val k = mb.newField[Long]
 
@@ -1694,8 +1693,6 @@ private class Emit(
                 (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
               }
             }
-
-
 
             val lElem = lPType.loadElementToIRIntermediate(lIdxVars, leftND, region, mb)
             val rElem = rPType.loadElementToIRIntermediate(rIdxVars, rightND, region, mb)
