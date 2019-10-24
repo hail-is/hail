@@ -1,2 +1,3 @@
+from .nd import array
 
-__all__ = []
+__all__ = ["array"]
