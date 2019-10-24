@@ -1697,8 +1697,8 @@ private class Emit(
 
 
 
-            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress2(lIdxVars, leftND, region, mb, lDataLocation.load(), lDataLength.load()))
-            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress2(rIdxVars, rightND, region, mb, rDataLocation.load(), rDataLength.load()))
+            val lElem = Region.loadIRIntermediate(lPType.elementType)(lPType.getElementAddress(lIdxVars, leftND, region, mb))
+            val rElem = Region.loadIRIntermediate(rPType.elementType)(rPType.getElementAddress(rIdxVars, rightND, region, mb))
             val kLen = mb.newField[Long]
 
             val innerMethod = mb.fb.newMethod(eVti)

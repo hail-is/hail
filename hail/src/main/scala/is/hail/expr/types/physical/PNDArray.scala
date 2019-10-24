@@ -98,21 +98,6 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     ))
   }
 
-  def getElementAddress2(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder, dataLocation: Code[Long], dataLength: Code[Int]): Code[Long] = {
-    val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
-    val bytesAway = mb.newLocal[Long]
-
-    coerce[Long](Code(
-      bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
-        Code(
-          codeSoFar,
-          bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
-      },
-      bytesAway + data.pType.elementOffset(dataLocation, dataLength, 0)
-    ))
-  }
-
   def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Boolean] = {
     val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
     val outOfBounds = mb.newField[Boolean]
