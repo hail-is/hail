@@ -1604,9 +1604,6 @@ private class Emit(
         val lPType = coerce[PNDArray](lChild.pType)
         val rPType = coerce[PNDArray](rChild.pType)
 
-        val lNDims = lPType.nDims
-        val rNDims = rPType.nDims
-
         val leftND = mb.newField[Long]
         val rightND = mb.newField[Long]
 
@@ -1621,8 +1618,8 @@ private class Emit(
 
         val (unifyShapeSetup, unifiedShapeArray) = NDArrayEmitter.matmulShape(leftShapeArray, rightShapeArray)
 
-        val leftBroadcastFlags = if (lNDims > 2) NDArrayEmitter.broadcastFlags(leftShapeArray) else Array[Code[Long]]()
-        val rightBroadcastFlags = if (rNDims > 2) NDArrayEmitter.broadcastFlags(rightShapeArray) else Array[Code[Long]]()
+        val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(leftShapeArray) else Array[Code[Long]]()
+        val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rightShapeArray) else Array[Code[Long]]()
 
         val lDataLength = mb.newField[Int]
         val lDataLocation = mb.newField[Long]
@@ -1654,36 +1651,30 @@ private class Emit(
             val element = coerce[Any](mb.newField("matmul_element")(eVti))
             val k = mb.newField[Long]
 
-            val (lIdxVars: Array[Code[Long]], rIdxVars: Array[Code[Long]]) = (lNDims, rNDims) match {
-              case (1, 1) => (Array[Code[Long]](k), Array[Code[Long]](k))
-              case (1, _) =>
-                val stackDims :+ m = idxVars.toSeq
-
-                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
+            val (lIndices: Array[Code[Long]], rIndices: Array[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars.toSeq) match {
+              case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
+              case (1, _, stack :+ m) =>
+                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
                 (Array[Code[Long]](k), rStackVars :+ k.load() :+ m)
-              case (_, 1) =>
-                val stackDims :+ n = idxVars.toSeq
-
-                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
+              case (_, 1, stack :+ n) =>
+                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
                 (lStackVars :+ n :+ k.load(), Array[Code[Long]](k))
-              case (_, _) => {
-                val stackDims :+ n :+ m = idxVars.toSeq
-                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, leftBroadcastFlags)
-                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stackDims.toArray, rightBroadcastFlags)
-
+              case (_, _, stack :+ n :+ m) => {
+                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
                 (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
               }
             }
 
-            val lElem = lPType.loadElementToIRIntermediate(lIdxVars, leftND, region, mb)
-            val rElem = rPType.loadElementToIRIntermediate(rIdxVars, rightND, region, mb)
+            val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
+            val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
             val kLen = mb.newField[Long]
 
             val innerMethod = mb.fb.newMethod(eVti)
 
             val loopCode = Code(
               k := 0L,
-              kLen := leftShapeArray(lNDims - 1),
+              kLen := leftShapeArray(lPType.nDims - 1),
               element := numericElementType.zero,
               Code.whileLoop(k < kLen,
                   element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
@@ -2474,7 +2465,7 @@ object NDArrayEmitter {
     Array.tabulate(nDims)(dim => (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
   }
 
-  def broadcastFlags(shapeArray: Array[Code[Long]]): Array[Code[Long]] = {
+  def broadcastMask(shapeArray: Array[Code[Long]]): Array[Code[Long]] = {
     val broadcasted = 0L
     val notBroadcasted = 1L
     shapeArray.map(shapeElement => (shapeElement > 1L).mux(notBroadcasted, broadcasted))
