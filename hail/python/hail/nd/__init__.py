@@ -1,3 +1,3 @@
-from .nd import array
+from .nd import array, full, zeros, ones
 
-__all__ = ["array"]
+__all__ = ["array", "full", "zeros", "ones"]
