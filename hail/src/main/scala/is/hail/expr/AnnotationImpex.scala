@@ -94,8 +94,7 @@ object JSONAnnotationImpex {
     "-Infinity" -> Float.NegativeInfinity
   )
 
-  def exportAnnotation(a: Annotation, t: Type): JValue = {
-    info(t.parsableString())
+  def exportAnnotation(a: Annotation, t: Type): JValue =
     if (a == null)
       JNull
     else {
@@ -135,7 +134,6 @@ object JSONAnnotationImpex {
           exportAnnotation(a, t.representation)
       }
     }
-  }
 
   def importAnnotation(jv: JValue, t: Type, padNulls: Boolean = true, warnContext: mutable.HashSet[String] = null): Annotation =
     importAnnotationInternal(jv, t, "<root>", padNulls, if (warnContext == null) new mutable.HashSet[String] else warnContext)
