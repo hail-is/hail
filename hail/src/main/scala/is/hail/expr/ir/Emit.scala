@@ -1621,20 +1621,11 @@ private class Emit(
         val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(leftShapeArray) else Array[Code[Long]]()
         val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rightShapeArray) else Array[Code[Long]]()
 
-        val lDataLength = mb.newField[Int]
-        val lDataLocation = mb.newField[Long]
-        val rDataLength = mb.newField[Int]
-        val rDataLocation = mb.newField[Long]
-
         val setup = Code(
           lT.setup,
           rT.setup,
           leftND := lT.value[Long],
           rightND := rT.value[Long],
-          lDataLocation := lPType.data.load(region, leftND),
-          rDataLocation := rPType.data.load(region, rightND),
-          lDataLength := lPType.data.pType.loadLength(lDataLocation),
-          rDataLength := rPType.data.pType.loadLength(rDataLocation),
           leftShapeArraySetup,
           rightShapeArraySetup,
           unifyShapeSetup
