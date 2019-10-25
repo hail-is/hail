@@ -37,4 +37,46 @@ object PartitionCounts {
         }
       case None => original
     }
+
+  def incrementalPCSubsetOffset(
+    n: Long,
+    partIndices: IndexedSeq[Int]
+  )(computePCs: IndexedSeq[Int] => IndexedSeq[Long]): (Int, Long, Long) = { // (finalIndex, nKeep, nDrop)
+    var nLeft = n
+    var nPartsScanned = 0
+    var lastIdx = -1
+    var lastPC = 0L
+    var nPartsToTry = 1
+
+    while (nPartsScanned < partIndices.length) {
+      if (nPartsScanned > 0) {
+        val nSeen = n - nLeft
+        // If we didn't find any rows after the previous iteration, quadruple and retry.
+        // Otherwise, interpolate the number of partitions we need to try, but overestimate
+        // it by 50%. We also cap the estimation in the end.
+        if (nSeen == 0) {
+          nPartsToTry = nPartsToTry * 4
+        } else {
+          // the left side of max is >=1 whenever nPartsScanned >= 2
+          nPartsToTry = Math.max((1.5 * n * nPartsScanned / nSeen).toInt - nPartsScanned, 1)
+          nPartsToTry = Math.min(nPartsToTry, nPartsScanned * 4)
+        }
+      }
+
+      val indices = partIndices.slice(nPartsScanned, nPartsScanned + nPartsToTry)
+      val pcs = computePCs(indices)
+
+      getPCSubsetOffset(nLeft, pcs.iterator) match {
+        case Some((finalIdx, nKeep, nDrop)) =>
+          return (indices(finalIdx), nKeep, nDrop)
+        case None =>
+          nLeft = nLeft - pcs.sum
+          lastIdx = indices.last
+          lastPC = pcs.last
+          nPartsScanned = nPartsScanned + indices.length
+      }
+    }
+
+    (lastIdx, lastPC, 0L)
+  }
 }
