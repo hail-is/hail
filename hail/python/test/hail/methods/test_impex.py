@@ -1530,6 +1530,16 @@ class ImportMatrixTableTests(unittest.TestCase):
         actual = mt.alt.collect()
         assert actual == ['T', 'TGG', 'A', None]
 
+    def test_empty_import_matrix_table(self):
+        path = new_temp_file(suffix='tsv.bgz')
+        mt = hl.utils.range_matrix_table(0, 0)
+        mt = mt.annotate_entries(x=1)
+        mt.x.export(path)
+        assert hl.import_matrix_table(path)._force_count_rows() == 0
+
+        mt.x.export(path, header=False)
+        assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
+
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):

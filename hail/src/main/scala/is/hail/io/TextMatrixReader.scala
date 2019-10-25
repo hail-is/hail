@@ -35,20 +35,27 @@ object TextMatrixReader {
     nRowFields: Int,
     hasHeader: Boolean
   ): (Array[String], Int) = {
-    if (hasHeader) {
-      val lines = fs.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
-      lines match {
-        case Array(header, first) =>
-          val nCols = first.split(charRegex(sep), -1).length - nRowFields
-          if (nCols < 0)
-            fatal(s"More row fields ($nRowFields) than columns (${ nRowFields + nCols }) in file: $file")
-          (header.split(charRegex(sep), -1), nCols)
-        case _ =>
-          fatal(s"file in import_matrix contains no data: $file")
-      }
-    } else {
-      val nCols = fs.readFile(file) { s => Source.fromInputStream(s).getLines().next() }.count(_ == sep) + 1
-      (Array(), nCols - nRowFields)
+    val maybeFirstLine = fs.readFile(file) { s =>
+      Source.fromInputStream(s).getLines().take(1).toArray }
+
+    (hasHeader, maybeFirstLine) match {
+      case (true, Array()) =>
+        fatal(s"Expected header in every file, but found empty file: $file")
+      case (true, Array(header)) =>
+        val separatedValues = header.split(sep)
+        val nSeparatedValues = separatedValues.length
+        if (nRowFields > nSeparatedValues) {
+          fatal(s"""Header did not contain expected $nRowFields fields,
+                     |found instead only $nSeparatedValues fields:
+                     |    ${header.truncate}""".stripMargin)
+        }
+        (separatedValues, nSeparatedValues)
+      case (false, Array()) =>
+        warn(s"File $file is empty and has no header, so we assume no columns.")
+        (Array(), 0)
+      case (false, Array(firstLine)) =>
+        val nSeparatedValues = firstLine.split(sep).length
+        (Array(), nSeparatedValues - nRowFields)
     }
   }
 
@@ -122,8 +129,9 @@ object TextMatrixReader {
                 fatal(
                   s"""invalid header: lengths of headers differ.
                      |    ${ hd1.length } elements in ${ paths(0) }
+                     |        ${hd1.truncate}
                      |    ${ hd.length } elements in ${ fileByPartition(i) }
-               """.stripMargin
+                     |        ${hd.truncate}""".stripMargin
                 )
               }
               hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
