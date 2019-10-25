@@ -96,7 +96,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     -------
     :class:`.Table`
     """
-    check_positive_and_in_range('range_table', 'n', n)
+    check_nonnegative_and_in_range('range_table', 'n', n)
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
 
