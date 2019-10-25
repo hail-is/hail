@@ -209,7 +209,7 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell tr -dc [a-z0-9] </dev/urandom | head -c 6)
+cluster_name := cluster-$(shell whoami)-$(shell tr -dc 'a-z0-9' </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
