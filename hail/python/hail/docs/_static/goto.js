@@ -1,8 +1,5 @@
 //https://caniuse.com/#feat=history
 if ((window.history && window.history.pushState && window.scrollTo)) {
-    // necessary for chrome
-    window.history.scrollRestoration = "manual";
-
     $(document).ready(function () {
         MathJax.Hub.Register.StartupHook("End", function () {
             var navHeight = $('nav').height();
