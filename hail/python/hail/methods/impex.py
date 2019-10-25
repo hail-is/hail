@@ -1494,7 +1494,7 @@ def import_table(paths,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool,
-           sep=str,
+           sep=nullable(str),
            delimiter=nullable(str))
 def import_matrix_table(paths,
                         row_fields={},
@@ -1504,7 +1504,7 @@ def import_matrix_table(paths,
                         min_partitions=None,
                         no_header=False,
                         force_bgz=False,
-                        sep='\t',
+                        sep=None,
                         delimiter=None) -> MatrixTable:
     """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
@@ -1656,6 +1656,19 @@ def import_matrix_table(paths,
     :class:`.MatrixTable`
         MatrixTable constructed from imported data
     """
+    if sep is None:
+        if delimiter is None:
+            delimiter = '\t'
+    else:
+        if delimiter is None:
+            delimiter = sep
+        else:
+            raise ValueError(
+                f'expecting either sep or delimiter but received both: '
+                f'{sep}, {delimiter}')
+    del sep
+    if len(delimiter) != 1:
+        raise FatalError('delimiter or sep must be a single character')
 
     add_row_id = False
     if isinstance(row_key, list) and len(row_key) == 0:
@@ -1675,8 +1688,6 @@ def import_matrix_table(paths,
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
-    if len(sep) != 1:
-        raise FatalError('sep must be a single character')
 
     reader = TextMatrixReader(paths,
                               min_partitions,
@@ -1684,7 +1695,7 @@ def import_matrix_table(paths,
                               entry_type,
                               missing,
                               not no_header,
-                              sep,
+                              delimiter,
                               force_bgz,
                               add_row_id)
 
