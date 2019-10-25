@@ -20,7 +20,7 @@ spec:
 {% endif %}
       containers:
       - name: blog
-        image: ghost:2.37-alpine
+        image: ghost:3.0-alpine
         imagePullPolicy: Always
         env:
           - name: NODE_ENV
