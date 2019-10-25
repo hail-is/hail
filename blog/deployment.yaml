@@ -20,7 +20,7 @@ spec:
 {% endif %}
       containers:
       - name: blog
-        image: ghost:3.0-alpine
+        image: ghost:2.37-alpine
         imagePullPolicy: Always
         env:
           - name: NODE_ENV
@@ -33,6 +33,18 @@ spec:
 {% endif %}
         ports:
         - containerPort: 2368
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 2368
+          initialDelaySeconds: 5
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 2368
+          initialDelaySeconds: 5
+          periodSeconds: 5
         volumeMounts:
           - mountPath: /var/lib/ghost/content
             name: blog-content
