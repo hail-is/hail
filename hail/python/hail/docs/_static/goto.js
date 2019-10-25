@@ -1,29 +1,20 @@
 //https://caniuse.com/#feat=history
-if ((window.history && window.history.pushState)) {
-    var startingHash = window.location.hash ? decodeURIComponent(window.location.hash.replace('#', '')) : null;
-
-    // necessary to prevent browser from overriding our initial scroll
-    // browser scroll is otherwise undefeatable
-    history.pushState("", document.title, window.location.pathname);
-    // necessary for chrome
-    window.history.scrollRestoration = "manual";
-
+if ((window.history && window.history.pushState && window.scrollTo)) {
     $(document).ready(function () {
         MathJax.Hub.Register.StartupHook("End", function () {
             var navHeight = $('nav').height();
+            var hash = window.location.hash ? decodeURIComponent(window.location.hash.replace('#', '')) : null;
 
-            if (startingHash) {
-                var elem = document.getElementById(startingHash);
+            if (hash) {
+                var elem = document.getElementById(hash);
 
                 if (!elem) {
                     return;
                 }
 
-                // setTimeout is necessary for safari, but not firefox or chrome
                 setTimeout(() => {
                     window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
-                    history.pushState({}, null, `#${startingHash}`);
-                }, 0)
+                }, 1)
             }
 
             $(document).on('click', 'a', function (e) {
@@ -49,5 +40,5 @@ if ((window.history && window.history.pushState)) {
         });
     });
 } else {
-    console.warn("Histroy API unsupported. Please consider updating your browser");
+    console.warn("Histroy API or scrollTo unsupported. Please consider updating your browser");
 }
