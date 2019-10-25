@@ -33,18 +33,6 @@ spec:
 {% endif %}
         ports:
         - containerPort: 2368
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 2368
-          initialDelaySeconds: 5
-          periodSeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 2368
-          initialDelaySeconds: 5
-          periodSeconds: 5
         volumeMounts:
           - mountPath: /var/lib/ghost/content
             name: blog-content
