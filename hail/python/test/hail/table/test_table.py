@@ -974,6 +974,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
         self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())
+        self.assertEqual(ht1.x.collect()[-5:], ht1.tail(5).x.collect())
 
     def test_flatten(self):
         t1 = hl.utils.range_table(10)
