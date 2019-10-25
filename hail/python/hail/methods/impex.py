@@ -1495,7 +1495,7 @@ def import_table(paths,
            no_header=bool,
            force_bgz=bool,
            sep=str,
-           delimiter=str)
+           delimiter=nullable(str))
 def import_matrix_table(paths,
                         row_fields={},
                         row_key=[],
