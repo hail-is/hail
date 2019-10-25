@@ -209,7 +209,7 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
+cluster_name := cluster-$(shell whoami)-$(shell tr -dc [a-z0-9] </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
@@ -227,7 +227,7 @@ DEPLOYED_VERSION = $(shell \
 check-pypi:
 	if [ -z "$$DEPLOY_PROD" ]; then \
 	  echo "ERROR: DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
-	if [ "$(DEPLOYED_VERSION)" == "$(HAIL_PIP_VERSION)" ]; then \
+	if [ "$(DEPLOYED_VERSION)" = "$(HAIL_PIP_VERSION)" ]; then \
 	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
