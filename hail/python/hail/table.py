@@ -2938,6 +2938,7 @@ class Table(ExprContainer):
         | "SCN1A" |                  2 |                  1 |
         | "TITIN" |                  3 |                  0 |
         +---------+--------------------+--------------------+
+        showing the first 2 of 6 columns
 
         Notes
         -----
