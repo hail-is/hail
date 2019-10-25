@@ -1299,9 +1299,9 @@ class DictExpression(Expression):
 
         if default is not None:
             if not self._vc.can_coerce(default.dtype):
-                raise TypeError("'get' expects parameter 'default' to have the "
-                                "same type as the dictionary value type, found '{}' and '{}'"
-                                .format(self.dtype, default.dtype))
+                raise TypeError("'get' expects parameter 'default' to have the same type "
+                                "as the dictionary value type, expected '{}' and found '{}'"
+                                .format(self.dtype.value_type, default.dtype))
             return self._method("get", self.dtype.value_type, key, self._vc.coerce(default))
         else:
             return self._method("get", self.dtype.value_type, key)
