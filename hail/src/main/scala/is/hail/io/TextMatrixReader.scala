@@ -103,7 +103,7 @@ object TextMatrixReader {
         case Some(t) => (name, t)
         case None =>
           val rowFieldsAsPython = fieldTypes
-            .map { case (fieldName, typ) => s"${fieldName}: ${typ.toString}" }
+            .map { case (fieldName, typ) => s"'${fieldName}': ${typ.toString}" }
             .mkString("{", ",\n       ", "}")
           fatal(
           s"""In file $fileName, found a row field, $name, that is not in `row_fields':
