@@ -1375,14 +1375,14 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
         hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[]).count()
+                               row_fields=row_fields, row_key=[])._force_count()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
-                               no_header=True).count()
+                               no_header=True)._force_count()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True,
-                               row_key=[]).count()
+                               row_key=[])._force_count()
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):

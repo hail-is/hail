@@ -35,25 +35,28 @@ object TextMatrixReader {
     nRowFields: Int,
     hasHeader: Boolean
   ): (Array[String], Int) = {
-    val maybeFirstLine = fs.readFile(file) { s =>
-      Source.fromInputStream(s).getLines().take(1).toArray }
+    val maybeFirstTwoLines = fs.readFile(file) { s =>
+      Source.fromInputStream(s).getLines().take(2).toSeq }
 
-    (hasHeader, maybeFirstLine) match {
-      case (true, Array()) =>
+    (hasHeader, maybeFirstTwoLines) match {
+      case (true, Seq()) =>
         fatal(s"Expected header in every file, but found empty file: $file")
-      case (true, Array(header)) =>
-        val separatedValues = header.split(sep)
-        val nSeparatedValues = separatedValues.length
+      case (true, header +: maybeDataLine) =>
+        val headerValues = header.split(sep)
+        val nSeparatedValues = maybeDataLine match {
+          case Seq(dataLine) => dataLine.split(sep).length
+          case Nil           => headerValues.length
+        }
         if (nRowFields > nSeparatedValues) {
           fatal(s"""Header did not contain expected $nRowFields fields,
                      |found instead only $nSeparatedValues fields:
                      |    ${header.truncate}""".stripMargin)
         }
-        (separatedValues, nSeparatedValues - nRowFields)
-      case (false, Array()) =>
+        (headerValues, nSeparatedValues - nRowFields)
+      case (false, Seq()) =>
         warn(s"File $file is empty and has no header, so we assume no columns.")
         (Array(), 0)
-      case (false, Array(firstLine)) =>
+      case (false, Seq(firstLine)) =>
         val nSeparatedValues = firstLine.split(sep).length
         (Array(), nSeparatedValues - nRowFields)
     }
