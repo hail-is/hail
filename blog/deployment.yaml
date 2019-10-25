@@ -33,6 +33,27 @@ spec:
 {% endif %}
         ports:
         - containerPort: 2368
+        livenessProbe:
+          httpGet:
+{% if deploy %}
+            value: /
+{% else %}
+            value: /{{ default_ns.name }}/blog/
+{% endif %}
+            path: /
+            port: 2368
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+{% if deploy %}
+            value: /
+{% else %}
+            value: /{{ default_ns.name }}/blog/
+{% endif %}
+            port: 2368
+          initialDelaySeconds: 5
+          periodSeconds: 5
         volumeMounts:
           - mountPath: /var/lib/ghost/content
             name: blog-content
