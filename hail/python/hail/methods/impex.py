@@ -1494,7 +1494,8 @@ def import_table(paths,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool,
-           sep=str)
+           sep=str,
+           delimiter=str)
 def import_matrix_table(paths,
                         row_fields={},
                         row_key=[],
@@ -1503,7 +1504,8 @@ def import_matrix_table(paths,
                         min_partitions=None,
                         no_header=False,
                         force_bgz=False,
-                        sep='\t') -> MatrixTable:
+                        sep='\t',
+                        delimiter=None) -> MatrixTable:
     """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1643,6 +1645,11 @@ def import_matrix_table(paths,
     force_bgz : :obj:`bool`
         If ``True``, load **.gz** files as blocked gzip files, assuming
         that they were actually compressed using the BGZ codec.
+    sep : :obj:`str`
+        This parameter is a deprecated name for `delimiter`, please use that
+        instead.
+    delimiter : :obj:`str`
+        A single character string which separates values in the file.
 
     Returns
     -------
