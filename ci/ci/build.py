@@ -680,6 +680,7 @@ set -e
 '''
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
+					resource_type = w.get("resource_type", "deployment")
                     port = w.get('port', 80)
                     resource_type = w.get('resource_type', 'deployment').lower()
                     endpoint = w.get('endpoint', '/healthcheck')
