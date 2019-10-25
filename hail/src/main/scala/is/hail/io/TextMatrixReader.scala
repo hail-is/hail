@@ -89,7 +89,11 @@ object TextMatrixReader {
     (new RVDPartitioner(Array(kType.fieldNames(0)), kType, ranges), keepPartitions.result())
   }
 
-  def verifyRowFields(fieldNames: Array[String], fieldTypes: Map[String, Type]): TStruct = {
+  def verifyRowFields(
+    fileName: String,
+    fieldNames: Array[String],
+    fieldTypes: Map[String, Type]
+  ): TStruct = {
     val headerDups = fieldNames.duplicates()
     if (headerDups.nonEmpty)
       fatal(s"Found following duplicate row fields in header: \n    ${ headerDups.mkString("\n    ") }")
@@ -97,12 +101,16 @@ object TextMatrixReader {
     val fields: Array[(String, Type)] = fieldNames.map { name =>
       fieldTypes.get(name) match {
         case Some(t) => (name, t)
-        case None => fatal(
-          s"""row field $name not found in provided row_fields dictionary.
-             |    expected fields:
+        case None =>
+          val rowFieldsAsPython = fieldTypes
+            .map { case (fieldName, typ) => s"${fieldName}: ${typ.toString}" }
+            .mkString("{", ",\n       ", "}")
+          fatal(
+          s"""In file $fileName, found a row field, $name, that is not in `row_fields':
+             |    row fields found in file:
              |      ${ fieldNames.mkString("\n      ") }
-             |    found fields:
-             |      ${ fieldTypes.keys.mkString("\n      ") }
+             |    row_fields:
+             |      ${ rowFieldsAsPython }
            """.stripMargin)
       }
     }
@@ -192,7 +200,8 @@ case class TextMatrixReader(
          |as the key, please provide a key or choose a different row field name.\n
          |  Row field names: ${rowFieldNames}""".stripMargin)
   }
-  private[this] val rowFieldTypeWithoutRowId = verifyRowFields(rowFieldNames, rowFields)
+  private[this] val rowFieldTypeWithoutRowId = verifyRowFields(
+    resolvedPaths.head, rowFieldNames, rowFields)
   private[this] val rowFieldType =
     if (addRowId) TStruct("row_id" -> TInt64()) ++ rowFieldTypeWithoutRowId
     else rowFieldTypeWithoutRowId

@@ -1400,8 +1400,8 @@ class ImportMatrixTableTests(unittest.TestCase):
             "invalid header",
             hl.import_matrix_table,
             resource("sampleheader*.txt"),
-            row_fields={'f0': hl.tstr},
-            row_key=['f0'])
+            row_fields={'col000000': hl.tstr},
+            row_key=['col000000'])
 
     def test_too_few_entries(self):
         def boom():
