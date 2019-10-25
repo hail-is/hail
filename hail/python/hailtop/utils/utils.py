@@ -33,7 +33,7 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def gather(*coros, parallelism=10, raise_exceptions=False):
+async def gather(*coros, parallelism=10, raise_exceptions=True):
     gatherer = AsyncThrottledGather(*coros,
                                     parallelism=parallelism,
                                     raise_exceptions=raise_exceptions)
