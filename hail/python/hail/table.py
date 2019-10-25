@@ -2907,10 +2907,10 @@ class Table(ExprContainer):
         | "TITIN" |       3 |       0 |        0 |         1 |         2 |         1 |
         +---------+---------+---------+----------+-----------+-----------+-----------+
         >>> mt = t.to_matrix_table_row_major(
-                     columns=['lung001', 'lung002', 'heart001',
-                              'muscle001', 'muscle002', 'muscle003'],
-                     entry_field_name='expression',
-                     col_field_name='sample')
+        ...          columns=['lung001', 'lung002', 'heart001',
+        ...                   'muscle001', 'muscle002', 'muscle003'],
+        ...          entry_field_name='expression',
+        ...          col_field_name='sample')
         >>> mt.describe()
         ----------------------------------------
         Global fields:
