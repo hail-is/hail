@@ -36,20 +36,19 @@ spec:
         livenessProbe:
           httpGet:
 {% if deploy %}
-            value: /
-{% else %}
-            value: /{{ default_ns.name }}/blog/
-{% endif %}
             path: /
+{% else %}
+            path: /{{ default_ns.name }}/blog/
+{% endif %}
             port: 2368
           initialDelaySeconds: 5
           periodSeconds: 10
         readinessProbe:
           httpGet:
 {% if deploy %}
-            value: /
+            path: /
 {% else %}
-            value: /{{ default_ns.name }}/blog/
+            path: /{{ default_ns.name }}/blog/
 {% endif %}
             port: 2368
           initialDelaySeconds: 5
