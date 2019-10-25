@@ -49,7 +49,7 @@ object TextMatrixReader {
                      |found instead only $nSeparatedValues fields:
                      |    ${header.truncate}""".stripMargin)
         }
-        (separatedValues, nSeparatedValues)
+        (separatedValues, nSeparatedValues - nRowFields)
       case (false, Array()) =>
         warn(s"File $file is empty and has no header, so we assume no columns.")
         (Array(), 0)
