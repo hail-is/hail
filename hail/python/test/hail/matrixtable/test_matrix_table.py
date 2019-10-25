@@ -949,6 +949,13 @@ class Tests(unittest.TestCase):
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
         self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
 
+    def test_range_matrix_table_0_rows_0_cols(self):
+        mt = hl.utils.range_matrix_table(0, 0)
+        self.assertEqual(mt.col_idx.collect(), [])
+        self.assertEqual(mt.row_idx.collect(), [])
+        mt = mt.annotate_entries(x=mt.row_idx * mt.col_idx)
+        self.assertEqual(mt.x.collect(), [])
+
     def test_make_table(self):
         mt = hl.utils.range_matrix_table(3, 2)
         mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
