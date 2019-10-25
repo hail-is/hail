@@ -28,15 +28,30 @@ spec:
           - name: url
 {% if deploy %}
             value: http://blog.hail.is
-{% endif %}
-{% if not deploy %}
+{% else %}
             value: http://internal.hail.is/{{ default_ns.name }}/blog
 {% endif %}
         ports:
         - containerPort: 2368
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 2368
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 2368
+          initialDelaySeconds: 5
+          periodSeconds: 5
         volumeMounts:
           - mountPath: /var/lib/ghost/content
             name: blog-content
+        resources:
+          requests:
+            memory: "1G"
+            cpu: "300m"
   volumeClaimTemplates:
     - metadata:
         name: blog-content
@@ -47,3 +62,4 @@ spec:
         resources:
           requests:
             storage: 10Gi
+            
