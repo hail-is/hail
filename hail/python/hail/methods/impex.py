@@ -1656,17 +1656,16 @@ def import_matrix_table(paths,
     :class:`.MatrixTable`
         MatrixTable constructed from imported data
     """
-    if sep is None:
-        if delimiter is None:
-            delimiter = '\t'
-    else:
-        if delimiter is None:
-            delimiter = sep
-        else:
+    if sep is not None:
+        if delimiter is not None:
             raise ValueError(
                 f'expecting either sep or delimiter but received both: '
                 f'{sep}, {delimiter}')
+        delimiter = sep
     del sep
+
+    if delimiter is None:
+        delimiter = '\t'
     if len(delimiter) != 1:
         raise FatalError('delimiter or sep must be a single character')
 
