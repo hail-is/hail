@@ -369,10 +369,15 @@ object LowerMatrixIR {
       case MatrixDistinctByRow(child) => TableDistinct(lower(child, ab))
 
       case MatrixRowsHead(child, n) => TableHead(lower(child, ab), n)
+      case MatrixRowsTail(child, n) => TableTail(lower(child, ab), n)
 
       case MatrixColsHead(child, n) => lower(child, ab)
         .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", TArray(child.typ.colType), n)))
         .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", TArray(child.typ.entryType), n)))
+
+      case MatrixColsTail(child, n) => lower(child, ab)
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[*:]", TArray(child.typ.colType), - n)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[*:]", TArray(child.typ.entryType), - n)))
 
       case MatrixExplodeCols(child, path) =>
         val loweredChild = lower(child, ab)
