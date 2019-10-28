@@ -66,9 +66,14 @@ class InstancePool:
     async def async_init(self):
         log.info('initializing instance pool')
 
+        # FIXME async generator
         for record in await self.db.instances.get_all_records():
             instance = Instance.from_record(record)
             self.add_instance(instance)
+
+        # FIXME heal loop
+        asyncio.ensure_future(self.event_loop())
+        asyncio.ensure_future(self.control_loop())
 
     @property
     def n_instances(self):
@@ -139,6 +144,8 @@ class InstancePool:
                 session, 'POST',
                 url, json=await self.job_config(record))
 
+        log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: called create job')
+
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 cursor.execute('''
@@ -151,9 +158,13 @@ SELECT @out;
                 if not success:
                     raise DatabaseCallError(out)
 
+        log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: updated database')
+
         self.adjust_for_remove_instance(instance)
         instance.free_cores_mcpu -= record['cores_mcpu']
         self.adjust_for_add_instance(instance)
+
+        log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: adjusted instance pool')
 
     async def create_instance(self):
         while True:

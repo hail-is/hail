@@ -459,6 +459,7 @@ class Job:
     def __str__(self):
         return f'job ({self.batch_id}, {self.job_spec["job_id"]})'
 
+
 class Worker:
     def __init__(self, image, cores, deploy_config, token, ip_address):
         self.image = image

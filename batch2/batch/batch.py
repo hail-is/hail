@@ -285,6 +285,7 @@ class Batch:
         jobs = await self.db.jobs.get_records_by_batch(self.id, limit, offset)
         return [Job.from_record(self.db, record) for record in jobs]
 
+    # FIXME move these to front-end, directly use database
     # called by front end
     async def cancel(self):
         await self.db.batch.update_record(self.id, cancelled=True)
