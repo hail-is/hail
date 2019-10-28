@@ -11,9 +11,18 @@ import is.hail.utils._
 
 object CodeOrdering {
 
-  sealed trait Op { type ReturnType }
-  final case object compare extends Op { type ReturnType = Int }
-  sealed trait BooleanOp extends Op { type ReturnType = Boolean }
+  sealed trait Op {
+    type ReturnType
+    val rtti: TypeInfo[ReturnType]
+  }
+  final case object compare extends Op {
+    type ReturnType = Int
+    val rtti = typeInfo[Int]
+  }
+  sealed trait BooleanOp extends Op {
+    type ReturnType = Boolean
+    val rtti = typeInfo[Boolean]
+  }
   final case object equiv extends BooleanOp
   final case object lt extends BooleanOp
   final case object lteq extends BooleanOp
@@ -351,52 +360,25 @@ abstract class CodeOrdering {
 
   def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
 
-  def compare(x: P, y: P): Code[Int] = {
-    val (xm, xv) = x
-    val (ym, yv) = y
-    val compMissing = (xm && ym).mux(0, xm.mux(1, -1))
-
-    (xm || ym).mux(compMissing, compareNonnull(xv, yv))
+  private[this] def liftMissing[U](
+    op: (Code[T], Code[T]) => Code[U],
+    whenMissing: (Code[Boolean], Code[Boolean]) => Code[U]
+  ): (P, P) => Code[U] = { case ((xm, xv), (ym, yv)) =>
+    (xm || ym).mux(whenMissing(xm, ym), op(xv, yv))
   }
 
-  def lt(x: P, y: P): Code[Boolean] = {
-    val (xm, xv) = x
-    val (ym, yv) = y
-    val compMissing = (xm && ym).mux(false, !xm)
-
-    (xm || ym).mux(compMissing, ltNonnull(xv, yv))
-  }
-
-  def lteq(x: P, y: P): Code[Boolean] = {
-    val (xm, xv) = x
-    val (ym, yv) = y
-    val compMissing = (xm && ym).mux(true, !xm)
-
-    (xm || ym).mux(compMissing, lteqNonnull(xv, yv))
-  }
-
-  def gt(x: P, y: P): Code[Boolean] = {
-    val (xm, xv) = x
-    val (ym, yv) = y
-    val compMissing = (xm && ym).mux(false, xm)
-
-    (xm || ym).mux(compMissing, gtNonnull(xv, yv))
-  }
-
-  def gteq(x: P, y: P): Code[Boolean] = {
-    val (xm, xv) = x
-    val (ym, yv) = y
-    val compMissing = (xm && ym).mux(true, xm)
-
-    (xm || ym).mux(compMissing, gteqNonnull(xv, yv))
-  }
-
-  def equiv(x: P, y: P): Code[Boolean] = {
-    val (xm, xv) = x
-    val (ym, yv) = y
-
-    (xm || ym).mux(xm && ym, equivNonnull(xv, yv))
-  }
+  val compare: (P, P) => Code[Int] =
+    liftMissing(compareNonnull, (xm, ym) => (xm && ym).mux(0, xm.mux(1, -1)))
+  val lt: (P, P) => Code[Boolean] =
+    liftMissing(ltNonnull, (xm, _) => !xm)
+  val lteq: (P, P) => Code[Boolean] =
+    liftMissing(lteqNonnull, (xm, ym) => !xm || ym)
+  val gt: (P, P) => Code[Boolean] =
+    liftMissing(gtNonnull, (_, ym) => !ym)
+  val gteq: (P, P) => Code[Boolean] =
+    liftMissing(gteqNonnull, (xm, ym) => !ym || xm)
+  val equiv: (P, P) => Code[Boolean] =
+    liftMissing(equivNonnull, (xm, ym) => xm && ym)
 
   // reverses the sense of the non-null comparison only
   def reverse: CodeOrdering = new CodeOrdering () {
@@ -404,7 +386,11 @@ abstract class CodeOrdering {
     override type T = CodeOrdering.this.T
     override type P = CodeOrdering.this.P
 
-    def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
-      CodeOrdering.this.compareNonnull(y, x)
+    override def compareNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.compareNonnull(y, x)
+    override def ltNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.ltNonnull(y, x)
+    override def lteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.lteqNonnull(y, x)
+    override def gtNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gtNonnull(y, x)
+    override def gteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gteqNonnull(y, x)
+    override def equivNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.equivNonnull(y, x)
   }
 }
