@@ -43,7 +43,7 @@ class PartitionCountsSuite extends TestNGSuite {
       incrementalPCSubsetOffset(n, 0 until pcs.length)(_.map(pcs))
 
     for (n <- 0L until pcs.sum) {
-      val (i, nKeep, nDrop) = headOffset(n)
+      val PCSubsetOffset(i, nKeep, nDrop) = headOffset(n)
       val total = (0 to i).map { j => if (j == i) nKeep else pcs(j) }.sum
       assert(nKeep + nDrop == pcs(i))
       assert(total == n)
@@ -53,7 +53,7 @@ class PartitionCountsSuite extends TestNGSuite {
       incrementalPCSubsetOffset(n, (0 until pcs.length).reverse)(_.map(pcs))
 
     for (n <- 0L until pcs.sum) {
-      val (i, nKeep, nDrop) = tailOffset(n)
+      val PCSubsetOffset(i, nKeep, nDrop) = tailOffset(n)
       val total = (i to (pcs.length - 1)).map { j => if (j == i) nKeep else pcs(j) }.sum
       assert(nKeep + nDrop == pcs(i))
       assert(total == n)

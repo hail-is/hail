@@ -2,12 +2,18 @@ package is.hail.utils
 
 object PartitionCounts {
 
-  def getPCSubsetOffset(n: Long, pcs: Iterator[Long]): Option[(Int, Long, Long)] = {
+  case class PCSubsetOffset(
+    finalIndex: Int,
+    nKeep: Long,
+    nDrop: Long
+  )
+
+  def getPCSubsetOffset(n: Long, pcs: Iterator[Long]): Option[PCSubsetOffset] = {
     var i = 0
     var nLeft = n
     for (c <- pcs) {
       if (c >= nLeft)
-        return Some((i, nLeft, c - nLeft))
+        return Some(PCSubsetOffset(i, nLeft, c - nLeft))
       i = i + 1
       nLeft = nLeft - c
     }
@@ -16,7 +22,7 @@ object PartitionCounts {
 
   def getHeadPCs(original: IndexedSeq[Long], n: Long): IndexedSeq[Long] =
     getPCSubsetOffset(n, original.iterator) match {
-      case Some((lastIdx, nKeep, nDrop)) =>
+      case Some(PCSubsetOffset(lastIdx, nKeep, _)) =>
         (0 to lastIdx).map { i =>
           if (i == lastIdx)
             nKeep
@@ -28,7 +34,7 @@ object PartitionCounts {
 
   def getTailPCs(original: IndexedSeq[Long], n: Long): IndexedSeq[Long] =
     getPCSubsetOffset(n, original.reverseIterator) match {
-      case Some((lastIdx, nKeep, nDrop)) =>
+      case Some(PCSubsetOffset(lastIdx, nKeep, _)) =>
         (0 to lastIdx).reverseMap { i =>
           if (i == lastIdx)
             nKeep
@@ -41,7 +47,7 @@ object PartitionCounts {
   def incrementalPCSubsetOffset(
     n: Long,
     partIndices: IndexedSeq[Int]
-  )(computePCs: IndexedSeq[Int] => IndexedSeq[Long]): (Int, Long, Long) = { // (finalIndex, nKeep, nDrop)
+  )(computePCs: IndexedSeq[Int] => IndexedSeq[Long]): PCSubsetOffset = {
     var nLeft = n
     var nPartsScanned = 0
     var lastIdx = -1
@@ -67,8 +73,8 @@ object PartitionCounts {
       val pcs = computePCs(indices)
 
       getPCSubsetOffset(nLeft, pcs.iterator) match {
-        case Some((finalIdx, nKeep, nDrop)) =>
-          return (indices(finalIdx), nKeep, nDrop)
+        case Some(PCSubsetOffset(i, nKeep, nDrop)) =>
+          return PCSubsetOffset(indices(i), nKeep, nDrop)
         case None =>
           nLeft = nLeft - pcs.sum
           lastIdx = indices.last
@@ -77,6 +83,6 @@ object PartitionCounts {
       }
     }
 
-    (lastIdx, lastPC, 0L)
+    PCSubsetOffset(lastIdx, lastPC, 0L)
   }
 }

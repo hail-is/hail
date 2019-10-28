@@ -1,6 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.utils._
+import is.hail.utils.PartitionCounts._
 import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.ExposedUtils
@@ -380,14 +381,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
     val (idxLast, nTake) = partitionCounts match {
       case Some(pcs) =>
-        PartitionCounts.getPCSubsetOffset(n, pcs.iterator) match {
-          case Some((idx, nTake, _)) => idx -> nTake
+        getPCSubsetOffset(n, pcs.iterator) match {
+          case Some(PCSubsetOffset(idx, nTake, _)) => idx -> nTake
           case None => return this
         }
       case None =>
-        val (idx, nTake, _) =
-          PartitionCounts.incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
-            runJob(getIteratorSize, _))
+        val PCSubsetOffset(idx, nTake, _) =
+          incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
+            runJob(getIteratorSize, _)
+          )
         idx -> nTake
     }
 
@@ -405,14 +407,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
     val (idxFirst, nDrop) = partitionCounts match {
       case Some(pcs) =>
-        PartitionCounts.getPCSubsetOffset(n, pcs.reverseIterator) match {
-          case Some((idx, _, nDrop)) => (pcs.length - idx - 1) -> nDrop
+        getPCSubsetOffset(n, pcs.reverseIterator) match {
+          case Some(PCSubsetOffset(idx, _, nDrop)) => (pcs.length - idx - 1) -> nDrop
           case None => return this
         }
       case None =>
-        val (idx, _, nDrop) =
-          PartitionCounts.incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
-            runJob(getIteratorSize, _))
+        val PCSubsetOffset(idx, _, nDrop) =
+          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
+            runJob(getIteratorSize, _)
+          )
         idx -> nDrop
     }
 
