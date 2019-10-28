@@ -3688,6 +3688,67 @@ class MatrixTable(ExprContainer):
             mt = MatrixTable(MatrixColsHead(mt._mir, n_cols))
         return mt
 
+    @typecheck_method(n=nullable(int), n_cols=nullable(int))
+    def tail(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
+        """Subset matrix to last `n` rows.
+
+        Examples
+        --------
+        >>> mt_range = hl.utils.range_matrix_table(100, 100)
+
+        Passing only one argument will take the last `n` rows:
+
+        >>> mt_range.tail(10).count()
+        (10, 100)
+
+        Passing two arguments refers to rows and columns, respectively:
+
+        >>> mt_range.tail(10, 20).count()
+        (10, 20)
+
+        Either argument may be ``None`` to indicate no filter.
+
+        Last 10 rows, all columns:
+
+        >>> mt_range.tail(10, None).count()
+        (10, 100)
+
+        All rows, last 10 columns:
+
+        >>> mt_range.tail(None, 10).count()
+        (100, 10)
+
+        Notes
+        -----
+        For backwards compatibility, the `n` parameter is not named `n_rows`,
+        but the parameter refers to the number of rows to keep.
+
+        The number of partitions in the new matrix is equal to the number of
+        partitions containing the last `n` rows.
+
+        Parameters
+        ----------
+        n : :obj:`int`
+            Number of rows to include (all rows included if ``None``).
+        n_cols : :obj:`int`, optional
+            Number of cols to include (all cols included if ``None``).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix including the last `n` rows and last `n_cols` cols.
+        """
+        mt = self
+        if n is not None:
+            if n < 0:
+                raise ValueError(f"MatrixTable.tail: expect 'n' to be non-negative or None, found '{n}'")
+            mt = MatrixTable(MatrixRowsTail(mt._mir, n))
+        if n_cols is not None:
+            if n_cols < 0:
+                raise ValueError(f"MatrixTable.tail: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
+            mt = MatrixTable(MatrixColsTail(mt._mir, n_cols))
+        return mt
+
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':
         return MatrixTable(MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
