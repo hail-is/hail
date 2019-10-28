@@ -56,7 +56,7 @@ object TextMatrixReader {
       case (false, Seq()) =>
         warn(s"File $file is empty and has no header, so we assume no columns.")
         (Array(), 0)
-      case (false, Seq(firstLine)) =>
+      case (false, firstLine +: _) =>
         val nSeparatedValues = firstLine.split(sep).length
         (Array(), nSeparatedValues - nRowFields)
     }
