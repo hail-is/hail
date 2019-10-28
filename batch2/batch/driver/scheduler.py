@@ -25,10 +25,11 @@ class Scheduler:
             async with self.db.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     sql = '''
-SELECT job_id, batch_id, spec, cores_mcpu, directory, user
-FROM jobs 
-WHERE jobs.state = 'Ready' LIMIT 50;
+SELECT job_id, batch_id, spec, cores_mcpu, directory, user 
+FROM jobs
 INNER JOIN batch ON batch.id = jobs.batch_id
+WHERE jobs.state = 'Ready' 
+LIMIT 50;
 '''
                     await cursor.execute(sql)
                     records = await cursor.fetchall()
