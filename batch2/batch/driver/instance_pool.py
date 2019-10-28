@@ -81,7 +81,7 @@ class InstancePool:
         if instance.state == 'active':
             self.active_instances_by_free_cores.remove(instance)
 
-    def remove_instance(self, instance):
+    async def remove_instance(self, instance):
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute('DELETE FROM instances WHERE id = %s;', (instance.id,))
