@@ -2023,8 +2023,6 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        # TODO: maybe ht.last(n) = ht.tail(n).collect()
-
         return self.head(n).collect(_localize)
 
     @typecheck_method(n=int)
