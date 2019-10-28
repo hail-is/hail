@@ -350,15 +350,15 @@ abstract class CodeOrdering {
 
   def compareNonnull(x: Code[T], y: Code[T]): Code[Int]
 
-  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) < 0
+  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) <= 0
+  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) > 0
+  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) >= 0
+  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
+  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
   private[this] def liftMissing[U](
     op: (Code[T], Code[T]) => Code[U],
@@ -393,4 +393,16 @@ abstract class CodeOrdering {
     override def gteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gteqNonnull(y, x)
     override def equivNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.equivNonnull(y, x)
   }
+}
+
+abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
+  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) < 0
+
+  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) <= 0
+
+  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) > 0
+
+  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) >= 0
+
+  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
 }

@@ -446,7 +446,6 @@ class OrderingSuite extends HailSuite {
 
     val args = FastIndexedSeq(r -> t, r2 -> t)
 
-    println(s"${r} ${r2}")
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)

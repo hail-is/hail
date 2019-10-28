@@ -28,7 +28,7 @@ class PBoolean(override val required: Boolean) extends PType {
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    new CodeOrdering {
+    new CodeOrderingCompareConsistentWithOthers {
       type T = Boolean
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
