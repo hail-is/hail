@@ -1,3 +1,14 @@
+CREATE TABLE IF NOT EXISTS `instances` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `state` VARCHAR(40) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `token` VARCHAR(100) NOT NULL,
+  `capacity_mcpu` INT NOT NULL,
+  `free_cores_mcpu` INT NOT NULL,
+  `ip_address` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` VARCHAR(65535) NOT NULL,
@@ -59,17 +70,6 @@ CREATE TABLE IF NOT EXISTS `batch-attributes` (
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
-
-CREATE TABLE IF NOT EXISTS `instances` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `state` VARCHAR(40) NOT NULL,
-  `name` VARCHAR(100) NOT NULL,
-  `token` VARCHAR(100) NOT NULL,
-  `capacity_mcpu` INT NOT NULL,
-  `free_cores_mcpu` INT NOT NULL,
-  `ip_address` VARCHAR(100) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE = InnoDB;
 
 DELIMITER $$
 
@@ -151,8 +151,8 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu,
-  INTO cur_job_state, cur_cores_mcpu,
+  SELECT state, cores_mcpu
+  INTO cur_job_state, cur_cores_mcpu
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE id = in_instance_id;
@@ -226,7 +226,7 @@ BEGIN
     UPDATE batch SET n_completed = n_completed + 1 WHERE id = in_batch_id;
     IF new_state = 'Cancelled' THEN
       UPDATE batch SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
-    ELSEIF new_state = 'Error' OR new_state = 'Failed':
+    ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
       UPDATE batch SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
       UPDATE batch SET n_succeeded = n_suceeded + 1 WHERE id = in_batch_id;
