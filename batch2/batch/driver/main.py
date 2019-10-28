@@ -50,7 +50,7 @@ async def close_batch(request):
     batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(batch._close_jobs())
+    request.app['scheduler_state_changed'].set()
     return web.Response()
 
 
@@ -61,7 +61,7 @@ async def cancel_batch(request):
     batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(batch._cancel_jobs())
+    request.app['scheduler_state_changed'].set()
     return web.Response()
 
 
@@ -72,10 +72,7 @@ async def delete_batch(request):
     batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    # FIXME call from front end.  Can't yet, becuase then
-    # Batch.from_db won't be able to find batch
-    await batch.mark_deleted()
-    asyncio.ensure_future(batch._cancel_jobs())
+    request.app['scheduler_state_changed'].set()
     return web.Response()
 
 
@@ -83,7 +80,8 @@ async def db_cleanup_event_loop(app):
     await asyncio.sleep(1)
     while True:
         try:
-            # FIXME
+            # FIXME directly hit db
+            # FIXME delete open batches
             for record in await app['db'].batch.get_finished_deleted_records():
                 batch = Batch.from_record(app['db'], record, deleted=True)
                 await app['db'].batch.delete_record(batch.id)
@@ -93,7 +91,8 @@ async def db_cleanup_event_loop(app):
 
 
 async def activate_instance_1(request):
-    inst_pool = request.app['inst_pool']
+    app = request.app
+    inst_pool = app['inst_pool']
 
     body = await request.json()
     inst_token = body['inst_token']
@@ -136,13 +135,13 @@ async def deactivate_instance(request):
 
 
 async def job_complete_1(request):
-    inst_pool = request.app['inst_pool']
+    app = request.app
 
     body = await request.json()
     inst_token = body['inst_token']
     status = body['status']
 
-    instance = inst_pool.token_inst.get(inst_token)
+    instance = app['inst_pool'].token_inst.get(inst_token)
     if not instance:
         log.warning(f'job_complete from unknown instance {inst_token}')
         raise web.HTTPNotFound()
@@ -157,7 +156,6 @@ async def job_complete_1(request):
         return web.HTTPNotFound()
     log.info(f'job_complete from {job}, instance {inst_token}')
     await job.mark_complete(status)
-
     return web.Response()
 
 
@@ -192,11 +190,14 @@ async def on_startup(app):
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
 
-    inst_pool = InstancePool(db, gservices, k8s, bucket_name, machine_name_prefix)
+    scheduler_state_changed = asyncio.Event()
+    app['scheduler_state_changed'] = scheduler_state_changed
+
+    inst_pool = InstancePool(scheduler_state_changed, db, gservices, k8s, bucket_name, machine_name_prefix)
     await inst_pool.async_init()
     app['inst_pool'] = inst_pool
 
-    scheduler = Scheduler(db, inst_pool)
+    scheduler = Scheduler(scheduler_state_changed, db, inst_pool)
     await scheduler.async_init()
     app['scheduler'] = scheduler
 

@@ -294,6 +294,8 @@ async def _cancel_batch(app, batch_id, user):
     batch = await Batch.from_db(app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
+    if not batch.closed:
+        raise web.HTTPBadRequest(reason='cannot cancel open batch')
     await batch.cancel()
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -352,11 +354,13 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        await request_retry_transient_errors(
-            session, 'DELETE',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
+    await batch.mark_deleted()
+    if batch.closed:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            await request_retry_transient_errors(
+                session, 'DELETE',
+                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
     return web.Response()
 
 

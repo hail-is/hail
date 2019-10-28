@@ -26,7 +26,8 @@ log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
 
 
 class InstancePool:
-    def __init__(self, db, gservices, k8s, bucket_name, machine_name_prefix):
+    def __init__(self, scheduler_state_changed, db, gservices, k8s, bucket_name, machine_name_prefix):
+        self.scheduler_state_changed = scheduler_state_changed
         self.db = db
         self.gservices = gservices
         self.k8s = k8s
@@ -153,13 +154,6 @@ SELECT @out;
         self.adjust_for_remove_instance(instance)
         instance.free_cores_mcpu -= record['cores_mcpu']
         self.adjust_for_add_instance(instance)
-
-    async def start(self):
-        log.info('starting instance pool')
-        asyncio.ensure_future(self.control_loop())
-        asyncio.ensure_future(self.event_loop())
-        # asyncio.ensure_future(self.heal_loop())
-        log.info('instance pool started')
 
     async def create_instance(self):
         while True:
@@ -309,6 +303,8 @@ SELECT @out;
         instance.ip_address = ip_address
         self.adjust_for_add_instance(instance)
 
+        self.scheduler_state_changed.set()
+
     async def deactivate_instance(self, instance):
         if instance.state in ('inactive', 'deleted'):
             return
@@ -329,6 +325,8 @@ SELECT @out;
         instance.state = 'inactive'
         instance.free_cores_mcpu = instance.cores_mcpu
         self.adjust_for_add_instance(instance)
+        # there might be jobs to reschedule
+        self.scheduler_state_changed.set()
 
     async def call_delete_instance(self, instance):
         if instance.state == 'deleted':

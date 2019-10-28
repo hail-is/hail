@@ -5,10 +5,10 @@ log = logging.getLogger('driver')
 
 
 class Scheduler:
-    def __init__(self, db, inst_pool):
+    def __init__(self, changed, db, inst_pool):
+        self.changed = changed
         self.db = db
         self.inst_pool = inst_pool
-        self.changed = asyncio.Event()
 
     async def async_init(self):
         asyncio.ensure_future(self.schedule())
@@ -20,6 +20,8 @@ class Scheduler:
             if should_wait:
                 await self.changed.wait()
                 self.changed.clear()
+
+            # FIXME kill running cancelled
 
             should_wait = True
             async with self.db.pool.acquire() as conn:
@@ -35,6 +37,7 @@ LIMIT 50;
                     records = await cursor.fetchall()
 
             for record in records:
+                # FIXME cancel directly jobs that can be cancelled
                 i = self.inst_pool.active_instances_by_free_cores.bisect_key_right(record['cores_mcpu'])
                 if i > 0:
                     instance = self.inst_pool.active_instances_by_free_cores[i - 1]
