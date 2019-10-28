@@ -88,7 +88,7 @@ def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disa
         'mount_in_copy': True
     })
 
-    state = 'Running' if len(parent_ids) == 0 else 'Pending'
+    state = 'Ready' if len(parent_ids) == 0 else 'Pending'
 
     directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
 
