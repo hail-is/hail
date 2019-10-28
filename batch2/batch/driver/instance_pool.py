@@ -1,8 +1,12 @@
+import json
 import asyncio
 import sortedcontainers
 import logging
-import time
+import aiohttp
+import googleapiclient.errors
+from hailtop.utils import request_retry_transient_errors
 
+from ..exceptions import DatabaseCallError
 from ..utils import new_token
 from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
@@ -12,12 +16,21 @@ from .instance import Instance
 
 log = logging.getLogger('instance_pool')
 
+WORKER_CORES_MCPU = WORKER_CORES * 1000
+
+log.info(f'WORKER_CORES {WORKER_CORES}')
+log.info(f'WORKER_TYPE {WORKER_TYPE}')
+log.info(f'WORKER_DISK_SIZE_GB {WORKER_DISK_SIZE_GB}')
+log.info(f'POOL_SIZE {POOL_SIZE}')
+log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
+
 
 class InstancePool:
-    def __init__(self, driver):
-        self.driver = driver
-        self.worker_type = WORKER_TYPE
-        self.worker_cores = WORKER_CORES
+    def __init__(self, db, gservices, k8s, bucket_name, machine_name_prefix):
+        self.db = db
+        self.gservices = gservices
+        self.k8s = k8s
+        self.machine_name_prefix = machine_name_prefix
 
         if WORKER_TYPE == 'standard':
             m = 3.75
@@ -28,50 +41,124 @@ class InstancePool:
             m = 0.9
         self.worker_memory = 0.9 * m
 
-        self.worker_capacity_mcpu = 2 * self.worker_cores * 1000
-        self.worker_disk_size_gb = WORKER_DISK_SIZE_GB
-        self.pool_size = POOL_SIZE
-        self.max_instances = MAX_INSTANCES
-
-        self.token = new_token()
-        self.machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
-
-        self.worker_logs_directory = f'gs://{self.driver.batch_bucket}/{BATCH_NAMESPACE}/{INSTANCE_ID}'
+        self.worker_logs_directory = f'gs://{bucket_name}/{BATCH_NAMESPACE}/{INSTANCE_ID}'
         log.info(f'writing worker logs to {self.worker_logs_directory}')
 
-        self.instances = sortedcontainers.SortedSet(key=lambda inst: (inst.healthy, inst.last_updated))
+        # active instances only
+        self.active_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
 
-        # for active instances only
-        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
+        self.n_instances_by_state = {
+            'pending': 0,
+            'active': 0,
+            'inactive': 0,
+            'deleted': 0
+        }
 
-        self.n_pending_instances = 0
-        self.n_active_instances = 0
+        # pending and active
+        self.live_free_cores_mcpu = 0
 
-        # for pending and active
-        self.free_cores_mcpu = 0
+        self.id_instance = {}
 
+        # FIXME remove
         self.token_inst = {}
 
-    def token_machine_name(self, inst_token):
-        return f'{self.machine_name_prefix}{inst_token}'
-
-    async def initialize(self):
+    async def async_init(self):
         log.info('initializing instance pool')
 
-        for record in await self.driver.db.instances.get_all_records():
-            inst = Instance.from_record(self, record)
-            self.token_inst[inst.token] = inst
-            self.instances.add(inst)
+        for record in await self.db.instances.get_all_records():
+            instance = Instance.from_record(record)
+            self.add_instance(instance)
 
-        log.info('healing instance pool')
-        await asyncio.gather(*[inst.heal() for inst in self.instances])
-        log.info('instance pool healed')
+    @property
+    def n_instances(self):
+        return len(self.token_inst)
+
+    def adjust_for_remove_instance(self, instance):
+        self.n_instances_by_state[instance.state] -= 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu -= instance.free_cores_mcpu
+        if instance.state == 'active':
+            self.active_instances_by_free_cores.remove(instance)
+
+    def remove_instance(self, instance):
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute('DELETE FROM instances WHERE id = %s;', (instance.id,))
+
+        self.adjust_for_remove_instance(self, instance)
+
+        del self.token_inst[instance.token]
+        del self.id_instance[instance.id]
+
+    def adjust_for_add_instance(self, instance):
+        self.n_instances_by_state[instance.state] += 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu += instance.free_cores_mcpu
+        if instance.state == 'active':
+            self.active_instances_by_free_cores.add(instance)
+
+    def add_instance(self, instance):
+        assert instance.token not in self.token_inst
+        self.token_inst[instance.token] = instance
+        self.id_instance[instance.id] = instance
+
+        self.adjust_for_add_instance(self, instance)
+
+    async def job_config(self, record):
+        job_spec = json.loads(record['spec'])
+
+        secrets = job_spec['secrets']
+
+        secret_futures = []
+        for secret in secrets:
+            # FIXME need access control to verify user is allowed to access secret
+            secret_futures.append(self.k8s.read_secret(secret['name']))
+            k8s_secrets = await asyncio.gather(*secret_futures)
+
+        for secret, k8s_secret in zip(secrets, k8s_secrets):
+            if k8s_secret:
+                secret['data'] = k8s_secret.data
+
+        return {
+            'batch_id': record['batch_id'],
+            'user': record['user'],
+            'job_spec': job_spec,
+            'output_directory': record['directory']
+        }
+
+    async def schedule_job(self, record, instance):
+        assert instance.state == 'active'
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{record["batch_id"]}/jobs/{record["job_id"]}/create'
+            await request_retry_transient_errors(
+                session, 'POST',
+                url, json=await self.job_config(record))
+
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.execute('''
+CALL schedule_job(%s, %s, %s, @out);
+SELECT @out;
+''',
+                               (record['batch_id'], record['job_id'], instance.id))
+                out = cursor.fetchone()
+                success = out['success']
+                if not success:
+                    raise DatabaseCallError(out)
+
+        self.adjust_for_remove_instance(instance)
+        instance.free_cores_mcpu -= record['cores_mcpu']
+        self.adjust_for_add_instance(instance)
 
     async def start(self):
         log.info('starting instance pool')
         asyncio.ensure_future(self.control_loop())
         asyncio.ensure_future(self.event_loop())
-        asyncio.ensure_future(self.heal_loop())
+        # asyncio.ensure_future(self.heal_loop())
         log.info('instance pool started')
 
     async def create_instance(self):
@@ -79,15 +166,20 @@ class InstancePool:
             inst_token = new_token()
             if inst_token not in self.token_inst:
                 break
-        # reserve
-        self.token_inst[inst_token] = None
+        machine_name = f'{self.machine_name_prefix}{inst_token}'
 
-        log.info(f'creating instance {inst_token}')
+        state = 'pending'
+        id = await self.db.instances.new_record(
+            state=state, name=machine_name, token=inst_token,
+            cores_mcpu=WORKER_CORES_MCPU, free_cores_mcpu=WORKER_CORES_MCPU)
+        instance = Instance(id, state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU, None)
+        self.add_instance(instance)
 
-        machine_name = self.token_machine_name(inst_token)
+        log.info(f'created instance {instance}')
+
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
             'labels': {
                 'role': 'batch2-agent',
                 'inst_token': inst_token,
@@ -98,7 +190,7 @@ class InstancePool:
             'disks': [{
                 'boot': True,
                 'autoDelete': True,
-                'diskSizeGb': self.worker_disk_size_gb,
+                'diskSizeGb': WORKER_DISK_SIZE_GB,
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-5',
                 }
@@ -194,17 +286,89 @@ retry docker run \
             },
         }
 
-        await self.driver.gservices.create_instance(config)
+        await self.gservices.create_instance(config)
         log.info(f'created machine {machine_name} with logs at {self.worker_logs_directory}/{inst_token}/worker.log')
 
-        inst = await Instance.create(self, machine_name, inst_token)
+    async def activate_instance(self, instance, ip_address):
+        assert instance.state == 'pending'
 
-        self.token_inst[inst_token] = inst
-        self.instances.add(inst)
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.execute('''
+CALL activate_instance(%s, %s, @out);
+SELECT @out;
+''',
+                               (instance.id, ip_address))
+                out = cursor.fetchone()
+                success = out['success']
+                if not success:
+                    raise DatabaseCallError(out)
 
-        log.info(f'created instance {inst}')
+        self.adjust_for_remove_instance(instance)
+        instance.state = 'active'
+        instance.ip_address = ip_address
+        self.adjust_for_add_instance(instance)
 
-        return inst
+    async def deactivate_instance(self, instance):
+        if instance.state in ('inactive', 'deleted'):
+            return
+
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.execute('''
+CALL deactivate_instance(%s, @out);
+SELECT @out;
+''',
+                               (instance.id,))
+                out = cursor.fetchone()
+                success = out['success']
+                if not success:
+                    raise DatabaseCallError(out)
+
+        self.adjust_for_remove_instance(instance)
+        instance.state = 'inactive'
+        instance.free_cores_mcpu = instance.cores_mcpu
+        self.adjust_for_add_instance(instance)
+
+    async def call_delete_instance(self, instance):
+        if instance.state == 'deleted':
+            return
+        assert instance.state == 'inactive'
+
+        try:
+            await self.gservices.delete_instance(instance.name)
+        except googleapiclient.errors.HttpError as e:
+            if e.resp['status'] == '404':
+                log.info(f'{instance} already delete done')
+                await self.remove_instance(instance)
+                return
+            raise
+
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.execute('''
+CALL mark_instance_deleted(%s, @out);
+SELECT @out;
+''',
+                               (instance.id,))
+                out = cursor.fetchone()
+                success = out['success']
+                if not success:
+                    raise DatabaseCallError(out)
+
+        self.adjust_for_remove_instance(instance)
+        instance.state = 'deleted'
+        self.adjust_for_add_instance(instance)
+
+    async def handle_preempt_event(self, instance):
+        await self.deactivate_instance(instance)
+        await self.call_delete_instance(instance)
+
+    async def handle_delete_done_event(self, instance):
+        await self.remove_instance(instance)
+
+    async def handle_call_delete_event(self, instance):
+        await self.deactivate_instance(instance)
 
     async def handle_event(self, event):
         if not event.payload:
@@ -234,21 +398,21 @@ retry docker run \
             return
 
         inst_token = name[len(self.machine_name_prefix):]
-        inst = self.token_inst.get(inst_token)
-        if not inst:
+        instance = self.token_inst.get(inst_token)
+        if not instance:
             log.warning(f'event for unknown instance {inst_token}')
             return
 
         if event_subtype == 'compute.instances.preempted':
-            log.info(f'event handler: handle preempt {inst}')
-            await inst.handle_preempt_event()
+            log.info(f'event handler: handle preempt {instance}')
+            await self.handle_preempt_event(instance)
         elif event_subtype == 'compute.instances.delete':
             if event_type == 'GCE_OPERATION_DONE':
-                log.info(f'event handler: remove {inst}')
-                await inst.remove()
+                log.info(f'event handler: delete {instance} done')
+                await self.handle_delete_done_event(instance)
             elif event_type == 'GCE_API_CALL':
-                log.info(f'event handler: handle call delete {inst}')
-                await inst.handle_call_delete_event()
+                log.info(f'event handler: handle call delete {instance}')
+                await self.handle_call_delete_event(instance)
             else:
                 log.warning(f'unknown event type {event_type}')
         else:
@@ -258,56 +422,34 @@ retry docker run \
         log.info(f'starting event loop')
         while True:
             try:
-                async for event in await self.driver.gservices.stream_entries():
+                async for event in await self.gservices.stream_entries():
                     await self.handle_event(event)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 log.exception('event loop failed due to exception')
             await asyncio.sleep(15)
 
-    async def heal_loop(self):
-        log.info(f'starting heal loop')
-        while True:
-            try:
-                if self.instances:
-                    # 0 is the smallest (oldest)
-                    inst = self.instances[0]
-                    inst_age = time.time() - inst.last_updated
-                    if inst_age > 60:
-                        log.info(f'heal: oldest {inst} age {inst_age}s')
-                        await inst.heal()
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception('instance pool heal loop: caught exception')
-
-            await asyncio.sleep(1)
-
     async def control_loop(self):
         log.info(f'starting control loop')
-
-        log.info(f'WORKER_CORES={WORKER_CORES}')
-        log.info(f'WORKER_TYPE={WORKER_TYPE}')
-        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
-        log.info(f'POOL_SIZE={POOL_SIZE}')
-        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
-
         while True:
             try:
-                log.info(f'n_pending_instances {self.n_pending_instances}'
-                         f' n_active_instances {self.n_active_instances}'
-                         f' pool_size {self.pool_size}'
-                         f' n_instances {len(self.instances)}'
-                         f' max_instances {self.max_instances}'
-                         f' free_cores {self.free_cores_mcpu / 1000}'
-                         f' ready_cores {self.driver.ready_cores_mcpu / 1000}')
+                log.info(f'n_instances {self.n_instances_by_state}'
+                         f' n_instances {self.n_instances}'
+                         f' live_free_cores {self.live_free_cores_mcpu / 1000}')
 
-                if self.driver.ready_cores_mcpu > 0:
-                    instances_needed = (self.driver.ready_cores_mcpu - self.free_cores_mcpu + self.worker_capacity_mcpu - 1) // self.worker_capacity_mcpu
+                async with self.db.pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute('SELECT * FROM ready_cores')
+                        row = await cursor.fetchone()
+                        ready_cores_mcpu = row['ready_cores_mcpu']
+
+                if ready_cores_mcpu > 0:
+                    n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+                    instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + WORKER_CORES_MCPU - 1) // WORKER_CORES_MCPU
                     instances_needed = min(instances_needed,
-                                           self.pool_size - (self.n_pending_instances + self.n_active_instances),
-                                           self.max_instances - len(self.instances),
+                                           POOL_SIZE - n_live_instances,
+                                           MAX_INSTANCES - self.n_instances,
                                            # 20 queries/s; our GCE long-run quota
                                            300)
                     if instances_needed > 0:
@@ -316,7 +458,7 @@ retry docker run \
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 log.exception('instance pool control loop: caught exception')
 
             await asyncio.sleep(15)

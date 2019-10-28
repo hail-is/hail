@@ -24,6 +24,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
+from ..utils import parse_cpu_in_mcpu
 from ..batch import Batch, Job
 from ..log_store import LogStore
 from ..database import BatchDatabase, JobsBuilder
@@ -39,7 +40,7 @@ log = logging.getLogger('batch.front_end')
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
-REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
+REQUEST_TIME_GET_JOB_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/status', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
 REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
@@ -51,9 +52,7 @@ REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', ve
 REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_LOGS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
-REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/pod_status', verb="GET")
-
-READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
+REQUEST_TIME_GET_JOB_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/status', verb="GET")
 
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
@@ -61,10 +60,33 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
+BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
-def create_job(app, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
+
+def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
     job_id = job_spec['job_id']
     parent_ids = job_spec.pop('parent_ids', [])
+
+    resources = job_spec.get('resources')
+    if not resources:
+        resources = {}
+        job_spec['resources'] = resources
+    if 'cpu' not in resources:
+        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+    if 'memory' not in resources:
+        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+
+    secrets = job_spec.get('secrets')
+    if not secrets:
+        secrets = []
+        job_spec['secerts'] = secrets
+    secrets.append({
+        'namespace': 'batch-pods',  # FIXME unused
+        'name': userdata['gsa_key_secret_name'],
+        'mount_path': '/gsa-key',
+        'mount_in_copy': True
+    })
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
@@ -76,6 +98,8 @@ def create_job(app, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
         state=state,
         spec=json.dumps(job_spec),
         directory=directory,
+        cores_mcpu=parse_cpu_in_mcpu(resources['cpu']),
+        instance=None,
         status=None)
 
     for parent in parent_ids:
@@ -105,24 +129,30 @@ async def get_job(request, userdata):
 
 
 async def _get_job_log(app, batch_id, job_id, user):
-    job = await Job.from_db(app, batch_id, job_id, user)
+    db = app['db']
+    log_store = app['log_store']
+
+    job = await Job.from_db(db, batch_id, job_id, user)
     if not job:
         raise web.HTTPNotFound()
 
-    job_log = await job._read_logs()
+    job_log = await job._read_logs(log_store)
     if job_log:
         return job_log
     raise web.HTTPNotFound()
 
 
-async def _get_pod_status(app, batch_id, job_id, user):
-    job = await Job.from_db(app, batch_id, job_id, user)
+async def _get_job_status(app, batch_id, job_id, user):
+    db = app['db']
+    log_store = app['log_store']
+
+    job = await Job.from_db(db, batch_id, job_id, user)
     if not job:
         raise web.HTTPNotFound()
 
-    pod_statuses = await job._read_pod_status()
-    if pod_statuses:
-        return JSON_ENCODER.encode(pod_statuses)
+    status = await job._read_status(log_store)
+    if status:
+        return JSON_ENCODER.encode(status)
     raise web.HTTPNotFound()
 
 
@@ -137,15 +167,15 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     return web.json_response(job_log)
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
-@prom_async_time(REQUEST_TIME_GET_POD_STATUS)
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+@prom_async_time(REQUEST_TIME_GET_JOB_STATUS)
 @rest_authenticated_users_only
-async def get_pod_status(request, userdata):  # pylint: disable=R1710
+async def get_job_status(request, userdata):  # pylint: disable=R1710
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
-    pod_spec = await _get_pod_status(request.app, batch_id, job_id, user)
-    return web.json_response(pod_spec)
+    status = await _get_job_status(request.app, batch_id, job_id, user)
+    return web.json_response(status)
 
 
 async def _get_batches_list(app, params, user):
@@ -215,7 +245,7 @@ async def create_jobs(request, userdata):
     jobs_builder = JobsBuilder(app['db'])
     try:
         for job_spec in job_specs:
-            create_job(app, jobs_builder, batch.id, job_spec)
+            create_job(app, userdata, jobs_builder, batch.id, job_spec)
 
         success = await jobs_builder.commit()
         if not success:
@@ -385,21 +415,21 @@ async def ui_get_job_log(request, userdata):
     return await render_template('batch2', request, userdata, 'job_log.html', page_context)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
-@prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
-@aiohttp_jinja2.template('pod_status.html')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/status')
+@prom_async_time(REQUEST_TIME_GET_JOB_STATUS_UI)
+@aiohttp_jinja2.template('job_status.html')
 @web_authenticated_users_only()
-async def ui_get_pod_status(request, userdata):
+async def ui_get_job_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'pod_status': json.dumps(
-            json.loads(await _get_pod_status(request.app, batch_id, job_id, user)), indent=2)
+        'job_status': json.dumps(
+            json.loads(await _get_job_status(request.app, batch_id, job_id, user)), indent=2)
     }
-    return await render_template('batch2', request, userdata, 'pod_status.html', page_context)
+    return await render_template('batch2', request, userdata, 'job_status.html', page_context)
 
 
 @routes.get('')

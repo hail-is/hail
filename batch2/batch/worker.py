@@ -34,8 +34,7 @@ log = logging.getLogger('batch2-agent')
 
 docker = aiodocker.Docker()
 
-MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
+MAX_IDLE_TIME_SECS = 60
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -57,7 +56,7 @@ async def docker_call_retry(f, *args, **kwargs):
         delay = min(delay * 2, 60.0)
 
 
-class PodDeletedError(Exception):
+class JobDeletedError(Exception):
     pass
 
 
@@ -70,10 +69,10 @@ class ContainerStepManager:
         self.start_time = None
 
     async def __aenter__(self):
-        if self.container.pod.deleted:
-            raise PodDeletedError()
+        if self.container.job.deleted:
+            raise JobDeletedError()
         if self.state:
-            log.info(f'container {self.container.pod.name}/{self.container.name} state changed: {self.container.state} => {self.state}')
+            log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
         self.start_time = time.time()
 
@@ -84,15 +83,15 @@ class ContainerStepManager:
 
 
 class Container:
-    def __init__(self, pod, name, spec):
-        self.pod = pod
+    def __init__(self, job, name, spec):
+        self.job = job
         self.name = name
         self.spec = spec
 
         image = spec['image']
         tag = parse_image_tag(self.spec['image'])
         if not tag:
-            log.info(f'adding latest tag to image {self.spec["image"]} for container {self.pod.name}/{self.name}')
+            log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image += ':latest'
         self.image = image
 
@@ -129,7 +128,7 @@ class Container:
 
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
-        log.info(f'container {self.pod.name}/{self.name}" container info {c}')
+        log.info(f'{self} container info {c}')
         cstate = c['State']
         status = {
             'state': cstate['Status'],
@@ -164,11 +163,11 @@ class Container:
                         await docker_call_retry(self.container.wait)
 
             self.container_status = await self.get_container_status()
-            log.info(f'container {self.pod.name}/{self.name}: container status {self.container_status}')
+            log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
                 self.log = await self.get_container_log()
-                log_path = LogStore.container_log_path(self.pod.output_directory, self.name)
+                log_path = LogStore.container_log_path(self.job.output_directory, self.name)
                 await worker.gcs_client.write_gs_file(log_path, self.log)
 
             async with self.step('deleting'):
@@ -181,7 +180,7 @@ class Container:
             else:
                 self.state = 'failed'
         except Exception:
-            log.exception(f'while running container {self.pod.name}/{self.name}')
+            log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -204,7 +203,7 @@ class Container:
     async def delete_container(self):
         if self.container:
             try:
-                log.info('container {self.pod.name}/{self.name}: deleting container')
+                log.info('{self}: deleting container')
                 await docker_call_retry(self.container.stop)
                 # v=True deletes anonymous volumes created by the container
                 await docker_call_retry(self.container.delete, v=True)
@@ -244,6 +243,9 @@ class Container:
             status['container_status'] = await self.get_container_status()
         return status
 
+    def __str__(self):
+        return f'container {self.job.name}/{self.name}'
+
 
 def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
@@ -270,7 +272,7 @@ def copy(files):
     return f'{authenticate} && {copies}'
 
 
-def copy_container(pod, name, files, volume_mounts):
+def copy_container(job, name, files, volume_mounts):
     sh_expression = copy(files)
     copy_spec = {
         'image': 'google/cloud-sdk:237.0.0-alpine',
@@ -279,15 +281,14 @@ def copy_container(pod, name, files, volume_mounts):
         'cpu': '500m' if files else '100m',
         'volume_mounts': volume_mounts
     }
-    return Container(pod, name, copy_spec)
+    return Container(job, name, copy_spec)
 
 
-class Pod:
+class Job:
     def secret_host_path(self, secret):
         return f'{self.scratch}/{secret["name"]}'
 
-    def __init__(self, name, batch_id, user, job_spec, output_directory):
-        self.name = name
+    def __init__(self, batch_id, user, job_spec, output_directory):
         self.batch_id = batch_id
         self.user = user
         self.job_spec = job_spec
@@ -296,7 +297,7 @@ class Pod:
         self.deleted = False
 
         token = uuid.uuid4().hex
-        self.scratch = f'/batch/pods/{token}'
+        self.scratch = f'/batches/jobs/{token}'
 
         self.state = 'pending'
         self.error = None
@@ -358,7 +359,7 @@ class Pod:
     async def run(self, worker):
         io = None
         try:
-            log.info(f'pod {self.name}: initializing')
+            log.info(f'{self}: initializing')
             self.state = 'initializing'
 
             if self.mount_io:
@@ -370,27 +371,27 @@ class Pod:
 
             self.state = 'running'
 
-            log.info(f'pod {self.name}: running setup')
+            log.info(f'{self}: running setup')
 
             setup = self.containers['setup']
             await setup.run(worker)
 
-            log.info(f'pod {self.name} setup: {setup.state}')
+            log.info(f'{self} setup: {setup.state}')
 
             if setup.state == 'succeeded':
-                log.info(f'pod {self.name}: running main')
+                log.info(f'{self}: running main')
 
                 main = self.containers['main']
                 await main.run(worker)
 
-                log.info(f'pod {self.name} main: {main.state}')
+                log.info(f'{self} main: {main.state}')
 
-                log.info(f'pod {self.name}: running cleanup')
+                log.info(f'{self}: running cleanup')
 
                 cleanup = self.containers['cleanup']
                 await cleanup.run(worker)
 
-                log.info(f'pod {self.name} cleanup: {cleanup.state}')
+                log.info(f'{self} cleanup: {cleanup.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
@@ -402,21 +403,21 @@ class Pod:
             else:
                 self.state = setup.state
 
-            log.info(f'pod {self.name}: uploading status')
+            log.info(f'{self}: uploading status')
 
             await worker.gcs_client.write_gs_file(
-                LogStore.pod_status_path(self.output_directory),
+                LogStore.job_status_path(self.output_directory),
                 json.dumps(await self.status(), indent=4))
         except Exception:
-            log.exception(f'while running pod {self.name}')
+            log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            log.info(f'pod {self.name}: marking complete')
-            await worker.post_pod_complete(await self.status())
+            log.info(f'{self}: marking complete')
+            await worker.post_job_complete(await self.status())
 
-            log.info(f'pod {self.name}: cleaning up')
+            log.info(f'{self}: cleaning up')
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
                 if io:
@@ -443,7 +444,6 @@ class Pod:
     # }
     async def status(self):
         status = {
-            'name': self.name,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
             'user': self.user,
@@ -456,6 +456,8 @@ class Pod:
         }
         return status
 
+    def __str__(self):
+        return f'job ({self.batch_id}, {self.job_spec["job_id"]})'
 
 class Worker:
     def __init__(self, image, cores, deploy_config, token, ip_address):
@@ -465,59 +467,49 @@ class Worker:
         self.token = token
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time.time()
-        self.pods = {}
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
         self.ip_address = ip_address
 
         pool = concurrent.futures.ThreadPoolExecutor()
 
         self.gcs_client = GCS(pool)
+        self.jobs = {}
 
-    async def _create_pod(self, parameters):
-        name = parameters['name']
-        if name in self.pods:
-            return
+    async def create_job_1(self, request):
+        body = await request.json()
 
-        batch_id = parameters['batch_id']
-        user = parameters['user']
-        job_spec = parameters['job_spec']
-        output_directory = parameters['output_directory']
+        batch_id = body['batch_id']
+        user = body['user']
+        job_spec = body['job_spec']
+        output_directory = body['output_directory']
 
-        pod = Pod(name, batch_id, user, job_spec, output_directory)
-        self.pods[name] = pod
-        await pod.run(self)
-
-    async def create_pod(self, request):
+        job = Job(batch_id, user, job_spec, output_directory)
+        self.jobs[id] = job
+        await job.run(self)
         self.last_updated = time.time()
-        parameters = await request.json()
-        await asyncio.shield(self._create_pod(parameters))
+        del self.jobs[id]
+
+    async def create_job(self, request):
+        asyncio.ensure_future(self.create_job_1(request))
         return web.Response()
 
-    async def get_pod_log(self, request):
-        pod_name = request.match_info['pod_name']
-        pod = self.pods.get(pod_name)
-        if not pod:
-            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
-        return web.json_response(await pod.get_log())
+    async def get_job_log(self, request):
+        batch_id = request.match_info['batch_id']
+        job_id = request.match_info['job_id']
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
+        return web.json_response(await job.get_log())
 
-    async def get_pod_status(self, request):
-        pod_name = request.match_info['pod_name']
-        pod = self.pods.get(pod_name)
-        if not pod:
-            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
-        return web.json_response(await pod.status())
-
-    async def _delete_pod(self, request):
-        pod_name = request.match_info['pod_name']
-        pod = self.pods.get(pod_name)
-        if not pod:
-            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
-        del self.pods[pod_name]
-        await pod.delete()
-
-    async def delete_pod(self, request):  # pylint: disable=unused-argument
-        await asyncio.shield(self._delete_pod(request))
-        return web.Response()
+    async def get_job_status(self, request):
+        batch_id = request.match_info['batch_id']
+        job_id = request.match_info['job_id']
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
+        return web.json_response(await job.status())
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
         return web.Response()
@@ -528,10 +520,9 @@ class Worker:
         try:
             app = web.Application()
             app.add_routes([
-                web.post('/api/v1alpha/pods/create', self.create_pod),
-                web.get('/api/v1alpha/pods/{pod_name}/log', self.get_pod_log),
-                web.get('/api/v1alpha/pods/{pod_name}/status', self.get_pod_status),
-                web.post('/api/v1alpha/pods/{pod_name}/delete', self.delete_pod),
+                web.post('/api/v1alpha/batches/create', self.create_job),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck)
             ])
 
@@ -542,17 +533,13 @@ class Worker:
 
             await self.activate()
 
-            last_ping = time.time() - self.last_updated
-            while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
-                    or last_ping < MAX_IDLE_TIME_WITHOUT_PODS:
-                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores_mcpu / 1000} age {last_ping}')
+            idle_duration = time.time() - self.last_updated
+            while (self.jobs or idle_duration < MAX_IDLE_TIME_SECS):
+                log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
-                last_ping = time.time() - self.last_updated
+                idle_duration = time.time() - self.last_updated
 
-            if self.pods:
-                log.info(f'idle {MAX_IDLE_TIME_WITH_PODS} seconds with pods, exiting')
-            else:
-                log.info(f'idle {MAX_IDLE_TIME_WITHOUT_PODS} seconds with no pods, exiting')
+            log.info(f'idle {idle_duration} seconds, exiting')
 
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
@@ -571,10 +558,10 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def post_pod_complete(self, pod_status):
+    async def post_job_complete(self, job_status):
         body = {
             'inst_token': self.token,
-            'status': pod_status
+            'status': job_status
         }
 
         delay = 0.1
@@ -583,13 +570,13 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
-                        self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
+                        self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
                         json=body)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
-                log.exception(f'failed to mark pod {pod_status["name"]} complete, retrying')
+                log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
             # exponentially back off, up to (expected) max of 30s
             t = delay * random.random()
             await asyncio.sleep(t)
