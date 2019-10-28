@@ -432,15 +432,16 @@ SELECT @out;
         log.info(f'starting control loop')
         while True:
             try:
-                log.info(f'n_instances {self.n_instances_by_state}'
-                         f' n_instances {self.n_instances}'
-                         f' live_free_cores {self.live_free_cores_mcpu / 1000}')
-
                 async with self.db.pool.acquire() as conn:
                     async with conn.cursor() as cursor:
                         await cursor.execute('SELECT * FROM ready_cores')
                         row = await cursor.fetchone()
                         ready_cores_mcpu = row['ready_cores_mcpu']
+
+                log.info(f'n_instances {self.n_instances_by_state}'
+                         f' n_instances {self.n_instances}'
+                         f' live_free_cores {self.live_free_cores_mcpu / 1000}'
+                         f' ready_cores {ready_cores_mcpu / 1000}')
 
                 if ready_cores_mcpu > 0:
                     n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']

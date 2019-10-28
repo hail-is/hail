@@ -96,11 +96,13 @@ def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disa
         batch_id=batch_id,
         job_id=job_id,
         state=state,
-        spec=json.dumps(job_spec),
         directory=directory,
+        spec=json.dumps(job_spec),
         cores_mcpu=parse_cpu_in_mcpu(resources['cpu']),
-        instance=None,
-        status=None)
+        instance_id=None,
+        status=None,
+        n_pending_parents=len(parent_ids),
+        cancel=0)
 
     for parent in parent_ids:
         jobs_builder.create_job_parent(
