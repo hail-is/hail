@@ -3554,12 +3554,14 @@ class NDArrayExpression(Expression):
         """
         if isinstance(shape, TupleExpression):
             shape_ir = hl.tuple([hl.int64(i) for i in shape])._ir
+            ndim = len(shape)
         else:
             wrapped_shape = wrap_to_list(shape)
+            ndim = len(wrapped_shape)
             shape_ir = hl.tuple(wrapped_shape)._ir
 
         return construct_expr(NDArrayReshape(self._ir, shape_ir),
-                              tndarray(self._type.element_type, len(shape)),
+                              tndarray(self._type.element_type, ndim),
                               self._indices,
                               self._aggregations)
 
