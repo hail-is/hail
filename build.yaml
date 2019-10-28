@@ -592,7 +592,6 @@ steps:
     - users_database
     - create_auth_tables
     - auth_image
-    - check_auth
     - create_dummy_oauth2_client_secret
  - kind: createDatabase
    name: ci_database
@@ -794,7 +793,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_batch2
-    - deploy_batch_pods
     - test_batch2_image
  - kind: runImage
    name: delete_batch2_instances
