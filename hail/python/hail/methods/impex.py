@@ -1298,7 +1298,8 @@ def import_table(paths,
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
-    :meth:`.Table.key_by` to specify keys.
+    :meth:`.Table.key_by` to specify keys. See also:
+    :func:`.import_matrix_table`.
 
     Examples
     --------
