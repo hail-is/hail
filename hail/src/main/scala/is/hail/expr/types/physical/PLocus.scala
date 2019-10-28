@@ -65,7 +65,7 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    new CodeOrdering {
+    new CodeOrderingCompareConsistentWithOthers {
       type T = Long
       val contigBin = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary]
       val bincmp = contigBin.codeOrdering(mb)

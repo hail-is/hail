@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
+import is.hail.table.SortOrder
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -63,9 +64,13 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+    codeOrdering(mb, other, null)
+
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb)
+    assert(so == null || so.size == types.size)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
   }
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {

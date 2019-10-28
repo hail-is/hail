@@ -16,7 +16,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, fb: EmitF
     "empty" -> PBooleanRequired)
 
   val compType: PType = binType
-  private val kcomp = fb.getCodeOrdering[Int](binType, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = fb.getCodeOrdering(binType, CodeOrdering.compare, ignoreMissingness = false)
 
   def isEmpty(off: Code[Long]): Code[Boolean] = coerce[Boolean](Region.loadIRIntermediate(PBooleanRequired)(storageType.fieldOffset(off, "empty")))
 

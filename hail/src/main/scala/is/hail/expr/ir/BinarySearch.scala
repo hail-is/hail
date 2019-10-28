@@ -25,18 +25,18 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, keyOnly: Boolean) {
       case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
         val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(v2, 0), mk2l)
         val k2 = mk2l.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-        findMB.getCodeOrdering[Int](kt, CodeOrdering.compare)((mk1, k1), (mk2, k2))
+        findMB.getCodeOrdering(kt, CodeOrdering.compare)((mk1, k1), (mk2, k2))
     }
     val ceq: CodeOrdering.F[Boolean] = {
       case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
         val mk2 = Code(mk2l1 := m2 || ttype.isFieldMissing(v2, 0), mk2l1)
         val k2 = mk2l1.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-        mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv)((mk1, k1), (mk2, k2))
+        mb.getCodeOrdering(kt, CodeOrdering.equiv)((mk1, k1), (mk2, k2))
     }
     (comp, ceq, findMB, kt)
   } else
-    (mb.getCodeOrdering[Int](elt, CodeOrdering.compare),
-      mb.getCodeOrdering[Boolean](elt, CodeOrdering.equiv),
+    (mb.getCodeOrdering(elt, CodeOrdering.compare),
+      mb.getCodeOrdering(elt, CodeOrdering.equiv),
       mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(elt)), typeInfo[Int]), elt)
 
   private[this] val array = findElt.getArg[Long](1)

@@ -15,7 +15,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     "container" -> PInt64(true))
 
   val compType: PType = kt
-  private val kcomp = fb.getCodeOrdering[Int](kt, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = fb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
 
   val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
   val container = new TupleAggregatorState(fb, states, region, containerAddress(offset), regionIdx)
