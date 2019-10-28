@@ -47,7 +47,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 async def close_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app, batch_id, user)
+    batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     asyncio.ensure_future(batch._close_jobs())
@@ -58,7 +58,7 @@ async def close_batch(request):
 async def cancel_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app, batch_id, user)
+    batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     asyncio.ensure_future(batch._cancel_jobs())
@@ -69,7 +69,7 @@ async def cancel_batch(request):
 async def delete_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app, batch_id, user)
+    batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     # FIXME call from front end.  Can't yet, becuase then
@@ -85,7 +85,7 @@ async def db_cleanup_event_loop(app):
         try:
             # FIXME
             for record in await app['db'].batch.get_finished_deleted_records():
-                batch = Batch.from_record(app, record, deleted=True)
+                batch = Batch.from_record(app['db'], record, deleted=True)
                 await app['db'].batch.delete_record(batch.id)
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not delete batches due to exception: {exc}')
@@ -151,7 +151,7 @@ async def job_complete_1(request):
     job_id = status['job_id']
     user = status['user']
 
-    job = Job.from_db(request.app, batch_id, job_id, user)
+    job = Job.from_db(request.app['db'], batch_id, job_id, user)
     if job is None:
         log.warning(f'job_complete from unknown job ({batch_id}, {job_id}), {instance}')
         return web.HTTPNotFound()

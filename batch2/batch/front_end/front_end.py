@@ -122,7 +122,7 @@ async def get_job(request, userdata):
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    job = await Job.from_db(request.app, batch_id, job_id, user)
+    job = await Job.from_db(request.app['db'], batch_id, job_id, user)
     if not job:
         raise web.HTTPNotFound()
     return web.json_response(job.to_dict())
@@ -199,7 +199,7 @@ async def _get_batches_list(app, params, user):
                                                  deleted=False,
                                                  attributes=attributes)
 
-    return [await Batch.from_record(app, batch).to_dict(include_jobs=False)
+    return [await Batch.from_record(app['db'], batch).to_dict(include_jobs=False)
             for batch in records]
 
 
@@ -222,7 +222,7 @@ async def create_jobs(request, userdata):
     user = userdata['username']
 
     start1 = time.time()
-    batch = await Batch.from_db(app, batch_id, user)
+    batch = await Batch.from_db(app['db'], batch_id, user)
     log.info(f'took {round(time.time() - start1, 3)} seconds to get batch from db')
 
     if not batch:
@@ -271,7 +271,7 @@ async def create_batch(request, userdata):
         raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
 
     batch = await Batch.create_batch(
-        request.app,
+        request.app['db'],
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         userdata=userdata,
@@ -284,14 +284,14 @@ async def create_batch(request, userdata):
 
 
 async def _get_batch(app, batch_id, user, limit=None, offset=None):
-    batch = await Batch.from_db(app, batch_id, user)
+    batch = await Batch.from_db(app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     return await batch.to_dict(include_jobs=True, limit=limit, offset=offset)
 
 
 async def _cancel_batch(app, batch_id, user):
-    batch = await Batch.from_db(app, batch_id, user)
+    batch = await Batch.from_db(app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     await batch.cancel()
@@ -331,7 +331,7 @@ async def cancel_batch(request, userdata):
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    batch = await Batch.from_db(request.app, batch_id, user)
+    batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     await batch.close()
@@ -349,7 +349,7 @@ async def close_batch(request, userdata):
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    batch = await Batch.from_db(request.app, batch_id, user)
+    batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
     async with aiohttp.ClientSession(

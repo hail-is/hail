@@ -794,7 +794,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_batch2
-    - deploy_batch_pods
     - test_batch2_image
  - kind: runImage
    name: delete_batch2_instances
