@@ -521,7 +521,7 @@ class Worker:
         try:
             app = web.Application()
             app.add_routes([
-                web.post('/api/v1alpha/batches/create', self.create_job),
+                web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck)
