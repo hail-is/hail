@@ -244,7 +244,7 @@ BEGIN
     ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
       UPDATE batch SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
-      UPDATE batch SET n_succeeded = n_suceeded + 1 WHERE id = in_batch_id;
+      UPDATE batch SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
     END IF;
 
     IF cur_job_instance_id IS NOT NULL THEN
