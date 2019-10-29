@@ -138,12 +138,12 @@ class Job:
 
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                cursor.execute('''
+                await cursor.execute('''
 CALL mark_job_complete(%s, %s, %s, %s, %s, @success);
 SELECT @success;
 ''',
                                (self.batch_id, self.job_id, self._state, new_state, json.dumps(status)))
-                out = cursor.fetchone()
+                out = await cursor.fetchone()
                 success = out['success']
                 if not success:
                     raise DatabaseCallError(out)
@@ -296,8 +296,8 @@ class Batch:
     async def close(self):
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                cursor.execute('CALL close_batch(%s);',
-                               (self.id,))
+                await cursor.execute('CALL close_batch(%s);',
+                                     (self.id,))
         self.closed = True
         log.info(f'{self} closed')
 

@@ -148,12 +148,12 @@ class InstancePool:
 
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                cursor.execute('''
+                await cursor.execute('''
 CALL schedule_job(%s, %s, %s, @out);
 SELECT @out;
 ''',
                                (record['batch_id'], record['job_id'], instance.id))
-                out = cursor.fetchone()
+                out = await cursor.fetchone()
                 success = out['success']
                 if not success:
                     raise DatabaseCallError(out)
@@ -299,12 +299,12 @@ retry docker run \
 
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                cursor.execute('''
+                await cursor.execute('''
 CALL activate_instance(%s, %s, @out);
 SELECT @out;
 ''',
                                (instance.id, ip_address))
-                out = cursor.fetchone()
+                out = await cursor.fetchone()
                 success = out['success']
                 if not success:
                     raise DatabaseCallError(out)
@@ -322,12 +322,12 @@ SELECT @out;
 
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                cursor.execute('''
+                await cursor.execute('''
 CALL deactivate_instance(%s, @out);
 SELECT @out;
 ''',
                                (instance.id,))
-                out = cursor.fetchone()
+                out = await cursor.fetchone()
                 success = out['success']
                 if not success:
                     raise DatabaseCallError(out)
@@ -355,12 +355,12 @@ SELECT @out;
 
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                cursor.execute('''
+                await cursor.execute('''
 CALL mark_instance_deleted(%s, @out);
 SELECT @out;
 ''',
                                (instance.id,))
-                out = cursor.fetchone()
+                out = await cursor.fetchone()
                 success = out['success']
                 if not success:
                     raise DatabaseCallError(out)

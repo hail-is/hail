@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS `ready_cores`;
 DROP TABLE IF EXISTS `batch-attributes`;
 DROP TABLE IF EXISTS `jobs-parents`;
 DROP TABLE IF EXISTS `jobs`;
