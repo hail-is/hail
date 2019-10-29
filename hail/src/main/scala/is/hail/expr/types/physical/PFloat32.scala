@@ -16,7 +16,7 @@ case object PFloat32Required extends PFloat32(true)
 class PFloat32(override val required: Boolean) extends PNumeric {
   lazy val virtualType: TFloat32 = TFloat32(required)
 
-  override type NType = this.type
+  override type NType = PFloat32
 
   def _asIdent = "float32"
   def _toPretty = "Float32"
@@ -53,14 +53,14 @@ class PFloat32(override val required: Boolean) extends PNumeric {
 
   override def byteSize: Long = 4
 
-  override def zero = coerce[NType](const(0.0f))
+  override def zero = coerce[PFloat32](const(0.0f))
 
-  override def add(a: Code[_], b: Code[_]): Code[PFloat32.this.type] = {
-    coerce[NType](coerce[Float](a) + coerce[Float](b))
+  override def add(a: Code[_], b: Code[_]): Code[PFloat32] = {
+    coerce[PFloat32](coerce[Float](a) + coerce[Float](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_]): Code[PFloat32.this.type] = {
-    coerce[NType](coerce[Float](a) * coerce[Float](b))
+  override def multiply(a: Code[_], b: Code[_]): Code[PFloat32] = {
+    coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
 }
 

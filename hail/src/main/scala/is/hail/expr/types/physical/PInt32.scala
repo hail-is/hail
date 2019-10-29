@@ -18,7 +18,7 @@ class PInt32(override val required: Boolean) extends PIntegral {
   def _asIdent = "int32"
   def _toPretty = "Int32"
 
-  override type NType = this.type
+  override type NType = PInt32
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("int32")
@@ -52,14 +52,14 @@ class PInt32(override val required: Boolean) extends PIntegral {
 
   override def byteSize: Long = 4
 
-  override def zero = coerce[NType](const(0))
+  override def zero = coerce[PInt32](const(0))
 
-  override def add(a: Code[_], b: Code[_]): Code[PInt32.this.type] = {
-    (a.asInstanceOf[Code[Int]] + b.asInstanceOf[Code[Int]]).asInstanceOf[Code[NType]]
+  override def add(a: Code[_], b: Code[_]): Code[PInt32] = {
+    coerce[PInt32](coerce[Int](a) + coerce[Int](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_]): Code[PInt32.this.type] = {
-    coerce[NType](coerce[Int](a) * coerce[Int](b))
+  override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
+    coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
 }
 
