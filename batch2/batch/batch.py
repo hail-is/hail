@@ -1,65 +1,14 @@
 import json
 import logging
-import asyncio
 import aiohttp
-from hailtop.utils import request_retry_transient_errors
 
 from .globals import tasks
 from .database import check_call_procedure
-from .log_store import LogStore
 
 log = logging.getLogger('batch')
 
 
 class Job:
-    async def _read_logs(self, log_store, inst_pool):
-        if self._state in ('Pending', 'Cancelled'):
-            return None
-
-        if self._state == 'Running':
-            instance = None
-            if self.instance_id is not None:
-                instance = inst_pool.instances.get(self.instance_id)
-
-            if instance is None:
-                return None
-            assert instance.ip_address
-
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/logs'
-                resp = await request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-
-        async def _read_log_from_gcs(task):
-            log = await log_store.read_gs_file(LogStore.container_log_path(self.directory, task))
-            return task, log
-
-        assert self._state in ('Error', 'Failed', 'Success')
-        future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
-        return {k: v for k, v in await future_logs}
-
-    async def _read_status(self, log_store, inst_pool):
-        if self._state in ('Pending', 'Cancelled'):
-            return None
-
-        if self._state == 'Running':
-            instance = None
-            if self.instance_id is not None:
-                instance = inst_pool.instances.get(self.instance_id)
-
-            if instance is None:
-                return None
-            assert instance.ip_address
-
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/status'
-                resp = request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-
-        return await log_store.read_gs_file(LogStore.job_status_path(self.directory))
-
     @staticmethod
     def from_record(db, record):
         if not record:

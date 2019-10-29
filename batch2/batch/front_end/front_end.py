@@ -3,7 +3,7 @@ import concurrent
 import logging
 import json
 import time
-
+import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
@@ -16,13 +16,14 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
-from gear import setup_aiohttp_session, \
+from gear import execute_and_fetchone, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     check_csrf_token
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 # import uvloop
 
+from ..globals import tasks
 from ..utils import parse_cpu_in_mcpu
 from ..batch import Batch, Job
 from ..log_store import LogStore
@@ -131,29 +132,98 @@ async def get_job(request, userdata):
     return web.json_response(job.to_dict())
 
 
+async def _get_job_log_from_record(app, batch_id, job_id, record):
+    inst_pool = app['inst_pool']
+
+    state = record['state']
+
+    if state == 'Running':
+        instance_id = record['instance_id']
+        instance = inst_pool.id_instance.get(instance_id)
+        if not instance:
+            return None
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                url = (f'http://{instance.ip_address}:5000'
+                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/logs')
+                resp = await request_retry_transient_errors(session, 'GET', url)
+                return await resp.json()
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    return None
+                raise
+
+    if state in ('Error', 'Failed', 'Success'):
+        log_store = app['log_store']
+        directory = record['directory']
+
+        async def _read_log_from_gcs(task):
+            log = await log_store.read_gs_file(LogStore.container_log_path(directory, task))
+            return task, log
+
+        return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
+
+    return None
+
+
 async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
-    log_store = app['log_store']
 
-    job = await Job.from_db(db, batch_id, job_id, user)
-    if not job:
-        raise web.HTTPNotFound()
-
-    job_log = await job._read_logs(log_store)
-    if job_log:
-        return job_log
+    record = execute_and_fetchone(db.pool, '''
+SELECT state, instance_id, directory
+FROM jobs
+WHERE batch_id = %s, job_id = %s, user = %s;
+''',
+                                  (batch_id, job_id, user))
+    log = await _get_job_log_from_record(app, batch_id, job_id, record)
+    if log:
+        return log
     raise web.HTTPNotFound()
+
+
+async def _get_job_status_from_record(app, batch_id, job_id, record):
+    inst_pool = app['inst_pool']
+
+    state = record['state']
+
+    if state == 'Running':
+        instance_id = record['instance_id']
+        instance = inst_pool.id_instance.get(instance_id)
+        if not instance:
+            return None
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                url = (f'http://{instance.ip_address}:5000'
+                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+                resp = await request_retry_transient_errors(session, 'GET', url)
+                return await resp.json()
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    return None
+                raise
+
+    if state in ('Error', 'Failed', 'Success'):
+        directory = record['directory']
+        log_store = app['log_store']
+        return await log_store.read_gs_file(LogStore.job_status_path(directory))
+
+    return None
 
 
 async def _get_job_status(app, batch_id, job_id, user):
     db = app['db']
-    log_store = app['log_store']
 
-    job = await Job.from_db(db, batch_id, job_id, user)
-    if not job:
-        raise web.HTTPNotFound()
-
-    status = await job._read_status(log_store)
+    record = execute_and_fetchone(db.pool, '''
+SELECT state, instance_id, directory
+FROM jobs
+WHERE batch_id = %s, job_id = %s, user = %s;
+''',
+                                  (batch_id, job_id, user))
+    status = await _get_job_status_from_record(app, batch_id, job_id, record)
     if status:
         return JSON_ENCODER.encode(status)
     raise web.HTTPNotFound()

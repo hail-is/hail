@@ -4,8 +4,23 @@ import asyncio
 import aiomysql
 import pymysql
 from asyncinit import asyncinit
+from gear import execute_and_fetchone
 
 log = logging.getLogger('batch.database')
+
+
+class CallError(Exception):
+    def __init__(self, rv):
+        super().__init__(rv)
+        self.rv = rv
+
+
+async def check_call_procedure(pool, sql, args=None):
+    rv = await execute_and_fetchone(pool, sql, args)
+    if rv['rc'] != 0:
+        raise CallError(rv)
+    return rv
+
 
 MAX_RETRIES = 12
 
@@ -31,22 +46,6 @@ async def _retry(f, *args, **kwargs):
             log.info(f'unknown exception {err!r}')
             raise err
     raise saved_err
-
-
-class CallError(Exception):
-    def __init__(self, rv):
-        super().__init__(rv)
-        self.rv = rv
-
-
-async def check_call_procedure(pool, sql, args=None):
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(sql, args)
-            rv = await cursor.fetchone()
-            if rv['rc'] != 0:
-                raise CallError(rv)
-            return rv
 
 
 @asyncinit
