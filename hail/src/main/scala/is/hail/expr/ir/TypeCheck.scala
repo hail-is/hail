@@ -226,7 +226,7 @@ object TypeCheck {
         assert(cond.typ.isOfType(TBoolean()))
       case x@ArrayFlatMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
-        assert(body.typ.isInstanceOf[TArray])
+        assert(body.typ.isInstanceOf[TStreamable])
       case x@ArrayFold(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)

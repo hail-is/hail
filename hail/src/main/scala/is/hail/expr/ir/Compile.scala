@@ -48,6 +48,7 @@ object Compile {
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
 
     ir = Subst(ir, BindingEnv(env))
+    ir = Streamify(ir)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ir, fb, nSpecialArgs)
@@ -232,6 +233,7 @@ object CompileWithAggregators2 {
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
 
     ir = Subst(ir, BindingEnv(env))
+    ir = Streamify(ir)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ir, fb, nSpecialArgs, Some(aggSigs))

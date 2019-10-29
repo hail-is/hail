@@ -503,6 +503,7 @@ private class Emit(
             srvb.advance())
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
+
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
@@ -595,12 +596,6 @@ private class Emit(
             compF,
             distinct,
             sorter.toRegion()))
-
-      case ToArray(a) =>
-        emit(a)
-
-      case ToStream(a) =>
-        emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
@@ -721,8 +716,13 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: ArrayAggScan | _: ReadPartition =>
-        emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
+      case ToArray(ir) =>
+        val pType = coerce[PStream](ir.pType)
+        emitArrayIterator(ir).toEmitTriplet(mb, PArray(pType.elementType, required = pType.required))
+
+      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: StreamRange | _: ArrayFlatMap | _: ArrayScan
+         | _: ArrayLeftJoinDistinct | _: ArrayAggScan | _: ReadPartition | _: ToStream | _: MakeStream =>
+        fatal(s"IR should have been already streamified: ${Pretty(ir)}")
 
       case ArrayFold(a, zero, name1, name2, body) =>
         val typ = ir.typ
@@ -1880,7 +1880,7 @@ private class Emit(
     def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas, er, container)
 
     ir match {
-      case x@ArrayRange(startir, stopir, stepir) =>
+      case StreamRange(startir, stopir, stepir) =>
         val codeStart = emit(startir)
         val codeStop = emit(stopir)
         val codeStep = emit(stepir)
@@ -2017,7 +2017,7 @@ private class Emit(
               Code(cont(xmaccum, xvaccum), aet.addElements))
           })
 
-      case MakeArray(args, _) =>
+      case MakeStream(args, _) =>
         val f = { cont: F =>
           EmitArrayTriplet(Code._empty[Unit], None, coerce[Unit](Code(
             for (elt <- args) yield {
@@ -2027,6 +2027,8 @@ private class Emit(
         }
         ArrayIteratorTriplet(Code._empty, Some(const(args.length)), f)
 
+        /*
+         TODO: bring back deforested 'if'
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
 
@@ -2054,6 +2056,7 @@ private class Emit(
         }
 
         ArrayIteratorTriplet(Code._empty, None, f)
+         */
 
       case x@ArrayLeftJoinDistinct(left, right, l, r, compKey, join) =>
         // no missing
@@ -2214,8 +2217,8 @@ private class Emit(
               cont(false, rowDec(region, rowBuf)))))
         })
 
-      case _ =>
-        val t: PArray = coerce[PStreamable](ir.pType).asPArray
+      case ToStream(ir) =>
+        val t = coerce[PContainer](ir.pType)
         val i = mb.newField[Int]("i")
         val len = mb.newField[Int]("len")
         val aoff = mb.newField[Long]("aoff")
@@ -2231,6 +2234,9 @@ private class Emit(
                 Region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
               i := i + 1)))
         })
+
+      case ir =>
+        fatal(s"IR not valid for deforesting: ${Pretty(ir)}")
     }
   }
 

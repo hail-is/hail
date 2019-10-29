@@ -4,72 +4,43 @@ import is.hail.expr.types.virtual._
 
 object Streamify {
 
-  private[this] def streamify(streamableNode: IR): IR = streamableNode match {
-    case _: MakeStream | _: StreamRange | _: ReadPartition => Copy(streamableNode, Children(streamableNode).map { case c: IR => apply(c) } )
-    case ArrayRange(start, stop, step) => StreamRange(apply(start), apply(stop), apply(step))
-    case MakeArray(args, t) => MakeStream(args.map(apply), TStream(t.elementType, t.required))
-    case ArrayMap(a, n, b) =>
-      if (a.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayMap(streamify(a), n, apply(b))
-    case ArrayFilter(a, n, b) =>
-      if (a.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayFilter(streamify(a), n, apply(b))
-    case ArrayFlatMap(a, n, b) =>
-      if (a.typ.isInstanceOf[TStream] && b.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayFlatMap(streamify(a), n, streamify(b))
-    case ArrayScan(a, zero, zn, an, body) =>
-      if (a.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayScan(streamify(a), apply(zero), zn, an, apply(body))
-    case ToArray(a) =>
-      a.typ match {
-        case _: TStream => a
-        case _: TArray => streamify(a)
-        case _ => ToStream(apply(streamableNode))
-      }
-    case ToStream(a) =>
-      a.typ match {
-        case _: TStream => a
-        case _ => ToStream(apply(a))
-      }
-    case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
-      ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, apply(keyf), apply(joinf))
-    case Let(n, v, b) =>
-      Let(n, apply(v), streamify(b))
+  private def stream(ir: IR): IR = ir match {
+    case ToArray(s) => s
     case _ =>
-      ToStream(Copy(streamableNode, Children(streamableNode).map { case c: IR => apply(c) } ))
-  }
-
-  private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
-    case ToArray(a) =>
-      a.typ match {
-        case _: TArray => ToArray(streamify(a))
-        case _ => streamableNode
-      }
-    case ToStream(a) =>
-      a.typ match {
-        case _: TStream => ToArray(a)
-        case _ => a
-      }
-    case If(cond, cnsq, altr) =>
-      If(cond, unstreamify(cnsq), unstreamify(altr))
-    case Let(n, v, b) =>
-      Let(n, v, unstreamify(b))
-    case _ =>
-      streamify(streamableNode) match {
-        case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
-        case s => ToArray(s)
+      if (ir.typ.isInstanceOf[TStream])
+        ir
+      else {
+        assert(ir.typ.isInstanceOf[TContainer])
+        ToStream(ir)
       }
   }
 
-  def apply(node: IR): IR = node match {
-    case ArraySort(a, l, r, comp) => ArraySort(streamify(a), l, r, comp)
-    case ToSet(a) => ToSet(streamify(a))
-    case ToDict(a) => ToDict(streamify(a))
-    case ArrayFold(a, zero, zn, an, body) => ArrayFold(streamify(a), zero, zn, an, body)
-    case ArrayFold2(a, acc, vn, seq, res) => ArrayFold2(streamify(a), acc, vn, seq, res)
-    case ArrayFor(a, n, b) => ArrayFor(streamify(a), n, b)
-    case x: ApplyIR => apply(x.explicitNode)
-    case _ if node.typ.isInstanceOf[TStreamable] => unstreamify(node)
-    case _ => Copy(node, Children(node).map { case c: IR => apply(c) })
+  private def expand(ir: IR): IR = ir match {
+    case x: ApplyIR => expand(x.explicitNode)
+    case _ => ir
+  }
+
+  def apply(ir: IR): IR = MapIR(apply)(expand(ir)) match {
+    case ArrayRange(x, y, z) => ToArray(StreamRange(x, y, z))
+    case MakeArray(xs, t) => ToArray(MakeStream(xs, TStream(t.elementType, required = t.required)))
+    //case x@ReadPartition(_, _, _) => x
+    case ToStream(a) => ToArray(stream(a))
+    case ArrayAggScan(a, n, q) => ToArray(ArrayAggScan(stream(a), n, q))
+    case ArrayFilter(a, n, b) => ToArray(ArrayFilter(stream(a), n, b))
+    case ArrayFlatMap(a, n, b) => ToArray(ArrayFlatMap(stream(a), n, stream(b)))
+    case ArrayLeftJoinDistinct(l, r, ln, rn, k, j) => ToArray(ArrayLeftJoinDistinct(stream(l), stream(r), ln, rn, k, j))
+    case ArrayMap(a, n, b) => ToArray(ArrayMap(stream(a), n, b))
+    case ArrayScan(a, z, an, vn, b) => ToArray(ArrayScan(stream(a), z, an, vn, b))
+    case ArrayAgg(a, n, q) => ArrayAgg(stream(a), n, q)
+    case ArrayFold(a, z, an, vn, b) => ArrayFold(stream(a), z, an, vn, b)
+    case ArrayFold2(a, acc, vn, seq, r) => ArrayFold2(stream(a), acc, vn, seq, r)
+    case ArrayFor(a, vn, b) => ArrayFor(stream(a), vn, b)
+    case ArraySort(a, ln, rn, c) => ArraySort(stream(a), ln, rn, c)
+    case CollectDistributedArray(a, g, cn, gn, b) => CollectDistributedArray(stream(a), g, cn, gn, b)
+    case GroupByKey(a) => GroupByKey(stream(a))
+    case ToArray(a) => ToArray(stream(a))
+    case ToDict(a) => ToDict(stream(a))
+    case ToSet(a) => ToSet(stream(a))
+    case x => x
   }
 }
