@@ -244,7 +244,7 @@ class Container:
         return status
 
     def __str__(self):
-        return f'container {self.job.name}/{self.name}'
+        return f'container {self.job.id}/{self.name}'
 
 
 def populate_secret_host_path(host_path, secret_data):
