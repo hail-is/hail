@@ -2440,7 +2440,6 @@ private class Emit(
         val childEmitter = deforest(child)
 
 
-
         val slicest = emit(slicesIR, env, resultRegion, None)
         val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, coerce[Long](slicest.v))
 
@@ -2469,10 +2468,9 @@ private class Emit(
         )
 
 
-        new NDArrayEmitter(mb, x.pType.nDims, outputShape, ???, ???, setup) {
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-
-            ???
+            const(4)
           }
         }
 
