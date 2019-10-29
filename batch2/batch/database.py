@@ -304,6 +304,15 @@ class JobsTable(Table):
     async def delete_record(self, batch_id, job_id):
         await super().delete_record({'batch_id': batch_id, 'job_id': job_id})
 
+    async def get_records_by_batch(self, batch_id, limit=None, offset=None):
+        if offset is not None:
+            assert limit is not None
+        return await self.get_records_where({'batch_id': batch_id},
+                                            limit=limit,
+                                            offset=offset,
+                                            order_by='batch_id, job_id',
+                                            ascending=True)
+
     async def get_records_where(self, condition, limit=None, offset=None, order_by=None, ascending=None):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
