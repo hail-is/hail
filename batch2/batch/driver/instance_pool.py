@@ -154,6 +154,7 @@ class InstancePool:
             self.db.pool,
             'CALL schedule_job(%s, %s, %s);',
             (batch_id, job_id, instance.id))
+        log.info(f'schedule_job returned {rv}')
 
         log.info(f'schedule job {id} on {instance}: updated database')
 
@@ -166,7 +167,7 @@ class InstancePool:
         # FIXME debugging
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute('SELECT * FROM jobs WHERE batch_id = %s AND jobs_id = %s',
+                await cursor.execute('SELECT * FROM jobs WHERE batch_id = %s AND job_id = %s',
                                      (batch_id, job_id))
                 row = cursor.fetchone()
                 log.info(f'updated job row {row}')
