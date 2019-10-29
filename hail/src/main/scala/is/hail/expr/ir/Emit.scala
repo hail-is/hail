@@ -13,6 +13,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.language.{existentials, postfixOps}
 
 object Emit {
@@ -1599,6 +1600,7 @@ private class Emit(
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
+      case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
         val lT = emit(lChild)
@@ -2431,6 +2433,46 @@ private class Emit(
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
+          }
+        }
+
+      case x@NDArraySlice(child, slicesIR) =>
+        val childEmitter = deforest(child)
+
+
+
+        val slicest = emit(slicesIR, env, resultRegion, None)
+        val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, coerce[Long](slicest.v))
+
+        val sliceVars = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
+        val refVars = mutable.Map[Int, (Code[Long])]()
+
+        coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
+          sliceOrIndex match {
+            case p: PTuple => {
+              val tup = new CodePTuple(p, region, slicesTuple(dim))
+
+              sliceVars += ((tup[Long](0), tup[Long](1), tup[Long](2)))
+            }
+            case _: PInt64 => {
+              refVars += dim -> slicesTuple(dim)
+            }
+          }
+        }
+
+        // TODO Consider step size
+        val outputShape = sliceVars.toArray.map{case (start, stop, step) => stop - start}
+
+        val setup = Code(
+          slicest.setup,
+          childEmitter.setup
+        )
+
+
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, ???, ???, setup) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+
+            ???
           }
         }
 
