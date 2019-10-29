@@ -143,8 +143,8 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   val ref: LocalRef[Long] = r.mb.newLocal[Long]
   val region: Code[Region] = r.region
 
-  def ordering[T](op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[T] =
-    r.mb.getCodeOrdering[T](typ.pointType, op)(_, _)
+  def ordering(op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[op.ReturnType] =
+    r.mb.getCodeOrdering(typ.pointType, op)(_, _)
 
   def storeToLocal: Code[Unit] = ref := value
 

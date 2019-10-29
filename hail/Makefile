@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 25
+HAIL_PATCH_VERSION := 26
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
@@ -209,7 +209,7 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
+cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
@@ -227,7 +227,7 @@ DEPLOYED_VERSION = $(shell \
 check-pypi:
 	if [ -z "$$DEPLOY_PROD" ]; then \
 	  echo "ERROR: DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
-	if [ "$(DEPLOYED_VERSION)" == "$(HAIL_PIP_VERSION)" ]; then \
+	if [ "$(DEPLOYED_VERSION)" = "$(HAIL_PIP_VERSION)" ]; then \
 	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
@@ -307,7 +307,7 @@ docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
@@ -338,7 +338,7 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt

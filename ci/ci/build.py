@@ -826,7 +826,7 @@ CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
 GRANT ALL ON \\`{self._name}\\`.* TO '{self.admin_username}'@'%';
 
 CREATE USER '{self.user_username}'@'%' IDENTIFIED BY '$USER_PASSWORD';
-GRANT SELECT, INSERT, UPDATE, DELETE ON \\`{self._name}\\`.* TO '{self.user_username}'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON \\`{self._name}\\`.* TO '{self.user_username}'@'%';
 EOF
 
 echo create database, admin and user...
