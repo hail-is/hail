@@ -138,6 +138,26 @@ BEGIN
   END IF;
 END $$
 
+CREATE PROCEDURE close_batch(
+  IN in_batch_id BIGINT
+)
+BEGIN
+  DECLARE cur_batch_closed BOOLEAN;
+
+  START TRANSACTION;
+
+  SELECT closed INTO cur_batch_closed FROM batches WHERE id = in_batch_id;
+  IF NOT cur_batch_closed THEN
+    UPDATE batch SET closed = 1 WHERE id = in_batch_id;
+    UPDATE ready_cores
+      SET ready_cores_mcpu = ready_cores_mcpu + (
+        SELECT SUM(cores_mcpu) FROM jobs
+	WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id);
+  END IF;
+  COMMIT;
+
+END $$
+
 CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id BIGINT,

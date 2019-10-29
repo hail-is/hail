@@ -294,7 +294,10 @@ class Batch:
 
     # called by front end
     async def close(self):
-        await self.db.batch.update_record(self.id, closed=True)
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.execute('CALL close_batch(%s);',
+                               (self.batch_id,))
         self.closed = True
         log.info(f'{self} closed')
 
