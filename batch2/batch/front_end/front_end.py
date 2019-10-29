@@ -8,7 +8,6 @@ import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
 import cerberus
-import kubernetes as kube
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
@@ -449,13 +448,6 @@ async def index(request, userdata):
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
-
-    if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-        kube.config.load_kube_config()
-    else:
-        kube.config.load_incluster_config()
-    v1 = kube.client.CoreV1Api()
-    app['k8s_client'] = v1
 
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')

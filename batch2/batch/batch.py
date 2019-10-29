@@ -144,7 +144,7 @@ class Job:
 
         # update instance
         instance_id = rv['instance_id']
-        instance = inst_pool.id_intance.get(instance_id)
+        instance = inst_pool.id_instance.get(instance_id)
         if instance:
             inst_pool.adjust_for_remove_instance(instance)
             instance.free_cores_mcpu -= self.cores_mcpu

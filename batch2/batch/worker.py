@@ -356,6 +356,14 @@ class Job:
 
         self.containers = containers
 
+    @property
+    def job_id(self):
+        return self.job_spec['job_id']
+
+    @property
+    def id(self):
+        return (self.batch_id, self.job_id)
+
     async def run(self, worker):
         io = None
         try:
@@ -457,7 +465,7 @@ class Job:
         return status
 
     def __str__(self):
-        return f'job ({self.batch_id}, {self.job_spec["job_id"]})'
+        return f'job {self.id}'
 
 
 class Worker:
@@ -477,20 +485,24 @@ class Worker:
         self.jobs = {}
 
     async def create_job_1(self, request):
-        body = await request.json()
-
-        batch_id = body['batch_id']
-        user = body['user']
-        job_spec = body['job_spec']
-        output_directory = body['output_directory']
-
-        job = Job(batch_id, user, job_spec, output_directory)
-        self.jobs[id] = job
+        job = None
         try:
+            body = await request.json()
+
+            batch_id = body['batch_id']
+            user = body['user']
+            job_spec = body['job_spec']
+            output_directory = body['output_directory']
+
+            job = Job(batch_id, user, job_spec, output_directory)
+            self.jobs[job.id] = job
             await job.run(self)
+        except Exception:
+            log.exception('while running {job}')
         finally:
             self.last_updated = time.time()
-            del self.jobs[id]
+            if job and job.id in self.jobs:
+                del self.jobs[job.id]
 
     async def create_job(self, request):
         asyncio.ensure_future(self.create_job_1(request))
@@ -579,7 +591,7 @@ class Worker:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
-                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
                     raise
                 log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
             # exponentially back off, up to (expected) max of 30s
