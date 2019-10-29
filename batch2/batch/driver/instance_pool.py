@@ -421,8 +421,7 @@ retry docker run \
                         row = await cursor.fetchone()
                         ready_cores_mcpu = row['ready_cores_mcpu']
 
-                log.info(f'n_instances {self.n_instances_by_state}'
-                         f' n_instances {self.n_instances}'
+                log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
                          f' live_free_cores {self.live_free_cores_mcpu / 1000}'
                          f' ready_cores {ready_cores_mcpu / 1000}')
 
