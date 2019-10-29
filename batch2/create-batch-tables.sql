@@ -262,8 +262,8 @@ BEGIN
         ON jobs.batch_id = `jobs-parents`.batch_id AND
 	   jobs.job_id = `jobs-parents`.job_id
       SET jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
-          jobs.cancel = IF(jobs.new_state = 'Success', jobs.cancel, 1)
+          jobs.state = IF(jobs.n_pending_parents = 0, 'Ready', 'Pending'),
+          jobs.cancel = IF(new_state = 'Success', jobs.cancel, 1)
       WHERE jobs.batch_id = in_batch_id AND
             `jobs-parents`.batch_id = in_batch_id AND
             `jobs-parents`.parent_id = in_job_id;
