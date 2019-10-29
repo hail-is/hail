@@ -150,7 +150,7 @@ async def job_complete_1(request):
     job_id = status['job_id']
     user = status['user']
 
-    job = Job.from_db(request.app['db'], batch_id, job_id, user)
+    job = await Job.from_db(request.app['db'], batch_id, job_id, user)
     if job is None:
         log.warning(f'job_complete from unknown job ({batch_id}, {job_id}), {instance}')
         return web.HTTPNotFound()
