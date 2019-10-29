@@ -64,20 +64,19 @@ def test_ndarray_ref():
 def test_ndarray_slice():
     np_arr = np.arange(24).reshape((2, 3, 4))
     arr = hl._ndarray(np_arr)
-    np_mat = np.array([[1, 2, 3, 4],
-                       [5, 6, 7, 8]])
+    np_mat = np.arange(8).reshape((2, 4))
     mat = hl._ndarray(np_mat)
 
     assert_ndarrays_eq(
         (arr[:, :, :], np_arr[:, :, :]),
         (arr[:, :, 1], np_arr[:, :, 1]),
         (arr[0:1, 1:3, 0:2], np_arr[0:1, 1:3, 0:2]),
-        # (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
-        # (arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2]),
-        # (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
-        # (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-        # (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-        # (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2])
+        (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
+        (arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2]),
+        (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
+        (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
+        (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
+        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2])
     )
 
 @skip_unless_spark_backend()

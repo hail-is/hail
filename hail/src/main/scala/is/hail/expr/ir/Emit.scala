@@ -2460,7 +2460,7 @@ private class Emit(
         }
 
         // TODO Consider step size
-        val outputShape = sliceVars.toArray.map{case (start, stop, step) => stop - start}
+        val outputShape = sliceVars.toArray.map{case (start, stop, step) => (const(1L) + ((stop - start) - const(1L)) / step)}
 
         val setup = Code(
           slicest.setup,
@@ -2479,7 +2479,7 @@ private class Emit(
               } else {
                 val (start, _, step) = sliceIdxVarsIter.next()
                 val oldIdxVar = oldIdxVarsIter.next()
-                start + oldIdxVar
+                start + oldIdxVar * step
               }
             }
 
