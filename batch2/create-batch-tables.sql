@@ -236,10 +236,13 @@ BEGIN
 
   SELECT state, cores_mcpu, instance_id
   INTO cur_job_state, cur_cores_mcpu, cur_job_instance_id
-  FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
-    UPDATE jobs SET state = new_state, status = new_status, instance_id = NULL;
+    UPDATE jobs
+    SET state = new_state, status = new_status, instance_id = NULL
+    WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batch SET n_completed = n_completed + 1 WHERE id = in_batch_id;
     IF new_state = 'Cancelled' THEN
@@ -251,7 +254,9 @@ BEGIN
     END IF;
 
     IF cur_job_instance_id IS NOT NULL THEN
-      UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
+      UPDATE instances
+      SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
+      WHERE id = cur_job_instance_id;
     END IF;
 
     IF cur_job_state = 'Ready' THEN

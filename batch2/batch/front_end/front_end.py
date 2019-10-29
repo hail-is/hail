@@ -171,6 +171,8 @@ async def _get_job_log(app, batch_id, job_id, user):
     record = await execute_and_fetchone(db.pool, '''
 SELECT jobs.state, ip_address, directory
 FROM jobs
+LEFT JOIN batch
+  ON job.batch_id = batch.id
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE batch_id = %s AND job_id = %s AND user = %s;
@@ -216,6 +218,8 @@ async def _get_job_status(app, batch_id, job_id, user):
     record = await execute_and_fetchone(db.pool, '''
 SELECT jobs.state, ip_address, directory
 FROM jobs
+LEFT JOIN batch
+  ON job.batch_id = batch.id
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE batch_id = %s AND job_id = %s AND user = %s;
