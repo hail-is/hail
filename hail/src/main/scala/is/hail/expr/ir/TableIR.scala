@@ -454,20 +454,25 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
-case class TableHead(child: TableIR, n: Long) extends TableIR {
-  require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
+object TableSubset {
+  val HEAD: Int = 0
+  val TAIL: Int = 1
+}
+
+trait TableSubset extends TableIR {
+  val subsetKind: Int
+  val child: TableIR
+  val n: Long
 
   def typ: TableType = child.typ
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): TableHead = {
-    val IndexedSeq(newChild: TableIR) = newChildren
-    TableHead(newChild, n)
-  }
-
   override def partitionCounts: Option[IndexedSeq[Long]] =
-    child.partitionCounts.map(getHeadPartitionCounts(_, n))
+    child.partitionCounts.map(subsetKind match {
+      case TableSubset.HEAD => PartitionCounts.getHeadPCs(_, n)
+      case TableSubset.TAIL => PartitionCounts.getTailPCs(_, n)
+    })
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound match {
     case Some(c) => Some(c.min(n))
@@ -476,7 +481,30 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    prev.copy(rvd = prev.rvd.head(n, child.partitionCounts))
+    prev.copy(rvd = subsetKind match {
+      case TableSubset.HEAD => prev.rvd.head(n, child.partitionCounts)
+      case TableSubset.TAIL => prev.rvd.tail(n, child.partitionCounts)
+    })
+  }
+}
+
+case class TableHead(child: TableIR, n: Long) extends TableSubset {
+  require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
+  val subsetKind = TableSubset.HEAD
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableHead = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableHead(newChild, n)
+  }
+}
+
+case class TableTail(child: TableIR, n: Long) extends TableSubset {
+  require(n >= 0, fatal(s"TableTail: n must be non-negative! Found '$n'."))
+  val subsetKind = TableSubset.TAIL
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableTail = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableTail(newChild, n)
   }
 }
 

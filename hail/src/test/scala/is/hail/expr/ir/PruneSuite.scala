@@ -703,7 +703,13 @@ class PruneSuite extends HailSuite {
       TableHead(tab, 10L),
       subsetTable(tab.typ.copy(key = FastIndexedSeq()), "global.g1"),
       Array(subsetTable(tab.typ, "row.3", "global.g1")))
+  }
 
+  @Test def testTableTailMemo() {
+    checkMemo(
+      TableTail(tab, 10L),
+      subsetTable(tab.typ.copy(key = FastIndexedSeq()), "global.g1"),
+      Array(subsetTable(tab.typ, "row.3", "global.g1")))
   }
 
   @Test def testTableToValueApplyMemo() {

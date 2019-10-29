@@ -2094,6 +2094,37 @@ class Table(ExprContainer):
 
         return Table(TableHead(self._tir, n))
 
+    @typecheck_method(n=int)
+    def tail(self, n) -> 'Table':
+        """Subset table to last `n` rows.
+
+        Examples
+        --------
+        Subset to the last three rows:
+
+        >>> table_result = table1.tail(3)
+        >>> table_result.count()
+        3
+
+        Notes
+        -----
+
+        The number of partitions in the new table is equal to the number of
+        partitions containing the last `n` rows.
+
+        Parameters
+        ----------
+        n : int
+            Number of rows to include.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table including the last `n` rows.
+        """
+
+        return Table(TableTail(self._tir, n))
+
     @typecheck_method(p=numeric,
                       seed=nullable(int))
     def sample(self, p, seed=None) -> 'Table':
