@@ -92,7 +92,7 @@ class InstancePool:
             async with conn.cursor() as cursor:
                 await cursor.execute('DELETE FROM instances WHERE id = %s;', (instance.id,))
 
-        self.adjust_for_remove_instance(self, instance)
+        self.adjust_for_remove_instance(instance)
 
         del self.token_inst[instance.token]
         del self.id_instance[instance.id]

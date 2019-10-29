@@ -61,6 +61,7 @@ async def cancel_batch(request):
     batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
+    request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
     return web.Response()
 
@@ -72,6 +73,7 @@ async def delete_batch(request):
     batch = await Batch.from_db(request.app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
+    request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
     return web.Response()
 
@@ -155,7 +157,16 @@ async def job_complete_1(request):
         log.warning(f'job_complete from unknown job ({batch_id}, {job_id}), {instance}')
         return web.HTTPNotFound()
     log.info(f'job_complete from {job}, instance {inst_token}')
-    await job.mark_complete(app['scheduler_state_changed'], inst_pool, status)
+
+    status_state = status['state']
+    if status_state == 'succeeded':
+        new_state = 'Success'
+    elif status_state == 'error':
+        new_state = 'Error'
+    else:
+        assert status_state == 'failed', status_state
+        new_state = 'Failed'
+    await job.mark_complete(app['scheduler_state_changed'], inst_pool, new_state, status)
     return web.Response()
 
 
@@ -193,11 +204,14 @@ async def on_startup(app):
     scheduler_state_changed = asyncio.Event()
     app['scheduler_state_changed'] = scheduler_state_changed
 
+    cancel_state_changed = asyncio.Event()
+    app['cancel_state_changed'] = cancel_state_changed
+
     inst_pool = InstancePool(scheduler_state_changed, db, gservices, k8s, bucket_name, machine_name_prefix)
     await inst_pool.async_init()
     app['inst_pool'] = inst_pool
 
-    scheduler = Scheduler(scheduler_state_changed, db, inst_pool)
+    scheduler = Scheduler(scheduler_state_changed, cancel_state_changed, db, inst_pool)
     await scheduler.async_init()
     app['scheduler'] = scheduler
 

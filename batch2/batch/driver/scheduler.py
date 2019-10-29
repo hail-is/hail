@@ -1,59 +1,137 @@
 import asyncio
 import logging
+import aiohttp
+from hailtop.utils import request_retry_transient_errors
+
+from ..database import check_call_procedure
+from ..batch import Job
 
 log = logging.getLogger('driver')
 
 
 class Scheduler:
-    def __init__(self, changed, db, inst_pool):
-        self.changed = changed
+    def __init__(self, scheduler_state_changed, cancel_state_changed, db, inst_pool):
+        self.scheduler_state_changed = scheduler_state_changed
+        self.cancel_state_changed = cancel_state_changed
         self.db = db
         self.inst_pool = inst_pool
 
     async def async_init(self):
-        asyncio.ensure_future(self.schedule())
+        asyncio.ensure_future(self.loop('schedule_loop', self.scheduler_state_changed, self.schedule_1))
+        asyncio.ensure_future(self.loop('cancel_loop', self.cancel_state_changed, self.cancel_1))
+        asyncio.ensure_future(self.bump_loop())
+
+    async def bump_loop(self):
+        while True:
+            self.scheduler_state_changed.set()
+            self.cancel_state_changed.set()
+            await asyncio.sleep(60)
+
+    async def loop(self, name, changed, body):
+        changed.clear()
+        while True:
+            should_wait = False
+            try:
+                should_wait = await body()
+            except Exception:
+                # FIXME back off?
+                log.exception(f'in {name}')
+            if should_wait:
+                await changed.wait()
+                changed.clear()
+
+    # FIXME move to InstancePool.unschedule_job?
+    async def unschedule_job(self, record):
+        batch_id = record['batch_id']
+        job_id = record['job_id']
+
+        instance_id = record['instance_id']
+        instance = self.inst_pool.id_instance.get(instance_id)
+        # FIXME what to do if instance missing?
+        if not instance:
+            return
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
+            try:
+                await request_retry_transient_errors(session, 'DELETE', url)
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    pass
+                raise
+
+        await check_call_procedure(
+            self.db.pool,
+            'CALL unschedule_job(%s, %s, %s);',
+            (batch_id, job_id, instance_id))
+
+        self.inst_pool.adjust_for_remove_instance(instance)
+        instance.free_cores_mcpu -= record['cores_mcpu']
+        self.inst_pool.adjust_for_add_instance(instance)
+
+    async def cancel_1(self):
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                # FIXME could be an expensive query
+                sql = '''
+SELECT job_id, batch_id, instance_id
+FROM jobs
+INNER JOIN batch ON batch.id = jobs.batch_id
+WHERE jobs.state = 'Running' AND NOT jobs.run_always AND batch.cancelled
+LIMIT 50;
+'''
+                await cursor.execute(sql)
+                records = await cursor.fetchall()
+
+        log.info(f'{len(records)} records to cancel')
+
+        for record in records:
+            await self.unschedule_job(record)
+
+        should_wait = len(records) == 0
+        return should_wait
 
     async def schedule_1(self):
-        self.changed.clear()
-        should_wait = False
-        while True:
-            if should_wait:
-                log.info('waiting for scheduler state to change')
-                await self.changed.wait()
-                self.changed.clear()
-
-            # FIXME kill running cancelled
-
-            should_wait = True
-            async with self.db.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    sql = '''
-SELECT job_id, batch_id, spec, cores_mcpu, directory, user
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                sql = '''
+SELECT job_id, batch_id, directory, spec, cores_mcpu,
+  always_run,
+  (cancel OR batch.cancelled) as cancel,
+  batch.user as user
 FROM jobs
 INNER JOIN batch ON batch.id = jobs.batch_id
 WHERE jobs.state = 'Ready'
 LIMIT 50;
 '''
-                    await cursor.execute(sql)
-                    records = await cursor.fetchall()
+                await cursor.execute(sql)
+                records = await cursor.fetchall()
 
-            log.info(f'{len(records)} records ready')
+        log.info(f'{len(records)} records ready')
 
-            for record in records:
-                # FIXME cancel directly jobs that can be cancelled
-                i = self.inst_pool.active_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
-                if i < len(self.inst_pool.active_instances_by_free_cores):
-                    instance = self.inst_pool.active_instances_by_free_cores[i]
-                    assert record['cores_mcpu'] <= instance.free_cores_mcpu
-                    log.info(f'scheduling ({record["batch_id"]}, {record["job_id"]}) on {instance}')
-                    await self.inst_pool.schedule_job(record, instance)
-                    should_wait = False
+        should_wait = True
+        for record in records:
+            batch_id = record['batch_id']
+            job_id = record['job_id']
+            id = (batch_id, job_id)
 
-    async def schedule(self):
-        log.info('scheduler started')
+            log.info(f'scheduling job {id}')
 
-        while True:
-            try:
-                await self.schedule_1()
-            except Exception:
-                log.exception('while scheduling')
+            if record['cancel'] and not record['always_run']:
+                log.info(f'cancelling job {id}')
+                # FIXME don't create job object
+                job = Job.from_db(self.db, batch_id, job_id, record['user'])
+                await job.mark_complete(self.scheduler_state_changed, self.inst_pool, 'Cancelled', None)
+                should_wait = False
+                continue
+
+            i = self.inst_pool.active_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
+            if i < len(self.inst_pool.active_instances_by_free_cores):
+                instance = self.inst_pool.active_instances_by_free_cores[i]
+                assert record['cores_mcpu'] <= instance.free_cores_mcpu
+                log.info(f'scheduling job {id} on {instance}')
+                await self.inst_pool.schedule_job(record, instance)
+                should_wait = False
+
+        return should_wait

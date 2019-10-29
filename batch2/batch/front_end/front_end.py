@@ -66,6 +66,7 @@ BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75
 def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
     job_id = job_spec['job_id']
     parent_ids = job_spec.pop('parent_ids', [])
+    always_run = job_spec.pop('always_run', False)
 
     resources = job_spec.get('resources')
     if not resources:
@@ -97,6 +98,7 @@ def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disa
         state=state,
         directory=directory,
         spec=json.dumps(job_spec),
+        always_run=always_run,
         cores_mcpu=parse_cpu_in_mcpu(resources['cpu']),
         instance_id=None,
         status=None,

@@ -73,7 +73,7 @@ class Job:
                    userdata=userdata, user=record['user'],
                    instance_id=record['instance_id'], status=status, state=record['state'],
                    cancelled=record['cancelled'], directory=record['directory'],
-                   spec=spec, cores_mcpu=record['cores_mcpu'])
+                   spec=spec, always_run=record['always_run'], cores_mcpu=record['cores_mcpu'])
 
     @staticmethod
     async def from_db(db, batch_id, job_id, user):
@@ -89,7 +89,7 @@ class Job:
         return jobs
 
     def __init__(self, db, batch_id, job_id, userdata, user,
-                 instance_id, status, state, cancelled, directory, spec, cores_mcpu):
+                 instance_id, status, state, cancelled, directory, spec, always_run, cores_mcpu):
         self.db = db
         self.batch_id = batch_id
         self.job_id = job_id
@@ -104,6 +104,7 @@ class Job:
         self._state = state
         self._cancelled = cancelled
         self._spec = spec
+        self.always_run = always_run
         self.cores_mcpu = cores_mcpu
 
     @property
@@ -127,20 +128,12 @@ class Job:
         return self._spec.get('pvc_size')
 
     # FIXME move
-    async def mark_complete(self, scheduler_state_changed, inst_pool, status):
-        status_state = status['state']
-        if status_state == 'succeeded':
-            new_state = 'Success'
-        elif status_state == 'error':
-            new_state = 'Error'
-        else:
-            assert status_state == 'failed', status_state
-            new_state = 'Failed'
-
+    async def mark_complete(self, scheduler_state_changed, inst_pool, new_state, status):
         rv = await check_call_procedure(
             self.db.pool,
             'CALL mark_job_complete(%s, %s, %s, %s);',
-            (self.batch_id, self.job_id, new_state, json.dumps(status)))
+            (self.batch_id, self.job_id, new_state,
+             json.dumps(status) if status is not None else None))
 
         # update instance
         instance_id = rv['instance_id']

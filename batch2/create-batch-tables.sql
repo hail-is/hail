@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `state` VARCHAR(40) NOT NULL,
   `directory` VARCHAR(1024),
   `spec` VARCHAR(65535) NOT NULL,
+  `always_run` BOOLEAN NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `instance_id` BIGINT,
   `status` VARCHAR(65535),
@@ -193,7 +194,8 @@ END $$
 
 CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
-  IN in_job_id BIGINT
+  IN in_job_id BIGINT,
+  IN expected_instance_id BIGINT
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -206,15 +208,16 @@ BEGIN
   INTO cur_job_state, cur_cores_mcpu, cur_job_instance_id
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-  IF cur_job_state = 'Running' THEN
+  IF cur_job_state = 'Running' AND cur_job_instance_id = expected_instance_id THEN
     UPDATE jobs SET state = 'Ready', instance_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
     COMMIT;
-    SELECT 0 as rc, cur_job_instance_id;
+    SELECT 0 as rc;
   ELSE
     ROLLBACK;
-    SELECT 1 as rc, cur_job_state, 'job state not Running' as message;
+    SELECT 1 as rc, cur_job_state, cur_job_instance_id, expected_instance_id,
+      'job state not Running or wrong instance' as message;
   END IF;
 END $$
 
