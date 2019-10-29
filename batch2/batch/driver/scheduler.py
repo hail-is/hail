@@ -78,7 +78,7 @@ class Scheduler:
 SELECT job_id, batch_id, instance_id
 FROM jobs
 INNER JOIN batch ON batch.id = jobs.batch_id
-WHERE jobs.state = 'Running' AND NOT jobs.run_always AND batch.cancelled
+WHERE jobs.state = 'Running' AND NOT jobs.always_run AND batch.cancelled
 LIMIT 50;
 '''
                 await cursor.execute(sql)
