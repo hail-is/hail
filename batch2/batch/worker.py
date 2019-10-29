@@ -530,16 +530,15 @@ class Worker:
         batch_id = request.match_info['batch_id']
         job_id = request.match_info['job_id']
         id = (batch_id, job_id)
-        job = self.jobs.get(id)
+        job = self.jobs.pop(id, None)
         if not job:
             raise web.HTTPNotFound()
-        del self.jobs[id]
         # FIXME await or ensure_future?
         await job.delete()
         return web.Response()
 
     async def delete_job(self, request):
-        return await asyncio.shield(self.delete_pod_1(request))
+        return await asyncio.shield(self.delete_job_1(request))
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
         return web.Response()
