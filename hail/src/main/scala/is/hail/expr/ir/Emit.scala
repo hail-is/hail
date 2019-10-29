@@ -2470,7 +2470,20 @@ private class Emit(
 
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            const(4)
+            val oldIdxVarsIter = idxVars.iterator
+            val sliceIdxVarsIter = sliceVars.iterator
+
+            val sliceIdxVars = Array.tabulate(childEmitter.nDims) { dim =>
+              if (refVars.contains(dim)) {
+                refVars(dim)
+              } else {
+                val (start, _, step) = sliceIdxVarsIter.next()
+                val oldIdxVar = oldIdxVarsIter.next()
+                start + oldIdxVar
+              }
+            }
+
+            childEmitter.outputElement(sliceIdxVars)
           }
         }
 
