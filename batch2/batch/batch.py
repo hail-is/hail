@@ -130,12 +130,13 @@ class Job:
             'CALL mark_job_complete(%s, %s, %s, %s);',
             (self.batch_id, self.job_id, new_state,
              json.dumps(status) if status is not None else None))
+        log.info(f'mark_job_complete returned {rv}')
 
         # update instance
         instance_id = rv['instance_id']
         instance = inst_pool.id_instance.get(instance_id)
 
-        log.info(f'updating instance: instance_id {instance_id} {instance}')
+        log.info(f'updating instance: {instance}, self.instance_id {self.instance_id}')
         # FIXME what to do if instance is missing?
         if instance:
             inst_pool.adjust_for_remove_instance(instance)

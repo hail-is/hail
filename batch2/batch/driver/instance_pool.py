@@ -137,6 +137,10 @@ class InstancePool:
     async def schedule_job(self, record, instance):
         assert instance.state == 'active'
 
+        batch_id = record['batch_id']
+        job_id = record['job_id']
+        id = (batch_id, job_id)
+
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create'
@@ -144,20 +148,28 @@ class InstancePool:
                 session, 'POST',
                 url, json=await self.job_config(record))
 
-        log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: called create job')
+        log.info(f'schedule job {id} on {instance}: called create job')
 
-        await check_call_procedure(
+        rv = await check_call_procedure(
             self.db.pool,
             'CALL schedule_job(%s, %s, %s);',
-            (record['batch_id'], record['job_id'], instance.id))
+            (batch_id, job_id, instance.id))
 
-        log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: updated database')
+        log.info(f'schedule job {id} on {instance}: updated database')
 
         self.adjust_for_remove_instance(instance)
         instance.free_cores_mcpu -= record['cores_mcpu']
         self.adjust_for_add_instance(instance)
 
-        log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: adjusted instance pool')
+        log.info(f'schedule job {id} on {instance}: adjusted instance pool')
+
+        # FIXME debugging
+        async with self.db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute('SELECT * FROM jobs WHERE batch_id = %s AND jobs_id = %s',
+                                     (batch_id, job_id))
+                row = cursor.fetchone()
+                log.info(f'updated job row {row}')
 
     async def create_instance(self):
         while True:
