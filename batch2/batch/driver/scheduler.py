@@ -121,7 +121,7 @@ LIMIT 50;
             if record['cancel'] and not record['always_run']:
                 log.info(f'cancelling job {id}')
                 # FIXME don't create job object
-                job = Job.from_db(self.db, batch_id, job_id, record['user'])
+                job = await Job.from_db(self.db, batch_id, job_id, record['user'])
                 await job.mark_complete(self.scheduler_state_changed, self.inst_pool, 'Cancelled', None)
                 should_wait = False
                 continue
