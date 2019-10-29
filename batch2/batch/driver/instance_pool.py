@@ -110,7 +110,7 @@ class InstancePool:
         self.token_inst[instance.token] = instance
         self.id_instance[instance.id] = instance
 
-        self.adjust_for_add_instance(self, instance)
+        self.adjust_for_add_instance(instance)
 
     async def job_config(self, record):
         job_spec = json.loads(record['spec'])
