@@ -60,7 +60,8 @@ class Scheduler:
             except aiohttp.ClientResponseError as e:
                 if e.status == 404:
                     pass
-                raise
+                else:
+                    raise
 
         await check_call_procedure(
             self.db.pool,
