@@ -250,17 +250,23 @@ BEGIN
     END IF;
     UPDATE ready_cores
       SET ready_cores_mcpu = ready_cores_mcpu + (
-        SELECT SUM(cores_mcpu) FROM jobs
-	WHERE `jobs-parents`.batch_id = in_batch_id AND
-	      `job-parents`.parent_id = in_job_id);
-    UPDATE jobs SET n_pending_parents = n_pending_parents - 1,
-                    state = IF(n_pending_parents = 1, 'Ready', 'Pending'),
-                    cancel = IF(new_state = 'Success', cancel, 1)
+        SELECT SUM(jobs.cores_mcpu) FROM jobs
+	INNER JOIN `jobs-parents`
+	  ON jobs.batch_id = `jobs-parents`.batch_id AND
+	     jobs.job_id = `jobs-parents`.job_id
+	WHERE jobs.batch_id = in_batch_id AND
+	      `jobs-parents`.batch_id = in_batch_id AND
+	      `jobs-parents`.parent_id = in_job_id);
+    UPDATE jobs
+      INNER JOIN `jobs-parents`
+        ON jobs.batch_id = `jobs-parents`.batch_id AND
+	   jobs.job_id = `jobs-parents`.job_id
+      SET jobs.n_pending_parents = jobs.n_pending_parents - 1,
+          jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
+          jobs.cancel = IF(jobs.new_state = 'Success', jobs.cancel, 1)
       WHERE jobs.batch_id = in_batch_id AND
-        EXISTS (SELECT * FROM `jobs-parents`
-                WHERE `jobs-parents`.batch_id = in_batch_id AND
-                  `jobs-parents`.job_id = jobs.job_id AND
-                  `job-parents`.parent_id = in_job_id);
+            `jobs-parents`.batch_id = in_batch_id AND
+            `jobs-parents`.parent_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     
     IF cur_job_instance_id IS NOT NULL THEN
