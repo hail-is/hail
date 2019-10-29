@@ -3,9 +3,9 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `state` VARCHAR(40) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `token` VARCHAR(100) NOT NULL,
-  `capacity_mcpu` INT NOT NULL,
+  `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
-  `ip_address` VARCHAR(100) NOT NULL,
+  `ip_address` VARCHAR(100),
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 
