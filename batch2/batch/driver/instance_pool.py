@@ -69,7 +69,6 @@ class InstancePool:
 
         async for record in execute_and_fetchall(
                 self.db.pool, 'SELECT * FROM instances;'):
-            log.info(f'restoring instance {record}')
             instance = Instance.from_record(record)
             self.add_instance(instance)
 
