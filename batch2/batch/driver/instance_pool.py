@@ -179,7 +179,7 @@ class InstancePool:
 INSERT INTO instances (state, name, token, cores_mcpu, free_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s);
 ''',
-            state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU)
+            (state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU))
         instance = Instance(id, state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU, None)
 
         self.add_instance(instance)
