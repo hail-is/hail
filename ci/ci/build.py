@@ -681,7 +681,7 @@ set -e
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
                     port = w.get('port', 80)
-                    resource_type = w.get('resource_type', 'deployment')
+                    resource_type = w.get('resource_type', 'deployment').lower()
                     timeout = w.get('timeout', 60)
                     if resource_type == 'statefulset':
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
