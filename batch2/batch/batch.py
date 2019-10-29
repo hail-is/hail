@@ -134,9 +134,12 @@ class Job:
         # update instance
         instance_id = rv['instance_id']
         instance = inst_pool.id_instance.get(instance_id)
+
+        log.info(f'updating instance: instance_id {instance_id} {instance}')
+        # FIXME what to do if instance is missing?
         if instance:
             inst_pool.adjust_for_remove_instance(instance)
-            instance.free_cores_mcpu -= self.cores_mcpu
+            instance.free_cores_mcpu += self.cores_mcpu
             inst_pool.adjust_for_add_instance(instance)
 
         scheduler_state_changed.set()
