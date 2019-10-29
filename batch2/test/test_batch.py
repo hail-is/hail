@@ -49,7 +49,6 @@ class Test(unittest.TestCase):
         self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
-        j.pod_status()
 
         self.assertTrue(j.is_complete())
 
@@ -96,8 +95,6 @@ class Test(unittest.TestCase):
             j.is_complete()
         with self.assertRaises(ValueError):
             j.log()
-        with self.assertRaises(ValueError):
-            j.pod_status()
         with self.assertRaises(ValueError):
             j.wait()
 
@@ -299,7 +296,6 @@ class Test(unittest.TestCase):
         endpoints = [
             (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status', 401),
             (requests.get, '/api/v1alpha/batches', 401),
             (requests.post, '/api/v1alpha/batches/create', 401),
             (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),

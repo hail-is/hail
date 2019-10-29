@@ -28,7 +28,6 @@ from ..utils import parse_cpu_in_mcpu
 from ..batch import Batch, Job
 from ..log_store import LogStore
 from ..database import BatchDatabase, JobsBuilder
-from ..datetime_json import JSON_ENCODER
 from ..batch_configuration import INSTANCE_ID
 
 from . import schemas
@@ -40,7 +39,6 @@ log = logging.getLogger('batch.front_end')
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
-REQUEST_TIME_GET_JOB_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/status', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
 REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
@@ -135,11 +133,8 @@ async def get_job(request, userdata):
 async def _get_job_log_from_record(app, batch_id, job_id, record):
     state = record['state']
 
-    if state == 'Running':
-        ip_address = record['ip_address']
-        if not ip_address:
-            return None
-
+    ip_address = record['ip_address']
+    if state == 'Running' and ip_address is not None:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
@@ -171,63 +166,18 @@ async def _get_job_log(app, batch_id, job_id, user):
     record = await execute_and_fetchone(db.pool, '''
 SELECT jobs.state, ip_address, directory
 FROM jobs
-LEFT JOIN batch
+INNER JOIN batch
   ON jobs.batch_id = batch.id
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE batch_id = %s AND job_id = %s AND user = %s;
 ''',
                                         (batch_id, job_id, user))
+    if not record:
+        raise web.HTTPNotFound()
     log = await _get_job_log_from_record(app, batch_id, job_id, record)
     if log:
         return log
-    raise web.HTTPNotFound()
-
-
-async def _get_job_status_from_record(app, batch_id, job_id, record):
-    state = record['state']
-
-    if state == 'Running':
-        ip_address = record['ip_address']
-        if not ip_address:
-            return None
-
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            try:
-                url = (f'http://{ip_address}:5000'
-                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
-                resp = await request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    return None
-                raise
-
-    if state in ('Error', 'Failed', 'Success'):
-        directory = record['directory']
-        log_store = app['log_store']
-        return await log_store.read_gs_file(LogStore.job_status_path(directory))
-
-    return None
-
-
-async def _get_job_status(app, batch_id, job_id, user):
-    db = app['db']
-
-    record = await execute_and_fetchone(db.pool, '''
-SELECT jobs.state, ip_address, directory
-FROM jobs
-LEFT JOIN batch
-  ON jobs.batch_id = batch.id
-LEFT JOIN instances
-  ON jobs.instance_id = instances.id
-WHERE batch_id = %s AND job_id = %s AND user = %s;
-''',
-                                        (batch_id, job_id, user))
-    status = await _get_job_status_from_record(app, batch_id, job_id, record)
-    if status:
-        return JSON_ENCODER.encode(status)
     raise web.HTTPNotFound()
 
 
@@ -240,17 +190,6 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     user = userdata['username']
     job_log = await _get_job_log(request.app, batch_id, job_id, user)
     return web.json_response(job_log)
-
-
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
-@prom_async_time(REQUEST_TIME_GET_JOB_STATUS)
-@rest_authenticated_users_only
-async def get_job_status(request, userdata):  # pylint: disable=R1710
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-    status = await _get_job_status(request.app, batch_id, job_id, user)
-    return web.json_response(status)
 
 
 async def _get_batches_list(app, params, user):
@@ -502,11 +441,23 @@ async def ui_get_job_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
+
+    record = await execute_and_fetchone('''
+SELECT status
+FROM jobs
+INNER JOIN batch
+  ON jobs.batch_id = batch.id
+WHERE batch_id = %s AND job_id = %s AND user = %s
+''',
+                                        (batch_id, job_id, user))
+    if not record:
+        raise web.HTTPNotFound()
+    status = record['status']
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_status': json.dumps(
-            json.loads(await _get_job_status(request.app, batch_id, job_id, user)), indent=2)
+            json.loads(status), indent=2)
     }
     return await render_template('batch2', request, userdata, 'job_status.html', page_context)
 

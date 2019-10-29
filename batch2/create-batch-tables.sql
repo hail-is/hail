@@ -106,8 +106,19 @@ BEGIN
   SELECT state INTO cur_state FROM instances WHERE id = in_instance_id;
 
   IF cur_state = 'pending' or cur_state = 'active' THEN
+    UPDATE ready_cores
+    SET ready_cores_mcpu = ready_cores_mcpu + (
+      SELECT SUM(cores_mcpu)
+      FROM jobs
+      WHERE instance_id = in_instance_id);
+
+    UPDATE jobs
+    SET state = 'Ready',
+        instance_id = NULL
+    WHERE instance_id = in_instance_id;
+
     UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE id = in_instance_id;
-    UPDATE jobs SET instance_id = NULL where instance_id = in_instance_id;
+
     COMMIT;
     SELECT 0 as rc;
   ELSE
