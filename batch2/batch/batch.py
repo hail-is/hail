@@ -120,10 +120,6 @@ class Job:
         return self._spec.get('output_files')
 
     @property
-    def always_run(self):
-        return self._spec.get('always_run', False)
-
-    @property
     def pvc_size(self):
         return self._spec.get('pvc_size')
 
