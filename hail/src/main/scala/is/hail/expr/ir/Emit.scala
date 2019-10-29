@@ -1597,6 +1597,88 @@ private class Emit(
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
 
+      case NDArrayMatMul(lChild, rChild) =>
+        val lT = emit(lChild)
+        val rT = emit(rChild)
+
+        val lPType = coerce[PNDArray](lChild.pType)
+        val rPType = coerce[PNDArray](rChild.pType)
+
+        val leftND = mb.newField[Long]
+        val rightND = mb.newField[Long]
+
+        val leftShape = lPType.shape.load(region, leftND)
+        val rightShape = rPType.shape.load(region, rightND)
+
+        val lShapeTuple = new CodePTuple(lPType.shape.pType, region, leftShape)
+        val rShapeTuple = new CodePTuple(rPType.shape.pType, region, rightShape)
+
+        val (leftShapeArraySetup, leftShapeArray) = (0 until lPType.nDims).map(i => coerce[Long](lShapeTuple(i))).toArray.cacheEntries(mb, LongInfo)
+        val (rightShapeArraySetup, rightShapeArray) = (0 until rPType.nDims).map(i => coerce[Long](rShapeTuple(i))).toArray.cacheEntries(mb, LongInfo)
+
+        val (unifyShapeSetup, unifiedShapeArray) = NDArrayEmitter.matmulShape(leftShapeArray, rightShapeArray)
+
+        val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(leftShapeArray) else Array[Code[Long]]()
+        val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rightShapeArray) else Array[Code[Long]]()
+
+        val setup = Code(
+          lT.setup,
+          rT.setup,
+          leftND := lT.value[Long],
+          rightND := rT.value[Long],
+          leftShapeArraySetup,
+          rightShapeArraySetup,
+          unifyShapeSetup
+        )
+
+        val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
+
+        val numericElementType = coerce[PNumeric](lPType.elementType)
+
+        val eVti = typeToTypeInfo(numericElementType.virtualType)
+
+        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, setup) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val element = coerce[Any](mb.newField("matmul_element")(eVti))
+            val k = mb.newField[Long]
+
+            val (lIndices: Array[Code[Long]], rIndices: Array[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars.toSeq) match {
+              case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
+              case (1, _, stack :+ m) =>
+                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
+                (Array(k.load()), rStackVars :+ k.load() :+ m)
+              case (_, 1, stack :+ n) =>
+                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                (lStackVars :+ n :+ k.load(), Array(k.load()))
+              case (_, _, stack :+ n :+ m) => {
+                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
+                (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
+              }
+            }
+
+            val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
+            val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
+            val kLen = mb.newField[Long]
+
+            val innerMethod = mb.fb.newMethod(eVti)
+
+            val loopCode = Code(
+              k := 0L,
+              kLen := leftShapeArray(lPType.nDims - 1),
+              element := numericElementType.zero,
+              Code.whileLoop(k < kLen,
+                  element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
+                  k := k + 1L
+              ),
+              element
+            )
+            innerMethod.emit(loopCode)
+            innerMethod.invoke()
+          }
+        }
+        emitter.emit(outputPType)
+
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
@@ -2374,6 +2456,16 @@ object NDArrayEmitter {
     Array.tabulate(nDims)(dim => (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim))
   }
 
+  def broadcastMask(shapeArray: Array[Code[Long]]): Array[Code[Long]] = {
+    val broadcasted = 0L
+    val notBroadcasted = 1L
+    shapeArray.map(shapeElement => (shapeElement > 1L).mux(notBroadcasted, broadcasted))
+  }
+
+  def zeroBroadcastedDims(indices: Array[Code[Long]], broadcastMask: Array[Code[Long]]): Array[Code[Long]] = {
+    indices.zip(broadcastMask).map { case (index, flag) => index * flag }
+  }
+
   def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
     leftShape.zip(rightShape).map{case (left, right) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
@@ -2384,6 +2476,28 @@ object NDArrayEmitter {
         )
       ))
     }
+  }
+
+  def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
+    val ((lK, rK), shape) = (leftShape.toSeq, rightShape.toSeq) match {
+      case (Seq(l), Seq(r)) =>
+        ((l, r), Array[Code[Long]]())
+      case (Seq(l), rs :+ r2 :+ r1) =>
+        ((l, r2), (rs :+ r1).toArray)
+      case (ls :+ l2 :+ l1, Seq(r)) =>
+        ((l1, r), (ls :+ l1).toArray)
+      case (
+        ls :+ l2 :+ l1,
+        rs :+ r2 :+ r1
+        ) => ((l1, r2), unifyShapes2(ls.toArray, rs.toArray) :+ l2 :+ r1)
+      case (l, r) =>
+        fatal(s"Matrix multiply compiler bug: $l $r")
+    }
+
+    val dimCheck = (lK cne rK).orEmpty(
+      Code._fatal(const("Matrix dimensions incompatible: ").concat(lK.toS).concat(" ").concat(rK.toS)))
+
+    (dimCheck, shape)
   }
 }
 

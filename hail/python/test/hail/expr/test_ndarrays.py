@@ -380,32 +380,30 @@ def test_ndarray_transpose():
     assert "Axes cannot contain duplicates" in str(exc.value)
 
 @skip_unless_spark_backend()
-@run_with_cxx_compile()
 def test_ndarray_matmul():
     np_v = np.array([1, 2])
     np_m = np.array([[1, 2], [3, 4]])
-    np_cube = np.array([[[1, 2],
-                         [3, 4]],
-                        [[5, 6],
-                         [7, 8]]])
-    np_rect_prism = np.array([[[1, 2],
-                               [3, 4]],
-                              [[5, 6],
-                               [7, 8]],
-                              [[9, 10],
-                               [11, 12]]])
+    np_r = np.array([[1, 2, 3], [4, 5, 6]])
+    np_cube = np.arange(8).reshape((2, 2, 2))
+    np_rect_prism = np.arange(12).reshape((3, 2, 2))
+    np_broadcasted_mat = np.arange(4).reshape((1, 2, 2))
+    np_six_dim_tensor = np.arange(3 * 7 * 1 * 9 * 4 * 5).reshape((3, 7, 1, 9, 4, 5))
+    np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
+
     v = hl._ndarray(np_v)
     m = hl._ndarray(np_m)
+    r = hl._ndarray(np_r)
     cube = hl._ndarray(np_cube)
     rect_prism = hl._ndarray(np_rect_prism)
-    np_broadcasted_mat = np.array([[[1, 2],
-                                    [3, 4]]])
-
-    assert(hl.eval(v @ v) == np_v @ np_v)
+    broadcasted_mat = hl._ndarray(np_broadcasted_mat)
+    six_dim_tensor = hl._ndarray(np_six_dim_tensor)
+    five_dim_tensor = hl._ndarray(np_five_dim_tensor)
 
     assert_ndarrays_eq(
+        (v @ v, np_v @ np_v),
         (m @ m, np_m @ np_m),
         (m @ m.T, np_m @ np_m.T),
+        (r @ r.T, np_r @ np_r.T),
         (v @ m, np_v @ np_m),
         (m @ v, np_m @ np_v),
         (cube @ cube, np_cube @ np_cube),
@@ -416,7 +414,9 @@ def test_ndarray_matmul():
         (rect_prism @ m, np_rect_prism @ np_m),
         (m @ rect_prism, np_m @ np_rect_prism),
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
-        (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism))
+        (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
+        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
+    )
 
     with pytest.raises(ValueError):
         m @ 5
@@ -426,6 +426,14 @@ def test_ndarray_matmul():
 
     with pytest.raises(ValueError):
         cube @ hl._ndarray(5)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(r @ r)
+    assert "Matrix dimensions incompatible: 3 2" in str(exc)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl._ndarray([1, 2]) @ hl._ndarray([1, 2, 3]))
+    assert "Matrix dimensions incompatible" in str(exc)
 
 @skip_unless_spark_backend()
 def test_ndarray_big():
