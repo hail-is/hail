@@ -413,6 +413,11 @@ class PruneSuite extends HailSuite {
     val mmc = MatrixMapCols(mat, matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2"), Some(FastIndexedSeq()))
     checkMemo(mmc, subsetMatrixTable(mmc.typ, "va.r3", "sa.foo"),
       Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3", "NO_COL_KEY"), null))
+    val mmc2 = MatrixMapCols(mat, MakeStruct(FastSeq(
+      ("ck" -> GetField(Ref("sa", mat.typ.colType), "ck")),
+        ("foo",matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2")))), None)
+    checkMemo(mmc2, subsetMatrixTable(mmc2.typ, "va.r3", "sa.foo.foo"),
+      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
   }
 
   @Test def testMatrixMapRowsMemo() {
