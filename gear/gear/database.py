@@ -31,6 +31,7 @@ async def execute_and_fetchone(pool, sql, args=None):
 async def execute_and_fetchall(pool, query, args=None):
     async with pool.acquire() as conn:
         async with conn.cursor() as cursor:
+            await cursor.execute(sql, args)
             while True:
                 rows = await cursor.fetchmany(100)
                 if rows is None:
