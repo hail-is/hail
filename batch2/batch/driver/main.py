@@ -2,13 +2,11 @@ import os
 import asyncio
 import concurrent
 import logging
-
 from aiohttp import web
 import kubernetes as kube
 import google.oauth2.service_account
-
 from prometheus_async.aio.web import server_stats
-
+from gear import execute_and_fetchone
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 
@@ -45,36 +43,63 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
 async def close_batch(request):
+    db = request.app['db']
+
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app['db'], batch_id, user)
-    if not batch:
+
+    record = execute_and_fetchone(
+        db.pool, '''
+SELECT state FROM batch WHERE batch_id = %s AND user = %s;
+''',
+        (batch_id, user))
+    if not record:
         raise web.HTTPNotFound()
+
     request.app['scheduler_state_changed'].set()
+
     return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
 async def cancel_batch(request):
+    db = request.app['db']
+
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app['db'], batch_id, user)
-    if not batch:
+
+    record = execute_and_fetchone(
+        db.pool, '''
+SELECT state FROM batch WHERE batch_id = %s AND user = %s;
+''',
+        (batch_id, user))
+    if not record:
         raise web.HTTPNotFound()
+
     request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
+
     return web.Response()
 
 
 @routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
 async def delete_batch(request):
+    db = request.app['db']
+
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app['db'], batch_id, user)
-    if not batch:
+
+    record = execute_and_fetchone(
+        db.pool, '''
+SELECT state FROM batch WHERE batch_id = %s AND user = %s;
+''',
+        (batch_id, user))
+    if not record:
         raise web.HTTPNotFound()
+
     request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
+
     return web.Response()
 
 

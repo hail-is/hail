@@ -372,9 +372,15 @@ async def delete_batch(request, userdata):
     if batch.closed:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await request_retry_transient_errors(
-                session, 'DELETE',
-                deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
+            try:
+                await request_retry_transient_errors(
+                    session, 'DELETE',
+                    deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    pass
+                else:
+                    raise
     return web.Response()
 
 

@@ -4,6 +4,7 @@ import sortedcontainers
 import logging
 import aiohttp
 import googleapiclient.errors
+from gear import execute_and_fetchall, execute_insertone
 from hailtop.utils import request_retry_transient_errors
 
 from ..utils import new_token
@@ -66,8 +67,8 @@ class InstancePool:
     async def async_init(self):
         log.info('initializing instance pool')
 
-        # FIXME async generator
-        for record in await self.db.instances.get_all_records():
+        async for record in await execute_and_fetchall(
+                self.db.pool, 'SELECT * FROM instances;'):
             instance = Instance.from_record(record)
             self.add_instance(instance)
 
@@ -172,9 +173,13 @@ class InstancePool:
         machine_name = f'{self.machine_name_prefix}{inst_token}'
 
         state = 'pending'
-        id = await self.db.instances.new_record(
-            state=state, name=machine_name, token=inst_token,
-            cores_mcpu=WORKER_CORES_MCPU, free_cores_mcpu=WORKER_CORES_MCPU)
+        id = execute_insertone(
+            self.db.pool,
+            '''
+INSERT INTO instances (state, name, token, cores_mcpu, free_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s);
+''',
+            state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU)
         instance = Instance(id, state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU, None)
 
         self.add_instance(instance)
