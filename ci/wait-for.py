@@ -57,13 +57,13 @@ def internal_base_url(namespace, service, port):
     return f'http://{service}.{namespace}:{port}/{namespace}/{service}'
 
 
-async def wait_for_service_alive(namespace, name, port):
+async def wait_for_service_alive(namespace, name, port, endpoint):
     print('info: in wait_for_service_alive', file=sys.stderr)
     base_url = internal_base_url(namespace, name, port)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
-                async with session.get(f'{base_url}/healthcheck') as resp:
+                async with session.get(f'{base_url}{endpoint}') as resp:
                     if resp.status >= 200 and resp.status < 300:
                         print('info: success')
                         sys.exit(0)
@@ -90,6 +90,7 @@ async def main():
     service_parser = subparsers.add_parser('Service')
     service_parser.add_argument('name', type=str)
     service_parser.add_argument('--port', '-p', type=int, default=80)
+    parser.add_argument('--endpoint', type=str, default='/healthcheck')
 
     args = parser.parse_args()
 
@@ -103,7 +104,7 @@ async def main():
         t = wait_for_pod_complete(v1, args.namespace, args.name)
     else:
         assert args.kind == 'Service'
-        t = wait_for_service_alive(args.namespace, args.name, args.port)
+        t = wait_for_service_alive(args.namespace, args.name, args.port, args.endpoint)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
 
