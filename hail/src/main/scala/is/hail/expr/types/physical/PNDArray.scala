@@ -98,6 +98,10 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     ))
   }
 
+  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], region: Code[Region], mb: MethodBuilder): Code[_] = {
+    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, region, mb))
+  }
+
   def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Boolean] = {
     val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
     val outOfBounds = mb.newField[Boolean]

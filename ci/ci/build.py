@@ -681,11 +681,18 @@ set -e
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
                     port = w.get('port', 80)
+                    resource_type = w.get('resource_type', 'deployment').lower()
                     timeout = w.get('timeout', 60)
+                    if resource_type == 'statefulset':
+                        wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
+                    else:
+                        assert resource_type == 'deployment'
+                        wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}'
+
                     script += f'''
 set +e
-kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
-  kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name} && \
+kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
+  {wait_cmd} && \
   python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
 EC=$?
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}

@@ -3448,6 +3448,9 @@ class MatrixTable(ExprContainer):
     def _same(self, other, tolerance=1e-6, absolute=False) -> bool:
         entries_name = Env.get_uid()
         cols_name = Env.get_uid()
+        if list(self.col_key) != list(other.col_key):
+            print(f'different col keys:\n  {list(self.col_key)}\n  {list(other.col_key)}')
+            return False
         return self._localize_entries(entries_name, cols_name)._same(
             other._localize_entries(entries_name, cols_name), tolerance, absolute)
 

@@ -358,6 +358,22 @@ class TableHead(TableIR):
         self._type = self.child.typ
 
 
+class TableTail(TableIR):
+    def __init__(self, child, n):
+        super().__init__(child)
+        self.child = child
+        self.n = n
+
+    def head_str(self):
+        return self.n
+
+    def _eq(self, other):
+        return self.n == other.n
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class TableOrderBy(TableIR):
     def __init__(self, child, sort_fields):
         super().__init__(child)

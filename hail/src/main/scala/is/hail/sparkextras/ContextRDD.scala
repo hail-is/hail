@@ -1,6 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.utils._
+import is.hail.utils.PartitionCounts._
 import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.ExposedUtils
@@ -378,65 +379,53 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
     require(n >= 0)
 
-    val (idxLast, nLast) = partitionCounts match {
+    val (idxLast, nTake) = partitionCounts match {
       case Some(pcs) =>
-        val newPartitionCounts = getHeadPartitionCounts(pcs, n)
-        if (newPartitionCounts == pcs)
-          return this
-        else {
-          val lastIdx = newPartitionCounts.length - 1
-          lastIdx -> newPartitionCounts(lastIdx)
+        getPCSubsetOffset(n, pcs.iterator) match {
+          case Some(PCSubsetOffset(idx, nTake, _)) => idx -> nTake
+          case None => return this
         }
       case None =>
-        val sc = sparkContext
-        val nPartitions = getNumPartitions
-
-        var partScanned = 0
-        var nLeft = n
-        var idxLast = -1
-        var nLast = 0L
-        var numPartsToTry = 1L
-
-        while (nLeft > 0 && partScanned < nPartitions) {
-          val nSeen = n - nLeft
-
-          if (partScanned > 0) {
-            // If we didn't find any rows after the previous iteration, quadruple and retry.
-            // Otherwise, interpolate the number of partitions we need to try, but overestimate
-            // it by 50%. We also cap the estimation in the end.
-            if (nSeen == 0) {
-              numPartsToTry = partScanned * 4
-            } else {
-              // the left side of max is >=1 whenever partsScanned >= 2
-              numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
-              numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
-            }
-          }
-
-          val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
-          val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
-
-          p.zip(counts).foreach { case (idx, c) =>
-            if (nLeft > 0) {
-              idxLast = idx
-              nLast = if (c < nLeft) c else nLeft
-              nLeft -= nLast
-            }
-          }
-
-          partScanned += p.size
-        }
-
-        idxLast -> nLast
+        val PCSubsetOffset(idx, nTake, _) =
+          incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
+            runJob(getIteratorSize, _)
+          )
+        idx -> nTake
     }
 
     mapPartitionsWithIndex({ case (i, it) =>
       if (i == idxLast)
-        it.take(nLast.toInt)
+        it.take(nTake.toInt)
       else
         it
     }, preservesPartitioning = true)
       .subsetPartitions((0 to idxLast).toArray)
+  }
+
+  def tail(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
+    require(n >= 0)
+
+    val (idxFirst, nDrop) = partitionCounts match {
+      case Some(pcs) =>
+        getPCSubsetOffset(n, pcs.reverseIterator) match {
+          case Some(PCSubsetOffset(idx, _, nDrop)) => (pcs.length - idx - 1) -> nDrop
+          case None => return this
+        }
+      case None =>
+        val PCSubsetOffset(idx, _, nDrop) =
+          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
+            runJob(getIteratorSize, _)
+          )
+        idx -> nDrop
+    }
+
+    mapPartitionsWithIndex({ case (i, it) =>
+      if (i == idxFirst)
+        it.drop(nDrop.toInt)
+      else
+        it
+    }, preservesPartitioning = true)
+      .subsetPartitions(Array.range(idxFirst, getNumPartitions))
   }
 
   def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =

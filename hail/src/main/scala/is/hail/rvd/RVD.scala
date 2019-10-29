@@ -512,6 +512,24 @@ class RVD(
     RVD(typ, newPartitioner, newRDD)
   }
 
+  def tail(n: Long, partitionCounts: Option[IndexedSeq[Long]]): RVD = {
+    require(n >= 0)
+
+    if (n == 0)
+      return RVD.empty(sparkContext, typ)
+
+    val newRDD = crdd.tail(n, partitionCounts)
+    val oldNParts = crdd.getNumPartitions
+    val newNParts = newRDD.getNumPartitions
+    assert(oldNParts >= newNParts)
+    assert(newNParts >= 0)
+
+    val newRangeBounds = Array.range(oldNParts - newNParts, oldNParts).map(partitioner.rangeBounds)
+    val newPartitioner = partitioner.copy(rangeBounds = newRangeBounds)
+
+    RVD(typ, newPartitioner, newRDD)
+  }
+
   def filter(p: (RegionValue) => Boolean): RVD =
     RVD(typ, partitioner, crddBoundary.filter(p))
 

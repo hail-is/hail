@@ -347,6 +347,12 @@ class Tests(unittest.TestCase):
         ht = ht.filter(ht.idx == 9)
         assert ht.x.collect() == [9]
 
+    def test_scan_tail(self):
+        ht = hl.utils.range_table(100, n_partitions=16)
+        ht = ht.annotate(x = hl.scan.count())
+        ht = ht.tail(30)
+        assert ht.x.collect() == list(range(70, 100))
+
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
@@ -979,6 +985,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
         self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())
+        self.assertEqual(ht1.x.collect()[-5:], ht1.tail(5).x.collect())
 
     def test_flatten(self):
         t1 = hl.utils.range_table(10)
