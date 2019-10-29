@@ -1646,10 +1646,10 @@ private class Emit(
               case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
               case (1, _, stack :+ m) =>
                 val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
-                (Array[Code[Long]](k), rStackVars :+ k.load() :+ m)
+                (Array(k.load()), rStackVars :+ k.load() :+ m)
               case (_, 1, stack :+ n) =>
                 val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
-                (lStackVars :+ n :+ k.load(), Array[Code[Long]](k))
+                (lStackVars :+ n :+ k.load(), Array(k.load()))
               case (_, _, stack :+ n :+ m) => {
                 val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
                 val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
