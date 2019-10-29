@@ -264,6 +264,7 @@ async def github_callback(request):
 
 
 async def batch_callback_handler(request):
+    app = request.app
     params = await request.json()
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
@@ -273,7 +274,7 @@ async def batch_callback_handler(request):
             for wb in watched_branches:
                 if wb.branch.short_str() == target_branch:
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
-                    await wb.notify_batch_changed()
+                    await wb.notify_batch_changed(app)
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
