@@ -1,11 +1,86 @@
 import json
 import logging
 import aiohttp
+from gear import execute_and_fetchone
 
 from .globals import tasks
 from .database import check_call_procedure
 
 log = logging.getLogger('batch')
+
+
+# FIXME remove batch.attributes, query attributes
+def batch_record_to_dict(record):
+    d = {
+        'id': record['id'],
+        'state': record['state'],
+        'complete': record['complete'],
+        'closed': record['closed']
+    }
+    attributes = json.loads(record['attributes'])
+    if attributes:
+        d['attributes'] = attributes
+    return d
+
+
+async def notify_batch_job_complete(db, batch_id):
+    # FIXME fix batch_to_dict and just query callback here
+    record = await execute_and_fetchone(
+        db.pool, '''
+SELECT *
+FROM batch
+WHERE batch_id = %s AND closed AND n_completed = n_jobs;
+''',
+        (batch_id,))
+
+    if not record:
+        return
+    callback = record['callback']
+    if not callback:
+        return
+
+    log.info(f'making callback for batch {batch_id}: {callback}')
+
+    try:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            await session.post(callback, json=batch_record_to_dict(record))
+            log.info(f'callback for batch {batch_id} successful')
+    except Exception:
+        log.exception(f'callback for batch {batch_id} failed, will not retry.')
+
+
+# FIXME move
+# FIXME if already in complete state, just ignore/do nothing
+async def mark_job_complete(
+        db, scheduler_state_changed, inst_pool,
+        batch_id, job_id, new_state, status):
+    id = (batch_id, job_id)
+    rv = await check_call_procedure(
+        db.pool,
+        'CALL mark_job_complete(%s, %s, %s, %s);',
+        (batch_id, job_id, new_state,
+         json.dumps(status) if status is not None else None))
+    # FIXME return/report old status?
+    log.info(f'mark_job_complete returned {rv}')
+
+    # update instance
+    instance_id = rv['instance_id']
+    instance = inst_pool.id_instance.get(instance_id)
+
+    log.info(f'updating instance: {instance}')
+
+    # FIXME what to do if instance is missing?
+    if instance:
+        inst_pool.adjust_for_remove_instance(instance)
+        instance.free_cores_mcpu += rv['cores_mcpu']
+        inst_pool.adjust_for_add_instance(instance)
+
+    scheduler_state_changed.set()
+
+    log.info(f'job {id} complete with state {new_state}, status {status}')
+
+    await notify_batch_job_complete(db, batch_id)
 
 
 class Job:
@@ -71,41 +146,6 @@ class Job:
     @property
     def pvc_size(self):
         return self._spec.get('pvc_size')
-
-    # FIXME move
-    # FIXME if already in complete state, just ignore/do nothing
-    async def mark_complete(self, scheduler_state_changed, inst_pool, new_state, status):
-        rv = await check_call_procedure(
-            self.db.pool,
-            'CALL mark_job_complete(%s, %s, %s, %s);',
-            (self.batch_id, self.job_id, new_state,
-             json.dumps(status) if status is not None else None))
-        log.info(f'mark_job_complete returned {rv}')
-
-        # update instance
-        instance_id = rv['instance_id']
-        instance = inst_pool.id_instance.get(instance_id)
-
-        log.info(f'updating instance: {instance}, self.instance_id {self.instance_id}')
-        # FIXME what to do if instance is missing?
-        if instance:
-            inst_pool.adjust_for_remove_instance(instance)
-            instance.free_cores_mcpu += self.cores_mcpu
-            inst_pool.adjust_for_add_instance(instance)
-
-        scheduler_state_changed.set()
-
-        if self._state != new_state:
-            log.info(f'{self} changed state: {self._state} -> {new_state}')
-        self._state = new_state
-        self.status = status
-        self.instance_id = None
-
-        log.info(f'{self} complete with state {self._state}, status {status}')
-
-        batch = await Batch.from_db(self.db, self.batch_id, self.user)
-        if batch:
-            await batch.mark_job_complete()
 
     def to_dict(self):
         def getopt(obj, attr):
@@ -253,17 +293,6 @@ class Batch:
         self.cancelled = True
         self.deleted = True
         log.info(f'{self} marked for deletion')
-
-    async def mark_job_complete(self):
-        if self.complete and self.callback:
-            log.info(f'making callback for batch {self.id}: {self.callback}')
-            try:
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    await session.post(self.callback, json=await self.to_dict(include_jobs=False))
-                    log.info(f'callback for batch {self.id} successful')
-            except Exception:
-                log.exception(f'callback for batch {self.id} failed, will not retry.')
 
     def is_complete(self):
         return self.complete

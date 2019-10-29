@@ -3,8 +3,8 @@ import logging
 import aiohttp
 from hailtop.utils import request_retry_transient_errors
 
+from ..batch import mark_job_complete
 from ..database import check_call_procedure
-from ..batch import Job
 
 log = logging.getLogger('driver')
 
@@ -122,9 +122,9 @@ LIMIT 50;
 
             if record['cancel'] and not record['always_run']:
                 log.info(f'cancelling job {id}')
-                # FIXME don't create job object
-                job = await Job.from_db(self.db, batch_id, job_id, record['user'])
-                await job.mark_complete(self.scheduler_state_changed, self.inst_pool, 'Cancelled', None)
+                await mark_job_complete(
+                    self.db, self.scheduler_state_changed, self.inst_pool,
+                    batch_id, job_id, 'Cancelled', None)
                 should_wait = False
                 continue
 

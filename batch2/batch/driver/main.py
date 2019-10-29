@@ -12,7 +12,7 @@ from hailtop.config import get_deploy_config
 
 # import uvloop
 
-from ..batch import Batch, Job
+from ..batch import Batch, mark_job_complete
 from ..log_store import LogStore
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     INSTANCE_ID, BATCH_NAMESPACE
@@ -175,13 +175,6 @@ async def job_complete_1(request):
 
     batch_id = status['batch_id']
     job_id = status['job_id']
-    user = status['user']
-
-    job = await Job.from_db(request.app['db'], batch_id, job_id, user)
-    if job is None:
-        log.warning(f'job_complete from unknown job ({batch_id}, {job_id}), {instance}')
-        return web.HTTPNotFound()
-    log.info(f'job_complete from {job}, instance {inst_token}')
 
     status_state = status['state']
     if status_state == 'succeeded':
@@ -191,7 +184,11 @@ async def job_complete_1(request):
     else:
         assert status_state == 'failed', status_state
         new_state = 'Failed'
-    await job.mark_complete(app['scheduler_state_changed'], inst_pool, new_state, status)
+
+    await mark_job_complete(
+        app['db'], app['scheduler_state_changed'], inst_pool,
+        batch_id, job_id, new_state, status)
+
     return web.Response()
 
 

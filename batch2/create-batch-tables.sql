@@ -295,7 +295,10 @@ BEGIN
             `jobs-parents`.parent_id = in_job_id;
 
     COMMIT;
-    SELECT 0 as rc, cur_job_instance_id as instance_id;
+    SELECT 0 as rc,
+      cur_job_state as old_state,
+      cur_cores_mcpu as cores_mcpu,
+      cur_job_instance_id as instance_id;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_job_state, 'job state not Ready or Running' as message;
