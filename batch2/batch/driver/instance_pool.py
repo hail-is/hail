@@ -67,7 +67,7 @@ class InstancePool:
     async def async_init(self):
         log.info('initializing instance pool')
 
-        async for record in await execute_and_fetchall(
+        async for record in execute_and_fetchall(
                 self.db.pool, 'SELECT * FROM instances;'):
             instance = Instance.from_record(record)
             self.add_instance(instance)

@@ -229,8 +229,6 @@ class BatchDatabase(Database):
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
         self.batch_attributes = BatchAttributesTable(self)
-        self.pods = PodsTable(self)
-        self.instances = InstancesTable(self)
 
 
 class JobsTable(Table):
@@ -306,27 +304,6 @@ class JobsTable(Table):
     async def delete_record(self, batch_id, job_id):
         await super().delete_record({'batch_id': batch_id, 'job_id': job_id})
 
-    async def get_incomplete_parents(self, batch_id, job_id):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                jobs_parents_name = self._db.jobs_parents.name
-                sql = f"""SELECT `{self.name}`.batch_id, `{self.name}`.job_id FROM `{self.name}`
-                          INNER JOIN `{jobs_parents_name}`
-                          ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
-                          WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
-                await execute_with_retry(cursor, sql, (('Pending', 'Running'), batch_id, job_id))
-                result = await fetchall_with_retry(cursor)
-                return [(record['batch_id'], record['job_id']) for record in result]
-
-    async def get_records_by_batch(self, batch_id, limit=None, offset=None):
-        if offset is not None:
-            assert limit is not None
-        return await self.get_records_where({'batch_id': batch_id},
-                                            limit=limit,
-                                            offset=offset,
-                                            order_by='batch_id, job_id',
-                                            ascending=True)
-
     async def get_records_where(self, condition, limit=None, offset=None, order_by=None, ascending=None):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
@@ -350,34 +327,6 @@ class JobsTable(Table):
                           {order_by} {ascending}
                           {limit} {offset}"""
                 await execute_with_retry(cursor, sql, where_values)
-                return await fetchall_with_retry(cursor)
-
-    async def get_parents(self, batch_id, job_id):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                jobs_parents_name = self._db.jobs_parents.name
-                batch_name = self._db.batch.name
-                fields = ', '.join(self._select_fields())
-                sql = f"""SELECT {fields} FROM `{self.name}`
-                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
-                          INNER JOIN `{jobs_parents_name}`
-                          ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
-                          WHERE `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
-                await execute_with_retry(cursor, sql, (batch_id, job_id))
-                return await fetchall_with_retry(cursor)
-
-    async def get_children(self, batch_id, parent_id):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                jobs_parents_name = self._db.jobs_parents.name
-                batch_name = self._db.batch.name
-                fields = ', '.join(self._select_fields())
-                sql = f"""SELECT {fields} FROM `{self.name}`
-                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
-                          INNER JOIN `{jobs_parents_name}`
-                          ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.job_id
-                          WHERE `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.parent_id = %s"""
-                await execute_with_retry(cursor, sql, (batch_id, parent_id))
                 return await fetchall_with_retry(cursor)
 
 
@@ -506,34 +455,3 @@ class BatchAttributesTable(Table):
 
     async def get_batches(self, key, value):
         return await self._query('batch_id', key=key, value=value)
-
-
-class InstancesTable(Table):
-    def __init__(self, db):
-        super().__init__(db, 'instances')
-
-    async def update_record(self, name, compare_items=None, **items):
-        where_items = {'name': name}
-        if compare_items is not None:
-            where_items.update(compare_items)
-        return await super().update_record(where_items, items)
-
-    async def delete_record(self, name):
-        await super().delete_record({'name': name})
-
-
-class PodsTable(Table):
-    def __init__(self, db):
-        super().__init__(db, 'pods')
-
-    async def update_record(self, name, compare_items=None, **items):
-        where_items = {'name': name}
-        if compare_items is not None:
-            where_items.update(compare_items)
-        return await super().update_record(where_items, items)
-
-    async def delete_record(self, name):
-        await super().delete_record({'name': name})
-
-    async def get_records_by_instance(self, instance):
-        return await self.get_records(where_items={'instance': instance})
