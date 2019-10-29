@@ -173,7 +173,7 @@ class InstancePool:
         machine_name = f'{self.machine_name_prefix}{inst_token}'
 
         state = 'pending'
-        id = execute_insertone(
+        id = await execute_insertone(
             self.db.pool,
             '''
 INSERT INTO instances (state, name, token, cores_mcpu, free_cores_mcpu)
