@@ -2462,8 +2462,8 @@ object NDArrayEmitter {
     shapeArray.map(shapeElement => (shapeElement > 1L).mux(notBroadcasted, broadcasted))
   }
 
-  def zeroBroadcastedDims(indices: Array[Code[Long]], broadcastFlags: Array[Code[Long]]): Array[Code[Long]] = {
-    indices.zip(broadcastFlags).map { case (index, flag) => index * flag }
+  def zeroBroadcastedDims(indices: Array[Code[Long]], broadcastMask: Array[Code[Long]]): Array[Code[Long]] = {
+    indices.zip(broadcastMask).map { case (index, flag) => index * flag }
   }
 
   def unifyShapes2(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): Array[Code[Long]] = {
@@ -2479,9 +2479,6 @@ object NDArrayEmitter {
   }
 
   def matmulShape(leftShape: Array[Code[Long]], rightShape: Array[Code[Long]]): (Code[Unit], Array[Code[Long]]) = {
-    assert(leftShape.length >= 1)
-    assert(rightShape.length >= 1)
-
     val ((lK, rK), shape) = (leftShape.toSeq, rightShape.toSeq) match {
       case (Seq(l), Seq(r)) =>
         ((l, r), Array[Code[Long]]())
