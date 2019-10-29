@@ -41,9 +41,9 @@ LIMIT 50;
 
             for record in records:
                 # FIXME cancel directly jobs that can be cancelled
-                i = self.inst_pool.active_instances_by_free_cores.bisect_key_right(record['cores_mcpu'])
-                if i > 0:
-                    instance = self.inst_pool.active_instances_by_free_cores[i - 1]
+                i = self.inst_pool.active_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
+                if i < len(self.inst_pool.active_instances_by_free_cores):
+                    instance = self.inst_pool.active_instances_by_free_cores[i]
                     assert record['cores_mcpu'] <= instance.free_cores_mcpu
                     log.info(f'scheduling ({record["batch_id"]}, {record["job_id"]}) on {instance}')
                     await self.inst_pool.schedule_job(record, instance)
