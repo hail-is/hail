@@ -133,20 +133,17 @@ async def get_job(request, userdata):
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
-    inst_pool = app['inst_pool']
-
     state = record['state']
 
     if state == 'Running':
-        instance_id = record['instance_id']
-        instance = inst_pool.id_instance.get(instance_id)
-        if not instance:
+        ip_address = record['ip_address']
+        if not ip_address:
             return None
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
-                url = (f'http://{instance.ip_address}:5000'
+                url = (f'http://{ip_address}:5000'
                        f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/logs')
                 resp = await request_retry_transient_errors(session, 'GET', url)
                 return await resp.json()
@@ -172,8 +169,10 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = execute_and_fetchone(db.pool, '''
-SELECT state, instance_id, directory
+SELECT state, ip_address, directory
 FROM jobs
+LEFT JOIN instances
+  ON jobs.instance_id = instances.id
 WHERE batch_id = %s, job_id = %s, user = %s;
 ''',
                                   (batch_id, job_id, user))
@@ -184,20 +183,17 @@ WHERE batch_id = %s, job_id = %s, user = %s;
 
 
 async def _get_job_status_from_record(app, batch_id, job_id, record):
-    inst_pool = app['inst_pool']
-
     state = record['state']
 
     if state == 'Running':
-        instance_id = record['instance_id']
-        instance = inst_pool.id_instance.get(instance_id)
-        if not instance:
+        ip_address = record['ip_address']
+        if not ip_address:
             return None
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
-                url = (f'http://{instance.ip_address}:5000'
+                url = (f'http://{ip_address}:5000'
                        f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
                 resp = await request_retry_transient_errors(session, 'GET', url)
                 return await resp.json()
@@ -218,8 +214,10 @@ async def _get_job_status(app, batch_id, job_id, user):
     db = app['db']
 
     record = execute_and_fetchone(db.pool, '''
-SELECT state, instance_id, directory
+SELECT state, ip_address, directory
 FROM jobs
+LEFT JOIN instances
+  ON jobs.instance_id = instances.id
 WHERE batch_id = %s, job_id = %s, user = %s;
 ''',
                                   (batch_id, job_id, user))
