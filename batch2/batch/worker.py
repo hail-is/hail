@@ -526,6 +526,21 @@ class Worker:
             raise web.HTTPNotFound()
         return web.json_response(await job.status())
 
+    async def delete_job_1(self, request):
+        batch_id = request.match_info['batch_id']
+        job_id = request.match_info['job_id']
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
+        del self.jobs[id]
+        # FIXME await or ensure_future?
+        await job.delete()
+        return web.Response()
+
+    async def delete_job(self, request):
+        return await asyncio.shield(self.delete_pod_1(request))
+
     async def healthcheck(self, request):  # pylint: disable=unused-argument
         return web.Response()
 
@@ -536,6 +551,7 @@ class Worker:
             app = web.Application()
             app.add_routes([
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
+                web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck)

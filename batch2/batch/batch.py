@@ -73,6 +73,7 @@ class Job:
         return self._spec.get('pvc_size')
 
     # FIXME move
+    # FIXME if already in complete state, just ignore/do nothing
     async def mark_complete(self, scheduler_state_changed, inst_pool, new_state, status):
         rv = await check_call_procedure(
             self.db.pool,

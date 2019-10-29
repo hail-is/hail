@@ -177,7 +177,7 @@ LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE batch_id = %s AND job_id = %s AND user = %s;
 ''',
-                                  (batch_id, job_id, user))
+                                        (batch_id, job_id, user))
     log = await _get_job_log_from_record(app, batch_id, job_id, record)
     if log:
         return log
@@ -224,7 +224,7 @@ LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE batch_id = %s AND job_id = %s AND user = %s;
 ''',
-                                  (batch_id, job_id, user))
+                                        (batch_id, job_id, user))
     status = await _get_job_status_from_record(app, batch_id, job_id, record)
     if status:
         return JSON_ENCODER.encode(status)

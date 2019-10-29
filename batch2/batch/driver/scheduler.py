@@ -53,7 +53,8 @@ class Scheduler:
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
+            url = (f'http://{instance.ip_address}:5000'
+                   f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
             try:
                 await request_retry_transient_errors(session, 'DELETE', url)
             except aiohttp.ClientResponseError as e:
