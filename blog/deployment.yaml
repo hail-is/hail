@@ -26,9 +26,9 @@ spec:
             value: production
           - name: url
 {% if deploy %}
-            value: http://blog.hail.is
+            value: https://blog.hail.is
 {% else %}
-            value: http://internal.hail.is/{{ default_ns.name }}/blog
+            value: https://internal.hail.is/{{ default_ns.name }}/blog
 {% endif %}
         ports:
         - containerPort: 2368
@@ -40,6 +40,9 @@ spec:
             path: /{{ default_ns.name }}/blog/
 {% endif %}
             port: 2368
+            httpHeaders:
+            - name: X-Forwarded-Proto
+              value: https
           initialDelaySeconds: 5
           periodSeconds: 10
         readinessProbe:
@@ -50,6 +53,9 @@ spec:
             path: /{{ default_ns.name }}/blog/
 {% endif %}
             port: 2368
+            httpHeaders:
+            - name: X-Forwarded-Proto
+              value: https
           initialDelaySeconds: 5
           periodSeconds: 5
         volumeMounts:
