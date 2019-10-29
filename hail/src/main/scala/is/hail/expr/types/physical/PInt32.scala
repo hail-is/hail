@@ -32,7 +32,7 @@ class PInt32(override val required: Boolean) extends PIntegral {
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    new CodeOrdering {
+    new CodeOrderingCompareConsistentWithOthers {
       type T = Int
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =

@@ -1,13 +1,14 @@
 import math
 import random
 import logging
+import functools
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
+from hailtop.utils import gather, grouped, request_retry_transient_errors
 
 from .globals import complete_states
 
@@ -266,7 +267,6 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
-        self.pool = AsyncWorkerPool(2)
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
@@ -357,20 +357,9 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
-        specs = []
-        n = 0
-        for job_spec in self._job_specs:
-            n += 1
-            specs.append(job_spec)
-            if n == job_array_size:
-                await self.pool.call(self._submit_job, batch.id, specs)
-                n = 0
-                specs = []
-
-        if specs:
-            await self.pool.call(self._submit_job, batch.id, specs)
-
-        await self.pool.wait()
+        await gather(*[functools.partial(self._submit_job, batch.id, specs)
+                       for specs in grouped(job_array_size, self._job_specs)],
+                     parallelism=2)
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         log.info(f'closed batch {b["id"]}')

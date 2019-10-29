@@ -2886,6 +2886,60 @@ class Table(ExprContainer):
         the matrix table will have one entry field named `entry_field_name` whose values come from the values
         of the `columns` fields. The matrix table is column indexed by `col_field_name`.
 
+        If you find yourself using this method after :func:`.import_table`,
+        consider instead using :func:`.import_matrix_table`.
+
+        Examples
+        --------
+
+        Convert a table of RNA expression samples to a :class:`.MatrixTable`:
+
+        >>> t = hl.import_table('data/rna_expression.tsv', impute=True)
+        >>> t = t.key_by('gene')
+        >>> t.show()
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | gene    | lung001 | lung002 | heart001 | muscle001 | muscle002 | muscle003 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | str     |   int32 |   int32 |    int32 |     int32 |     int32 |     int32 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | "LD4"   |       1 |       2 |        0 |         2 |         1 |         1 |
+        | "SCN1A" |       2 |       1 |        1 |         0 |         0 |         0 |
+        | "TITIN" |       3 |       0 |        0 |         1 |         2 |         1 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        >>> mt = t.to_matrix_table_row_major(
+        ...          columns=['lung001', 'lung002', 'heart001',
+        ...                   'muscle001', 'muscle002', 'muscle003'],
+        ...          entry_field_name='expression',
+        ...          col_field_name='sample')
+        >>> mt.describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Column fields:
+            'sample': str
+        ----------------------------------------
+        Row fields:
+            'gene': str
+        ----------------------------------------
+        Entry fields:
+            'expression': int32
+        ----------------------------------------
+        Column key: ['sample']
+        Row key: ['gene']
+        ----------------------------------------
+        >>> mt.show(n_cols=2)
+        +---------+--------------------+--------------------+
+        | gene    | lung001.expression | lung002.expression |
+        +---------+--------------------+--------------------+
+        | str     |              int32 |              int32 |
+        +---------+--------------------+--------------------+
+        | "LD4"   |                  1 |                  2 |
+        | "SCN1A" |                  2 |                  1 |
+        | "TITIN" |                  3 |                  0 |
+        +---------+--------------------+--------------------+
+        showing the first 2 of 6 columns
+
         Notes
         -----
         All fields in `columns` must have the same type.

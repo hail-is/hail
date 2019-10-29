@@ -1299,9 +1299,9 @@ class DictExpression(Expression):
 
         if default is not None:
             if not self._vc.can_coerce(default.dtype):
-                raise TypeError("'get' expects parameter 'default' to have the "
-                                "same type as the dictionary value type, found '{}' and '{}'"
-                                .format(self.dtype, default.dtype))
+                raise TypeError("'get' expects parameter 'default' to have the same type "
+                                "as the dictionary value type, expected '{}' and found '{}'"
+                                .format(self.dtype.value_type, default.dtype))
             return self._method("get", self.dtype.value_type, key, self._vc.coerce(default))
         else:
             return self._method("get", self.dtype.value_type, key)
@@ -3533,7 +3533,7 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
-    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, shape):
         """Reshape this ndarray to a new shape.
 
@@ -3552,10 +3552,16 @@ class NDArrayExpression(Expression):
         -------
         :class:`.NDArrayExpression`.
         """
-        shape = wrap_to_list(shape)
+        if isinstance(shape, TupleExpression):
+            shape_ir = hl.tuple([hl.int64(i) for i in shape])._ir
+            ndim = len(shape)
+        else:
+            wrapped_shape = wrap_to_list(shape)
+            ndim = len(wrapped_shape)
+            shape_ir = hl.tuple(wrapped_shape)._ir
 
-        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
-                              tndarray(self._type.element_type, len(shape)),
+        return construct_expr(NDArrayReshape(self._ir, shape_ir),
+                              tndarray(self._type.element_type, ndim),
                               self._indices,
                               self._aggregations)
 

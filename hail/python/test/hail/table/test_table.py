@@ -674,6 +674,11 @@ class Tests(unittest.TestCase):
 
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
+    def test_range_table_zero(self):
+        t = hl.utils.range_table(0)
+        self.assertEqual(t._force_count(), 0)
+        self.assertEqual(t.idx.collect(), [])
+
     def test_issue_3654(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(x=[1, 2])

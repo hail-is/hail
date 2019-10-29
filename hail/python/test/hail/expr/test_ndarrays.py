@@ -173,7 +173,8 @@ def test_ndarray_reshape():
         (a.reshape((-1, 2)), np_a.reshape((-1, 2))),
         (cube_to_rect, np_cube_to_rect),
         (cube_t_to_rect, np_cube_t_to_rect),
-        (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5)))
+        (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5))),
+        (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3)))
     )
 
     with pytest.raises(FatalError) as exc:
@@ -434,5 +435,17 @@ def test_ndarray_matmul():
         hl.eval(hl._ndarray([1, 2]) @ hl._ndarray([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc)
 
+@skip_unless_spark_backend()
 def test_ndarray_big():
     assert hl.eval(hl._ndarray(hl.range(100_000))).size == 100_000
+
+@skip_unless_spark_backend()
+def test_ndarray_full():
+    assert_ndarrays_eq(
+        (hl._nd.zeros(4), np.zeros(4)),
+        (hl._nd.zeros((3, 4, 5)), np.zeros((3, 4, 5))),
+        (hl._nd.ones(6), np.ones(6)),
+        (hl._nd.ones((6, 6, 6)), np.ones((6, 6, 6))),
+        (hl._nd.full(7, 9), np.full(7, 9)),
+        (hl._nd.full((3, 4, 5), 9), np.full((3, 4, 5), 9))
+    )
