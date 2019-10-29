@@ -211,7 +211,7 @@ BEGIN
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
     COMMIT;
-    SELECT 0 as rc, out_instance_id;
+    SELECT 0 as rc, cur_job_instance_id;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_job_state, 'job state not Running' as message;
@@ -237,9 +237,7 @@ BEGIN
 
   IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs SET state = new_state, status = new_state, instance_id = NULL;
-    IF cur_job_state = 'Ready' THEN
-      UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
-    END IF;
+
     UPDATE batch SET n_completed = n_completed + 1 WHERE id = in_batch_id;
     IF new_state = 'Cancelled' THEN
       UPDATE batch SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
@@ -247,6 +245,14 @@ BEGIN
       UPDATE batch SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
       UPDATE batch SET n_succeeded = n_suceeded + 1 WHERE id = in_batch_id;
+    END IF;
+
+    IF cur_job_instance_id IS NOT NULL THEN
+      UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
+    END IF;
+
+    IF cur_job_state = 'Ready' THEN
+      UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     END IF;
     UPDATE ready_cores
       SET ready_cores_mcpu = ready_cores_mcpu + (
@@ -257,6 +263,7 @@ BEGIN
 	WHERE jobs.batch_id = in_batch_id AND
 	      `jobs-parents`.batch_id = in_batch_id AND
 	      `jobs-parents`.parent_id = in_job_id);
+
     UPDATE jobs
       INNER JOIN `jobs-parents`
         ON jobs.batch_id = `jobs-parents`.batch_id AND
@@ -267,13 +274,9 @@ BEGIN
       WHERE jobs.batch_id = in_batch_id AND
             `jobs-parents`.batch_id = in_batch_id AND
             `jobs-parents`.parent_id = in_job_id;
-    UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
-    
-    IF cur_job_instance_id IS NOT NULL THEN
-      UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
-    END IF;
+
     COMMIT;
-    SELECT 0 as rc, out_instance_id;
+    SELECT 0 as rc, cur_job_instance_id as instance_id;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_job_state, 'job state not Ready or Running' as message;
