@@ -173,7 +173,7 @@ SELECT state, ip_address, directory
 FROM jobs
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
-WHERE batch_id = %s, job_id = %s, user = %s;
+WHERE batch_id = %s AND job_id = %s AND user = %s;
 ''',
                                   (batch_id, job_id, user))
     log = await _get_job_log_from_record(app, batch_id, job_id, record)
@@ -218,7 +218,7 @@ SELECT state, ip_address, directory
 FROM jobs
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
-WHERE batch_id = %s, job_id = %s, user = %s;
+WHERE batch_id = %s AND job_id = %s AND user = %s;
 ''',
                                   (batch_id, job_id, user))
     status = await _get_job_status_from_record(app, batch_id, job_id, record)
