@@ -1,7 +1,7 @@
 import math
 import operator
 import random
-import unittest
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1334,6 +1334,29 @@ class Tests(unittest.TestCase):
                                                  n_remaining=40,
                                                  fraction_filtered=hl.float32(0.0))})
         assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
+
+    def test_annotate_col_agg_lowering(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2)
+        mt = mt.annotate_cols(c1=[mt.col_idx, mt.col_idx * 2])
+        mt = mt.annotate_entries(e1=mt.col_idx + mt.row_idx, e2=[mt.col_idx * mt.row_idx, mt.col_idx * mt.row_idx ** 2])
+        common_ref = mt.c1[1]
+        mt = mt.annotate_cols(exploded=hl.agg.explode(lambda e: common_ref + hl.agg.sum(e), mt.e2),
+                              array=hl.agg.array_agg(lambda e: common_ref + hl.agg.sum(e), mt.e2),
+                              filt=hl.agg.filter(mt.e1 < 5, hl.agg.sum(mt.e1) + common_ref),
+                              grouped=hl.agg.group_by(mt.e1 % 5, hl.agg.sum(mt.e1) + common_ref))
+        mt.cols()._force_count()
+
+    @pytest.mark.skip("does not pass due to CSE bug")
+    def test_annotate_rows_scan_lowering(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2)
+        mt = mt.annotate_rows(r1=[mt.row_idx, mt.row_idx * 2])
+        common_ref = mt.r1[1]
+        mt = mt.annotate_rows(exploded=hl.scan.explode(lambda e: common_ref + hl.scan.sum(e), mt.r1),
+                              array=hl.scan.array_agg(lambda e: common_ref + hl.scan.sum(e), mt.r1),
+                              filt=hl.scan.filter(mt.row_idx < 5, hl.scan.sum(mt.row_idx) + common_ref),
+                              grouped=hl.scan.group_by(mt.row_idx % 5, hl.scan.sum(mt.row_idx) + common_ref),
+                              an_agg = hl.agg.sum(mt.row_idx * mt.col_idx))
+        mt.cols()._force_count()
 
     def test_show(self):
         mt = self.get_mt()
