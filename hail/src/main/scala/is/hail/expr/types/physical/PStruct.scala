@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
+import is.hail.table.SortOrder
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -63,9 +64,13 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+    codeOrdering(mb, other, null)
+
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb)
+    assert(so == null || so.size == types.size)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
   }
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
@@ -250,11 +255,17 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] =
     loadField(region, offset, fieldIdx(fieldName))
 
-  def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean] =
-    isFieldMissing(offset, fieldIdx(fieldName))
+  def loadField(offset: Code[Long], field: String): Code[Long] = loadField(offset, fieldIdx(field))
 
-  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
-    fieldOffset(offset, fieldIdx(fieldName))
+  def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = isFieldDefined(offset, fieldIdx(field))
+
+  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] = isFieldMissing(offset, fieldIdx(field))
+
+  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] = fieldOffset(offset, fieldIdx(fieldName))
+
+  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] = setFieldPresent(offset, fieldIdx(field))
+
+  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] = setFieldMissing(offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new ArrayBuilder[PField](fields.length)

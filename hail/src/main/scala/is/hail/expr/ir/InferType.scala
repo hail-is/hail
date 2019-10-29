@@ -148,9 +148,9 @@ object InferType {
         TDict(key.typ, aggIR.typ)
       case AggArrayPerElement(a, _, _, aggBody, _, _) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
-        AggOp.getType(aggSig)
+        aggSig.returnType
       case ApplyScanOp(_, _, _, aggSig) =>
-        AggOp.getType(aggSig)
+        aggSig.returnType
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

@@ -11,42 +11,46 @@ object StagedArrayBuilder {
   val END_SERIALIZATION: Int = 0x12345678
 }
 
-class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], initialCapacity: Int = 8) {
+class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], var initialCapacity: Int = 8) {
   val eltArray = PArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PTuple(true, PInt32Required, PInt32Required, eltArray)
   val size: ClassFieldRef[Int] = fb.newField[Int]("size")
   private val capacity = fb.newField[Int]("capacity")
   val data = fb.newField[Long]("data")
 
+  private val tmpOff = fb.newField[Long]("tmp_offset")
   private val currentSizeOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 0)
   private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
   private val dataOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 2)
 
-  def loadFields(src: Code[Long]): Code[Unit] = {
+  def loadFrom(src: Code[Long]): Code[Unit] = {
     Code(
-      size := Region.loadInt(currentSizeOffset(src)),
-      capacity := Region.loadInt(capacityOffset(src)),
-      data := Region.loadAddress(dataOffset(src))
+      tmpOff := src,
+      size := Region.loadInt(currentSizeOffset(tmpOff)),
+      capacity := Region.loadInt(capacityOffset(tmpOff)),
+      data := Region.loadAddress(dataOffset(tmpOff))
     )
   }
 
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
     Code(
-      size := Region.loadInt(currentSizeOffset(src)),
-      capacity := Region.loadInt(capacityOffset(src)),
-      data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, Region.loadAddress(dataOffset(src))))
+      tmpOff := src,
+      size := Region.loadInt(currentSizeOffset(tmpOff)),
+      capacity := Region.loadInt(capacityOffset(tmpOff)),
+      data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, Region.loadAddress(dataOffset(tmpOff))))
   }
 
   def reallocateData(): Code[Unit] = {
     data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, data)
   }
 
-  def storeFields(dest: Code[Long]): Code[Unit] = {
+  def storeTo(dest: Code[Long]): Code[Unit] = {
     Code(
-      Region.storeInt(currentSizeOffset(dest), size),
-      Region.storeInt(capacityOffset(dest), capacity),
-      Region.storeAddress(dataOffset(dest), data)
+      tmpOff := dest,
+      Region.storeInt(currentSizeOffset(tmpOff), size),
+      Region.storeInt(capacityOffset(tmpOff), capacity),
+      Region.storeAddress(dataOffset(tmpOff), data)
     )
   }
 
@@ -86,13 +90,19 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
 
   def setMissing(): Code[Unit] = incrementSize() // all elements set to missing on initialization
 
-  def append(elt: Code[_]): Code[Unit] = {
+
+  def append(elt: Code[_], deepCopy: Boolean = true): Code[Unit] = {
     val dest = eltArray.elementOffset(data, capacity, size)
     Code(
       eltArray.setElementPresent(region, data, size),
-      StagedRegionValueBuilder.deepCopy(fb, region, eltType, elt, dest),
+      (if (deepCopy)
+        StagedRegionValueBuilder.deepCopy(fb, region, eltType, elt, dest)
+      else
+        Region.storeIRIntermediate(eltType)(dest, elt)),
       incrementSize())
   }
+
+  def initializeWithCapacity(capacity: Code[Int]): Code[Unit] = initialize(0, capacity)
 
   def initialize(): Code[Unit] = initialize(const(0), const(initialCapacity))
 

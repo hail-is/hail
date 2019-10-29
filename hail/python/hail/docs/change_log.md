@@ -20,9 +20,26 @@ such in the reference documentation, which may change at any time**.
 
 Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
-an earlier version of Hail to read files written in a later version.  
+an earlier version of Hail to read files written in a later version.
 
 ---
+
+## Version 0.2.26
+
+Released 2019-10-24
+
+### New Features
+- (hail#7325) Add `string.reverse` function.
+- (hail#7328) Add `string.translate` function.
+- (hail#7344) Add `hl.reverse_complement` function.
+- (hail#7306) Teach the VCF combiner to handle allele specific (`AS_*`) fields.
+- (hail#7346) Add `hl.agg.approx_median` function.
+
+### Bug Fixes
+- (hail#7361) Fix `AD` calculation in `sparse_split_multi`.
+
+### Performance Improvements
+- (hail#7355) Improve performance of IR copying.
 
 ## Version 0.2.25
 

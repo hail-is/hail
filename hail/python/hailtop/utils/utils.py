@@ -8,6 +8,13 @@ from aiohttp import web
 log = logging.getLogger('hailtop.utils')
 
 
+def grouped(n, ls):
+    while len(ls) != 0:
+        group = ls[:n]
+        ls = ls[n:]
+        yield group
+
+
 def unzip(l):
     a = []
     b = []
@@ -26,34 +33,88 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-class AsyncWorkerPool:
-    def __init__(self, parallelism):
-        self._sem = asyncio.Semaphore(parallelism)
-        self._count = 0
-        self._done = asyncio.Event()
+async def gather(*pfs, parallelism=10, return_exceptions=True):
+    gatherer = AsyncThrottledGather(*pfs,
+                                    parallelism=parallelism,
+                                    return_exceptions=return_exceptions)
+    return await gatherer.wait()
 
-    async def _call(self, f, args, kwargs):
-        async with self._sem:
+
+class AsyncThrottledGather:
+    def __init__(self, *pfs, parallelism=10, return_exceptions=True):
+        self.count = len(pfs)
+        self.n_finished = 0
+
+        self._queue = asyncio.Queue()
+        self._done = asyncio.Event()
+        self._return_exceptions = return_exceptions
+
+        self._results = [None] * len(pfs)
+        self._errors = []
+
+        self._workers = []
+        for _ in range(parallelism):
+            self._workers.append(asyncio.ensure_future(self._worker()))
+
+        for i, pf in enumerate(pfs):
+            self._queue.put_nowait((i, pf))
+
+    def _cancel_workers(self):
+        for worker in self._workers:
+            worker.cancel()
+
+    async def _worker(self):
+        while True:
+            i, pf = await self._queue.get()
+
+            try:
+                res = await pf()
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as err:  # pylint: disable=broad-except
+                res = err
+                if not self._return_exceptions:
+                    self._errors.append(err)
+                    self._done.set()
+                    return
+
+            self._results[i] = res
+            self.n_finished += 1
+
+            if self.n_finished == self.count:
+                self._done.set()
+
+    async def wait(self):
+        if self.count > 0:
+            await self._done.wait()
+
+        self._cancel_workers()
+
+        if self._errors:
+            raise self._errors[0]
+
+        return self._results
+
+
+class AsyncWorkerPool:
+    def __init__(self, parallelism, queue_size=1000):
+        self._queue = asyncio.Queue(maxsize=queue_size)
+
+        for _ in range(parallelism):
+            asyncio.ensure_future(self._worker())
+
+    async def _worker(self):
+        while True:
+            f, args, kwargs = await self._queue.get()
             try:
                 await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
                 log.exception(f'worker pool caught exception')
-            finally:
-                assert self._count > 0
-                self._count -= 1
-                if self._count == 0:
-                    self._done.set()
 
     async def call(self, f, *args, **kwargs):
-        if self._count == 0:
-            self._done.clear()
-        self._count += 1
-        asyncio.ensure_future(self._call(f, args, kwargs))
-
-    async def wait(self):
-        await self._done.wait()
+        await self._queue.put((f, args, kwargs))
 
 
 def is_transient_error(e):
@@ -108,9 +169,9 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
             else:
                 raise
         # exponentially back off, up to (expected) max of 30s
-        delay = min(delay * 2, 60.0)
         t = delay * random.random()
         await asyncio.sleep(t)
+        delay = min(delay * 2, 60.0)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):

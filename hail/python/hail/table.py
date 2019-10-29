@@ -1531,6 +1531,44 @@ class Table(ExprContainer):
                                       f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                                       f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
+    @staticmethod
+    def _maybe_truncate_for_flexindex(indexer, indexee_dtype):
+        if not len(indexee_dtype) > 0:
+            raise ValueError('Must have non-empty key to index')
+
+        if not isinstance(indexer.dtype, (hl.tstruct, hl.ttuple)):
+            indexer = hl.tuple([indexer])
+
+        matching_prefix = 0
+        for x, y in zip(indexer.dtype.types, indexee_dtype.types):
+            if x != y:
+                break
+            matching_prefix += 1
+        prefix_match = matching_prefix == len(indexee_dtype)
+        direct_match = prefix_match and \
+            len(indexer) == len(indexee_dtype)
+        prefix_interval_match = len(indexee_dtype) == 1 and \
+            isinstance(indexee_dtype[0], hl.tinterval) and \
+            indexer.dtype[0] == indexee_dtype[0].point_type
+        direct_interval_match = prefix_interval_match and \
+            len(indexer) == 1
+        if direct_match or direct_interval_match:
+            return indexer
+        if prefix_match:
+            return indexer[0:matching_prefix]
+        if prefix_interval_match:
+            return indexer[0]
+        return None
+
+
+    @typecheck_method(indexer=expr_any, all_matches=bool)
+    def _maybe_flexindex_table_by_expr(self, indexer, all_matches=False):
+        truncated_indexer = Table._maybe_truncate_for_flexindex(
+            indexer, self.key.dtype)
+        if truncated_indexer is not None:
+            return self.index(truncated_indexer, all_matches=all_matches)
+        return None
+
     def _index(self, *exprs, all_matches=False) -> 'Expression':
         exprs = tuple(exprs)
         if not len(exprs) > 0:
@@ -2878,6 +2916,60 @@ class Table(ExprContainer):
         fields. If `columns` are structs, then the matrix table will have the entry fields of those structs. Otherwise,
         the matrix table will have one entry field named `entry_field_name` whose values come from the values
         of the `columns` fields. The matrix table is column indexed by `col_field_name`.
+
+        If you find yourself using this method after :func:`.import_table`,
+        consider instead using :func:`.import_matrix_table`.
+
+        Examples
+        --------
+
+        Convert a table of RNA expression samples to a :class:`.MatrixTable`:
+
+        >>> t = hl.import_table('data/rna_expression.tsv', impute=True)
+        >>> t = t.key_by('gene')
+        >>> t.show()
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | gene    | lung001 | lung002 | heart001 | muscle001 | muscle002 | muscle003 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | str     |   int32 |   int32 |    int32 |     int32 |     int32 |     int32 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | "LD4"   |       1 |       2 |        0 |         2 |         1 |         1 |
+        | "SCN1A" |       2 |       1 |        1 |         0 |         0 |         0 |
+        | "TITIN" |       3 |       0 |        0 |         1 |         2 |         1 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        >>> mt = t.to_matrix_table_row_major(
+        ...          columns=['lung001', 'lung002', 'heart001',
+        ...                   'muscle001', 'muscle002', 'muscle003'],
+        ...          entry_field_name='expression',
+        ...          col_field_name='sample')
+        >>> mt.describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Column fields:
+            'sample': str
+        ----------------------------------------
+        Row fields:
+            'gene': str
+        ----------------------------------------
+        Entry fields:
+            'expression': int32
+        ----------------------------------------
+        Column key: ['sample']
+        Row key: ['gene']
+        ----------------------------------------
+        >>> mt.show(n_cols=2)
+        +---------+--------------------+--------------------+
+        | gene    | lung001.expression | lung002.expression |
+        +---------+--------------------+--------------------+
+        | str     |              int32 |              int32 |
+        +---------+--------------------+--------------------+
+        | "LD4"   |                  1 |                  2 |
+        | "SCN1A" |                  2 |                  1 |
+        | "TITIN" |                  3 |                  0 |
+        +---------+--------------------+--------------------+
+        showing the first 2 of 6 columns
 
         Notes
         -----

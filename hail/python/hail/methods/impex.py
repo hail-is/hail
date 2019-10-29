@@ -1298,7 +1298,8 @@ def import_table(paths,
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
-    :meth:`.Table.key_by` to specify keys.
+    :meth:`.Table.key_by` to specify keys. See also:
+    :func:`.import_matrix_table`.
 
     Examples
     --------
@@ -1494,7 +1495,8 @@ def import_table(paths,
            min_partitions=nullable(int),
            no_header=bool,
            force_bgz=bool,
-           sep=str)
+           sep=nullable(str),
+           delimiter=nullable(str))
 def import_matrix_table(paths,
                         row_fields={},
                         row_key=[],
@@ -1503,7 +1505,8 @@ def import_matrix_table(paths,
                         min_partitions=None,
                         no_header=False,
                         force_bgz=False,
-                        sep='\t') -> MatrixTable:
+                        sep=None,
+                        delimiter=None) -> MatrixTable:
     """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1643,12 +1646,29 @@ def import_matrix_table(paths,
     force_bgz : :obj:`bool`
         If ``True``, load **.gz** files as blocked gzip files, assuming
         that they were actually compressed using the BGZ codec.
+    sep : :obj:`str`
+        This parameter is a deprecated name for `delimiter`, please use that
+        instead.
+    delimiter : :obj:`str`
+        A single character string which separates values in the file.
 
     Returns
     -------
     :class:`.MatrixTable`
         MatrixTable constructed from imported data
     """
+    if sep is not None:
+        if delimiter is not None:
+            raise ValueError(
+                f'expecting either sep or delimiter but received both: '
+                f'{sep}, {delimiter}')
+        delimiter = sep
+    del sep
+
+    if delimiter is None:
+        delimiter = '\t'
+    if len(delimiter) != 1:
+        raise FatalError('delimiter or sep must be a single character')
 
     add_row_id = False
     if isinstance(row_key, list) and len(row_key) == 0:
@@ -1668,8 +1688,6 @@ def import_matrix_table(paths,
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
-    if len(sep) != 1:
-        raise FatalError('sep must be a single character')
 
     reader = TextMatrixReader(paths,
                               min_partitions,
@@ -1677,7 +1695,7 @@ def import_matrix_table(paths,
                               entry_type,
                               missing,
                               not no_header,
-                              sep,
+                              delimiter,
                               force_bgz,
                               add_row_id)
 

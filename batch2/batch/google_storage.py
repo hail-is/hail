@@ -7,7 +7,7 @@ from hailtop.utils import blocking_to_async
 class GCS:
     @staticmethod
     def _parse_uri(uri):
-        assert uri.startswith('gs://')
+        assert uri.startswith('gs://'), uri
         uri = uri.lstrip('gs://').split('/')
         bucket = uri[0]
         path = '/'.join(uri[1:])
@@ -16,9 +16,9 @@ class GCS:
     def __init__(self, blocking_pool, credentials=None):
         self.blocking_pool = blocking_pool
         self.gcs_client = google.cloud.storage.Client(credentials=credentials)
-        self._wrapped_write_gs_file = self._wrap_nonreturning_network_call(GCS._write_gs_file)
-        self._wrapped_read_gs_file = self._wrap_returning_network_call(GCS._read_gs_file)
-        self._wrapped_delete_gs_file = self._wrap_nonreturning_network_call(GCS._delete_gs_file)
+        self._wrapped_write_gs_file = self._wrap_network_call(GCS._write_gs_file)
+        self._wrapped_read_gs_file = self._wrap_network_call(GCS._read_gs_file)
+        self._wrapped_delete_gs_file = self._wrap_network_call(GCS._delete_gs_file)
 
     async def write_gs_file(self, uri, string):
         return await self._wrapped_write_gs_file(self, uri, string)
@@ -29,25 +29,12 @@ class GCS:
     async def delete_gs_file(self, uri):
         return await self._wrapped_delete_gs_file(self, uri)
 
-    def _wrap_returning_network_call(self, fun):
+    def _wrap_network_call(self, fun):
         async def wrapped(*args, **kwargs):
-            try:
-                return (await blocking_to_async(self.blocking_pool,
-                                                fun,
-                                                *args,
-                                                **kwargs),
-                        None)
-            except google.api_core.exceptions.GoogleAPIError as err:
-                return (None, err)
-        wrapped.__name__ = fun.__name__
-        return wrapped
-
-    def _wrap_nonreturning_network_call(self, fun):
-        fun = self._wrap_returning_network_call(fun)
-
-        async def wrapped(*args, **kwargs):
-            _, err = await fun(*args, *kwargs)
-            return err
+            return await blocking_to_async(self.blocking_pool,
+                                           fun,
+                                           *args,
+                                           **kwargs)
         wrapped.__name__ = fun.__name__
         return wrapped
 

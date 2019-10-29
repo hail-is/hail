@@ -120,7 +120,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def storeFields(dest: Code[Long]): Code[Unit] = {
     maybeGCCode(
-      ab.storeFields(storageType.fieldOffset(dest, 0)),
+      ab.storeTo(storageType.fieldOffset(dest, 0)),
       Region.storeAddress(storageType.fieldOffset(dest, 1), staging),
       Region.storeAddress(storageType.fieldOffset(dest, 2), keyStage),
       Region.storeLong(storageType.fieldOffset(dest, 3), maxIndex),
@@ -133,7 +133,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def loadFields(src: Code[Long]): Code[Unit] = {
     maybeGCCode(
-      ab.loadFields(storageType.fieldOffset(src, 0)),
+      ab.loadFrom(storageType.fieldOffset(src, 0)),
       staging := Region.loadAddress(storageType.fieldOffset(src, 1)),
       keyStage := Region.loadAddress(storageType.fieldOffset(src, 2)),
       maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),

@@ -2,7 +2,8 @@ FROM python:3.6-slim-stretch
 
 RUN apt-get update && \
   apt-get -y install \
-    curl && \
+    curl \
+    less && \
   rm -rf /var/lib/apt/lists/*
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux

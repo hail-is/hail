@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{TTuple, TupleField}
+import is.hail.table.SortOrder
 import is.hail.utils._
 
 case class PTupleField(index: Int, typ: PType)
@@ -25,9 +26,13 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+    codeOrdering(mb, other, null)
+
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb)
+    assert(so == null || so.size == types.size)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so)
   }
 
   override def truncate(newSize: Int): PTuple =

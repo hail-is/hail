@@ -6,14 +6,12 @@ from aiohttp import web
 import logging
 import google.oauth2.service_account
 import sortedcontainers
-import traceback
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import AsyncWorkerPool
+from hailtop.utils import AsyncWorkerPool, request_retry_transient_errors
 
 from ..google_compute import GServices
 from ..utils import parse_cpu_in_mcpu
-from ..globals import tasks
 
 from .instance_pool import InstancePool
 
@@ -23,20 +21,10 @@ BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
 
-class DriverException(Exception):
-    def __init__(self, status, message):
-        super().__init__()
-        self.status = status
-        self.message = message
-
-    def __str__(self):
-        return f'{(self.status, self.message)}'
-
-
 class Pod:
     @staticmethod
     def from_record(driver, record):
-        batch_id = json.loads(record['batch_id'])
+        batch_id = record['batch_id']
         job_spec = json.loads(record['job_spec'])
         userdata = json.loads(record['userdata'])
         status = json.loads(record['status']) if record['status'] else None
@@ -124,19 +112,13 @@ class Pod:
             secret_futures.append(self.driver.k8s.read_secret(secret['name']))
             k8s_secrets = await asyncio.gather(*secret_futures)
 
-        for secret, (k8s_secret, err) in zip(secrets, k8s_secrets):
-            name = secret['name']
-            if not err:
+        for secret, k8s_secret in zip(secrets, k8s_secrets):
+            if k8s_secret:
                 secret['data'] = k8s_secret.data
-            else:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'could not get secret {name} due to {err}')
-                secret['data'] = None
 
         return {
             'name': self.name,
             'batch_id': self.batch_id,
-            'job_id': self.job_spec['job_id'],
             'user': self.userdata['username'],
             'job_spec': job_spec,
             'output_directory': self.output_directory
@@ -144,7 +126,7 @@ class Pod:
 
     async def mark_complete(self, status):
         self._status = status
-        asyncio.ensure_future(self.driver.db.pods.update_record(self.name, status=json.dumps(status)))
+        await self.driver.db.pods.update_record(self.name, status=json.dumps(status))
 
     def mark_deleted(self):
         assert not self.deleted
@@ -219,26 +201,20 @@ class Pod:
             self.on_ready = False
             self.driver.ready_cores_mcpu -= self.cores_mcpu
 
-    async def _request(self, f):
+    async def _request(self, method, url, **kwargs):
         try:
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with f(session) as resp:
-                    if self.instance:
-                        self.instance.mark_as_healthy()
-                    return resp, None
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                resp = await request_retry_transient_errors(session, method, url, **kwargs)
+                if self.instance:
+                    self.instance.mark_as_healthy()
+                return resp
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception:
             if self.instance:
                 self.instance.mark_as_unhealthy()
-            return None, err
-
-    async def _post(self, url, json=None):
-        return await self._request(lambda session: session.post(url, json=json))
-
-    async def _get(self, url):
-        return await self._request(lambda session: session.get(url))
+            raise
 
     async def create(self):
         async with self.lock:
@@ -257,16 +233,12 @@ class Pod:
 
             inst = self.instance
             url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/create'
-            resp, err = await self._post(url, config)
-            if resp:
-                if resp.status == 200:
-                    log.info(f'created {self.name} on inst {inst}')
-                    return None
-                log.info(f'failed to create {self.name} on inst {inst} due to {resp}')
-                return
-            assert err
-            log.info(f'failed to create {self.name} on inst {inst} due to {err}, putting back on ready queue')
-            asyncio.ensure_future(self.put_on_ready())
+            try:
+                await self._request('POST', url, json=config)
+                log.info(f'created {self.name} on inst {inst}')
+            except Exception:
+                log.exception(f'failed to create {self.name} on inst {inst}, putting back on ready queue')
+                asyncio.ensure_future(self.put_on_ready())
 
     async def delete(self):
         assert self.deleted
@@ -275,61 +247,46 @@ class Pod:
             inst = self.instance
             if inst:
                 url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/delete'
-                resp, err = await self._post(url)
-                if resp:
-                    if resp.status == 200:
-                        log.info(f'deleted {self.name} from inst {inst}')
-                    else:
-                        log.info(f'failed to delete {self.name} from inst {inst} due to {resp}')
-                else:
-                    assert err
-                    log.info(f'failed to delete {self.name} on inst {inst} due to err {err}, ignoring')
+                try:
+                    await self._request('POST', url)
+                    log.info(f'deleted {self.name} from inst {inst}')
+                except Exception:
+                    log.exception(f'failed to delete {self.name} on inst {inst} due to exception, ignoring')
 
             await self.unschedule()
-            asyncio.ensure_future(self.driver.db.pods.delete_record(self.name))
+            await self.driver.db.pods.delete_record(self.name)
 
-    async def read_pod_log(self, container):
-        assert container in tasks
-        log.info(f'reading container log for {self.name}, {container} from instance {self.instance}')
-
-        if self.instance is None:
-            return None, None
-
-        inst = self.instance
-        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/log'
-        resp, err = self._get(url)
-        if resp:
-            return resp.json(), None
-        assert err
-        log.info(f'failed to read container log {self.name}, {container} on {inst} due to err {err}, ignoring')
-        return None, err
-
-    async def read_container_status(self, container):
-        assert container in tasks
-        log.info(f'reading container status for {self.name}, {container} from instance {self.instance}')
+    async def read_pod_logs(self):
+        log.info(f'reading pod {self.name} logs from instance {self.instance}')
 
         if self.instance is None:
-            return None, None
+            return None
 
         inst = self.instance
-        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/containers/{container}/status'
-        resp, err = self._get(url)
-        if resp:
-            return resp.json(), None
-        assert err
-        log.info(f'failed to read container status {self.name}, {container} on {inst} due to err {err}, ignoring')
-        return None, err
+        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/logs'
+        resp = self._request('GET', url)
+        return await resp.json()
+
+    async def read_pod_status(self):
+        log.info(f'reading status for pod {self.name} from instance {self.instance}')
+
+        if self.instance is None:
+            return None
+
+        inst = self.instance
+        url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/status'
+        resp = self._request('GET', url)
+        return await resp.json()
 
     def status(self):
         if self._status is None:
+            # don't know yet
             return {
-                'metadata': {
-                    'name': self.name
-                },
-                'status': {
-                    'containerStatuses': None,
-                    'phase': 'Pending'
-                }
+                'name': self.name,
+                'batch_id': self.batch_id,
+                'job_id': self.job_spec['job_id'],
+                'user': self.userdata['username'],
+                'state': 'pending'
             }
         return self._status
 
@@ -403,7 +360,7 @@ class Driver:
             raise web.HTTPNotFound()
         inst.mark_as_healthy()
 
-        pod_name = status['metadata']['name']
+        pod_name = status['name']
         pod = self.pods.get(pod_name)
         if pod is None:
             log.warning(f'pod_complete from unknown pod {pod_name}, instance {inst_token}')
@@ -414,38 +371,23 @@ class Driver:
         return web.Response()
 
     async def create_pod(self, name, batch_id, job_spec, userdata, output_directory):
-        if name in self.pods:
-            return DriverException(409, f'pod {name} already exists')
-
-        try:
-            pod = await Pod.create_pod(self, name, batch_id, job_spec, userdata, output_directory)
-        except Exception as err:  # pylint: disable=broad-except
-            return DriverException(400, f'unknown error creating pod: {err}')  # FIXME: what error code should this be?
-
+        assert name not in self.pods
+        pod = await Pod.create_pod(self, name, batch_id, job_spec, userdata, output_directory)
         self.pods[name] = pod
-        asyncio.ensure_future(pod.put_on_ready())
+        await pod.put_on_ready()
 
     async def delete_pod(self, name):
-        pod = self.pods.get(name)
-        if pod is None:
-            return DriverException(409, f'pod {name} does not exist')
+        pod = self.pods[name]
         pod.mark_deleted()
         await self.pool.call(pod.delete)
-        del self.pods[name]  # this must be after delete finishes successfully in case pod marks complete before delete call
+        # this must be after delete finishes successfully in case pod marks complete before delete call
+        del self.pods[name]
 
-    async def read_pod_log(self, name, container):
-        assert container in tasks
-        pod = self.pods.get(name)
-        if pod is None:
-            return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_pod_log(container)
+    async def read_pod_logs(self, name):
+        return await self.pods[name].read_pod_logs()
 
-    async def read_container_status(self, name, container):
-        assert container in tasks
-        pod = self.pods.get(name)
-        if pod is None:
-            return None, DriverException(409, f'pod {name} does not exist')
-        return await pod.read_container_status(container)
+    async def read_pod_status(self, name):
+        return await self.pods[name].read_pod_status()
 
     def list_pods(self):
         return [pod.status() for _, pod in self.pods.items()]
@@ -493,9 +435,12 @@ class Driver:
         records = await self.db.pods.get_all_records()
         self.pods = dict(_pod(record) for record in records)
 
-        for pod in self.pods.values():
-            if not pod.instance and not pod._status:
-                asyncio.ensure_future(pod.put_on_ready())
+        async def put_all_on_ready():
+            for pod in self.pods.values():
+                if not pod.instance and not pod._status:
+                    await pod.put_on_ready()
+
+        asyncio.ensure_future(put_all_on_ready())
 
     async def run(self):
         await self.inst_pool.start()

@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitMethodBuilder, IRParser}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.expr.types.encoded.EType
+import is.hail.table.{ Ascending, Descending, SortOrder }
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -197,7 +198,17 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     sb.append(_toPretty)
   }
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    codeOrdering(mb, this)
+
+  def codeOrdering(mb: EmitMethodBuilder, so: SortOrder): CodeOrdering =
+    codeOrdering(mb, this, so)
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: SortOrder): CodeOrdering =
+    so match {
+      case Ascending => codeOrdering(mb, other)
+      case Descending => codeOrdering(mb, other).reverse
+    }
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering
 

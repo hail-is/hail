@@ -58,8 +58,8 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     -------
     :class:`.MatrixTable`
     """
-    check_positive_and_in_range('range_matrix_table', 'n_rows', n_rows)
-    check_positive_and_in_range('range_matrix_table', 'n_cols', n_cols)
+    check_nonnegative_and_in_range('range_matrix_table', 'n_rows', n_rows)
+    check_nonnegative_and_in_range('range_matrix_table', 'n_cols', n_cols)
     if n_partitions is not None:
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
     return hail.MatrixTable(hail.ir.MatrixRead(hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions)))
@@ -96,7 +96,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     -------
     :class:`.Table`
     """
-    check_positive_and_in_range('range_table', 'n', n)
+    check_nonnegative_and_in_range('range_table', 'n', n)
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
 
@@ -105,6 +105,13 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
 def check_positive_and_in_range(caller, name, value):
     if value <= 0:
         raise ValueError(f"'{caller}': parameter '{name}' must be positive, found {value}")
+    elif value > hail.tint32.max_value:
+        raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
+                         f"found {value}")
+
+def check_nonnegative_and_in_range(caller, name, value):
+    if value < 0:
+        raise ValueError(f"'{caller}': parameter '{name}' must be non-negative, found {value}")
     elif value > hail.tint32.max_value:
         raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
                          f"found {value}")

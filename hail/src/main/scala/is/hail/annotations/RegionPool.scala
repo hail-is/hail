@@ -22,7 +22,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private val freeRegions = new ArrayBuilder[RegionMemory]()
   private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private var totalAllocatedBytes: Long = 0L
-  private var allocationEchoThreshold: Long = 8 * 1024 * 1024
+  private var allocationEchoThreshold: Long = 256 * 1024
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 

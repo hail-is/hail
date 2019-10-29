@@ -31,6 +31,9 @@ def main(args_):
     parser.add_argument("--quiet", "-q",
                         action="store_true",
                         help="Do not print testing information to stderr in real time.")
+    parser.add_argument("--verbose", "-v",
+                        action="store_true",
+                        help="Do not silence Hail logging to standard output.")
     parser.add_argument("--output", "-o",
                         type=str,
                         help="Output file path.")

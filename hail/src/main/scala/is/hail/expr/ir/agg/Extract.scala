@@ -293,6 +293,7 @@ object Extract {
       new CollectAsSetAggregator(PType.canonical(t))
     case AggSignature2(Collect(), _, Seq(t), _) =>
       new CollectAggregator(t.physicalType)
+    case AggSignature2(Downsample(), _, Seq(_, _, label), _) => new DownsampleAggregator(label.physicalType.asInstanceOf[PArray])
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 

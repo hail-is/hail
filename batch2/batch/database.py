@@ -160,9 +160,7 @@ class Table:  # pylint: disable=R0903
 
 
 class JobsBuilder:
-    jobs_fields = {'batch_id', 'job_id', 'state',
-                   'spec', 'directory', 'exit_codes',
-                   'durations', 'messages'}
+    jobs_fields = {'batch_id', 'job_id', 'state', 'spec', 'directory', 'status'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
