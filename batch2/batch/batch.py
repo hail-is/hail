@@ -139,7 +139,7 @@ class Job:
 
         rv = await check_call_procedure(
             self.db.pool,
-            'CALL mark_job_complete(%s, %s, %s, %s, %s);',
+            'CALL mark_job_complete(%s, %s, %s, %s);',
             (self.batch_id, self.job_id, new_state, json.dumps(status)))
 
         # update instance
