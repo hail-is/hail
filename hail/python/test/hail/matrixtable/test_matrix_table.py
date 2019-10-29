@@ -140,6 +140,16 @@ class Tests(unittest.TestCase):
         assert tail(30, None) == expected(30, 29)
         assert tail(30, 10) == expected(30, 10)
 
+    def test_tail_scan(self):
+        mt = hl.utils.range_matrix_table(30, 40)
+        mt = mt.annotate_rows(i = hl.scan.count())
+        mt = mt.annotate_cols(j = hl.scan.count())
+        mt = mt.tail(10, 11)
+        ht = mt.entries()
+        assert ht.aggregate(agg.collect_as_set(hl.tuple([ht.i, ht.j]))) == set(
+            (i, j) for i in range(20, 30) for j in range(29, 40)
+        )
+
     def test_filter(self):
         mt = self.get_mt()
         mt = mt.annotate_globals(foo=5)
