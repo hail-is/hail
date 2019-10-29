@@ -486,9 +486,11 @@ class Worker:
 
         job = Job(batch_id, user, job_spec, output_directory)
         self.jobs[id] = job
-        await job.run(self)
-        self.last_updated = time.time()
-        del self.jobs[id]
+        try:
+            await job.run(self)
+        finally:
+            self.last_updated = time.time()
+            del self.jobs[id]
 
     async def create_job(self, request):
         asyncio.ensure_future(self.create_job_1(request))
@@ -576,7 +578,9 @@ class Worker:
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:
+            except Exception as e:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:
+                    raise
                 log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
             # exponentially back off, up to (expected) max of 30s
             t = delay * random.random()
