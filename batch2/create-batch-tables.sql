@@ -146,7 +146,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT closed INTO cur_batch_closed FROM batches WHERE id = in_batch_id;
+  SELECT closed INTO cur_batch_closed FROM batch WHERE id = in_batch_id;
   IF NOT cur_batch_closed THEN
     UPDATE batch SET closed = 1 WHERE id = in_batch_id;
     UPDATE ready_cores
