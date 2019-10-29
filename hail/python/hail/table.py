@@ -2835,6 +2835,38 @@ class Table(ExprContainer):
     def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], n_partitions=None) -> 'hl.MatrixTable':
         """Construct a matrix table from a table in coordinate representation.
 
+        Examples
+        --------
+        Import a coordinate-representation table from disk:
+
+        >>> coord_ht = hl.import_table('data/coordinate_matrix.tsv', impute=True)
+        >>> coord_ht.show()
+        +---------+---------+----------+
+        | row_idx | col_idx |        x |
+        +---------+---------+----------+
+        |   int32 |   int32 |  float64 |
+        +---------+---------+----------+
+        |       1 |       1 | 2.50e-01 |
+        |       1 |       2 | 3.30e-01 |
+        |       2 |       1 | 1.10e-01 |
+        |       3 |       1 | 1.00e+00 |
+        |       3 |       2 | 0.00e+00 |
+        +---------+---------+----------+
+
+        Convert to a matrix table and show:
+
+        >>> dense_mt = ht.to_matrix_table(row_key=['row_idx'], col_key=['col_idx'])
+        >>> dense_mt.show()
+        +---------+----------+----------+
+        | row_idx |      0.x |      1.x |
+        +---------+----------+----------+
+        |   int32 |  float64 |  float64 |
+        +---------+----------+----------+
+        |       1 | 2.50e-01 | 3.30e-01 |
+        |       2 | 1.10e-01 |       NA |
+        |       3 | 1.00e+00 | 0.00e+00 |
+        +---------+----------+----------+
+
         Notes
         -----
         Any row fields in the table that do not appear in one of the arguments
