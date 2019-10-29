@@ -28,7 +28,7 @@ async def execute_and_fetchone(pool, sql, args=None):
             return await cursor.fetchone()
 
 
-async def execute_and_fetchall(pool, query, args=None):
+async def execute_and_fetchall(pool, sql, args=None):
     async with pool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(sql, args)
