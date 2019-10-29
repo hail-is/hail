@@ -171,9 +171,10 @@ class InstancePool:
             state=state, name=machine_name, token=inst_token,
             cores_mcpu=WORKER_CORES_MCPU, free_cores_mcpu=WORKER_CORES_MCPU)
         instance = Instance(id, state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU, None)
+
         self.add_instance(instance)
 
-        log.info(f'created instance {instance}')
+        log.info(f'created {instance}')
 
         config = {
             'name': machine_name,

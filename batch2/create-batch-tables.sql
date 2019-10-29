@@ -239,7 +239,7 @@ BEGIN
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
-    UPDATE jobs SET state = new_state, status = new_state, instance_id = NULL;
+    UPDATE jobs SET state = new_state, status = new_status, instance_id = NULL;
 
     UPDATE batch SET n_completed = n_completed + 1 WHERE id = in_batch_id;
     IF new_state = 'Cancelled' THEN

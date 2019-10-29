@@ -16,4 +16,4 @@ class Instance:
         self.ip_address = ip_address
 
     def __str__(self):
-        return f'instance {self.name}'
+        return f'instance {self.id} {self.name}'
