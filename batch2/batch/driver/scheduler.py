@@ -77,7 +77,7 @@ class Scheduler:
             async with conn.cursor() as cursor:
                 # FIXME could be an expensive query
                 sql = '''
-SELECT job_id, batch_id, instance_id
+SELECT job_id, batch_id, cores_mcpu, instance_id
 FROM jobs
 INNER JOIN batch ON batch.id = jobs.batch_id
 WHERE jobs.state = 'Running' AND NOT jobs.always_run AND batch.cancelled
