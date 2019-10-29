@@ -297,7 +297,7 @@ class Batch:
         async with self.db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 cursor.execute('CALL close_batch(%s);',
-                               (self.batch_id,))
+                               (self.id,))
         self.closed = True
         log.info(f'{self} closed')
 
