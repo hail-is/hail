@@ -304,7 +304,7 @@ retry docker run \
     async def activate_instance(self, instance, ip_address):
         assert instance.state == 'pending'
 
-        check_call_procedure(
+        await check_call_procedure(
             self.db.pool,
             'CALL activate_instance(%s, %s);',
             (instance.id, ip_address))

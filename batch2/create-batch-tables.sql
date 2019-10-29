@@ -188,7 +188,7 @@ BEGIN
     SELECT 0 as rc, in_instance_id;
   ELSE
     ROLLBACK;
-    SELECT 1 as rc, cur_job_state, cur_instance_state, in_instance_id, 'job not ready or instance not active' as message;
+    SELECT 1 as rc, cur_job_state, cur_instance_state, in_instance_id, 'job not Ready or instance not active' as message;
   END IF;
 END $$
 
