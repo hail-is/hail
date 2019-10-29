@@ -3,7 +3,7 @@ import logging
 import aiohttp
 from gear import execute_and_fetchone
 
-from .globals import tasks
+from .globals import complete_states, tasks
 from .database import check_call_procedure
 
 log = logging.getLogger('batch')
@@ -29,7 +29,7 @@ async def notify_batch_job_complete(db, batch_id):
         db.pool, '''
 SELECT *
 FROM batch
-WHERE batch_id = %s AND closed AND n_completed = n_jobs;
+WHERE id = %s AND closed AND n_completed = n_jobs;
 ''',
         (batch_id,))
 
@@ -56,29 +56,32 @@ async def mark_job_complete(
         db, scheduler_state_changed, inst_pool,
         batch_id, job_id, new_state, status):
     id = (batch_id, job_id)
+
     rv = await check_call_procedure(
         db.pool,
         'CALL mark_job_complete(%s, %s, %s, %s);',
         (batch_id, job_id, new_state,
          json.dumps(status) if status is not None else None))
-    # FIXME return/report old status?
-    log.info(f'mark_job_complete returned {rv}')
 
-    # update instance
+    log.info(f'mark_job_complete returned {rv} for job {id}')
+
+    old_state = rv['old_state']
+    if old_state in complete_states:
+        # already complete, do nothing
+        return
+
+    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
+
     instance_id = rv['instance_id']
-    instance = inst_pool.id_instance.get(instance_id)
-
-    log.info(f'updating instance: {instance}')
-
-    # FIXME what to do if instance is missing?
-    if instance:
-        inst_pool.adjust_for_remove_instance(instance)
-        instance.free_cores_mcpu += rv['cores_mcpu']
-        inst_pool.adjust_for_add_instance(instance)
+    if instance_id:
+        instance = inst_pool.id_instance.get(instance_id)
+        log.info(f'updating instance: {instance}')
+        if instance:
+            inst_pool.adjust_for_remove_instance(instance)
+            instance.free_cores_mcpu += rv['cores_mcpu']
+            inst_pool.adjust_for_add_instance(instance)
 
     scheduler_state_changed.set()
-
-    log.info(f'job {id} complete with state {new_state}, status {status}')
 
     await notify_batch_job_complete(db, batch_id)
 
