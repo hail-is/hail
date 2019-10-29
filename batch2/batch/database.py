@@ -44,7 +44,7 @@ async def check_call_procedure(pool, sql, args=None):
         async with conn.cursor() as cursor:
             await cursor.execute(sql, args)
             rv = await cursor.fetchone()
-            if rv['rc'] < 0:
+            if rv['rc'] != 0:
                 raise CallError(rv)
             return rv
 

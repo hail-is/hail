@@ -169,7 +169,7 @@ class InstancePool:
             async with conn.cursor() as cursor:
                 await cursor.execute('SELECT * FROM jobs WHERE batch_id = %s AND job_id = %s',
                                      (batch_id, job_id))
-                row = cursor.fetchone()
+                row = await cursor.fetchone()
                 log.info(f'updated job row {row}')
 
     async def create_instance(self):
