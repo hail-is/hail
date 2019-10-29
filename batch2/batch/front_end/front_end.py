@@ -169,7 +169,7 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = await execute_and_fetchone(db.pool, '''
-SELECT state, ip_address, directory
+SELECT jobs.state, ip_address, directory
 FROM jobs
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
@@ -214,7 +214,7 @@ async def _get_job_status(app, batch_id, job_id, user):
     db = app['db']
 
     record = await execute_and_fetchone(db.pool, '''
-SELECT state, ip_address, directory
+SELECT jobs.state, ip_address, directory
 FROM jobs
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
