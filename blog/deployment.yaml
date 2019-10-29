@@ -21,7 +21,6 @@ spec:
       containers:
       - name: blog
         image: ghost:3.0-alpine
-        imagePullPolicy: Always
         env:
           - name: NODE_ENV
             value: production
