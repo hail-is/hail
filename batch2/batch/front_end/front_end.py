@@ -80,7 +80,7 @@ def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disa
     secrets = job_spec.get('secrets')
     if not secrets:
         secrets = []
-        job_spec['secerts'] = secrets
+        job_spec['secrets'] = secrets
     secrets.append({
         'namespace': 'batch-pods',  # FIXME unused
         'name': userdata['gsa_key_secret_name'],
