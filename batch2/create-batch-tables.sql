@@ -75,8 +75,7 @@ DELIMITER $$
 
 CREATE PROCEDURE activate_instance(
   IN in_instance_id BIGINT,
-  IN in_ip_address VARCHAR(100),
-  OUT success INT
+  IN in_ip_address VARCHAR(100)
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -88,16 +87,15 @@ BEGIN
   IF cur_state = 'pending' THEN
     UPDATE instances SET state = 'active', ip_address = in_ip_address WHERE id = in_instance_id;
     COMMIT;
-    SET success = 1;
+    SELECT 0 as rc;
   ELSE
     ROLLBACK;
-    SET success = 0;
+    SELECT 1 as rc, cur_state, 'state not pending' as message;
   END IF;
 END $$
 
 CREATE PROCEDURE deactivate_instance(
-  IN in_instance_id BIGINT,
-  OUT success INT
+  IN in_instance_id BIGINT
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -110,16 +108,15 @@ BEGIN
     UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE id = in_instance_id;
     UPDATE jobs SET instance_id = NULL where instance_id = in_instance_id;
     COMMIT;
-    SET success = 1;
+    SELECT 0 as rc;
   ELSE
     ROLLBACK;
-    SET success = 0;
+    SELECT 1 as rc, cur_state, 'state not live (active or pending)' as message;
   END IF;
 END $$
 
 CREATE PROCEDURE mark_instance_deleted(
-  IN in_instance_id BIGINT,
-  OUT success INT
+  IN in_instance_id BIGINT
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -131,10 +128,10 @@ BEGIN
   IF cur_state = 'inactive' THEN
     UPDATE instances SET state = 'deleted' WHERE id = in_instance_id;
     COMMIT;
-    SET success = 1;
+    SELECT 0 as rc;
   ELSE
     ROLLBACK;
-    SET success = 0;
+    SELECT 1 as rc, cur_state, 'state not inactive' as message;
   END IF;
 END $$
 
@@ -147,22 +144,27 @@ BEGIN
   START TRANSACTION;
 
   SELECT closed INTO cur_batch_closed FROM batch WHERE id = in_batch_id;
-  IF NOT cur_batch_closed THEN
+  IF cur_batch_closed = 1 THEN
+    COMMIT;
+    SELECT 0 as rc;
+  ELSEIF cur_batch_closed = 0 THEN
     UPDATE batch SET closed = 1 WHERE id = in_batch_id;
     UPDATE ready_cores
       SET ready_cores_mcpu = ready_cores_mcpu + (
         SELECT SUM(cores_mcpu) FROM jobs
 	WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id);
+    COMMIT;
+    SELECT 0 as rc;
+  ELSE
+    ROLLBACK;
+    SELECT 1 as rc, cur_batch_closed, 'batch closed is not 0 or 1' as message;
   END IF;
-  COMMIT;
-
 END $$
 
 CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id BIGINT,
-  IN in_instance_id BIGINT,
-  OUT success INT
+  IN in_instance_id BIGINT
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -182,18 +184,16 @@ BEGIN
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE id = in_instance_id;
     COMMIT;
-    SET success = 1;
+    SELECT 0 as rc;
   ELSE
     ROLLBACK;
-    SET success = 0;
+    SELECT 1 as rc, cur_job_state, cur_instance_state, 'job not ready or instance not active' as message;
   END IF;
 END $$
 
 CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
-  IN in_job_id BIGINT,
-  OUT success INT,
-  OUT out_instance_id BIGINT
+  IN in_job_id BIGINT
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -211,11 +211,10 @@ BEGIN
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
     COMMIT;
-    SET success = 1;
-    SET out_instance_id = cur_job_instance_id;
+    SELECT 0 as rc, out_instance_id;
   ELSE
     ROLLBACK;
-    SET success = 0;
+    SELECT 1 as rc, cur_job_state, 'job state not Running' as message;
   END IF;
 END $$
 
@@ -223,9 +222,7 @@ CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id BIGINT,
   IN new_state VARCHAR(40),
-  IN new_status VARCHAR(65535),
-  OUT success INT,
-  OUT out_instance_id BIGINT
+  IN new_status VARCHAR(65535)
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -270,11 +267,10 @@ BEGIN
       UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE id = cur_job_instance_id;
     END IF;
     COMMIT;
-    SET success = 1;
-    SET out_instance_id = cur_job_instance_id;
+    SELECT 0 as rc, out_instance_id;
   ELSE
     ROLLBACK;
-    SET success = 0;
+    SELECT 1 as rc, cur_job_state, 'job state not Ready or Running' as message;
   END IF;
 END $$
 

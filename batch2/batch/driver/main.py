@@ -104,7 +104,7 @@ async def activate_instance_1(request):
         raise web.HTTPNotFound()
 
     log.info(f'activating {instance}')
-    inst_pool.activate_instance(instance, ip_address)
+    await inst_pool.activate_instance(instance, ip_address)
     return web.Response()
 
 
@@ -125,7 +125,7 @@ async def deactivate_instance_1(request):
         raise web.HTTPNotFound()
 
     log.info(f'deactivating {instance}')
-    inst_pool.deactivate_instance(instance)
+    await inst_pool.deactivate_instance(instance)
     return web.Response()
 
 
@@ -135,13 +135,13 @@ async def deactivate_instance(request):
 
 
 async def job_complete_1(request):
-    app = request.app
-
     body = await request.json()
     inst_token = body['inst_token']
     status = body['status']
 
-    instance = app['inst_pool'].token_inst.get(inst_token)
+    app = request.app
+    inst_pool = app['inst_pool']
+    instance = inst_pool.token_inst.get(inst_token)
     if not instance:
         log.warning(f'job_complete from unknown instance {inst_token}')
         raise web.HTTPNotFound()
@@ -155,7 +155,7 @@ async def job_complete_1(request):
         log.warning(f'job_complete from unknown job ({batch_id}, {job_id}), {instance}')
         return web.HTTPNotFound()
     log.info(f'job_complete from {job}, instance {inst_token}')
-    await job.mark_complete(status)
+    await job.mark_complete(app['scheduler_state_changed'], inst_pool, status)
     return web.Response()
 
 

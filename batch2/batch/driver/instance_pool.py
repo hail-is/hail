@@ -6,13 +6,13 @@ import aiohttp
 import googleapiclient.errors
 from hailtop.utils import request_retry_transient_errors
 
-from ..exceptions import DatabaseCallError
 from ..utils import new_token
 from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
 
 from .instance import Instance
+from ..database import check_call_procedure
 
 log = logging.getLogger('instance_pool')
 
@@ -146,17 +146,10 @@ class InstancePool:
 
         log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: called create job')
 
-        async with self.db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''
-CALL schedule_job(%s, %s, %s, @out);
-SELECT @out;
-''',
-                               (record['batch_id'], record['job_id'], instance.id))
-                out = await cursor.fetchone()
-                success = out['success']
-                if not success:
-                    raise DatabaseCallError(out)
+        await check_call_procedure(
+            self.db.pool,
+            'CALL schedule_job(%s, %s, %s);',
+            (record['batch_id'], record['job_id'], instance.id))
 
         log.info(f'({record["batch_id"]}, {record["job_id"]}) on {instance}: updated database')
 
@@ -297,17 +290,10 @@ retry docker run \
     async def activate_instance(self, instance, ip_address):
         assert instance.state == 'pending'
 
-        async with self.db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''
-CALL activate_instance(%s, %s, @out);
-SELECT @out;
-''',
-                               (instance.id, ip_address))
-                out = await cursor.fetchone()
-                success = out['success']
-                if not success:
-                    raise DatabaseCallError(out)
+        check_call_procedure(
+            self.db.pool,
+            'CALL activate_instance(%s, %s);',
+            (instance.id, ip_address))
 
         self.adjust_for_remove_instance(instance)
         instance.state = 'active'
@@ -320,17 +306,10 @@ SELECT @out;
         if instance.state in ('inactive', 'deleted'):
             return
 
-        async with self.db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''
-CALL deactivate_instance(%s, @out);
-SELECT @out;
-''',
-                               (instance.id,))
-                out = await cursor.fetchone()
-                success = out['success']
-                if not success:
-                    raise DatabaseCallError(out)
+        check_call_procedure(
+            self.db.pool,
+            'CALL deactivate_instance(%s);',
+            (instance.id,))
 
         self.adjust_for_remove_instance(instance)
         instance.state = 'inactive'
@@ -353,17 +332,10 @@ SELECT @out;
                 return
             raise
 
-        async with self.db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''
-CALL mark_instance_deleted(%s, @out);
-SELECT @out;
-''',
-                               (instance.id,))
-                out = await cursor.fetchone()
-                success = out['success']
-                if not success:
-                    raise DatabaseCallError(out)
+        check_call_procedure(
+            self.db.pool,
+            'CALL mark_instance_deleted(%s);',
+            (instance.id,))
 
         self.adjust_for_remove_instance(instance)
         instance.state = 'deleted'

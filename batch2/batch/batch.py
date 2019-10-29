@@ -5,8 +5,8 @@ import aiohttp
 from hailtop.utils import request_retry_transient_errors
 
 from .globals import tasks
+from .database import check_call_procedure
 from .log_store import LogStore
-from .exceptions import DatabaseCallError
 
 log = logging.getLogger('batch')
 
@@ -126,7 +126,8 @@ class Job:
     def pvc_size(self):
         return self._spec.get('pvc_size')
 
-    async def mark_complete(self, status):
+    # FIXME move
+    async def mark_complete(self, scheduler_state_changed, inst_pool, status):
         status_state = status['state']
         if status_state == 'succeeded':
             new_state = 'Success'
@@ -136,17 +137,20 @@ class Job:
             assert status_state == 'failed', status_state
             new_state = 'Failed'
 
-        async with self.db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('''
-CALL mark_job_complete(%s, %s, %s, %s, %s, @success);
-SELECT @success;
-''',
-                               (self.batch_id, self.job_id, self._state, new_state, json.dumps(status)))
-                out = await cursor.fetchone()
-                success = out['success']
-                if not success:
-                    raise DatabaseCallError(out)
+        rv = await check_call_procedure(
+            self.db.pool,
+            'CALL mark_job_complete(%s, %s, %s, %s, %s);',
+            (self.batch_id, self.job_id, self._state, new_state, json.dumps(status)))
+
+        # update instance
+        instance_id = rv['instance_id']
+        instance = inst_pool.id_intance.get(instance_id)
+        if instance:
+            inst_pool.adjust_for_remove_instance(instance)
+            instance.free_cores_mcpu -= self.cores_mcpu
+            inst_pool.adjust_for_add_instance(instance)
+
+        scheduler_state_changed.set()
 
         if self._state != new_state:
             log.info(f'{self} changed state: {self._state} -> {new_state}')
@@ -294,10 +298,8 @@ class Batch:
 
     # called by front end
     async def close(self):
-        async with self.db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('CALL close_batch(%s);',
-                                     (self.id,))
+        await check_call_procedure(
+            self.db.pool, 'CALL close_batch(%s);', (self.id,))
         self.closed = True
         log.info(f'{self} closed')
 
