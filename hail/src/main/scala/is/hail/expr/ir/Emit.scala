@@ -1680,7 +1680,7 @@ private class Emit(
         emitter.emit(outputPType)
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
-        val ctxType = coerce[PArray](contexts.pType).elementType
+        val ctxType = coerce[PStream](contexts.pType).elementType
         val gType = globals.pType
         val bType = body.pType
 
