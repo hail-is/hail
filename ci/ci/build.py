@@ -684,7 +684,7 @@ set -e
                     resource_type = w.get('resource_type', 'deployment').lower()
                     endpoint = w.get('endpoint', '/healthcheck')
                     headers = w.get('headers', dict())
-                    header_arg = ' '.join([f"-h '{flag}' '{value}'" for flag, value in headers.items()])
+                    header_arg = ' '.join([f"--header '{flag}' '{value}'" for flag, value in headers.items()])
                     timeout = w.get('timeout', 60)
                     if resource_type == 'statefulset':
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
