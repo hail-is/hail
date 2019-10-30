@@ -1082,8 +1082,7 @@ steps:
       resource_type: statefulset
       endpoint: /
       headers:
-      - key: X-Forwarded-Proto
-        value: https
+        X-Forwarded-Proto: https
    dependsOn:
     - default_ns
     - deploy_router
