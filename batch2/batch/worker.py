@@ -249,7 +249,6 @@ class Container:
 
 def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
-    log.info(f'populate secret {host_path} {secret_data}')
     if secret_data is not None:
         for filename, data in secret_data.items():
             with open(f'{host_path}/{filename}', 'w') as f:
@@ -322,7 +321,6 @@ class Job:
             self.mount_io = False
 
         secrets = job_spec.get('secrets')
-        log.info(f'secrets {secrets}')
         self.secrets = secrets
         if secrets:
             for secret in secrets:

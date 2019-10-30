@@ -141,7 +141,6 @@ class InstancePool:
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create'
             body = await self.job_config(record)
-            log.info(f'create job body {body}')
             await request_retry_transient_errors(
                 session, 'POST',
                 url, json=body)
