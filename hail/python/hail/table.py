@@ -2629,7 +2629,7 @@ class Table(ExprContainer):
 
         >>> sorted_table = table1.order_by(hl.desc('HT'))
 
-        A table can be sorted on multiple fields:
+        Tables can also be sorted on multiple fields:
 
         >>> sorted_table = table1.order_by(hl.desc('HT'), hl.asc('SEX'))
 
