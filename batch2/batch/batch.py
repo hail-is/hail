@@ -129,9 +129,9 @@ def job_record_to_dict(record):
             for k in tasks
         }
 
-    attributes = record['attributes']
+    attributes = json.loads(record['attributes'])
     if attributes:
-        result['attributes'] = json.loads(attributes)
+        result['attributes'] = attributes
     return result
 
 
@@ -262,6 +262,7 @@ class Batch:
                 job_record_to_dict(record)
                 async for record
                 in execute_and_fetchall(
+                    self.db.pool,
                     'SELECT * FROM jobs where batch_id = %s',
                     (self.id,))
             ]
