@@ -44,11 +44,17 @@ class Scheduler:
     async def unschedule_job(self, record):
         batch_id = record['batch_id']
         job_id = record['job_id']
+        id = (batch_id, job_id)
 
         instance_id = record['instance_id']
+        assert instance_id is not None
+
+        log.info(f'unscheduling job {id} on instance {instance_id}')
+
         instance = self.inst_pool.id_instance.get(instance_id)
         # FIXME what to do if instance missing?
         if not instance:
+            log.warning(f'unschedule job {id}: unknown instance {instance_id}')
             return
 
         async with aiohttp.ClientSession(
@@ -63,14 +69,22 @@ class Scheduler:
                 else:
                     raise
 
+        log.info(f'unschedule job {id}: called delete job')
+
         await check_call_procedure(
             self.db.pool,
             'CALL unschedule_job(%s, %s, %s);',
             (batch_id, job_id, instance_id))
 
+        log.info(f'unschedule job {id}: updated database')
+
         self.inst_pool.adjust_for_remove_instance(instance)
         instance.free_cores_mcpu += record['cores_mcpu']
         self.inst_pool.adjust_for_add_instance(instance)
+
+        log.info(f'unschedule job {id}: updated instance pool')
+
+        self.scheduler_state_changed.set()
 
     async def cancel_1(self):
         async with self.db.pool.acquire() as conn:
@@ -80,7 +94,7 @@ class Scheduler:
 SELECT job_id, batch_id, cores_mcpu, instance_id
 FROM jobs
 INNER JOIN batch ON batch.id = jobs.batch_id
-WHERE jobs.state = 'Running' AND NOT jobs.always_run AND batch.cancelled
+WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batch.cancelled
 LIMIT 50;
 '''
                 await cursor.execute(sql)

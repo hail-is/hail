@@ -11,10 +11,22 @@ log = logging.getLogger('batch')
 
 # FIXME remove batch.attributes, query attributes
 def batch_record_to_dict(record):
+    # FIXME open job should have state = open
+    if record['n_failed'] > 0:
+        state = 'failure'
+    elif record['n_cancelled'] > 0:
+        state = 'cancelled'
+    elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
+        state = 'success'
+    else:
+        state = 'running'
+
+    complete = record['closed'] and record['n_completed'] == record['n_jobs']
+
     d = {
         'id': record['id'],
-        'state': record['state'],
-        'complete': record['complete'],
+        'state': state,
+        'complete': complete,
         'closed': record['closed']
     }
     attributes = json.loads(record['attributes'])
