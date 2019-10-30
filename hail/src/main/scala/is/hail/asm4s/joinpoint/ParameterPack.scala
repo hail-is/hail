@@ -100,7 +100,7 @@ object TypedTriplet {
   def pack(t: PType): Pack[t.type] = new Pack(t)
 }
 
-case class TypedTriplet[P](setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
+case class TypedTriplet[P] private(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def untyped: EmitTriplet = EmitTriplet(setup, m, v)
 
   def storeTo(dm: Settable[Boolean], dv: Settable[_]): Code[Unit] =
