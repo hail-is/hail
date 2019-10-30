@@ -267,7 +267,7 @@ def copy(files):
     if files is None:
         return 'true'
 
-    authenticate = 'set -ex; df -h; ls /; ls /gsa-key || true; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
+    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'{authenticate} && {copies}'
 

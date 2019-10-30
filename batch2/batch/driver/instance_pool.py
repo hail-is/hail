@@ -117,16 +117,11 @@ class InstancePool:
         job_spec = json.loads(record['spec'])
 
         secrets = job_spec['secrets']
-
-        secret_futures = []
-        for secret in secrets:
-            # FIXME need access control to verify user is allowed to access secret
-            secret_futures.append(self.k8s.read_secret(secret['name']))
-            k8s_secrets = await asyncio.gather(*secret_futures)
-
+        k8s_secrets = await asyncio.gather(*[
+            self.k8s.read_secret(secret['name']) for secret in secrets
+        ])
         for secret, k8s_secret in zip(secrets, k8s_secrets):
-            if k8s_secret:
-                secret['data'] = k8s_secret.data
+            secret['data'] = k8s_secret.data
 
         return {
             'batch_id': record['batch_id'],
@@ -145,9 +140,11 @@ class InstancePool:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create'
+            body = await self.job_config(record)
+            log.info(f'create job body {body}')
             await request_retry_transient_errors(
                 session, 'POST',
-                url, json=await self.job_config(record))
+                url, json=body)
 
         log.info(f'schedule job {id} on {instance}: called create job')
 
