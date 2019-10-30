@@ -111,23 +111,27 @@ def job_record_to_dict(record):
     }
     # FIXME can't change this yet, batch and batch2 share client
     if record['status']:
-        if 'error' in record['status']:
-            result['error'] = record['status']['error']
+        status = json.loads(record['status'])
+
+        if 'error' in status:
+            result['error'] = status['error']
         result['exit_code'] = {
-            k: getopt(getopt(record['status']['container_statuses'][k], 'container_status'), 'exit_code') for
+            k: getopt(getopt(status['container_statuses'][k], 'container_status'), 'exit_code') for
             k in tasks
         }
-        result['duration'] = {k: getopt(record['status']['container_statuses'][k]['timing'], 'runtime') for k in tasks}
+        result['duration'] = {k: getopt(status['container_statuses'][k]['timing'], 'runtime') for k in tasks}
         result['message'] = {
             # the execution of the job container might have
             # failed, or the docker container might have completed
             # (wait returned) but had status error
-            k: (getopt(record['status']['container_statuses'][k], 'error') or
-                getopt(getopt(record['status']['container_statuses'][k], 'container_status'), 'error'))
+            k: (getopt(status['container_statuses'][k], 'error') or
+                getopt(getopt(status['container_statuses'][k], 'container_status'), 'error'))
             for k in tasks
         }
-    if record['attributes']:
-        result['attributes'] = record['attributes']
+
+    attributes = record['attributes']
+    if attributes:
+        result['attributes'] = json.loads(attributes)
     return result
 
 
