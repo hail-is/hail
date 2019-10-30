@@ -2439,9 +2439,10 @@ private class Emit(
       case x@NDArraySlice(child, slicesIR) =>
         val childEmitter = deforest(child)
 
-
         val slicest = emit(slicesIR, env, resultRegion, None)
-        val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, coerce[Long](slicest.v))
+        val slicesValueAddress = mb.newField[Long]
+
+        val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
 
         val sliceVars = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
         val refVars = mutable.Map[Int, (Code[Long])]()
@@ -2450,7 +2451,6 @@ private class Emit(
           sliceOrIndex match {
             case p: PTuple => {
               val tup = new CodePTuple(p, region, slicesTuple(dim))
-
               sliceVars += ((tup[Long](0), tup[Long](1), tup[Long](2)))
             }
             case _: PInt64 => {
@@ -2459,14 +2459,17 @@ private class Emit(
           }
         }
 
-        // TODO Consider step size
-        val outputShape = sliceVars.toArray.map{case (start, stop, step) => (const(1L) + ((stop - start) - const(1L)) / step)}
+        val outputShape = sliceVars.toArray.map{ case (start, stop, step) =>
+          (step >= 0L).mux(
+            (const(1L) + ((stop - start) - const(1L)) / step),
+            (((stop - start) + const(1L)) / step) + const(1L))
+        }
 
         val setup = Code(
           slicest.setup,
-          childEmitter.setup
+          childEmitter.setup,
+          slicesValueAddress := slicest.value[Long]
         )
-
 
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {

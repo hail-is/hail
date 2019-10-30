@@ -62,22 +62,26 @@ def test_ndarray_ref():
 
 @skip_unless_spark_backend()
 def test_ndarray_slice():
-    np_arr = np.arange(24).reshape((2, 3, 4))
-    arr = hl._ndarray(np_arr)
+    np_rect_prism = np.arange(24).reshape((2, 3, 4))
+    rect_prism = hl._ndarray(np_rect_prism)
     np_mat = np.arange(8).reshape((2, 4))
     mat = hl._ndarray(np_mat)
+    np_flat = np.arange(20)
+    flat = hl._ndarray(np_flat)
 
     assert_ndarrays_eq(
-        (arr[:, :, :], np_arr[:, :, :]),
-        (arr[:, :, 1], np_arr[:, :, 1]),
-        (arr[0:1, 1:3, 0:2], np_arr[0:1, 1:3, 0:2]),
-        (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
-        (arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2]),
-        (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
-        (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-        (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
+        (rect_prism[:, :, :], np_rect_prism[:, :, :]),
+        (rect_prism[:, :, 1], np_rect_prism[:, :, 1]),
+        (rect_prism[0:1, 1:3, 0:2], np_rect_prism[0:1, 1:3, 0:2]),
+        (rect_prism[:, :, 1:4:2], np_rect_prism[:, :, 1:4:2]),
+        (rect_prism[:, 2, 1:4:2], np_rect_prism[:, 2, 1:4:2]),
+        (rect_prism[0, 2, 1:4:2], np_rect_prism[0, 2, 1:4:2]),
+        (rect_prism[0, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
+        (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
-        (arr[0, 0, -3:-1], np_arr[0, 0, -3:-1])
+        (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
+        (flat[15:5:-1], np_flat[15:5:-1]),
+        (flat[::-1], np_flat[::-1]),
     )
 
 @skip_unless_spark_backend()
