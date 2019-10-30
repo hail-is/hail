@@ -46,9 +46,10 @@ object ParameterPack {
     }
   }
 
-  def localMemoize[A, X](mb: MethodBuilder, a0: A)(k: A => Code[X])(implicit ap: ParameterPack[A]): Code[X] ={
-    val a = ap.newLocals(mb)
-    Code(ap.push(a0), a.store, k(a.load))
+  def let[A: ParameterPack, X](mb: MethodBuilder, a0: A)(k: A => Code[X]): Code[X] = {
+    val ap = implicitly[ParameterPack[A]]
+    val as = ap.newLocals(mb)
+    Code(ap.push(a0), as.store, k(as.load))
   }
 }
 

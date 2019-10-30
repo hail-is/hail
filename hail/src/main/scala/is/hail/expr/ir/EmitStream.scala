@@ -256,7 +256,7 @@ object EmitStream {
             case Yield(rElt, rS) => compare((rElt, rS))
           })
           compare.define { case (rElt, rS) =>
-            ParameterPack.localMemoize(mb, comp(lElt, rElt)) { c =>
+            ParameterPack.let(mb, comp(lElt, rElt)) { c =>
               (c > 0).mux(
                 pull(rS),
                 (c < 0).mux(
