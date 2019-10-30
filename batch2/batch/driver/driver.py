@@ -264,7 +264,7 @@ class Pod:
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/logs'
-        resp = self._request('GET', url)
+        resp = await self._request('GET', url)
         return await resp.json()
 
     async def read_pod_status(self):
@@ -275,7 +275,7 @@ class Pod:
 
         inst = self.instance
         url = f'http://{inst.ip_address}:5000/api/v1alpha/pods/{self.name}/status'
-        resp = self._request('GET', url)
+        resp = await self._request('GET', url)
         return await resp.json()
 
     def status(self):
