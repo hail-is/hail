@@ -78,6 +78,30 @@ async def delete_batch(request):
     return web.Response()
 
 
+@routes.get('/api/v1alpha/batches/{user}/{batch_id}/jobs/{job_id}/log')
+async def read_logs(request):
+    user = request.match_info['user']
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    job = await Job.from_db(request.app, batch_id, job_id, user)
+    if not job:
+        raise web.HTTPNotFound()
+    job_logs = await job._read_logs()
+    return web.json_response(job_logs)
+
+
+@routes.get('/api/v1alpha/batches/{user}/{batch_id}/jobs/{job_id}/pod_status')
+async def read_status(request):
+    user = request.match_info['user']
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    job = await Job.from_db(request.app, batch_id, job_id, user)
+    if not job:
+        raise web.HTTPNotFound()
+    job_logs = await job._read_pod_status()
+    return web.json_response(job_logs)
+
+
 async def update_job_with_pod(app, job, pod_status):  # pylint: disable=R0911
     if pod_status:
         pod_name = pod_status["name"]

@@ -4,10 +4,15 @@ import asyncio
 import aiohttp
 import traceback
 
+from hailtop.utils import request_retry_transient_errors
+from hailtop.config import get_deploy_config
+
 from .globals import states, complete_states, valid_state_transitions, tasks
 from .log_store import LogStore
 
 log = logging.getLogger('batch')
+
+deploy_config = get_deploy_config()
 
 
 class JobStateWriteFailure(Exception):
@@ -46,7 +51,17 @@ class Job:
             return None
 
         if self._state == 'Running':
-            return await self.app['driver'].read_pod_logs(self._pod_name)
+            if 'driver' in self.app:  # running in driver
+                return await self.app['driver'].read_pod_logs(self._pod_name)
+
+            # running in front end
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                url = f'/api/v1alpha/batches/{self.user}/{self.batch_id}/jobs/{self.job_id}/log'
+                response = await request_retry_transient_errors(
+                    session, 'GET',
+                    deploy_config.url('batch2-driver', url))
+                return await response.json()
 
         async def _read_log_from_gcs(task_name):
             pod_log = await self.app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
@@ -61,8 +76,19 @@ class Job:
             return None
 
         if self._state == 'Running':
-            return await self.app['driver'].read_pod_status(self._pod_name)
+            if 'driver' in self.app:  # running in driver
+                return await self.app['driver'].read_pod_status(self._pod_name)
 
+            # running in front end
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                url = f'/api/v1alpha/batches/{self.user}/{self.batch_id}/jobs/{self.job_id}/pod_status'
+                response = await request_retry_transient_errors(
+                    session, 'GET',
+                    deploy_config.url('batch2-driver', url))
+                return await response.json()
+
+        assert self._state in ('Error', 'Failed', 'Success')
         return await self.app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
 
     async def _delete_gs_files(self):
