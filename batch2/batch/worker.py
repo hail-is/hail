@@ -34,7 +34,7 @@ log = logging.getLogger('batch2-agent')
 
 docker = aiodocker.Docker()
 
-MAX_IDLE_TIME_SECS = 10 * 60
+MAX_IDLE_TIME_SECS = 60
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -297,7 +297,7 @@ class Job:
         self.deleted = False
 
         token = uuid.uuid4().hex
-        self.scratch = f'/batches/jobs/{token}'
+        self.scratch = f'/batch/{token}'
 
         self.state = 'pending'
         self.error = None
@@ -421,7 +421,7 @@ class Job:
 
             log.info(f'{self}: cleaning up')
             try:
-                # shutil.rmtree(self.scratch, ignore_errors=True)
+                shutil.rmtree(self.scratch, ignore_errors=True)
                 if io:
                     await docker_call_retry(io.delete)
             except Exception:
