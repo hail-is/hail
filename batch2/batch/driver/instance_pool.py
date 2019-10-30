@@ -317,7 +317,7 @@ retry docker run \
         if instance.state in ('inactive', 'deleted'):
             return
 
-        check_call_procedure(
+        await check_call_procedure(
             self.db.pool,
             'CALL deactivate_instance(%s);',
             (instance.id,))
@@ -343,7 +343,7 @@ retry docker run \
                 return
             raise
 
-        check_call_procedure(
+        await check_call_procedure(
             self.db.pool,
             'CALL mark_instance_deleted(%s);',
             (instance.id,))
