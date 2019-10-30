@@ -6,8 +6,12 @@ Hail is an open-source project. We welcome contributions to the repository.
 Requirements
 ~~~~~~~~~~~~
 
-See the requirements for non-pip installations in `Getting Started
-<getting_started.html>`_
+- `Java 8 JDK <https://adoptopenjdk.net/index.html>`_
+  Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
+  dependency on Spark.
+
+- The Python and non-pip installation requiremenets in `Getting Started <getting_started.html>`_
+
 
 Building Hail
 ~~~~~~~~~~~~~
