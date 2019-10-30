@@ -308,7 +308,7 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0/jobs/0/log', 302)]
         for f, url, expected in endpoints:
             full_url = deploy_config.url('batch2', url)
-            r = f(full_url)
+            r = f(full_url, allow_redirects=False)
             assert r.status_code == expected, (full_url, r, expected)
 
     def test_bad_token(self):
