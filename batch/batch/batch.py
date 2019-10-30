@@ -1125,7 +1125,7 @@ async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     params = request.query
-    include_jobs = params.get('include_jobs') == 1
+    include_jobs = params.get('include_jobs') == '1'
     return jsonify(await _get_batch(batch_id, user, include_jobs))
 
 
