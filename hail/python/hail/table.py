@@ -2609,29 +2609,29 @@ class Table(ExprContainer):
 
         Examples
         --------
-        Let's assume we have a field called `field1` in our table.
+        Let's assume we have a field called `HT` in our table.
 
         By default, ascending order is used:
 
-        >>> sorted_table = table1.order_by(table1.field1)
+        >>> sorted_table = table1.order_by(table1.HT)
 
-        >>> sorted_table = table1.order_by('field1')
+        >>> sorted_table = table1.order_by('HT')
 
         You can sort in ascending order explicitly:
 
-        >>> sorted_table = table1.order_by(hl.asc(table1.field1))
+        >>> sorted_table = table1.order_by(hl.asc(table1.HT))
 
-        >>> sorted_table = table1.order_by(hl.asc('field1'))
+        >>> sorted_table = table1.order_by(hl.asc('HT'))
 
         Tables can be sorted by field descending order as well:
 
-        >>> sorted_table = table1.order_by(hl.desc(table1.field1))
+        >>> sorted_table = table1.order_by(hl.desc(table1.HT))
 
-        >>> sorted_table = table1.order_by(hl.desc('field1'))
+        >>> sorted_table = table1.order_by(hl.desc('HT'))
 
         A table can be sorted on multiple fields:
 
-        >>> sorted_table = table1.order_by(hl.desc('field1'), hl.asc('field2'))
+        >>> sorted_table = table1.order_by(hl.desc('HT'), hl.asc('SEX'))
 
         Notes
         -----
