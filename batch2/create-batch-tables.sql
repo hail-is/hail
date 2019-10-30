@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
-  `N_cancelled` INT NOT NULL DEFAULT 0,
+  `n_cancelled` INT NOT NULL DEFAULT 0,
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
