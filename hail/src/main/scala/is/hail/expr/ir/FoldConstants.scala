@@ -17,6 +17,8 @@ object FoldConstants {
              _: Begin |
              _: InitOp |
              _: ArrayRange |
+             _: StreamRange |
+             _: MakeStream |
              _: MakeNDArray |
              _: NDArrayShape |
              _: NDArrayReshape |
