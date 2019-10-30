@@ -410,12 +410,6 @@ class Job:
                         self.state = 'succeeded'
             else:
                 self.state = setup.state
-
-            log.info(f'{self}: uploading status')
-
-            await worker.gcs_client.write_gs_file(
-                LogStore.job_status_path(self.output_directory),
-                json.dumps(await self.status(), indent=4))
         except Exception:
             log.exception(f'while running {self}')
 
