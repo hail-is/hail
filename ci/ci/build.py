@@ -683,6 +683,8 @@ set -e
                     port = w.get('port', 80)
                     resource_type = w.get('resource_type', 'deployment').lower()
                     endpoint = w.get('endpoint', '/healthcheck')
+                    headers = w.get('headers', dict())
+                    header_arg = ' '.join([f"-h '{flag}={value}'" for flag, value in headers.items()])
                     timeout = w.get('timeout', 60)
                     if resource_type == 'statefulset':
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
@@ -694,7 +696,7 @@ set -e
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
   {wait_cmd} && \
-  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name} --endpoint {endpoint}
+  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name} --endpoint {endpoint} {header_arg}
 EC=$?
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
