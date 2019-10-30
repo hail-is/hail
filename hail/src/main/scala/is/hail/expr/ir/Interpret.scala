@@ -264,7 +264,9 @@ object Interpret {
             case Compare(t, _) => t.ordering.compare(lValue, rValue)
           }
 
-      case MakeArray(elements, _) => elements.map(interpret(_, env, args, aggArgs)).toFastIndexedSeq
+      case MakeArray(elements, t) =>
+        interpret(MakeStream(elements, TStream(t.elementType, t.required)), env, args, aggArgs)
+      case MakeStream(elements, _) => elements.map(interpret(_, env, args, aggArgs)).toFastIndexedSeq
       case ArrayRef(a, i) =>
         val aValue = interpret(a, env, args, aggArgs)
         val iValue = interpret(i, env, args, aggArgs)
@@ -285,6 +287,8 @@ object Interpret {
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
       case ArrayRange(start, stop, step) =>
+        interpret(StreamRange(start, stop, step), env, args, aggArgs)
+      case StreamRange(start, stop, step) =>
         val startValue = interpret(start, env, args, aggArgs)
         val stopValue = interpret(stop, env, args, aggArgs)
         val stepValue = interpret(step, env, args, aggArgs)
@@ -323,6 +327,7 @@ object Interpret {
         else
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
 
+      case ToStream(a) => interpret(a, env, args, aggArgs)
       case ToArray(c) =>
         val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
         val cValue = interpret(c, env, args, aggArgs)
