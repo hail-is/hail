@@ -90,7 +90,7 @@ async def main():
     service_parser = subparsers.add_parser('Service')
     service_parser.add_argument('name', type=str)
     service_parser.add_argument('--port', '-p', type=int, default=80)
-    parser.add_argument('--endpoint', type=str, default='/healthcheck')
+    service_parser.add_argument('--endpoint', type=str, default='/healthcheck')
 
     args = parser.parse_args()
 
