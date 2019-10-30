@@ -69,7 +69,7 @@ class Scheduler:
             (batch_id, job_id, instance_id))
 
         self.inst_pool.adjust_for_remove_instance(instance)
-        instance.free_cores_mcpu -= record['cores_mcpu']
+        instance.free_cores_mcpu += record['cores_mcpu']
         self.inst_pool.adjust_for_add_instance(instance)
 
     async def cancel_1(self):
