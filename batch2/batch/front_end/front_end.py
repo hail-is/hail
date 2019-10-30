@@ -25,7 +25,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 from ..globals import tasks
 from ..utils import parse_cpu_in_mcpu
-from ..batch import Batch, Job
+from ..batch import Batch, job_record_to_dict
 from ..log_store import LogStore
 from ..database import BatchDatabase, JobsBuilder
 from ..batch_configuration import INSTANCE_ID
@@ -120,14 +120,25 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @prom_async_time(REQUEST_TIME_GET_JOB)
 @rest_authenticated_users_only
 async def get_job(request, userdata):
+    db = request.app['db']
+
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    job = await Job.from_db(request.app['db'], batch_id, job_id, user)
-    if not job:
+    record = await execute_and_fetchone(
+        db.pool, '''
+SELECT *
+FROM jobs
+INNER JOIN batch
+  ON jobs.batch_id = batch.id
+WHERE batch_id = %s AND job_id = %s AND user = %s
+''',
+        (batch_id, job_id, user))
+
+    if not record:
         raise web.HTTPNotFound()
-    return web.json_response(job.to_dict())
+    return web.json_response(job_record_to_dict(record))
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
@@ -297,11 +308,11 @@ async def create_batch(request, userdata):
     return web.json_response(await batch.to_dict(include_jobs=False))
 
 
-async def _get_batch(app, batch_id, user, limit=None, offset=None):
+async def _get_batch(app, batch_id, user, include_jobs):
     batch = await Batch.from_db(app['db'], batch_id, user)
     if not batch:
         raise web.HTTPNotFound()
-    return await batch.to_dict(include_jobs=True, limit=limit, offset=offset)
+    return await batch.to_dict(include_jobs=include_jobs)
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -326,9 +337,8 @@ async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     params = request.query
-    limit = params.get('limit')
-    offset = params.get('offset')
-    return web.json_response(await _get_batch(request.app, batch_id, user, limit=limit, offset=offset))
+    include_jobs = params.get('include_jobs') == '1'
+    return web.json_response(await _get_batch(request.app, batch_id, user, include_jobs))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -390,11 +400,8 @@ async def delete_batch(request, userdata):
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    params = request.query
-    limit = params.get('limit')
-    offset = params.get('offset')
     page_context = {
-        'batch': await _get_batch(request.app, batch_id, user, limit=limit, offset=offset)
+        'batch': await _get_batch(request.app, batch_id, user, include_jobs=True)
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 

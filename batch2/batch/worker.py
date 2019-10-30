@@ -5,7 +5,6 @@ import time
 import logging
 import asyncio
 import random
-import json
 import traceback
 import base64
 import uuid
@@ -152,7 +151,9 @@ class Container:
                         await docker_call_retry(docker.images.pull, self.image)
 
             async with self.step('creating'):
-                self.container = await docker_call_retry(docker.containers.create, self.container_config())
+                config = self.container_config()
+                log.info(f'starting {self} config {config}')
+                self.container = await docker_call_retry(docker.containers.create, config)
 
             async with self.step(None, 'runtime'):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
@@ -203,15 +204,16 @@ class Container:
     async def delete_container(self):
         if self.container:
             try:
-                log.info('{self}: deleting container')
+                log.info(f'{self}: deleting container')
                 await docker_call_retry(self.container.stop)
                 # v=True deletes anonymous volumes created by the container
                 await docker_call_retry(self.container.delete, v=True)
+                self.container = None
             except Exception:
                 log.exception('while deleting up container, ignoring')
-            self.container = None
 
     async def delete(self):
+        log.info(f'deleting {self}')
         await self.delete_container()
 
     # {
@@ -431,6 +433,7 @@ class Job:
         return {name: await c.get_log() for name, c in self.containers.items()}
 
     async def delete(self):
+        log.info(f'deleting {self}')
         self.deleted = True
         for _, c in self.containers.items():
             await c.delete()
@@ -478,29 +481,33 @@ class Worker:
         self.gcs_client = GCS(pool)
         self.jobs = {}
 
-    async def create_job_1(self, request):
-        job = None
+    async def run_job(self, job):
         try:
-            body = await request.json()
-
-            batch_id = body['batch_id']
-            user = body['user']
-            job_spec = body['job_spec']
-            output_directory = body['output_directory']
-
-            job = Job(batch_id, user, job_spec, output_directory)
-            self.jobs[job.id] = job
             await job.run(self)
         except Exception:
             log.exception('while running {job}')
         finally:
             self.last_updated = time.time()
-            if job and job.id in self.jobs:
+            if job.id in self.jobs:
                 del self.jobs[job.id]
 
-    async def create_job(self, request):
-        asyncio.ensure_future(self.create_job_1(request))
+    async def create_job_1(self, request):
+        body = await request.json()
+
+        batch_id = body['batch_id']
+        user = body['user']
+        job_spec = body['job_spec']
+        output_directory = body['output_directory']
+
+        job = Job(batch_id, user, job_spec, output_directory)
+        self.jobs[job.id] = job
+
+        asyncio.ensure_future(self.run_job(job))
+
         return web.Response()
+
+    async def create_job(self, request):
+        return await asyncio.shield(self.create_job_1(request))
 
     async def get_job_log(self, request):
         batch_id = request.match_info['batch_id']

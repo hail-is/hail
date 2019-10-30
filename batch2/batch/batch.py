@@ -1,7 +1,7 @@
 import json
 import logging
 import aiohttp
-from gear import execute_and_fetchone
+from gear import execute_and_fetchone, execute_and_fetchall
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
@@ -98,104 +98,37 @@ async def mark_job_complete(
     await notify_batch_job_complete(db, batch_id)
 
 
-class Job:
-    @staticmethod
-    def from_record(db, record):
-        if not record:
+def job_record_to_dict(record):
+    def getopt(obj, attr):
+        if obj is None:
             return None
+        return obj.get(attr)
 
-        userdata = json.loads(record['userdata'])
-        spec = json.loads(record['spec'])
-        status = json.loads(record['status']) if record['status'] else None
-
-        return Job(db, batch_id=record['batch_id'], job_id=record['job_id'],
-                   userdata=userdata, user=record['user'],
-                   instance_id=record['instance_id'], status=status, state=record['state'],
-                   cancelled=record['cancelled'], directory=record['directory'],
-                   spec=spec, always_run=record['always_run'], cores_mcpu=record['cores_mcpu'])
-
-    @staticmethod
-    async def from_db(db, batch_id, job_id, user):
-        jobs = await Job.from_db_multiple(db, batch_id, job_id, user)
-        if len(jobs) == 1:
-            return jobs[0]
-        return None
-
-    @staticmethod
-    async def from_db_multiple(db, batch_id, job_ids, user):
-        records = await db.jobs.get_undeleted_records(batch_id, job_ids, user)
-        jobs = [Job.from_record(db, record) for record in records]
-        return jobs
-
-    def __init__(self, db, batch_id, job_id, userdata, user,
-                 instance_id, status, state, cancelled, directory, spec, always_run, cores_mcpu):
-        self.db = db
-        self.batch_id = batch_id
-        self.job_id = job_id
-        self.id = (batch_id, job_id)
-
-        self.userdata = userdata
-        self.user = user
-        self.instance_id = instance_id
-        self.status = status
-        self.directory = directory
-
-        self._state = state
-        self._cancelled = cancelled
-        self._spec = spec
-        self.always_run = always_run
-        self.cores_mcpu = cores_mcpu
-
-    @property
-    def attributes(self):
-        return self._spec.get('attributes')
-
-    @property
-    def input_files(self):
-        return self._spec.get('input_files')
-
-    @property
-    def output_files(self):
-        return self._spec.get('output_files')
-
-    @property
-    def pvc_size(self):
-        return self._spec.get('pvc_size')
-
-    def to_dict(self):
-        def getopt(obj, attr):
-            if obj is None:
-                return None
-            return obj.get(attr)
-
-        result = {
-            'batch_id': self.batch_id,
-            'job_id': self.job_id,
-            'state': self._state
+    result = {
+        'batch_id': record['batch_id'],
+        'job_id': record['job_id'],
+        'state': record['state']
+    }
+    # FIXME can't change this yet, batch and batch2 share client
+    if record['status']:
+        if 'error' in record['status']:
+            result['error'] = record['status']['error']
+        result['exit_code'] = {
+            k: getopt(getopt(record['status']['container_statuses'][k], 'container_status'), 'exit_code') for
+            k in tasks
         }
-        # FIXME can't change this yet, batch and batch2 share client
-        if self.status:
-            if 'error' in self.status:
-                result['error'] = self.status['error']
-            result['exit_code'] = {
-                k: getopt(getopt(self.status['container_statuses'][k], 'container_status'), 'exit_code') for
-                k in tasks
-            }
-            result['duration'] = {k: getopt(self.status['container_statuses'][k]['timing'], 'runtime') for k in tasks}
-            result['message'] = {
-                # the execution of the job container might have
-                # failed, or the docker container might have completed
-                # (wait returned) but had status error
-                k: (getopt(self.status['container_statuses'][k], 'error') or
-                    getopt(getopt(self.status['container_statuses'][k], 'container_status'), 'error'))
-                for k in tasks
-            }
-        if self.attributes:
-            result['attributes'] = self.attributes
-        return result
-
-    def __str__(self):
-        return f'job ({self.batch_id}, {self.job_id})'
+        result['duration'] = {k: getopt(record['status']['container_statuses'][k]['timing'], 'runtime') for k in tasks}
+        result['message'] = {
+            # the execution of the job container might have
+            # failed, or the docker container might have completed
+            # (wait returned) but had status error
+            k: (getopt(record['status']['container_statuses'][k], 'error') or
+                getopt(getopt(record['status']['container_statuses'][k], 'container_status'), 'error'))
+            for k in tasks
+        }
+    if record['attributes']:
+        result['attributes'] = record['attributes']
+    return result
 
 
 class Batch:
@@ -283,10 +216,6 @@ class Batch:
         self.cancelled = cancelled
         self.closed = closed
 
-    async def get_jobs(self, limit=None, offset=None):
-        jobs = await self.db.jobs.get_records_by_batch(self.id, limit, offset)
-        return [Job.from_record(self.db, record) for record in jobs]
-
     # FIXME move these to front-end, directly use database
     # called by front end
     async def cancel(self):
@@ -315,7 +244,7 @@ class Batch:
     def is_successful(self):
         return self.state == 'success'
 
-    async def to_dict(self, include_jobs=False, limit=None, offset=None):
+    async def to_dict(self, include_jobs=False):
         result = {
             'id': self.id,
             'state': self.state,
@@ -325,8 +254,14 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = await self.get_jobs(limit, offset)
-            result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
+            jobs = [
+                job_record_to_dict(record)
+                async for record
+                in execute_and_fetchall(
+                    'SELECT * FROM jobs where batch_id = %s',
+                    (self.id,))
+            ]
+            result['jobs'] = sorted(jobs, key=lambda j: j['job_id'])
         return result
 
     def __str__(self):
