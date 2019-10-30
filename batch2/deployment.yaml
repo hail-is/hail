@@ -43,7 +43,10 @@ spec:
            value: "{{ default_ns.name }}"
 {% if deploy %}
          - name: HAIL_INSTANCE_ID
-           value: cd50b95a89914efb897965a5e982a29d
+           value: cd50b95a89914efb897965a5e982a29
+{% else %}
+         - name: HAIL_INSTANCE_ID
+           value: {{ token }}
 {% endif %}
 {% if not deploy %}
          - name: WORKER_TYPE
@@ -160,6 +163,9 @@ spec:
 {% if deploy %}
          - name: HAIL_INSTANCE_ID
            value: cd50b95a89914efb897965a5e982a29d
+{% else %}
+         - name: HAIL_INSTANCE_ID
+           value: {{ token }}
 {% endif %}
         ports:
          - containerPort: 5000
