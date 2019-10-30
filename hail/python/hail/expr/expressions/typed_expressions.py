@@ -3520,8 +3520,8 @@ class NDArrayExpression(Expression):
             slices = []
             for i, s in enumerate(item):
                 if isinstance(s, slice):
-                    start = s.start if s.start is not None else to_expr(0, tint64)
-                    stop = s.stop if s.stop is not None else self.shape[i]
+                    start = hl.cond(s.start >= 0, s.start, self.shape[i] + s.start) if s.start is not None else to_expr(0, tint64)
+                    stop = hl.cond(s.stop >= 0, s.stop, self.shape[i] + s.stop) if s.stop is not None else self.shape[i]
                     step = s.step if s.step is not None else to_expr(1, tint64)
                     slices.append(hl.tuple((start, stop, step)))
                 else:

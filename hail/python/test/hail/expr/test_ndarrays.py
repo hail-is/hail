@@ -76,7 +76,8 @@ def test_ndarray_slice():
         (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
         (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
         (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2])
+        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
+        (arr[0, 0, -3:-1], np_arr[0, 0, -3:-1])
     )
 
 @skip_unless_spark_backend()
