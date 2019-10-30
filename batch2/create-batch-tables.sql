@@ -287,8 +287,8 @@ BEGIN
       INNER JOIN `jobs-parents`
         ON jobs.batch_id = `jobs-parents`.batch_id AND
 	   jobs.job_id = `jobs-parents`.job_id
-      SET jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.state = IF(jobs.n_pending_parents = 0, 'Ready', 'Pending'),
+      SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
+          jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.cancel = IF(new_state = 'Success', jobs.cancel, 1)
       WHERE jobs.batch_id = in_batch_id AND
             `jobs-parents`.batch_id = in_batch_id AND
