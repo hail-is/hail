@@ -61,55 +61,6 @@ BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
 
-def create_job(app, userdata, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
-    job_id = job_spec['job_id']
-    parent_ids = job_spec.pop('parent_ids', [])
-    always_run = job_spec.pop('always_run', False)
-
-    resources = job_spec.get('resources')
-    if not resources:
-        resources = {}
-        job_spec['resources'] = resources
-    if 'cpu' not in resources:
-        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-    if 'memory' not in resources:
-        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
-
-    secrets = job_spec.get('secrets')
-    if not secrets:
-        secrets = []
-        job_spec['secrets'] = secrets
-    secrets.append({
-        'namespace': 'batch-pods',  # FIXME unused
-        'name': userdata['gsa_key_secret_name'],
-        'mount_path': '/gsa-key',
-        'mount_in_copy': True
-    })
-
-    state = 'Ready' if len(parent_ids) == 0 else 'Pending'
-
-    directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
-
-    jobs_builder.create_job(
-        batch_id=batch_id,
-        job_id=job_id,
-        state=state,
-        directory=directory,
-        spec=json.dumps(job_spec),
-        always_run=always_run,
-        cores_mcpu=parse_cpu_in_mcpu(resources['cpu']),
-        instance_id=None,
-        status=None,
-        n_pending_parents=len(parent_ids),
-        cancel=0)
-
-    for parent in parent_ids:
-        jobs_builder.create_job_parent(
-            batch_id=batch_id,
-            job_id=job_id,
-            parent_id=parent)
-
-
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
@@ -333,7 +284,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
 
                 jobs_args.append(
-                    (batch_id, job_id, state, directory, json.dumps(spec), always_run, cores_mcpu))
+                    (batch_id, job_id, state, directory, json.dumps(spec),
+                     always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
                     jobs_parents_args.append(
@@ -344,8 +296,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 await conn.begin()
                 async with conn.cursor() as cursor:
                     await cursor.executemany('''
-INSERT INTO jobs (batch_id, job_id, state, directory, spec, always_run, cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, directory, spec, always_run, cores_mcpu, n_pending_parents)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                              jobs_args)
                 async with conn.cursor() as cursor:

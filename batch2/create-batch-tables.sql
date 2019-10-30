@@ -15,14 +15,14 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `user` VARCHAR(100) NOT NULL,
   `attributes` VARCHAR(65535),
   `callback` VARCHAR(65535),
-  `deleted` BOOLEAN NOT NULL default false,
-  `cancelled` BOOLEAN NOT NULL default false,
-  `closed` BOOLEAN NOT NULL default false,
+  `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
+  `closed` BOOLEAN NOT NULL DEFAULT FALSE,
   `n_jobs` INT NOT NULL,
-  `n_completed` INT NOT NULL default 0,
-  `n_succeeded` INT NOT NULL default 0,
-  `n_failed` INT NOT NULL default 0,
-  `n_cancelled` INT NOT NULL default 0,
+  `n_completed` INT NOT NULL DEFAULT 0,
+  `n_succeeded` INT NOT NULL DEFAULT 0,
+  `n_failed` INT NOT NULL DEFAULT 0,
+  `N_cancelled` INT NOT NULL DEFAULT 0,
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `instance_id` BIGINT,
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
-  `cancel` INT NOT NULL DEFAULT false,
+  `cancel` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_id`) REFERENCES instances(id) ON DELETE SET NULL
@@ -177,7 +177,7 @@ END $$
 
 CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
-  IN in_job_id BIGINT,
+  IN in_job_id INT,
   IN in_instance_id BIGINT
 )
 BEGIN
@@ -207,7 +207,7 @@ END $$
 
 CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
-  IN in_job_id BIGINT,
+  IN in_job_id INT,
   IN expected_instance_id BIGINT
 )
 BEGIN
@@ -236,7 +236,7 @@ END $$
 
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
-  IN in_job_id BIGINT,
+  IN in_job_id INT,
   IN new_state VARCHAR(40),
   IN new_status VARCHAR(65535)
 )
