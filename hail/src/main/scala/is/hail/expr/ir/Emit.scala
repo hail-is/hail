@@ -2461,7 +2461,7 @@ private class Emit(
 
         val outputShape = sliceVars.toArray.map{ case (start, stop, step) =>
           (step >= 0L).mux(
-            (const(1L) + ((stop - start) - const(1L)) / step),
+            const(1L) + ((stop - start) - const(1L)) / step,
             (((stop - start) + const(1L)) / step) + const(1L))
         }
 
