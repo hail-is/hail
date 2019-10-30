@@ -15,12 +15,7 @@ object Streamify {
       }
   }
 
-  private def expand(ir: IR): IR = ir match {
-    case x: ApplyIR => expand(x.explicitNode)
-    case _ => ir
-  }
-
-  def apply(ir: IR): IR = MapIR(apply)(expand(ir)) match {
+  def apply(ir: IR): IR = MapIR(apply)(ir) match {
     case ArrayRange(x, y, z) => ToArray(StreamRange(x, y, z))
     case MakeArray(xs, t) => ToArray(MakeStream(xs, TStream(t.elementType, required = t.required)))
     //case x@ReadPartition(_, _, _) => x
@@ -41,6 +36,13 @@ object Streamify {
     case ToArray(a) => ToArray(stream(a))
     case ToDict(a) => ToDict(stream(a))
     case ToSet(a) => ToSet(stream(a))
+
+    case a: ApplyIR =>
+      val b = ApplyIR(a.function, a.args)
+      b.conversion = args => apply(a.conversion(args))
+      b.inline = a.inline
+      b
+
     case x => x
   }
 }
