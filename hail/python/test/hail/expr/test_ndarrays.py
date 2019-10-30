@@ -86,6 +86,7 @@ def test_ndarray_slice():
         (flat[::-22], np_flat[::-22]),
         (flat[15:5], np_flat[15:5]),
         (flat[3:12:-1], np_flat[3:12:-1]),
+        (flat[12:3:1], np_flat[12:3:1]),
         (mat[::-1, :], np_mat[::-1, :])
     )
 

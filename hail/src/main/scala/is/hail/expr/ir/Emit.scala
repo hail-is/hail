@@ -2441,25 +2441,24 @@ private class Emit(
 
         val slicest = emit(slicesIR, env, resultRegion, None)
         val slicesValueAddress = mb.newField[Long]
-
         val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
 
-        val sliceVars = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
-        val refVars = mutable.Map[Int, (Code[Long])]()
+        val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
+        val codeRefMap = mutable.Map[Int, (Code[Long])]()
 
         coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
           sliceOrIndex match {
             case p: PTuple => {
               val tup = new CodePTuple(p, region, slicesTuple(dim))
-              sliceVars += ((tup[Long](0), tup[Long](1), tup[Long](2)))
+              codeSlices += ((tup[Long](0), tup[Long](1), tup[Long](2)))
             }
             case _: PInt64 => {
-              refVars += dim -> slicesTuple(dim)
+              codeRefMap += dim -> slicesTuple(dim)
             }
           }
         }
 
-        val outputShape = sliceVars.toArray.map{ case (start, stop, step) =>
+        val outputShape = codeSlices.toArray.map{ case (start, stop, step) =>
           (step >= 0L && start <= stop).mux(
             const(1L) + ((stop - start) - const(1L)) / step,
             (step < 0L && stop <= start).mux((((stop - start) + const(1L)) / step) + const(1L),
@@ -2476,11 +2475,11 @@ private class Emit(
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val oldIdxVarsIter = idxVars.iterator
-            val sliceIdxVarsIter = sliceVars.iterator
+            val sliceIdxVarsIter = codeSlices.iterator
 
             val sliceIdxVars = Array.tabulate(childEmitter.nDims) { dim =>
-              if (refVars.contains(dim)) {
-                refVars(dim)
+              if (codeRefMap.contains(dim)) {
+                codeRefMap(dim)
               } else {
                 val (start, _, step) = sliceIdxVarsIter.next()
                 val oldIdxVar = oldIdxVarsIter.next()
