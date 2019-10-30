@@ -870,15 +870,15 @@ private class Emit(
             val res = genUID()
             val extracted = agg.Extract(query, res)
 
+            def postProcess(ir: IR, ctx: String): IR =
+              Optimize(Streamify(ir),
+                noisy = true, canGenerateLiterals = true, context = Some(ctx))
+
+            val init = postProcess(extracted.init, "ArrayAgg/agg.Extract/init")
+            val perElt = postProcess(extracted.seqPerElt, "ArrayAgg/agg.Extract/perElt")
+            val postAggIR = postProcess(Let(res, extracted.results, extracted.postAggIR), "ArrayAgg/agg.Extract/postAggIR")
+
             val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg")
-
-            val init = Optimize(extracted.init, noisy = true, canGenerateLiterals = true,
-              context = Some("ArrayAgg/agg.Extract/init"))
-            val perElt = Optimize(extracted.seqPerElt, noisy = true, canGenerateLiterals = true,
-              context = Some("ArrayAgg/agg.Extract/perElt"))
-            val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true, canGenerateLiterals = true,
-              context = Some("ArrayAgg/agg.Extract/postAggIR"))
-
             val codeInit = emit(init, env = env, container = Some(newContainer))
             val codePerElt = emit(perElt, env = perEltEnv, container = Some(newContainer))
             val postAgg = emit(postAggIR, env = env, container = Some(newContainer))
@@ -2126,15 +2126,15 @@ private class Emit(
             val extracted = agg.Extract(CompileWithAggregators.liftScan(query), res)
             val aggSigs = extracted.aggs
 
-            val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggSigs, mb.fb, "array_agg_scan")
+            def postProcess(ir: IR, ctx: String, canGenerateLiterals: Boolean): IR =
+              Optimize(Streamify(ir),
+                noisy = true, canGenerateLiterals = canGenerateLiterals, context = Some(ctx))
 
-            val init = Optimize(extracted.init, noisy = true, canGenerateLiterals = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
-            val perElt = Optimize(extracted.seqPerElt, noisy = true, canGenerateLiterals = false,
-              context = Some("ArrayAggScan/StagedExtractAggregators/init"))
-            val postAgg = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true, canGenerateLiterals = false,
-              context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+            val init = postProcess(extracted.init, "ArrayAgg/agg.Extract/init", true)
+            val perElt = postProcess(extracted.seqPerElt, "ArrayAgg/agg.Extract/perElt", false)
+            val postAgg = postProcess(Let(res, extracted.results, extracted.postAggIR), "ArrayAgg/agg.Extract/postAggIR", false)
 
+            val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg_scan")
             val codeInit = this.emit(init, env, None, er, Some(newContainer))
             val codeSeq = this.emit(perElt, bodyEnv, None, er, Some(newContainer))
             val newElt = this.emit(postAgg, bodyEnv, None, er, Some(newContainer))
