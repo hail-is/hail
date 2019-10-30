@@ -2646,7 +2646,7 @@ class Table(ExprContainer):
         Parameters
         ----------
         exprs : varargs of :class:`.Ascending` or :class:`.Descending` or :class:`.Expression` or :obj:`str`
-            Fields to sort by. You can pass in multiple fields
+            Fields to sort by.
 
         Returns
         -------
