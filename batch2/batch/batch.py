@@ -29,7 +29,8 @@ def batch_record_to_dict(record):
         'complete': complete,
         'closed': record['closed']
     }
-    attributes = json.loads(record['attributes'])
+    spec = json.loads(record['spec'])
+    attributes = spec.get('attributes')
     if attributes:
         d['attributes'] = attributes
     return d
