@@ -2605,19 +2605,33 @@ class Table(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs) -> 'Table':
-        """Sort by the specified fields. Unkeys the table, if keyed.
+        """Sort by the specified fields, defaulting to ascending order. Will unkey the table if it is keyed.
 
         Examples
         --------
-        Four equivalent ways to order the table by field `HT`, ascending:
+        Let's assume we have a field called `field1` in our table.
 
-        >>> sorted_table = table1.order_by(table1.HT)
+        By default, ascending order is used:
 
-        >>> sorted_table = table1.order_by('HT')
+        >>> sorted_table = table1.order_by(table1.field1)
 
-        >>> sorted_table = table1.order_by(hl.asc(table1.HT))
+        >>> sorted_table = table1.order_by('field1')
 
-        >>> sorted_table = table1.order_by(hl.asc('HT'))
+        You can sort in ascending order explicitly:
+
+        >>> sorted_table = table1.order_by(hl.asc(table1.field1))
+
+        >>> sorted_table = table1.order_by(hl.asc('field1'))
+
+        Tables can be sorted by field descending order as well:
+
+        >>> sorted_table = table1.order_by(hl.desc(table1.field1))
+
+        >>> sorted_table = table1.order_by(hl.desc('field1'))
+
+        A table can be sorted on multiple fields:
+
+        >>> sorted_table = table1.order_by(hl.desc('field1'), hl.asc('field2'))
 
         Notes
         -----
@@ -2632,7 +2646,7 @@ class Table(ExprContainer):
         Parameters
         ----------
         exprs : varargs of :class:`.Ascending` or :class:`.Descending` or :class:`.Expression` or :obj:`str`
-            Fields to sort by.
+            Fields to sort by. You can pass in multiple fields
 
         Returns
         -------
