@@ -45,13 +45,34 @@ object EmitStream {
       state: S
     )(k: Step[A, S] => Code[Ctrl]): Code[Ctrl]
 
+    def addSetup[Q <: P](setup: Q => Code[Unit], cleanup: Code[Unit] = Code._empty): Parameterized[Q, A] =
+      guardParam({ (param, k) => Code(setup(param), k(Some(param))) }, cleanup)
+
+    def guardParam[Q](
+      f: (Q, Option[P] => Code[Ctrl]) => Code[Ctrl],
+      cleanup: Code[Unit] = Code._empty
+    ): Parameterized[Q, A] = new Parameterized[Q, A] {
+      type S = self.S
+      val stateP: ParameterPack[S] = self.stateP
+      def emptyState: S = self.emptyState
+      def length(s0: S): Option[Code[Int]] = self.length(s0)
+      def init(mb: MethodBuilder, jb: JoinPointBuilder, param: Q)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+        f(param, {
+          case Some(newParam) => self.init(mb, jb, newParam)(k)
+          case None => k(Missing)
+        })
+      def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] =
+        self.step(mb, jb, state) {
+          case EOS => Code(cleanup, k(EOS))
+          case v => k(v)
+        }
+    }
+
     def map[B](f: A => B): Parameterized[P, B] =
       contMap[B] { (a, k) => k(f(a)) }
 
     def contMap[B](
-      f: (A, B => Code[Ctrl]) => Code[Ctrl],
-      setup: Code[Unit] = Code._empty,
-      cleanup: Code[Unit] = Code._empty
+      f: (A, B => Code[Ctrl]) => Code[Ctrl]
     ): Parameterized[P, B] = new Parameterized[P, B] {
       type S = self.S
       val stateP: ParameterPack[S] = self.stateP
@@ -60,11 +81,11 @@ object EmitStream {
       def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
         self.init(mb, jb, param) {
           case Missing => k(Missing)
-          case Start(s) => Code(setup, k(Start(s)))
+          case Start(s) => k(Start(s))
         }
       def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] =
         self.step(mb, jb, state) {
-          case EOS => Code(cleanup, k(EOS))
+          case EOS => k(EOS)
           case Skip(s) => k(Skip(s))
           case Yield(a, s) => f(a, b => k(Yield(b, s)))
         }
@@ -130,39 +151,33 @@ object EmitStream {
       k(EOS)
   }
 
-  def range[P](
-    // initialize(param, k) = ...k(None) or k(Some((len, start)))...
-    initialize: (P, Option[(Code[Int], Code[Int])] => Code[Ctrl]) => Code[Ctrl],
-    incr: Code[Int] => Code[Int]
-  ): Parameterized[P, Code[Int]] = new Parameterized[P, Code[Int]] {
+  def range(
+    start: Code[Int],
+    incr: Code[Int]
+  ): Parameterized[Code[Int], Code[Int]] = new Parameterized[Code[Int], Code[Int]] {
+    // stream parameter will be the length of the stream
     type S = (Code[Int], Code[Int])
     val stateP: ParameterPack[S] = implicitly
     def emptyState: S = (0, 0)
     def length(s0: S): Option[Code[Int]] = Some(s0._1)
 
-    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
-      initialize(param, {
-        case None => k(Missing)
-        case Some(s0) => k(Start(s0))
-      })
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, len: Code[Int])(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      k(Start((len, start)))
 
     def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[Code[Int], S] => Code[Ctrl]): Code[Ctrl] = {
-      val (pos, idx) = state
-      stepIf(k, pos > 0, idx, (pos - 1, incr(idx)))
+      val (nLeft, acc) = state
+      stepIf(k, nLeft > 0, acc, (nLeft - 1, acc + incr))
     }
   }
 
-  def sequence[P, A](
-    initialize: P => Code[Unit],
-    elements: Seq[A]
-  ): Parameterized[P, A] = new Parameterized[P, A] {
+  def sequence[A](elements: Seq[A]): Parameterized[Any, A] = new Parameterized[Any, A] {
     type S = Code[Int]
     val stateP: ParameterPack[S] = implicitly
     def emptyState: S = elements.length
     def length(s0: S): Option[Code[Int]] = Some(const(elements.length) - s0)
 
-    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
-      Code(initialize(param), k(Start(0)))
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: Any)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      k(Start(0))
 
     def step(mb: MethodBuilder, jb: JoinPointBuilder, idx: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] = {
       val eos = jb.joinPoint()
@@ -281,32 +296,31 @@ object EmitStream {
   ): EmitStream = {
     val fb = emitter.mb.fb
 
+    def present(v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, v)
+
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
       emitter.emit(ir, env, rvas, er, container)
 
     def emitStream(streamIR: IR, env: Emit.E): Parameterized[Any, EmitTriplet] =
-      emitPStream[Any](streamIR, env, _ => Code._empty)
-
-    def emitPStream[E](streamIR: IR, env: Emit.E, setupEnv: E => Code[Unit]): Parameterized[E, EmitTriplet] =
       streamIR match {
-
         case NA(_) =>
           missing
 
         case MakeStream(elements, pType) =>
-          sequence(setupEnv, elements.map(emitIR(_, env)))
+          sequence(elements.map(emitIR(_, env)))
 
         case StreamRange(startIR, stopIR, stepIR) =>
           val step = fb.newField[Int]("sr_step")
           val start = fb.newField[Int]("sr_start")
           val stop = fb.newField[Int]("sr_stop")
           val llen = fb.newField[Long]("sr_llen")
-          range[E](
-            (e, k) => {
+          range(start, step)
+            .map(present)
+            .guardParam { (_, k) =>
               val startt = emitIR(startIR, env)
               val stopt = emitIR(stopIR, env)
               val stept = emitIR(stepIR, env)
-              Code(setupEnv(e), startt.setup, stopt.setup, stept.setup,
+              Code(startt.setup, stopt.setup, stept.setup,
                 (startt.m || stopt.m || stept.m).mux(
                   k(None),
                   Code(
@@ -319,31 +333,27 @@ object EmitStream {
                       (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
                     (llen > const(Int.MaxValue.toLong)).mux(
                       Code._fatal("Array range cannot have more than MAXINT elements."),
-                      k(Some((llen.toI, start)))))))
-            },
-            i => i + step
-          )
-            .map { i => EmitTriplet(Code._empty, false, i) }
+                      k(Some(llen.toI))))))
+            }
 
         case ToStream(containerIR) =>
           val pType = containerIR.pType.asInstanceOf[PContainer]
           val eltPType = pType.elementType
           val region = er.region
           val aoff = fb.newField[Long]("a_off")
-          val len = pType.loadLength(region, aoff)
-          range[E](
-            (e, k) => {
-              val arrt = emitIR(containerIR, env)
-              Code(setupEnv(e),
-                arrt.setup,
-                arrt.m.mux(k(None), Code(aoff := arrt.value, k(Some((len, 0))))))
-            },
-            i => i + 1
-          )
+          range(0, 1)
             .map { i =>
               EmitTriplet(Code._empty,
                 pType.isElementMissing(region, aoff, i),
                 Region.loadIRIntermediate(eltPType)(pType.elementOffsetInRegion(region, aoff, i)))
+            }
+            .guardParam { (_, k) =>
+              val arrt = emitIR(containerIR, env)
+              val len = pType.loadLength(region, aoff)
+              Code(arrt.setup,
+                arrt.m.mux(
+                  k(None),
+                  Code(aoff := arrt.value, k(Some(len)))))
             }
 
         case Let(name, valueIR, childIR) =>
@@ -353,17 +363,16 @@ object EmitStream {
           val vv = fb.newField(name)(valueTI)
           val valuet = emitIR(valueIR, env)
           val bodyEnv = env.bind(name -> ((valueTI, vm, vv)))
-          def setupBodyEnv(e: E): Code[Unit] =
-            Code(setupEnv(e),
+          emitStream(childIR, bodyEnv)
+            .addSetup(_ => Code(
               valuet.setup,
               vm := valuet.m,
-              vv := vm.mux(defaultValue(valueType), valuet.v))
-          emitPStream[E](childIR, bodyEnv, setupBodyEnv)
+              vv := vm.mux(defaultValue(valueType), valuet.v)))
 
         case ArrayMap(childIR, name, bodyIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
           val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
-          emitPStream(childIR, env, setupEnv).map { eltt =>
+          emitStream(childIR, env).map { eltt =>
             val eltm = fb.newField[Boolean](name + "_missing")
             val eltv = fb.newField(name)(childEltTI)
             val bodyt = emitIR(bodyIR, env.bind(name -> ((childEltTI, eltm, eltv))))
@@ -379,7 +388,7 @@ object EmitStream {
         case ArrayFilter(childIR, name, condIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
           val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
-          emitPStream(childIR, env, setupEnv).filterMap { (eltt, k) =>
+          emitStream(childIR, env).filterMap { (eltt, k) =>
             val eltm = fb.newField[Boolean](name + "_missing")
             val eltv = fb.newField(name)(childEltTI)
             val condt = emitIR(condIR, env.bind(name -> ((childEltTI, eltm, eltv))))
@@ -399,12 +408,13 @@ object EmitStream {
           val eltm = fb.newField[Boolean](name + "_missing")
           val eltv = fb.newField(name)(outerEltTI)
           val innerEnv = env.bind(name -> ((outerEltTI, eltm, eltv)))
-          def setupInnerEnv(eltt: EmitTriplet): Code[Unit] =
-            Code(eltt.setup,
+          val outer = emitStream(outerIR, env)
+          val inner = emitStream(innerIR, innerEnv)
+            .addSetup[EmitTriplet] { eltt => Code(
+              eltt.setup,
               eltm := eltt.m,
               eltv := eltm.mux(defaultValue(outerEltType), eltt.v))
-          val outer = emitPStream(outerIR, env, setupEnv)
-          val inner = emitPStream(innerIR, innerEnv, setupInnerEnv)
+            }
           compose(outer, inner)
 
         case ArrayLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
@@ -417,20 +427,24 @@ object EmitStream {
           val env2 = env
             .bind(leftName -> ((typeToTypeInfo(l), leltm, leltv)))
             .bind(rightName -> ((typeToTypeInfo(r), reltm, reltv)))
-          val compt = emitIR(compIR, env2)
-          val joint = emitIR(joinIR, env2)
-          leftJoinRightDistinct[E, TypedTriplet[l.type], TypedTriplet[r.type]](
-            emitPStream(leftIR, env, setupEnv).map(TypedTriplet(l, _)),
-            emitStream(rightIR, env).map(TypedTriplet(r, _)),
-            TypedTriplet.missing(r),
-            (lelt, relt) => Code(
+
+          def compare(lelt: TypedTriplet[l.type], relt: TypedTriplet[r.type]): Code[Int] = {
+            val compt = emitIR(compIR, env2)
+            Code(
               lelt.storeTo(leltm, leltv),
               relt.storeTo(reltm, reltv),
               compt.setup,
               compt.m.orEmpty(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing")),
               coerce[Int](compt.v))
-          )
-            .map { case (lelt, relt) =>
+          }
+
+          leftJoinRightDistinct(
+            emitStream(leftIR, env).map(TypedTriplet(l, _)),
+            emitStream(rightIR, env).map(TypedTriplet(r, _)),
+            TypedTriplet.missing(r),
+            compare
+          ).map { case (lelt, relt) =>
+              val joint = emitIR(joinIR, env2)
               EmitTriplet(Code(
                 lelt.storeTo(leltm, leltv),
                 relt.storeTo(reltm, reltv),
@@ -447,7 +461,7 @@ object EmitStream {
           val bodyt = emitIR(bodyIR, env
             .bind(accName -> ((typeToTypeInfo(a), accm, accv)))
             .bind(eltName -> ((typeToTypeInfo(e), eltm, eltv))))
-          emitPStream(childIR, env, setupEnv).scan(TypedTriplet.missing(a))(
+          emitStream(childIR, env).scan(TypedTriplet.missing(a))(
             TypedTriplet(a, zerot),
             (eltt, acc, k) => {
               val elt = TypedTriplet(e, eltt)
@@ -487,14 +501,17 @@ object EmitStream {
           val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, None, er, Some(newContainer))
           val postt = emitter.emit(postAggIR, bodyEnv, None, er, Some(newContainer))
 
-          emitPStream(childIR, env, setupEnv).contMap(
-            (eltt, k) => Code(
+          emitStream(childIR, env)
+            .contMap[EmitTriplet] { (eltt, k) => Code(
               TypedTriplet(e, eltt).storeTo(eltm, eltv),
               TypedTriplet(a, postt).storeTo(postm, postv),
               seqPerElt.setup,
-              k(EmitTriplet(Code._empty, postm, postv))),
-            Code(aggSetup, init.setup),
-            aggCleanup)
+              k(EmitTriplet(Code._empty, postm, postv)))
+            }
+            .addSetup(
+              _ => Code(aggSetup, init.setup),
+              aggCleanup
+            )
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
