@@ -2444,13 +2444,13 @@ private class Emit(
         val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
 
         val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
-        val codeRefMap = mutable.Map[Int, (Code[Long])]()
+        val codeRefMap = mutable.Map[Int, Code[Long]]()
 
         coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
           sliceOrIndex match {
             case p: PTuple => {
-              val tup = new CodePTuple(p, region, slicesTuple(dim))
-              codeSlices += ((tup[Long](0), tup[Long](1), tup[Long](2)))
+              val oneSlice = new CodePTuple(p, region, slicesTuple(dim))
+              codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
             }
             case _: PInt64 => {
               codeRefMap += dim -> slicesTuple(dim)
