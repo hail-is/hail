@@ -54,8 +54,8 @@ object EmitStream {
       cleanup: Code[Unit] = Code._empty
     ): Parameterized[P, B] = new Parameterized[P, B] {
       type S = self.S
-      val stateP = self.stateP
-      def emptyState = self.emptyState
+      val stateP: ParameterPack[S] = self.stateP
+      def emptyState: S = self.emptyState
       def length(s0: S): Option[Code[Int]] = self.length(s0)
       def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
         self.init(mb, jb, param) {
@@ -72,8 +72,8 @@ object EmitStream {
 
     def filterMap[B](f: (A, Option[B] => Code[Ctrl]) => Code[Ctrl]): Parameterized[P, B] = new Parameterized[P, B] {
       type S = self.S
-      val stateP = self.stateP
-      def emptyState = self.emptyState
+      val stateP: ParameterPack[S] = self.stateP
+      def emptyState: S = self.emptyState
       def length(s0: S): Option[Code[Int]] = None
       def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
         self.init(mb, jb, param)(k)
@@ -219,7 +219,7 @@ object EmitStream {
     implicit val rsP = right.stateP
     type S = (left.S, right.S, (B, Code[Boolean]))
     val stateP: ParameterPack[S] = implicitly
-    def emptyState = (left.emptyState, right.emptyState, (rNil, false))
+    def emptyState: S = (left.emptyState, right.emptyState, (rNil, false))
     def length(s0: S): Option[Code[Int]] = left.length(s0._1)
 
     def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(
