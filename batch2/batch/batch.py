@@ -29,8 +29,7 @@ def batch_record_to_dict(record):
         'complete': complete,
         'closed': record['closed']
     }
-    spec = json.loads(record['spec'])
-    attributes = spec.get('attributes')
+    attributes = json.loads(record['attributes'])
     if attributes:
         d['attributes'] = attributes
     return d
@@ -130,7 +129,8 @@ def job_record_to_dict(record):
             for k in tasks
         }
 
-    attributes = json.loads(record['attributes'])
+    spec = json.loads(record['spec'])
+    attributes = spec.get('attributes')
     if attributes:
         result['attributes'] = attributes
     return result
