@@ -91,7 +91,7 @@ async def main():
     service_parser.add_argument('name', type=str)
     service_parser.add_argument('--port', '-p', type=int, default=80)
     service_parser.add_argument('--endpoint', '-e', type=str, default='/healthcheck')
-    service_parser.add_argument('--header', '-h', action='extend', type=lambda x: x.split('='))
+    service_parser.add_argument('--header', '-h', action='append', type=str, nargs=2)
 
     args = parser.parse_args()
 
