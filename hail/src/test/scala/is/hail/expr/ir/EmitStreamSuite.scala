@@ -7,12 +7,12 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
+import is.hail.HailSuite
 
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class EmitStreamSuite extends TestNGSuite {
+class EmitStreamSuite extends HailSuite {
 
   private def compileStream(streamIR: IR, inputPType: PType): Any => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]("eval_stream")
