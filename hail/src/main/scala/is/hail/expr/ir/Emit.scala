@@ -2269,7 +2269,7 @@ private class Emit(
         val setup = Code(childEmitter.setup)
 
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
-          childP.shape.pType, body.pType, setup) {
+          childP.shape.pType, body.pType, setup, childEmitter.missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             Code(
               elemRef := childEmitter.outputElement(idxVars),
@@ -2438,7 +2438,7 @@ private class Emit(
         val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i)).toArray
 
         new NDArrayEmitter(mb, nDims, shapeArray,
-          xP.shape.pType, xP.elementType, setup) {
+          xP.shape.pType, xP.elementType, setup, ndt.m) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val elementLocation = xP.getElementAddress(idxVars, ndAddress, er.region, mb)
             Region.loadIRIntermediate(outputElementPType)(elementLocation)
@@ -2507,7 +2507,8 @@ abstract class NDArrayEmitter(
    val outputShape: Array[Code[Long]],
    val outputShapePType: PTuple,
    val outputElementPType: PType,
-   val setup: Code[_]) {
+   val setup: Code[_],
+   val missing: Code[Boolean] = false) {
 
   private val outputShapeVariables = (0 until nDims).map(_ => mb.newField[Long]).toArray
 
@@ -2537,10 +2538,13 @@ abstract class NDArrayEmitter(
 
     val fullSetup = Code(
       setup,
-      Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
+      missing.mux(
+        Code._empty,
+        Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
+      )
     )
 
-    EmitTriplet(fullSetup, false, targetType.construct(0, 0, shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
+    EmitTriplet(fullSetup, missing, targetType.construct(0, 0, shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb))
   }
 
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[_] = {

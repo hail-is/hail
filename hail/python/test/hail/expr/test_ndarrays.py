@@ -213,6 +213,8 @@ def test_ndarray_map():
         (c, [[True, True, True],
              [True, True, True]]))
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
+
 @skip_unless_spark_backend()
 def test_ndarray_ops():
 
