@@ -36,6 +36,8 @@ MAX_IDLE_TIME_SECS = 60
 
 LOG_ROOT = os.environ['LOG_ROOT']
 
+log.info(f'LOG_ROOT {LOG_ROOT}')
+
 
 async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
@@ -466,8 +468,7 @@ class Job:
 
 
 class Worker:
-    def __init__(self, image, cores, deploy_config, token, ip_address):
-        self.image = image
+    def __init__(self, cores, deploy_config, token, ip_address):
         self.cores_mcpu = cores * 1000
         self.deploy_config = deploy_config
         self.token = token
@@ -641,12 +642,9 @@ cores = int(os.environ['CORES'])
 namespace = os.environ['NAMESPACE']
 inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
-batch_worker_image = os.environ['BATCH_WORKER_IMAGE']
-
-log.info(f'BATCH_WORKER_IMAGE {batch_worker_image}')
 
 deploy_config = DeployConfig('gce', namespace, {})
-worker = Worker(batch_worker_image, cores, deploy_config, inst_token, ip_address)
+worker = Worker(cores, deploy_config, inst_token, ip_address)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())

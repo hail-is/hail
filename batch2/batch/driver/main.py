@@ -201,9 +201,6 @@ async def on_startup(app):
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    log_root = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
-    app['log_root'] = log_root
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -236,7 +233,7 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    log_store = LogStore(log_root, pool, credentials)
+    log_store = LogStore(bucket_name, pool, credentials)
     app['log_store'] = log_store
 
     asyncio.ensure_future(db_cleanup_event_loop(db, log_store))

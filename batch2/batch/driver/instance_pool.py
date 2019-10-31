@@ -24,7 +24,7 @@ log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
 class InstancePool:
     def __init__(self, app, machine_name_prefix):
         self.app = app
-        self.log_root = app['log_root']
+        self.log_store = app['log_store']
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
         self.gservices = app['gservices']
@@ -56,11 +56,6 @@ class InstancePool:
         self.id_instance = {}
 
         self.token_inst = {}
-
-    @staticmethod
-    def log_path(log_root, machine_name, log_file):
-        # must match log path in run-worker.sh
-        return f'{log_root}/worker/{machine_name}/{log_file}'
 
     async def async_init(self):
         log.info('initializing instance pool')
@@ -167,44 +162,51 @@ class InstancePool:
                     'key': 'startup-script',
                     'value': f'''
 #!/bin/bash
-set -ex
+set -x
 
-export BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
-export LOG_ROOT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/log_root")
-export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+cat > ./run.sh <<END
+#!/bin/bash
+set -x
+
 export HOME=/root
 
-export STARTUP_LOG_FILE={self.log_path("$LOG_ROOT", "$NAME", "startup.log")}
+CORES=$(nproc)
+NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
+INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
+INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 
-function retry {{
-    local n=1
-    local max=5
-    local delay=15
-    while true; do
-        "$@" > startup.log 2>&1 && break || {{
-            if [[ $n -lt $max ]]; then
-                ((n++))
-                echo "Command failed. Attempt $n/$max:"
-                sleep $delay;
-            else
-                echo "startup of batch worker failed after $n attempts;" >> startup.log
-                gsutil -m cp startup.log $STARTUP_LOG_FILE
+LOG_ROOT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/log_root")
+NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
-                gcloud -q compute instances delete $NAME --zone=$ZONE
-             fi
-        }}
-    done
-}}
+BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 
-retry docker run \
-           -v /var/run/docker.sock:/var/run/docker.sock \
-           -v /usr/bin/docker:/usr/bin/docker \
-           -v /batch:/batch \
-           -p 5000:5000 \
-           -d --entrypoint "/bin/bash" \
-           $BATCH_WORKER_IMAGE \
-           -c "sh /run-worker.sh"
+# retry once
+docker pull $BATCH_WORKER_IMAGE || \
+    (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
+
+# So here I go it's my shot.
+docker run \
+    -e CORES=$CORES \
+    -e NAMESPACE=$NAMESPACE \
+    -e INST_TOKEN=$INST_TOKEN \
+    -e INTERNAL_IP=$INTERNAL_IP \
+    -e LOG_ROOT=$LOG_ROOT \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /usr/bin/docker:/usr/bin/docker \
+    -v /batch:/batch \
+    -v /logs:/logs \
+    -p 5000:5000 \
+    $BATCH_WORKER_IMAGE \
+    python3 -u -m batch.worker >worker.log 2>&1
+
+# this has to match LogStore
+gsutil -m cp run.log worker.log /var/log/syslog $LOG_ROOT/worker/$NAME/
+
+gcloud -q compute instances delete $NAME --zone=$ZONE
+END
+
+nohup /bin/bash run.sh >run.log 2>&1 &
 '''
                 }, {
                     'key': 'inst_token',
@@ -220,7 +222,7 @@ retry docker run \
                     'value': BATCH_NAMESPACE
                 }, {
                     'key': 'log_root',
-                    'value': self.log_root
+                    'value': self.log_store.log_root
                 }]
             },
             'tags': {
@@ -233,7 +235,7 @@ retry docker run \
         await self.gservices.create_instance(config)
 
         log.info(f'created machine {machine_name}'
-                 f'with logs at {self.log_path(self.log_root, machine_name, "worker.log")}')
+                 f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
 
     async def call_delete_instance(self, instance, force=False):
         if instance.state == 'deleted' and not force:

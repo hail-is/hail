@@ -589,15 +589,12 @@ async def on_startup(app):
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    log_root = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
-    app['log_root'] = log_root
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')
-    app['log_store'] = LogStore(log_root, pool, credentials)
+    app['log_store'] = LogStore(bucket_name, pool, credentials)
 
     db = Database()
     await db.async_init()
