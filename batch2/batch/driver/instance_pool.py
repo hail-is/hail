@@ -200,7 +200,7 @@ docker run \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker >worker.log 2>&1
 
-# this has to match LogStore
+# this has to match LogStore.worker_log_path
 gsutil -m cp run.log worker.log /var/log/syslog $LOG_ROOT/worker/$NAME/
 
 gcloud -q compute instances delete $NAME --zone=$ZONE

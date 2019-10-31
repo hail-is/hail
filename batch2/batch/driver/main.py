@@ -225,6 +225,9 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
+    log_store = LogStore(bucket_name, pool, credentials)
+    app['log_store'] = log_store
+
     inst_pool = InstancePool(app, machine_name_prefix)
     await inst_pool.async_init()
     app['inst_pool'] = inst_pool
@@ -232,9 +235,6 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
-
-    log_store = LogStore(bucket_name, pool, credentials)
-    app['log_store'] = log_store
 
     asyncio.ensure_future(db_cleanup_event_loop(db, log_store))
 

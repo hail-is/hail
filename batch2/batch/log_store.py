@@ -11,12 +11,9 @@ class LogStore:
         self.log_root = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
         self.gcs = GCS(blocking_pool, credentials)
 
-    @staticmethod
-    def _worker_log_path(log_root, machine_name, log_file):
-        return f'{log_root}/worker/{machine_name}/{log_file}'
-
     def worker_log_path(self, machine_name, log_file):
-        return self._worker_log_path(self.log_root, machine_name, log_file)
+        # this has to match worker startup-script
+        return f'{self.log_root}/worker/{machine_name}/{log_file}'
 
     def batch_log_dir(self, batch_id):
         return f'{self.log_root}/batch/{batch_id}'
