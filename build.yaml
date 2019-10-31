@@ -639,7 +639,7 @@ steps:
    dockerFile: batch2/Dockerfile.tables
    contextPath: batch2
    dependsOn:
-    - base_image
+    - service_base_image
  - kind: deploy
    name: create_batch_tables
    namespace:

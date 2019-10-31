@@ -4,7 +4,7 @@ import logging
 import googleapiclient.errors
 
 from ..utils import new_token
-from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
 
@@ -24,6 +24,7 @@ log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
 class InstancePool:
     def __init__(self, app, machine_name_prefix):
         self.app = app
+        self.instance_id = app['instance_id']
         self.log_store = app['log_store']
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
@@ -122,7 +123,7 @@ class InstancePool:
             'labels': {
                 'role': 'batch2-agent',
                 'inst_token': inst_token,
-                'batch_instance': INSTANCE_ID,
+                'batch_instance': self.instance_id,
                 'namespace': BATCH_NAMESPACE
             },
 
@@ -183,8 +184,8 @@ INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.inter
 
 BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
-NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 
@@ -219,9 +220,6 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
                 }, {
                     'key': 'batch_worker_image',
                     'value': BATCH_WORKER_IMAGE
-                }, {
-                    'key': 'batch_instance',
-                    'value': INSTANCE_ID
                 }, {
                     'key': 'namespace',
                     'value': BATCH_NAMESPACE

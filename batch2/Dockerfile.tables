@@ -1,4 +1,5 @@
-FROM {{ base_image.image }}
+FROM {{ service_base_image.image }}
 
 COPY create-batch-tables.sql .
 COPY delete-batch-tables.sql .
+COPY insert-batch-tokens.py .

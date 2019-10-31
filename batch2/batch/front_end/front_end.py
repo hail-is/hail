@@ -27,7 +27,6 @@ from ..utils import parse_cpu_in_mcpu, LoggingTimer
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import check_call_procedure
-from ..batch_configuration import INSTANCE_ID
 
 from . import schemas
 
@@ -50,8 +49,6 @@ REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_LOGS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_JOB_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/status', verb="GET")
-
-log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
 routes = web.RouteTableDef()
 
@@ -592,13 +589,20 @@ async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
-    app['log_store'] = LogStore(bucket_name, INSTANCE_ID, pool, credentials)
-
     db = Database()
     await db.async_init()
     app['db'] = db
+
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'instance_id')
+    instance_id = row['token']
+    log.info(f'instance_id {instance_id}')
+    app['instance_id'] = instance_id
+
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/batch-gsa-key/privateKeyData')
+    app['log_store'] = LogStore(bucket_name, instance_id, pool, credentials)
 
 
 async def on_cleanup(app):

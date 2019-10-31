@@ -14,7 +14,7 @@ from hailtop.config import get_deploy_config
 from ..batch import mark_job_complete
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    INSTANCE_ID, BATCH_NAMESPACE
+    BATCH_NAMESPACE
 from ..google_compute import GServices
 
 from .instance_pool import InstancePool
@@ -25,7 +25,6 @@ from .scheduler import Scheduler
 log = logging.getLogger('batch')
 
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
-log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
 routes = web.RouteTableDef()
 
@@ -212,8 +211,14 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'instance_id')
+    instance_id = row['token']
+    log.info(f'instance_id {instance_id}')
+    app['instance_id'] = instance_id
 
+    machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')
     gservices = GServices(machine_name_prefix, credentials)
@@ -225,7 +230,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    log_store = LogStore(bucket_name, INSTANCE_ID, pool, credentials)
+    log_store = LogStore(bucket_name, instance_id, pool, credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
