@@ -341,13 +341,13 @@ VALUES (%s, %s, %s, %s, %s);
 
         if attributes:
             async with conn.cursor() as cursor:
-                cursor.executemany(
+                await cursor.executemany(
                     '''
 INSERT INTO `batch-attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                     [(id, k, v) for k, v in attributes.items()])
-        conn.commit()
+        await conn.commit()
 
     return web.json_response({'id': id})
 
