@@ -24,7 +24,6 @@ from gear import configure_logging
 from .utils import parse_cpu_in_mcpu, parse_image_tag
 from .semaphore import WeightedSemaphore
 from .log_store import LogStore
-from .google_storage import GCS
 
 # uvloop.install()
 
@@ -169,8 +168,8 @@ class Container:
             log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
-                await worker.gcs_client.write_gs_file(
-                    LogStore.log_path(LOG_ROOT, self.job.batch_id, self.job.job_id, self.name),
+                await worker.log_store.write_log_file(
+                    self.job.batch_id, self.job.job_id, self.name,
                     await self.get_container_log())
 
             async with self.step('deleting'):
@@ -478,8 +477,8 @@ class Worker:
         self.ip_address = ip_address
 
         pool = concurrent.futures.ThreadPoolExecutor()
+        self.log_store = LogStore(LOG_ROOT, pool)
 
-        self.gcs_client = GCS(pool)
         self.jobs = {}
 
     async def run_job(self, job):

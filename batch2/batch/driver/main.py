@@ -100,13 +100,17 @@ SELECT state FROM batch WHERE user = %s AND batch_id = %s;
     return web.Response()
 
 
-async def db_cleanup_event_loop(db):
+async def db_cleanup_event_loop(db, log_store):
     while True:
         try:
-            await db.just_execute('''
-DELETE FROM batch
-WHERE deleted AND (NOT closed OR n_jobs = n_completed)
-''')
+            async for record in db.execute_and_fetchall('''
+SELECT id FROM batch
+WHERE deleted AND (NOT closed OR n_jobs = n_completed);
+'''):
+                batch_id = record['id']
+                await log_store.delete_batch_logs(batch_id)
+                await db.just_execute('DELETE FROM batch WHERE id = %s;',
+                                      (batch_id,))
         except Exception:
             log.exception(f'in db cleanup loop')
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
@@ -198,7 +202,8 @@ async def on_startup(app):
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    app['log_root'] = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
+    log_root = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
+    app['log_root'] = log_root
 
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -232,9 +237,10 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    app['log_store'] = LogStore(app)
+    log_store = LogStore(log_root, pool)
+    app['log_store'] = log_store
 
-    asyncio.ensure_future(db_cleanup_event_loop(db))
+    asyncio.ensure_future(db_cleanup_event_loop(db, log_store))
 
 
 async def on_cleanup(app):

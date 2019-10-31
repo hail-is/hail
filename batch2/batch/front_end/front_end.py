@@ -583,16 +583,19 @@ async def index(request, userdata):
 
 
 async def on_startup(app):
-    pool = concurrent.futures.ThreadPoolExecutor()
-    app['blocking_pool'] = pool
-
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
 
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    app['log_store'] = LogStore(app)
+    log_root = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
+    app['log_root'] = log_root
+
+    pool = concurrent.futures.ThreadPoolExecutor()
+    app['blocking_pool'] = pool
+
+    app['log_store'] = LogStore(log_root, pool)
 
     db = Database()
     await db.async_init()
