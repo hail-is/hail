@@ -217,7 +217,7 @@ object LowerMatrixIR {
               val valueType = elementType.types(1)
               ToDict(ArrayMap(ToArray(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
                 MakeTuple.ordered(FastSeq(GetField(Ref(eltUID, elementType), "key"),
-                  aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) } )))))
+                  aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) })))))
 
             case AggArrayPerElement(a, elementName, indexName, body, knownLength, true) =>
               val ab = new ArrayBuilder[(String, IR)]
@@ -253,24 +253,25 @@ object LowerMatrixIR {
 
           val scanResultRef = Ref(genUID(), scanStruct.typ)
 
-          if (ContainsAgg(b0)) {
-            val b1 = irRange(0, 'row(entriesField).len)
+          val b1 = if (ContainsAgg(b0)) {
+            irRange(0, 'row(entriesField).len)
               .filter('i ~> !'row(entriesField)('i).isNA)
               .arrayAgg('i ~>
                 (aggLet(sa = 'global(colsField)('i),
                   g = 'row(entriesField)('i))
                   in b0))
-            let.applyDynamicNamed("apply")((scanResultRef.name, scanStruct))(
-              scans.foldLeft[IRProxy](b1) { case (acc, (name, _)) => let.applyDynamicNamed("apply")((name, GetField(scanResultRef, name)))(acc) }
-            )
           } else
-            b0
+            irToProxy(b0)
+
+          let.applyDynamicNamed("apply")((scanResultRef.name, scanStruct))(
+            scans.foldLeft[IRProxy](b1) { case (acc, (name, _)) => let.applyDynamicNamed("apply")((name, GetField(scanResultRef, name)))(acc) })
         }
+
 
         val lc = lower(child, ab)
         lc.mapRows(
           liftScans(Subst(newRow, matrixSubstEnvIR(child, lc)))
-            .insertFields(entriesField -> 'row (entriesField)))
+            .insertFields(entriesField -> 'row(entriesField)))
 
       case MatrixMapCols(child, newCol, _) =>
         val loweredChild = lower(child, ab)
