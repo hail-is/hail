@@ -1,49 +1,62 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.TStruct
-import org.apache.spark.sql.Row
+import is.hail.expr.types.virtual.TVoid
+import is.hail.utils._
 
 import scala.collection.mutable
 
 object InterpretNonCompilable {
 
-  def extractNonCompilable(irs: IR*): Map[String, IR] = {
+  def
+  apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     val included = mutable.Set.empty[IR]
 
-    def visit(ir: IR): Unit = {
-      if (!Compilable(ir) && !included.contains(ir))
-        included += ir
+    def visit(ir: BaseIR): Unit = {
+      ir match {
+        case x: IR if !Compilable(x) && !included.contains(x) =>
+          included += x
+      }
       ir.children.foreach {
         case ir: IR => visit(ir)
         case _ =>
       }
     }
 
-    irs.foreach(visit)
-    included.toArray.map { l => genUID() -> l }.toMap
-  }
+    visit(ir)
 
-  def apply(ctx: ExecuteContext, ir: IR): (IR, Row, TStruct, String) = {
+    if (included.isEmpty)
+      return ir
 
-    val name = genUID()
-    val nonCompilableNodes = extractNonCompilable(ir).toArray
-    val emittable = nonCompilableNodes.filter { case (_, value) => CanEmit(value.typ) }
-    val nonEmittable = nonCompilableNodes.filter { case (_, value) => !CanEmit(value.typ) }
+    val m = mutable.HashMap.empty[IR, IR]
+    included.foreach { toEvaluate =>
+      val preTime = System.nanoTime()
+      log.info(s"interpreting non compilable node: $toEvaluate")
+      val r = Interpret.alreadyLowered(ctx, toEvaluate)
+      log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")
+      val lit = if (toEvaluate.typ == TVoid) {
+        Begin(FastIndexedSeq())
+      } else Literal.coerce(toEvaluate.typ, r)
+      m(toEvaluate) = lit
+    }
 
-    val rowType = TStruct(nonEmittable.map { case (k, v) => (k, v.typ)}: _*)
-    val nonEmittableValues = Row.fromSeq(nonEmittable.map(_._2).map(Interpret[Any](ctx, _, optimize = false)))
-
-    val nonEmittableMap = nonEmittable.map { case (k, v) => (v, GetField(Ref(name, rowType), k)) }.toMap
-    val emittableMap = emittable.map { case (k, v) => (v, Literal.coerce(v.typ, Interpret(ctx, v, optimize = false))) }.toMap
-    val jointMap = emittableMap ++ nonEmittableMap
-
-    def rewrite(ir: IR): IR = {
-      jointMap.get(ir) match {
-        case Some(binding) => binding
-        case None => MapIR(rewrite)(ir)
+    def rewrite(x: BaseIR): BaseIR = {
+      val replacement = x match {
+        case ir: IR => m.get(ir)
+        case _ => None
+      }
+      replacement match {
+        case Some(r) => r
+        case None =>
+          val children = x.children
+          val rewritten = children.map(rewrite)
+          val refEq = children.indices.forall(i => children(i).eq(rewritten(i)))
+          if (refEq)
+            x
+          else
+            x.copy(rewritten)
       }
     }
 
-    (rewrite(ir), nonEmittableValues, rowType, name)
+    rewrite(ir)
   }
 }

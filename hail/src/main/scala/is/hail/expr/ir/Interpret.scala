@@ -98,6 +98,8 @@ object Interpret {
     result
   }
 
+  def alreadyLowered(ctx: ExecuteContext, ir: IR): Any = apply(ctx, ir, Env.empty, FastIndexedSeq(), None, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]])
+
   private def apply(ctx: ExecuteContext,
     ir: IR,
     env: Env[Any],

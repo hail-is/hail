@@ -1150,19 +1150,10 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
 
-    val (evalIR, ncValue, ncType, ncVar) = InterpretNonCompilable(ctx, newGlobals)
+    val (resultPType, f) = Compile[Long, Long]("global", tv.globals.t, newGlobals)
 
-    val ncPType = PType.canonical(ncType)
-
-    val (resultPType, f) = Compile[Long, Long, Long]("global", tv.globals.t, ncVar, ncPType, evalIR)
-
-    val rvb = new RegionValueBuilder(ctx.r)
-    rvb.start(ncPType)
-    rvb.addAnnotation(ncType, ncValue)
-    val ncOffset = rvb.end()
     val resultOff = f(0, ctx.r)(ctx.r,
-      tv.globals.value.offset, false,
-      ncOffset, ncValue == null
+      tv.globals.value.offset, false
     )
     tv.copy(typ = typ,
       globals = BroadcastRow(RegionValue(ctx.r, resultOff), resultPType.asInstanceOf[PStruct], HailContext.get.backend))
