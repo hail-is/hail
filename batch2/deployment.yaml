@@ -89,7 +89,7 @@ spec:
        - name: sql-config
          secret:
            optional: false
-           secretName: "{{ batch2_database.admin_secret_name }}"
+           secretName: "{{ batch2_database.user_secret_name }}"
        - name: gsa-key
          secret:
            optional: false
@@ -192,7 +192,7 @@ spec:
        - name: sql-config
          secret:
            optional: false
-           secretName: "{{ batch2_database.admin_secret_name }}"
+           secretName: "{{ batch2_database.user_secret_name }}"
        - name: gsa-key
          secret:
            optional: false
