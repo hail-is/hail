@@ -154,6 +154,19 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertEqual(status['exit_code']['main'], 1)
 
+    def test_running_job_log_and_status(self):
+        b = self.client.create_batch()
+        j = b.create_job('ubuntu:18.04', ['sleep', '300'])
+        b = b.submit()
+
+        while True:
+            if j.status()['state'] == 'Running' or j.is_complete():
+                break
+
+        j.log()
+        # FIXME after batch1 goes away, check running status
+        b.cancel()
+
     def test_deleted_job_log(self):
         b = self.client.create_batch()
         j = b.create_job('ubuntu:18.04', ['echo', 'test'])

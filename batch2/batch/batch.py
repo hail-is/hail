@@ -210,8 +210,7 @@ async def job_config(app, record):
     return {
         'batch_id': record['batch_id'],
         'user': record['user'],
-        'job_spec': job_spec,
-        'output_directory': record['directory']
+        'job_spec': job_spec
     }
 
 

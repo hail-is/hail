@@ -58,7 +58,7 @@ LIMIT 50;
     async def schedule_1(self):
         records = self.db.execute_and_fetchall(
             '''
-SELECT job_id, batch_id, directory, spec, cores_mcpu,
+SELECT job_id, batch_id, spec, cores_mcpu,
   always_run,
   (cancel OR batch.cancelled) as cancel,
   batch.user as user
