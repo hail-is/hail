@@ -17,14 +17,14 @@ object CompileAndEvaluate {
     val timer = new ExecutionTimer(evalContext)
     var ir = ir0
 
-    def optimizeIR(canGenerateLiterals: Boolean, context: String) {
-      ir = timer.time(Optimize(ir, noisy = true, canGenerateLiterals, Some(s"$evalContext: $context")), context)
+    def optimizeIR(context: String) {
+      ir = timer.time(Optimize(ir, noisy = true, Some(s"$evalContext: $context")), context)
       TypeCheck(ir, BindingEnv(env.mapValues(_._2)))
     }
 
-    if (optimize) optimizeIR(true, "first pass")
+    if (optimize) optimizeIR("first pass")
     ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR(true, "after Matrix lowering")
+    if (optimize) optimizeIR("after Matrix lowering")
     ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
