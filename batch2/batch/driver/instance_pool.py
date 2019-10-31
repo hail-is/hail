@@ -123,7 +123,6 @@ class InstancePool:
             'labels': {
                 'role': 'batch2-agent',
                 'inst_token': inst_token,
-                'batch_instance': self.instance_id,
                 'namespace': BATCH_NAMESPACE
             },
 
