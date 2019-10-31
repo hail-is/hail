@@ -318,11 +318,9 @@ retry docker run \
         log.info(f'starting control loop')
         while True:
             try:
-                log.info('before acquire conn')
                 ready_cores = await self.db.execute_and_fetchone(
                     'SELECT * FROM ready_cores;')
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
-                log.info('after release conn')
 
                 log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
                          f' live_free_cores {self.live_free_cores_mcpu / 1000}'

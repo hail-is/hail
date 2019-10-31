@@ -3,7 +3,7 @@ import asyncio
 import concurrent
 import logging
 from aiohttp import web
-import kubernetes as kube
+import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database
@@ -14,19 +14,17 @@ from hailtop.config import get_deploy_config
 
 from ..batch import mark_job_complete
 from ..log_store import LogStore
-from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
+from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     INSTANCE_ID, BATCH_NAMESPACE
 from ..google_compute import GServices
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
-from .k8s import K8s
 
 # uvloop.install()
 
 log = logging.getLogger('batch')
 
-log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
@@ -200,9 +198,6 @@ async def on_startup(app):
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
-
-    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, k8s_client)
-    app['k8s'] = k8s
 
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')

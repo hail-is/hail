@@ -6,6 +6,7 @@ from hailtop.utils import request_retry_transient_errors
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE
 
 log = logging.getLogger('batch')
 
@@ -95,13 +96,11 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
     instance_id = rv['instance_id']
-    if instance_id:
+    if instance_id is not None:
         instance = inst_pool.id_instance.get(instance_id)
         log.info(f'updating instance: {instance}')
         if instance:
-            inst_pool.adjust_for_remove_instance(instance)
-            instance.free_cores_mcpu += rv['cores_mcpu']
-            inst_pool.adjust_for_add_instance(instance)
+            instance.adjust_free_cores(rv['cores_mcpu'])
 
     scheduler_state_changed.set()
 
@@ -194,13 +193,16 @@ async def unschedule_job(app, record):
 
 
 async def job_config(app, record):
-    k8s = app['k8s']
+    k8s_client = app['k8s_client']
 
     job_spec = json.loads(record['spec'])
 
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
-        k8s.read_secret(secret['name']) for secret in secrets
+        k8s_client.read_namespaced_secret(
+            secret['name'], BATCH_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        for secret in secrets
     ])
     for secret, k8s_secret in zip(secrets, k8s_secrets):
         secret['data'] = k8s_secret.data
