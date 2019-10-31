@@ -2636,19 +2636,33 @@ class Table(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs) -> 'Table':
-        """Sort by the specified fields. Unkeys the table, if keyed.
+        """Sort by the specified fields, defaulting to ascending order. Will unkey the table if it is keyed.
 
         Examples
         --------
-        Four equivalent ways to order the table by field `HT`, ascending:
+        Let's assume we have a field called `HT` in our table.
+
+        By default, ascending order is used:
 
         >>> sorted_table = table1.order_by(table1.HT)
 
         >>> sorted_table = table1.order_by('HT')
 
+        You can sort in ascending order explicitly:
+
         >>> sorted_table = table1.order_by(hl.asc(table1.HT))
 
         >>> sorted_table = table1.order_by(hl.asc('HT'))
+
+        Tables can be sorted by field descending order as well:
+
+        >>> sorted_table = table1.order_by(hl.desc(table1.HT))
+
+        >>> sorted_table = table1.order_by(hl.desc('HT'))
+
+        Tables can also be sorted on multiple fields:
+
+        >>> sorted_table = table1.order_by(hl.desc('HT'), hl.asc('SEX'))
 
         Notes
         -----
