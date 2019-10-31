@@ -1,4 +1,3 @@
-import os
 import asyncio
 import concurrent
 import logging
@@ -218,8 +217,8 @@ async def on_startup(app):
 
     machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
 
-    batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(batch_gsa_key)
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/batch-gsa-key/privateKeyData')
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
 
@@ -237,8 +236,6 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
     log_store = LogStore(log_root, pool, credentials)
     app['log_store'] = log_store
 

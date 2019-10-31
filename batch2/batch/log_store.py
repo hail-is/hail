@@ -1,6 +1,4 @@
-import os
 import logging
-import google
 
 from .google_storage import GCS
 

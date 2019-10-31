@@ -10,7 +10,7 @@ import cerberus
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
-
+import google.oauth2.service_account
 from hailtop.utils import request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
