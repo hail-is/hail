@@ -58,8 +58,9 @@ class InstancePool:
         self.token_inst = {}
 
     @staticmethod
-    def worker_log_path(log_root, machine_name):
-        return f'{log_root}/worker/{machine_name}/worker.log'
+    def log_path(log_root, machine_name, log_file):
+        # must match log path in run-worker.sh
+        return f'{log_root}/worker/{machine_name}/{log_file}'
 
     async def async_init(self):
         log.info('initializing instance pool')
@@ -174,19 +175,21 @@ export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/n
 export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 export HOME=/root
 
+export STARTUP_LOG_FILE={self.log_path("$LOG_ROOT", "$NAME", "startup.log")}
+
 function retry {{
     local n=1
     local max=5
     local delay=15
     while true; do
-        "$@" > worker.log 2>&1 && break || {{
+        "$@" > startup.log 2>&1 && break || {{
             if [[ $n -lt $max ]]; then
                 ((n++))
                 echo "Command failed. Attempt $n/$max:"
                 sleep $delay;
             else
-                echo "startup of batch worker failed after $n attempts;" >> worker.log
-                gsutil -m cp worker.log {self.worker_log_path("$LOG_ROOT", "$NAME")}
+                echo "startup of batch worker failed after $n attempts;" >> startup.log
+                gsutil -m cp startup.log $STARTUP_LOG_FILE
 
                 gcloud -q compute instances delete $NAME --zone=$ZONE
              fi
@@ -228,7 +231,9 @@ retry docker run \
         }
 
         await self.gservices.create_instance(config)
-        log.info(f'created machine {machine_name} with logs at {self.worker_log_path(self.log_root, machine_name)}')
+
+        log.info(f'created machine {machine_name}'
+                 f'with logs at {self.log_path(self.log_root, machine_name, "worker.log")}')
 
     async def call_delete_instance(self, instance, force=False):
         if instance.state == 'deleted' and not force:
