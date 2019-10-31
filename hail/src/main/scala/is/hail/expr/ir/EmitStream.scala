@@ -15,7 +15,6 @@ object EmitStream {
 
   sealed trait Step[+A, +S]
   object EOS extends Step[Nothing, Nothing]
-  case class Skip[S](s: S) extends Step[Nothing, S]
   case class Yield[A, S](elt: A, s: S) extends Step[A, S]
 
   def stepIf[A, S, X](k: Step[A, S] => Code[X], c: Code[Boolean], a: A, s: S): Code[X] =
@@ -86,27 +85,28 @@ object EmitStream {
       def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] =
         self.step(mb, jb, state) {
           case EOS => k(EOS)
-          case Skip(s) => k(Skip(s))
           case Yield(a, s) => f(a, b => k(Yield(b, s)))
         }
     }
 
     def filterMap[B](f: (A, Option[B] => Code[Ctrl]) => Code[Ctrl]): Parameterized[P, B] = new Parameterized[P, B] {
       type S = self.S
-      val stateP: ParameterPack[S] = self.stateP
+      implicit val stateP: ParameterPack[S] = self.stateP
       def emptyState: S = self.emptyState
       def length(s0: S): Option[Code[Int]] = None
       def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
         self.init(mb, jb, param)(k)
-      def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] =
-        self.step(mb, jb, state) {
+      def step(mb: MethodBuilder, jb: JoinPointBuilder, s0: S)(k: Step[B, S] => Code[Ctrl]): Code[Ctrl] = {
+        val pull = jb.joinPoint[S](mb)
+        pull.define(self.step(mb, jb, _) {
           case EOS => k(EOS)
-          case Skip(s) => k(Skip(s))
           case Yield(a, s) => f(a, {
-            case None => k(Skip(s))
+            case None => pull(s)
             case Some(b) => k(Yield(b, s))
           })
-        }
+        })
+        pull(s0)
+      }
     }
 
     def scan[B: ParameterPack](dummy: B)(
@@ -133,7 +133,6 @@ object EmitStream {
           yield_((b, s)),
           self.step(mb, jb, s) {
             case EOS => k(EOS)
-            case Skip(s1) => k(Skip((s1, b, false)))
             case Yield(a, s1) => op(a, b, b1 => yield_((b1, s1)))
           })
       }
@@ -208,19 +207,22 @@ object EmitStream {
       }
 
     def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[C, S] => Code[Ctrl]): Code[Ctrl] = {
-      val (outS, innS) = state
-      inner.step(mb, jb, innS) {
-        case EOS => outer.step(mb, jb, outS) {
-          case EOS => k(EOS)
-          case Skip(outS1) => k(Skip((outS1, inner.emptyState)))
-          case Yield(outElt, outS1) => inner.init(mb, jb, outElt) {
-            case Missing => k(Skip((outS1, inner.emptyState)))
-            case Start(innS1) => k(Skip((outS1, innS1)))
-          }
+      val stepInner = jb.joinPoint[S](mb)
+      val stepOuter = jb.joinPoint[outer.S](mb)
+      stepInner.define { case (outS, innS) =>
+        inner.step(mb, jb, innS) {
+          case EOS => stepOuter(outS)
+          case Yield(innElt, innS1) => k(Yield(innElt, (outS, innS1)))
         }
-        case Skip(innS1) => k(Skip((outS, innS1)))
-        case Yield(innElt, innS1) => k(Yield(innElt, (outS, innS1)))
       }
+      stepOuter.define(outer.step(mb, jb, _) {
+        case EOS => k(EOS)
+        case Yield(outElt, outS) => inner.init(mb, jb, outElt) {
+          case Missing => stepOuter(outS)
+          case Start(innS) => stepInner((outS, innS))
+        }
+      })
+      stepInner(state)
     }
   }
 
@@ -257,7 +259,6 @@ object EmitStream {
       val (lS0, rS0, (rPrev, somePrev)) = state
       left.step(mb, jb, lS0) {
         case EOS => k(EOS)
-        case Skip(lS) => k(Skip((lS, rS0, (rPrev, somePrev))))
         case Yield(lElt, lS) =>
           val push = jb.joinPoint[(B, right.S, (B, Code[Boolean]))](mb)
           val pull = jb.joinPoint[right.S](mb)
@@ -267,7 +268,6 @@ object EmitStream {
           }
           pull.define(right.step(mb, jb, _) {
             case EOS => push((rNil, right.emptyState, (rNil, false)))
-            case Skip(rS) => pull(rS)
             case Yield(rElt, rS) => compare((rElt, rS))
           })
           compare.define { case (rElt, rS) =>
@@ -556,7 +556,6 @@ case class EmitStream(
             val loop = jb.joinPoint()
             loop.define { _ => stream.step(mb, jb, state.load) {
               case EOS => ret(())
-              case Skip(s1) => Code(state := s1, loop(()))
               case Yield(elt, s1) => Code(
                 elt.setup,
                 cont(elt.m, elt.value),
