@@ -188,7 +188,7 @@ CREATE PROCEDURE schedule_job(
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_cores_mcpu INT;
-  DECLARE cur_cancel BOOLEAN;
+  DECLARE cur_job_cancel BOOLEAN;
   DECLARE cur_instance_state VARCHAR(40);
 
   START TRANSACTION;
