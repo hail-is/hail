@@ -8,13 +8,8 @@ log = logging.getLogger('logstore')
 
 
 class LogStore:
-    def __init__(self, log_root, blocking_pool):
+    def __init__(self, log_root, blocking_pool, credentials=None):
         self.log_root = log_root
-
-        batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
-        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-            batch_gsa_key)
-
         self.gcs = GCS(blocking_pool, credentials)
 
     def batch_log_dir(self, batch_id):

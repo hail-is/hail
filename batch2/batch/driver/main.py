@@ -237,7 +237,9 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    log_store = LogStore(log_root, pool)
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/batch-gsa-key/privateKeyData')
+    log_store = LogStore(log_root, pool, credentials)
     app['log_store'] = log_store
 
     asyncio.ensure_future(db_cleanup_event_loop(db, log_store))

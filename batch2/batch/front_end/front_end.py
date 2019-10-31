@@ -595,7 +595,9 @@ async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
-    app['log_store'] = LogStore(log_root, pool)
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/batch-gsa-key/privateKeyData')
+    app['log_store'] = LogStore(log_root, pool, credentials)
 
     db = Database()
     await db.async_init()
