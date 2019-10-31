@@ -26,7 +26,6 @@ object CompileAndEvaluate {
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR("after Matrix lowering")
     ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
-    ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
     // void is not really supported by IR utilities
     if (ir.typ == TVoid) {
