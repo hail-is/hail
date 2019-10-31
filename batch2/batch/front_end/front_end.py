@@ -93,9 +93,8 @@ WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
     state = record['state']
-
     ip_address = record['ip_address']
-    if state == 'Running' and ip_address is not None:
+    if state == 'Running':
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
@@ -108,6 +107,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                     return None
                 raise
 
+    # FIXME handle partial logs in Error case
     if state in ('Error', 'Failed', 'Success'):
         log_store = app['log_store']
         directory = record['directory']
@@ -535,21 +535,44 @@ async def ui_get_job_status(request, userdata):
     user = userdata['username']
 
     record = await db.execute_and_fetchone('''
-SELECT status
+SELECT jobs.state, status, ip_address
 FROM jobs
 INNER JOIN batch
   ON jobs.batch_id = batch.id
-WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s
+LEFT JOIN instances
+  ON jobs.instance_id = instances.id
+WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
+
+    state = record['state']
+    ip_address = record['ip_address']
+
     status = record['status']
+    if status is not None:
+        status = json.loads(status)
+
+    if state == 'Running':
+        assert status is None
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                url = (f'http://{ip_address}:5000'
+                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+                resp = await request_retry_transient_errors(session, 'GET', url)
+                status = await resp.json()
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    status = None
+                else:
+                    raise
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_status': json.dumps(
-            json.loads(status), indent=2)
+        'job_status': json.dumps(status, indent=2)
     }
     return await render_template('batch2', request, userdata, 'job_status.html', page_context)
 

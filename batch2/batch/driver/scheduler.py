@@ -78,9 +78,7 @@ LIMIT 50;
 
             if record['cancel'] and not record['always_run']:
                 log.info(f'cancelling job {id}')
-                await mark_job_complete(
-                    self.db, self.scheduler_state_changed, self.inst_pool,
-                    batch_id, job_id, 'Cancelled', None)
+                await mark_job_complete(self.app, batch_id, job_id, 'Cancelled', None)
                 should_wait = False
                 continue
 
