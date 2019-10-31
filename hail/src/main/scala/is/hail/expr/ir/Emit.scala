@@ -2266,10 +2266,10 @@ private class Emit(
         val bodyt = this.emit(body, bodyEnv, er, None)
 
         val childEmitter = deforest(child)
-        val setup = Code(childEmitter.setup)
+        val setup = Code(childEmitter.setupShape)
 
         new NDArrayEmitter(mb, childEmitter.nDims, childEmitter.outputShape,
-          childP.shape.pType, body.pType, setup, childEmitter.missing) {
+          childP.shape.pType, body.pType, setup, childEmitter.setupMissing, childEmitter.missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             Code(
               elemRef := childEmitter.outputElement(idxVars),
@@ -2298,9 +2298,10 @@ private class Emit(
 
         val shapeArray = NDArrayEmitter.unifyShapes2(leftChildEmitter.outputShape, rightChildEmitter.outputShape)
 
-        val setup = Code(leftChildEmitter.setup, rightChildEmitter.setup)
+        val setupMissing = Code(leftChildEmitter.setupMissing, rightChildEmitter.setupMissing)
+        val setupShape = Code(leftChildEmitter.setupShape, rightChildEmitter.setupShape)
 
-        new NDArrayEmitter(mb, lP.shape.pType.size, shapeArray, lP.shape.pType, body.pType, setup) {
+        new NDArrayEmitter(mb, lP.shape.pType.size, shapeArray, lP.shape.pType, body.pType, setupShape, setupMissing, leftChildEmitter.missing && rightChildEmitter.missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
 
             val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(mb, idxVars, nDims, leftChildEmitter.outputShape)
@@ -2333,7 +2334,7 @@ private class Emit(
           }
         }.toArray
 
-        val setup = Code(childEmitter.setup)
+        val setup = Code(childEmitter.setupShape)
 
         new NDArrayEmitter(mb, indexExpr.length, shapeSeq.toArray, outputShapePType, outputPType.elementType, setup) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
@@ -2356,7 +2357,7 @@ private class Emit(
 
           val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long]).toArray
 
-          val setup = coerce[Unit](Code(
+          val setupShape = coerce[Unit](Code(
             hasNegativeOne := false,
             runningProduct := 1L,
 
@@ -2381,7 +2382,7 @@ private class Emit(
               variable := (shapeElement ceq -1L).mux(quotient, shapeElement)}:_*)
           ))
 
-          (setup, newShapeVars.map(_.load()))
+          (setupShape, newShapeVars.map(_.load()))
         }
 
         val childEmitter = deforest(childND)
@@ -2398,16 +2399,21 @@ private class Emit(
 
         val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements, requestedShapeArray)
 
-        val setup = Code(
-          childEmitter.setup,
+        val setupMissing = Code(
+          childEmitter.setupMissing,
+          requestedShapet.setup
+        )
+
+        val setupShape = Code(
+          childEmitter.setupShape,
           childShapeCachingCode,
-          requestedShapet.setup,
           requestedShapeAddress := requestedShapet.value[Long],
           numElements := coerce[PNDArray](childND.pType).numElements(childShapeCached, mb),
           reshapeSetup
         )
 
-        new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple], childEmitter.outputElementPType, setup) {
+        new NDArrayEmitter(mb, reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple],
+          childEmitter.outputElementPType, setupShape, setupMissing, childEmitter.missing || requestedShapet.m) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val storeElementIndex = mb.newField[Long]
 
@@ -2427,7 +2433,6 @@ private class Emit(
         val ndt = emit(x, env, er, None)
         val ndAddress = mb.newField[Long]
         val setup = Code(
-          ndt.setup,
           ndAddress := ndt.value[Long]
         )
         val xP = x.pType.asInstanceOf[PNDArray]
@@ -2438,7 +2443,7 @@ private class Emit(
         val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i)).toArray
 
         new NDArrayEmitter(mb, nDims, shapeArray,
-          xP.shape.pType, xP.elementType, setup, ndt.m) {
+          xP.shape.pType, xP.elementType, setup, ndt.setup, ndt.m) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val elementLocation = xP.getElementAddress(idxVars, ndAddress, er.region, mb)
             Region.loadIRIntermediate(outputElementPType)(elementLocation)
@@ -2507,7 +2512,8 @@ abstract class NDArrayEmitter(
    val outputShape: Array[Code[Long]],
    val outputShapePType: PTuple,
    val outputElementPType: PType,
-   val setup: Code[_],
+   val setupShape: Code[_],
+   val setupMissing: Code[Unit] = Code._empty[Unit],
    val missing: Code[Boolean] = false) {
 
   private val outputShapeVariables = (0 until nDims).map(_ => mb.newField[Long]).toArray
@@ -2537,10 +2543,13 @@ abstract class NDArrayEmitter(
     }
 
     val fullSetup = Code(
-      setup,
+      setupMissing,
       missing.mux(
         Code._empty,
-        Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
+        Code(
+          setupShape,
+          Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index))
+        )
       )
     )
 

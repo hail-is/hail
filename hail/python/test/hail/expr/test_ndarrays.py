@@ -177,6 +177,9 @@ def test_ndarray_reshape():
         (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3)))
     )
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 2)).reshape((4, 5))) is None
+    assert hl.eval(hl._ndarray(hl.range(20)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64)))) is None
+
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
     assert "more than one -1" in str(exc)
