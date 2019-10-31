@@ -113,48 +113,43 @@ def test_cancel_left_after_tail(client):
 def test_callback(client):
     from flask import Flask, request
     app = Flask('test-client')
-    output = []
+    callback_body = []
 
     @app.route('/test', methods=['POST'])
     def test():
-        body = request.get_json()
-        print(f'body {body}')
-        output.append(body)
+        callback_body.append(request.get_json())
         return Response(status=200)
 
     try:
-        print('starting...')
         server = ServerThread(app)
         server.start()
-        batch = client.create_batch(callback=server.url_for('/test'))
-        head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-        left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
-        right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
-        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
-        batch = batch.submit()
-        print(f'ids {head.job_id} {left.job_id} {right.job_id} {tail.job_id}')
-        batch_status = batch.wait()
+        b = client.create_batch(
+            callback=server.url_for('/test'),
+            attributes={'foo': 'bar'})
+        head = b.create_job('alpine:3.8', command=['echo', 'head'])
+        tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+        b = b.submit()
+        b.wait()
 
         i = 0
-        while len(output) != 4:
+        while not callback_body:
             time.sleep(0.100 * (3/2) ** i)
             i += 1
             if i > 14:
                 break
+        callback_body = callback_body[0]
 
-        assert len(output) == 4, output
-        assert all([job_result['state'] == 'Success' and job_result['exit_code']['main'] == 0
-                    for job_result in output]), (output, batch_status)
-        assert output[0]['job_id'] == head.job_id, (output, batch_status)
-        middle_ids = (output[1]['job_id'], output[2]['job_id'])
-        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id)), (output, batch_status)
-        assert output[3]['job_id'] == tail.job_id, (output, batch_status)
+        assert (callback_body == {
+            'id': b.id,
+            'state': 'success',
+            'complete': True,
+            'closed': True,
+            'attributes': {'foo': 'bar'},
+        }), callback_body
     finally:
         if server:
-            print('shutting down...')
             server.shutdown()
             server.join()
-            print('shut down, joined')
 
 
 def test_no_parents_allowed_in_other_batches(client):
@@ -182,7 +177,6 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
-    print(head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 

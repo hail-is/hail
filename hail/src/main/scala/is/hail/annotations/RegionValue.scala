@@ -3,8 +3,8 @@ package is.hail.annotations
 import java.io._
 
 import is.hail.expr.types.physical.PType
-import is.hail.utils.using
-import is.hail.io.{Decoder, Encoder}
+import is.hail.utils.{using, RestartableByteArrayInputStream}
+import is.hail.io._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object RegionValue {
@@ -17,32 +17,31 @@ object RegionValue {
   def fromBytes(
     makeDec: InputStream => Decoder,
     r: Region,
-    carrierRv: RegionValue
-  )(bytes: Array[Byte]
-  ): RegionValue =
-    using(new ByteArrayInputStream(bytes)) { bais =>
-      using(makeDec(bais)) { dec =>
-        carrierRv.setOffset(dec.readRegionValue(r))
-        carrierRv
-      }
+    byteses: Iterator[Array[Byte]]
+  ): Iterator[RegionValue] = {
+    val rv = RegionValue(r)
+    val bad = new ByteArrayDecoder(makeDec)
+    byteses.map { bytes =>
+      rv.setOffset(bad.regionValueFromBytes(r, bytes))
+      rv
     }
+  }
 
-  def fromBytes(
-    makeDec: InputStream => Decoder, r: Region, bytes: Array[Byte]): Long =
-    using(new ByteArrayInputStream(bytes)) { bais =>
-      using(makeDec(bais)) { dec =>
-        dec.readRegionValue(r)
-      }
+  def pointerFromBytes(
+    makeDec: InputStream => Decoder,
+    r: Region,
+    byteses: Iterator[Array[Byte]]
+  ): Iterator[Long] = {
+    val bad = new ByteArrayDecoder(makeDec)
+    byteses.map { bytes =>
+      bad.regionValueFromBytes(r, bytes)
     }
+  }
 
-  def toBytes(makeEnc: OutputStream => Encoder, r: Region, off: Long): Array[Byte] =
-    using(new ByteArrayOutputStream()) { baos =>
-      using(makeEnc(baos)) { enc =>
-        enc.writeRegionValue(r, off)
-        enc.flush()
-        baos.toByteArray
-      }
-    }
+  def toBytes(makeEnc: OutputStream => Encoder, rvs: Iterator[RegionValue]): Iterator[Array[Byte]] = {
+    val bae = new ByteArrayEncoder(makeEnc)
+    rvs.map(rv => bae.regionValueToBytes(rv.region, rv.offset))
+  }
 }
 
 final class RegionValue(
@@ -63,15 +62,6 @@ final class RegionValue(
   }
 
   def pretty(t: PType): String = region.pretty(t, offset)
-
-  def toBytes(makeEnc: OutputStream => Encoder): Array[Byte] =
-    using(new ByteArrayOutputStream()) { baos =>
-      using(makeEnc(baos)) { enc =>
-        enc.writeRegionValue(region, offset)
-        enc.flush()
-        baos.toByteArray
-      }
-    }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()

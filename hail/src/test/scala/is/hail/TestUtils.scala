@@ -1,5 +1,7 @@
 package is.hail
 
+import java.io.{PrintWriter, File}
+
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
@@ -143,15 +145,24 @@ object TestUtils {
   }
 
 
-  def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+  def loweredExecute(x: IR, env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    bytecodePrinter: Option[PrintWriter] = None
+  ): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.backend.jvmLowerAndExecute(x, optimize = false)._1
+    HailContext.backend.jvmLowerAndExecute(x, optimize = false, print = bytecodePrinter)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
-  def eval(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+  def eval(x: IR,
+    env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    bytecodePrinter: Option[PrintWriter] = None
+  ): Any = {
     val inputTypesB = new ArrayBuilder[Type]()
     val inputsB = new ArrayBuilder[Any]()
 
@@ -201,7 +212,8 @@ object TestUtils {
         val (resultType2, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
           argsVar, argsPType,
-          postAggIR)
+          postAggIR,
+          print = bytecodePrinter)
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -269,7 +281,9 @@ object TestUtils {
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsPType,
-          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
+          optimize = true,
+          print = bytecodePrinter)
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -366,7 +380,13 @@ object TestUtils {
             case ExecStrategy.InterpretUnoptimized => Interpret[Any](ctx, x, env, args, agg, optimize = false)
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
-              eval(x, env, args, agg)
+              eval(x, env, args, agg, bytecodePrinter =
+                Option(HailContext.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
+                    pw
+                  })
             case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
           }
           assert(t.typeCheck(res))
@@ -470,14 +490,19 @@ object TestUtils {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, MatrixType(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = TStruct("s" -> TString()),
-      rowKey = Array("locus", "alleles"),
-      rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
-        "alleles" -> TArray(TString())),
-      entryType = Genotype.htsGenotypeType),
-      Annotation.empty, sampleIds.map(Annotation(_)), rdd)
+    ExecuteContext.scoped { ctx =>
+      MatrixTable.fromLegacy(hc, MatrixType(
+        globalType = TStruct.empty(),
+        colKey = Array("s"),
+        colType = TStruct("s" -> TString()),
+        rowKey = Array("locus", "alleles"),
+        rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
+          "alleles" -> TArray(TString())),
+        entryType = Genotype.htsGenotypeType),
+        Annotation.empty,
+        sampleIds.map(Annotation(_)),
+        rdd,
+        ctx)
+    }
   }
 }

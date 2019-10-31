@@ -2,7 +2,6 @@ import asyncio
 import concurrent
 import logging
 import os
-import threading
 import traceback
 import json
 import uuid
@@ -13,11 +12,11 @@ from aiohttp import web
 import aiohttp_session
 import cerberus
 import kubernetes as kube
-import requests
 import uvloop
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
+from hailtop import batch_client
 from hailtop.utils import unzip, blocking_to_async
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
@@ -125,9 +124,9 @@ def copy(files):
             mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
         else:
             mkdirs = ""
-        return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
+        return f'{mkdirs} gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp -R {shq(src)} {shq(dst)}'
 
-    copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
+    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'set -ex; {resiliently_authenticate("/gsa-key/privateKeyData")} && {copies}'
 
 
@@ -390,7 +389,7 @@ class Job:
             durations = json.loads(record['durations'])
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
-                       callback=record['callback'], userdata=userdata, user=record['user'],
+                       userdata=userdata, user=record['user'],
                        always_run=record['always_run'], exit_codes=exit_codes, durations=durations,
                        state=record['state'], pvc_size=record['pvc_size'], cancelled=record['cancelled'],
                        directory=record['directory'], token=record['token'], pod_spec=pod_spec,
@@ -423,7 +422,7 @@ class Job:
         return jobs
 
     @staticmethod
-    def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes, callback,
+    def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes,
                    parent_ids, input_files, output_files, userdata, always_run,
                    pvc_size, state):
         cancelled = False
@@ -440,7 +439,7 @@ class Job:
             job_id=job_id,
             state=state,
             pvc_size=pvc_size,
-            callback=callback,
+            callback=None,  # legacy
             attributes=json.dumps(attributes),
             always_run=always_run,
             token=token,
@@ -457,7 +456,7 @@ class Job:
                 job_id=job_id,
                 parent_id=parent)
 
-        job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
+        job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes,
                   userdata=userdata, user=user, always_run=always_run,
                   exit_codes=exit_codes, durations=durations, state=state, pvc_size=pvc_size,
                   cancelled=cancelled, directory=directory, token=token,
@@ -465,7 +464,7 @@ class Job:
 
         return job
 
-    def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
+    def __init__(self, batch_id, job_id, attributes, userdata, user, always_run,
                  exit_codes, durations, state, pvc_size, cancelled, directory,
                  token, pod_spec, input_files, output_files):
         self.batch_id = batch_id
@@ -473,7 +472,6 @@ class Job:
         self.id = (batch_id, job_id)
 
         self.attributes = attributes
-        self.callback = callback
         self.always_run = always_run
         self.userdata = userdata
         self.user = user
@@ -672,21 +670,10 @@ class Job:
         await self.set_state(new_state, durations, exit_codes)
         await self._delete_k8s_resources()
         self.log_info(f'complete with state {self._state}, exit_codes {self.exit_codes}')
-        if self.callback:
-            def handler(job, callback, json):
-                try:
-                    requests.post(callback, json=json, timeout=120)
-                except requests.exceptions.RequestException as exc:
-                    job.log_warning(
-                        f'callback failed due to an error, I will not retry. '
-                        f'Error: {exc}')
-
-            threading.Thread(target=handler, args=(self, self.callback, self.to_dict())).start()
-
         if self.batch_id:
             batch = await Batch.from_db(self.batch_id, self.user)
             if batch is not None:
-                await batch.mark_job_complete(self)
+                await batch.mark_job_complete()
 
     def to_dict(self):
         result = {
@@ -705,40 +692,95 @@ class Job:
         return result
 
 
-def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
-    pod_spec = v1.api_client._ApiClient__deserialize(
-        parameters['spec'], kube.client.V1PodSpec)
+BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
-    job_id = parameters.get('job_id')
-    parent_ids = parameters.get('parent_ids', [])
-    input_files = parameters.get('input_files')
-    output_files = parameters.get('output_files')
-    pvc_size = parameters.get('pvc_size')
+
+def job_spec_to_k8s_pod_spec(job_spec):
+    volumes = []
+    volume_mounts = []
+
+    if job_spec.get('mount_docker_socket', False):
+        volumes.append({
+            'name': 'docker-sock-volume',
+            'hostPath': {
+                'path': '/var/run/docker.sock',
+                'type': 'File'
+            }
+        })
+        volume_mounts.append({
+            'mountPath': '/var/run/docker.sock',
+            'name': 'docker-sock-volume'
+        })
+
+    if 'secrets' in job_spec:
+        secrets = job_spec['secrets']
+        for secret in secrets:
+            volumes.append({
+                'name': secret['name'],
+                'secret': {
+                    'secretName': secret['name']
+                }
+            })
+            volume_mounts.append({
+                'mountPath': secret['mount_path'],
+                'name': secret['name'],
+                'readOnly': True
+            })
+
+    container = {
+        'command': job_spec['command'],
+        'image': job_spec['image'],
+        'name': 'main',
+        'volumeMounts': volume_mounts
+    }
+    if 'env' in job_spec:
+        container['env'] = job_spec['env']
+
+    # defaults
+    cpu = BATCH_JOB_DEFAULT_CPU
+    memory = BATCH_JOB_DEFAULT_MEMORY
+    if 'resources' in job_spec:
+        resources = job_spec['resources']
+        if 'memory' in resources:
+            memory = resources['memory']
+        if 'cpu' in resources:
+            cpu = resources['cpu']
+    container['resources'] = {
+        'requests': {
+            'cpu': cpu,
+            'memory': memory
+        },
+        'limits': {
+            'cpu': cpu,
+            'memory': memory
+        }
+    }
+    pod_spec = {
+        'containers': [container],
+        'restartPolicy': 'Never',
+        'tolerations': [{
+            'key': 'preemptible',
+            'value': 'true'
+        }],
+        'volumes': volumes
+    }
+    if 'service_account_name' in job_spec:
+        pod_spec['serviceAccountName'] = job_spec['service_account_name']
+    return pod_spec
+
+
+def create_job(jobs_builder, batch_id, userdata, job_spec):  # pylint: disable=R0912
+    job_id = job_spec['job_id']
+    parent_ids = job_spec.get('parent_ids', [])
+    input_files = job_spec.get('input_files')
+    output_files = job_spec.get('output_files')
+    pvc_size = job_spec.get('pvc_size')
     if pvc_size is None and (input_files or output_files):
         pvc_size = POD_VOLUME_SIZE
-    always_run = parameters.get('always_run', False)
+    always_run = job_spec.get('always_run', False)
 
-    if len(pod_spec.containers) != 1:
-        abort(400, f'only one container allowed in pod_spec {pod_spec}')
-
-    if pod_spec.containers[0].name != 'main':
-        abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
-
-    if not pod_spec.containers[0].resources:
-        pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
-    if not pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests = {}
-    if 'cpu' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['cpu'] = '100m'
-    if 'memory' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['memory'] = '500M'
-
-    if not pod_spec.tolerations:
-        pod_spec.tolerations = []
-    pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
-
-    # pod_spec.automount_service_account_token = False
-    pod_spec.service_account = "batch-output-pod"
+    pod_spec = job_spec_to_k8s_pod_spec(job_spec)
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
@@ -747,8 +789,7 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         batch_id=batch_id,
         job_id=job_id,
         pod_spec=pod_spec,
-        attributes=parameters.get('attributes'),
-        callback=parameters.get('callback'),
+        attributes=job_spec.get('attributes'),
         parent_ids=parent_ids,
         input_files=input_files,
         output_files=output_files,
@@ -868,7 +909,7 @@ class Batch:
         return batches
 
     @staticmethod
-    async def create_batch(attributes, callback, userdata):
+    async def create_batch(attributes, callback, userdata, n_jobs):
         user = userdata['username']
 
         id = await db.batch.new_record(
@@ -878,7 +919,8 @@ class Batch:
             user=user,
             deleted=False,
             cancelled=False,
-            closed=False)
+            closed=False,
+            n_jobs=n_jobs)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
@@ -943,20 +985,14 @@ class Batch:
         await db.batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
-    async def mark_job_complete(self, job):
-        if self.callback:
-            def handler(id, job_id, callback, json):
-                try:
-                    requests.post(callback, json=json, timeout=120)
-                except requests.exceptions.RequestException as exc:
-                    log.warning(
-                        f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
-                        f'Error: {exc}')
-
-            threading.Thread(
-                target=handler,
-                args=(self.id, job.id, self.callback, job.to_dict())
-            ).start()
+    async def mark_job_complete(self):
+        if self.complete and self.callback:
+            log.info(f'making callback for batch {self.id}: {self.callback}')
+            try:
+                await app['client_session'].post(self.callback, json=await self.to_dict(include_jobs=False))
+                log.info(f'callback for batch {self.id} successful')
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'callback for batch {self.id} failed, will not retry.')
 
     def is_complete(self):
         return self.complete
@@ -1025,22 +1061,22 @@ async def create_jobs(request, userdata):
     if batch.closed:
         abort(400, f'batch {batch_id} is already closed')
 
-    jobs_parameters = await request.json()
-
-    validator = cerberus.Validator(schemas.job_array_schema)
-    if not validator.validate(jobs_parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
+    jobs = await request.json()
+    try:
+        batch_client.validate.validate_jobs(jobs)
+    except batch_client.validate.ValidationError as e:
+        abort(400, e.reason)
 
     jobs_builder = JobsBuilder(db)
     try:
-        for job_params in jobs_parameters['jobs']:
-            create_job(jobs_builder, batch.id, userdata, job_params)
+        for job in jobs:
+            create_job(jobs_builder, batch.id, userdata, job)
 
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
 
-        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
+        log.info(f"created {len(jobs)} jobs for batch {batch_id}")
     finally:
         await jobs_builder.close()
 
@@ -1060,7 +1096,8 @@ async def create_batch(request, userdata):
     batch = await Batch.create_batch(
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
-        userdata=userdata)
+        userdata=userdata,
+        n_jobs=parameters['n_jobs'])
     if batch is None:
         abort(400, f'creation of batch in db failed')
 

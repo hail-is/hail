@@ -704,7 +704,9 @@ object IRParser {
         val rName = identifier(it)
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
-        val body = ir_value_expr(env)(it)
+        val body_env = (env + (lName -> -(coerce[TNDArray](l.typ).elementType))
+                            + (rName -> -(coerce[TNDArray](r.typ).elementType)))
+        val body = ir_value_expr(body_env)(it)
         NDArrayMap2(l, r, lName, rName, body)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
@@ -872,15 +874,13 @@ object IRParser {
       case "SerializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
-        implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[BufferSpec]
+        val spec = BufferSpec.parse(string_literal(it))
         val aggSigs = agg_signatures(env.typEnv)(it)
         SerializeAggs(i, i2, spec, aggSigs)
       case "DeserializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
-        implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[BufferSpec]
+        val spec = BufferSpec.parse(string_literal(it))
         val aggSigs = agg_signatures(env.typEnv)(it)
         DeserializeAggs(i, i2, spec, aggSigs)
       case "InitOp" =>
@@ -1019,7 +1019,7 @@ object IRParser {
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]
       case "ReadPartition" =>
-        implicit val formats: Formats = AbstractRVDSpec.formats
+        import AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
@@ -1096,6 +1096,10 @@ object IRParser {
         val n = int64_literal(it)
         val child = table_ir(env)(it)
         TableHead(child, n)
+      case "TableTail" =>
+        val n = int64_literal(it)
+        val child = table_ir(env)(it)
+        TableTail(child, n)
       case "TableJoin" =>
         val joinType = identifier(it)
         val joinKey = int32_literal(it)

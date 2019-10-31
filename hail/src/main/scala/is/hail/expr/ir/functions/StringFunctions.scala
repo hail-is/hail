@@ -10,7 +10,15 @@ import is.hail.utils._
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.mutable
+
 object StringFunctions extends RegistryFunctions {
+
+  def reverse(s: String): String = {
+    val sb = new StringBuilder
+    sb.append(s)
+    sb.reverseContents().result()
+  }
 
   def upper(s: String): String = s.toUpperCase
 
@@ -36,6 +44,27 @@ object StringFunctions extends RegistryFunctions {
     str.replaceAll(pattern1, pattern2)
 
   def split(s: String, p: String): IndexedSeq[String] = s.split(p, -1)
+
+  def translate(s: String, d: Map[String, String]): String = {
+    val charD = new mutable.HashMap[Char, String]
+    d.foreach { case (k, v) =>
+      if (k.length != 1)
+        fatal(s"translate: mapping keys must be one character, found '$k'")
+        charD += ((k(0), v))
+    }
+
+    val sb = new StringBuilder
+    var i = 0
+    while (i < s.length) {
+      val charI = s(i)
+      charD.get(charI) match {
+        case Some(replacement) => sb.append(replacement)
+        case None => sb.append(charI)
+      }
+      i += 1
+    }
+    sb.result()
+  }
 
   def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
 
@@ -101,10 +130,12 @@ object StringFunctions extends RegistryFunctions {
       EmitTriplet(Code._empty, false, unwrapReturn(r, rt)(str))
     }
 
+    registerWrappedScalaFunction("reverse", TString(), TString(), null)(thisClass,"reverse")
     registerWrappedScalaFunction("upper", TString(), TString(), null)(thisClass,"upper")
     registerWrappedScalaFunction("lower", TString(), TString(), null)(thisClass,"lower")
     registerWrappedScalaFunction("strip", TString(), TString(), null)(thisClass,"strip")
     registerWrappedScalaFunction("contains", TString(), TString(), TBoolean(), null)(thisClass, "contains")
+    registerWrappedScalaFunction("translate", TString(), TDict(TString(), TString()), TString(), null)(thisClass, "translate")
     registerWrappedScalaFunction("startswith", TString(), TString(), TBoolean(), null)(thisClass, "startswith")
     registerWrappedScalaFunction("endswith", TString(), TString(), TBoolean(), null)(thisClass, "endswith")
 

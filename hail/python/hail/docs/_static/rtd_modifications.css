@@ -9,6 +9,7 @@
 .wy-nav-content-wrap {
   background-color: #fff;
 }
+
 .wy-grid-for-nav {
   top: 51px;
 }
@@ -63,7 +64,7 @@ div.nboutput div.output_area.stderr {
 
 .bolditalic {
   font-weight: bold;
-  font-italic: italic;
+  font-style: italic;
 }
 
 .container.annotation {
@@ -91,6 +92,7 @@ hr {
 }
 
 @media screen and (max-width: 768px) {
+
   /* Nav is absolutely broken on mobile and we already have breadcrumbs */
   .wy-nav-top {
     display: none;

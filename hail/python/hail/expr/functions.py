@@ -6,12 +6,12 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
-from hail.expr.types import *
+from hail.expr.types import from_numpy
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
-from hail.utils.misc import plural, np_type_to_hl_type
+from hail.utils.misc import plural
 
 import numpy as np
 
@@ -3848,11 +3848,7 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
 
 
 def _ndarray(collection, row_major=None):
-    """Construct a Hail ndarray from either a `NumPy` ndarray or python value/nested lists.
-    If `row_major` is ``None`` and the input is a `NumPy` ndarray, the ndarray's existing ordering will
-    be used (column major if that's how it is stored and row major otherwise). Otherwise, the array will be stored
-    as specified by `row_major`. Note the exact memory layout is not preserved if it is not in one of the two orderings.
-    If the input is not a `NumPy` ndarray, `row_major` defaults to ``True``.
+    """Construct a Hail ndarray from either a flat Hail array, a `NumPy` ndarray or python value/nested lists.
 
     Parameters
     ----------
@@ -3890,31 +3886,35 @@ def _ndarray(collection, row_major=None):
 
         return result
 
-    if isinstance(collection, np.ndarray):
-        if row_major is None:
-            row_major = not collection.flags.f_contiguous
-            flattened = collection.flatten('A')
+    if isinstance(collection, Expression):
+        if isinstance(collection, ArrayNumericExpression):
+            data_expr = collection
+            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
+            ndim = 1
+
+        elif isinstance(collection, NumericExpression):
+            data_expr = array([collection])
+            shape_expr = hl.tuple([])
+            ndim = 0
         else:
-            flattened = collection.flatten('C' if row_major else 'F')
+            raise ValueError(f"{collection} cannot be converted into an ndarray")
 
-        elem_type = np_type_to_hl_type(collection.dtype)
-        data = [to_expr(i.item(), elem_type) for i in flattened]
-        shape = collection.shape
-    elif isinstance(collection, list):
-        shape = list_shape(collection)
-        data = deep_flatten(collection)
     else:
-        shape = []
-        data = [collection]
+        if isinstance(collection, np.ndarray):
+            return hl.literal(collection)
+        elif isinstance(collection, list):
+            shape = list_shape(collection)
+            data = deep_flatten(collection)
+        else:
+            shape = []
+            data = [collection]
 
-    if row_major is None:
-        row_major = True
+        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+        data_expr = hl.array(data) if data else hl.empty_array("float64")
+        ndim = builtins.len(shape)
 
-    shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-    data_expr = hl.array(data) if data else hl.empty_array("float64")
-    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
-
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
+    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim))
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
@@ -4383,6 +4383,40 @@ def bool(x) -> BooleanExpression:
     else:
         return x._method("toBoolean", tbool)
 
+@typecheck(s=expr_str,
+           rna=builtins.bool)
+def reverse_complement(s, rna=False):
+    """Reverses the string and translates base pairs into their complements
+    Examples
+    --------
+    >>> bases = hl.literal('NNGATTACA')
+    >>> hl.eval(hl.reverse_complement(bases))
+    'TGTAATCNN'
+
+    Parameters
+    ----------
+    s : :class:`.StringExpression`
+        Base string.
+    rna : :obj:`bool`
+        If ``True``, pair adenine (A) with uracil (U) instead of thymine (T).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+    s = s.reverse()
+
+    if rna:
+        pairs = [('A', 'U'), ('U', 'A'), ('T', 'A'), ('G', 'C'), ('C', 'G')]
+    else:
+        pairs = [('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')]
+
+    d = {}
+    for b1, b2 in pairs:
+        d[b1] = b2
+        d[b1.lower()] = b2.lower()
+
+    return s.translate(d)
 
 @typecheck(contig=expr_str,
            position=expr_int32,

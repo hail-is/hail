@@ -4,6 +4,9 @@ import java.io.PrintStream
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
+import is.hail.annotations.Region
+import is.hail.expr.types.physical.PTuple
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -170,6 +173,20 @@ object Code {
     }
   }
 
+  def switch[T: TypeInfo](target: Code[Int], dflt: Code[T], cases: Seq[Code[T]]): Code[T] = {
+    import is.hail.asm4s.joinpoint._
+    JoinPoint.CallCC[Code[T]] { (jb, ret) =>
+      def thenReturn(c: Code[T]): JoinPoint[Unit] = {
+        val j = jb.joinPoint()
+        j.define { _ => ret(c) }
+        j
+      }
+      JoinPoint.switch(target,
+        thenReturn(dflt),
+        cases.map(thenReturn))
+    }
+  }
+
   def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
@@ -311,6 +328,8 @@ object Code {
   }
 
   def foreach[A](it: Seq[A])(f: A => Code[_]): Code[Unit] = Code(it.map(f): _*).asInstanceOf[Code[Unit]]
+
+  def currentTimeMillis(): Code[Long] = Code.invokeStatic[java.lang.System, Long]("currentTimeMillis")
 }
 
 trait Code[+T] {
@@ -483,6 +502,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def /(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IDIV))
 
+  def %(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IREM))
+
   def >(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGT, rhs)
 
   def >=(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGE, rhs)
@@ -535,6 +556,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def *(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LMUL))
 
   def /(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LDIV))
+
+  def %(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LREM))
 
   def compare(rhs: Code[Long]): Code[Int] = Code(lhs, rhs, new InsnNode(LCMP))
 

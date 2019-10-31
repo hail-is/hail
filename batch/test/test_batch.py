@@ -10,7 +10,6 @@ import secrets
 import time
 import unittest
 import aiohttp
-from flask import Flask, Response, request
 import requests
 
 from hailtop.config import get_deploy_config
@@ -253,6 +252,7 @@ class Test(unittest.TestCase):
         b3 = b3.submit()
         b3s = b3.status()
         assert not b3s['complete'] and b3s['state'] == 'running', b3s
+        b3.cancel()
 
         b4 = self.client.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
@@ -261,42 +261,6 @@ class Test(unittest.TestCase):
         b4.wait()
         b4s = b4.status()
         assert b4s['complete'] and b4s['state'] == 'cancelled', b4s
-
-    def test_callback(self):
-        app = Flask('test-client')
-
-        d = {}
-
-        @app.route('/test', methods=['POST'])
-        def test():
-            body = request.get_json()
-            print(f'body {body}')
-            d['status'] = body
-            return Response(status=200)
-
-        server = ServerThread(app)
-        try:
-            print('1starting...')
-            server.start()
-            b = self.client.create_batch()
-            j = b.create_job(
-                'alpine',
-                ['echo', 'test'],
-                attributes={'foo': 'bar'},
-                callback=server.url_for('/test'))
-            b = b.submit()
-            print(f'1ids {j.job_id}')
-            j.wait()
-
-            poll_until(lambda: 'status' in d)
-            status = d['status']
-            self.assertEqual(status['state'], 'Success')
-            self.assertEqual(status['attributes'], {'foo': 'bar'})
-        finally:
-            print(f'1shutting down...')
-            server.shutdown()
-            server.join()
-            print(f'1shut down, joined')
 
     def test_log_after_failing_job(self):
         b = self.client.create_batch()

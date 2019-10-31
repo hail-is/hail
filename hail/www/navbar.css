@@ -33,8 +33,6 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  flex: 1;
-  width: 100%;
   height: 100%;
 }
 
@@ -48,11 +46,6 @@
   flex-direction: row;
   justify-content: flex-end;
 }
-
-#hail-navbar #hail-havbar-collapse {
-  flex: 1;
-}
-
 #hail-navbar #hail-navbar-collapse {
   flex-direction: row;
   flex: 1;
@@ -84,6 +77,10 @@
 }
 
 @media (max-width: 767px) {
+  #hail-navbar #hail-navbar-header {
+    width: 100%;
+  }
+
   #hail-navbar #hail-navbar-collapse {
     flex-direction: column;
     padding-right: 0px;

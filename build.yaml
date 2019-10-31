@@ -17,6 +17,13 @@ steps:
    config: batch/service-account.yaml
    dependsOn:
     - default_ns
+ - kind: deploy
+   name: deploy_batch2_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/service-account.yaml
+   dependsOn:
+    - default_ns    
  - kind: createNamespace
    name: batch_pods_ns
    namespaceName: batch-pods
@@ -29,7 +36,7 @@ steps:
     - test-gsa-key
    dependsOn:
     - default_ns
-    - deploy_batch_sa
+    - deploy_batch2_sa
  - kind: deploy
    name: deploy_batch_output_sa
    namespace:
@@ -232,10 +239,32 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
+   name: batch2_worker_image
+   dockerFile: batch2/Dockerfile.worker
+   contextPath: .
+   publishAs: batch2-worker
+ - kind: runImage
+   name: check_batch2
+   image:
+     valueFrom: batch2_image.image
+   script: |
+     set -ex
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
+   dependsOn:
+     - batch2_image
+ - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
    contextPath: .
    publishAs: test-batch
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: test_batch2_image
+   dockerFile: batch2/Dockerfile.test
+   contextPath: .
+   publishAs: test-batch2
    dependsOn:
      - base_image
  - kind: buildImage
@@ -279,9 +308,8 @@ steps:
    image:
      valueFrom: hail_build_image.image
    resources:
-     requests:
-       memory: "4G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -329,9 +357,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -424,9 +451,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -484,10 +510,14 @@ steps:
      make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
      mkdir -p www/docs
+     rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
+   resources:
+     memory: "7.5G"
+     cpu: "2"
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
@@ -585,26 +615,16 @@ steps:
      - default_ns
      - base_image
      - ci_database
- - kind: deploy
-   name: deploy_ci
-   namespace:
-     valueFrom: default_ns.name
-   config: ci/deployment.yaml
-   wait:
-    - kind: Service
-      name: ci
-      for: alive
-   dependsOn:
-    - default_ns
-    - ci_image
-    - ci_utils_image
-    - create_accounts
-    - ci_database
-    - create_ci_tables
-    - deploy_auth
  - kind: createDatabase
    name: batch_database
    databaseName: batch
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: createDatabase
+   name: batch2_database
+   databaseName: batch2
    namespace:
      valueFrom: default_ns.name
    dependsOn:
@@ -613,6 +633,12 @@ steps:
    name: create_batch_tables_image
    dockerFile: batch/Dockerfile.create-tables
    contextPath: batch
+   dependsOn:
+    - base_image
+ - kind: buildImage
+   name: batch2_tables_image
+   dockerFile: batch2/Dockerfile.tables
+   contextPath: batch2
    dependsOn:
     - base_image
  - kind: deploy
@@ -630,6 +656,37 @@ steps:
      - create_batch_tables_image
      - batch_database
  - kind: deploy
+   name: delete_batch2_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/delete-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: delete-batch2-tables
+      for: completed
+      timeout: 120
+   scopes:
+     - dev
+   dependsOn:
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
+ - kind: deploy
+   name: create_batch2_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch2-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
+     - delete_batch2_tables
+ - kind: deploy
    name: create_batch_tables_2
    namespace:
      valueFrom: default_ns.name
@@ -645,6 +702,21 @@ steps:
      - batch_database
      - create_batch_tables
  - kind: deploy
+   name: create_batch2_tables_2
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch2-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - batch2_tables_image
+     - batch2_database
+     - create_batch2_tables
+ - kind: deploy
    name: deploy_batch
    namespace:
      valueFrom: default_ns.name
@@ -656,7 +728,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - deploy_batch_output_sa
+    - deploy_batch_sa
     - create_accounts
     - batch_image
     - batch_database
@@ -678,9 +750,20 @@ steps:
     - kind: Service
       name: batch2
       for: alive
+    - kind: Service
+      name: batch2-driver
+      for: alive
    dependsOn:
     - default_ns
+    - batch_pods_ns
+    - deploy_router
+    - deploy_batch2_sa
+    - create_accounts
     - batch2_image
+    - batch2_worker_image
+    - batch2_database
+    - deploy_auth
+    - create_batch2_tables
  - kind: deploy
    name: test_batch
    namespace:
@@ -697,6 +780,61 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: deploy
+   name: test_batch2
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch2/test-batch-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-batch2
+      for: completed
+      timeout: 1200
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch2
+    - deploy_batch_pods
+    - test_batch2_image
+ - kind: runImage
+   name: delete_batch2_instances
+   image:
+     valueFrom: base_image.image
+   alwaysRun: true     
+   script: |
+     set -e
+     ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     date
+     gcloud -q compute instances list --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' --format="value(name)" | xargs gcloud -q compute instances delete --zone $ZONE || true
+   secrets:
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
+   scopes:
+    - dev
+    - test
+   dependsOn:
+    - default_ns
+    - base_image    
+    - test_batch2
+ - kind: deploy
+   name: deploy_ci
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/deployment.yaml
+   wait:
+    - kind: Service
+      name: ci
+      for: alive
+   dependsOn:
+    - default_ns
+    - ci_image
+    - ci_utils_image
+    - create_accounts
+    - ci_database
+    - create_ci_tables
+    - deploy_auth
+    - deploy_batch
  - kind: runImage
    name: setup_pipeline
    image:
@@ -835,10 +973,6 @@ steps:
    name: test_hail_java_distributed_backend
    image:
      valueFrom: hail_run_image.image
-   resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
    script: |
      set -ex
      cd /io

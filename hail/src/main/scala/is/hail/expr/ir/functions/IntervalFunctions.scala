@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PInterval, PType}
-import is.hail.expr.types.virtual.{TBoolean, TBooleanOptional, TInterval}
+import is.hail.expr.types.virtual.{TArray, TBoolean, TBooleanOptional, TInt32, TInterval}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -125,6 +125,17 @@ object IntervalFunctions extends RegistryFunctions {
             interval1.isAboveOnNonempty(interval2))
         )
     }
+
+    registerIR("sortedNonOverlappingIntervalsContain",
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean()) { case (intervals, value) =>
+      val uid = genUID()
+      val uid2 = genUID()
+      Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
+        (Let(uid2, Ref(uid, TInt32()) - I32(1), (Ref(uid2, TInt32()) >= 0)
+          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid2, TInt32())), value)))
+          || ((Ref(uid, TInt32()) < ArrayLen(intervals))
+          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid, TInt32())), value)))
+    }
   }
 }
 
@@ -132,8 +143,8 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   val ref: LocalRef[Long] = r.mb.newLocal[Long]
   val region: Code[Region] = r.region
 
-  def ordering[T](op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[T] =
-    r.mb.getCodeOrdering[T](typ.pointType, op)(_, _)
+  def ordering(op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[op.ReturnType] =
+    r.mb.getCodeOrdering(typ.pointType, op)(_, _)
 
   def storeToLocal: Code[Unit] = ref := value
 

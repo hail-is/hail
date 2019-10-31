@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, TypeInfo, coerce, const, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
@@ -19,6 +19,8 @@ class PInt64(override val required: Boolean) extends PIntegral {
   def _asIdent = "int64"
   def _toPretty = "Int64"
 
+  override type NType = PInt64
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("int64")
   }
@@ -31,7 +33,7 @@ class PInt64(override val required: Boolean) extends PIntegral {
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    new CodeOrdering {
+    new CodeOrderingCompareConsistentWithOthers {
       type T = Long
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
@@ -50,6 +52,16 @@ class PInt64(override val required: Boolean) extends PIntegral {
   }
 
   override def byteSize: Long = 8
+
+  override def zero = coerce[PInt64](const(0L))
+
+  override def add(a: Code[_], b: Code[_]): Code[PInt64] = {
+    coerce[PInt64](coerce[Long](a) + coerce[Long](b))
+  }
+
+  override def multiply(a: Code[_], b: Code[_]): Code[PInt64] = {
+    coerce[PInt64](coerce[Long](a) * coerce[Long](b))
+  }
 }
 
 object PInt64 {

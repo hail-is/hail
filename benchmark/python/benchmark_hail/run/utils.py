@@ -1,13 +1,49 @@
+import contextlib
 import logging
 import os
+import re
+import signal
 import timeit
 from urllib.request import urlretrieve
 
-import numpy as np
-import re
-
 import hail as hl
+from py4j.protocol import Py4JError
+
 from .. import init_logging
+
+
+class BenchmarkTimeoutError(KeyboardInterrupt):
+    pass
+
+
+_timeout_state = False
+_init_args = {}
+
+
+# https://stackoverflow.com/questions/492519/timeout-on-a-function-call/494273#494273
+@contextlib.contextmanager
+def timeout_signal(time_in_seconds):
+    global _timeout_state
+    _timeout_state = False
+
+    def handler(signum, frame):
+        global _timeout_state
+        _timeout_state = True
+        hl.stop()
+        hl.init(**_init_args)
+        raise BenchmarkTimeoutError()
+
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(time_in_seconds)
+
+    try:
+        yield
+    finally:
+        def no_op(signum, frame):
+            pass
+
+        signal.signal(signal.SIGALRM, no_op)
+        signal.alarm(0)
 
 
 def resource(filename):
@@ -34,10 +70,12 @@ class Benchmark:
 
 
 class RunConfig:
-    def __init__(self, n_iter, handler, verbose):
+    def __init__(self, n_iter, handler, noisy, timeout, dry_run):
         self.n_iter = n_iter
         self.handler = handler
-        self.verbose = verbose
+        self.noisy = noisy
+        self.timeout = timeout
+        self.dry_run = dry_run
 
 
 _registry = {}
@@ -132,61 +170,84 @@ def _ensure_initialized():
 
 
 def initialize(args):
-    global _initialized, _mt
+    global _initialized, _mt, _init_args
     assert not _initialized
     init_logging()
     download_data(args.data_dir)
-    hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
+    _init_args = {'master': f'local[{args.cores}]', 'quiet': not args.verbose, 'log': args.log}
+    hl.init(**_init_args)
     _initialized = True
     _mt = hl.read_matrix_table(resource('profile.mt'))
 
     # make JVM do something to ensure that it is fresh
     hl.utils.range_table(1)._force_count()
+    logging.getLogger('py4j').setLevel(logging.CRITICAL)
+    logging.getLogger('py4j.java_gateway').setLevel(logging.CRITICAL)
+
+
+def run_with_timeout(b, max_time):
+    with timeout_signal(max_time):
+        try:
+            return timeit.Timer(b.run).timeit(1), False
+        except Py4JError as e:
+            if _timeout_state:
+                return max_time, True
+            raise
+        except BenchmarkTimeoutError as e:
+            return max_time, True
 
 
 def _run(benchmark: Benchmark, config: RunConfig, context):
-    if config.verbose:
+    _ensure_initialized()
+    if config.noisy:
         logging.info(f'{context}Running {benchmark.name}...')
     times = []
 
+    timed_out = False
+    failed = False
     try:
-        burn_in_time = timeit.Timer(benchmark.run).timeit(1)
-        if config.verbose:
-            logging.info(f'    burn in: {burn_in_time:.2f}s')
+        burn_in_time, burn_in_timed_out = run_with_timeout(benchmark, config.timeout)
+        if burn_in_timed_out:
+            if config.noisy:
+                logging.warning(f'burn in timed out after {burn_in_time:.2f}s')
+            timed_out = True
+            times.append(float(burn_in_time))
+        elif config.noisy:
+            logging.info(f'burn in: {burn_in_time:.2f}s')
     except Exception as e:  # pylint: disable=broad-except
-        if config.verbose:
-            logging.error(f'    burn in: Caught exception: {e}')
-        config.handler({'name': benchmark.name,
-                        'failed': True})
-        return
+        if config.noisy:
+            logging.error(f'burn in: Caught exception: {e}')
+        failed = True
 
     for i in range(config.n_iter):
+        if timed_out or failed:
+            continue
         try:
-            time = timeit.Timer(lambda: benchmark.run()).timeit(1)  # pylint: disable=unnecessary-lambda
-            times.append(time)
-            if config.verbose:
-                logging.info(f'    run {i + 1}: {time:.2f}s')
+            t, run_timed_out = run_with_timeout(benchmark, config.timeout)
+            times.append(t)
+            if run_timed_out:
+                if config.noisy:
+                    logging.warning(f'run {i + 1} timed out after {t:.2f}s')
+                    timed_out = True
+            elif config.noisy:
+                logging.info(f'run {i + 1}: {t:.2f}s')
         except Exception as e:  # pylint: disable=broad-except
-            if config.verbose:
-                logging.error(f'    run ${i + 1}: Caught exception: {e}')
+            if config.noisy:
+                logging.error(f'run ${i + 1}: Caught exception: {e}')
             config.handler({'name': benchmark.name,
                             'failed': True})
             return
     config.handler({'name': benchmark.name,
                     'failed': False,
-                    'mean': np.mean(times),
-                    'median': np.median(times),
-                    'stdev': np.std(times),
+                    'timed_out': timed_out,
                     'times': times})
 
 
 def run_all(config: RunConfig):
-    _ensure_initialized()
     run_list(list(_registry), config)
 
 
 def run_pattern(pattern, config: RunConfig):
-    _ensure_initialized()
     to_run = []
     regex = re.compile(pattern)
     for name in _registry:
@@ -198,13 +259,14 @@ def run_pattern(pattern, config: RunConfig):
 
 
 def run_list(tests, config: RunConfig):
-    _ensure_initialized()
-
     n_tests = len(tests)
     for i, name in enumerate(tests):
         if name not in _registry:
             raise ValueError(f'test {name!r} not found')
-        _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')
+        if config.dry_run:
+            logging.info(f'found benchmark {name}')
+        else:
+            _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')
 
 
 def list_benchmarks():

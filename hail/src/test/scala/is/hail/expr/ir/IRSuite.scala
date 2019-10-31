@@ -2464,6 +2464,7 @@ class IRSuite extends HailSuite {
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, RepartitionStrategy.COALESCE),
         TableHead(read, 10),
+        TableTail(read, 10),
         TableParallelize(
           MakeStruct(FastSeq(
             "rows" -> MakeArray(FastSeq(

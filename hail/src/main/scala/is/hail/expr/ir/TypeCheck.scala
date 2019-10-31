@@ -77,7 +77,10 @@ object TypeCheck {
       case Str(x) =>
       case Literal(_, _) =>
       case Void() =>
-      case Cast(v, typ) => assert(Casts.valid(v.typ, typ))
+      case Cast(v, typ) => if (!Casts.valid(v.typ, typ))
+        throw new RuntimeException(s"invalid cast:\n  " +
+          s"child type: ${ v.typ.parsableString() }\n  " +
+          s"cast type:  ${ typ.parsableString() }")
       case CastRename(v, typ) =>
         if (!v.typ.canCastTo(typ))
           throw new RuntimeException(s"invalid cast:\n  " +
@@ -166,7 +169,7 @@ object TypeCheck {
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType  body.typ)
       case x@NDArrayReindex(nd, indexExpr) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         val nInputDims = coerce[TNDArray](nd.typ).nDims
@@ -188,7 +191,7 @@ object TypeCheck {
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]
         val rType = r.typ.asInstanceOf[TNDArray]
-        assert(lType.elementType == rType.elementType)
+        assert(lType.elementType == rType.elementType, "element type did not match")
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
@@ -206,7 +209,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TIterable])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = -coerce[TIterable](orderedCollection.typ).elementType
-        assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
+        assert(-elem.typ == (if (onKey) elt match {
+          case t: TBaseStruct => -t.types(0)
+          case t: TInterval => -t.pointType
+        } else elt))
       case x@GroupByKey(collection) =>
         val telt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         val td = coerce[TDict](x.typ)
@@ -336,7 +342,8 @@ object TypeCheck {
       case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
-      case TableCollect(_) =>
+      case TableCollect(child) =>
+        assert(child.typ.key.isEmpty)
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>

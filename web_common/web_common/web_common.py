@@ -61,6 +61,7 @@ def base_context(session, userdata, service):
         'workshop_base_url': deploy_config.external_url('workshop', ''),
         'auth_base_url': deploy_config.external_url('auth', ''),
         'batch_base_url': deploy_config.external_url('batch', ''),
+        'batch2_base_url': deploy_config.external_url('batch2', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
         'scorecard_base_url': deploy_config.external_url('scorecard', ''),
         'userdata': userdata

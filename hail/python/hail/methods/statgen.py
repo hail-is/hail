@@ -154,8 +154,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
     3. Filter to variants with AAF above `aaf_threshold`.
 
-    4. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
-       only if `include_par` is ``True`` (it defaults to ``False``)
+    4. Remove loci in the pseudoautosomal region, as defined by `gr`, unless
+       `include_par` is ``True`` (it defaults to ``False``)
 
     5. For each row and column with a non-missing genotype call, :math:`E`, the
        expected number of homozygotes (from population AAF), is computed as

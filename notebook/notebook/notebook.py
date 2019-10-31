@@ -55,6 +55,7 @@ async def workshop_userdata_from_web_request(request):
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
+                assert len(workshops) == 0
                 del session['workshop_session']
                 return None
             workshop = workshops[0]
@@ -169,13 +170,13 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         ],
         volumes=volumes)
 
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook-worker-',
             labels={
                 'app': 'notebook-worker',
-                'user_id': str(user_id)
+                'user_id': user_id
             }),
         spec=pod_spec)
     pod = await k8s.create_namespaced_pod(
@@ -214,6 +215,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
         return notebook_status_from_pod(pod)
     except kube.client.rest.ApiException as e:
         if e.status == 404:
+            log.exception(f"404 for pod: {notebook['pod_name']}")
             return None
         raise
 
@@ -245,7 +247,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                         else:
                             log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
-                log.info(f'GET on jupyter pod {pod_name} timed out: {resp}')
+                log.exception(f'GET on jupyter pod {pod_name} timed out: {resp}')
 
     return status
 
@@ -276,6 +278,7 @@ async def get_user_notebook(dbpool, user_id):
 
     if len(notebooks) == 1:
         return notebooks[0]
+    assert len(notebooks) == 0, len(notebooks)
     return None
 
 
@@ -305,7 +308,7 @@ async def _get_notebook(service, request, userdata):
     app = request.app
     dbpool = app['dbpool']
     page_context = {
-        'notebook': await get_user_notebook(dbpool, userdata['id']),
+        'notebook': await get_user_notebook(dbpool, str(userdata['id'])),
         'notebook_service': service
     }
     return await render_template(service, request, userdata, 'notebook.html', page_context)
@@ -325,7 +328,7 @@ async def _post_notebook(service, request, userdata):
     else:
         state = 'Scheduling'
 
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(
@@ -343,7 +346,7 @@ async def _delete_notebook(service, request, userdata):
     app = request.app
     dbpool = app['dbpool']
     k8s = app['k8s_client']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if notebook:
         await delete_worker_pod(k8s, notebook['pod_name'])
@@ -359,7 +362,7 @@ async def _wait_websocket(service, request, userdata):
     app = request.app
     k8s = app['k8s_client']
     dbpool = app['dbpool']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if not notebook:
         return web.HTTPNotFound()
@@ -387,9 +390,10 @@ async def _wait_websocket(service, request, userdata):
             new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
+                log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
                 break
         except Exception:  # pylint: disable=broad-except
-            log.exception('while updating status in /wait')
+            log.exception(f"/wait: error while updating status for pod: {notebook['pod_name']}")
         await asyncio.sleep(1)
         count += 1
 
@@ -408,7 +412,7 @@ async def _get_error(service, request, userdata):
     app = request.app
     k8s = app['k8s_client']
     dbpool = app['dbpool']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
 
     # we just failed a check, so update status from k8s without probe,
     # best we can do is 'Initializing'
@@ -417,9 +421,18 @@ async def _get_error(service, request, userdata):
     await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
 
     session = await aiohttp_session.get_session(request)
-    set_message(session,
-                f'Notebook not found.  Please create a new notebook.',
-                'error')
+    if notebook:
+        if new_status['state'] == 'Ready':
+            return web.HTTPFound(deploy_config.external_url(
+                service,
+                f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'))
+        set_message(session,
+                    f'Could not connect to Jupyter instance.  Please wait for Jupyter to be ready and try again.',
+                    'error')
+    else:
+        set_message(session,
+                    f'Jupyter instance not found.  Please launch a new instance.',
+                    'error')
     return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 
 
@@ -428,7 +441,7 @@ async def _get_auth(request, userdata):
     app = request.app
     dbpool = app['dbpool']
 
-    notebook = await get_user_notebook(dbpool, userdata['id'])
+    notebook = await get_user_notebook(dbpool, str(userdata['id']))
     if notebook and notebook['notebook_token'] == requested_notebook_token:
         pod_ip = notebook['pod_ip']
         if pod_ip:
@@ -663,9 +676,10 @@ WHERE name = %s AND password = %s AND active = 1;
             workshops = await cursor.fetchall()
 
             if len(workshops) != 1:
+                assert len(workshops) == 0
                 set_message(
                     session,
-                    'No such workshop.  Check the workshop name and password and try again.',
+                    'Workshop Inactive!',
                     'error')
                 return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
             workshop = workshops[0]
@@ -685,12 +699,12 @@ WHERE name = %s AND password = %s AND active = 1;
 
 @workshop_routes.post('/logout')
 @check_csrf_token
-@web_authenticated_workshop_guest_only(redirect=False)
+@web_authenticated_workshop_guest_only(redirect=True)
 async def workshop_post_logout(request, userdata):
     app = request.app
     dbpool = app['dbpool']
     k8s = app['k8s_client']
-    user_id = userdata['id']
+    user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if notebook:
         # Notebook is inaccessible since login creates a new random
@@ -706,6 +720,15 @@ async def workshop_post_logout(request, userdata):
         del session['workshop_session']
 
     return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+
+
+@workshop_routes.get('/resources')
+@web_maybe_authenticated_workshop_guest
+async def workshop_get_faq(request, userdata):
+    page_context = {
+        'notebook_service': 'workshop'
+    }
+    return await render_template('workshop', request, userdata, 'workshop/resources.html', page_context)
 
 
 @workshop_routes.get('/notebook')

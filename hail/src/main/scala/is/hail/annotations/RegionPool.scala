@@ -22,7 +22,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private val freeRegions = new ArrayBuilder[RegionMemory]()
   private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private var totalAllocatedBytes: Long = 0L
-  private var allocationEchoThreshold: Long = 8 * 1024 * 1024
+  private var allocationEchoThreshold: Long = 256 * 1024
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
@@ -45,13 +45,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     } else {
       blocks(size) += 1
       val blockByteSize = Region.SIZES(size)
-      totalAllocatedBytes += blockByteSize
+      incrementAllocatedBytes(blockByteSize)
       Memory.malloc(blockByteSize)
     }
   }
 
   protected[annotations] def getChunk(size: Long): Long = {
-    totalAllocatedBytes += size
+    incrementAllocatedBytes(size)
     Memory.malloc(size)
   }
 

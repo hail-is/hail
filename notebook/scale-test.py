@@ -23,12 +23,12 @@ def get_cookie(session, name):
 
 
 async def run(args, i):
-    headers = service_auth_headers(deploy_config, 'notebook', authorize_target=False)
+    headers = service_auth_headers(deploy_config, 'workshop', authorize_target=False)
 
     async with aiohttp.ClientSession(raise_for_status=True) as session:
         # make sure notebook is up
         async with session.get(
-                deploy_config.url('notebook', ''),
+                deploy_config.url('workshop', ''),
                 headers=headers) as resp:
             await resp.text()
 
@@ -37,7 +37,7 @@ async def run(args, i):
         # log in as workshop guest
         # get csrf token
         async with session.get(
-                deploy_config.url('notebook', '/workshop/login'),
+                deploy_config.url('workshop', '/login'),
                 headers=headers) as resp:
             pass
 
@@ -46,7 +46,7 @@ async def run(args, i):
         data.add_field(name='password', value=args.password)
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
         async with session.post(
-                deploy_config.url('notebook', '/workshop/login'),
+                deploy_config.url('workshop', '/login'),
                 data=data,
                 headers=headers) as resp:
             pass
@@ -56,14 +56,14 @@ async def run(args, i):
         # create notebook
         # get csrf token
         async with session.get(
-                deploy_config.url('notebook', '/workshop/notebook'),
+                deploy_config.url('workshop', '/notebook'),
                 headers=headers) as resp:
             pass
 
         data = aiohttp.FormData()
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
         async with session.post(
-                deploy_config.url('notebook', '/workshop/notebook'),
+                deploy_config.url('workshop', '/notebook'),
                 data=data,
                 headers=headers) as resp:
             pass
@@ -78,7 +78,7 @@ async def run(args, i):
         # 5 attempts overkill, should only take 2: Scheduling => Running => Ready
         while not ready and attempt < 5:
             async with session.ws_connect(
-                    deploy_config.url('notebook', '/workshop/notebook/wait', base_scheme='ws'),
+                    deploy_config.url('workshop', '/notebook/wait', base_scheme='ws'),
                     headers=headers) as ws:
                 async for msg in ws:
                     if msg.data == '1':
@@ -93,14 +93,14 @@ async def run(args, i):
         # delete notebook
         # get csrf token
         async with session.get(
-                deploy_config.url('notebook', '/workshop/notebook'),
+                deploy_config.url('workshop', '/notebook'),
                 headers=headers) as resp:
             pass
 
         data = aiohttp.FormData()
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
         async with session.post(
-                deploy_config.url('notebook', '/workshop/notebook/delete'),
+                deploy_config.url('workshop', '/notebook/delete'),
                 data=data,
                 headers=headers) as resp:
             pass
@@ -130,7 +130,7 @@ async def main():
 
     print(f'successes: {len(times)} / {n} = {len(times) / n}')
     print(f'mean time: {sum(times) / n}')
-    print(f'max time: {max(times)}')
+    print(f'quantiles min/50%/95%/99%/max: {np.quantile(times, [0.0, .5, .95, .99, 1.0])}')
     print(f'histogram:\n{np.histogram(times, density=True)}')
 
 

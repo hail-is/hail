@@ -1,5 +1,4 @@
 python/.eggs
-python/**/*.pyc
 python/README.md
 python/dist
 python/hail.egg-info
@@ -7,6 +6,7 @@ python/hail/hail_pip_version
 python/hail/hail_version
 python/hail/docs/_build/*
 python/hail/hail-all-spark.jar
+python/hail/docs/_static/hail_version.js
 python/hailtop/hailctl/hail_version
 python/hailtop/hailctl/deploy.yaml
 src/main/c/.cxx.vsn

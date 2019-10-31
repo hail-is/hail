@@ -18,6 +18,7 @@ from .tidyr import gather, separate, spread
 from .codec import encode, decode
 from .db import DB
 from .compile import compile_comparison_binary, compiled_compare
+from .vcf_combiner import lgt_to_gt
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -49,4 +50,5 @@ __all__ = ['ld_score',
            'DB',
            'decode',
            'compile_comparison_binary',
-           'compiled_compare']
+           'compiled_compare',
+           'lgt_to_gt']

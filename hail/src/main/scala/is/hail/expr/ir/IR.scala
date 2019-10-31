@@ -66,6 +66,11 @@ sealed trait IR extends BaseIR {
   def unwrap: IR = _unwrap(this)
 }
 
+sealed trait TypedIR[T <: Type, P <: PType] extends IR {
+  override def typ: T = coerce[T](super.typ)
+  override def pType: P = coerce[P](super.pType)
+}
+
 object Literal {
   def coerce(t: Type, x: Any): IR = {
     if (x == null)
@@ -254,32 +259,27 @@ final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
+sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
+  def elementTyp: Type = typ.elementType
+}
+
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends NDArrayIR
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
-  require(shape.typ.asInstanceOf[TTuple].size > 0)
-}
+final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
-final case class NDArraySlice(nd: IR, slices: IR) extends IR
+final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 
-final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
-  override def typ: TNDArray = coerce[TNDArray](super.typ)
-  def elementTyp: Type = typ.elementType
-}
+final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends NDArrayIR
 
-final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends IR {
-  override def typ: TNDArray = coerce[TNDArray](super.typ)
-  def elementTyp: Type = typ.elementType
-}
-
-final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
+final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends NDArrayIR
 final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
-final case class NDArrayMatMul(l: IR, r: IR) extends IR
+final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 

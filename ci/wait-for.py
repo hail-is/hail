@@ -57,13 +57,13 @@ def internal_base_url(namespace, service, port):
     return f'http://{service}.{namespace}:{port}/{namespace}/{service}'
 
 
-async def wait_for_service_alive(namespace, name, port):
+async def wait_for_service_alive(namespace, name, port, endpoint, headers):
     print('info: in wait_for_service_alive', file=sys.stderr)
     base_url = internal_base_url(namespace, name, port)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
-                async with session.get(f'{base_url}/healthcheck') as resp:
+                async with session.get(f'{base_url}{endpoint}', headers=headers) as resp:
                     if resp.status >= 200 and resp.status < 300:
                         print('info: success')
                         sys.exit(0)
@@ -90,6 +90,8 @@ async def main():
     service_parser = subparsers.add_parser('Service')
     service_parser.add_argument('name', type=str)
     service_parser.add_argument('--port', '-p', type=int, default=80)
+    service_parser.add_argument('--endpoint', '-e', type=str, default='/healthcheck')
+    service_parser.add_argument('--header', action='append', type=str, nargs=2)
 
     args = parser.parse_args()
 
@@ -103,7 +105,8 @@ async def main():
         t = wait_for_pod_complete(v1, args.namespace, args.name)
     else:
         assert args.kind == 'Service'
-        t = wait_for_service_alive(args.namespace, args.name, args.port)
+        headers = None if args.header is None else {flag: val for flag, val in args.header}
+        t = wait_for_service_alive(args.namespace, args.name, args.port, args.endpoint, headers)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
 

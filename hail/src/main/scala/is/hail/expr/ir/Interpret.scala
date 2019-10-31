@@ -86,6 +86,7 @@ object Interpret {
     ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
+
     val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 
     result
@@ -349,8 +350,22 @@ object Interpret {
               assert(onKey)
               d.count { case (k, _) => elem.typ.ordering.lt(k, eValue) }
             case a: IndexedSeq[_] =>
-              assert(!onKey)
-              a.count(elem.typ.ordering.lt(_, eValue))
+              if (onKey) {
+                val (eltF, eltT) = orderedCollection.typ.asInstanceOf[TContainer].elementType match {
+                  case t: TBaseStruct => ( { (x: Any) =>
+                    val r = x.asInstanceOf[Row]
+                    if (r == null) null else r.get(0)
+                  }, t.types(0))
+                  case i: TInterval => ( { (x: Any) =>
+                    val i = x.asInstanceOf[Interval]
+                    if (i == null) null else i.start
+                  }, i.pointType)
+                }
+                val ordering = eltT.ordering
+                val lb = a.count(elem => ordering.lt(eltF(elem), eValue))
+                lb
+              } else
+                a.count(elem.typ.ordering.lt(_, eValue))
           }
         }
 
@@ -790,6 +805,11 @@ object Interpret {
                 Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
               assert(rTyp.types(0).virtualType == query.typ)
 
+              val useTreeAggregate = extracted.shouldTreeAggregate
+              val isCommutative = extracted.isCommutative
+              log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
+              log.info(s"Aggregate: commutative=${ isCommutative }")
+
               val aggResults = value.rvd.combine[Array[Byte]](
                 Region.scoped { region =>
                   val initF = initOp(0, region)
@@ -815,7 +835,7 @@ object Interpret {
                     }
                     write(aggRegion, seqOps.getAggOffset())
                   }
-                }, combOpF, commutative = extracted.isCommutative)
+                }, combOpF, commutative = isCommutative, tree = useTreeAggregate)
 
               Region.scoped { r =>
                 val resF = f(0, r)

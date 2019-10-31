@@ -347,6 +347,12 @@ class Tests(unittest.TestCase):
         ht = ht.filter(ht.idx == 9)
         assert ht.x.collect() == [9]
 
+    def test_scan_tail(self):
+        ht = hl.utils.range_table(100, n_partitions=16)
+        ht = ht.annotate(x = hl.scan.count())
+        ht = ht.tail(30)
+        assert ht.x.collect() == list(range(70, 100))
+
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
@@ -674,6 +680,11 @@ class Tests(unittest.TestCase):
 
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
+    def test_range_table_zero(self):
+        t = hl.utils.range_table(0)
+        self.assertEqual(t._force_count(), 0)
+        self.assertEqual(t.idx.collect(), [])
+
     def test_issue_3654(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(x=[1, 2])
@@ -759,6 +770,11 @@ class Tests(unittest.TestCase):
 
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
+
+    def test_take_order(self):
+        t = hl.utils.range_table(20, n_partitions=2)
+        t = t.key_by(rev_idx=-t.idx)
+        assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
@@ -969,6 +985,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
         self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())
+        self.assertEqual(ht1.x.collect()[-5:], ht1.tail(5).x.collect())
 
     def test_flatten(self):
         t1 = hl.utils.range_table(10)
@@ -1186,3 +1203,81 @@ def test_segfault():
     joined = t.key_by('foo').join(t2.key_by('foo'))
     joined = joined.filter(hl.is_missing(joined.idx))
     assert joined.collect() == []
+
+
+def test_maybe_flexindex_table_by_expr_direct_match():
+    t1 = hl.utils.range_table(1)
+    t2 = hl.utils.range_table(1)
+    match_key = t1._maybe_flexindex_table_by_expr(t2.key)
+    t2.annotate(foo=match_key)._force_count()
+    match_idx = t1._maybe_flexindex_table_by_expr(t2.idx)
+    t2.annotate(foo=match_idx)._force_count()
+
+    mt1 = hl.utils.range_matrix_table(1, 1)
+    match_row_key = t1._maybe_flexindex_table_by_expr(mt1.row_key)
+    mt1.annotate_rows(match=match_row_key)._force_count_rows()
+    match_row_idx = t1._maybe_flexindex_table_by_expr(mt1.row_idx)
+    mt1.annotate_rows(match=match_row_idx)._force_count_rows()
+
+    assert t1._maybe_flexindex_table_by_expr(t2.idx * 3.0) is None
+    assert t1._maybe_flexindex_table_by_expr(hl.str(t2.key)) is None
+    assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
+
+
+def test_maybe_flexindex_table_by_expr_prefix_match():
+    t1 = hl.utils.range_table(1)
+    t2 = hl.utils.range_table(1)
+    t2 = t2.key_by(idx=t2.idx, idx2=t2.idx)
+    match_key = t1._maybe_flexindex_table_by_expr(t2.key)
+    t2.annotate(foo=match_key)._force_count()
+    match_expr = t1._maybe_flexindex_table_by_expr((t2.idx, t2.idx2))
+    t2.annotate(foo=match_expr)._force_count()
+
+    mt1 = hl.utils.range_matrix_table(1, 1)
+    mt1 = mt1.key_rows_by(row_idx=mt1.row_idx, str_row_idx=hl.str(mt1.row_idx))
+    match_row_key = t1._maybe_flexindex_table_by_expr(mt1.row_key)
+    mt1.annotate_rows(match=match_row_key)._force_count_rows()
+    match_row_expr = t1._maybe_flexindex_table_by_expr((mt1.row_idx, hl.str(mt1.row_idx)))
+    mt1.annotate_rows(match=match_row_expr)._force_count_rows()
+
+    assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
+
+
+def test_maybe_flexindex_table_by_expr_direct_interval_match():
+    t1 = hl.utils.range_table(1)
+    t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
+    t2 = hl.utils.range_table(1)
+    match_key = t1._maybe_flexindex_table_by_expr(t2.key)
+    t2.annotate(foo=match_key)._force_count()
+    match_expr = t1._maybe_flexindex_table_by_expr(t2.idx)
+    t2.annotate(foo=match_expr)._force_count()
+
+    mt1 = hl.utils.range_matrix_table(1, 1)
+    match_row_key = t1._maybe_flexindex_table_by_expr(mt1.row_key)
+    mt1.annotate_rows(match=match_row_key)._force_count_rows()
+    match_row_idx = t1._maybe_flexindex_table_by_expr(mt1.row_idx)
+    mt1.annotate_rows(match=match_row_idx)._force_count_rows()
+
+    assert t1._maybe_flexindex_table_by_expr(t2.idx * 3.0) is None
+    assert t1._maybe_flexindex_table_by_expr(hl.str(t2.key)) is None
+    assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
+
+
+def test_maybe_flexindex_table_by_expr_prefix_interval_match():
+    t1 = hl.utils.range_table(1)
+    t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
+    t2 = hl.utils.range_table(1)
+    t2 = t2.key_by(idx=t2.idx, idx2=t2.idx)
+    match_key = t1._maybe_flexindex_table_by_expr(t2.key)
+    t2.annotate(foo=match_key)._force_count()
+    match_expr = t1._maybe_flexindex_table_by_expr((t2.idx, t2.idx2))
+    t2.annotate(foo=match_expr)._force_count()
+
+    mt1 = hl.utils.range_matrix_table(1, 1)
+    mt1 = mt1.key_rows_by(row_idx=mt1.row_idx, str_row_idx=hl.str(mt1.row_idx))
+    match_row_key = t1._maybe_flexindex_table_by_expr(mt1.row_key)
+    mt1.annotate_rows(match=match_row_key)._force_count_rows()
+    match_row_expr = t1._maybe_flexindex_table_by_expr((mt1.row_idx, hl.str(mt1.row_idx)))
+    mt1.annotate_rows(match=match_row_expr)._force_count_rows()
+
+    assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None

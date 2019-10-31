@@ -143,6 +143,10 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(x = hl.agg.count())
         assert mt.x.collect() == [0, 0, 0]
 
+    def test_col_collect(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt.cols().collect()
+
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
               .annotate_globals(g1=5)
@@ -944,6 +948,13 @@ class Tests(unittest.TestCase):
 
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
         self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
+
+    def test_range_matrix_table_0_rows_0_cols(self):
+        mt = hl.utils.range_matrix_table(0, 0)
+        self.assertEqual(mt.col_idx.collect(), [])
+        self.assertEqual(mt.row_idx.collect(), [])
+        mt = mt.annotate_entries(x=mt.row_idx * mt.col_idx)
+        self.assertEqual(mt.x.collect(), [])
 
     def test_make_table(self):
         mt = hl.utils.range_matrix_table(3, 2)

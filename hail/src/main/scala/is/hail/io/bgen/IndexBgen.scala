@@ -1,6 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -32,7 +33,7 @@ object IndexBgen {
 
   val bufferSpec: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024,
-      LZ4BlockBufferSpec(32 * 1024,
+      LZ4HCBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec)))
 
   def apply(
@@ -41,7 +42,9 @@ object IndexBgen {
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
-    skipInvalidLoci: Boolean = false) {
+    skipInvalidLoci: Boolean = false,
+    ctx: ExecuteContext
+  ) {
     val fs = hc.sFS
     val bcFS = hc.bcFS
 
@@ -115,7 +118,7 @@ object IndexBgen {
     val intEnc = intCodec.buildEncoder(intPType)
 
     RVD.unkeyed(rowType, crvd)
-      .repartition(partitioner, shuffle = true)
+      .repartition(partitioner, ctx, shuffle = true)
       .toRows
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()

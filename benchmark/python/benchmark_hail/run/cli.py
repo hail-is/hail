@@ -31,16 +31,30 @@ def main(args_):
     parser.add_argument("--quiet", "-q",
                         action="store_true",
                         help="Do not print testing information to stderr in real time.")
+    parser.add_argument("--verbose", "-v",
+                        action="store_true",
+                        help="Do not silence Hail logging to standard output.")
     parser.add_argument("--output", "-o",
                         type=str,
                         help="Output file path.")
     parser.add_argument("--data-dir", "-d",
                         type=str,
                         help="Data directory.")
+    parser.add_argument('--timeout',
+                        type=int,
+                        default=1800,
+                        help="Timeout in seconds after which benchmarks will be interrupted")
+    parser.add_argument('--dry-run',
+                        action='store_true',
+                        help='Print benchmarks to execute, but do not run.')
 
     args = parser.parse_args(args_)
 
-    initialize(args)
+    if args.dry_run:
+        from .utils import init_logging
+        init_logging()
+    else:
+        initialize(args)
 
     run_data = {'cores': args.cores,
                 'version': hl.__version__,
@@ -52,13 +66,16 @@ def main(args_):
     def handler(stats):
         records.append(stats)
 
-    config = RunConfig(args.n_iter, handler, not args.quiet)
+    config = RunConfig(args.n_iter, handler, not args.quiet, args.timeout, args.dry_run)
     if args.tests:
         run_list(args.tests.split(','), config)
     if args.pattern:
         run_pattern(args.pattern, config)
     if not args.pattern and not args.tests:
         run_all(config)
+
+    if args.dry_run:
+        return
 
     data = {'config': run_data,
             'benchmarks': records}

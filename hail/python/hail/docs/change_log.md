@@ -1,5 +1,89 @@
 # Change Log
 
+## Frequently Asked Questions
+
+### With a version like 0.x, is Hail ready for use in publications?
+
+Yes. The semantic versioning standard uses 0.x (development) versions to 
+refer to software that is either "buggy" or "partial". While we don't view
+Hail as particularly buggy (especially compared to one-off untested
+scripts pervasive in bioinformatics!), Hail 0.2 is a partial realization
+of a larger vision.
+
+### What stability is guaranteed?
+
+We do not intentionally break back-compatibility of interfaces or file 
+formats. This means that a script developed to run on Hail 0.2.5 should
+continue to work in every subsequent release within the 0.2 major version.
+**The exception to this rule is experimental functionality, denoted as
+such in the reference documentation, which may change at any time**.
+
+Please note that **forward compatibility should not be expected, especially
+relating to file formats**: this means that it may not be possible to use
+an earlier version of Hail to read files written in a later version.
+
+---
+
+## Version 0.2.26
+
+Released 2019-10-24
+
+### New Features
+- (hail#7325) Add `string.reverse` function.
+- (hail#7328) Add `string.translate` function.
+- (hail#7344) Add `hl.reverse_complement` function.
+- (hail#7306) Teach the VCF combiner to handle allele specific (`AS_*`) fields.
+- (hail#7346) Add `hl.agg.approx_median` function.
+
+### Bug Fixes
+- (hail#7361) Fix `AD` calculation in `sparse_split_multi`.
+
+### Performance Improvements
+- (hail#7355) Improve performance of IR copying.
+
+## Version 0.2.25
+
+Released 2019-10-14
+
+### New features
+- (hail#7240) Add interactive schema widget to `{MatrixTable, Table}.describe`. Use this by passing the argument `widget=True`.
+- (hail#7250) `{Table, MatrixTable, Expression}.summarize()` now summarizes elements of collections (arrays, sets, dicts).
+- (hail#7271) Improve `hl.plot.qq` by increasing point size, adding the unscaled p-value to hover data, and printing lambda-GC on the plot.
+- (hail#7280) Add HTML output for `{Table, MatrixTable, Expression}.summarize()`.
+- (hail#7294) Add HTML output for `hl.summarize_variants()`.
+
+### Bug fixes
+- (hail#7200) Fix VCF parsing with missingness inside arrays of floating-point values in the FORMAT field.
+- (hail#7219) Fix crash due to invalid optimizer rule.
+
+### Performance improvements
+- (hail#7187) Dramatically improve performance of chained `BlockMatrix` multiplies without checkpoints in between.
+- (hail#7195)(hail#7194) Improve performance of `group[_rows]_by` / `aggregate`.
+- (hail#7201) Permit code generation of larger aggregation pipelines.
+
+---
+
+## Version 0.2.24
+
+Released 2019-10-03
+
+### `hailctl dataproc`
+- (hail#7185) Resolve issue in dependencies that led to a Jupyter update breaking cluster creation.
+
+### New features
+- (hail#7071) Add `permit_shuffle` flag to `hl.{split_multi, split_multi_hts}` to allow processing of datasets with both multiallelics and duplciate loci.
+- (hail#7121) Add `hl.contig_length` function.
+- (hail#7130) Add `window` method on `LocusExpression`, which creates an interval around a locus.
+- (hail#7172) Permit `hl.init(sc=sc)` with pip-installed packages, given the right configuration options.
+
+### Bug fixes
+- (hail#7070) Fix unintentionally strict type error in `MatrixTable.union_rows`.
+- (hail#7170) Fix issues created downstream of `BlockMatrix.T`.
+- (hail#7146) Fix bad handling of edge cases in `BlockMatrix.filter`.
+- (hail#7182) Fix problem parsing VCFs where lines end in an INFO field of type flag.
+
+---
+
 ## Version 0.2.23
 
 Released 2019-09-23

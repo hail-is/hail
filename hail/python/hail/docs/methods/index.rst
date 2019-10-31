@@ -30,6 +30,7 @@ Methods
     import_plink
     import_table
     import_vcf
+    import_vcfs
     index_bgen
     read_matrix_table
     read_table

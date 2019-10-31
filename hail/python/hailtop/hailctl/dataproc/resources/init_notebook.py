@@ -39,16 +39,15 @@ if role == 'Master':
     pip_pkgs = [
         'setuptools',
         'mkl<2020',
-        'ipywidgets<8',
-        'jupyter_console<5',
-        'nbconvert<6',
-        'notebook<6',
-        'qtconsole<5',
-        'jupyter', 'tornado<6',  # https://github.com/hail-is/hail/issues/5505
         'lxml<5',
-        'google-cloud==0.32.0',
-        'ipython<7',
+        'google-cloud==0.32.*',
         'jgscm<0.2',
+        'ipykernel==4.10.*',
+        'ipywidgets==7.4.*',
+        'jupyter-console==6.0.*',
+        'nbconvert==5.5.*',
+        'notebook==5.7.*',
+        'qtconsole==4.5.*'
     ]
 
     # add user-requested packages

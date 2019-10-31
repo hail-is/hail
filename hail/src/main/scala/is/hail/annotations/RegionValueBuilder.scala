@@ -582,6 +582,8 @@ class RegionValueBuilder(var region: Region) {
           addBoolean(i.includesStart)
           addBoolean(i.includesEnd)
           endStruct()
+        case t: TNDArray =>
+          addAnnotation(t.representation, a)
       }
 
   }

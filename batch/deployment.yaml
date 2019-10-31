@@ -3,7 +3,7 @@ kind: ServiceAccount
 metadata:
   name: batch
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: batch
@@ -45,6 +45,12 @@ spec:
 {% if deploy %}
          - name: HAIL_INSTANCE_ID
            value: cd50b95a89914efb897965a5e982a29d
+{% endif %}
+{% if not deploy %}
+         - name: HAIL_BATCH_JOB_DEFAULT_CPU
+           value: "0.1"
+         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
+           value: "375M"
 {% endif %}
         ports:
          - containerPort: 5000
@@ -91,11 +97,6 @@ spec:
          secret:
            optional: false
            secretName: batch-tokens
-      tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Service

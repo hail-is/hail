@@ -64,10 +64,10 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildInplaceDecoder(pt: PType, mb: EmitMethodBuilder): StagedInplaceDecoder = {
+  final def buildInplaceDecoder(pt: PType, fb: EmitFunctionBuilder[_]): StagedInplaceDecoder = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: ${ pt.parsableString() }\n  ET: ${ parsableString() }")
-    mb.fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -152,24 +152,33 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   def _decodedPType(requestedType: Type): PType
 }
 
+trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
+
+trait EncoderAsmFunction { def apply(off: Long, out: OutputBuffer): Unit }
+
 object EType {
   // The 'entry point' for building an encoder from an EType and a PType
-  def buildEncoder(et: EType, pt: PType): () => AsmFunction2[Long, OutputBuffer, Unit] = {
-    val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit]("etypeEncode")
+  def buildEncoder(et: EType, pt: PType): () => EncoderAsmFunction = {
+    val fb = new EmitFunctionBuilder[EncoderAsmFunction](
+      Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
+      NotGenericTypeInfo[Unit],
+      namePrefix = "etypeEncode")
     val mb = fb.apply_method
     val f = et.buildEncoder(pt, mb)
 
     val addr: Code[Long] = mb.getArg[Long](1)
     val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](2)
-    // XXX get or load?
     val v = Region.getIRIntermediate(pt)(addr)
 
     mb.emit(f(v, out))
     fb.result()
   }
 
-  def buildDecoder(et: EType, t: Type): (PType, () => AsmFunction2[Region, InputBuffer, Long]) = {
-    val fb = EmitFunctionBuilder[Region, InputBuffer, Long]("etypeDecode")
+  def buildDecoder(et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
+    val fb = new EmitFunctionBuilder[DecoderAsmFunction](
+      Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
+      NotGenericTypeInfo[Long],
+      namePrefix = "etypeDecode")
     val mb = fb.apply_method
     val pt = et.decodedPType(t)
     val f = et.buildDecoder(pt, mb)

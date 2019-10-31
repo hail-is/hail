@@ -255,7 +255,14 @@ object PruneDeadFields {
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(child, requestedType, memo)
-      case TableHead(child, _) => memoizeTableIR(child, requestedType, memo)
+      case TableHead(child, _) => memoizeTableIR(child, TableType(
+        key = child.typ.key,
+        rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, child.typ.key), requestedType.rowType),
+        globalType = requestedType.globalType), memo)
+      case TableTail(child, _) => memoizeTableIR(child, TableType(
+        key = child.typ.key,
+        rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, child.typ.key), requestedType.rowType),
+        globalType = requestedType.globalType), memo)
       case TableJoin(left, right, _, joinKey) =>
         val lk = unifyKey(FastSeq(requestedType.key.take(left.typ.key.length), left.typ.key.take(joinKey)))
         val lkSet = lk.toSet
@@ -555,9 +562,13 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val depMod = requestedType.copy(rowType = selectKey(child.typ.rowType, child.typ.rowKey))
         memoizeMatrixIR(child, unify(child.typ, depMod, irDep), memo)
-      case MatrixMapCols(child, newCol, _) =>
+      case MatrixMapCols(child, newCol, newKey) =>
         val irDep = memoizeAndGetDep(newCol, requestedType.colType, child.typ, memo)
-        val depMod = requestedType.copy(colType = TStruct(), colKey = FastIndexedSeq())
+        val reqKey =  newKey match {
+          case Some(_) => FastIndexedSeq()
+          case None => requestedType.colKey
+        }
+        val depMod = requestedType.copy(colType = selectKey(child.typ.colType, reqKey), colKey = reqKey)
         memoizeMatrixIR(child, unify(child.typ, depMod, irDep), memo)
       case MatrixMapGlobals(child, newGlobals) =>
         val irDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
@@ -1201,7 +1212,6 @@ object PruneDeadFields {
         memoizeTableIR(child, TableType(
           key = child.typ.key,
           rowType = unify(child.typ.rowType,
-            selectKey(child.typ.rowType, child.typ.key),
             rStruct.fieldOption("rows").map(_.typ.asInstanceOf[TStreamable].elementType.asInstanceOf[TStruct]).getOrElse(TStruct())),
           globalType = rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())),
           memo)
@@ -1215,7 +1225,6 @@ object PruneDeadFields {
         BindingEnv.empty
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
-        // FIXME look at aggregator commutativity to prune keys
         val dep = TableType(
           key = child.typ.key,
           rowType = unify(child.typ.rowType, queryDep.rowType, selectKey(child.typ.rowType, child.typ.key)),

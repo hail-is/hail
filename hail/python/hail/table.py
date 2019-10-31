@@ -1,5 +1,3 @@
-from collections import Counter
-
 import itertools
 import pandas
 import pyspark
@@ -1448,11 +1446,7 @@ class Table(ExprContainer):
             n = n_rows
         del n_rows
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = hl.utils.default_handler()
         handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
@@ -1536,6 +1530,44 @@ class Table(ExprContainer):
             raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
                                       f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                                       f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+
+    @staticmethod
+    def _maybe_truncate_for_flexindex(indexer, indexee_dtype):
+        if not len(indexee_dtype) > 0:
+            raise ValueError('Must have non-empty key to index')
+
+        if not isinstance(indexer.dtype, (hl.tstruct, hl.ttuple)):
+            indexer = hl.tuple([indexer])
+
+        matching_prefix = 0
+        for x, y in zip(indexer.dtype.types, indexee_dtype.types):
+            if x != y:
+                break
+            matching_prefix += 1
+        prefix_match = matching_prefix == len(indexee_dtype)
+        direct_match = prefix_match and \
+            len(indexer) == len(indexee_dtype)
+        prefix_interval_match = len(indexee_dtype) == 1 and \
+            isinstance(indexee_dtype[0], hl.tinterval) and \
+            indexer.dtype[0] == indexee_dtype[0].point_type
+        direct_interval_match = prefix_interval_match and \
+            len(indexer) == 1
+        if direct_match or direct_interval_match:
+            return indexer
+        if prefix_match:
+            return indexer[0:matching_prefix]
+        if prefix_interval_match:
+            return indexer[0]
+        return None
+
+
+    @typecheck_method(indexer=expr_any, all_matches=bool)
+    def _maybe_flexindex_table_by_expr(self, indexer, all_matches=False):
+        truncated_indexer = Table._maybe_truncate_for_flexindex(
+            indexer, self.key.dtype)
+        if truncated_indexer is not None:
+            return self.index(truncated_indexer, all_matches=all_matches)
+        return None
 
     def _index(self, *exprs, all_matches=False) -> 'Expression':
         exprs = tuple(exprs)
@@ -1821,15 +1853,34 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        ir = GetField(TableCollect(self._tir), 'rows')
-        e = construct_expr(ir, hl.tarray(self.row.dtype))
+        if len(self.key) > 0:
+            t = self.order_by(*self.key)
+        else:
+            t = self
+        ir = GetField(TableCollect(t._tir), 'rows')
+        e = construct_expr(ir, hl.tarray(t.row.dtype))
         if _localize:
             return Env.backend().execute(e._ir)
         else:
             return e
 
-    def describe(self, handler=print):
-        """Print information about the fields in the table."""
+    def describe(self, handler=print, *, widget=False):
+        """Print information about the fields in the table.
+
+        Note
+        ----
+        The `widget` argument is **experimental**.
+
+        Parameters
+        ----------
+        handler : Callable[[str], None]
+            Handler function for returned string.
+        widget : bool
+            Create an interactive IPython widget.
+        """
+        if widget:
+            from hail.experimental.interact import interact
+            return interact(self)
 
         def format_type(typ):
             return typ.pretty(indent=4).lstrip()
@@ -2042,6 +2093,37 @@ class Table(ExprContainer):
         """
 
         return Table(TableHead(self._tir, n))
+
+    @typecheck_method(n=int)
+    def tail(self, n) -> 'Table':
+        """Subset table to last `n` rows.
+
+        Examples
+        --------
+        Subset to the last three rows:
+
+        >>> table_result = table1.tail(3)
+        >>> table_result.count()
+        3
+
+        Notes
+        -----
+
+        The number of partitions in the new table is equal to the number of
+        partitions containing the last `n` rows.
+
+        Parameters
+        ----------
+        n : int
+            Number of rows to include.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table including the last `n` rows.
+        """
+
+        return Table(TableTail(self._tir, n))
 
     @typecheck_method(p=numeric,
                       seed=nullable(int))
@@ -2554,19 +2636,33 @@ class Table(ExprContainer):
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs) -> 'Table':
-        """Sort by the specified fields. Unkeys the table, if keyed.
+        """Sort by the specified fields, defaulting to ascending order. Will unkey the table if it is keyed.
 
         Examples
         --------
-        Four equivalent ways to order the table by field `HT`, ascending:
+        Let's assume we have a field called `HT` in our table.
+
+        By default, ascending order is used:
 
         >>> sorted_table = table1.order_by(table1.HT)
 
         >>> sorted_table = table1.order_by('HT')
 
+        You can sort in ascending order explicitly:
+
         >>> sorted_table = table1.order_by(hl.asc(table1.HT))
 
         >>> sorted_table = table1.order_by(hl.asc('HT'))
+
+        Tables can be sorted by field descending order as well:
+
+        >>> sorted_table = table1.order_by(hl.desc(table1.HT))
+
+        >>> sorted_table = table1.order_by(hl.desc('HT'))
+
+        Tables can also be sorted on multiple fields:
+
+        >>> sorted_table = table1.order_by(hl.desc('HT'), hl.asc('SEX'))
 
         Notes
         -----
@@ -2834,6 +2930,60 @@ class Table(ExprContainer):
         fields. If `columns` are structs, then the matrix table will have the entry fields of those structs. Otherwise,
         the matrix table will have one entry field named `entry_field_name` whose values come from the values
         of the `columns` fields. The matrix table is column indexed by `col_field_name`.
+
+        If you find yourself using this method after :func:`.import_table`,
+        consider instead using :func:`.import_matrix_table`.
+
+        Examples
+        --------
+
+        Convert a table of RNA expression samples to a :class:`.MatrixTable`:
+
+        >>> t = hl.import_table('data/rna_expression.tsv', impute=True)
+        >>> t = t.key_by('gene')
+        >>> t.show()
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | gene    | lung001 | lung002 | heart001 | muscle001 | muscle002 | muscle003 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | str     |   int32 |   int32 |    int32 |     int32 |     int32 |     int32 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        | "LD4"   |       1 |       2 |        0 |         2 |         1 |         1 |
+        | "SCN1A" |       2 |       1 |        1 |         0 |         0 |         0 |
+        | "TITIN" |       3 |       0 |        0 |         1 |         2 |         1 |
+        +---------+---------+---------+----------+-----------+-----------+-----------+
+        >>> mt = t.to_matrix_table_row_major(
+        ...          columns=['lung001', 'lung002', 'heart001',
+        ...                   'muscle001', 'muscle002', 'muscle003'],
+        ...          entry_field_name='expression',
+        ...          col_field_name='sample')
+        >>> mt.describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Column fields:
+            'sample': str
+        ----------------------------------------
+        Row fields:
+            'gene': str
+        ----------------------------------------
+        Entry fields:
+            'expression': int32
+        ----------------------------------------
+        Column key: ['sample']
+        Row key: ['gene']
+        ----------------------------------------
+        >>> mt.show(n_cols=2)
+        +---------+--------------------+--------------------+
+        | gene    | lung001.expression | lung002.expression |
+        +---------+--------------------+--------------------+
+        | str     |              int32 |              int32 |
+        +---------+--------------------+--------------------+
+        | "LD4"   |                  1 |                  2 |
+        | "SCN1A" |                  2 |                  1 |
+        | "TITIN" |                  3 |                  0 |
+        +---------+--------------------+--------------------+
+        showing the first 2 of 6 columns
 
         Notes
         -----
@@ -3196,21 +3346,15 @@ class Table(ExprContainer):
 
         return Table(TableDistinct(self._tir))
 
-    def summarize(self):
+    def summarize(self, handler=None):
         """Compute and print summary information about the fields in the table.
 
         .. include:: _templates/experimental.rst
         """
 
-        computations, printers = hl.expr.generic_summary(self.row, skip_top=True)
-        results = self.aggregate(computations)
-        for name, fields in printers:
-            print(f'* {name}:')
-
-            max_k_len = max(len(f) for f in fields)
-            for k, v in fields.items():
-                print(f'    {k.rjust(max_k_len)} : {v(results)}')
-            print()
+        if handler is None:
+            handler = hl.utils.default_handler()
+        handler(self.row._summarize(top=True))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
@@ -3270,5 +3414,6 @@ class Table(ExprContainer):
             raise TypeError('All input tables to multi_way_zip_join must have the same global type')
         return Table(TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
+
 
 table_type.set(Table)

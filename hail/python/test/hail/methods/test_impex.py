@@ -381,6 +381,54 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
+    def test_combiner_parse_as_annotations(self):
+        import hail.experimental.vcf_combiner as c
+        infos = hl.array([
+            hl.struct(
+                AS_QUALapprox="|1171|",
+                AS_SB_TABLE="0,0|30,27|0,0",
+                AS_VarDP="0|57|0",
+                AS_RAW_MQ="0.00|15100.00|0.00",
+                AS_RAW_MQRankSum="|0.0,1|NaN",
+                AS_RAW_ReadPosRankSum="|0.7,1|NaN"),
+            hl.struct(
+                AS_QUALapprox="|1171|",
+                AS_SB_TABLE="0,0|30,27|0,0",
+                AS_VarDP="0|57|0",
+                AS_RAW_MQ="0.00|15100.00|0.00",
+                AS_RAW_MQRankSum="|NaN|NaN",
+                AS_RAW_ReadPosRankSum="|NaN|NaN")])
+
+        output = hl.eval(infos.map(lambda info: c.parse_as_fields(info, False)))
+        expected = [
+            hl.Struct(
+                AS_QUALapprox=[None, 1171, None],
+                AS_SB_TABLE=[[0, 0], [30, 27], [0, 0]],
+                AS_VarDP=[0, 57, 0],
+                AS_RAW_MQ=[0.00, 15100.00, 0.00],
+                AS_RAW_MQRankSum=[None, (0.0, 1), None],
+                AS_RAW_ReadPosRankSum=[None, (0.7, 1), None]),
+            hl.Struct(
+                AS_QUALapprox=[None, 1171, None],
+                AS_SB_TABLE=[[0, 0], [30, 27], [0, 0]],
+                AS_VarDP=[0, 57, 0],
+                AS_RAW_MQ=[0.00, 15100.00, 0.00],
+                AS_RAW_MQRankSum=[None, None, None],
+                AS_RAW_ReadPosRankSum=[None, None, None])]
+        assert output == expected
+
+    def test_flag_at_eol(self):
+        vcf_path = resource('flag_at_end.vcf')
+        mt = hl.import_vcf(vcf_path)
+        assert mt._force_count_rows() == 1
+
+    def test_missing_float_entries(self):
+        vcf = hl.import_vcf(resource('noglgp.vcf'), array_elements_required=False,
+                            reference_genome='GRCh38')
+        gl_gp = vcf.aggregate_entries(hl.agg.collect(hl.struct(GL=vcf.GL, GP=vcf.GP)))
+        assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
+                         hl.Struct(GL=[None, None, None], GP=[None, None, None])]
+
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):

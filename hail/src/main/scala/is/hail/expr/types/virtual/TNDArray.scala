@@ -25,6 +25,8 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
   }
   lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
 
+  override def fundamentalType: Type = representation.fundamentalType
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
     elementType.pyString(sb)

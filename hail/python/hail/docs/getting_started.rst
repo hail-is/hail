@@ -9,8 +9,8 @@ Requirements
 
 Regardless of installation method, you will need:
 
-- `Java 8 JDK
-  <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
+- `Java 8 JRE
+  <https://adoptopenjdk.net/index.html>`_
   Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
   dependency on Spark.
 - Python 3.6 or later. We recommend `Miniconda Python 3.7
@@ -70,15 +70,15 @@ To try Hail out, open iPython or a Jupyter notebook and run:
 You're now all set to run the
 `tutorials <https://hail.is/docs/0.2/tutorials-landing.html>`__ locally!
 
+Running on the cloud
+~~~~~~~~~~~~~~~~~~~~
+
+For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.4 cluster. For example, Google and Amazon make it
-possible to rent Spark clusters with many thousands of cores on-demand,
-providing for the elastic compute requirements of scientific research without
-an up-front capital investment.
-
-For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+Hail can run on any Spark 2.4 cluster.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 

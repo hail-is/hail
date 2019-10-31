@@ -5,6 +5,16 @@ This module serves two functions: as a staging area for extensions of Hail
 not ready for inclusion in the main package, and as a library of lightly reviewed
 community submissions.
 
+At present, the experimental module is organized into a few freestanding
+modules, linked immediately below, and many freestanding functions, documented
+on this page.
+
+.. toctree::
+    :maxdepth: 1
+
+    vcf_combiner
+    ldscsim
+
 Contribution Guidelines
 -----------------------
 Submissions from the community are welcome! The criteria for inclusion in the
@@ -40,7 +50,7 @@ Genetics Methods
     get_gene_intervals
     export_entries_by_col
     sparse_split_multi
-
+    densify
 
 `dplyr`-inspired Methods
 ------------------------
@@ -51,12 +61,8 @@ Genetics Methods
     separate
     spread
 
-`ldscsim`
+Functions
 ---------
-
-.. toctree::
-
-   ldscsim: a statistical genetics phenotype simulation framework <ldscsim>
 
 .. autofunction:: load_dataset
 .. autofunction:: ld_score
@@ -73,6 +79,8 @@ Genetics Methods
 .. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
 .. autofunction:: sparse_split_multi
+.. autofunction:: densify
+.. autofunction:: lgt_to_gt
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread

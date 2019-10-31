@@ -1,8 +1,12 @@
+import pkg_resources
 import sys
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
+
+__pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
+del pkg_resources
 del sys
 
 __doc__ = r"""
@@ -38,6 +42,7 @@ from . import plot
 from . import experimental
 from . import ir
 from . import backend
+from . import nd as _nd
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
@@ -74,6 +79,7 @@ __all__ = [
     'methods',
     'stats',
     'linalg',
+    '_nd',
     'plot',
     'experimental',
     'ir',
@@ -87,6 +93,9 @@ __all__ = [
 
 __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
+
+# prevent users from referring to 'hl.nd'
+del nd
 
 # don't overwrite builtins in `from hail import *`
 import builtins
