@@ -160,12 +160,13 @@ async def deactivate_instance(request):
 
 
 async def job_complete_1(request):
+    app = request.app
+    inst_pool = app['inst_pool']
+
     body = await request.json()
     inst_token = body['inst_token']
     status = body['status']
 
-    app = request.app
-    inst_pool = app['inst_pool']
     instance = inst_pool.token_inst.get(inst_token)
     if not instance:
         log.warning(f'job_complete from unknown instance {inst_token}')
@@ -183,9 +184,7 @@ async def job_complete_1(request):
         assert status_state == 'failed', status_state
         new_state = 'Failed'
 
-    await mark_job_complete(
-        app['db'], app['scheduler_state_changed'], inst_pool,
-        batch_id, job_id, new_state, status)
+    await mark_job_complete(app, batch_id, job_id, new_state, status)
 
     return web.Response()
 
@@ -204,6 +203,7 @@ async def on_startup(app):
     app['k8s_client'] = k8s_client
 
     k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, k8s_client)
+    app['k8s'] = k8s
 
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
@@ -228,11 +228,11 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    inst_pool = InstancePool(scheduler_state_changed, db, gservices, k8s, bucket_name, machine_name_prefix)
+    inst_pool = InstancePool(app, bucket_name, machine_name_prefix)
     await inst_pool.async_init()
     app['inst_pool'] = inst_pool
 
-    scheduler = Scheduler(scheduler_state_changed, cancel_state_changed, db, inst_pool)
+    scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
 

@@ -1,10 +1,7 @@
-import json
 import asyncio
 import sortedcontainers
 import logging
-import aiohttp
 import googleapiclient.errors
-from hailtop.utils import request_retry_transient_errors
 
 from ..utils import new_token
 from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
@@ -12,7 +9,6 @@ from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_
     POOL_SIZE, MAX_INSTANCES
 
 from .instance import Instance
-from ..database import check_call_procedure
 
 log = logging.getLogger('instance_pool')
 
@@ -26,11 +22,12 @@ log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
 
 
 class InstancePool:
-    def __init__(self, scheduler_state_changed, db, gservices, k8s, bucket_name, machine_name_prefix):
-        self.scheduler_state_changed = scheduler_state_changed
-        self.db = db
-        self.gservices = gservices
-        self.k8s = k8s
+    def __init__(self, app, bucket_name, machine_name_prefix):
+        self.app = app
+        self.scheduler_state_changed = app['scheduler_state_changed']
+        self.db = app['db']
+        self.gservices = app['gservices']
+        self.k8s = app['k8s_client']
         self.machine_name_prefix = machine_name_prefix
 
         if WORKER_TYPE == 'standard':
@@ -67,7 +64,7 @@ class InstancePool:
 
         async for record in self.db.execute_and_fetchall(
                 'SELECT * FROM instances;'):
-            instance = Instance.from_record(record)
+            instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 
         asyncio.ensure_future(self.event_loop())
@@ -109,54 +106,6 @@ class InstancePool:
 
         self.adjust_for_add_instance(instance)
 
-    async def job_config(self, record):
-        job_spec = json.loads(record['spec'])
-
-        secrets = job_spec['secrets']
-        k8s_secrets = await asyncio.gather(*[
-            self.k8s.read_secret(secret['name']) for secret in secrets
-        ])
-        for secret, k8s_secret in zip(secrets, k8s_secrets):
-            secret['data'] = k8s_secret.data
-
-        return {
-            'batch_id': record['batch_id'],
-            'user': record['user'],
-            'job_spec': job_spec,
-            'output_directory': record['directory']
-        }
-
-    async def schedule_job(self, record, instance):
-        assert instance.state == 'active'
-
-        batch_id = record['batch_id']
-        job_id = record['job_id']
-        id = (batch_id, job_id)
-
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create'
-            body = await self.job_config(record)
-            await request_retry_transient_errors(
-                session, 'POST',
-                url, json=body)
-
-        log.info(f'schedule job {id} on {instance}: called create job')
-
-        rv = await check_call_procedure(
-            self.db,
-            'CALL schedule_job(%s, %s, %s);',
-            (batch_id, job_id, instance.id))
-        log.info(f'schedule_job returned {rv}')
-
-        log.info(f'schedule job {id} on {instance}: updated database')
-
-        self.adjust_for_remove_instance(instance)
-        instance.free_cores_mcpu -= record['cores_mcpu']
-        self.adjust_for_add_instance(instance)
-
-        log.info(f'schedule job {id} on {instance}: adjusted instance pool')
-
     async def create_instance(self):
         while True:
             inst_token = new_token()
@@ -164,15 +113,7 @@ class InstancePool:
                 break
         machine_name = f'{self.machine_name_prefix}{inst_token}'
 
-        state = 'pending'
-        id = await self.db.execute_insertone(
-            '''
-INSERT INTO instances (state, name, token, cores_mcpu, free_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s);
-''',
-            (state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU))
-        instance = Instance(id, state, machine_name, inst_token, WORKER_CORES_MCPU, WORKER_CORES_MCPU, None)
-
+        instance = Instance.create(self.app, machine_name, inst_token, WORKER_CORES_MCPU)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
@@ -289,41 +230,11 @@ retry docker run \
         await self.gservices.create_instance(config)
         log.info(f'created machine {machine_name} with logs at {self.worker_logs_directory}/{inst_token}/worker.log')
 
-    async def activate_instance(self, instance, ip_address):
-        assert instance.state == 'pending'
-
-        await check_call_procedure(
-            self.db,
-            'CALL activate_instance(%s, %s);',
-            (instance.id, ip_address))
-
-        self.adjust_for_remove_instance(instance)
-        instance.state = 'active'
-        instance.ip_address = ip_address
-        self.adjust_for_add_instance(instance)
-
-        self.scheduler_state_changed.set()
-
-    async def deactivate_instance(self, instance):
-        if instance.state in ('inactive', 'deleted'):
+    async def call_delete_instance(self, instance, force=False):
+        if instance.state == 'deleted' and not force:
             return
-
-        await check_call_procedure(
-            self.db,
-            'CALL deactivate_instance(%s);',
-            (instance.id,))
-
-        self.adjust_for_remove_instance(instance)
-        instance.state = 'inactive'
-        instance.free_cores_mcpu = instance.cores_mcpu
-        self.adjust_for_add_instance(instance)
-        # there might be jobs to reschedule
-        self.scheduler_state_changed.set()
-
-    async def call_delete_instance(self, instance):
-        if instance.state == 'deleted':
-            return
-        assert instance.state == 'inactive'
+        if instance.state not in ('inactive', 'deleted'):
+            await instance.deactivate()
 
         try:
             await self.gservices.delete_instance(instance.name)
@@ -334,24 +245,14 @@ retry docker run \
                 return
             raise
 
-        await check_call_procedure(
-            self.db,
-            'CALL mark_instance_deleted(%s);',
-            (instance.id,))
-
-        self.adjust_for_remove_instance(instance)
-        instance.state = 'deleted'
-        self.adjust_for_add_instance(instance)
-
     async def handle_preempt_event(self, instance):
-        await self.deactivate_instance(instance)
         await self.call_delete_instance(instance)
 
     async def handle_delete_done_event(self, instance):
         await self.remove_instance(instance)
 
     async def handle_call_delete_event(self, instance):
-        await self.deactivate_instance(instance)
+        await instance.mark_deleted()
 
     async def handle_event(self, event):
         if not event.payload:

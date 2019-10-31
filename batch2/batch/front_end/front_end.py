@@ -174,39 +174,29 @@ async def _get_batches(app, params, user):
         else:
             where_conditions.append(f'(NOT {success_expr})')
 
-    attribute_conditions = []
-    attribute_args = []
     for k, v in params.items():
         if k in ('complete', 'success'):  # params does not support deletion
             continue
         if not k.startswith('a:'):
             raise web.HTTPBadRequest(reason=f'unknown query parameter {k}')
 
-        attribute_conditions.append('(`batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s)')
-        attribute_args.append(k[2:])
-        attribute_args.append(v)
-        log.info(f'k v {k} {v}')
-
-    if attribute_conditions:
-        where_conditions.append(f'''
+        where_conditions.append('''
 (EXISTS (SELECT * FROM `batch-attributes`
-        WHERE `batch-attributes`.batch_id = batch.id AND
-          {" AND ".join(attribute_conditions)}))
+         WHERE `batch-attributes`.batch_id = batch.id AND
+           `batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s))
 ''')
-        where_args.extend(attribute_args)
+        where_args.append(k[2:])
+        where_args.append(v)
 
     sql = f'''
 SELECT * FROM batch
-WHERE user = %s AND NOT deleted AND ({" AND ".join(where_conditions)});
+WHERE user = %s AND NOT deleted AND {" AND ".join(where_conditions)};
 '''
 
     log.info(f'get batches query {sql}')
 
-    records = [record async for record in db.execute_and_fetchall(sql, where_args)]
-    log.info(f'records {records}')
-
     return [await batch_record_to_dict(db, record, include_jobs=False)
-            for record in records]
+            async for record in db.execute_and_fetchall(sql, where_args)]
 
 
 @routes.get('/api/v1alpha/batches')

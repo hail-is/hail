@@ -1,6 +1,8 @@
 import json
 import logging
+import asyncio
 import aiohttp
+from hailtop.utils import request_retry_transient_errors
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
@@ -70,9 +72,11 @@ WHERE id = %s AND closed AND n_completed = n_jobs;
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def mark_job_complete(
-        db, scheduler_state_changed, inst_pool,
-        batch_id, job_id, new_state, status):
+async def mark_job_complete(app, batch_id, job_id, new_state, status):
+    scheduler_state_changed = app['scheduler_state_changed']
+    db = app['db']
+    inst_pool = app['inst_pool']
+
     id = (batch_id, job_id)
 
     rv = await check_call_procedure(
@@ -140,3 +144,102 @@ def job_record_to_dict(record):
     if attributes:
         result['attributes'] = attributes
     return result
+
+
+async def unschedule_job(app, record):
+    scheduler_state_changed = app['scheduler_state_changed']
+    db = app['db']
+    inst_pool = app['inst_pool']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    id = (batch_id, job_id)
+
+    instance_id = record['instance_id']
+    assert instance_id is not None
+
+    log.info(f'unscheduling job {id} on instance {instance_id}')
+
+    instance = inst_pool.id_instance.get(instance_id)
+    if not instance:
+        log.warning(f'unschedule job {id}: unknown instance {instance_id}')
+        return
+
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        url = (f'http://{instance.ip_address}:5000'
+               f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
+        try:
+            await request_retry_transient_errors(session, 'DELETE', url)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                pass
+            else:
+                raise
+
+    log.info(f'unschedule job {id}: called delete job')
+
+    await check_call_procedure(
+        db,
+        'CALL unschedule_job(%s, %s, %s);',
+        (batch_id, job_id, instance_id))
+
+    log.info(f'unschedule job {id}: updated database')
+
+    instance.adjust_free_cores(record['cores_mcpu'])
+
+    log.info(f'unschedule job {id}: updated {instance} free cores')
+
+    scheduler_state_changed.set()
+
+
+async def job_config(app, record):
+    k8s = app['k8s']
+
+    job_spec = json.loads(record['spec'])
+
+    secrets = job_spec['secrets']
+    k8s_secrets = await asyncio.gather(*[
+        k8s.read_secret(secret['name']) for secret in secrets
+    ])
+    for secret, k8s_secret in zip(secrets, k8s_secrets):
+        secret['data'] = k8s_secret.data
+
+    return {
+        'batch_id': record['batch_id'],
+        'user': record['user'],
+        'job_spec': job_spec,
+        'output_directory': record['directory']
+    }
+
+
+async def schedule_job(app, record, instance):
+    assert instance.state == 'active'
+
+    db = app['db']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    id = (batch_id, job_id)
+
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create'
+        body = await job_config(app, record)
+        await request_retry_transient_errors(
+            session, 'POST',
+            url, json=body)
+
+    log.info(f'schedule job {id} on {instance}: called create job')
+
+    rv = await check_call_procedure(
+        db,
+        'CALL schedule_job(%s, %s, %s);',
+        (batch_id, job_id, instance.id))
+    log.info(f'schedule_job returned {rv}')
+
+    log.info(f'schedule job {id} on {instance}: updated database')
+
+    instance.adjust_free_cores(-record['cores_mcpu'])
+
+    log.info(f'schedule job {id} on {instance}: adjusted instance pool')

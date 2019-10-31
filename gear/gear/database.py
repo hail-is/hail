@@ -40,7 +40,6 @@ class Database:
                 await cursor.execute(sql, args)
                 while True:
                     rows = await cursor.fetchmany(100)
-                    log.info(f'rows {len(rows)} {rows}')
                     if not rows:
                         break
                     for row in rows:
