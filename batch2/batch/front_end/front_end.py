@@ -161,16 +161,18 @@ async def _get_batches(app, params, user):
 
     complete = params.get('complete')
     if complete is not None:
+        complete_expr = '(closed AND n_completed = n_jobs)'
         if complete == '1':
-            where_conditions.append('complete')
+            where_conditions.append(complete_expr)
         else:
-            where_conditions.append('NOT complete')
+            where_conditions.append(f'(NOT {complete_expr})')
     success = params.get('success')
     if success is not None:
+        success_expr = '(closed AND n_succeeded = n_jobs)'
         if success == '1':
-            where_conditions.append('success')
+            where_conditions.append(success_expr)
         else:
-            where_conditions.append('NOT complete')
+            where_conditions.append(f'(NOT {success_expr})')
 
     attribute_conditions = []
     attribute_args = []
@@ -187,18 +189,15 @@ async def _get_batches(app, params, user):
 
     if attribute_conditions:
         where_conditions.append(f'''
-EXISTS (SELECT * FROM `batch-attributes`
+(EXISTS (SELECT * FROM `batch-attributes`
         WHERE `batch-attributes`.batch_id = batch.id AND
-          {" AND ".join(attribute_conditions)})
+          {" AND ".join(attribute_conditions)}))
 ''')
         where_args.extend(attribute_args)
 
     sql = f'''
-SELECT *,
-  (closed AND n_completed = n_jobs) as complete,
-  (closed AND n_succeeded = n_jobs) as success
-FROM batch
-WHERE user = %s AND NOT deleted AND {" AND ".join(where_conditions)};
+SELECT * FROM batch
+WHERE user = %s AND NOT deleted AND ({" AND ".join(where_conditions)});
 '''
 
     log.info(f'get batches query {sql}')
