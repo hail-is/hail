@@ -164,7 +164,13 @@ class InstancePool:
 #!/bin/bash
 set -x
 
-cat > ./run.sh <<END
+curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_script"  >./run.sh
+
+nohup /bin/bash run.sh >run.log 2>&1 &
+'''
+                }, {
+                    'key': 'run_script',
+                    'value': '''
 #!/bin/bash
 set -x
 
@@ -204,9 +210,6 @@ docker run \
 gsutil -m cp run.log worker.log /var/log/syslog $LOG_ROOT/worker/$NAME/
 
 gcloud -q compute instances delete $NAME --zone=$ZONE
-END
-
-nohup /bin/bash run.sh >run.log 2>&1 &
 '''
                 }, {
                     'key': 'inst_token',
