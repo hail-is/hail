@@ -33,7 +33,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
-  `directory` VARCHAR(1024) NOT NULL,
   `spec` VARCHAR(65535) NOT NULL,
   `always_run` BOOLEAN NOT NULL,
   `cores_mcpu` INT NOT NULL,

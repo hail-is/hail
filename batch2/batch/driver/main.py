@@ -192,18 +192,20 @@ async def job_complete(request):
 
 
 async def on_startup(app):
+    userinfo = await async_get_userinfo()
+    log.info(f'running as {userinfo["username"]}')
+
+    bucket_name = userinfo['bucket_name']
+    log.info(f'bucket_name {bucket_name}')
+
+    app['log_root'] = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
+
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
-
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
 
     db = Database()
     await db.async_init()
@@ -222,7 +224,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    inst_pool = InstancePool(app, bucket_name, machine_name_prefix)
+    inst_pool = InstancePool(app, machine_name_prefix)
     await inst_pool.async_init()
     app['inst_pool'] = inst_pool
 
@@ -230,7 +232,7 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
+    app['log_store'] = LogStore(app)
 
     asyncio.ensure_future(db_cleanup_event_loop(db))
 

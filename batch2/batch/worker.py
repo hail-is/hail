@@ -35,6 +35,8 @@ docker = aiodocker.Docker()
 
 MAX_IDLE_TIME_SECS = 60
 
+LOG_ROOT = os.environ['LOG_ROOT']
+
 
 async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
@@ -167,9 +169,9 @@ class Container:
             log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
-                self.log = await self.get_container_log()
-                log_path = LogStore.container_log_path(self.job.output_directory, self.name)
-                await worker.gcs_client.write_gs_file(log_path, self.log)
+                await worker.gcs_client.write_gs_file(
+                    LogStore.log_path(LOG_ROOT, self.job.batch_id, self.job.job_id, self.name),
+                    await self.get_container_log())
 
             async with self.step('deleting'):
                 await self.delete_container()
@@ -290,11 +292,10 @@ class Job:
     def secret_host_path(self, secret):
         return f'{self.scratch}/{secret["name"]}'
 
-    def __init__(self, batch_id, user, job_spec, output_directory):
+    def __init__(self, batch_id, user, job_spec):
         self.batch_id = batch_id
         self.user = user
         self.job_spec = job_spec
-        self.output_directory = output_directory
 
         self.deleted = False
 
@@ -500,9 +501,8 @@ class Worker:
         batch_id = body['batch_id']
         user = body['user']
         job_spec = body['job_spec']
-        output_directory = body['output_directory']
 
-        job = Job(batch_id, user, job_spec, output_directory)
+        job = Job(batch_id, user, job_spec)
 
         log.info(f'created {job}, adding to jobs')
 
@@ -644,7 +644,7 @@ inst_token = os.environ['INST_TOKEN']
 ip_address = os.environ['INTERNAL_IP']
 batch_worker_image = os.environ['BATCH_WORKER_IMAGE']
 
-log.info(f'BATCH_WORKER_IMAGE={batch_worker_image}')
+log.info(f'BATCH_WORKER_IMAGE {batch_worker_image}')
 
 deploy_config = DeployConfig('gce', namespace, {})
 worker = Worker(batch_worker_image, cores, deploy_config, inst_token, ip_address)

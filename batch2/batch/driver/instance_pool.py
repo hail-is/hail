@@ -22,8 +22,9 @@ log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
 
 
 class InstancePool:
-    def __init__(self, app, bucket_name, machine_name_prefix):
+    def __init__(self, app, machine_name_prefix):
         self.app = app
+        self.log_root = app['log_root']
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
         self.gservices = app['gservices']
@@ -38,9 +39,6 @@ class InstancePool:
             assert WORKER_TYPE == 'highcpu', WORKER_TYPE
             m = 0.9
         self.worker_memory = 0.9 * m
-
-        self.worker_logs_directory = f'gs://{bucket_name}/{BATCH_NAMESPACE}/{INSTANCE_ID}'
-        log.info(f'writing worker logs to {self.worker_logs_directory}')
 
         # active instances only
         self.active_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
@@ -58,6 +56,10 @@ class InstancePool:
         self.id_instance = {}
 
         self.token_inst = {}
+
+    @staticmethod
+    def worker_log_path(log_root, machine_name):
+        return f'{log_root}/worker/{machine_name}/worker.log'
 
     async def async_init(self):
         log.info('initializing instance pool')
@@ -181,13 +183,13 @@ function retry {{
                 sleep $delay;
             else
                 export INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
-                export WORKER_LOGS_DIRECTORY=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_directory")
-
-                echo "startup of batch worker failed after $n attempts;" >> worker.log
-                gsutil -m cp worker.log $WORKER_LOGS_DIRECTORY/$INST_TOKEN/
-
+                export LOG_ROOT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/log_root")
                 export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
                 export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+
+                echo "startup of batch worker failed after $n attempts;" >> worker.log
+                gsutil -m cp worker.log {self.worker_log_path("$LOG_ROOT", "$NAME")}
+
                 gcloud -q compute instances delete $NAME --zone=$ZONE
              fi
         }}
@@ -216,8 +218,8 @@ retry docker run \
                     'key': 'namespace',
                     'value': BATCH_NAMESPACE
                 }, {
-                    'key': 'worker_logs_directory',
-                    'value': self.worker_logs_directory
+                    'key': 'log_root',
+                    'value': self.log_root
                 }]
             },
             'tags': {
@@ -228,7 +230,7 @@ retry docker run \
         }
 
         await self.gservices.create_instance(config)
-        log.info(f'created machine {machine_name} with logs at {self.worker_logs_directory}/{inst_token}/worker.log')
+        log.info(f'created machine {machine_name} with logs at {self.worker_log_path(self.log_root, machine_name)}')
 
     async def call_delete_instance(self, instance, force=False):
         if instance.state == 'deleted' and not force:

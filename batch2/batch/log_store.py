@@ -6,42 +6,37 @@ import google
 from .google_storage import GCS
 from .globals import tasks
 
-
 log = logging.getLogger('logstore')
 
 
 class LogStore:
-    @staticmethod
-    def container_log_path(directory, container_name):
-        assert container_name in tasks
-        return f'{directory}/{container_name}/job.log'
-
-    def __init__(self, blocking_pool, instance_id, bucket_name):
-        self.instance_id = instance_id
-        self.batch_bucket_name = bucket_name
+    def __init__(self, app):
+        self.log_root = app['log_root']
 
         batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
         credentials = google.oauth2.service_account.Credentials.from_service_account_file(
             batch_gsa_key)
 
-        self.gcs = GCS(blocking_pool, credentials)
+        self.gcs = GCS(app['blocking_pool'], credentials)
 
-    def gs_job_output_directory(self, batch_id, job_id):
-        return f'gs://{self.batch_bucket_name}/{self.instance_id}/{batch_id}/{job_id}'
+    @staticmethod
+    def log_path(log_root, batch_id, job_id, task):
+        return f'{log_root}/batch/{batch_id}/{job_id}/{task}/log'
 
-    async def write_gs_file(self, uri, data):
-        return await self.gcs.write_gs_file(uri, data)
+    async def read_log_file(self, batch_id, job_id, task):
+        return await self.gcs.read_gs_file(self.log_path(self.log_root, batch_id, job_id, task))
 
-    async def read_gs_file(self, uri):
-        return await self.gcs.read_gs_file(uri)
+    async def write_log_file(self, batch_id, job_id, task, data):
+        return await self.gcs.write_gs_file(self.log_path(self.log_root, batch_id, job_id, task), data)
 
-    async def delete_gs_file(self, uri):
+    async def _delete_gs_file(self, uri):
         try:
             await self.gcs.delete_gs_file(uri)
         except google.api_core.exceptions.NotFound:
             log.exception(f'file not found: {uri}, ignoring')
 
-    async def delete_gs_files(self, directory):
-        files = [LogStore.container_log_path(directory, container) for container in tasks]
-        errors = await asyncio.gather(*[self.delete_gs_file(file) for file in files])
-        return list(zip(files, errors))
+    async def delete_log_files(self, batch_id, job_id):
+        await asyncio.gather(*[
+            self._delete_gs_file(self.log_path(self.log_root, batch_id, job_id, task))
+            for task in tasks
+        ])

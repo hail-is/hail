@@ -110,10 +110,9 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     # FIXME handle partial logs in Error case
     if state in ('Error', 'Failed', 'Success'):
         log_store = app['log_store']
-        directory = record['directory']
 
         async def _read_log_from_gcs(task):
-            log = await log_store.read_gs_file(LogStore.container_log_path(directory, task))
+            log = await log_store.read_log_file(batch_id, job_id, task)
             return task, log
 
         return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
@@ -125,7 +124,7 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.execute_and_fetchone('''
-SELECT jobs.state, ip_address, directory
+SELECT jobs.state, ip_address
 FROM jobs
 INNER JOIN batch
   ON jobs.batch_id = batch.id
@@ -274,10 +273,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 state = 'Ready' if len(parent_ids) == 0 else 'Pending'
 
-                directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
-
                 jobs_args.append(
-                    (batch_id, job_id, state, directory, json.dumps(spec),
+                    (batch_id, job_id, state, json.dumps(spec),
                      always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
@@ -289,8 +286,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 await conn.begin()
                 async with conn.cursor() as cursor:
                     await cursor.executemany('''
-INSERT INTO jobs (batch_id, job_id, state, directory, spec, always_run, cores_mcpu, n_pending_parents)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                              jobs_args)
                 async with conn.cursor() as cursor:
@@ -595,7 +592,7 @@ async def on_startup(app):
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
+    app['log_store'] = LogStore(app)
 
     db = Database()
     await db.async_init()
