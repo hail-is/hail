@@ -34,9 +34,11 @@ docker = aiodocker.Docker()
 
 MAX_IDLE_TIME_SECS = 60
 
-LOG_ROOT = os.environ['LOG_ROOT']
+BUCKET_NAME = os.environ['BUCKET_NAME']
+INSTANCE_ID = os.environ['INSTANCE_ID']
 
-log.info(f'LOG_ROOT {LOG_ROOT}')
+log.info(f'BUCKET_NAME {BUCKET_NAME}')
+log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -478,7 +480,7 @@ class Worker:
         self.ip_address = ip_address
 
         pool = concurrent.futures.ThreadPoolExecutor()
-        self.log_store = LogStore(LOG_ROOT, pool)
+        self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, pool)
 
         self.jobs = {}
 

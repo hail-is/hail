@@ -1,14 +1,15 @@
 import logging
 
-from .batch_configuration import INSTANCE_ID
 from .google_storage import GCS
 
 log = logging.getLogger('logstore')
 
 
 class LogStore:
-    def __init__(self, bucket_name, blocking_pool, credentials=None):
-        self.log_root = f'gs://{bucket_name}/batch2/logs/{INSTANCE_ID}'
+    def __init__(self, bucket_name, instance_id, blocking_pool, credentials=None):
+        self.bucket_name = bucket_name
+        self.instance_id = instance_id
+        self.log_root = f'gs://{bucket_name}/batch2/logs/{instance_id}'
         self.gcs = GCS(blocking_pool, credentials)
 
     def worker_log_path(self, machine_name, log_file):
@@ -31,4 +32,4 @@ class LogStore:
 
     async def delete_batch_logs(self, batch_id):
         await self.gcs.delete_gs_files(
-            self.batch_log_dir(self.log_root, batch_id))
+            self.batch_log_dir(batch_id))

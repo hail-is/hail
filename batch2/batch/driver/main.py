@@ -225,7 +225,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    log_store = LogStore(bucket_name, pool, credentials)
+    log_store = LogStore(bucket_name, INSTANCE_ID, pool, credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)

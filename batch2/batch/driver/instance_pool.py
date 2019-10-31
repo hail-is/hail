@@ -181,7 +181,8 @@ NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.interna
 INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
 INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 
-LOG_ROOT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/log_root")
+BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
+INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
@@ -197,7 +198,8 @@ docker run \
     -e NAMESPACE=$NAMESPACE \
     -e INST_TOKEN=$INST_TOKEN \
     -e INTERNAL_IP=$INTERNAL_IP \
-    -e LOG_ROOT=$LOG_ROOT \
+    -e BUCKET_NAME=$BUCKET_NAME \
+    -e INSTANCE_ID=$INSTANCE_ID \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
@@ -224,8 +226,11 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
                     'key': 'namespace',
                     'value': BATCH_NAMESPACE
                 }, {
-                    'key': 'log_root',
-                    'value': self.log_store.log_root
+                    'key': 'bucket_name',
+                    'value': self.log_store.bucket_name
+                }, {
+                    'key': 'instance_id',
+                    'value': self.log_store.instance_id
                 }]
             },
             'tags': {
