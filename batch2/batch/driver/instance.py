@@ -10,8 +10,9 @@ class Instance:
             record['free_cores_mcpu'], record['ip_address'])
 
     @staticmethod
-    def create(app, machine_name, inst_token, worker_cores_mcpu):
+    async def create(app, machine_name, inst_token, worker_cores_mcpu):
         db = app['db']
+
         state = 'pending'
         id = await db.execute_insertone(
             '''

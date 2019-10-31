@@ -113,7 +113,7 @@ class InstancePool:
                 break
         machine_name = f'{self.machine_name_prefix}{inst_token}'
 
-        instance = Instance.create(self.app, machine_name, inst_token, WORKER_CORES_MCPU)
+        instance = await Instance.create(self.app, machine_name, inst_token, WORKER_CORES_MCPU)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
