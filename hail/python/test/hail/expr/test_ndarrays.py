@@ -316,6 +316,11 @@ def test_ndarray_ops():
         (ncube1 / nrow_vec, cube1 / row_vec),
         (nrow_vec / ncube1, row_vec / cube1))
 
+    # Missingness tests
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) + hl.null(hl.tndarray(hl.tfloat64, 2))) is None
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) + hl._ndarray(np.arange(10).reshape(5, 2))) is None
+    assert hl.eval(hl._ndarray(np.arange(10).reshape(5, 2)) + hl.null(hl.tndarray(hl.tfloat64, 2))) is None
+
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
 def test_ndarray_to_numpy():
@@ -371,6 +376,8 @@ def test_ndarray_transpose():
         (m.T, np_m.T),
         (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
         (cube.T, np_cube.T))
+
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).T) is None
 
     with pytest.raises(ValueError) as exc:
         v.transpose((1,))
