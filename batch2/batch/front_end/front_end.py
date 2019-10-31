@@ -183,6 +183,7 @@ async def _get_batches(app, params, user):
         attribute_conditions.append('(`batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s)')
         attribute_args.append(k[2:])
         attribute_args.append(v)
+        log.info('k v {k} {v}')
 
     if attribute_conditions:
         where_conditions.append(f'''
