@@ -185,7 +185,7 @@ async def _get_batches(app, params, user):
         attribute_conditions.append('(`batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s)')
         attribute_args.append(k[2:])
         attribute_args.append(v)
-        log.info('k v {k} {v}')
+        log.info(f'k v {k} {v}')
 
     if attribute_conditions:
         where_conditions.append(f'''
@@ -202,8 +202,11 @@ WHERE user = %s AND NOT deleted AND ({" AND ".join(where_conditions)});
 
     log.info(f'get batches query {sql}')
 
+    records = [record async for record in db.execute_and_fetchall(sql, where_args)]
+    log.info(f'records {records}')
+
     return [await batch_record_to_dict(db, record, include_jobs=False)
-            async for record in db.execute_and_fetchall(sql, where_args)]
+            for record in records]
 
 
 @routes.get('/api/v1alpha/batches')

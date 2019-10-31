@@ -1,5 +1,8 @@
 import json
 import aiomysql
+import logging
+
+log = logging.getLogger('gear.database')
 
 
 async def create_database_pool(autocommit=True, maxsize=10):
@@ -37,6 +40,7 @@ class Database:
                 await cursor.execute(sql, args)
                 while True:
                     rows = await cursor.fetchmany(100)
+                    log.info(f'rows {len(rows)} {rows}')
                     if not rows:
                         break
                     for row in rows:
