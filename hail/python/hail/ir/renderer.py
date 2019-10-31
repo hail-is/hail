@@ -261,11 +261,11 @@ class CSEAnalysisPass:
                             lets = cur.lifted_lets
                             break
                     else:
-                        if id(child) in cur.agg_visited:
+                        if not child_frame.scan_scope and id(child) in cur.agg_visited:
                             seen_in_scope = i
                             lets = cur.agg_lifted_lets
                             break
-                        if id(child) in cur.scan_visited:
+                        if child_frame.scan_scope and id(child) in cur.scan_visited:
                             seen_in_scope = i
                             lets = cur.scan_lifted_lets
                             break
@@ -489,7 +489,7 @@ class CSEPrintPass:
 
             child_min_binding_depth = frame.min_binding_depth
             child_min_value_binding_depth = frame.min_value_binding_depth
-            child_scan_scope = False
+            child_scan_scope = frame.scan_scope
             child_depth = frame.depth
 
             if isinstance(node, ir.BaseIR):
@@ -511,11 +511,11 @@ class CSEPrintPass:
                         lift_type = 'value'
                         break
                     if child_min_binding_depth <= c.depth < child_min_value_binding_depth:
-                        if id(child) in c.scan_lifted_lets:
+                        if child_scan_scope and id(child) in c.scan_lifted_lets:
                             lift_to_frame = c
                             lift_type = 'scan'
                             break
-                        if id(child) in c.agg_lifted_lets:
+                        if not child_scan_scope and id(child) in c.agg_lifted_lets:
                             lift_to_frame = c
                             lift_type = 'agg'
                             break
@@ -678,7 +678,8 @@ class CSEPrintPass:
             insert_lets = (id(node) in binding_sites
                            and depth == binding_sites[id(node)].depth
                            and (len(binding_sites[id(node)].lifted_lets) > 0
-                                or len(binding_sites[id(node)].agg_lifted_lets) > 0))
+                                or len(binding_sites[id(node)].agg_lifted_lets) > 0
+                                or len(binding_sites[id(node)].scan_lifted_lets) > 0))
             state = CSEPrintPass.StackFrame(node,
                                             node.render_children(renderer),
                                             builder,
