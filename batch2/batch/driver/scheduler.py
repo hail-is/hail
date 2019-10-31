@@ -59,9 +59,8 @@ LIMIT 50;
         records = self.db.execute_and_fetchall(
             '''
 SELECT job_id, batch_id, spec, cores_mcpu,
-  always_run,
-  (cancel OR batch.cancelled) as cancel,
-  batch.user as user
+  ((jobs.cancelled OR batch.cancelled) AND NOT always_run) as cancel,
+  batch.user
 FROM jobs
 INNER JOIN batch ON batch.id = jobs.batch_id
 WHERE jobs.state = 'Ready' AND batch.closed
@@ -76,7 +75,7 @@ LIMIT 50;
 
             log.info(f'scheduling job {id}')
 
-            if record['cancel'] and not record['always_run']:
+            if record['cancel']:
                 log.info(f'cancelling job {id}')
                 await mark_job_complete(self.app, batch_id, job_id, 'Cancelled', None)
                 should_wait = False

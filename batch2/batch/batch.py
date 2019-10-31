@@ -233,11 +233,10 @@ async def schedule_job(app, record, instance):
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
-    rv = await check_call_procedure(
+    await check_call_procedure(
         db,
         'CALL schedule_job(%s, %s, %s);',
         (batch_id, job_id, instance.id))
-    log.info(f'schedule_job returned {rv}')
 
     log.info(f'schedule job {id} on {instance}: updated database')
 

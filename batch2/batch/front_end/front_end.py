@@ -96,7 +96,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
                 url = (f'http://{ip_address}:5000'
-                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/logs')
+                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
                 resp = await request_retry_transient_errors(session, 'GET', url)
                 return await resp.json()
             except aiohttp.ClientResponseError as e:

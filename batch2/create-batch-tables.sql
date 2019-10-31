@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `instance_id` BIGINT,
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
-  `cancel` BOOLEAN NOT NULL DEFAULT FALSE,
+  `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_id`) REFERENCES instances(id) ON DELETE SET NULL
@@ -188,17 +188,22 @@ CREATE PROCEDURE schedule_job(
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_cores_mcpu INT;
+  DECLARE cur_cancel BOOLEAN;
   DECLARE cur_instance_state VARCHAR(40);
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu
-  INTO cur_job_state, cur_cores_mcpu
-  FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
+  SELECT state, cores_mcpu,
+    (jobs.cancelled OR batch.cancelled) AND NOT always_run
+  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
+  FROM jobs
+  INNER JOIN batch ON batch.id = jobs.batch_id
+  WHERE batch_id = in_batch_id AND batch.closed
+    AND job_id = in_job_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE id = in_instance_id;
 
-  IF cur_job_state = 'Ready' AND cur_instance_state = 'active' THEN
+  IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
     UPDATE jobs SET state = 'Running', instance_id = in_instance_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE id = in_instance_id;
@@ -206,7 +211,12 @@ BEGIN
     SELECT 0 as rc, in_instance_id;
   ELSE
     ROLLBACK;
-    SELECT 1 as rc, cur_job_state, cur_instance_state, in_instance_id, 'job not Ready or instance not active' as message;
+    SELECT 1 as rc,
+      cur_job_state,
+      cur_job_cancel,
+      cur_instance_state,
+      in_instance_id,
+      'job not Ready or cancelled or instance not active' as message;
   END IF;
 END $$
 
@@ -296,7 +306,7 @@ BEGIN
 	   jobs.job_id = `jobs-parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.cancel = IF(new_state = 'Success', jobs.cancel, 1)
+          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
       WHERE jobs.batch_id = in_batch_id AND
             `jobs-parents`.batch_id = in_batch_id AND
             `jobs-parents`.parent_id = in_job_id;
