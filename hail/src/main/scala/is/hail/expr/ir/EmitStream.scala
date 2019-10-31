@@ -55,11 +55,17 @@ object EmitStream {
       val stateP: ParameterPack[S] = self.stateP
       def emptyState: S = self.emptyState
       def length(s0: S): Option[Code[Int]] = self.length(s0)
-      def init(mb: MethodBuilder, jb: JoinPointBuilder, param: Q)(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      def init(mb: MethodBuilder, jb: JoinPointBuilder, param: Q)(k: Init[S] => Code[Ctrl]): Code[Ctrl] = {
+        val missing = jb.joinPoint()
+        missing.define { _ => k(Missing) }
         f(param, {
-          case Some(newParam) => self.init(mb, jb, newParam)(k)
-          case None => k(Missing)
+          case Some(newParam) => self.init(mb, jb, newParam) {
+            case Missing => missing(())
+            case Start(s) => k(Start(s))
+          }
+          case None => missing(())
         })
+      }
       def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] =
         self.step(mb, jb, state) {
           case EOS => Code(cleanup, k(EOS))
@@ -169,7 +175,7 @@ object EmitStream {
     }
   }
 
-  def sequence[A](elements: Seq[A]): Parameterized[Any, A] = new Parameterized[Any, A] {
+  def sequence[A: ParameterPack](elements: Seq[A]): Parameterized[Any, A] = new Parameterized[Any, A] {
     type S = Code[Int]
     val stateP: ParameterPack[S] = implicitly
     def emptyState: S = elements.length
@@ -180,10 +186,12 @@ object EmitStream {
 
     def step(mb: MethodBuilder, jb: JoinPointBuilder, idx: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] = {
       val eos = jb.joinPoint()
+      val yld = jb.joinPoint[A](mb)
       eos.define { _ => k(EOS) }
+      yld.define { a => k(Yield(a, idx + 1)) }
       JoinPoint.switch(idx, eos, elements.map { elt =>
         val j = jb.joinPoint()
-        j.define { _ => k(Yield(elt, idx + 1)) }
+        j.define { _ => yld(elt) }
         j
       })
     }
@@ -306,8 +314,11 @@ object EmitStream {
         case NA(_) =>
           missing
 
-        case MakeStream(elements, pType) =>
-          sequence(elements.map(emitIR(_, env)))
+        case MakeStream(elements, t) =>
+          val e = t.elementType.physicalType
+          implicit val eP = TypedTriplet.pack(e)
+          sequence(elements.map { ir => TypedTriplet(e, emitIR(ir, env)) })
+            .map(_.untyped)
 
         case StreamRange(startIR, stopIR, stepIR) =>
           val step = fb.newField[Int]("sr_step")
