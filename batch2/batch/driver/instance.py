@@ -68,7 +68,7 @@ VALUES (%s, %s, %s, %s, %s);
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'inactive'
-        self.free_cores_mcpu = self.cores_mcpu
+        self._free_cores_mcpu = self.cores_mcpu
         self.instance_pool.adjust_for_add_instance(self)
 
         # there might be jobs to reschedule

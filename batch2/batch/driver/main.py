@@ -105,8 +105,7 @@ SELECT state FROM batch WHERE user = %s AND batch_id = %s;
 async def db_cleanup_event_loop(db):
     while True:
         try:
-            await db.just_execute(
-                '''
+            await db.just_execute('''
 DELETE FROM batch
 WHERE deleted AND (NOT closed OR n_jobs = n_completed)
 ''')
@@ -129,7 +128,7 @@ async def activate_instance_1(request):
         raise web.HTTPNotFound()
 
     log.info(f'activating {instance}')
-    await inst_pool.activate_instance(instance, ip_address)
+    await instance.activate(ip_address)
     return web.Response()
 
 
@@ -150,7 +149,7 @@ async def deactivate_instance_1(request):
         raise web.HTTPNotFound()
 
     log.info(f'deactivating {instance}')
-    await inst_pool.deactivate_instance(instance)
+    await instance.deactivate()
     return web.Response()
 
 
