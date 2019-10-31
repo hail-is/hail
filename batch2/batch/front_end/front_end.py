@@ -318,20 +318,36 @@ VALUES (%s, %s, %s);
 async def create_batch(request, userdata):
     app = request.app
     db = app['db']
-    parameters = await request.json()
+
+    batch_spec = await request.json()
 
     validator = cerberus.Validator(schemas.batch_schema)
-    if not validator.validate(parameters):
+    if not validator.validate(batch_spec):
         raise web.HTTPBadRequest(reason=f'invalid request: {validator.errors}')
 
     user = userdata['username']
-    id = await db.execute_insertone(
-        '''
+    attributes = batch_spec.get('attributes')
+    async with db.pool.acquire() as conn:
+        await conn.begin()
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
 INSERT INTO batch (userdata, user, attributes, callback, n_jobs)
 VALUES (%s, %s, %s, %s, %s);
 ''',
-        (json.dumps(userdata), user, json.dumps(parameters.get('attributes')),
-         parameters.get('callback'), parameters['n_jobs']))
+                (json.dumps(userdata), user, json.dumps(attributes),
+                 batch_spec.get('callback'), batch_spec['n_jobs']))
+            id = cursor.lastrowid
+
+        if attributes:
+            async with conn.cursor() as cursor:
+                cursor.executemany(
+                    '''
+INSERT INTO `batch-attributes` (batch_id, `key`, `value`)
+VALUES (%s, %s, %s)
+''',
+                    [(id, k, v) for k, v in attributes.items()])
+        conn.commit()
 
     return web.json_response({'id': id})
 
