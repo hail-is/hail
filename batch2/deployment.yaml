@@ -261,3 +261,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: batch2
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: batch2

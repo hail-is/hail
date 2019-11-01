@@ -536,6 +536,16 @@ spec:
         requests:
           storage: 30Gi
 ---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: es-cluster
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: elasticsearch
+---
 apiVersion: v1
 kind: Service
 metadata:
