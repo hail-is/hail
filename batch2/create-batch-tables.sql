@@ -197,7 +197,7 @@ BEGIN
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
-  INNER JOIN batches ON batch.id = jobs.batch_id
+  INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND batches.closed
     AND job_id = in_job_id;
 
