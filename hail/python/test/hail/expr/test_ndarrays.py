@@ -87,7 +87,10 @@ def test_ndarray_slice():
         (flat[15:5], np_flat[15:5]),
         (flat[3:12:-1], np_flat[3:12:-1]),
         (flat[12:3:1], np_flat[12:3:1]),
-        (mat[::-1, :], np_mat[::-1, :])
+        (mat[::-1, :], np_mat[::-1, :]),
+        (flat[4:1:-2], np_flat[4:1:-2]),
+        (flat[0:0:1], np_flat[0:0:1]),
+        (flat[-4:-1:2], np_flat[-4:-1:2])
     )
 
 @skip_unless_spark_backend()
