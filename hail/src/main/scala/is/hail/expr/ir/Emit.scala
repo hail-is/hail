@@ -2446,6 +2446,8 @@ private class Emit(
         val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
         val codeRefMap = mutable.Map[Int, Code[Long]]()
 
+        val missingSlices = mb.newField[Boolean]
+
         coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
           sliceOrIndex match {
             case p: PTuple => {
@@ -2470,7 +2472,8 @@ private class Emit(
         val setup = Code(
           slicest.setup,
           childEmitter.setup,
-          slicesValueAddress := slicest.value[Long]
+          slicesValueAddress := slicest.value[Long],
+          missingSlices := false
         )
 
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setup) {

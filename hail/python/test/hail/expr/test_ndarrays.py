@@ -93,6 +93,8 @@ def test_ndarray_slice():
         (flat[-4:-1:2], np_flat[-4:-1:2])
     )
 
+    assert hl.eval(hl._ndarray(hl.range(20))[4:hl.null(hl.tint32)]) is None
+
 @skip_unless_spark_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
