@@ -158,7 +158,9 @@ class Container:
             async with self.step('creating'):
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
-                self.container = await docker_call_retry(docker.containers.create, config)
+                self.container = await docker_call_retry(
+                    docker.containers.create,
+                    config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with self.step(None, 'runtime'):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
