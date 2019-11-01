@@ -219,7 +219,7 @@ def test_ndarray_map():
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
 
 @skip_unless_spark_backend()
-def test_ndarray_ops():
+def test_ndarray_map2():
 
     a = 2.0
     b = 3.0
@@ -317,9 +317,12 @@ def test_ndarray_ops():
         (nrow_vec / ncube1, row_vec / cube1))
 
     # Missingness tests
-    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) + hl.null(hl.tndarray(hl.tfloat64, 2))) is None
-    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) + hl._ndarray(np.arange(10).reshape(5, 2))) is None
-    assert hl.eval(hl._ndarray(np.arange(10).reshape(5, 2)) + hl.null(hl.tndarray(hl.tfloat64, 2))) is None
+    missing = hl.null(hl.tndarray(hl.tfloat64, 2))
+    present = hl._ndarray(np.arange(10).reshape(5, 2))
+
+    assert hl.eval(missing + missing) is None
+    assert hl.eval(missing + present) is None
+    assert hl.eval(present + missing) is None
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
