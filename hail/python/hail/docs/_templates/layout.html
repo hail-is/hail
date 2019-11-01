@@ -7,7 +7,7 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['/vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js', '_static/goto.js'] %}
+{%- set script_files = script_files + ['/vendors/bootstrap/js/bootstrap.min.js', '_static/toggle.js'] %}
 {%- set css_files = css_files + ['/navbar.css', '_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotation_database_ui" %}
@@ -41,6 +41,7 @@
 
   {% endif %}
   <script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
+
   <link rel='stylesheet' href='/vendors/bootstrap/css/bootstrap.min.css' type='text/css'/>
 
   {# RTD hosts this file, so just load on non RTD builds #}
@@ -187,13 +188,6 @@
   {% include "versions.html" %}
 
   {% if not embedded %}
-
-    <script type="text/x-mathjax-config">
-      MathJax.Hub.Config({
-        positionToHash: false,
-      });
-    </script>
-
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'{{ url_root }}',
@@ -234,14 +228,15 @@
 
   {%- block footer %} {% endblock %}
 
-  <script>
-    function search() {
+  <script type="text/javascript">
+  function search() {
       var search = $('[name=q]')
       search.val('')
       search.focus()
       return false;
     }
-    Mousetrap.bind('/', search)
+    Mousetrap.bind('/', search);
   </script>
+  <script src="{{ pathto('_static/goto.js', 1) }}"></script>
 </body>
 </html>

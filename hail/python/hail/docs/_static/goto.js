@@ -1,5 +1,11 @@
-//https://caniuse.com/#feat=history
 if ((window.history && window.history.pushState && window.scrollTo)) {
+    if ('scrollRestoration' in history) {
+        window.history.scrollRestoration = 'manual';
+    }
+
+    // Firefox manual scroll restoration is broken on initial page load
+    var delay = 'scrollRestoration' in history === false || $.browser.mozilla ? 128 : 0;
+
     $(document).ready(function () {
         var navHeight = $('nav').height();
         var hash = window.location.hash ? decodeURIComponent(window.location.hash.replace('#', '')) : null;
@@ -13,7 +19,8 @@ if ((window.history && window.history.pushState && window.scrollTo)) {
 
             setTimeout(() => {
                 window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
-            }, 0)
+                history.pushState({}, null, `#${hash}`);
+            }, delay)
         }
 
         $(document).on('click', 'a', function (e) {
@@ -33,10 +40,8 @@ if ((window.history && window.history.pushState && window.scrollTo)) {
             }
 
             e.preventDefault();
-            setTimeout(() => {
-                window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
-                history.pushState({}, null, `#${hash}`);
-            }, 0);
+            window.scrollTo(0, parseInt($(elem).offset().top, 10) - navHeight);
+            history.pushState({}, null, `#${hash}`);
         });
     });
 } else {
