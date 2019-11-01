@@ -608,11 +608,11 @@ spec:
           securityContext:
             runAsUser: 1000
           resources:
-            limits:
+            requests:
               cpu: 100m
               memory: 2G
-            requests:
-              cpu: "1"
+            limits:
+              cpu: 1
               memory: 2G
           volumeMounts:
             - name: kibana-config-volume
@@ -678,6 +678,9 @@ metadata:
   labels:
     app: filebeat
 spec:
+  selector:
+    matchLabels:
+      app: filebeat
   template:
     metadata:
       labels:
