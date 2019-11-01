@@ -45,7 +45,7 @@ async def close_batch(request):
 
     record = db.execute_and_fetchone(
         '''
-SELECT state FROM batch WHERE user = %s AND batch_id = %s;
+SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
         (user, batch_id))
     if not record:
@@ -65,7 +65,7 @@ async def cancel_batch(request):
 
     record = db.execute_and_fetchone(
         '''
-SELECT state FROM batch WHERE  user = %s AND batch_id = %s;
+SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
         (user, batch_id))
     if not record:
@@ -86,7 +86,7 @@ async def delete_batch(request):
 
     record = db.execute_and_fetchone(
         '''
-SELECT state FROM batch WHERE user = %s AND batch_id = %s;
+SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
         (user, batch_id))
     if not record:
@@ -102,12 +102,12 @@ async def db_cleanup_event_loop(db, log_store):
     while True:
         try:
             async for record in db.execute_and_fetchall('''
-SELECT id FROM batch
+SELECT id FROM batches
 WHERE deleted AND (NOT closed OR n_jobs = n_completed);
 '''):
                 batch_id = record['id']
                 await log_store.delete_batch_logs(batch_id)
-                await db.just_execute('DELETE FROM batch WHERE id = %s;',
+                await db.just_execute('DELETE FROM batches WHERE id = %s;',
                                       (batch_id,))
         except Exception:
             log.exception(f'in db cleanup loop')

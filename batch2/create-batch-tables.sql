@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE IF NOT EXISTS `batch` (
+CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` VARCHAR(65535) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
-CREATE INDEX `batch_user` ON `batch` (`user`);
-CREATE INDEX `batch_deleted` ON `batch` (`deleted`);
+CREATE INDEX `batches_user` ON `batches` (`user`);
+CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`batch_id`, `job_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_id`) REFERENCES instances(id) ON DELETE SET NULL
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `job_id` INT NOT NULL,
   `parent_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `parent_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
 
@@ -160,14 +160,14 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT closed INTO cur_batch_closed FROM batch
+  SELECT closed INTO cur_batch_closed FROM batches
   WHERE id = in_batch_id AND NOT deleted;
 
   IF cur_batch_closed = 1 THEN
     COMMIT;
     SELECT 0 as rc;
   ELSEIF cur_batch_closed = 0 THEN
-    UPDATE batch SET closed = 1 WHERE id = in_batch_id;
+    UPDATE batches SET closed = 1 WHERE id = in_batch_id;
     UPDATE ready_cores
       SET ready_cores_mcpu = ready_cores_mcpu + (
         SELECT SUM(cores_mcpu) FROM jobs
@@ -194,11 +194,11 @@ BEGIN
   START TRANSACTION;
 
   SELECT state, cores_mcpu,
-    (jobs.cancelled OR batch.cancelled) AND NOT always_run
+    (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
-  INNER JOIN batch ON batch.id = jobs.batch_id
-  WHERE batch_id = in_batch_id AND batch.closed
+  INNER JOIN batches ON batch.id = jobs.batch_id
+  WHERE batch_id = in_batch_id AND batches.closed
     AND job_id = in_job_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE id = in_instance_id;
@@ -272,13 +272,13 @@ BEGIN
     SET state = new_state, status = new_status, instance_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    UPDATE batch SET n_completed = n_completed + 1 WHERE id = in_batch_id;
+    UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
     IF new_state = 'Cancelled' THEN
-      UPDATE batch SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
+      UPDATE batches SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
     ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
-      UPDATE batch SET n_failed = n_failed + 1 WHERE id = in_batch_id;
+      UPDATE batches SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
-      UPDATE batch SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
+      UPDATE batches SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
     END IF;
 
     IF cur_job_instance_id IS NOT NULL THEN
@@ -323,7 +323,7 @@ BEGIN
       cur_job_state as old_state;
   ELSE
     ROLLBACK;
-    SELECT 1 as rc, cur_job_state, 'job state not Ready or Running' as message;
+    SELECT 1 as rc, cur_job_state, 'job state not Ready, Running or complete' as message;
   END IF;
 END $$
 

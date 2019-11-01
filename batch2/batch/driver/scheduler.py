@@ -43,8 +43,8 @@ class Scheduler:
             '''
 SELECT job_id, batch_id, cores_mcpu, instance_id
 FROM jobs
-INNER JOIN batch ON batch.id = jobs.batch_id
-WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batch.closed AND batch.cancelled
+INNER JOIN batches ON batches.id = jobs.batch_id
+WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.closed AND batches.cancelled
 LIMIT 50;
 ''')
 
@@ -59,11 +59,11 @@ LIMIT 50;
         records = self.db.execute_and_fetchall(
             '''
 SELECT job_id, batch_id, spec, cores_mcpu,
-  ((jobs.cancelled OR batch.cancelled) AND NOT always_run) as cancel,
-  batch.user
+  ((jobs.cancelled OR batches.cancelled) AND NOT always_run) as cancel,
+  batches.user
 FROM jobs
-INNER JOIN batch ON batch.id = jobs.batch_id
-WHERE jobs.state = 'Ready' AND batch.closed
+INNER JOIN batches ON batches.id = jobs.batch_id
+WHERE jobs.state = 'Ready' AND batches.closed
 LIMIT 50;
 ''')
 

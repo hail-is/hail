@@ -51,7 +51,7 @@ async def notify_batch_job_complete(db, batch_id):
     record = await db.execute_and_fetchone(
         '''
 SELECT *
-FROM batch
+FROM batches
 WHERE id = %s AND closed AND n_completed = n_jobs;
 ''',
         (batch_id,))
@@ -157,12 +157,25 @@ async def unschedule_job(app, record):
     instance_id = record['instance_id']
     assert instance_id is not None
 
-    log.info(f'unscheduling job {id} on instance {instance_id}')
+    log.info(f'unscheduling job {id} from instance {instance_id}')
 
     instance = inst_pool.id_instance.get(instance_id)
     if not instance:
         log.warning(f'unschedule job {id}: unknown instance {instance_id}')
         return
+
+    await check_call_procedure(
+        db,
+        'CALL unschedule_job(%s, %s, %s);',
+        (batch_id, job_id, instance_id))
+
+    log.info(f'unschedule job {id}: updated database')
+
+    instance.adjust_free_cores(record['cores_mcpu'])
+
+    log.info(f'unschedule job {id}: updated {instance} free cores')
+
+    scheduler_state_changed.set()
 
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -177,19 +190,6 @@ async def unschedule_job(app, record):
                 raise
 
     log.info(f'unschedule job {id}: called delete job')
-
-    await check_call_procedure(
-        db,
-        'CALL unschedule_job(%s, %s, %s);',
-        (batch_id, job_id, instance_id))
-
-    log.info(f'unschedule job {id}: updated database')
-
-    instance.adjust_free_cores(record['cores_mcpu'])
-
-    log.info(f'unschedule job {id}: updated {instance} free cores')
-
-    scheduler_state_changed.set()
 
 
 async def job_config(app, record):

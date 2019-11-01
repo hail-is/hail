@@ -77,8 +77,8 @@ async def get_job(request, userdata):
         '''
 SELECT *
 FROM jobs
-INNER JOIN batch
-  ON jobs.batch_id = batch.id
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
         (user, batch_id, job_id))
@@ -123,8 +123,8 @@ async def _get_job_log(app, batch_id, job_id, user):
     record = await db.execute_and_fetchone('''
 SELECT jobs.state, ip_address
 FROM jobs
-INNER JOIN batch
-  ON jobs.batch_id = batch.id
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
@@ -185,11 +185,9 @@ async def _get_batches(app, params, user):
         where_args.append(v)
 
     sql = f'''
-SELECT * FROM batch
+SELECT * FROM batches
 WHERE user = %s AND NOT deleted AND {" AND ".join(where_conditions)};
 '''
-
-    log.info(f'get batches query {sql}')
 
     return [await batch_record_to_dict(db, record, include_jobs=False)
             async for record in db.execute_and_fetchall(sql, where_args)]
@@ -218,7 +216,7 @@ async def create_jobs(request, userdata):
         async with timer.step('fetch batch'):
             record = await db.execute_and_fetchone(
                 '''
-SELECT closed FROM batch
+SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
                 (user, batch_id))
@@ -318,7 +316,7 @@ async def create_batch(request, userdata):
         async with conn.cursor() as cursor:
             await cursor.execute(
                 '''
-INSERT INTO batch (userdata, user, attributes, callback, n_jobs)
+INSERT INTO batches (userdata, user, attributes, callback, n_jobs)
 VALUES (%s, %s, %s, %s, %s);
 ''',
                 (json.dumps(userdata), user, json.dumps(attributes),
@@ -343,7 +341,7 @@ async def _get_batch(app, batch_id, user, include_jobs):
 
     record = await db.execute_and_fetchone(
         '''
-SELECT * FROM batch
+SELECT * FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''', (user, batch_id))
     if not record:
@@ -356,7 +354,7 @@ async def _cancel_batch(app, batch_id, user):
 
     record = await db.execute_and_fetchone(
         '''
-SELECT closed FROM batch
+SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id))
@@ -366,7 +364,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPBadRequest(reason='cannot cancel open batch {batch_id}')
 
     await db.execute_update(
-        'UPDATE batch SET cancelled = closed WHERE id = %s;', (batch_id,))
+        'UPDATE batches SET cancelled = closed WHERE id = %s;', (batch_id,))
 
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -409,7 +407,7 @@ async def close_batch(request, userdata):
 
     record = await db.execute_and_fetchone(
         '''
-SELECT closed FROM batch
+SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id))
@@ -439,7 +437,7 @@ async def delete_batch(request, userdata):
 
     record = await db.execute_and_fetchone(
         '''
-SELECT closed FROM batch
+SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id))
@@ -447,7 +445,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     await db.execute_update(
-        'UPDATE batch SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
+        'UPDATE batches SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
 
     if record['closed']:
         async with aiohttp.ClientSession(
@@ -531,8 +529,8 @@ async def ui_get_job_status(request, userdata):
     record = await db.execute_and_fetchone('''
 SELECT jobs.state, status, ip_address
 FROM jobs
-INNER JOIN batch
-  ON jobs.batch_id = batch.id
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
 LEFT JOIN instances
   ON jobs.instance_id = instances.id
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
