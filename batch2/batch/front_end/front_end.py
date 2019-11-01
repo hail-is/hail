@@ -178,7 +178,7 @@ async def _get_batches(app, params, user):
 
         where_conditions.append('''
 (EXISTS (SELECT * FROM `batch-attributes`
-         WHERE `batch-attributes`.batch_id = batch.id AND
+         WHERE `batch-attributes`.batch_id = batches.id AND
            `batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s))
 ''')
         where_args.append(k[2:])
