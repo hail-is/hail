@@ -475,3 +475,4 @@ def test_ndarray_mixed():
     assert hl.eval(
         (hl._nd.zeros((5, 10)).map(lambda x: x - 2) +
          hl._nd.ones((5, 10)).map(lambda x: x + 5)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64))).T.reshape((10, 5))) is None
+    assert hl.eval(hl.or_missing(False, hl._ndarray(np.arange(10)).reshape((5,2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
