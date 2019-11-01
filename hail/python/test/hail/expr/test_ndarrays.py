@@ -430,6 +430,10 @@ def test_ndarray_matmul():
         (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
     )
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
+    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)) @ hl._ndarray(np.arange(10).reshape(5, 2))) is None
+    assert hl.eval(hl._ndarray(np.arange(10).reshape(5, 2)) @ hl.null(hl.tndarray(hl.tint64, 2))) is None
+
     with pytest.raises(ValueError):
         m @ 5
 
@@ -461,3 +465,7 @@ def test_ndarray_full():
         (hl._nd.full(7, 9), np.full(7, 9)),
         (hl._nd.full((3, 4, 5), 9), np.full((3, 4, 5), 9))
     )
+
+@skip_unless_spark_backend()
+def test_ndarray_mixed():
+    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(lambda x: x * x).reshape((4, 5)).T) is None

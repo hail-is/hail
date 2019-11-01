@@ -1621,9 +1621,12 @@ private class Emit(
         val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(leftShapeArray) else Array[Code[Long]]()
         val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rightShapeArray) else Array[Code[Long]]()
 
-        val setup = Code(
+        val missingSetup = Code(
           lT.setup,
-          rT.setup,
+          rT.setup
+        )
+
+        val shapeSetup = Code(
           leftND := lT.value[Long],
           rightND := rT.value[Long],
           leftShapeArraySetup,
@@ -1637,7 +1640,7 @@ private class Emit(
 
         val eVti = typeToTypeInfo(numericElementType.virtualType)
 
-        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, setup) {
+        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, lT.m || rT.m) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val element = coerce[Any](mb.newField("matmul_element")(eVti))
             val k = mb.newField[Long]
