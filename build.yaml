@@ -592,7 +592,6 @@ steps:
     - users_database
     - create_auth_tables
     - auth_image
-    - check_auth
     - create_dummy_oauth2_client_secret
  - kind: createDatabase
    name: ci_database
@@ -640,7 +639,7 @@ steps:
    dockerFile: batch2/Dockerfile.tables
    contextPath: batch2
    dependsOn:
-    - base_image
+    - service_base_image
  - kind: deploy
    name: create_batch_tables
    namespace:
@@ -794,7 +793,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_batch2
-    - deploy_batch_pods
     - test_batch2_image
  - kind: runImage
    name: delete_batch2_instances
@@ -802,11 +800,13 @@ steps:
      valueFrom: base_image.image
    alwaysRun: true     
    script: |
-     set -e
+     set -ex
      ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     date
-     gcloud -q compute instances list --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' --format="value(name)" | xargs gcloud -q compute instances delete --zone $ZONE || true
+     gcloud -q compute instances list \
+         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
+         --format="value(name)" \
+       | xargs -r gcloud -q compute instances delete --zone $ZONE
    secrets:
     - name: test-gsa-key
       mountPath: /test-gsa-key

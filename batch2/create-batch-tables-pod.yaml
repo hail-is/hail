@@ -12,16 +12,17 @@ spec:
      - |
        set -ex
        # index creation isn't idempotent, don't create if a table exists
-       JOBS=$(echo "SHOW TABLES LIKE 'jobs';" | mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf -s)
+       JOBS=$(echo "SHOW TABLES LIKE 'jobs';" | mysql --defaults-extra-file=/sql-config/sql-config.cnf -s)
        if [ "$JOBS" != "jobs" ]; then
-         mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf < ./create-batch-tables.sql
+         mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-batch-tables.sql
+         python3 ./insert-batch-tokens.py
        fi
     volumeMounts:
-      - mountPath: /secrets/batch-admin
+      - mountPath: /sql-config
         readOnly: true
-        name: batch2-admin-secret
+        name: sql-config
   volumes:
-    - name: batch2-admin-secret
+    - name: sql-config
       secret:
         secretName: "{{ batch2_database.admin_secret_name }}"
   restartPolicy: Never

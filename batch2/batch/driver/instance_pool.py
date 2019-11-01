@@ -1,10 +1,10 @@
 import asyncio
 import sortedcontainers
 import logging
-import time
+import googleapiclient.errors
 
 from ..utils import new_token
-from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, INSTANCE_ID, \
+from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
 
@@ -12,12 +12,25 @@ from .instance import Instance
 
 log = logging.getLogger('instance_pool')
 
+WORKER_CORES_MCPU = WORKER_CORES * 1000
+
+log.info(f'WORKER_CORES {WORKER_CORES}')
+log.info(f'WORKER_TYPE {WORKER_TYPE}')
+log.info(f'WORKER_DISK_SIZE_GB {WORKER_DISK_SIZE_GB}')
+log.info(f'POOL_SIZE {POOL_SIZE}')
+log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
+
 
 class InstancePool:
-    def __init__(self, driver):
-        self.driver = driver
-        self.worker_type = WORKER_TYPE
-        self.worker_cores = WORKER_CORES
+    def __init__(self, app, machine_name_prefix):
+        self.app = app
+        self.instance_id = app['instance_id']
+        self.log_store = app['log_store']
+        self.scheduler_state_changed = app['scheduler_state_changed']
+        self.db = app['db']
+        self.gservices = app['gservices']
+        self.k8s = app['k8s_client']
+        self.machine_name_prefix = machine_name_prefix
 
         if WORKER_TYPE == 'standard':
             m = 3.75
@@ -28,77 +41,95 @@ class InstancePool:
             m = 0.9
         self.worker_memory = 0.9 * m
 
-        self.worker_capacity_mcpu = 2 * self.worker_cores * 1000
-        self.worker_disk_size_gb = WORKER_DISK_SIZE_GB
-        self.pool_size = POOL_SIZE
-        self.max_instances = MAX_INSTANCES
+        # active instances only
+        self.active_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
 
-        self.token = new_token()
-        self.machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
+        self.n_instances_by_state = {
+            'pending': 0,
+            'active': 0,
+            'inactive': 0,
+            'deleted': 0
+        }
 
-        self.worker_logs_directory = f'gs://{self.driver.batch_bucket}/{BATCH_NAMESPACE}/{INSTANCE_ID}'
-        log.info(f'writing worker logs to {self.worker_logs_directory}')
+        # pending and active
+        self.live_free_cores_mcpu = 0
 
-        self.instances = sortedcontainers.SortedSet(key=lambda inst: (inst.healthy, inst.last_updated))
-
-        # for active instances only
-        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
-
-        self.n_pending_instances = 0
-        self.n_active_instances = 0
-
-        # for pending and active
-        self.free_cores_mcpu = 0
+        self.id_instance = {}
 
         self.token_inst = {}
 
-    def token_machine_name(self, inst_token):
-        return f'{self.machine_name_prefix}{inst_token}'
-
-    async def initialize(self):
+    async def async_init(self):
         log.info('initializing instance pool')
 
-        for record in await self.driver.db.instances.get_all_records():
-            inst = Instance.from_record(self, record)
-            self.token_inst[inst.token] = inst
-            self.instances.add(inst)
+        async for record in self.db.execute_and_fetchall(
+                'SELECT * FROM instances;'):
+            instance = Instance.from_record(self.app, record)
+            self.add_instance(instance)
 
-        log.info('healing instance pool')
-        await asyncio.gather(*[inst.heal() for inst in self.instances])
-        log.info('instance pool healed')
-
-    async def start(self):
-        log.info('starting instance pool')
-        asyncio.ensure_future(self.control_loop())
         asyncio.ensure_future(self.event_loop())
-        asyncio.ensure_future(self.heal_loop())
-        log.info('instance pool started')
+        asyncio.ensure_future(self.control_loop())
+
+    @property
+    def n_instances(self):
+        return len(self.token_inst)
+
+    def adjust_for_remove_instance(self, instance):
+        self.n_instances_by_state[instance.state] -= 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu -= instance.free_cores_mcpu
+        if instance.state == 'active':
+            self.active_instances_by_free_cores.remove(instance)
+
+    async def remove_instance(self, instance):
+        await self.db.just_execute(
+            'DELETE FROM instances WHERE id = %s;', (instance.id,))
+
+        self.adjust_for_remove_instance(instance)
+
+        del self.token_inst[instance.token]
+        del self.id_instance[instance.id]
+
+    def adjust_for_add_instance(self, instance):
+        self.n_instances_by_state[instance.state] += 1
+
+        if instance.state in ('pending', 'active'):
+            self.live_free_cores_mcpu += instance.free_cores_mcpu
+        if instance.state == 'active':
+            self.active_instances_by_free_cores.add(instance)
+
+    def add_instance(self, instance):
+        assert instance.token not in self.token_inst
+        self.token_inst[instance.token] = instance
+        self.id_instance[instance.id] = instance
+
+        self.adjust_for_add_instance(instance)
 
     async def create_instance(self):
         while True:
             inst_token = new_token()
             if inst_token not in self.token_inst:
                 break
-        # reserve
-        self.token_inst[inst_token] = None
+        machine_name = f'{self.machine_name_prefix}{inst_token}'
 
-        log.info(f'creating instance {inst_token}')
+        instance = await Instance.create(self.app, machine_name, inst_token, WORKER_CORES_MCPU)
+        self.add_instance(instance)
 
-        machine_name = self.token_machine_name(inst_token)
+        log.info(f'created {instance}')
+
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
             'labels': {
                 'role': 'batch2-agent',
                 'inst_token': inst_token,
-                'batch_instance': INSTANCE_ID,
                 'namespace': BATCH_NAMESPACE
             },
 
             'disks': [{
                 'boot': True,
                 'autoDelete': True,
-                'diskSizeGb': self.worker_disk_size_gb,
+                'diskSizeGb': WORKER_DISK_SIZE_GB,
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-5',
                 }
@@ -131,44 +162,56 @@ class InstancePool:
                     'key': 'startup-script',
                     'value': f'''
 #!/bin/bash
-set -ex
+set -x
 
-export BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
+curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_script"  >./run.sh
+
+nohup /bin/bash run.sh >run.log 2>&1 &
+'''
+                }, {
+                    'key': 'run_script',
+                    'value': '''
+#!/bin/bash
+set -x
+
 export HOME=/root
 
-function retry {{
-    local n=1
-    local max=5
-    local delay=15
-    while true; do
-        "$@" > worker.log 2>&1 && break || {{
-            if [[ $n -lt $max ]]; then
-                ((n++))
-                echo "Command failed. Attempt $n/$max:"
-                sleep $delay;
-            else
-                export INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
-                export WORKER_LOGS_DIRECTORY=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_directory")
+CORES=$(nproc)
+NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
+INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
+INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 
-                echo "startup of batch worker failed after $n attempts;" >> worker.log
-                gsutil -m cp worker.log $WORKER_LOGS_DIRECTORY/$INST_TOKEN/
+BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
+INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
-                export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-                export ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-                gcloud -q compute instances delete $NAME --zone=$ZONE
-             fi
-        }}
-    done
-}}
+BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 
-retry docker run \
-           -v /var/run/docker.sock:/var/run/docker.sock \
-           -v /usr/bin/docker:/usr/bin/docker \
-           -v /batch:/batch \
-           -p 5000:5000 \
-           -d --entrypoint "/bin/bash" \
-           $BATCH_WORKER_IMAGE \
-           -c "sh /run-worker.sh"
+# retry once
+docker pull $BATCH_WORKER_IMAGE || \
+    (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
+
+# So here I go it's my shot.
+docker run \
+    -e CORES=$CORES \
+    -e NAMESPACE=$NAMESPACE \
+    -e INST_TOKEN=$INST_TOKEN \
+    -e INTERNAL_IP=$INTERNAL_IP \
+    -e BUCKET_NAME=$BUCKET_NAME \
+    -e INSTANCE_ID=$INSTANCE_ID \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /usr/bin/docker:/usr/bin/docker \
+    -v /batch:/batch \
+    -v /logs:/logs \
+    -p 5000:5000 \
+    $BATCH_WORKER_IMAGE \
+    python3 -u -m batch.worker >worker.log 2>&1
+
+# this has to match LogStore.worker_log_path
+gsutil -m cp run.log worker.log /var/log/syslog $LOG_ROOT/worker/$NAME/
+
+gcloud -q compute instances delete $NAME --zone=$ZONE
 '''
                 }, {
                     'key': 'inst_token',
@@ -177,14 +220,14 @@ retry docker run \
                     'key': 'batch_worker_image',
                     'value': BATCH_WORKER_IMAGE
                 }, {
-                    'key': 'batch_instance',
-                    'value': INSTANCE_ID
-                }, {
                     'key': 'namespace',
                     'value': BATCH_NAMESPACE
                 }, {
-                    'key': 'worker_logs_directory',
-                    'value': self.worker_logs_directory
+                    'key': 'bucket_name',
+                    'value': self.log_store.bucket_name
+                }, {
+                    'key': 'instance_id',
+                    'value': self.log_store.instance_id
                 }]
             },
             'tags': {
@@ -194,17 +237,34 @@ retry docker run \
             },
         }
 
-        await self.driver.gservices.create_instance(config)
-        log.info(f'created machine {machine_name} with logs at {self.worker_logs_directory}/{inst_token}/worker.log')
+        await self.gservices.create_instance(config)
 
-        inst = await Instance.create(self, machine_name, inst_token)
+        log.info(f'created machine {machine_name}'
+                 f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
 
-        self.token_inst[inst_token] = inst
-        self.instances.add(inst)
+    async def call_delete_instance(self, instance, force=False):
+        if instance.state == 'deleted' and not force:
+            return
+        if instance.state not in ('inactive', 'deleted'):
+            await instance.deactivate()
 
-        log.info(f'created instance {inst}')
+        try:
+            await self.gservices.delete_instance(instance.name)
+        except googleapiclient.errors.HttpError as e:
+            if e.resp['status'] == '404':
+                log.info(f'{instance} already delete done')
+                await self.remove_instance(instance)
+                return
+            raise
 
-        return inst
+    async def handle_preempt_event(self, instance):
+        await self.call_delete_instance(instance)
+
+    async def handle_delete_done_event(self, instance):
+        await self.remove_instance(instance)
+
+    async def handle_call_delete_event(self, instance):
+        await instance.mark_deleted()
 
     async def handle_event(self, event):
         if not event.payload:
@@ -234,21 +294,21 @@ retry docker run \
             return
 
         inst_token = name[len(self.machine_name_prefix):]
-        inst = self.token_inst.get(inst_token)
-        if not inst:
+        instance = self.token_inst.get(inst_token)
+        if not instance:
             log.warning(f'event for unknown instance {inst_token}')
             return
 
         if event_subtype == 'compute.instances.preempted':
-            log.info(f'event handler: handle preempt {inst}')
-            await inst.handle_preempt_event()
+            log.info(f'event handler: handle preempt {instance}')
+            await self.handle_preempt_event(instance)
         elif event_subtype == 'compute.instances.delete':
             if event_type == 'GCE_OPERATION_DONE':
-                log.info(f'event handler: remove {inst}')
-                await inst.remove()
+                log.info(f'event handler: delete {instance} done')
+                await self.handle_delete_done_event(instance)
             elif event_type == 'GCE_API_CALL':
-                log.info(f'event handler: handle call delete {inst}')
-                await inst.handle_call_delete_event()
+                log.info(f'event handler: handle call delete {instance}')
+                await self.handle_call_delete_event(instance)
             else:
                 log.warning(f'unknown event type {event_type}')
         else:
@@ -258,56 +318,32 @@ retry docker run \
         log.info(f'starting event loop')
         while True:
             try:
-                async for event in await self.driver.gservices.stream_entries():
+                async for event in await self.gservices.stream_entries():
                     await self.handle_event(event)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 log.exception('event loop failed due to exception')
             await asyncio.sleep(15)
 
-    async def heal_loop(self):
-        log.info(f'starting heal loop')
-        while True:
-            try:
-                if self.instances:
-                    # 0 is the smallest (oldest)
-                    inst = self.instances[0]
-                    inst_age = time.time() - inst.last_updated
-                    if inst_age > 60:
-                        log.info(f'heal: oldest {inst} age {inst_age}s')
-                        await inst.heal()
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception('instance pool heal loop: caught exception')
-
-            await asyncio.sleep(1)
-
     async def control_loop(self):
         log.info(f'starting control loop')
-
-        log.info(f'WORKER_CORES={WORKER_CORES}')
-        log.info(f'WORKER_TYPE={WORKER_TYPE}')
-        log.info(f'WORKER_DISK_SIZE_GB={WORKER_DISK_SIZE_GB}')
-        log.info(f'POOL_SIZE={POOL_SIZE}')
-        log.info(f'MAX_INSTANCES={MAX_INSTANCES}')
-
         while True:
             try:
-                log.info(f'n_pending_instances {self.n_pending_instances}'
-                         f' n_active_instances {self.n_active_instances}'
-                         f' pool_size {self.pool_size}'
-                         f' n_instances {len(self.instances)}'
-                         f' max_instances {self.max_instances}'
-                         f' free_cores {self.free_cores_mcpu / 1000}'
-                         f' ready_cores {self.driver.ready_cores_mcpu / 1000}')
+                ready_cores = await self.db.execute_and_fetchone(
+                    'SELECT * FROM ready_cores;')
+                ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
-                if self.driver.ready_cores_mcpu > 0:
-                    instances_needed = (self.driver.ready_cores_mcpu - self.free_cores_mcpu + self.worker_capacity_mcpu - 1) // self.worker_capacity_mcpu
+                log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
+                         f' live_free_cores {self.live_free_cores_mcpu / 1000}'
+                         f' ready_cores {ready_cores_mcpu / 1000}')
+
+                if ready_cores_mcpu > 0:
+                    n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+                    instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + WORKER_CORES_MCPU - 1) // WORKER_CORES_MCPU
                     instances_needed = min(instances_needed,
-                                           self.pool_size - (self.n_pending_instances + self.n_active_instances),
-                                           self.max_instances - len(self.instances),
+                                           POOL_SIZE - n_live_instances,
+                                           MAX_INSTANCES - self.n_instances,
                                            # 20 queries/s; our GCE long-run quota
                                            300)
                     if instances_needed > 0:
@@ -316,7 +352,7 @@ retry docker run \
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 log.exception('instance pool control loop: caught exception')
 
             await asyncio.sleep(15)

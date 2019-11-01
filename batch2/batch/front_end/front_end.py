@@ -2,33 +2,31 @@ import os
 import concurrent
 import logging
 import json
-import time
-
+import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
 import cerberus
-import kubernetes as kube
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
-
+import google.oauth2.service_account
 from hailtop.utils import request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
-from gear import setup_aiohttp_session, \
+from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     check_csrf_token
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 # import uvloop
 
-from ..batch import Batch, Job
+from ..globals import tasks
+from ..utils import parse_cpu_in_mcpu, LoggingTimer
+from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
-from ..database import BatchDatabase, JobsBuilder
-from ..datetime_json import JSON_ENCODER
-from ..batch_configuration import INSTANCE_ID
+from ..database import check_call_procedure
 
 from . import schemas
 
@@ -39,7 +37,6 @@ log = logging.getLogger('batch.front_end')
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
-REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
 REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
@@ -51,38 +48,14 @@ REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', ve
 REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_LOGS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
-REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/pod_status', verb="GET")
-
-READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
-
-log.info(f'INSTANCE_ID = {INSTANCE_ID}')
+REQUEST_TIME_GET_JOB_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/status', verb="GET")
 
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-
-def create_job(app, jobs_builder, batch_id, job_spec):  # pylint: disable=R0912
-    job_id = job_spec['job_id']
-    parent_ids = job_spec.pop('parent_ids', [])
-
-    state = 'Running' if len(parent_ids) == 0 else 'Pending'
-
-    directory = app['log_store'].gs_job_output_directory(batch_id, job_id)
-
-    jobs_builder.create_job(
-        batch_id=batch_id,
-        job_id=job_id,
-        state=state,
-        spec=json.dumps(job_spec),
-        directory=directory,
-        status=None)
-
-    for parent in parent_ids:
-        jobs_builder.create_job_parent(
-            batch_id=batch_id,
-            job_id=job_id,
-            parent_id=parent)
+BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
 
 
 @routes.get('/healthcheck')
@@ -94,35 +67,74 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @prom_async_time(REQUEST_TIME_GET_JOB)
 @rest_authenticated_users_only
 async def get_job(request, userdata):
+    db = request.app['db']
+
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    job = await Job.from_db(request.app, batch_id, job_id, user)
-    if not job:
+    record = await db.execute_and_fetchone(
+        '''
+SELECT *
+FROM jobs
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
+WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+''',
+        (user, batch_id, job_id))
+
+    if not record:
         raise web.HTTPNotFound()
-    return web.json_response(job.to_dict())
+    return web.json_response(job_record_to_dict(record))
+
+
+async def _get_job_log_from_record(app, batch_id, job_id, record):
+    state = record['state']
+    ip_address = record['ip_address']
+    if state == 'Running':
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                url = (f'http://{ip_address}:5000'
+                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+                resp = await request_retry_transient_errors(session, 'GET', url)
+                return await resp.json()
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    return None
+                raise
+
+    # FIXME handle partial logs in Error case
+    if state in ('Error', 'Failed', 'Success'):
+        log_store = app['log_store']
+
+        async def _read_log_from_gcs(task):
+            log = await log_store.read_log_file(batch_id, job_id, task)
+            return task, log
+
+        return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
+
+    return None
 
 
 async def _get_job_log(app, batch_id, job_id, user):
-    job = await Job.from_db(app, batch_id, job_id, user)
-    if not job:
+    db = app['db']
+
+    record = await db.execute_and_fetchone('''
+SELECT jobs.state, ip_address
+FROM jobs
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
+LEFT JOIN instances
+  ON jobs.instance_id = instances.id
+WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+''',
+                                           (user, batch_id, job_id))
+    if not record:
         raise web.HTTPNotFound()
-
-    job_log = await job._read_logs()
-    if job_log:
-        return job_log
-    raise web.HTTPNotFound()
-
-
-async def _get_pod_status(app, batch_id, job_id, user):
-    job = await Job.from_db(app, batch_id, job_id, user)
-    if not job:
-        raise web.HTTPNotFound()
-
-    pod_statuses = await job._read_pod_status()
-    if pod_statuses:
-        return JSON_ENCODER.encode(pod_statuses)
+    log = await _get_job_log_from_record(app, batch_id, job_id, record)
+    if log:
+        return log
     raise web.HTTPNotFound()
 
 
@@ -137,139 +149,229 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     return web.json_response(job_log)
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
-@prom_async_time(REQUEST_TIME_GET_POD_STATUS)
-@rest_authenticated_users_only
-async def get_pod_status(request, userdata):  # pylint: disable=R1710
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-    pod_spec = await _get_pod_status(request.app, batch_id, job_id, user)
-    return web.json_response(pod_spec)
+async def _get_batches(app, params, user):
+    db = app['db']
 
+    where_conditions = []
+    where_args = [user]
 
-async def _get_batches_list(app, params, user):
     complete = params.get('complete')
-    if complete:
-        complete = complete == '1'
+    if complete is not None:
+        complete_expr = '(closed AND n_completed = n_jobs)'
+        if complete == '1':
+            where_conditions.append(complete_expr)
+        else:
+            where_conditions.append(f'(NOT {complete_expr})')
     success = params.get('success')
-    if success:
-        success = success == '1'
-    attributes = {}
+    if success is not None:
+        success_expr = '(closed AND n_succeeded = n_jobs)'
+        if success == '1':
+            where_conditions.append(success_expr)
+        else:
+            where_conditions.append(f'(NOT {success_expr})')
+
     for k, v in params.items():
         if k in ('complete', 'success'):  # params does not support deletion
             continue
         if not k.startswith('a:'):
             raise web.HTTPBadRequest(reason=f'unknown query parameter {k}')
-        attributes[k[2:]] = v
 
-    records = await app['db'].batch.find_records(user=user,
-                                                 complete=complete,
-                                                 success=success,
-                                                 deleted=False,
-                                                 attributes=attributes)
+        where_conditions.append('''
+(EXISTS (SELECT * FROM `batch-attributes`
+         WHERE `batch-attributes`.batch_id = batches.id AND
+           `batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s))
+''')
+        where_args.append(k[2:])
+        where_args.append(v)
 
-    return [await Batch.from_record(app, batch).to_dict(include_jobs=False)
-            for batch in records]
+    sql = f'''
+SELECT * FROM batches
+WHERE user = %s AND NOT deleted AND {" AND ".join(where_conditions)};
+'''
+
+    return [await batch_record_to_dict(db, record, include_jobs=False)
+            async for record in db.execute_and_fetchall(sql, where_args)]
 
 
 @routes.get('/api/v1alpha/batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
 @rest_authenticated_users_only
-async def get_batches_list(request, userdata):
+async def get_batches(request, userdata):
     params = request.query
     user = userdata['username']
-    return web.json_response(await _get_batches_list(request.app, params, user))
+    return web.json_response(await _get_batches(request.app, params, user))
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
-    start = time.time()
     app = request.app
+    db = app['db']
+
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
-    start1 = time.time()
-    batch = await Batch.from_db(app, batch_id, user)
-    log.info(f'took {round(time.time() - start1, 3)} seconds to get batch from db')
+    async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
+        async with timer.step('fetch batch'):
+            record = await db.execute_and_fetchone(
+                '''
+SELECT closed FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+                (user, batch_id))
 
-    if not batch:
-        raise web.HTTPNotFound()
-    if batch.closed:
-        raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
+        if not record:
+            raise web.HTTPNotFound()
+        if record['closed']:
+            raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
 
-    start2 = time.time()
-    job_specs = await request.json()
-    log.info(f'took {round(time.time() - start2, 3)} seconds to get data from server')
+        async with timer.step('get request json'):
+            job_specs = await request.json()
 
-    start3 = time.time()
-    try:
-        batch_client.validate.validate_jobs(job_specs)
-    except batch_client.validate.ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
-    log.info(f"took {round(time.time() - start3, 3)} seconds to validate spec")
+        async with timer.step('validate job_specs'):
+            try:
+                batch_client.validate.validate_jobs(job_specs)
+            except batch_client.validate.ValidationError as e:
+                raise web.HTTPBadRequest(reason=e.reason)
 
-    start4 = time.time()
-    jobs_builder = JobsBuilder(app['db'])
-    try:
-        for job_spec in job_specs:
-            create_job(app, jobs_builder, batch.id, job_spec)
+        async with timer.step('build db args'):
+            jobs_args = []
+            jobs_parents_args = []
 
-        success = await jobs_builder.commit()
-        if not success:
-            raise web.HTTPBadRequest(reason=f'insertion of jobs in db failed')
-    finally:
-        await jobs_builder.close()
+            for spec in job_specs:
+                job_id = spec['job_id']
+                parent_ids = spec.pop('parent_ids', [])
+                always_run = spec.pop('always_run', False)
 
-    log.info(f'took {round(time.time() - start4, 3)} seconds to commit jobs to db')
+                resources = spec.get('resources')
+                if not resources:
+                    resources = {}
+                    spec['resources'] = resources
+                if 'cpu' not in resources:
+                    resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+                if 'memory' not in resources:
+                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-    log.info(f'took {round(time.time() - start, 3)} seconds to create jobs from start to finish')
-    return web.Response()
+                cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+
+                secrets = spec.get('secrets')
+                if not secrets:
+                    secrets = []
+                    spec['secrets'] = secrets
+                secrets.append({
+                    'namespace': 'batch-pods',  # FIXME unused
+                    'name': userdata['gsa_key_secret_name'],
+                    'mount_path': '/gsa-key',
+                    'mount_in_copy': True
+                })
+
+                state = 'Ready' if len(parent_ids) == 0 else 'Pending'
+
+                jobs_args.append(
+                    (batch_id, job_id, state, json.dumps(spec),
+                     always_run, cores_mcpu, len(parent_ids)))
+
+                for parent_id in parent_ids:
+                    jobs_parents_args.append(
+                        (batch_id, job_id, parent_id))
+
+        async with timer.step('insert jobs'):
+            async with db.pool.acquire() as conn:
+                await conn.begin()
+                async with conn.cursor() as cursor:
+                    await cursor.executemany('''
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+''',
+                                             jobs_args)
+                async with conn.cursor() as cursor:
+                    await cursor.executemany('''
+INSERT INTO `jobs-parents` (batch_id, job_id, parent_id)
+VALUES (%s, %s, %s);
+''',
+                                             jobs_parents_args)
+                await conn.commit()
+
+        return web.Response()
 
 
 @routes.post('/api/v1alpha/batches/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_BATCH)
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
-    start = time.time()
-    parameters = await request.json()
+    app = request.app
+    db = app['db']
+
+    batch_spec = await request.json()
 
     validator = cerberus.Validator(schemas.batch_schema)
-    if not validator.validate(parameters):
-        raise web.HTTPBadRequest(reason='invalid request: {}'.format(validator.errors))
+    if not validator.validate(batch_spec):
+        raise web.HTTPBadRequest(reason=f'invalid request: {validator.errors}')
 
-    batch = await Batch.create_batch(
-        request.app,
-        attributes=parameters.get('attributes'),
-        callback=parameters.get('callback'),
-        userdata=userdata,
-        n_jobs=parameters['n_jobs'])
-    if batch is None:
-        raise web.HTTPBadRequest(reason=f'creation of batch in db failed')
+    user = userdata['username']
+    attributes = batch_spec.get('attributes')
+    async with db.pool.acquire() as conn:
+        await conn.begin()
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+INSERT INTO batches (userdata, user, attributes, callback, n_jobs)
+VALUES (%s, %s, %s, %s, %s);
+''',
+                (json.dumps(userdata), user, json.dumps(attributes),
+                 batch_spec.get('callback'), batch_spec['n_jobs']))
+            id = cursor.lastrowid
 
-    log.info(f'took {round(time.time() - start, 3)} seconds to initialize batch {batch.id} in db')
-    return web.json_response(await batch.to_dict(include_jobs=False))
+        if attributes:
+            async with conn.cursor() as cursor:
+                await cursor.executemany(
+                    '''
+INSERT INTO `batch-attributes` (batch_id, `key`, `value`)
+VALUES (%s, %s, %s)
+''',
+                    [(id, k, v) for k, v in attributes.items()])
+        await conn.commit()
+
+    return web.json_response({'id': id})
 
 
-async def _get_batch(app, batch_id, user, limit=None, offset=None):
-    batch = await Batch.from_db(app, batch_id, user)
-    if not batch:
+async def _get_batch(app, batch_id, user, include_jobs):
+    db = app['db']
+
+    record = await db.execute_and_fetchone(
+        '''
+SELECT * FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''', (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    return await batch.to_dict(include_jobs=True, limit=limit, offset=offset)
+    return await batch_record_to_dict(db, record, include_jobs=include_jobs)
 
 
 async def _cancel_batch(app, batch_id, user):
-    batch = await Batch.from_db(app, batch_id, user)
-    if not batch:
+    db = app['db']
+
+    record = await db.execute_and_fetchone(
+        '''
+SELECT closed FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+        (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    await batch.cancel()
+    if not record['closed']:
+        raise web.HTTPBadRequest(reason='cannot cancel open batch {batch_id}')
+
+    await db.execute_update(
+        'UPDATE batches SET cancelled = closed WHERE id = %s;', (batch_id,))
+
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'))
+
     return web.Response()
 
 
@@ -280,9 +382,8 @@ async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     params = request.query
-    limit = params.get('limit')
-    offset = params.get('offset')
-    return web.json_response(await _get_batch(request.app, batch_id, user, limit=limit, offset=offset))
+    include_jobs = params.get('include_jobs') == '1'
+    return web.json_response(await _get_batch(request.app, batch_id, user, include_jobs))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -301,15 +402,27 @@ async def cancel_batch(request, userdata):
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    batch = await Batch.from_db(request.app, batch_id, user)
-    if not batch:
+
+    db = request.app['db']
+
+    record = await db.execute_and_fetchone(
+        '''
+SELECT closed FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+        (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    await batch.close()
+
+    await check_call_procedure(
+        db, 'CALL close_batch(%s);', (batch_id,))
+
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'))
+
     return web.Response()
 
 
@@ -319,14 +432,34 @@ async def close_batch(request, userdata):
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    batch = await Batch.from_db(request.app, batch_id, user)
-    if not batch:
+
+    db = request.app['db']
+
+    record = await db.execute_and_fetchone(
+        '''
+SELECT closed FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+        (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        await request_retry_transient_errors(
-            session, 'DELETE',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
+
+    await db.execute_update(
+        'UPDATE batches SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
+
+    if record['closed']:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                await request_retry_transient_errors(
+                    session, 'DELETE',
+                    deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    pass
+                else:
+                    raise
+
     return web.Response()
 
 
@@ -336,11 +469,8 @@ async def delete_batch(request, userdata):
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    params = request.query
-    limit = params.get('limit')
-    offset = params.get('offset')
     page_context = {
-        'batch': await _get_batch(request.app, batch_id, user, limit=limit, offset=offset)
+        'batch': await _get_batch(request.app, batch_id, user, include_jobs=True)
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 
@@ -363,7 +493,7 @@ async def ui_cancel_batch(request, userdata):
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
-    batches = await _get_batches_list(request.app, params, user)
+    batches = await _get_batches(request.app, params, user)
     page_context = {
         'batch_list': batches[::-1]
     }
@@ -385,21 +515,58 @@ async def ui_get_job_log(request, userdata):
     return await render_template('batch2', request, userdata, 'job_log.html', page_context)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
-@prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
-@aiohttp_jinja2.template('pod_status.html')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/status')
+@prom_async_time(REQUEST_TIME_GET_JOB_STATUS_UI)
+@aiohttp_jinja2.template('job_status.html')
 @web_authenticated_users_only()
-async def ui_get_pod_status(request, userdata):
+async def ui_get_job_status(request, userdata):
+    db = request.app['db']
+
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
+
+    record = await db.execute_and_fetchone('''
+SELECT jobs.state, status, ip_address
+FROM jobs
+INNER JOIN batches
+  ON jobs.batch_id = batches.id
+LEFT JOIN instances
+  ON jobs.instance_id = instances.id
+WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+''',
+                                           (user, batch_id, job_id))
+    if not record:
+        raise web.HTTPNotFound()
+
+    state = record['state']
+    ip_address = record['ip_address']
+
+    status = record['status']
+    if status is not None:
+        status = json.loads(status)
+
+    if state == 'Running':
+        assert status is None
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                url = (f'http://{ip_address}:5000'
+                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+                resp = await request_retry_transient_errors(session, 'GET', url)
+                status = await resp.json()
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    status = None
+                else:
+                    raise
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'pod_status': json.dumps(
-            json.loads(await _get_pod_status(request.app, batch_id, job_id, user)), indent=2)
+        'job_status': json.dumps(status, indent=2)
     }
-    return await render_template('batch2', request, userdata, 'pod_status.html', page_context)
+    return await render_template('batch2', request, userdata, 'job_status.html', page_context)
 
 
 @routes.get('')
@@ -411,24 +578,29 @@ async def index(request, userdata):
 
 
 async def on_startup(app):
-    pool = concurrent.futures.ThreadPoolExecutor()
-    app['blocking_pool'] = pool
-
-    if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-        kube.config.load_kube_config()
-    else:
-        kube.config.load_incluster_config()
-    v1 = kube.client.CoreV1Api()
-    app['k8s_client'] = v1
-
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
 
     bucket_name = userinfo['bucket_name']
     log.info(f'bucket_name {bucket_name}')
 
-    app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
-    app['db'] = await BatchDatabase('/sql-config/sql-config.json')
+    pool = concurrent.futures.ThreadPoolExecutor()
+    app['blocking_pool'] = pool
+
+    db = Database()
+    await db.async_init()
+    app['db'] = db
+
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'instance_id')
+    instance_id = row['token']
+    log.info(f'instance_id {instance_id}')
+    app['instance_id'] = instance_id
+
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/batch-gsa-key/privateKeyData')
+    app['log_store'] = LogStore(bucket_name, instance_id, pool, credentials)
 
 
 async def on_cleanup(app):
