@@ -449,3 +449,7 @@ def test_ndarray_full():
         (hl._nd.full(7, 9), np.full(7, 9)),
         (hl._nd.full((3, 4, 5), 9), np.full((3, 4, 5), 9))
     )
+
+    assert hl.eval(hl._nd.zeros((5, 5), dtype=hl.tfloat32)).dtype, np.float32
+    assert hl.eval(hl._nd.ones(3, dtype=hl.tint64)).dtype, np.int64
+    assert hl.eval(hl._nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64

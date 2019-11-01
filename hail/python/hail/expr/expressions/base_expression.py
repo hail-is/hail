@@ -206,6 +206,24 @@ def to_expr(e, dtype=None) -> 'Expression':
     else:
         return hl.literal(x, dtype)
 
+def cast_expr(e, dtype=None) -> 'Expression':
+    if isinstance(e, Expression):
+        if dtype:
+            x = _to_expr(e, dtype)
+            if isinstance(x, Expression):
+                return x
+            else:
+                return hl.literal(x, dtype)
+        else:
+            return e
+    if not dtype:
+        dtype = impute_type(e)
+    x = _to_expr(e, dtype)
+    if isinstance(x, Expression):
+        return x
+    else:
+        return hl.literal(x, dtype)
+
 
 def _to_expr(e, dtype):
     if e is None:
