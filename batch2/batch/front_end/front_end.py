@@ -152,7 +152,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
 async def _get_batches(app, params, user):
     db = app['db']
 
-    where_conditions = []
+    where_conditions = ['user = %s', 'NOT deleted']
     where_args = [user]
 
     complete = params.get('complete')
@@ -186,7 +186,7 @@ async def _get_batches(app, params, user):
 
     sql = f'''
 SELECT * FROM batches
-WHERE user = %s AND NOT deleted AND {" AND ".join(where_conditions)};
+WHERE {" AND ".join(where_conditions)};
 '''
 
     return [await batch_record_to_dict(db, record, include_jobs=False)

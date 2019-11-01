@@ -118,6 +118,8 @@ class Test(unittest.TestCase):
             actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
 
+        assert_batch_ids({b1.id, b2.id})
+
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
 
         b2.wait()

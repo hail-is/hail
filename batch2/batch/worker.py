@@ -505,6 +505,12 @@ class Worker:
         batch_id = body['batch_id']
         user = body['user']
         job_spec = body['job_spec']
+        job_id = job_spec['job_id']
+        id = (batch_id, job_id)
+
+        # already running
+        if id in self.jobs:
+            return web.Response()
 
         job = Job(batch_id, user, job_spec)
 
