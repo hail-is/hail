@@ -2458,10 +2458,11 @@ private class Emit(
           }
         }
 
-        val outputShape = codeSlices.toArray.map{ case (start, stop, step) =>
+        val outputShape = codeSlices.toArray.map { case (start, stop, step) =>
           (step >= 0L && start <= stop).mux(
             const(1L) + ((stop - start) - const(1L)) / step,
-            (step < 0L && stop <= start).mux((((stop - start) + const(1L)) / step) + const(1L),
+            (step < 0L && stop <= start).mux(
+              (((stop - start) + const(1L)) / step) + const(1L),
               0L)
           )
         }
