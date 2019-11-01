@@ -65,7 +65,7 @@ spec:
           requests:
             memory: 250Mi
             cpu: 300m
-	  limits:
+          limits:
             memory: 250Mi
             cpu: "1"
   volumeClaimTemplates:
