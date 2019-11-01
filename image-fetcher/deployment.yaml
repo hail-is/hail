@@ -18,16 +18,13 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
       - name: image-fetcher
         image: "{{ image_fetcher_image.image }}"
         resources:
           requests:
             cpu: 1m
-            memory: 20Mi
+            memory: 100Mi
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
