@@ -152,7 +152,8 @@ class Job:
             body=kube.client.V1PersistentVolumeClaim(
                 metadata=kube.client.V1ObjectMeta(
                     name=self._pvc_name,
-                    labels={'app': 'batch-job',
+                    labels={'cluster-autoscaler.kubernetes.io/safe-to-evict': 'true',
+                            'app': 'batch-job',
                             'hail.is/batch-instance': INSTANCE_ID,
                             'batch_id': str(self.batch_id),
                             'job_id': str(self.job_id),
