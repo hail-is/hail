@@ -289,7 +289,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 if attributes:
                     for k, v in attributes:
-                        job_attributes.append(
+                        job_attributes_args.append(
                             (batch_id, job_id, k, v))
 
         async with timer.step('insert jobs'):

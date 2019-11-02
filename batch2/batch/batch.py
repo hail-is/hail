@@ -60,6 +60,7 @@ WHERE id = %s AND NOT deleted AND callack IS NOT NULL AND
 
     if not record:
         return
+    callback = record['callback']
 
     log.info(f'making callback for batch {batch_id}: {callback}')
 
