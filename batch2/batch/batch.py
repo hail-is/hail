@@ -30,7 +30,8 @@ async def batch_record_to_dict(db, record, include_jobs=False):
         'closed': record['closed']
     }
 
-    attributes = json.loads(record['attributes'])
+    spec = json.loads(record['spec'])
+    attributes = spec.get('attributes')
     if attributes:
         d['attributes'] = attributes
 
@@ -52,14 +53,12 @@ async def notify_batch_job_complete(db, batch_id):
         '''
 SELECT *
 FROM batches
-WHERE id = %s AND closed AND n_completed = n_jobs;
+WHERE id = %s AND NOT deleted AND callack IS NOT NULL AND
+   closed AND n_completed = n_jobs;
 ''',
         (batch_id,))
 
     if not record:
-        return
-    callback = record['callback']
-    if not callback:
         return
 
     log.info(f'making callback for batch {batch_id}: {callback}')

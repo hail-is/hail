@@ -1,5 +1,6 @@
-DROP TABLE IF EXISTS `batch-attributes`;
-DROP TABLE IF EXISTS `jobs-parents`;
+DROP TABLE IF EXISTS `batch_attributes`;
+DROP TABLE IF EXISTS `job_attributes`;
+DROP TABLE IF EXISTS `job_parents`;
 DROP TABLE IF EXISTS `ready_cores`;
 DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `batch`;

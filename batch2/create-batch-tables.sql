@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` VARCHAR(65535) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
-  `attributes` VARCHAR(65535),
   `callback` VARCHAR(65535),
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -59,23 +58,34 @@ CREATE TABLE IF NOT EXISTS `ready_cores` (
 
 INSERT INTO ready_cores (ready_cores_mcpu) VALUES (0);
 
-CREATE TABLE IF NOT EXISTS `jobs-parents` (
+CREATE TABLE IF NOT EXISTS `job_parents` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `parent_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `parent_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
+CREATE INDEX job_parents_parent_id ON `job_parents` (batch_id, parent_id);
 
-CREATE TABLE IF NOT EXISTS `batch-attributes` (
+CREATE TABLE IF NOT EXISTS `job_attributes` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` BIGINT NOT NULL,
+  `key` VARCHAR(100) NOT NULL,
+  `value` VARCHAR(65535),
+  PRIMARY KEY (`batch_id`, `job_id`, `key`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`job_id`) REFERENCES jobs(job_id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX job_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
+
+CREATE TABLE IF NOT EXISTS `batch_attributes` (
   `batch_id` BIGINT NOT NULL,
   `key` VARCHAR(100) NOT NULL,
   `value` VARCHAR(65535),
   PRIMARY KEY (`batch_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
-CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
+CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
 
 DELIMITER $$
 
@@ -293,23 +303,23 @@ BEGIN
     UPDATE ready_cores
       SET ready_cores_mcpu = ready_cores_mcpu + (
         SELECT SUM(jobs.cores_mcpu) FROM jobs
-	INNER JOIN `jobs-parents`
-	  ON jobs.batch_id = `jobs-parents`.batch_id AND
-	     jobs.job_id = `jobs-parents`.job_id
+	INNER JOIN `job_parents`
+	  ON jobs.batch_id = `job_parents`.batch_id AND
+	     jobs.job_id = `job_parents`.job_id
 	WHERE jobs.batch_id = in_batch_id AND
-	      `jobs-parents`.batch_id = in_batch_id AND
-	      `jobs-parents`.parent_id = in_job_id);
+	      `job_parents`.batch_id = in_batch_id AND
+	      `job_parents`.parent_id = in_job_id);
 
     UPDATE jobs
-      INNER JOIN `jobs-parents`
-        ON jobs.batch_id = `jobs-parents`.batch_id AND
-	   jobs.job_id = `jobs-parents`.job_id
+      INNER JOIN `job_parents`
+        ON jobs.batch_id = `job_parents`.batch_id AND
+	   jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
       WHERE jobs.batch_id = in_batch_id AND
-            `jobs-parents`.batch_id = in_batch_id AND
-            `jobs-parents`.parent_id = in_job_id;
+            `job_parents`.batch_id = in_batch_id AND
+            `job_parents`.parent_id = in_job_id;
 
     COMMIT;
     SELECT 0 as rc,

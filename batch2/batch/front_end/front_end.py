@@ -177,9 +177,9 @@ async def _get_batches(app, params, user):
             raise web.HTTPBadRequest(reason=f'unknown query parameter {k}')
 
         where_conditions.append('''
-(EXISTS (SELECT * FROM `batch-attributes`
-         WHERE `batch-attributes`.batch_id = batches.id AND
-           `batch-attributes`.`key` = %s AND `batch-attributes`.`value` = %s))
+(EXISTS (SELECT * FROM `batch_attributes`
+         WHERE `batch_attributes`.batch_id = batches.id AND
+           `batch_attributes`.`key` = %s AND `batch_attributes`.`value` = %s))
 ''')
         where_args.append(k[2:])
         where_args.append(v)
@@ -210,7 +210,16 @@ async def create_jobs(request, userdata):
     db = app['db']
 
     batch_id = int(request.match_info['batch_id'])
+
     user = userdata['username']
+    # restrict to what's necessary; in particular, drop the session
+    # which is sensitive
+    userdata = {
+        'username': user,
+        'bucket_name': userdata['bucket_name'],
+        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'jwt_secret_name': userdata['jwt_secret_name']
+    }
 
     async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
         async with timer.step('fetch batch'):
@@ -237,12 +246,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         async with timer.step('build db args'):
             jobs_args = []
-            jobs_parents_args = []
+            job_parents_args = []
+            job_attributes_args = []
 
             for spec in job_specs:
                 job_id = spec['job_id']
                 parent_ids = spec.pop('parent_ids', [])
                 always_run = spec.pop('always_run', False)
+                attributes = spec.get('attributes')
 
                 resources = spec.get('resources')
                 if not resources:
@@ -273,8 +284,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                      always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
-                    jobs_parents_args.append(
+                    job_parents_args.append(
                         (batch_id, job_id, parent_id))
+
+                if attributes:
+                    for k, v in attributes:
+                        job_attributes.append(
+                            (batch_id, job_id, k, v))
 
         async with timer.step('insert jobs'):
             async with db.pool.acquire() as conn:
@@ -287,10 +303,16 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
                                              jobs_args)
                 async with conn.cursor() as cursor:
                     await cursor.executemany('''
-INSERT INTO `jobs-parents` (batch_id, job_id, parent_id)
+INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                                             jobs_parents_args)
+                                             job_parents_args)
+                async with conn.cursor() as cursor:
+                    await cursor.executemany('''
+INSERT INTO `job_attributes` (batch_id, job_id, key, value)
+VALUES (%s, %s, %s, %s);
+''',
+                                             job_attributes_args)
                 await conn.commit()
 
         return web.Response()
@@ -310,24 +332,23 @@ async def create_batch(request, userdata):
         raise web.HTTPBadRequest(reason=f'invalid request: {validator.errors}')
 
     user = userdata['username']
-    attributes = batch_spec.get('attributes')
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
             await cursor.execute(
                 '''
-INSERT INTO batches (userdata, user, attributes, callback, n_jobs)
+INSERT INTO batches (userdata, user, callback, n_jobs)
 VALUES (%s, %s, %s, %s, %s);
 ''',
-                (json.dumps(userdata), user, json.dumps(attributes),
-                 batch_spec.get('callback'), batch_spec['n_jobs']))
+                (json.dumps(userdata), user, batch_spec.get('callback'), batch_spec['n_jobs']))
             id = cursor.lastrowid
 
+        attributes = batch_spec.get('attributes')
         if attributes:
             async with conn.cursor() as cursor:
                 await cursor.executemany(
                     '''
-INSERT INTO `batch-attributes` (batch_id, `key`, `value`)
+INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                     [(id, k, v) for k, v in attributes.items()])
