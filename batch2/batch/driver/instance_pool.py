@@ -370,16 +370,18 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
                 await self.remove_instance(instance)
                 return
 
+        # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
         log.info(f'{instance} gce_state {gce_state}')
 
-        if (instance.state in ('pending', 'active') and
-                gce_state in ('STOPPING', 'TERMINATED')):
-            log.info(f'deactivating {instance}, live but stopping or terminated')
+        if gce_state in ('STOPPING', 'TERMINATED'):
+            log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate()
 
-        if instance.state == 'pending' and time.time() - instance.time_created > 5 * 60:
-            # FIXME shouldn't count time in provisioning
+        if (gce_state in ('STAGING', 'RUNNING') and
+                instance.state == 'pending' and
+                time.time() - instance.time_created > 5 * 60):
+            # FIXME shouldn't count time in PROVISIONING
             log.info(f'{instance} did not activate within 5m, deleting')
             await self.call_delete_instance(instance)
 
