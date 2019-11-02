@@ -86,7 +86,10 @@ LIMIT 50;
                 instance = self.inst_pool.active_instances_by_free_cores[i]
                 assert record['cores_mcpu'] <= instance.free_cores_mcpu
                 log.info(f'scheduling job {id} on {instance}')
-                await schedule_job(self.app, record, instance)
+                try:
+                    await schedule_job(self.app, record, instance)
+                except Exception:
+                    log.exception('while scheduling job {id} on {instance}')
                 should_wait = False
 
         return should_wait

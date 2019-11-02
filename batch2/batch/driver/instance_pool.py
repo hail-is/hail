@@ -46,7 +46,7 @@ class InstancePool:
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
 
-        self.active_instances_by_free_cores = sortedcontainers.SortedSet(
+        self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(
             key=lambda instance: instance.free_cores_mcpu)
 
         self.n_instances_by_state = {
@@ -85,7 +85,7 @@ class InstancePool:
         self.instances_by_last_updated.remove(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= instance.free_cores_mcpu
-        self.active_instances_by_free_cores.remove(instance)
+        self.healthy_instances_by_free_cores.remove(instance)
 
     async def remove_instance(self, instance):
         await self.db.just_execute(
@@ -104,7 +104,7 @@ class InstancePool:
             self.live_free_cores_mcpu += instance.free_cores_mcpu
         if (instance.state == 'active' and
                 instance.failed_request_count <= 1):
-            self.active_instances_by_free_cores.add(instance)
+            self.healthy_instances_by_free_cores.add(instance)
 
     def add_instance(self, instance):
         assert instance.token not in self.token_inst
