@@ -419,7 +419,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
     try:
       await check_call_procedure(
-          db, 'CALL close_batch(%s, %s);', (batch_id, expected_n_jobs))
+          db, 'CALL close_batch(%s);', (batch_id))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
