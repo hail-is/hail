@@ -99,7 +99,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
     def free_cores_mcpu(self):
         return self._free_cores_mcpu
 
-    def adjust_free_cores(self, delta_mcpu):
+    def adjust_free_cores_in_memory(self, delta_mcpu):
         self.instance_pool.adjust_for_remove_instance(self)
         self._free_cores_mcpu += delta_mcpu
         self.instance_pool.adjust_for_add_instance(self)

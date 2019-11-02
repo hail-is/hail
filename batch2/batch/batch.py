@@ -101,7 +101,7 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
         if instance:
             log.info(f'updating {instance}')
 
-            instance.adjust_free_cores(rv['cores_mcpu'])
+            instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
             scheduler_state_changed.set()
 
             await instance.update_timestamp()
@@ -175,11 +175,10 @@ async def unschedule_job(app, record):
 
     log.info(f'unschedule job {id}: updated database')
 
-    instance.adjust_free_cores(record['cores_mcpu'])
+    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+    scheduler_state_changed.set()
 
     log.info(f'unschedule job {id}: updated {instance} free cores')
-
-    scheduler_state_changed.set()
 
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -187,7 +186,7 @@ async def unschedule_job(app, record):
                f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
         try:
             await request_retry_transient_errors(session, 'DELETE', url)
-            instance.update_timestamp()
+            await instance.update_timestamp()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 pass
@@ -235,7 +234,7 @@ async def schedule_job(app, record, instance):
         await request_retry_transient_errors(
             session, 'POST',
             url, json=body)
-        instance.update_timestamp()
+        await instance.update_timestamp()
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
@@ -246,6 +245,6 @@ async def schedule_job(app, record, instance):
 
     log.info(f'schedule job {id} on {instance}: updated database')
 
-    instance.adjust_free_cores(-record['cores_mcpu'])
+    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
 
     log.info(f'schedule job {id} on {instance}: adjusted instance pool')
