@@ -153,26 +153,26 @@ BEGIN
 END $$
 
 CREATE PROCEDURE close_batch(
-  IN in_batch_id BIGINT,
-  IN expected_n_jobs INT
+  IN in_batch_id BIGINT
 )
 BEGIN
   DECLARE cur_batch_closed BOOLEAN;
-  DECLARE cur_n_jobs INT;
+  DECLARE expected_n_jobs INT;
+  DECLARE actual_n_jobs INT;
 
   START TRANSACTION;
 
-  SELECT closed INTO cur_batch_closed FROM batches
+  SELECT n_jobs, closed INTO expected_n_jobs, cur_batch_closed FROM batches
   WHERE id = in_batch_id AND NOT deleted;
 
   IF cur_batch_closed = 1 THEN
     COMMIT;
     SELECT 0 as rc;
   ELSE cur_batch_closed = 0 THEN
-    SELECT COUNT(*) INTO cur_n_jobs FROM jobs
+    SELECT COUNT(*) INTO actual_n_jobs FROM jobs
     WHERE batch_id = in_batch_id;
 
-    IF cur_n_jobs = expected_n_jobs THEN
+    IF actual_n_jobs = expected_n_jobs THEN
       UPDATE batches SET closed = 1 WHERE id = in_batch_id;
       UPDATE ready_cores
 	SET ready_cores_mcpu = ready_cores_mcpu + (
@@ -182,7 +182,7 @@ BEGIN
       SELECT 0 as rc;
     ELSE
       ROLLBACK;
-      SELECT 2 as rc, cur_n_jobs, 'wrong number of jobs' as message;
+      SELECT 2 as rc, expected_n_jobs, actual_n_jobs, 'wrong number of jobs' as message;
     END IF;
   ELSE
     ROLLBACK;
