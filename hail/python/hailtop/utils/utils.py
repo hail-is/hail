@@ -158,7 +158,7 @@ def is_transient_error(e):
     return False
 
 
-async def sleep_and_back_off(delay):
+async def sleep_and_backoff(delay):
     # exponentially back off, up to (expected) max of 30s
     t = delay * random.random()
     await asyncio.sleep(t)
@@ -170,18 +170,18 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
     while True:
         try:
             return await session.request(method, url, **kwargs)
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             if is_transient_error(e):
                 pass
             else:
                 raise
-        delay = sleep_and_back_off(delay)
+        delay = sleep_and_backoff(delay)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):
     try:
         return await session.request(method, url, **kwargs)
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:
         if is_transient_error(e):
             log.exception('request failed with transient exception: {method} {url}')
             raise web.HTTPServiceUnavailable()

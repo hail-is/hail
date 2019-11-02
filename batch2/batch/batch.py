@@ -2,7 +2,7 @@ import json
 import logging
 import asyncio
 import aiohttp
-from hailtop.utils import sleep_and_back_off, is_transient_error
+from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
@@ -201,7 +201,7 @@ async def unschedule_job(app, record):
                     pass
                 else:
                     raise
-        delay = await sleep_and_back_off(delay)
+        delay = await sleep_and_backoff(delay)
 
     log.info(f'unschedule job {id}: called delete job')
 

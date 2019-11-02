@@ -103,7 +103,7 @@ class InstancePool:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += instance.free_cores_mcpu
         if (instance.state == 'active' and
-                instance.failed_request_count <= 3):
+                instance.failed_request_count <= 1):
             self.active_instances_by_free_cores.add(instance)
 
     def add_instance(self, instance):
