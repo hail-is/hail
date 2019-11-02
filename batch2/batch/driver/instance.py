@@ -23,7 +23,7 @@ INSERT INTO instances (state, name, token, cores_mcpu, free_cores_mcpu, time_cre
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
             (state, machine_name, inst_token, worker_cores_mcpu,
-             worker_cores_mcpu), now, now)
+             worker_cores_mcpu, now, now))
         return Instance(
             app, id, state, machine_name, inst_token, worker_cores_mcpu,
             worker_cores_mcpu, now, now, None)
