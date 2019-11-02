@@ -309,7 +309,7 @@ VALUES (%s, %s, %s);
                                              job_parents_args)
                 async with conn.cursor() as cursor:
                     await cursor.executemany('''
-INSERT INTO `job_attributes` (batch_id, job_id, key, value)
+INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                              job_attributes_args)
