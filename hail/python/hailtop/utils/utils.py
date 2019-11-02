@@ -33,31 +33,31 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*aws, parallelism=10, return_exceptions=False):
-    gatherer = AsyncThrottledGather(aws,
+async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
+    gatherer = AsyncThrottledGather(*pfs,
                                     parallelism=parallelism,
                                     return_exceptions=return_exceptions)
     return await gatherer.wait()
 
 
 class AsyncThrottledGather:
-    def __init__(self, aws, parallelism=10, return_exceptions=False):
-        self.count = len(aws)
+    def __init__(self, *pfs, parallelism=10, return_exceptions=False):
+        self.count = len(pfs)
         self.n_finished = 0
 
         self._queue = asyncio.Queue()
         self._done = asyncio.Event()
         self._return_exceptions = return_exceptions
 
-        self._results = [None] * len(aws)
+        self._results = [None] * len(pfs)
         self._errors = []
 
         self._workers = []
         for _ in range(parallelism):
             self._workers.append(asyncio.ensure_future(self._worker()))
 
-        for i, aw in enumerate(aws):
-            self._queue.put_nowait((i, aw))
+        for i, pf in enumerate(pfs):
+            self._queue.put_nowait((i, pf))
 
     def _cancel_workers(self):
         for worker in self._workers:
@@ -65,10 +65,10 @@ class AsyncThrottledGather:
 
     async def _worker(self):
         while True:
-            i, aw = await self._queue.get()
+            i, pf = await self._queue.get()
 
             try:
-                res = await aw
+                res = await pf()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except

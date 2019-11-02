@@ -1,13 +1,14 @@
 import math
 import random
 import logging
+import functools
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import bounded_gather, grouped, request_retry_transient_errors
+from hailtop.utils import gather, grouped, request_retry_transient_errors
 
 from .globals import complete_states
 
@@ -351,7 +352,7 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], self.attributes)
 
-        await bounded_gather(*[self._submit_job(batch.id, specs)
+        await bounded_gather(*[functools.partial(self._submit_job, batch.id, specs)
                                for specs in grouped(job_array_size, self._job_specs)],
                              parallelism=2)
 
