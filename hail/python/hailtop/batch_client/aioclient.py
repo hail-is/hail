@@ -1,7 +1,6 @@
 import math
 import random
 import logging
-import functools
 import asyncio
 import aiohttp
 from asyncinit import asyncinit
