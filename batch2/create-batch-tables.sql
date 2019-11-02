@@ -63,13 +63,14 @@ CREATE TABLE IF NOT EXISTS `job_parents` (
   `job_id` INT NOT NULL,
   `parent_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `parent_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_parents_parent_id ON `job_parents` (batch_id, parent_id);
 
 CREATE TABLE IF NOT EXISTS `job_attributes` (
   `batch_id` BIGINT NOT NULL,
-  `job_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
   `key` VARCHAR(100) NOT NULL,
   `value` VARCHAR(65535),
   PRIMARY KEY (`batch_id`, `job_id`, `key`),
