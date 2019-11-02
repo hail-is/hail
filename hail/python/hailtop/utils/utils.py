@@ -33,7 +33,7 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def gather(*pfs, parallelism=10, return_exceptions=True):
+async def gather(*pfs, parallelism=10, return_exceptions=False):
     gatherer = AsyncThrottledGather(*pfs,
                                     parallelism=parallelism,
                                     return_exceptions=return_exceptions)
@@ -41,7 +41,7 @@ async def gather(*pfs, parallelism=10, return_exceptions=True):
 
 
 class AsyncThrottledGather:
-    def __init__(self, *pfs, parallelism=10, return_exceptions=True):
+    def __init__(self, *pfs, parallelism=10, return_exceptions=False):
         self.count = len(pfs)
         self.n_finished = 0
 
