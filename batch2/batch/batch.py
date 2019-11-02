@@ -53,7 +53,7 @@ async def notify_batch_job_complete(db, batch_id):
         '''
 SELECT *
 FROM batches
-WHERE id = %s AND NOT deleted AND callack IS NOT NULL AND
+WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
    closed AND n_completed = n_jobs;
 ''',
         (batch_id,))
