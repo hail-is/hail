@@ -159,23 +159,33 @@ CREATE PROCEDURE close_batch(
 )
 BEGIN
   DECLARE cur_batch_closed BOOLEAN;
+  DECLARE expected_n_jobs INT;
+  DECLARE actual_n_jobs INT;
 
   START TRANSACTION;
 
-  SELECT closed INTO cur_batch_closed FROM batches
+  SELECT n_jobs, closed INTO expected_n_jobs, cur_batch_closed FROM batches
   WHERE id = in_batch_id AND NOT deleted;
 
   IF cur_batch_closed = 1 THEN
     COMMIT;
     SELECT 0 as rc;
   ELSEIF cur_batch_closed = 0 THEN
-    UPDATE batches SET closed = 1 WHERE id = in_batch_id;
-    UPDATE ready_cores
-      SET ready_cores_mcpu = ready_cores_mcpu + (
-        SELECT SUM(cores_mcpu) FROM jobs
-	WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id);
-    COMMIT;
-    SELECT 0 as rc;
+    SELECT COUNT(*) INTO actual_n_jobs FROM jobs
+    WHERE batch_id = in_batch_id;
+
+    IF actual_n_jobs = expected_n_jobs THEN
+      UPDATE batches SET closed = 1 WHERE id = in_batch_id;
+      UPDATE ready_cores
+	SET ready_cores_mcpu = ready_cores_mcpu + (
+	  SELECT SUM(cores_mcpu) FROM jobs
+	  WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id);
+      COMMIT;
+      SELECT 0 as rc;
+    ELSE
+      ROLLBACK;
+      SELECT 2 as rc, expected_n_jobs, actual_n_jobs, 'wrong number of jobs' as message;
+    END IF;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_batch_closed, 'batch closed is not 0 or 1' as message;
