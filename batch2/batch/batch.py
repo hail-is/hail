@@ -52,15 +52,14 @@ async def notify_batch_job_complete(db, batch_id):
         '''
 SELECT *
 FROM batches
-WHERE id = %s AND closed AND n_completed = n_jobs;
+WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
+   closed AND n_completed = n_jobs;
 ''',
         (batch_id,))
 
     if not record:
         return
     callback = record['callback']
-    if not callback:
-        return
 
     log.info(f'making callback for batch {batch_id}: {callback}')
 
