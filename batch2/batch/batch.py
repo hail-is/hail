@@ -30,8 +30,7 @@ async def batch_record_to_dict(db, record, include_jobs=False):
         'closed': record['closed']
     }
 
-    spec = json.loads(record['spec'])
-    attributes = spec.get('attributes')
+    attributes = json.loads(record['attributes'])
     if attributes:
         d['attributes'] = attributes
 

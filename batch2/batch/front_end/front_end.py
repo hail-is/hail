@@ -332,18 +332,19 @@ async def create_batch(request, userdata):
         raise web.HTTPBadRequest(reason=f'invalid request: {validator.errors}')
 
     user = userdata['username']
+    attributes = batch_spec.get('attributes')
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
             await cursor.execute(
                 '''
-INSERT INTO batches (userdata, user, callback, n_jobs)
-VALUES (%s, %s, %s, %s);
+INSERT INTO batches (userdata, user, attributes, callback, n_jobs)
+VALUES (%s, %s, %s, %s, %s);
 ''',
-                (json.dumps(userdata), user, batch_spec.get('callback'), batch_spec['n_jobs']))
+                (json.dumps(userdata), user, json.dumps(attributes),
+                 batch_spec.get('callback'), batch_spec['n_jobs']))
             id = cursor.lastrowid
 
-        attributes = batch_spec.get('attributes')
         if attributes:
             async with conn.cursor() as cursor:
                 await cursor.executemany(
