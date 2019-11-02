@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS `job_attributes` (
   `value` VARCHAR(65535),
   PRIMARY KEY (`batch_id`, `job_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
-  FOREIGN KEY (`job_id`) REFERENCES jobs(job_id) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX job_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
+CREATE INDEX job_attributes_key_value ON `job_attributes` (`key`, `value`(256));
 
 CREATE TABLE IF NOT EXISTS `batch_attributes` (
   `batch_id` BIGINT NOT NULL,
