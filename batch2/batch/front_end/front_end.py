@@ -417,15 +417,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    body = await request.json()
-    expected_n_jobs = body['expected_n_jobs']
-
     try:
         await check_call_procedure(
             db, 'CALL close_batch(%s);', (batch_id))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
+            expected_n_jobs = e.rv['expected_n_jobs']
             actual_n_jobs = e.rv['actual_n_jobs']
             raise web.HTTPBadRequest(
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
