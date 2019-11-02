@@ -288,7 +288,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         (batch_id, job_id, parent_id))
 
                 if attributes:
-                    for k, v in attributes:
+                    for k, v in attributes.items():
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
 
