@@ -8,7 +8,7 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import gather, grouped, request_retry_transient_errors
+from hailtop.utils import bounded_gather, grouped, request_retry_transient_errors
 
 from .globals import complete_states
 
