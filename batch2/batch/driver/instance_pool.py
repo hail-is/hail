@@ -72,6 +72,7 @@ class InstancePool:
 
         asyncio.ensure_future(self.event_loop())
         asyncio.ensure_future(self.control_loop())
+        asyncio.ensure_future(self.instance_monitoring_loop())
 
     @property
     def n_instances(self):
@@ -391,8 +392,8 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
 
         await instance.update_timestamp()
 
-    async def monitor_instances_loop(self):
-        log.info(f'starting monitor instances loop')
+    async def instance_monitoring_loop(self):
+        log.info(f'starting instance monitoring loop')
 
         while True:
             try:
