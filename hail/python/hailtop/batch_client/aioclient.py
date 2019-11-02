@@ -352,7 +352,7 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], self.attributes)
 
-        await gather(*[functools.partial(self._submit_job, batch.id, specs)
+        await gather(*[self._submit_job(batch.id, specs)
                        for specs in grouped(job_array_size, self._job_specs)],
                      parallelism=2)
 

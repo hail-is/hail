@@ -104,12 +104,14 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                     return None
                 raise
 
-    # FIXME handle partial logs in Error case
     if state in ('Error', 'Failed', 'Success'):
         log_store = app['log_store']
 
         async def _read_log_from_gcs(task):
-            log = await log_store.read_log_file(batch_id, job_id, task)
+            try:
+                log = await log_store.read_log_file(batch_id, job_id, task)
+            except google.api_core.exceptions.NotFound:
+                log = None
             return task, log
 
         return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
@@ -414,8 +416,19 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    await check_call_procedure(
-        db, 'CALL close_batch(%s);', (batch_id,))
+    body = await request.json()
+    expected_n_jobs = body['expected_n_jobs']
+
+    try:
+      await check_call_procedure(
+          db, 'CALL close_batch(%s, %s);', (batch_id, expected_n_jobs))
+    except CallError as e:
+        # 2: wrong number of jobs
+        if e.rv['rc'] == 2:
+            actual_n_jobs = e.rv['cur_n_jobs']
+            raise HTTPBadRequest(
+                reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
+        raise
 
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:

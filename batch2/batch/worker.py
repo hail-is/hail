@@ -34,9 +34,11 @@ docker = aiodocker.Docker()
 
 MAX_IDLE_TIME_SECS = 60
 
+NAME = os.environ['NAME']
 BUCKET_NAME = os.environ['BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 
+log.info(f'NAME {NAME}')
 log.info(f'BUCKET_NAME {BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
@@ -455,6 +457,7 @@ class Job:
     # }
     async def status(self):
         status = {
+            'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
             'user': self.user,

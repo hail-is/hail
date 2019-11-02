@@ -195,6 +195,7 @@ docker pull $BATCH_WORKER_IMAGE || \
 # So here I go it's my shot.
 docker run \
     -e CORES=$CORES \
+    -e NAME=$NAME \
     -e NAMESPACE=$NAMESPACE \
     -e INST_TOKEN=$INST_TOKEN \
     -e INTERNAL_IP=$INTERNAL_IP \
