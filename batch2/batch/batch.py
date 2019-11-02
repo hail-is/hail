@@ -94,9 +94,9 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    instance_id = rv['instance_id']
-    if instance_id is not None:
-        instance = inst_pool.id_instance.get(instance_id)
+    instance_name = rv['instance_name']
+    if instance_name:
+        instance = inst_pool.name_instance.get(instance_name)
         if instance:
             log.info(f'updating {instance}')
 
@@ -155,20 +155,20 @@ async def unschedule_job(app, record):
     job_id = record['job_id']
     id = (batch_id, job_id)
 
-    instance_id = record['instance_id']
-    assert instance_id is not None
+    instance_name = record['instance_name']
+    assert instance_name is not None
 
-    log.info(f'unscheduling job {id} from instance {instance_id}')
+    log.info(f'unscheduling job {id} from instance {instance_name}')
 
-    instance = inst_pool.id_instance.get(instance_id)
+    instance = inst_pool.name_instance.get(instance_name)
     if not instance:
-        log.warning(f'unschedule job {id}: unknown instance {instance_id}')
+        log.warning(f'unschedule job {id}: unknown instance {instance_name}')
         return
 
     await check_call_procedure(
         db,
         'CALL unschedule_job(%s, %s, %s);',
-        (batch_id, job_id, instance_id))
+        (batch_id, job_id, instance_name))
 
     log.info(f'unschedule job {id}: updated database')
 

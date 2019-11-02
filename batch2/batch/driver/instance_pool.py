@@ -1,11 +1,11 @@
 import time
+import secrets
 import asyncio
 import logging
 import sortedcontainers
 import aiohttp
 import googleapiclient.errors
 
-from ..utils import new_token
 from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
@@ -59,9 +59,7 @@ class InstancePool:
         # pending and active
         self.live_free_cores_mcpu = 0
 
-        self.id_instance = {}
-
-        self.token_inst = {}
+        self.name_instance = {}
 
     async def async_init(self):
         log.info('initializing instance pool')
@@ -77,7 +75,7 @@ class InstancePool:
 
     @property
     def n_instances(self):
-        return len(self.token_inst)
+        return len(self.name_instance)
 
     def adjust_for_remove_instance(self, instance):
         self.n_instances_by_state[instance.state] -= 1
@@ -92,12 +90,11 @@ class InstancePool:
         await instance.deactivate()
 
         await self.db.just_execute(
-            'DELETE FROM instances WHERE id = %s;', (instance.id,))
+            'DELETE FROM instances WHERE name = %s;', (instance.name,))
 
         self.adjust_for_remove_instance(instance)
 
-        del self.token_inst[instance.token]
-        del self.id_instance[instance.id]
+        del self.name_instance[instance.name]
 
     def adjust_for_add_instance(self, instance):
         self.n_instances_by_state[instance.state] += 1
@@ -110,20 +107,22 @@ class InstancePool:
             self.healthy_instances_by_free_cores.add(instance)
 
     def add_instance(self, instance):
-        assert instance.token not in self.token_inst
-        self.token_inst[instance.token] = instance
-        self.id_instance[instance.id] = instance
+        assert instance.name not in self.name_instance
+        self.name_instance[instance.name] = instance
 
         self.adjust_for_add_instance(instance)
 
     async def create_instance(self):
         while True:
-            inst_token = new_token()
-            if inst_token not in self.token_inst:
+            # 36 ** 5 = ~60M
+            suffix = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789')
+                              for _ in range(5)])
+            machine_name = f'{self.machine_name_prefix}{suffix}'
+            if machine_name not in self.name_instance:
                 break
-        machine_name = f'{self.machine_name_prefix}{inst_token}'
 
-        instance = await Instance.create(self.app, machine_name, inst_token, WORKER_CORES_MCPU)
+        token = secrets.token_urlsafe(32)
+        instance = await Instance.create(self.app, machine_name, token, WORKER_CORES_MCPU)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
@@ -133,7 +132,6 @@ class InstancePool:
             'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
             'labels': {
                 'role': 'batch2-agent',
-                'inst_token': inst_token,
                 'namespace': BATCH_NAMESPACE
             },
 
@@ -189,8 +187,8 @@ export HOME=/root
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
-INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
-INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
+TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/token")
+IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 
 BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
@@ -208,8 +206,8 @@ docker run \
     -e CORES=$CORES \
     -e NAME=$NAME \
     -e NAMESPACE=$NAMESPACE \
-    -e INST_TOKEN=$INST_TOKEN \
-    -e INTERNAL_IP=$INTERNAL_IP \
+    -e TOKEN=$TOKEN \
+    -e IP_ADDRESS=$IP_ADDRESS \
     -e BUCKET_NAME=$BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -v /var/run/docker.sock:/var/run/docker.sock \
@@ -226,8 +224,8 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
 gcloud -q compute instances delete $NAME --zone=$ZONE
 '''
                 }, {
-                    'key': 'inst_token',
-                    'value': inst_token
+                    'key': 'token',
+                    'value': token
                 }, {
                     'key': 'batch_worker_image',
                     'value': BATCH_WORKER_IMAGE
@@ -251,7 +249,7 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
 
         await self.gservices.create_instance(config)
 
-        log.info(f'created machine {machine_name}'
+        log.info(f'created machine {machine_name} for {instance} '
                  f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
 
     async def call_delete_instance(self, instance, force=False):
@@ -305,10 +303,9 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
             log.warning(f'event for unknown machine {name}')
             return
 
-        inst_token = name[len(self.machine_name_prefix):]
-        instance = self.token_inst.get(inst_token)
+        instance = self.name_instance.get(name)
         if not instance:
-            log.warning(f'event for unknown instance {inst_token}')
+            log.warning(f'event for unknown instance {name}')
             return
 
         if event_subtype == 'compute.instances.preempted':

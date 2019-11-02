@@ -6,39 +6,36 @@ class Instance:
     @staticmethod
     def from_record(app, record):
         return Instance(
-            app, record['id'], record['state'], record['name'],
+            app, record['name'], record['state'],
             record['token'], record['cores_mcpu'],
             record['free_cores_mcpu'], record['time_created'],
             record['failed_request_count'], record['last_updated'],
             record['ip_address'])
 
     @staticmethod
-    async def create(app, machine_name, inst_token, worker_cores_mcpu):
+    async def create(app, name, token, worker_cores_mcpu):
         db = app['db']
 
         state = 'pending'
         now = time.time()
-        id = await db.execute_insertone(
+        await db.just_execute(
             '''
-INSERT INTO instances (state, name, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
+INSERT INTO instances (name, state, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-            (state, machine_name, inst_token, worker_cores_mcpu,
+            (name, state, token, worker_cores_mcpu,
              worker_cores_mcpu, now, now))
         return Instance(
-            app, id, state, machine_name, inst_token, worker_cores_mcpu,
-            worker_cores_mcpu, now, 0, now, None)
+            app, name, state, worker_cores_mcpu, worker_cores_mcpu, now, 0, now, None)
 
-    def __init__(self, app, id, state, name, token, cores_mcpu, free_cores_mcpu,
+    def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address):
         self.db = app['db']
         self.instance_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
-        self.id = id
         # pending, active, inactive, deleted
         self._state = state
         self.name = name
-        self.token = token
         self.cores_mcpu = cores_mcpu
         self._free_cores_mcpu = free_cores_mcpu
         self.time_created = time_created
@@ -56,7 +53,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
         await check_call_procedure(
             self.db,
             'CALL activate_instance(%s, %s);',
-            (self.id, ip_address))
+            (self.name, ip_address))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'active'
@@ -72,7 +69,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
         await check_call_procedure(
             self.db,
             'CALL deactivate_instance(%s);',
-            (self.id,))
+            (self.name,))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'inactive'
@@ -91,7 +88,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
         await check_call_procedure(
             self.db,
             'CALL mark_instance_deleted(%s);',
-            (self.id,))
+            (self.name,))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'deleted'
@@ -117,9 +114,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 UPDATE instances
 SET last_updated = %s,
   failed_request_count = 0
-WHERE id = %s;
+WHERE name = %s;
 ''',
-            (now, self.id))
+            (now, self.name))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._failed_request_count = 0
@@ -130,9 +127,9 @@ WHERE id = %s;
         await self.db.execute_update(
             '''
 UPDATE instances
-SET failed_request_count = failed_request_count + 1 WHERE id = %s;
+SET failed_request_count = failed_request_count + 1 WHERE name = %s;
 ''',
-            (self.id,))
+            (self.name,))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._failed_request_count += 1
@@ -145,12 +142,12 @@ SET failed_request_count = failed_request_count + 1 WHERE id = %s;
     async def update_timestamp(self):
         now = time.time()
         await self.db.execute_update(
-            'UPDATE instances SET last_updated = %s WHERE id = %s;',
-            (now, self.id))
+            'UPDATE instances SET last_updated = %s WHERE name = %s;',
+            (now, self.name))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._last_updated = now
         self.instance_pool.adjust_for_add_instance(self)
 
     def __str__(self):
-        return f'instance {self.id} {self.name}'
+        return f'instance {self.name}'

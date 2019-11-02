@@ -1,14 +1,8 @@
 import re
 import time
-import secrets
 import logging
 
 log = logging.getLogger('utils')
-
-
-def new_token(n=5):
-    return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(n)])
-
 
 cpu_regex = re.compile(r"^(\d*\.\d+|\d+)([m]?)$")
 
