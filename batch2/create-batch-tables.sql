@@ -168,7 +168,7 @@ BEGIN
   IF cur_batch_closed = 1 THEN
     COMMIT;
     SELECT 0 as rc;
-  ELSE cur_batch_closed = 0 THEN
+  ELSEIF cur_batch_closed = 0 THEN
     SELECT COUNT(*) INTO actual_n_jobs FROM jobs
     WHERE batch_id = in_batch_id;
 
