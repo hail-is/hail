@@ -158,6 +158,13 @@ def is_transient_error(e):
     return False
 
 
+async def sleep_and_back_off(delay):
+    # exponentially back off, up to (expected) max of 30s
+    t = delay * random.random()
+    await asyncio.sleep(t)
+    return min(delay * 2, 60.0)
+
+
 async def request_retry_transient_errors(session, method, url, **kwargs):
     delay = 0.1
     while True:
@@ -168,10 +175,7 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
                 pass
             else:
                 raise
-        # exponentially back off, up to (expected) max of 30s
-        t = delay * random.random()
-        await asyncio.sleep(t)
-        delay = min(delay * 2, 60.0)
+        delay = sleep_and_back_off(delay)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):

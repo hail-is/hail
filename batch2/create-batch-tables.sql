@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
   `time_created` DOUBLE NOT NULL,
+  `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` DOUBLE NOT NULL,
   `ip_address` VARCHAR(100),
   PRIMARY KEY (`id`)

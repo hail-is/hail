@@ -129,7 +129,7 @@ async def activate_instance_1(request):
 
     log.info(f'activating {instance}')
     await instance.activate(ip_address)
-    await instance.update_timestamp()
+    await instance.mark_healthy()
     return web.Response()
 
 
@@ -151,7 +151,7 @@ async def deactivate_instance_1(request):
 
     log.info(f'deactivating {instance}')
     await instance.deactivate()
-    await instance.update_timestamp()
+    await instance.mark_healthy()
     return web.Response()
 
 
@@ -186,7 +186,7 @@ async def job_complete_1(request):
         new_state = 'Failed'
 
     await mark_job_complete(app, batch_id, job_id, new_state, status)
-
+    await instance.mark_healthy()
     return web.Response()
 
 

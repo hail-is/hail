@@ -9,7 +9,8 @@ class Instance:
             app, record['id'], record['state'], record['name'],
             record['token'], record['cores_mcpu'],
             record['free_cores_mcpu'], record['time_created'],
-            record['last_updated'], record['ip_address'])
+            record['failed_request_count'], record['last_updated'],
+            record['ip_address'])
 
     @staticmethod
     async def create(app, machine_name, inst_token, worker_cores_mcpu):
@@ -26,10 +27,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
              worker_cores_mcpu, now, now))
         return Instance(
             app, id, state, machine_name, inst_token, worker_cores_mcpu,
-            worker_cores_mcpu, now, now, None)
+            worker_cores_mcpu, now, 0, now, None)
 
     def __init__(self, app, id, state, name, token, cores_mcpu, free_cores_mcpu,
-                 time_created, last_updated, ip_address):
+                 time_created, failed_request_count, last_updated, ip_address):
         self.db = app['db']
         self.instance_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
@@ -41,6 +42,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
         self.cores_mcpu = cores_mcpu
         self._free_cores_mcpu = free_cores_mcpu
         self.time_created = time_created
+        self._failed_request_count = failed_request_count
         self._last_updated = last_updated
         self.ip_address = ip_address
 
@@ -102,6 +104,36 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
     def adjust_free_cores_in_memory(self, delta_mcpu):
         self.instance_pool.adjust_for_remove_instance(self)
         self._free_cores_mcpu += delta_mcpu
+        self.instance_pool.adjust_for_add_instance(self)
+
+    @property
+    def failed_request_count(self):
+        return self._failed_request_count
+
+    async def mark_healthy(self):
+        now = time.time()
+        await self.db.execute_update(
+            '''
+UPDATE instances
+SET last_updated = %s,
+  failed_request_count = 0
+WHERE id = %s;
+''',
+            (now, self.id))
+
+        self.instance_pool.adjust_for_remove_instance(self)
+        self._failed_request_count = 0
+        self._last_updated = now
+        self.instance_pool.adjust_for_add_instance(self)
+
+    async def incr_failed_request_count(self):
+        now = time.time()
+        await self.db.execute_update(
+            'UPDATE instances  SET failed_request_count = 0 WHERE id = %s;',
+            (now, self.id))
+
+        self.instance_pool.adjust_for_remove_instance(self)
+        self._failed_request_count = 0
         self.instance_pool.adjust_for_add_instance(self)
 
     @property

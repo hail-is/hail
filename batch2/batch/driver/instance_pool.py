@@ -2,6 +2,7 @@ import time
 import asyncio
 import logging
 import sortedcontainers
+import aiohttp
 import googleapiclient.errors
 
 from ..utils import new_token
@@ -84,8 +85,7 @@ class InstancePool:
         self.instances_by_last_updated.remove(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= instance.free_cores_mcpu
-        if instance.state == 'active':
-            self.active_instances_by_free_cores.remove(instance)
+        self.active_instances_by_free_cores.remove(instance)
 
     async def remove_instance(self, instance):
         await self.db.just_execute(
@@ -102,7 +102,8 @@ class InstancePool:
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += instance.free_cores_mcpu
-        if instance.state == 'active':
+        if (instance.state == 'active' and
+                instance.failed_request_count <= 3):
             self.active_instances_by_free_cores.add(instance)
 
     def add_instance(self, instance):
@@ -365,6 +366,16 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
             await asyncio.sleep(15)
 
     async def check_on_instance(self, instance):
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                await session.get('http://{instance.ip_address}:5000/healthcheck')
+                await instance.mark_healthy()
+                return
+        except Exception:
+            log.exception(f'while requesting {instance} /healthcheck')
+            await instance.incr_failed_request_count()
+
         try:
             spec = await self.gservices.get_instance(instance.name)
         except googleapiclient.errors.HttpError as e:
