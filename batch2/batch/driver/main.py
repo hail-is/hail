@@ -129,6 +129,7 @@ async def activate_instance_1(request):
 
     log.info(f'activating {instance}')
     await instance.activate(ip_address)
+    await instance.update_timestamp()
     return web.Response()
 
 
@@ -150,6 +151,7 @@ async def deactivate_instance_1(request):
 
     log.info(f'deactivating {instance}')
     await instance.deactivate()
+    await instance.update_timestamp()
     return web.Response()
 
 

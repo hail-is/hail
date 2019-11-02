@@ -1,6 +1,7 @@
+import time
 import asyncio
-import sortedcontainers
 import logging
+import sortedcontainers
 import googleapiclient.errors
 
 from ..utils import new_token
@@ -41,8 +42,11 @@ class InstancePool:
             m = 0.9
         self.worker_memory = 0.9 * m
 
-        # active instances only
-        self.active_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores_mcpu)
+        self.instances_by_last_updated = sortedcontainers.SortedSet(
+            key=lambda instance: instance.last_updated)
+
+        self.active_instances_by_free_cores = sortedcontainers.SortedSet(
+            key=lambda instance: instance.free_cores_mcpu)
 
         self.n_instances_by_state = {
             'pending': 0,
@@ -76,6 +80,7 @@ class InstancePool:
     def adjust_for_remove_instance(self, instance):
         self.n_instances_by_state[instance.state] -= 1
 
+        self.instances_by_last_updated.remove(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= instance.free_cores_mcpu
         if instance.state == 'active':
@@ -93,6 +98,7 @@ class InstancePool:
     def adjust_for_add_instance(self, instance):
         self.n_instances_by_state[instance.state] += 1
 
+        self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += instance.free_cores_mcpu
         if instance.state == 'active':
@@ -323,7 +329,7 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
-                log.exception('event loop failed due to exception')
+                log.exception('in event loop')
             await asyncio.sleep(15)
 
     async def control_loop(self):
@@ -353,6 +359,51 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
-                log.exception('instance pool control loop: caught exception')
-
+                log.exception('in control loop')
             await asyncio.sleep(15)
+
+    async def check_on_instance(self, instance):
+        try:
+            spec = await self.gservices.get_instance(instance.name)
+        except googleapiclient.errors.HttpError as e:
+            if e.resp['status'] == '404':
+                await self.remove_instance(instance)
+                return
+
+        gce_state = spec['status']
+        log.info(f'{instance} gce_state {gce_state}')
+
+        if (instance.state in ('pending', 'active') and
+                gce_state in ('STOPPING', 'TERMINATED')):
+            log.info(f'deactivating {instance}, live but stopping or terminated')
+            await instance.deactivate()
+
+        if instance.state == 'pending' and time.time() - instance.time_created > 5 * 60:
+            # FIXME shouldn't count time in provisioning
+            log.info(f'{instance} did not activate within 5m, deleting')
+            await self.call_delete_instance(instance)
+
+        if instance.state == 'inactive':
+            log.info(f'{instance} is inactive, deleting')
+            await self.call_delete_instance(instance)
+
+        await instance.update_timestamp()
+
+    async def monitor_instances_loop(self):
+        log.info(f'starting monitor instances loop')
+
+        while True:
+            try:
+                if self.instances_by_last_updated:
+                    # 0 is the smallest (oldest)
+                    instance = self.instances_by_last_updated[0]
+                    since_last_updated = time.time() - instance.last_updated
+                    if since_last_updated > 60:
+                        log.info(f'checking on {instance}, last updated {since_last_updated}s ago')
+                        await self.check_on_instance(instance)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                log.exception('in monitor instances loop')
+
+            await asyncio.sleep(1)

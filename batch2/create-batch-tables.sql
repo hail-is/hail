@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
+  `time_created` DOUBLE NOT NULL,
+  `last_updated` DOUBLE NOT NULL
   `ip_address` VARCHAR(100),
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;

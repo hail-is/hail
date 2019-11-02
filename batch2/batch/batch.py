@@ -98,11 +98,15 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
     instance_id = rv['instance_id']
     if instance_id is not None:
         instance = inst_pool.id_instance.get(instance_id)
-        log.info(f'updating instance: {instance}')
         if instance:
-            instance.adjust_free_cores(rv['cores_mcpu'])
+            log.info(f'updating {instance}')
 
-    scheduler_state_changed.set()
+            instance.adjust_free_cores(rv['cores_mcpu'])
+            scheduler_state_changed.set()
+
+            await instance.update_timestamp()
+        else:
+            log.warning(f'mark_complete for job {id} from unknown {instance}')
 
     await notify_batch_job_complete(db, batch_id)
 
@@ -183,6 +187,7 @@ async def unschedule_job(app, record):
                f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
         try:
             await request_retry_transient_errors(session, 'DELETE', url)
+            instance.update_timestamp()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 pass
@@ -230,6 +235,7 @@ async def schedule_job(app, record, instance):
         await request_retry_transient_errors(
             session, 'POST',
             url, json=body)
+        instance.update_timestamp()
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
