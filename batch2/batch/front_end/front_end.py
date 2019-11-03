@@ -5,6 +5,7 @@ import json
 import asyncio
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import aiohttp_jinja2
 import cerberus
 import prometheus_client as pc
@@ -19,7 +20,8 @@ from hailtop import batch_client
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
 
 # import uvloop
 
@@ -517,6 +519,8 @@ async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     await _cancel_batch(request.app, batch_id, user)
+    session = await aiohttp_session.get_session(request)
+    set_message(session, 'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 

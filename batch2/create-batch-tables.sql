@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
-  FOREIGN KEY (`instance_id`) REFERENCES instances(id) ON DELETE SET NULL
+  FOREIGN KEY (`instance_id`) REFERENCES instances(id)
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
 CREATE INDEX `jobs_instance_id` ON `jobs` (`instance_id`);
