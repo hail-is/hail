@@ -366,15 +366,16 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
             await asyncio.sleep(15)
 
     async def check_on_instance(self, instance):
-        try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await session.get(f'http://{instance.ip_address}:5000/healthcheck')
-                await instance.mark_healthy()
-                return
-        except Exception:
-            log.exception(f'while requesting {instance} /healthcheck')
-            await instance.incr_failed_request_count()
+        if instance.ip_address:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    await session.get(f'http://{instance.ip_address}:5000/healthcheck')
+                    await instance.mark_healthy()
+                    return
+            except Exception:
+                log.exception(f'while requesting {instance} /healthcheck')
+                await instance.incr_failed_request_count()
 
         try:
             spec = await self.gservices.get_instance(instance.name)

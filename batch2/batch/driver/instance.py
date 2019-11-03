@@ -130,7 +130,7 @@ WHERE id = %s;
         now = time.time()
         await self.db.execute_update(
             'UPDATE instances  SET failed_request_count = 0 WHERE id = %s;',
-            (now, self.id))
+            (self.id,))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._failed_request_count = 0
