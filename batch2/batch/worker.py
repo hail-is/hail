@@ -268,19 +268,30 @@ def populate_secret_host_path(host_path, secret_data):
 
 def copy_command(src, dst):
     if not dst.startswith('gs://'):
-        mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
+        mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
     else:
-        mkdirs = ""
-    return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
+        mkdirs = ''
+    return f'{mkdirs}retry gsutil -m cp -R {shq(src)} {shq(dst)}'
 
 
 def copy(files):
     if files is None:
         return 'true'
 
-    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
-    return f'{authenticate} && {copies}'
+    return f'''
+set -ex
+
+function retry() {{
+    "$@" ||
+	(sleep 2 && "$@") ||
+	(sleep 5 && "$@")
+}}
+
+retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+
+{copies}
+'''
 
 
 def copy_container(job, name, files, volume_mounts):

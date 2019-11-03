@@ -3,7 +3,7 @@ DROP TABLE IF EXISTS `job_attributes`;
 DROP TABLE IF EXISTS `job_parents`;
 DROP TABLE IF EXISTS `ready_cores`;
 DROP TABLE IF EXISTS `jobs`;
-DROP TABLE IF EXISTS `batch`;
+DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `instances`;
 DROP TABLE IF EXISTS `tokens`;
 DROP PROCEDURE IF EXISTS activate_instance;
