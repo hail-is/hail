@@ -253,7 +253,7 @@ async def schedule_job(app, record, instance):
     await check_call_procedure(
         db,
         'CALL schedule_job(%s, %s, %s);',
-        (batch_id, job_id, instance.id))
+        (batch_id, job_id, instance.name))
 
     log.info(f'schedule job {id} on {instance}: updated database')
 
