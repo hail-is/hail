@@ -129,13 +129,13 @@ WHERE id = %s;
     async def incr_failed_request_count(self):
         await self.db.execute_update(
             '''
-UPDATE instances 
+UPDATE instances
 SET failed_request_count = failed_request_count + 1 WHERE id = %s;
 ''',
             (self.id,))
 
         self.instance_pool.adjust_for_remove_instance(self)
-        self._failed_request_count = 0
+        self._failed_request_count += 1
         self.instance_pool.adjust_for_add_instance(self)
 
     @property
