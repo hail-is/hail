@@ -369,7 +369,7 @@ gcloud -q compute instances delete $NAME --zone=$ZONE
         try:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await session.get('http://{instance.ip_address}:5000/healthcheck')
+                await session.get(f'http://{instance.ip_address}:5000/healthcheck')
                 await instance.mark_healthy()
                 return
         except Exception:
