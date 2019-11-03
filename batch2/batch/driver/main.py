@@ -74,7 +74,7 @@ def instances_only(fun):
 
         db = request.app['db']
         record = await db.execute_and_fetchone(
-            'SELECT state FROM intances WHERE id = %s AND token = %s;',
+            'SELECT state FROM instances WHERE id = %s AND token = %s;',
             (instance_name, token))
         if not record:
             raise web.HTTPUnauthorized()
