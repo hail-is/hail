@@ -31,3 +31,5 @@ docker-credential-gcr configure-docker
 
 docker pull ubuntu:18.04
 docker pull google/cloud-sdk:237.0.0-alpine
+
+shutdown -h now

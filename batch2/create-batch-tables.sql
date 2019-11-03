@@ -323,7 +323,8 @@ BEGIN
 	     jobs.job_id = `job_parents`.job_id
 	WHERE jobs.batch_id = in_batch_id AND
 	      `job_parents`.batch_id = in_batch_id AND
-	      `job_parents`.parent_id = in_job_id);
+	      `job_parents`.parent_id = in_job_id AND
+	      jobs.n_pending_parents = 1);
 
     UPDATE jobs
       INNER JOIN `job_parents`
