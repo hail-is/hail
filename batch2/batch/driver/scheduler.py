@@ -81,9 +81,9 @@ LIMIT 50;
                 should_wait = False
                 continue
 
-            i = self.inst_pool.active_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
-            if i < len(self.inst_pool.active_instances_by_free_cores):
-                instance = self.inst_pool.active_instances_by_free_cores[i]
+            i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
+            if i < len(self.inst_pool.healthy_instances_by_free_cores):
+                instance = self.inst_pool.healthy_instances_by_free_cores[i]
                 assert record['cores_mcpu'] <= instance.free_cores_mcpu
                 log.info(f'scheduling job {id} on {instance}')
                 try:
