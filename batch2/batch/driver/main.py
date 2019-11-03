@@ -236,8 +236,8 @@ async def on_startup(app):
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
-    await inst_pool.async_init()
     app['inst_pool'] = inst_pool
+    await inst_pool.async_init()
 
     scheduler = Scheduler(app)
     await scheduler.async_init()
