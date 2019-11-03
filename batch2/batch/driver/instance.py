@@ -127,7 +127,6 @@ WHERE id = %s;
         self.instance_pool.adjust_for_add_instance(self)
 
     async def incr_failed_request_count(self):
-        now = time.time()
         await self.db.execute_update(
             'UPDATE instances  SET failed_request_count = 0 WHERE id = %s;',
             (self.id,))
