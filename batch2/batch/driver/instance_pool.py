@@ -85,7 +85,8 @@ class InstancePool:
         self.instances_by_last_updated.remove(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= instance.free_cores_mcpu
-        self.healthy_instances_by_free_cores.remove(instance)
+        if instance in self.healthy_instances_by_free_cores:
+            self.healthy_instances_by_free_cores.remove(instance)
 
     async def remove_instance(self, instance):
         await self.db.just_execute(
