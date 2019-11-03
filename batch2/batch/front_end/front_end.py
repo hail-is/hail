@@ -517,6 +517,8 @@ async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     await _cancel_batch(request.app, batch_id, user)
+    session = await aiohttp_session.get_session(request)
+    set_message(session, 'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 

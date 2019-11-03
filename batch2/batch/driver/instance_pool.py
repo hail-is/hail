@@ -88,6 +88,8 @@ class InstancePool:
             self.active_instances_by_free_cores.remove(instance)
 
     async def remove_instance(self, instance):
+        await instance.deactivate()
+
         await self.db.just_execute(
             'DELETE FROM instances WHERE id = %s;', (instance.id,))
 
