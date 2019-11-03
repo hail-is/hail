@@ -598,11 +598,14 @@ class Worker:
             body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await request_retry_transient_errors(
-                    session, 'POST',
+                # Don't retry.  If it doesn't go through, the driver
+                # monitoring loops will recover.  If the driver is
+                # gone (e.g. testing a PR), this would go into an
+                # infinite loop and the instance won't be deleted.
+                await session.post(
                     self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
                     json=body)
-                log.info('deactivated')
+            log.info('deactivated')
         finally:
             log.info('shutting down')
             if site:
