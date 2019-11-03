@@ -622,8 +622,7 @@ class Worker:
                 # gone (e.g. testing a PR), this would go into an
                 # infinite loop and the instance won't be deleted.
                 await session.post(
-                    self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
-                    json=body,
+                    deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
                     headers=self._headers)
             log.info('deactivated')
         finally:
