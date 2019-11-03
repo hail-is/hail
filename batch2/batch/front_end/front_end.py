@@ -5,6 +5,7 @@ import json
 import asyncio
 import aiohttp
 from aiohttp import web
+import aiohttp_session
 import aiohttp_jinja2
 import cerberus
 import prometheus_client as pc
@@ -19,7 +20,8 @@ from hailtop import batch_client
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
 
 # import uvloop
 
