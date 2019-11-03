@@ -2,7 +2,7 @@ import json
 import logging
 import asyncio
 import aiohttp
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
@@ -102,8 +102,6 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 
             instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
             scheduler_state_changed.set()
-
-            await instance.update_timestamp()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
@@ -179,18 +177,30 @@ async def unschedule_job(app, record):
 
     log.info(f'unschedule job {id}: updated {instance} free cores')
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        url = (f'http://{instance.ip_address}:5000'
-               f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
+    url = (f'http://{instance.ip_address}:5000'
+           f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
+    delay = 0.1
+    while True:
+        if instance.state in ('inactive', 'deleted'):
+            break
         try:
-            await request_retry_transient_errors(session, 'DELETE', url)
-            await instance.update_timestamp()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                pass
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                await session.delete(url)
+                await instance.mark_healthy()
+                break
+        except Exception as e:
+            if (isinstance(e, aiohttp.ClientResponseError) and
+                    e.status == 404):  # pylint: disable=no-member
+                await instance.mark_healthy()
+                break
             else:
-                raise
+                await instance.incr_failed_request_count()
+                if is_transient_error(e):
+                    pass
+                else:
+                    raise
+        delay = await sleep_and_backoff(delay)
 
     log.info(f'unschedule job {id}: called delete job')
 
@@ -226,14 +236,17 @@ async def schedule_job(app, record, instance):
     job_id = record['job_id']
     id = (batch_id, job_id)
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create'
-        body = await job_config(app, record)
-        await request_retry_transient_errors(
-            session, 'POST',
-            url, json=body)
-        await instance.update_timestamp()
+    try:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            url = (f'http://{instance.ip_address}:5000'
+                   f'/api/v1alpha/batches/jobs/create')
+            body = await job_config(app, record)
+            await session.post(url, json=body)
+            await instance.mark_healthy()
+    except Exception:
+        await instance.incr_failed_request_count()
+        raise
 
     log.info(f'schedule job {id} on {instance}: called create job')
 
