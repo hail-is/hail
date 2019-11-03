@@ -131,7 +131,7 @@ FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
 LEFT JOIN instances
-  ON jobs.instance_id = instances.id
+  ON jobs.instance_name = instances.name
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))
@@ -575,7 +575,7 @@ FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
 LEFT JOIN instances
-  ON jobs.instance_id = instances.id
+  ON jobs.instance_name = instances.name
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))
