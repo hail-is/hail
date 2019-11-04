@@ -131,7 +131,7 @@ class InstancePool:
             'name': machine_name,
             'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
             'labels': {
-                'role': 'batch2-worker',
+                'role': 'batch2-agent',
                 'namespace': BATCH_NAMESPACE
             },
 
