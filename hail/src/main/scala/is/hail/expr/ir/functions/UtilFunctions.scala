@@ -18,17 +18,36 @@ object UtilFunctions extends RegistryFunctions {
 
   def parseInt64(s: String): Long = s.toLong
 
-  def parseFloat32(s: String): Float = s match {
-    case "nan" => Float.NaN
-    case "inf" => Float.PositiveInfinity
-    case "-inf" => Float.NegativeInfinity
+  private val NAN = 1
+  private val POS_INF = 2
+  private val NEG_INF = 3
+
+  def parseSpecialNum(s: String, i: Int, inf: Int): Int =
+    if ((s charAt i).toLower == 'n' && (s charAt i + 1).toLower == 'a' && (s charAt i + 2).toLower == 'n')
+      NAN
+    else if ((s charAt i).toLower == 'i' && (s charAt i + 1).toLower == 'n' && (s charAt i + 2).toLower == 'f')
+      inf
+    else
+      0
+
+  def parseSpecialNum(s: String): Int = s.length match {
+    case 3 => parseSpecialNum(s, 0, POS_INF)
+    case 4 if (s(0) == '+') => parseSpecialNum(s, 1, POS_INF)
+    case 4 if (s(0) == '-') => parseSpecialNum(s, 1, NEG_INF)
+    case _ => 0
+  }
+
+  def parseFloat32(s: String): Float = parseSpecialNum(s) match {
+    case NAN => Float.NaN
+    case POS_INF => Float.PositiveInfinity
+    case NEG_INF => Float.NegativeInfinity
     case _ => s.toFloat
   }
 
-  def parseFloat64(s: String): Double = s match {
-    case "nan" => Double.NaN
-    case "inf" => Double.PositiveInfinity
-    case "-inf" => Double.NegativeInfinity
+  def parseFloat64(s: String): Double = parseSpecialNum(s) match {
+    case NAN => Double.NaN
+    case POS_INF => Double.PositiveInfinity
+    case NEG_INF => Double.NegativeInfinity
     case _ => s.toDouble
   }
 

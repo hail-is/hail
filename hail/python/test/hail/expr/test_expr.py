@@ -1351,6 +1351,19 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(s_whitespace.startswith('a')))
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
 
+    def test_str_parsing(self):
+        for x in ('nan', 'Nan', 'naN', 'NaN'):
+            for f in (hl.float, hl.float32, hl.float64):
+                self.assertTrue(hl.eval(hl.is_nan(f(x))))
+                self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
+                self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
+        for x in ('inf', 'Inf', 'iNf', 'InF'):
+            for f in (hl.float, hl.float32, hl.float64):
+                self.assertTrue(hl.eval(hl.is_infinite(f(x))))
+                self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))
+                self.assertTrue(hl.eval(hl.is_infinite(f('-' + x))))
+                self.assertTrue(hl.eval(f('-' + x) < 0.0))
+
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
         self.assertEqual(hl.eval(hl.str(hl.null('int32'))), None)
