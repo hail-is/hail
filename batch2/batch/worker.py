@@ -28,19 +28,27 @@ from .log_store import LogStore
 # uvloop.install()
 
 configure_logging()
-log = logging.getLogger('batch2-agent')
-
-docker = aiodocker.Docker()
+log = logging.getLogger('batch2-worker')
 
 MAX_IDLE_TIME_SECS = 60
 
+CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
+NAMESPACE = os.environ['NAMESPACE']
 BUCKET_NAME = os.environ['BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
+IP_ADDRESS = os.environ['IP_ADDRESS']
 
+log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
+log.info(f'NAMESPACE {NAMESPACE}')
 log.info(f'BUCKET_NAME {BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
+log.info(f'IP_ADDRESS {IP_ADDRESS}')
+
+deploy_config = DeployConfig('gce', NAMESPACE, {})
+
+docker = aiodocker.Docker()
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -486,14 +494,15 @@ class Job:
 
 
 class Worker:
-    def __init__(self, cores, deploy_config, token, ip_address):
-        self.cores_mcpu = cores * 1000
-        self.deploy_config = deploy_config
-        self.token = token
+    def __init__(self):
+        self.cores_mcpu = CORES * 1000
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time.time()
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
-        self.ip_address = ip_address
+        self._headers = {
+            'X-Hail-Instance-Name': NAME,
+            'Authorization': f'Bearer {os.environ["TOKEN"]}'
+        }
 
         pool = concurrent.futures.ThreadPoolExecutor()
         self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, pool)
@@ -606,7 +615,6 @@ class Worker:
 
             log.info(f'idle {idle_duration} seconds, exiting')
 
-            body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 # Don't retry.  If it doesn't go through, the driver
@@ -614,8 +622,8 @@ class Worker:
                 # gone (e.g. testing a PR), this would go into an
                 # infinite loop and the instance won't be deleted.
                 await session.post(
-                    self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
-                    json=body)
+                    deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
+                    headers=self._headers)
             log.info('deactivated')
         finally:
             log.info('shutting down')
@@ -628,7 +636,6 @@ class Worker:
 
     async def post_job_complete(self, job_status):
         body = {
-            'inst_token': self.token,
             'status': job_status
         }
 
@@ -638,8 +645,8 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
-                        self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
-                        json=body)
+                        deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
+                        json=body, headers=self._headers)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -653,25 +660,16 @@ class Worker:
             delay = min(delay * 2, 60.0)
 
     async def activate(self):
-        body = {
-            'inst_token': self.token,
-            'ip_address': self.ip_address
-        }
+        body = {'ip_address': IP_ADDRESS}
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
-                self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
-                json=body)
+                deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
+                json=body, headers=self._headers)
 
 
-cores = int(os.environ['CORES'])
-namespace = os.environ['NAMESPACE']
-inst_token = os.environ['INST_TOKEN']
-ip_address = os.environ['INTERNAL_IP']
-
-deploy_config = DeployConfig('gce', namespace, {})
-worker = Worker(cores, deploy_config, inst_token, ip_address)
+worker = Worker()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())

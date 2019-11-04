@@ -131,7 +131,7 @@ FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
 LEFT JOIN instances
-  ON jobs.instance_id = instances.id
+  ON jobs.instance_name = instances.name
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))
@@ -397,7 +397,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'))
+            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'),
+            headers=app['driver_headers'])
 
     return web.Response()
 
@@ -430,7 +431,8 @@ async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
-    db = request.app['db']
+    app = request.app
+    db = app['db']
 
     record = await db.execute_and_fetchone(
         '''
@@ -457,7 +459,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'))
+            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+            headers=app['driver_headers'])
 
     return web.Response()
 
@@ -469,7 +472,8 @@ async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
-    db = request.app['db']
+    app = request.app
+    db = app['db']
 
     record = await db.execute_and_fetchone(
         '''
@@ -489,7 +493,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             try:
                 await request_retry_transient_errors(
                     session, 'DELETE',
-                    deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'))
+                    deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'),
+                    headers=app['driver_headers'])
             except aiohttp.ClientResponseError as e:
                 if e.status == 404:
                     pass
@@ -570,7 +575,7 @@ FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
 LEFT JOIN instances
-  ON jobs.instance_id = instances.id
+  ON jobs.instance_name = instances.name
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))
@@ -635,6 +640,13 @@ async def on_startup(app):
     instance_id = row['token']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
+
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'internal')
+    app['driver_headers'] = {
+        'Authorization': f'Bearer {row["token"]}'
+    }
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')

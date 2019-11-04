@@ -1,6 +1,8 @@
-import asyncio
-import concurrent
+import secrets
 import logging
+from functools import wraps
+import concurrent
+import asyncio
 from aiohttp import web
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
@@ -31,12 +33,63 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 
+def batch_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            raise web.HTTPUnauthorized()
+        if not auth_header.startswith('Bearer '):
+            raise web.HTTPUnauthorized()
+        token = auth_header[7:]
+        if not secrets.compare_digest(token, request.app['internal_token']):
+            raise web.HTTPUnauthorized()
+
+        return await fun(request)
+    return wrapped
+
+
+def instances_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        app = request.app
+
+        instance_name = request.headers.get('X-Hail-Instance-Name')
+        if not instance_name:
+            raise web.HTTPUnauthorized()
+
+        instance_pool = app['inst_pool']
+        instance = instance_pool.name_instance.get(instance_name)
+        if not instance:
+            raise web.HTTPUnauthorized()
+        if instance.state not in ('pending', 'active'):
+            raise web.HTTPUnauthorized()
+
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            raise web.HTTPUnauthorized()
+        if not auth_header.startswith('Bearer '):
+            raise web.HTTPUnauthorized()
+        token = auth_header[7:]
+
+        db = request.app['db']
+        record = await db.execute_and_fetchone(
+            'SELECT state FROM instances WHERE name = %s AND token = %s;',
+            (instance_name, token))
+        if not record:
+            raise web.HTTPUnauthorized()
+
+        return await fun(request, instance)
+    return wrapped
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
+@batch_only
 async def close_batch(request):
     db = request.app['db']
 
@@ -57,6 +110,7 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
+@batch_only
 async def cancel_batch(request):
     db = request.app['db']
 
@@ -78,6 +132,7 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
 
 
 @routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
+@batch_only
 async def delete_batch(request):
     db = request.app['db']
 
@@ -114,18 +169,9 @@ WHERE deleted AND (NOT closed OR n_jobs = n_completed);
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-async def activate_instance_1(request):
-    app = request.app
-    inst_pool = app['inst_pool']
-
+async def activate_instance_1(request, instance):
     body = await request.json()
-    inst_token = body['inst_token']
     ip_address = body['ip_address']
-
-    instance = inst_pool.token_inst.get(inst_token)
-    if not instance:
-        log.warning(f'/activate_worker from unknown instance {inst_token}')
-        raise web.HTTPNotFound()
 
     log.info(f'activating {instance}')
     await instance.activate(ip_address)
@@ -134,21 +180,12 @@ async def activate_instance_1(request):
 
 
 @routes.post('/api/v1alpha/instances/activate')
-async def activate_instance(request):
-    return await asyncio.shield(activate_instance_1(request))
+@instances_only
+async def activate_instance(request, instance):
+    return await asyncio.shield(activate_instance_1(request, instance))
 
 
-async def deactivate_instance_1(request):
-    inst_pool = request.app['inst_pool']
-
-    body = await request.json()
-    inst_token = body['inst_token']
-
-    instance = inst_pool.token_inst.get(inst_token)
-    if not instance:
-        log.warning(f'/deactivate_worker from unknown instance {inst_token}')
-        raise web.HTTPNotFound()
-
+async def deactivate_instance_1(instance):
     log.info(f'deactivating {instance}')
     await instance.deactivate()
     await instance.mark_healthy()
@@ -156,22 +193,14 @@ async def deactivate_instance_1(request):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-async def deactivate_instance(request):
-    return await asyncio.shield(deactivate_instance_1(request))
+@instances_only
+async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(deactivate_instance_1(instance))
 
 
-async def job_complete_1(request):
-    app = request.app
-    inst_pool = app['inst_pool']
-
+async def job_complete_1(request, instance):
     body = await request.json()
-    inst_token = body['inst_token']
     status = body['status']
-
-    instance = inst_pool.token_inst.get(inst_token)
-    if not instance:
-        log.warning(f'job_complete from unknown instance {inst_token}')
-        raise web.HTTPNotFound()
 
     batch_id = status['batch_id']
     job_id = status['job_id']
@@ -185,14 +214,17 @@ async def job_complete_1(request):
         assert status_state == 'failed', status_state
         new_state = 'Failed'
 
-    await mark_job_complete(app, batch_id, job_id, new_state, status)
+    await mark_job_complete(request.app, batch_id, job_id, new_state, status)
+
     await instance.mark_healthy()
+
     return web.Response()
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
-async def job_complete(request):
-    return await asyncio.shield(job_complete_1(request))
+@instances_only
+async def job_complete(request, instance):
+    return await asyncio.shield(job_complete_1(request, instance))
 
 
 async def on_startup(app):
@@ -219,6 +251,11 @@ async def on_startup(app):
     instance_id = row['token']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
+
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'internal')
+    app['internal_token'] = row['token']
 
     machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
