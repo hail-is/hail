@@ -674,8 +674,11 @@ class Worker:
                 'Authorization': f'Bearer {resp_json["token"]}'
             }
 
-            credentials = google.oauth2.service_account.Credentials.from_service_account_info(
-                resp_json['key'])
+            with open('key.json', 'w') as f:
+                f.write(json.dumps(resp_json['key']))
+
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+                'key.json')
             self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool, credentials)
 
 
