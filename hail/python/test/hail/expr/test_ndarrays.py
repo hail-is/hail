@@ -93,7 +93,11 @@ def test_ndarray_slice():
         (flat[-4:-1:2], np_flat[-4:-1:2])
     )
 
-    assert hl.eval(hl._ndarray(hl.range(20))[4:hl.null(hl.tint32)]) is None
+    assert hl.eval(flat[4:hl.null(hl.tint32)]) is None
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(flat[::0])
+    assert "Slice step cannot be zero" in str(exc)
 
 @skip_unless_spark_backend()
 def test_ndarray_eval():
