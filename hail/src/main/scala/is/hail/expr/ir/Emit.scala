@@ -722,7 +722,18 @@ private class Emit(
             ))))
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: ArrayAggScan | _: ReadPartition =>
-        emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
+        val m = mb.newField[Boolean]("arr_m")
+        val v = mb.newField[Long]("arr_v")
+        val setup = EmitUtils.wrapToMethod(
+          Seq(new EstimableEmitter[EmitMethodBuilderLike] {
+            def estimatedSize = 6666
+            def emit(mbLike: EmitMethodBuilderLike): Code[Unit] = {
+              val et = emitArrayIterator(ir).toEmitTriplet(mbLike.mb, PArray(coerce[PStreamable](ir.pType).elementType))
+              Code(et.setup, et.m.mux(m := true, Code(m := false, v := et.value)))
+            }
+          }),
+          new EmitMethodBuilderLike(this))
+        EmitTriplet(setup, m, v)
 
       case ArrayFold(a, zero, name1, name2, body) =>
         val typ = ir.typ
