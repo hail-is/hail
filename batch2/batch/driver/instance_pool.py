@@ -187,6 +187,8 @@ set -x
 iptables -I FORWARD -i docker0 -d 169.254.169.254 --dport 53 -p udp -j ACCEPT
 iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
 
+iptables -S
+
 export HOME=/root
 
 CORES=$(nproc)
