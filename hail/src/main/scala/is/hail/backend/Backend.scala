@@ -26,7 +26,7 @@ abstract class Backend {
       LowerTableIR(ir, timer, optimize)
 
   def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, Timings) = {
-    val timer = new ExecutionTimer("Backend.execute")
+    val timer = new ExecutionTimer()
     val ir = lower(ir0, Some(timer), optimize)
 
     if (!Compilable(ir))

@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.TypedAggregator
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
@@ -20,40 +21,12 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val tiropt = if (optimize)
-      Optimize(tir)
-    else
-      tir
-
-    var lowered = LowerMatrixIR(tiropt)
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true)
-
-    lowered = InterpretNonCompilable(ctx, lowered).asInstanceOf[TableIR]
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true)
-
+    val lowered = LoweringPipeline.relationalLowerer(ctx, tir, optimize).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val miropt = if (optimize)
-      Optimize(mir)
-    else
-      mir
-
-    var lowered = LowerMatrixIR(miropt)
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true  )
-
-    lowered = InterpretNonCompilable(ctx, lowered).asInstanceOf[TableIR]
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true)
-
+    val lowered = LoweringPipeline.relationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 

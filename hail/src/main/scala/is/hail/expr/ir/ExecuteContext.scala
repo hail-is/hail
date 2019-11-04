@@ -7,12 +7,12 @@ import scala.collection.mutable.ArrayBuffer
 object ExecuteContext {
   def scoped[T](f: ExecuteContext => T): T = {
     Region.scoped { r =>
-      using(ExecuteContext(r))(f)
+      using(ExecuteContext(r,  new ExecutionTimer))(f)
     }
   }
 }
 
-case class ExecuteContext(r: Region) extends AutoCloseable {
+case class ExecuteContext(r: Region, timer: ExecutionTimer) extends AutoCloseable {
   private[this] val onExits = new ArrayBuffer[() => Unit]()
   def addOnExit(onExit: () => Unit): Unit = {
     onExits += onExit

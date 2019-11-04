@@ -32,9 +32,7 @@ object LowerTableIR {
   def apply(ir0: IR, timer: Option[ExecutionTimer], optimize: Boolean = true): IR = {
 
     def opt(context: String, ir: IR): IR =
-      Optimize(ir, noisy = true,
-        Some(timer.map(t => s"${ t.context }: $context")
-          .getOrElse(context)))
+      Optimize(ir, noisy = true, Some(context))
 
     def time(context: String, ir: (String) => IR): IR =
       timer.map(t => t.time(ir(context), context))
