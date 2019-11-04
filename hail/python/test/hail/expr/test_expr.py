@@ -1357,7 +1357,7 @@ class Tests(unittest.TestCase):
                 self.assertTrue(hl.eval(hl.is_nan(f(x))))
                 self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
                 self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
-        for x in ('inf', 'Inf', 'iNf', 'InF'):
+        for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
             for f in (hl.float, hl.float32, hl.float64):
                 self.assertTrue(hl.eval(hl.is_infinite(f(x))))
                 self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))

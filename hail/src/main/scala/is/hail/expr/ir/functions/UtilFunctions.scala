@@ -22,18 +22,15 @@ object UtilFunctions extends RegistryFunctions {
   private val POS_INF = 2
   private val NEG_INF = 3
 
-  def parseSpecialNum(s: String, i: Int, inf: Int): Int =
-    if ((s charAt i).toLower == 'n' && (s charAt i + 1).toLower == 'a' && (s charAt i + 2).toLower == 'n')
-      NAN
-    else if ((s charAt i).toLower == 'i' && (s charAt i + 1).toLower == 'n' && (s charAt i + 2).toLower == 'f')
-      inf
-    else
-      0
-
   def parseSpecialNum(s: String): Int = s.length match {
-    case 3 => parseSpecialNum(s, 0, POS_INF)
-    case 4 if (s(0) == '+') => parseSpecialNum(s, 1, POS_INF)
-    case 4 if (s(0) == '-') => parseSpecialNum(s, 1, NEG_INF)
+    case 3 if s equalsCI "nan" => NAN
+    case 4 if (s equalsCI "+nan") || (s equalsCI "-nan") => NAN
+    case 3 if s equalsCI "inf" => POS_INF
+    case 4 if s equalsCI "+inf" => POS_INF
+    case 4 if s equalsCI "-inf" => NEG_INF
+    case 8 if s equalsCI "infinity" => POS_INF
+    case 9 if s equalsCI "+infinity" => POS_INF
+    case 9 if s equalsCI "-infinity" => NEG_INF
     case _ => 0
   }
 
