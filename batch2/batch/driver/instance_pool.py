@@ -121,8 +121,8 @@ class InstancePool:
             if machine_name not in self.name_instance:
                 break
 
-        token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, token, WORKER_CORES_MCPU)
+        activation_token = secrets.token_urlsafe(32)
+        instance = await Instance.create(self.app, machine_name, activation_token, WORKER_CORES_MCPU)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
@@ -140,7 +140,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': WORKER_DISK_SIZE_GB,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-5',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-6',
                 }
             }],
 
@@ -183,12 +183,18 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
+# only allow udp/53 (dns) to metadata server
+# -I inserts at the head of the chain, so the ACCEPT rule runs first
+iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
+iptables -I FORWARD -i docker0 -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
+
 export HOME=/root
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
-TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/token")
+ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/activation_token")
 IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
+PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 
 BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
@@ -206,10 +212,11 @@ docker run \
     -e CORES=$CORES \
     -e NAME=$NAME \
     -e NAMESPACE=$NAMESPACE \
-    -e TOKEN=$TOKEN \
+    -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
     -e IP_ADDRESS=$IP_ADDRESS \
     -e BUCKET_NAME=$BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
+    -e PROJECT=$PROJECT \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
@@ -221,11 +228,14 @@ docker run \
 # this has to match LogStore.worker_log_path
 gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$INSTANCE_ID/worker/$NAME/
 
-gcloud -q compute instances delete $NAME --zone=$ZONE
+while true; do
+  gcloud -q compute instances delete $NAME --zone=$ZONE
+  sleep 1
+done
 '''
                 }, {
-                    'key': 'token',
-                    'value': token
+                    'key': 'activation_token',
+                    'value': activation_token
                 }, {
                     'key': 'batch_worker_image',
                     'value': BATCH_WORKER_IMAGE

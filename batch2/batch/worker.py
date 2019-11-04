@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from shlex import quote as shq
 import time
 import logging
@@ -14,6 +15,7 @@ from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
+import google.oauth2.service_account
 from hailtop.utils import request_retry_transient_errors
 
 # import uvloop
@@ -30,21 +32,25 @@ from .log_store import LogStore
 configure_logging()
 log = logging.getLogger('batch2-worker')
 
-MAX_IDLE_TIME_SECS = 60
+MAX_IDLE_TIME_SECS = 5 * 60
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
+# ACTIVATION_TOKEN
+IP_ADDRESS = os.environ['IP_ADDRESS']
 BUCKET_NAME = os.environ['BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
-IP_ADDRESS = os.environ['IP_ADDRESS']
+PROJECT = os.environ['PROJECT']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
+# ACTIVATION_TOKEN
+log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'BUCKET_NAME {BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
-log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'PROJECT {PROJECT}')
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
@@ -292,8 +298,8 @@ set -ex
 
 function retry() {{
     "$@" ||
-	(sleep 2 && "$@") ||
-	(sleep 5 && "$@")
+        (sleep 2 && "$@") ||
+        (sleep 5 && "$@")
 }}
 
 retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
@@ -305,7 +311,7 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
 def copy_container(job, name, files, volume_mounts):
     sh_expression = copy(files)
     copy_spec = {
-        'image': 'google/cloud-sdk:237.0.0-alpine',
+        'image': 'google/cloud-sdk:269.0.0-alpine',
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
         'cpu': '500m' if files else '100m',
@@ -499,15 +505,12 @@ class Worker:
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time.time()
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
-        self._headers = {
-            'X-Hail-Instance-Name': NAME,
-            'Authorization': f'Bearer {os.environ["TOKEN"]}'
-        }
-
-        pool = concurrent.futures.ThreadPoolExecutor()
-        self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, pool)
-
+        self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
+
+        # filled in during activation
+        self.log_store = None
+        self.headers = None
 
     async def run_job(self, job):
         try:
@@ -623,7 +626,7 @@ class Worker:
                 # infinite loop and the instance won't be deleted.
                 await session.post(
                     deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
-                    headers=self._headers)
+                    headers=self.headers)
             log.info('deactivated')
         finally:
             log.info('shutting down')
@@ -646,7 +649,7 @@ class Worker:
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
                         deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
-                        json=body, headers=self._headers)
+                        json=body, headers=self.headers)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -660,13 +663,29 @@ class Worker:
             delay = min(delay * 2, 60.0)
 
     async def activate(self):
-        body = {'ip_address': IP_ADDRESS}
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await request_retry_transient_errors(
+            resp = await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
-                json=body, headers=self._headers)
+                json={'ip_address': os.environ['IP_ADDRESS']},
+                headers={
+                    'X-Hail-Instance-Name': NAME,
+                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
+                })
+            resp_json = await resp.json()
+            self.headers = {
+                'X-Hail-Instance-Name': NAME,
+                'Authorization': f'Bearer {resp_json["token"]}'
+            }
+
+            with open('key.json', 'w') as f:
+                f.write(json.dumps(resp_json['key']))
+
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+                'key.json')
+            self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool,
+                                      project=PROJECT, credentials=credentials)
 
 
 worker = Worker()

@@ -1,5 +1,6 @@
 import secrets
 import logging
+import json
 from functools import wraps
 import concurrent
 import asyncio
@@ -33,15 +34,22 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 
+def authorization_token(request):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+    if not auth_header.startswith('Bearer '):
+        return None
+    return auth_header[7:]
+
+
 def batch_only(fun):
     @wraps(fun)
     async def wrapped(request):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
+        token = authorization_token(request)
+        if not token:
             raise web.HTTPUnauthorized()
-        if not auth_header.startswith('Bearer '):
-            raise web.HTTPUnauthorized()
-        token = auth_header[7:]
+
         if not secrets.compare_digest(token, request.app['internal_token']):
             raise web.HTTPUnauthorized()
 
@@ -49,34 +57,69 @@ def batch_only(fun):
     return wrapped
 
 
-def instances_only(fun):
+def instance_from_request(request):
+    instance_name = request.headers.get('X-Hail-Instance-Name')
+    if not instance_name:
+        return None
+
+    instance_pool = request.app['inst_pool']
+    return instance_pool.name_instance.get(instance_name)
+
+
+def activating_instances_only(fun):
     @wraps(fun)
     async def wrapped(request):
-        app = request.app
-
-        instance_name = request.headers.get('X-Hail-Instance-Name')
-        if not instance_name:
-            raise web.HTTPUnauthorized()
-
-        instance_pool = app['inst_pool']
-        instance = instance_pool.name_instance.get(instance_name)
+        instance = instance_from_request(request)
         if not instance:
-            raise web.HTTPUnauthorized()
-        if instance.state not in ('pending', 'active'):
+            log.info('instance not found')
             raise web.HTTPUnauthorized()
 
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
+        if instance.state != 'pending':
+            log.info('instance not pending')
             raise web.HTTPUnauthorized()
-        if not auth_header.startswith('Bearer '):
+
+        activation_token = authorization_token(request)
+        if not activation_token:
+            log.info('activation token not found')
             raise web.HTTPUnauthorized()
-        token = auth_header[7:]
+
+        db = request.app['db']
+        record = await db.execute_and_fetchone(
+            'SELECT state FROM instances WHERE name = %s AND activation_token = %s;',
+            (instance.name, activation_token))
+        if not record:
+            log.info('instance, activation token not found in database')
+            raise web.HTTPUnauthorized()
+
+        resp = await fun(request, instance)
+
+        return resp
+    return wrapped
+
+
+def active_instances_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        instance = instance_from_request(request)
+        if not instance:
+            log.info('instance not found')
+            raise web.HTTPUnauthorized()
+
+        if instance.state != 'active':
+            log.info('instance not active')
+            raise web.HTTPUnauthorized()
+
+        token = authorization_token(request)
+        if not token:
+            log.info('token not found')
+            raise web.HTTPUnauthorized()
 
         db = request.app['db']
         record = await db.execute_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND token = %s;',
-            (instance_name, token))
+            (instance.name, token))
         if not record:
+            log.info('instance, token not found in database')
             raise web.HTTPUnauthorized()
 
         return await fun(request, instance)
@@ -174,13 +217,19 @@ async def activate_instance_1(request, instance):
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
-    await instance.activate(ip_address)
+    token = await instance.activate(ip_address)
     await instance.mark_healthy()
-    return web.Response()
+
+    with open('/batch-gsa-key/privateKeyData', 'r') as f:
+        key = json.loads(f.read())
+    return web.json_response({
+        'token': token,
+        'key': key
+    })
 
 
 @routes.post('/api/v1alpha/instances/activate')
-@instances_only
+@activating_instances_only
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
 
@@ -193,7 +242,7 @@ async def deactivate_instance_1(instance):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-@instances_only
+@active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(deactivate_instance_1(instance))
 
@@ -222,7 +271,7 @@ async def job_complete_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
-@instances_only
+@active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
@@ -258,6 +307,7 @@ async def on_startup(app):
     app['internal_token'] = row['token']
 
     machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
+
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')
     gservices = GServices(machine_name_prefix, credentials)
@@ -269,7 +319,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    log_store = LogStore(bucket_name, instance_id, pool, credentials)
+    log_store = LogStore(bucket_name, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
