@@ -1,7 +1,20 @@
 FROM {{ base_image.image }}
 
+# Installing kubectl on Ubuntu
+# https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-using-native-package-management
+
 RUN apt-get update && \
-  apt-get -y install docker.io && \
+  apt-get -y install \
+    docker.io \
+    apt-transport-https && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+RUN echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+
+RUN apt-get update && \
+  apt-get install -y kubectl && \
   rm -rf /var/lib/apt/lists/*
 
 COPY jinja2_render.py .

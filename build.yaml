@@ -827,6 +827,7 @@ steps:
     - batch_pods_ns
     - deploy_batch2
     - test_batch2_image
+    - ci_utils_image
  - kind: runImage
    name: delete_batch2_instances
    image:

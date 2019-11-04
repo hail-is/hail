@@ -15,6 +15,8 @@ spec:
        value: /deploy-config/deploy-config.json
      - name: HAIL_BASE_IMAGE
        value: {{ base_image.image }}
+     - name: CI_UTILS_IMAGE
+       value: {{ ci_utils_image.image }}
     volumeMounts:
       - mountPath: /deploy-config
         readOnly: true
