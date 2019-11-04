@@ -404,19 +404,32 @@ class CSETests(unittest.TestCase):
         )
         assert expected == CSERenderer()(cond)
 
+    def test_shadowing(self):
+        x = ir.GetField(ir.Ref('row'), 'idx')
+        inner = ir.Let('row', x, x)
+        outer = ir.Let('row', ir.I32(5), inner)
+        expected = (
+            '(Let row (I32 5)' 
+                ' (Let row (GetField idx (Ref row))'
+                ' (GetField idx (Ref row))))')
+        print(CSERenderer()(outer))
+
+    # fix to test ApplyAggOp repeated inside and outside AggFilter
     def test_agg_cse(self):
         x = ir.GetField(ir.Ref('row'), 'idx')
         inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
         agg = ir.ApplyAggOp('AggOp', [], [], [inner_sum])
         outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
-        table_agg = ir.TableAggregate(ir.TableRange(5, 1), outer_sum)
-        expected = (
-            '(TableAggregate (TableRange 5 1)'
-                ' (AggLet __cse_1 False (GetField idx (Ref row))'
-                ' (Let __cse_2 (ApplyAggOp AggOp () None'
-                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
-                ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
-        assert expected == CSERenderer()(table_agg)
+        filter = ir.AggFilter(ir.TrueIR(), outer_sum, False)
+        table_agg = ir.TableAggregate(ir.TableRange(5, 1), ir.MakeTuple([outer_sum, filter]))
+        print(CSERenderer()(table_agg))
+        # expected = (
+        #     '(TableAggregate (TableRange 5 1)'
+        #         ' (AggLet __cse_1 False (GetField idx (Ref row))'
+        #         ' (Let __cse_2 (ApplyAggOp AggOp () None'
+        #             ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
+        #         ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
+        # assert expected == CSERenderer()(table_agg)
 
     def test_init_op(self):
         x = ir.I32(5)

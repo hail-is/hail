@@ -883,6 +883,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
+    def test_aggregator_cse(self):
+        ht = hl.utils.range_table(10)
+        x = hl.agg.count()
+        self.assertEqual(ht.aggregate((x, hl.agg.filter(ht.idx % 2 == 0, x))), (10, 5))
+
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)

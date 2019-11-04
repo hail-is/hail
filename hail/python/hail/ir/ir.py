@@ -1164,8 +1164,17 @@ class AggFilter(IR):
     def uses_agg_context(self, i: int):
         return i == 0 and not self.is_scan
 
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            return {BaseIR.agg_capability: default_value}
+        else:
+            return {}
+
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
+
+    def uses_agg_capability(self) -> bool:
+        return True
 
 
 class AggExplode(IR):
@@ -1196,6 +1205,12 @@ class AggExplode(IR):
         self.agg_body._compute_type(env, _env_bind(agg_env, self.agg_bindings(1)))
         self._type = self.agg_body.typ
 
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            return {BaseIR.agg_capability: default_value}
+        else:
+            return {}
+
     def agg_bindings(self, i, default_value=None):
         if i == 1:
             if default_value is None:
@@ -1214,6 +1229,9 @@ class AggExplode(IR):
 
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
+
+    def uses_agg_capability(self) -> bool:
+        return True
 
 
 class AggGroupBy(IR):
@@ -1239,11 +1257,20 @@ class AggGroupBy(IR):
         self.agg_ir._compute_type(env, agg_env)
         self._type = tdict(self.key.typ, self.agg_ir.typ)
 
+    def bindings(self, i, default_value=None):
+        if i == 1:
+            return {BaseIR.agg_capability: default_value}
+        else:
+            return {}
+
     def uses_agg_context(self, i: int):
         return i == 0 and not self.is_scan
 
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
+
+    def uses_agg_capability(self) -> bool:
+        return True
 
 
 class AggArrayPerElement(IR):
@@ -1282,10 +1309,13 @@ class AggArrayPerElement(IR):
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
 
+    def uses_agg_capability(self) -> bool:
+        return True
+
     def bindings(self, i, default_value=None):
         if i == 1:
             value = tint32 if default_value is None else default_value
-            return {self.index_name: value}
+            return {self.index_name: value, BaseIR.agg_capability: default_value}
         else:
             return {}
 
@@ -1412,6 +1442,9 @@ class BaseApplyAggOp(IR):
     def renderable_new_block(self, i: int) -> bool:
         return i <= 1
 
+    def uses_agg_capability(self) -> bool:
+        return True
+
 
 class ApplyAggOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
@@ -1439,7 +1472,7 @@ class ApplyScanOp(BaseApplyAggOp):
     def uses_scan_context(self, i: int):
         return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
 
-    def renderable_uses_agg_context(self, i: int):
+    def renderable_uses_scan_context(self, i: int):
         return i == 2
 
 
@@ -1920,7 +1953,12 @@ class TableAggregate(IR):
         return i == 1
 
     def bindings(self, i, default_value=None):
-        return self.child.typ.global_env(default_value) if i == 1 else {}
+        if i == 1:
+            env = self.child.typ.global_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
@@ -1945,7 +1983,12 @@ class MatrixAggregate(IR):
         return i == 1
 
     def bindings(self, i, default_value=None):
-        return self.child.typ.global_env(default_value) if i == 1 else {}
+        if i == 1:
+            env = self.child.typ.global_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}

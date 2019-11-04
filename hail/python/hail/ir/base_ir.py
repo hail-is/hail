@@ -125,6 +125,14 @@ class BaseIR(Renderable):
     def renderable_uses_scan_context(self, i: int) -> bool:
         return self.uses_scan_context(i)
 
+    # Used as a variable, bound by any node which defines the meaning of
+    # aggregations (e.g. MatrixMapRows, AggFilter, etc.), and "referenced" by
+    # any node which performs aggregations (e.g. AggFilter, ApplyAggOp, etc.).
+    agg_capability = 'agg_capability'
+
+    def uses_agg_capability(self) -> bool:
+        return False
+
     def child_context_without_bindings(self, i: int, parent_context):
         (eval_c, agg_c, scan_c) = parent_context
         if self.uses_agg_context(i):

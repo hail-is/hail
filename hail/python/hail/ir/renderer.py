@@ -253,7 +253,7 @@ class CSEAnalysisPass:
             child_frame = frame.make_child_frame(len(stack))
 
             if isinstance(child, ir.IR):
-                for i in reversed(range(child_frame.min_binding_depth, len(stack))):
+                for i in reversed(range(child_frame.bind_depth(), len(stack))):
                     cur = stack[i]
                     if i >= child_frame.min_value_binding_depth:
                         if id(child) in cur.visited:
@@ -335,6 +335,9 @@ class CSEAnalysisPass:
             # 'node'. For each free variable we store the depth at which it is
             # bound (above 'node').
             self._free_vars: Dict[str, int] = {}
+            # add agg_psuedo_var if child is an agg result
+            if self.node.uses_agg_capability():
+                self._free_vars[ir.BaseIR.agg_capability] = context[0][ir.BaseIR.agg_capability]
             # Sets of visited descendants. For each descendant 'x' of 'node',
             # 'id(x)' is added to 'visited'. This allows us to recognize when
             # we see a node for a second time.

@@ -284,7 +284,9 @@ class TableKeyByAndAggregate(TableIR):
         if i == 1:
             return self.child.typ.global_env(default_value)
         elif i == 2:
-            return self.child.typ.row_env(default_value)
+            env = self.child.typ.row_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
         else:
             return {}
 
@@ -306,7 +308,12 @@ class TableAggregateByKey(TableIR):
                                child_typ.row_key)
 
     def bindings(self, i, default_value=None):
-        return self.child.typ.row_env(default_value) if i == 1 else {}
+        if i == 1:
+            env = self.child.typ.row_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}

@@ -24,9 +24,13 @@ class MatrixAggregateRowsByKey(MatrixIR):
 
     def bindings(self, i, default_value=None):
         if i == 1:
-            return self.child.typ.col_env(default_value)
+            env = self.child.typ.col_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
         elif i == 2:
-            return self.child.typ.global_env(default_value)
+            env = self.child.typ.global_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
         else:
             return {}
 
@@ -111,7 +115,12 @@ class MatrixMapCols(MatrixIR):
             child_typ.entry_type)
 
     def bindings(self, i, default_value=None):
-        return self.child.typ.col_env(default_value) if i == 1 else {}
+        if i == 1:
+            env = self.child.typ.col_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
@@ -210,7 +219,12 @@ class MatrixMapRows(MatrixIR):
             child_typ.entry_type)
 
     def bindings(self, i, default_value=None):
-        return self.child.typ.row_env(default_value) if i == 1 else {}
+        if i == 1:
+            env = self.child.typ.row_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
     def agg_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
@@ -292,9 +306,13 @@ class MatrixAggregateColsByKey(MatrixIR):
 
     def bindings(self, i, default_value=None):
         if i == 1:
-            return self.child.typ.row_env(default_value)
+            env = self.child.typ.row_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
         elif i == 2:
-            return self.child.typ.global_env(default_value)
+            env = self.child.typ.global_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
         else:
             return {}
 
