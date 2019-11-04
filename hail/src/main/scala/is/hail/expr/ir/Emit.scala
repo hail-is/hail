@@ -2446,12 +2446,13 @@ private class Emit(
         val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
         val codeRefMap = mutable.Map[Int, Code[Long]]()
 
-        val missingSlices = mb.newField[Boolean]
+        var missingSliceElements = const(false)
 
         coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
           sliceOrIndex match {
             case p: PTuple => {
               val oneSlice = new CodePTuple(p, region, slicesTuple(dim))
+              missingSliceElements = missingSliceElements || oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
               codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
             }
             case _: PInt64 => {
@@ -2471,16 +2472,17 @@ private class Emit(
 
         val setupMissing = Code(
           slicest.setup,
+          slicesValueAddress := slicest.value[Long],
           childEmitter.setupMissing
         )
 
         val setupShape = Code(
-          childEmitter.setupShape,
-          slicesValueAddress := slicest.value[Long],
-          missingSlices := false
+          childEmitter.setupShape
         )
 
-        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, setupMissing, false) {
+        val missing = childEmitter.missing || missingSliceElements
+
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, setupMissing, missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val oldIdxVarsIter = idxVars.iterator
             val sliceIdxVarsIter = codeSlices.iterator
