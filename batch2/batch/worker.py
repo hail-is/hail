@@ -14,6 +14,7 @@ from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
+import google.oauth2.service_account
 from hailtop.utils import request_retry_transient_errors
 
 # import uvloop
@@ -30,7 +31,7 @@ from .log_store import LogStore
 configure_logging()
 log = logging.getLogger('batch2-worker')
 
-MAX_IDLE_TIME_SECS = 60
+MAX_IDLE_TIME_SECS = 5 * 60
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
@@ -292,8 +293,8 @@ set -ex
 
 function retry() {{
     "$@" ||
-	(sleep 2 && "$@") ||
-	(sleep 5 && "$@")
+        (sleep 2 && "$@") ||
+        (sleep 5 && "$@")
 }}
 
 retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
@@ -499,15 +500,12 @@ class Worker:
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time.time()
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
-        self._headers = {
-            'X-Hail-Instance-Name': NAME,
-            'Authorization': f'Bearer {os.environ["TOKEN"]}'
-        }
-
-        pool = concurrent.futures.ThreadPoolExecutor()
-        self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, pool)
-
+        self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
+
+        # filled in during activation
+        self.log_store = None
+        self.headers = None
 
     async def run_job(self, job):
         try:
@@ -623,7 +621,7 @@ class Worker:
                 # infinite loop and the instance won't be deleted.
                 await session.post(
                     deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
-                    headers=self._headers)
+                    headers=self.headers)
             log.info('deactivated')
         finally:
             log.info('shutting down')
@@ -646,7 +644,7 @@ class Worker:
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
                         deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
-                        json=body, headers=self._headers)
+                        json=body, headers=self.headers)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -660,13 +658,25 @@ class Worker:
             delay = min(delay * 2, 60.0)
 
     async def activate(self):
-        body = {'ip_address': IP_ADDRESS}
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await request_retry_transient_errors(
+            resp = await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
-                json=body, headers=self._headers)
+                json={'ip_address': os.environ['IP_ADDRESS']},
+                headers={
+                    'X-Hail-Instance-Name': NAME,
+                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
+                })
+            resp_json = await resp.json()
+            self.headers = {
+                'X-Hail-Instance-Name': NAME,
+                'Authorization': f'Bearer {resp_json["token"]}'
+            }
+
+            credentials = google.oauth2.service_account.Credentials.from_service_account_info(
+                resp_json['key'])
+            self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool, credentials)
 
 
 worker = Worker()

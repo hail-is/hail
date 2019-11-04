@@ -89,7 +89,7 @@ LIMIT 50;
                 try:
                     await schedule_job(self.app, record, instance)
                 except Exception:
-                    log.exception('while scheduling job {id} on {instance}')
+                    log.exception(f'while scheduling job {id} on {instance}')
                 should_wait = False
 
         return should_wait

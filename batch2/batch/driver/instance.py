@@ -1,4 +1,6 @@
 import time
+import secrets
+
 from ..database import check_call_procedure
 
 
@@ -7,23 +9,23 @@ class Instance:
     def from_record(app, record):
         return Instance(
             app, record['name'], record['state'],
-            record['token'], record['cores_mcpu'],
-            record['free_cores_mcpu'], record['time_created'],
-            record['failed_request_count'], record['last_updated'],
-            record['ip_address'])
+            record['cores_mcpu'], record['free_cores_mcpu'],
+            record['time_created'], record['failed_request_count'],
+            record['last_updated'], record['ip_address'])
 
     @staticmethod
-    async def create(app, name, token, worker_cores_mcpu):
+    async def create(app, name, activation_token, worker_cores_mcpu):
         db = app['db']
 
         state = 'pending'
         now = time.time()
+        token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-            (name, state, token, worker_cores_mcpu,
+            (name, state, activation_token, token, worker_cores_mcpu,
              worker_cores_mcpu, now, now))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now, 0, now, None)
@@ -50,7 +52,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
     async def activate(self, ip_address):
         assert self._state == 'pending'
 
-        await check_call_procedure(
+        rv = await check_call_procedure(
             self.db,
             'CALL activate_instance(%s, %s);',
             (self.name, ip_address))
@@ -61,6 +63,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
         self.instance_pool.adjust_for_add_instance(self)
 
         self.scheduler_state_changed.set()
+
+        return rv['token']
 
     async def deactivate(self):
         if self._state in ('inactive', 'deleted'):

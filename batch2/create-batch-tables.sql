@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS `tokens` (
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
   `state` VARCHAR(40) NOT NULL,
+  `activation_token` VARCHAR(100) NOT NULL,
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
@@ -99,15 +100,20 @@ CREATE PROCEDURE activate_instance(
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
+  DECLARE cur_token VARCHAR(100);
 
   START TRANSACTION;
 
-  SELECT state INTO cur_state FROM instances WHERE name = in_instance_name;
+  SELECT state, token INTO cur_state, cur_token FROM instances
+  WHERE name = in_instance_name;
 
   IF cur_state = 'pending' THEN
-    UPDATE instances SET state = 'active', ip_address = in_ip_address WHERE name = in_instance_name;
+    UPDATE instances
+    SET state = 'active',
+      activation_token = NULL,
+      ip_address = in_ip_address WHERE name = in_instance_name;
     COMMIT;
-    SELECT 0 as rc;
+    SELECT 0 as rc, cur_token as token;
   ELSE
     ROLLBACK;
     SELECT 1 as rc, cur_state, 'state not pending' as message;
