@@ -184,8 +184,9 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 set -x
 
 # only allow udp/53 (dns) to metadata server
-iptables -I FORWARD -i docker0 -d 169.254.169.254 --dport 53 -p udp -j ACCEPT
+# -I inserts at the head of the chain, so the ACCEPT rule runs first
 iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
+iptables -I FORWARD -i docker0 -d 169.254.169.254 --dport 53 -p udp -j ACCEPT
 
 iptables -S
 
