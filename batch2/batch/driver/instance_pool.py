@@ -183,6 +183,10 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
+# only allow udp/53 (dns) to metadata server
+iptables -I FORWARD -i docker0 -d 169.254.169.254 --dport 53 -p udp -j ACCEPT
+iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
+
 export HOME=/root
 
 CORES=$(nproc)
