@@ -669,7 +669,6 @@ class Worker:
                     'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
                 })
             resp_json = await resp.json()
-            log.info(f'resp_json {resp_json}')
             self.headers = {
                 'X-Hail-Instance-Name': NAME,
                 'Authorization': f'Bearer {resp_json["token"]}'
@@ -677,7 +676,6 @@ class Worker:
 
             credentials = google.oauth2.service_account.Credentials.from_service_account_info(
                 resp_json['key'])
-            log.info(f'credentials {credentials}')
             self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool, credentials)
 
 
