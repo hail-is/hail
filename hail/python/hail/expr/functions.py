@@ -1800,7 +1800,7 @@ def qchisqtail(p, df) -> Float64Expression:
     Notes
     -----
     Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random
-     variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
+    variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
 
     Parameters
     ----------
