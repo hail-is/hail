@@ -25,14 +25,17 @@ object Interpret {
     else
       tir
 
-    val lowered = LowerMatrixIR(LiftNonCompilable(EvaluateRelationalLets(tiropt)).asInstanceOf[TableIR])
+    var lowered = LowerMatrixIR(tiropt)
 
-    val lowopt = if (optimize)
-      Optimize(lowered, noisy = true, canGenerateLiterals = false)
-    else
-      lowered
+    if (optimize)
+      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
 
-    lowopt.execute(ctx)
+    lowered = LiftNonCompilable(EvaluateRelationalLets(lowered)).asInstanceOf[TableIR]
+
+    if (optimize)
+      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+
+    lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
@@ -41,13 +44,18 @@ object Interpret {
     else
       mir
 
-    val lowered = LowerMatrixIR(LiftNonCompilable(EvaluateRelationalLets(miropt)).asInstanceOf[MatrixIR])
-    val lowopt = if (optimize)
-      Optimize(lowered, noisy = true, canGenerateLiterals = false)
-    else
-      lowered
+    var lowered = LowerMatrixIR(miropt)
 
-    lowopt.execute(ctx)
+    println(Pretty(lowered))
+    if (optimize)
+      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+
+    lowered = LiftNonCompilable(EvaluateRelationalLets(lowered)).asInstanceOf[TableIR]
+
+    if (optimize)
+      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+
+    lowered.execute(ctx)
   }
 
   def apply[T](ctx: ExecuteContext, ir: IR): T = {
