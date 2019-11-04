@@ -711,6 +711,13 @@ object PruneDeadFields {
         )
         memoizeMatrixIR(child, dep, memo)
       case MatrixColsHead(child, n) => memoizeMatrixIR(child, requestedType, memo)
+      case MatrixRowsTail(child, n) =>
+        val dep = requestedType.copy(
+          rowKey = child.typ.rowKey,
+          rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, child.typ.rowKey))
+        )
+        memoizeMatrixIR(child, dep, memo)
+      case MatrixColsTail(child, n) => memoizeMatrixIR(child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(

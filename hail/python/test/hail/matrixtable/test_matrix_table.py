@@ -99,6 +99,57 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
+    def test_tail(self):
+        # no empty partitions
+        mt1 = hl.utils.range_matrix_table(10, 10)
+
+        # empty partitions at front
+        mt2 = hl.utils.range_matrix_table(20, 10, 20)
+        mt2 = mt2.filter_rows(mt2.row_idx > 9)
+        mts = [mt1, mt2]
+
+        for mt in mts:
+            tmp_file = new_temp_file(suffix='mt')
+
+            mt.write(tmp_file)
+            mt_readback = hl.read_matrix_table(tmp_file)
+            for mt_ in [mt, mt_readback]:
+                assert mt_.tail(1).count_rows() == 1
+                assert mt_.tail(1)._force_count_rows() == 1
+                assert mt_.tail(100).count_rows() == 10
+                assert mt_.tail(100)._force_count_rows() == 10
+
+    def test_tail_cols(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        assert mt1.tail(1, 2).count() == (1, 2)
+        assert mt1.tail(1, None).count() == (1, 10)
+        assert mt1.tail(None, 1).count() == (10, 1)
+
+    def test_tail_entries(self):
+        mt = hl.utils.range_matrix_table(100, 30)
+        mt = mt.filter_cols(mt.col_idx != 29)
+
+        def tail(*args):
+            ht = mt.tail(*args).entries()
+            return ht.aggregate(hl.agg.collect_as_set(hl.tuple([ht.row_idx, ht.col_idx])))
+
+        def expected(n, m):
+            return set((i, j) for i in range(100 - n, 100) for j in range(29 - m, 29))
+
+        assert tail(None, 10) == expected(100, 10)
+        assert tail(30, None) == expected(30, 29)
+        assert tail(30, 10) == expected(30, 10)
+
+    def test_tail_scan(self):
+        mt = hl.utils.range_matrix_table(30, 40)
+        mt = mt.annotate_rows(i = hl.scan.count())
+        mt = mt.annotate_cols(j = hl.scan.count())
+        mt = mt.tail(10, 11)
+        ht = mt.entries()
+        assert ht.aggregate(agg.collect_as_set(hl.tuple([ht.i, ht.j]))) == set(
+            (i, j) for i in range(20, 30) for j in range(29, 40)
+        )
+
     def test_filter(self):
         mt = self.get_mt()
         mt = mt.annotate_globals(foo=5)
