@@ -923,7 +923,7 @@ object IRParser {
       case "In" =>
         val typ = type_expr(env.typEnv)(it)
         val idx = int32_literal(it)
-        In(idx, typ)
+        In(idx, typ.physicalType)
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
         val msg = ir_value_expr(env)(it)

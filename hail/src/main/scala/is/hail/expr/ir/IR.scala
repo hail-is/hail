@@ -360,7 +360,11 @@ object MakeTuple {
 final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
-final case class In(i: Int, _typ: Type) extends IR
+object In {
+  def apply(i: Int, typ: Type): In = In(i, PType.canonical(typ))
+}
+
+final case class In(i: Int, _typ: PType) extends IR
 
 // FIXME: should be type any
 object Die {
