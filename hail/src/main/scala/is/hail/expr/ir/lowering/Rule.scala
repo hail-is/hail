@@ -6,11 +6,11 @@ trait Rule {
   def allows(ir: BaseIR): Boolean
 }
 
-object NoMatrixIR extends Rule {
+case object NoMatrixIR extends Rule {
   def allows(ir: BaseIR): Boolean = !ir.isInstanceOf[MatrixIR]
 }
 
-object NoRelationalLets extends Rule {
+case object NoRelationalLets extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case _: RelationalLet => false
     case _: RelationalLetBlockMatrix => false
@@ -21,14 +21,14 @@ object NoRelationalLets extends Rule {
   }
 }
 
-object CompilableValueIRs extends Rule {
+case object CompilableValueIRs extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case x: IR => Compilable(x)
     case _ => true
   }
 }
 
-object ValueIROnly extends Rule {
+case object ValueIROnly extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case _: IR => true
     case _ => false

@@ -21,22 +21,16 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.relationalLowerer(ctx, tir, optimize).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, tir, optimize).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.relationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
-  def apply[T](ctx: ExecuteContext, ir: IR): T = {
-    ExecuteContext.scoped { ctx =>
-      apply[T](ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None)
-    }
-  }
-
-  def apply[T](ctx: ExecuteContext, ir: IR, optimize: Boolean): T = apply(ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
+  def apply[T](ctx: ExecuteContext, ir: IR): T = apply(ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
   def apply[T](ctx: ExecuteContext,
     ir0: IR,

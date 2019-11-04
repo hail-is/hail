@@ -17,7 +17,7 @@ trait LoweringPass {
   protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR
 }
 
-object LowerMatrixToTablePass extends LoweringPass {
+case object LowerMatrixToTablePass extends LoweringPass {
   val before: IRState = AnyIR
   val after: IRState = MatrixLoweredToTable
   val context: String = "lower matrix to table"
@@ -29,10 +29,18 @@ object LowerMatrixToTablePass extends LoweringPass {
   }
 }
 
-object InterpretNonCompilablePass extends LoweringPass {
+case object LegacyInterpretNonCompilablePass extends LoweringPass {
   val before: IRState = MatrixLoweredToTable
   val after: IRState = ExecutableTableIR
   val context: String = "interpret non compilable"
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
+}
+
+case object InterpretNonCompilablePass extends LoweringPass {
+  val before: IRState = MatrixLoweredToTable
+  val after: IRState = CompilableIR
+  val context: String = "interpret non compilable"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
 }

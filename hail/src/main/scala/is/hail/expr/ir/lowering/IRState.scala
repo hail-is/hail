@@ -17,19 +17,19 @@ trait IRState {
   final def permits(ir: BaseIR): Boolean = rules.forall(_.allows(ir)) && ir.children.forall(permits)
 }
 
-object AnyIR extends IRState {
+case object AnyIR extends IRState {
   val rules: Array[Rule] = Array()
 }
 
-object MatrixLoweredToTable extends IRState {
+case object MatrixLoweredToTable extends IRState {
   val rules: Array[Rule] = Array(NoMatrixIR)
 }
 
-object ExecutableTableIR extends IRState {
+case object ExecutableTableIR extends IRState {
   val rules: Array[Rule] = Array(NoMatrixIR, NoRelationalLets, CompilableValueIRs)
 }
 
-object CompilableIR extends IRState {
+case object CompilableIR extends IRState {
   val rules: Array[Rule] = Array(ValueIROnly, CompilableValueIRs)
 }
 
