@@ -4197,6 +4197,35 @@ def float64(x) -> Float64Expression:
     else:
         return x._method("toFloat64", tfloat64)
 
+@typecheck(x=expr_str)
+def parse_float64(x) -> Float64Expression:
+    """Parse a string as a 64-bit floating point number.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_float64('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
+    1.1
+
+    >>> hl.eval(hl.parse_float64('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid floating point number, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tfloat64`
+
+    """
+    return x._method("toFloat64OrMissing", tfloat64)
+
+
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(x) -> Float32Expression:
     """Convert to a 32-bit floating point expression.
@@ -4225,6 +4254,35 @@ def float32(x) -> Float32Expression:
         return x
     else:
         return x._method("toFloat32", tfloat32)
+
+@typecheck(x=expr_str)
+def parse_float32(x) -> Float32Expression:
+    """Parse a string as a 32-bit floating point number.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_float32('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
+    1.1
+
+    >>> hl.eval(hl.parse_float32('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid floating point number, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tfloat32`
+
+    """
+    return x._method("toFloat32OrMissing", tfloat32)
+
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(x) -> Int64Expression:
@@ -4255,6 +4313,37 @@ def int64(x) -> Int64Expression:
     else:
         return x._method("toInt64", tint64)
 
+@typecheck(x=expr_str)
+def parse_int64(x) -> Int64Expression:
+    """Parse a string as a 64-bit integer.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_int64('154'))
+    154
+
+    >>> hl.eval(hl.parse_int64('15.4'))
+    None
+
+    >>> hl.eval(hl.parse_int64('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid integer, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tint64`
+
+    """
+    return x._method("toInt64OrMissing", tint64)
+
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int32(x) -> Int32Expression:
@@ -4284,6 +4373,38 @@ def int32(x) -> Int32Expression:
         return x
     else:
         return x._method("toInt32", tint32)
+
+@typecheck(x=expr_str)
+def parse_int32(x) -> Int32Expression:
+    """Parse a string as a 32-bit integer.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_int32('154'))
+    154
+
+    >>> hl.eval(hl.parse_int32('15.4'))
+    None
+
+    >>> hl.eval(hl.parse_int32('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid integer, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tint32`
+
+    """
+    return x._method("toInt32OrMissing", tint32)
+
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(x) -> Int32Expression:
@@ -4316,6 +4437,38 @@ def int(x) -> Int32Expression:
     return int32(x)
 
 
+@typecheck(x=expr_str)
+def parse_int(x) -> Int32Expression:
+    """Parse a string as a 32-bit integer.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_int('154'))
+    154
+
+    >>> hl.eval(hl.parse_int('15.4'))
+    None
+
+    >>> hl.eval(hl.parse_int('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid integer, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tint32`
+
+    """
+    return parse_int32(x)
+
+
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float(x) -> Float64Expression:
     """Convert to a 64-bit floating point expression.
@@ -4345,6 +4498,35 @@ def float(x) -> Float64Expression:
     :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
     return float64(x)
+
+
+@typecheck(x=expr_str)
+def parse_float(x) -> Float64Expression:
+    """Parse a string as a 64-bit floating point number.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_float('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
+    1.1
+
+    >>> hl.eval(hl.parse_float('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid floating point number, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tfloat64`
+
+    """
+    return parse_float64(x)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
