@@ -511,7 +511,8 @@ async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     page_context = {
-        'batch': await _get_batch(request.app, batch_id, user, include_jobs=True)
+        'batch': await _get_batch(request.app, batch_id, user, include_jobs=True),
+        'states_with_logs': ['Running', 'Error', 'Failed', 'Success']
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 
