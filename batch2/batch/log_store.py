@@ -10,7 +10,7 @@ class LogStore:
         self.bucket_name = bucket_name
         self.instance_id = instance_id
         self.log_root = f'gs://{bucket_name}/batch2/logs/{instance_id}'
-        self.gcs = GCS(blocking_pool, project, credentials)
+        self.gcs = GCS(blocking_pool, project=project, credentials=credentials)
 
     def worker_log_path(self, machine_name, log_file):
         # this has to match worker startup-script
