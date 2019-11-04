@@ -1608,11 +1608,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \widehat{\phi_{ij}} :=
+      \widehat{\phi_{ij}} \coloneqq
         \frac{1}{|S_{ij}|}
         \sum_{s \in S_{ij}}
           \frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
-                {4 \sum_{s \in S_{ij} p_s (1 - p_s)}}
+                {4 \sum_{s \in S_{ij}} p_s (1 - p_s)}
 
     This estimator is true under the model that the sharing of common
     (relative to the population) alleles is not very informative to
@@ -2916,10 +2916,10 @@ def filter_alleles(mt: MatrixTable,
        the minimal representation.
      - `old_alleles` (``array<str>``) -- The old alleles, before filtering and
        computing the minimal representation.
-     - old_to_new (``array<int32>``) -- An array that maps old allele index to
+     - `old_to_new` (``array<int32>``) -- An array that maps old allele index to
        new allele index. Its length is the same as `old_alleles`. Alleles that
        are filtered are missing.
-     - new_to_old (``array<int32>``) -- An array that maps new allele index to
+     - `new_to_old` (``array<int32>``) -- An array that maps new allele index to
        the old allele index. Its length is the same as the modified `alleles`
        field.
 
@@ -3044,10 +3044,10 @@ def filter_alleles_hts(mt: MatrixTable,
        the minimal representation.
      - `old_alleles` (``array<str>``) -- The old alleles, before filtering and
        computing the minimal representation.
-     - old_to_new (``array<int32>``) -- An array that maps old allele index to
+     - `old_to_new` (``array<int32>``) -- An array that maps old allele index to
        new allele index. Its length is the same as `old_alleles`. Alleles that
        are filtered are missing.
-     - new_to_old (``array<int32>``) -- An array that maps new allele index to
+     - `new_to_old` (``array<int32>``) -- An array that maps new allele index to
        the old allele index. Its length is the same as the modified `alleles`
        field.
 
