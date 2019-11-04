@@ -28,12 +28,12 @@ object Interpret {
     var lowered = LowerMatrixIR(tiropt)
 
     if (optimize)
-      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+      lowered = Optimize(lowered, noisy = true)
 
     lowered = LiftNonCompilable(EvaluateRelationalLets(lowered)).asInstanceOf[TableIR]
 
     if (optimize)
-      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+      lowered = Optimize(lowered, noisy = true)
 
     lowered.execute(ctx)
   }
@@ -46,14 +46,13 @@ object Interpret {
 
     var lowered = LowerMatrixIR(miropt)
 
-    println(Pretty(lowered))
     if (optimize)
-      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+      lowered = Optimize(lowered, noisy = true  )
 
     lowered = LiftNonCompilable(EvaluateRelationalLets(lowered)).asInstanceOf[TableIR]
 
     if (optimize)
-      lowered = Optimize(lowered, noisy = true, canGenerateLiterals = true)
+      lowered = Optimize(lowered, noisy = true)
 
     lowered.execute(ctx)
   }
@@ -79,8 +78,8 @@ object Interpret {
 
     var ir = ir0.unwrap
 
-    def optimizeIR(canGenerateLiterals: Boolean, context: String) {
-      ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some(context))
+    def optimizeIR(context: String) {
+      ir = Optimize(ir, noisy = true, context = Some(context))
       TypeCheck(ir, BindingEnv(typeEnv, agg = aggArgs.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
@@ -88,9 +87,9 @@ object Interpret {
       }))
     }
 
-    if (optimize) optimizeIR(true, "Interpret, first pass")
+    if (optimize) optimizeIR("Interpret, first pass")
     ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR(false, "Interpret, after lowering MatrixIR")
+    if (optimize) optimizeIR("Interpret, after lowering MatrixIR")
     ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
