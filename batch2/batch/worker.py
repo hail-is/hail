@@ -685,7 +685,7 @@ class Worker:
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
                 'key.json')
             self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool,
-                                      project=PROJECT, credentials)
+                                      project=PROJECT, credentials=credentials)
 
 
 worker = Worker()

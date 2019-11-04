@@ -13,7 +13,7 @@ class GCS:
         path = '/'.join(uri[1:])
         return bucket, path
 
-    def __init__(self, blocking_pool, project=None, credentials=None):
+    def __init__(self, blocking_pool, *, project=None, credentials=None):
         self.blocking_pool = blocking_pool
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86

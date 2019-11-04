@@ -6,7 +6,7 @@ log = logging.getLogger('logstore')
 
 
 class LogStore:
-    def __init__(self, bucket_name, instance_id, blocking_pool, project=None, credentials=None):
+    def __init__(self, bucket_name, instance_id, blocking_pool, *, project=None, credentials=None):
         self.bucket_name = bucket_name
         self.instance_id = instance_id
         self.log_root = f'gs://{bucket_name}/batch2/logs/{instance_id}'
