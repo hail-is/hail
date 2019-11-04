@@ -592,20 +592,20 @@ def de_novo(mt: MatrixTable,
 
     .. math::
 
-        \mathrm{P_{\text{de novo}}} = \frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+        \mathrm{P_{\text{de novo}}} = \frac{\mathrm{P}(d \mid x)}{\mathrm{P}(d \mid x) + \mathrm{P}(m \mid x)}
 
     Applying Bayes rule to the numerator and denominator yields
 
     .. math::
 
-        \frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
-        \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
+        \frac{\mathrm{P}(x \mid d)\,\mathrm{P}(d)}{\mathrm{P}(x \mid d)\,\mathrm{P}(d) +
+        \mathrm{P}(x \mid m)\,\mathrm{P}(m)}
 
     The prior on de novo mutation is estimated from the rate in the literature:
 
     .. math::
 
-        \mathrm{P}(d) = \frac{1 \text{mutation}}{30,000,000\, \text{bases}}
+        \mathrm{P}(d) = \frac{1 \, \text{mutation}}{30{,}000{,}000 \, \text{bases}}
 
     The prior used for at least one alternate allele between the parents
     depends on the alternate allele frequency:
@@ -614,27 +614,31 @@ def de_novo(mt: MatrixTable,
 
         \mathrm{P}(m) = 1 - (1 - AF)^4
 
-    The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)`
+    The likelihoods :math:`\mathrm{P}(x \mid d)` and :math:`\mathrm{P}(x \mid m)`
     are computed from the PL (genotype likelihood) fields using these
     factorizations:
 
     .. math::
-
-        \mathrm{P}(x = (AA, AA, AB) \,|\,d) = \Big(
-        &\mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AA) \\
-        \cdot &\mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
-        AA) \\ \cdot &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\,
-        \mathrm{proband} = AB) \Big)
+        \mathrm{P}(x = (AA, AA, AB) \mid d) = \left(
+        \begin{aligned}
+                &\mathrm{P}(x_{\mathrm{father}} = AA \mid \mathrm{father} = AA) \\
+                {} \cdot {} &\mathrm{P}(x_{\mathrm{mother}} = AA \mid \mathrm{mother} = AA) \\
+                {} \cdot {} &\mathrm{P}(x_{\mathrm{proband}} = AB \mid \mathrm{proband} = AB)
+        \end{aligned}
+        \right)
 
     .. math::
-
-        \mathrm{P}(x = (AA, AA, AB) \,|\,m) = \Big( &
-        \mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AB)
-        \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
-        AA) \\ + \, &\mathrm{P}(x_{\mathrm{father}} = AA \,|\,
-        \mathrm{father} = AA) \cdot \mathrm{P}(x_{\mathrm{mother}} = AA
-        \,|\, \mathrm{mother} = AB) \Big) \\ \cdot \,
-        &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\, \mathrm{proband} = AB)
+        \begin{aligned}
+        \mathrm{P}(x = (AA, AA, AB) \mid m) = &\left(
+            \begin{aligned}
+                &\mathrm{P}(x_{\mathrm{father}} = AA \mid \mathrm{father} = AB)
+                    \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \mid \mathrm{mother} = AA) \\
+                {} + {} &\mathrm{P}(x_{\mathrm{father}} = AA \mid \mathrm{father} = AA)
+                    \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \mid \mathrm{mother} = AB)
+            \end{aligned}
+        \right) \\
+        &{} \cdot \mathrm{P}(x_{\mathrm{proband}} = AB \mid \mathrm{proband} = AB)
+        \end{aligned}
 
     (Technically, the second factorization assumes there is exactly (rather
     than at least) one alternate allele among the parents, which may be
@@ -657,7 +661,7 @@ def de_novo(mt: MatrixTable,
      - ``AC`` refers to the count of alternate alleles across all individuals
        in the dataset at the site.
      - ``p`` refers to :math:`\mathrm{P_{\text{de novo}}}`.
-     - ``min_p`` refers to the ``min_p`` function parameter.
+     - ``min_p`` refers to the `min_p` function parameter.
 
     HIGH-quality SNV:
 
@@ -702,10 +706,10 @@ def de_novo(mt: MatrixTable,
        (AB > 0.2)
 
     Additionally, de novo candidates are not considered if the proband GQ is
-    smaller than the ``min_gq`` parameter, if the proband allele balance is
-    lower than the ``min_child_ab`` parameter, if the depth ratio between the
-    proband and parents is smaller than the ``min_depth_ratio`` parameter, if
-    the allele balance in a parent is above the ``max_parent_ab`` parameter, or
+    smaller than the `min_gq` parameter, if the proband allele balance is
+    lower than the `min_child_ab` parameter, if the depth ratio between the
+    proband and parents is smaller than the `min_depth_ratio` parameter, if
+    the allele balance in a parent is above the `max_parent_ab` parameter, or
     if the posterior probability `p` is smaller than the `min_p` parameter.
 
     Parameters
