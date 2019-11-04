@@ -2469,14 +2469,18 @@ private class Emit(
           )
         }
 
-        val setup = Code(
+        val setupMissing = Code(
           slicest.setup,
-          childEmitter.setup,
+          childEmitter.setupMissing
+        )
+
+        val setupShape = Code(
+          childEmitter.setupShape,
           slicesValueAddress := slicest.value[Long],
           missingSlices := false
         )
 
-        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setup) {
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, setupMissing, false) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val oldIdxVarsIter = idxVars.iterator
             val sliceIdxVarsIter = codeSlices.iterator
