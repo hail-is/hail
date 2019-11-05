@@ -53,8 +53,6 @@ spec:
              value: /deploy-config/deploy-config.json
            - name: SHA
              value: "{{ code.sha }}"
-#           - name: KUBERNETES_SERVER_URL
-#             value: "{{ global.k8s_server_url }}"
       volumes:
        - name: deploy-config
          secret:
