@@ -276,6 +276,28 @@ async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
 
+@routes.get('/')
+@routes.get('')
+@web_authenticated_developers_only()
+async def get_index(request, userdata):
+    app = request.app
+    db = app['db']
+    instance_pool = app['inst_pool']
+
+    ready_cores = await self.db.execute_and_fetchone(
+        'SELECT * FROM ready_cores;')
+    ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+
+    page_context = {
+        'instance_id': app['instance_id'],
+        'n_instances_by_state': instance_pool.n_instances_by_state
+        'instances': inst_pool.instances.values(),
+        'ready_cores_mcpu': ready_cores_mcpu,
+        'live_free_cores_mcpu': inst_pool.live_free_cores_mcpu
+    }
+    return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
+    
+
 async def on_startup(app):
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
@@ -339,8 +361,11 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(client_max_size=None)
+    app = web.Application()
+    setup_aiohttp_session(app)
 
+    setup_aiohttp_jinja2(app, 'batch.driver')
+    setup_common_static_routes(routes)
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
