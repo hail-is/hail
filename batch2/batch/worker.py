@@ -167,7 +167,7 @@ class Container:
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
                     key = base64.b64decode(
-                        self.spec['gsa_key']['privateKeyData']).decode()
+                        self.job.gsa_key['privateKeyData']).decode()
                     auth = {
                         'username': '_json_key',
                         'password': key
@@ -339,9 +339,10 @@ class Job:
     def secret_host_path(self, secret):
         return f'{self.scratch}/{secret["name"]}'
 
-    def __init__(self, batch_id, user, job_spec):
+    def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
         self.user = user
+        self.gsa_key = gsa_key
         self.job_spec = job_spec
 
         self.deleted = False
@@ -544,7 +545,6 @@ class Worker:
         body = await request.json()
 
         batch_id = body['batch_id']
-        user = body['user']
         job_spec = body['job_spec']
         job_id = job_spec['job_id']
         id = (batch_id, job_id)
@@ -553,7 +553,7 @@ class Worker:
         if id in self.jobs:
             return web.Response()
 
-        job = Job(batch_id, user, job_spec)
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
 
         log.info(f'created {job}, adding to jobs')
 
