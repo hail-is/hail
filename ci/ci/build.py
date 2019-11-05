@@ -8,7 +8,8 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, CI_NAMESPACE
+from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, CI_NAMESPACE, \
+    KUBERNETES_SERVER_URL
 
 log = logging.getLogger('ci')
 
@@ -147,7 +148,8 @@ class Step(abc.ABC):
         config['global'] = {
             'project': GCP_PROJECT,
             'domain': DOMAIN,
-            'ip': IP
+            'ip': IP,
+            'k8s_server_url': KUBERNETES_SERVER_URL
         }
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
