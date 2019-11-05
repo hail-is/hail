@@ -240,6 +240,7 @@ class CSEAnalysisPass:
                     binding_sites[id(node)] = frame.make_binding_site(len(stack))
 
                 if not stack:
+                    assert len(frame.free_vars()) == len(free_vars)
                     break
                 stack[-1].update_free_vars(frame)
                 continue

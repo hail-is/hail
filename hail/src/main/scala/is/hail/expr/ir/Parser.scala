@@ -1065,7 +1065,7 @@ object IRParser {
         val readerStr = string_literal(it)
         implicit val formats: Formats = TableReader.formats
         val reader = deserialize[TableReader](readerStr)
-    TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader)
+        TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader)
       case "MatrixColsTable" =>
         val child = matrix_ir(env)(it)
         MatrixColsTable(child)
