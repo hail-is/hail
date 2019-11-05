@@ -22,6 +22,32 @@ def full(shape, value, dtype=None):
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
 def zeros(shape, dtype=hl.tfloat64):
+    """Creates a hail :class:`.NDArrayNumericExpression` full of zeros.
+
+       Examples
+       --------
+
+       Create a 5 by 7 NDArray of type `tint64` zeros.
+
+       >>> hl._nd.zeros((5, 7))
+
+       It is possible to specify a type other than `tint64` with the `dtype` argument.
+
+       >>> hl._nd.zeros((5, 7), dtype=hl.tfloat32)
+
+
+       Parameters
+       ----------
+       shape : `tuple` or `TupleExpression`
+            Desired shape.
+       dtype : `HailType`
+            Desired hail type.
+
+       Returns
+       -------
+       :class:`.NDArrayNumericExpression`
+           NDArray of the specified size full of zeros.
+       """
     return full(shape, 0, dtype)
 
 
