@@ -237,11 +237,9 @@ async def job_config(app, record):
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
-        token_secret_namespace = sa.secrets[0].namespace
-        log.info(sa.secrets[0])
 
         secret = await k8s_client.read_namespaced_secret(
-            token_secret_name, token_secret_namespace,
+            token_secret_name, BATCH_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
