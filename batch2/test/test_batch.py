@@ -18,8 +18,6 @@ from .serverthread import ServerThread
 
 deploy_config = get_deploy_config()
 
-CI_UTILS_IMAGE = os.environ.get('CI_UTILS_IMAGE', 'gcr.io/hail-vdc/ci-utils:latest')
-
 
 def poll_until(p, max_polls=None):
     i = 0
@@ -350,7 +348,7 @@ class Test(unittest.TestCase):
 
     def test_service_account(self):
         b = self.client.create_batch()
-        j = b.create_job(CI_UTILS_IMAGE, ['/bin/sh', '-c', 'kubectl version; kubectl get pods -l app=batch2-driver'],
+        j = b.create_job(os.environ['CI_UTILS_IMAGE'], ['/bin/sh', '-c', 'kubectl version; kubectl get pods -l app=batch2-driver'],
                          service_account_name='deploy_batch2_sa')
         b.submit()
         status = j.wait()
