@@ -20,7 +20,7 @@ push: build
 	docker push gcr.io/$(PROJECT)/letsencrypt
 
 start-service: service.yaml
-	kubectl apply -f service.yaml
+	kubectl -n default apply -f service.yaml
 
 run: letsencrypt-pod.yaml service.yaml push
 	/bin/bash run-letsencrypt.sh
