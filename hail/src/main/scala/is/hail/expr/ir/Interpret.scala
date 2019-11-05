@@ -90,7 +90,7 @@ object Interpret {
     if (optimize) optimizeIR("Interpret, first pass")
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR("Interpret, after lowering MatrixIR")
-    ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
+    ir = EvaluateRelationalLets(InterpretNonCompilable(ctx, ir)).asInstanceOf[IR]
 
 
     val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
