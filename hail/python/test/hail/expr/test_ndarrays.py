@@ -469,6 +469,10 @@ def test_ndarray_full():
         (hl._nd.full((3, 4, 5), 9), np.full((3, 4, 5), 9))
     )
 
+    assert hl.eval(hl._nd.zeros((5, 5), dtype=hl.tfloat32)).dtype, np.float32
+    assert hl.eval(hl._nd.ones(3, dtype=hl.tint64)).dtype, np.int64
+    assert hl.eval(hl._nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
+
 @skip_unless_spark_backend()
 def test_ndarray_mixed():
     assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(lambda x: x * x).reshape((4, 5)).T) is None

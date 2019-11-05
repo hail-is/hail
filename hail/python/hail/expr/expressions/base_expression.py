@@ -198,6 +198,9 @@ def to_expr(e, dtype=None) -> 'Expression':
         if dtype and not dtype == e.dtype:
             raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
         return e
+    return cast_expr(e, dtype)
+
+def cast_expr(e, dtype=None) -> 'Expression':
     if not dtype:
         dtype = impute_type(e)
     x = _to_expr(e, dtype)
