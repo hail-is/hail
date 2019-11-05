@@ -209,6 +209,7 @@ async def job_config(app, record):
     k8s_client = app['k8s_client']
 
     job_spec = json.loads(record['spec'])
+    userdata = json.loads(record['userdata'])
 
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
@@ -220,7 +221,7 @@ async def job_config(app, record):
 
     gsa_key = None
     for secret, k8s_secret in zip(secrets, k8s_secrets):
-        if secret['name'] == job_spec['userdata']['gsa_key_secret_name']:
+        if secret['name'] == userdata['gsa_key_secret_name']:
             gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
 
