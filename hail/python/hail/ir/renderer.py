@@ -540,7 +540,7 @@ class CSEPrintPass:
         ' scan_visited let_bodies')
 
     class StackFrame:
-        __slots__ = ['node', 'children', 'min_binding_depth',
+        __slots__ = ['node', 'children', 'min_binding_depth', 'context',
                      'min_value_binding_depth', 'scan_scope', 'depth',
                      'lift_to_frame', 'insert_lets', 'builder', 'child_idx']
 
@@ -551,6 +551,7 @@ class CSEPrintPass:
                      min_binding_depth: int,
                      min_value_binding_depth: int,
                      scan_scope: bool,
+                     context: Context,
                      depth: int,
                      insert_lets: bool,
                      lift_to_frame: 'Optional[CSEPrintPass.BindingsStackFrame]' = None):
@@ -568,6 +569,11 @@ class CSEPrintPass:
             # the agg scope or scan scope.
             self.min_value_binding_depth: int = min_value_binding_depth
             self.scan_scope: bool = scan_scope
+            # The binding context of 'node'. Maps variables bound above to the
+            # depth at which they were bound (more precisely, if
+            # 'context[var] == depth', then 'stack[depth-1].node' binds 'var' in
+            # the subtree rooted at 'stack[depth].node').
+            self.context = context
             # The depth of 'node' in the original tree, i.e. the number of
             # BaseIR above this in the stack, not counting other 'Renderable's.
             self.depth: int = depth
@@ -613,7 +619,7 @@ class CSEPrintPass:
             child = self.children[self.child_idx]
             return self.make(child, renderer, binding_sites, builder, bindings_stack,
                              min_binding_depth, min_value_binding_depth,
-                             scan_scope, depth)
+                             scan_scope,  depth)
 
         @staticmethod
         def make(node: Renderable,
@@ -624,6 +630,7 @@ class CSEPrintPass:
                  min_binding_depth: int,
                  min_value_binding_depth: int,
                  scan_scope: bool,
+                 context: Context,
                  depth: int):
             insert_lets = (id(node) in binding_sites
                            and depth == binding_sites[id(node)].depth
@@ -635,7 +642,7 @@ class CSEPrintPass:
                                             builder,
                                             min_binding_depth,
                                             min_value_binding_depth,
-                                            scan_scope, depth, insert_lets)
+                                            scan_scope, context, depth, insert_lets)
             if insert_lets:
                 state.builder = []
                 bindings_stack.append(

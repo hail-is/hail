@@ -1441,8 +1441,7 @@ class BaseApplyAggOp(IR):
             [a.typ for a in self.seq_op_args])
 
     def new_block(self, i: int) -> bool:
-        n = len(self.constructor_args)
-        return self.init_op_args and i < n + len(self.init_op_args)
+        return i < len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
 
     def renderable_new_block(self, i: int) -> bool:
         return i <= 1
