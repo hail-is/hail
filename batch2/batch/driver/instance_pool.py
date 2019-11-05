@@ -225,17 +225,14 @@ docker run \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker >worker.log 2>&1
 
-# this has to match LogStore.worker_log_path
-gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$INSTANCE_ID/worker/$NAME/
-
 while true; do
   gcloud -q compute instances delete $NAME --zone=$ZONE
   sleep 1
 done
 '''
                 }, {
-                'key': 'shutdown-script',
-                'value': '''
+                    'key': 'shutdown-script',
+                    'value': '''
 set -x
 
 BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
@@ -244,8 +241,7 @@ NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name 
 
 # this has to match LogStore.worker_log_path
 gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$INSTANCE_ID/worker/$NAME/
-
- '''
+'''
                  }, {
                     'key': 'activation_token',
                     'value': activation_token
