@@ -876,11 +876,11 @@ private class Emit(
             val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg")
 
             val init = Optimize(extracted.init, noisy = true,
-              context = Some("ArrayAgg/agg.Extract/init"))
+              context = "ArrayAgg/agg.Extract/init")
             val perElt = Optimize(extracted.seqPerElt, noisy = true,
-              context = Some("ArrayAgg/agg.Extract/perElt"))
+              context = "ArrayAgg/agg.Extract/perElt")
             val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
-              context = Some("ArrayAgg/agg.Extract/postAggIR"))
+              context = "ArrayAgg/agg.Extract/postAggIR")
 
             val codeInit = emit(init, env = env, container = Some(newContainer))
             val codePerElt = emit(perElt, env = perEltEnv, container = Some(newContainer))
@@ -920,11 +920,11 @@ private class Emit(
 
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = ExtractAggregators.staged(mb.fb, query)
         val postAggIR = Optimize(postAggIR_, noisy = true,
-          context = Some("ArrayAgg/StagedExtractAggregators/postAggIR"))
+          context = "ArrayAgg/StagedExtractAggregators/postAggIR")
         val init = Optimize(init_, noisy = true,
-          context = Some("ArrayAgg/StagedExtractAggregators/init"))
+          context = "ArrayAgg/StagedExtractAggregators/init")
         val perElt = Optimize(perElt_, noisy = true,
-          context = Some("ArrayAgg/StagedExtractAggregators/perElt"))
+          context = "ArrayAgg/StagedExtractAggregators/perElt")
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
 
@@ -2133,11 +2133,11 @@ private class Emit(
             val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggSigs, mb.fb, "array_agg_scan")
 
             val init = Optimize(extracted.init, noisy = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+              context = "ArrayAggScan/StagedExtractAggregators/postAggIR")
             val perElt = Optimize(extracted.seqPerElt, noisy = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+              context = "ArrayAggScan/StagedExtractAggregators/init")
             val postAgg = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+              context = "ArrayAggScan/StagedExtractAggregators/perElt")
 
             val codeInit = this.emit(init, env, None, er, Some(newContainer))
             val codeSeq = this.emit(perElt, bodyEnv, None, er, Some(newContainer))
@@ -2168,11 +2168,11 @@ private class Emit(
           ExtractAggregators.staged(mb.fb, CompileWithAggregators.liftScan(query))
 
         val postAggIR = Optimize(postAggIR_, noisy = true,
-          context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+          context = "ArrayAggScan/StagedExtractAggregators/postAggIR")
         val init = Optimize(init_, noisy = true,
-          context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+          context = "ArrayAggScan/StagedExtractAggregators/init")
         val perElt = Optimize(perElt_, noisy = true,
-          context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+          context = "ArrayAggScan/StagedExtractAggregators/perElt")
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
         val aggInit = this.emit(init, env, Some(rvas), er, container)

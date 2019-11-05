@@ -8,10 +8,12 @@ trait LoweringPass {
   val context: String
 
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    before.verify(ir)
-    val r = transform(ctx: ExecuteContext, ir)
-    after.verify(r)
-    r
+    ctx.timer.time(context) {
+      ctx.timer.time("Verify")(before.verify(ir))
+      val result = ctx.timer.time("LoweringTransformation")(transform(ctx: ExecuteContext, ir))
+      ctx.timer.time("Verify")(after.verify(result))
+      result
+    }
   }
 
   protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR
@@ -20,7 +22,7 @@ trait LoweringPass {
 case object LowerMatrixToTablePass extends LoweringPass {
   val before: IRState = AnyIR
   val after: IRState = MatrixLoweredToTable
-  val context: String = "lower matrix to table"
+  val context: String = "LowerMatrixToTable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
     case x: IR => LowerMatrixIR(x)
@@ -32,7 +34,7 @@ case object LowerMatrixToTablePass extends LoweringPass {
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
   val before: IRState = MatrixLoweredToTable
   val after: IRState = ExecutableTableIR
-  val context: String = "interpret non compilable"
+  val context: String = "InterpretNonCompilable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
 }
@@ -40,7 +42,7 @@ case object LegacyInterpretNonCompilablePass extends LoweringPass {
 case object InterpretNonCompilablePass extends LoweringPass {
   val before: IRState = MatrixLoweredToTable
   val after: IRState = CompilableIR
-  val context: String = "interpret non compilable"
+  val context: String = "InterpretNonCompilable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
 }
