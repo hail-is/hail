@@ -9,6 +9,8 @@ object InterpretableButNotCompilable {
     case _: MatrixAggregate => true
     case _: TableWrite => true
     case _: MatrixWrite => true
+    case _: MatrixMultiWrite => true
+    case _: TableMultiWrite => true
     case _: BlockMatrixWrite => true
     case _: BlockMatrixMultiWrite => true
     case _: TableToValueApply => true
@@ -29,6 +31,8 @@ object Compilable {
       case _: MatrixAggregate => false
       case _: TableWrite => false
       case _: MatrixWrite => false
+      case _: MatrixMultiWrite => false
+      case _: TableMultiWrite => false
       case _: BlockMatrixWrite => false
       case _: BlockMatrixMultiWrite => false
       case _: TableToValueApply => false
