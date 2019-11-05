@@ -19,7 +19,7 @@ object InterpretNonCompilable {
         ir.copy(rewritten)
 
       rwIR match {
-        case x: IR if !Compilable(x) =>
+        case x: IR if InterpretableButNotCompilable(x) =>
           val preTime = System.nanoTime()
           log.info(s"interpreting non compilable node: $x")
           val r = Interpret.alreadyLowered(ctx, x)
