@@ -31,8 +31,8 @@
         <td>{{ instance.time_created_str() }}</td>
         <td>{{ instance.name }}</td>
         <td>{{ instance.state }}</td>
-        <td>{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
-        <td>{{ instance.failed_request_count }}</td>
+        <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
+        <td class="numeric-cell">{{ instance.failed_request_count }}</td>
         <td>{{ instance.last_updated_str() }} ago</td>
       </tr>
       {% endfor %}
