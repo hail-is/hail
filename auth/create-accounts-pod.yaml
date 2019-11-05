@@ -60,6 +60,7 @@ spec:
        if [[ $N = 0 ]]; then
            rm -f /user-tokens/tokens.json
            kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+           kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
            python3 create-session.py '{"username":"ci","user_id":"hail|ci","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","jwt_secret_name":"ci-tokens"}'
            kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
        fi
