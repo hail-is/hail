@@ -15,6 +15,7 @@ object InterpretNonCompilable {
       ir match {
         case x: IR if !Compilable(x) && !included.contains(x) =>
           included += x
+        case _ =>
       }
       ir.children.foreach {
         case ir: IR => visit(ir)
