@@ -387,7 +387,7 @@ class Job:
 
         env = []
         for item in job_spec.get('env', []):
-            env.append(f'{item["name"]}={shq(item["value"])}')
+            env.append(f'{item["name"]}={item["value"]}')
 
         # create containers
         containers = {}
