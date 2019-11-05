@@ -30,7 +30,7 @@ object Interpret {
     if (optimize)
       lowered = Optimize(lowered, noisy = true)
 
-    lowered = EvaluateRelationalLets(InterpretNonCompilable(ctx, lowered)).asInstanceOf[TableIR]
+    lowered = InterpretNonCompilable(ctx, lowered).asInstanceOf[TableIR]
 
     if (optimize)
       lowered = Optimize(lowered, noisy = true)
@@ -49,7 +49,7 @@ object Interpret {
     if (optimize)
       lowered = Optimize(lowered, noisy = true  )
 
-    lowered = EvaluateRelationalLets(InterpretNonCompilable(ctx, lowered)).asInstanceOf[TableIR]
+    lowered = InterpretNonCompilable(ctx, lowered).asInstanceOf[TableIR]
 
     if (optimize)
       lowered = Optimize(lowered, noisy = true)
@@ -90,8 +90,7 @@ object Interpret {
     if (optimize) optimizeIR("Interpret, first pass")
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR("Interpret, after lowering MatrixIR")
-    ir = EvaluateRelationalLets(InterpretNonCompilable(ctx, ir)).asInstanceOf[IR]
-
+    ir = InterpretNonCompilable(ctx, ir).asInstanceOf[IR]
 
     val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 
