@@ -165,11 +165,26 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                try:
-                    await docker_call_retry(docker.images.get, self.image)
-                except DockerError as e:
-                    if e.status == 404:
-                        await docker_call_retry(docker.images.pull, self.image)
+                if self.image.startswith('gcr.io/'):
+                    key = base64.b64decode(
+                        self.job.gsa_key['privateKeyData']).decode()
+                    auth = {
+                        'username': '_json_key',
+                        'password': key
+                    }
+                    # Pull to verify this user has access to this
+                    # image.
+                    # FIXME improve the performance of this with a
+                    # per-user image cache.
+                    await docker_call_retry(
+                        docker.images.pull, self.image, auth=auth)
+                else:
+                    # this caches public images
+                    try:
+                        await docker_call_retry(docker.images.get, self.image)
+                    except DockerError as e:
+                        if e.status == 404:
+                            await docker_call_retry(docker.images.pull, self.image)
 
             async with self.step('creating'):
                 config = self.container_config()
@@ -324,9 +339,10 @@ class Job:
     def secret_host_path(self, secret):
         return f'{self.scratch}/{secret["name"]}'
 
-    def __init__(self, batch_id, user, job_spec):
+    def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
         self.user = user
+        self.gsa_key = gsa_key
         self.job_spec = job_spec
 
         self.deleted = False
@@ -529,7 +545,6 @@ class Worker:
         body = await request.json()
 
         batch_id = body['batch_id']
-        user = body['user']
         job_spec = body['job_spec']
         job_id = job_spec['job_id']
         id = (batch_id, job_id)
@@ -538,7 +553,7 @@ class Worker:
         if id in self.jobs:
             return web.Response()
 
-        job = Job(batch_id, user, job_spec)
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
 
         log.info(f'created {job}, adding to jobs')
 

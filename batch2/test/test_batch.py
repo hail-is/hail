@@ -337,3 +337,11 @@ class Test(unittest.TestCase):
             assert e.status == 401, e
         finally:
             bc.close()
+
+    def test_gcr_image(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_BASE_IMAGE'], ['echo', 'test'])
+        b = builder.submit()
+        status = j.wait()
+
+        self.assertEqual(status['state'], 'Success', (status, j.log()))

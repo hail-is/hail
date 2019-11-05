@@ -59,8 +59,8 @@ LIMIT 50;
         records = self.db.execute_and_fetchall(
             '''
 SELECT job_id, batch_id, spec, cores_mcpu,
-  ((jobs.cancelled OR batches.cancelled) AND NOT always_run) as cancel,
-  batches.user
+  ((jobs.cancelled OR batches.cancelled) AND NOT always_run) AS cancel,
+  userdata, user
 FROM jobs
 INNER JOIN batches ON batches.id = jobs.batch_id
 WHERE jobs.state = 'Ready' AND batches.closed
