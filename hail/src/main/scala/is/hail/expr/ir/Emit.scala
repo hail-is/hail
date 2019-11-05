@@ -565,7 +565,7 @@ private class Emit(
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             (a, ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
           case ToDict(a) =>
-            val elementType = a.pType
+            val elementType = a.pType.asInstanceOf[PStreamable].elementType
             val (k0, k1, keyType) = elementType match {
               case t: PStruct => (GetField(In(0, eltType), "key"), GetField(In(1, eltType), "key"), t.fieldType("key"))
               case t: PTuple => (GetTupleElement(In(0, eltType), 0), GetTupleElement(In(1, eltType), 0), t.types(0))
