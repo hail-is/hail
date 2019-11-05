@@ -238,6 +238,8 @@ async def job_config(app, record):
 
         token_secret_name = sa.secrets[0].name
         token_secret_namespace = sa.secrets[0].namespace
+        log.info(sa.secrets[0])
+
         secret = await k8s_client.read_namespaced_secret(
             token_secret_name, token_secret_namespace,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
