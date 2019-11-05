@@ -181,7 +181,7 @@ class Container:
                 else:
                     # this caches public images
                     try:
-                        docker_call_retry(docker.images.get, self.image)
+                        await docker_call_retry(docker.images.get, self.image)
                     except DockerError as e:
                         if e.status == 404:
                             await docker_call_retry(docker.images.pull, self.image)
