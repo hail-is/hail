@@ -8,9 +8,10 @@ from aiohttp import web
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-from gear import Database
+from gear import Database, setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 # import uvloop
 
@@ -284,19 +285,19 @@ async def get_index(request, userdata):
     db = app['db']
     instance_pool = app['inst_pool']
 
-    ready_cores = await self.db.execute_and_fetchone(
+    ready_cores = await db.execute_and_fetchone(
         'SELECT * FROM ready_cores;')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
         'instance_id': app['instance_id'],
-        'n_instances_by_state': instance_pool.n_instances_by_state
-        'instances': inst_pool.instances.values(),
+        'n_instances_by_state': instance_pool.n_instances_by_state,
+        'instances': instance_pool.instances.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_free_cores_mcpu': inst_pool.live_free_cores_mcpu
+        'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
     }
     return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
-    
+
 
 async def on_startup(app):
     userinfo = await async_get_userinfo()
