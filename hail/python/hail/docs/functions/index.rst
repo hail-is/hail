@@ -142,6 +142,12 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     hamming
     delimit
     entropy
+    parse_int
+    parse_int32
+    parse_int64
+    parse_float
+    parse_float32
+    parse_float64
 
 .. rubric:: Statistical functions
 
