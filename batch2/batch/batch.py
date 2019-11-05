@@ -273,7 +273,7 @@ users:
             'name': 'kube-config',
             'mount_path': '/.kube/config',
             'mount_in_copy': False,
-            'data': {'kube-config': base64.b64encode(kube_config).decode()}
+            'data': {'kube-config': base64.b64encode(kube_config.encode()).decode()}
         })
 
         env = job_spec['env']
