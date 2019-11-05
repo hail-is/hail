@@ -3,10 +3,3 @@ kind: ServiceAccount
 metadata:
   name: ci-agent
   namespace: {{ batch_pods_ns.name }}
-# FIXME: we don't need this sa in batch_pods_ns once batch is gone
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ci-agent
-  namespace: {{ default_ns.name }}
