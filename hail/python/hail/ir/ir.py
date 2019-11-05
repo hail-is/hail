@@ -353,6 +353,7 @@ class Ref(IR):
     def __init__(self, name):
         super().__init__()
         self.name = name
+        self._free_vars = {name}
 
     def copy(self):
         return Ref(self.name)
@@ -1173,7 +1174,8 @@ class AggFilter(IR):
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
 
-    def uses_agg_capability(self) -> bool:
+    @classmethod
+    def uses_agg_capability(cls) -> bool:
         return True
 
 
@@ -1230,7 +1232,8 @@ class AggExplode(IR):
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
 
-    def uses_agg_capability(self) -> bool:
+    @classmethod
+    def uses_agg_capability(cls) -> bool:
         return True
 
 
@@ -1269,7 +1272,8 @@ class AggGroupBy(IR):
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
 
-    def uses_agg_capability(self) -> bool:
+    @classmethod
+    def uses_agg_capability(cls) -> bool:
         return True
 
 
@@ -1309,7 +1313,8 @@ class AggArrayPerElement(IR):
     def uses_scan_context(self, i: int):
         return i == 0 and self.is_scan
 
-    def uses_agg_capability(self) -> bool:
+    @classmethod
+    def uses_agg_capability(cls) -> bool:
         return True
 
     def bindings(self, i, default_value=None):
@@ -1442,7 +1447,8 @@ class BaseApplyAggOp(IR):
     def renderable_new_block(self, i: int) -> bool:
         return i <= 1
 
-    def uses_agg_capability(self) -> bool:
+    @classmethod
+    def uses_agg_capability(cls) -> bool:
         return True
 
 

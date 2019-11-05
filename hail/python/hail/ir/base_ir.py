@@ -130,7 +130,8 @@ class BaseIR(Renderable):
     # any node which performs aggregations (e.g. AggFilter, ApplyAggOp, etc.).
     agg_capability = 'agg_capability'
 
-    def uses_agg_capability(self) -> bool:
+    @classmethod
+    def uses_agg_capability(cls) -> bool:
         return False
 
     def child_context_without_bindings(self, i: int, parent_context):
@@ -153,11 +154,26 @@ class BaseIR(Renderable):
         else:
             return base
 
+    @property
+    def free_vars(self):
+        return set()
+
+    @property
+    def free_agg_vars(self):
+        return set()
+
+    @property
+    def free_scan_vars(self):
+        return set()
+
 
 class IR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
         self._aggregations = None
+        self._free_vars = None
+        self._free_agg_vars = None
+        self._free_scan_vars = None
 
     @property
     def aggregations(self):
@@ -211,6 +227,41 @@ class IR(BaseIR):
             code,
             {k: t._parsable_string() for k, t in ref_map.items()},
             ir_map)
+
+    @property
+    def free_vars(self):
+        def vars_from_child(i):
+            if self.uses_agg_context(i):
+                return self.children[i].free_agg_vars
+            if self.uses_scan_context(i):
+                return self.children[i].free_scan_vars
+            return self.children[i].free_vars.difference(self.bindings(i).keys())
+
+        if self._free_vars is None:
+            self._free_vars = {
+                var for i in range(len(self.children))
+                    for var in vars_from_child(i)}
+            if self.uses_agg_capability():
+                self._free_vars.add(BaseIR.agg_capability)
+        return self._free_vars
+
+    @property
+    def free_agg_vars(self):
+        if self._free_agg_vars is None:
+            self._free_agg_vars = {
+                var for i in range(len(self.children))
+                    for var in self.children[i].free_agg_vars.difference(
+                        self.agg_bindings(i).keys())}
+        return self._free_agg_vars
+
+    @property
+    def free_scan_vars(self):
+        if self._free_scan_vars is None:
+            self._free_scan_vars = {
+                var for i in range(len(self.children))
+                for var in self.children[i].free_scan_vars.difference(
+                    self.scan_bindings(i).keys())}
+        return self._free_scan_vars
 
 
 class TableIR(BaseIR):

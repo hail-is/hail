@@ -181,7 +181,7 @@ class CSERenderer(Renderer):
 
     def __call__(self, root: 'ir.BaseIR', free_vars=None) -> str:
         if not free_vars:
-            free_vars = {}
+            free_vars = set()
         binding_sites = CSEAnalysisPass(self)(root, free_vars)
         return CSEPrintPass(self)(root, binding_sites)
 
@@ -241,7 +241,6 @@ class CSEAnalysisPass:
 
                 if not stack:
                     break
-                stack[-1].update_free_vars(frame)
                 continue
 
             child = node.children[child_idx]
@@ -257,16 +256,13 @@ class CSEAnalysisPass:
                     cur = stack[i]
                     if i >= child_frame.min_value_binding_depth:
                         if id(child) in cur.visited:
-                            seen_in_scope = i
                             lets = cur.lifted_lets
                             break
                     else:
                         if not child_frame.scan_scope and id(child) in cur.agg_visited:
-                            seen_in_scope = i
                             lets = cur.agg_lifted_lets
                             break
                         if child_frame.scan_scope and id(child) in cur.scan_visited:
-                            seen_in_scope = i
                             lets = cur.scan_lifted_lets
                             break
                 else:
@@ -276,28 +272,13 @@ class CSEAnalysisPass:
                 if lets is not None:
                     # we've seen 'child' before, should not traverse (or we will
                     # find too many lifts)
-                    if id(child) in lets:
-                        uid = lets[id(child)]
-                    else:
+                    if id(child) not in lets:
                         # second time we've seen 'child', lift to a let
                         uid = self.uid()
                         lets[id(child)] = uid
-                    # Since we are not traversing 'child', we don't know its free
-                    # variables. To prevent a parent from being lifted too high,
-                    # we must register 'child' as having the free variable 'uid',
-                    # which will be true when 'child' is replaced by "(Ref uid)".
-                    frame._free_vars[uid] = seen_in_scope
                     continue
 
             # first time visiting 'child'
-
-            if isinstance(child, ir.Ref):
-                if child.name not in node.bindings(child_idx, default_value=0).keys():
-                    (eval_c, _, _) = node.child_context_without_bindings(
-                        child_idx, frame.context)
-                    frame._free_vars[child.name] = eval_c[child.name]
-                continue
-
             stack.append(child_frame)
             continue
 
@@ -305,9 +286,9 @@ class CSEAnalysisPass:
 
     class StackFrame:
         __slots__ = ['min_binding_depth', 'min_value_binding_depth', 'scan_scope',
-                     'context', 'node', '_free_vars', 'visited', 'agg_visited',
+                     'context', 'node', 'visited', 'agg_visited',
                      'scan_visited', 'lifted_lets', 'agg_lifted_lets',
-                     'scan_lifted_lets', 'child_idx', '_child_bindings']
+                     'scan_lifted_lets', 'child_idx']
 
         def __init__(self, min_binding_depth: int, min_value_binding_depth: int,
                      scan_scope: bool, context: Context, x: 'ir.BaseIR'):
@@ -331,13 +312,6 @@ class CSEAnalysisPass:
 
             # Mutable:
 
-            # The running union of free variables in the subtree rooted at
-            # 'node'. For each free variable we store the depth at which it is
-            # bound (above 'node').
-            self._free_vars: Dict[str, int] = {}
-            # add agg_psuedo_var if child is an agg result
-            if self.node.uses_agg_capability():
-                self._free_vars[ir.BaseIR.agg_capability] = context[0][ir.BaseIR.agg_capability]
             # Sets of visited descendants. For each descendant 'x' of 'node',
             # 'id(x)' is added to 'visited'. This allows us to recognize when
             # we see a node for a second time.
@@ -357,10 +331,6 @@ class CSEAnalysisPass:
             # 'stack[i].node.children[stack[i].child_idx] is stack[i+1].node').
             # Starts at -1 because it is incremented at the top of the main loop.
             self.child_idx = -1
-            # The variables bound by this node in the currently active child.
-            # These must be subtracted out of the child's free variables when
-            # updating '_free_vars'.
-            self._child_bindings = None
 
         def has_lifted_lets(self) -> bool:
             return bool(self.lifted_lets or self.agg_lifted_lets or self.scan_lifted_lets)
@@ -374,11 +344,13 @@ class CSEAnalysisPass:
 
         # compute depth at which we might bind this node
         def bind_depth(self) -> int:
-            if len(self._free_vars) > 0:
-                bind_depth = max(self._free_vars.values())
-                bind_depth = max(bind_depth, self.min_binding_depth)
-            else:
-                bind_depth = self.min_binding_depth
+            bind_depth = self.min_binding_depth
+            if len(self.node.free_vars) > 0:
+                bind_depth = max(bind_depth, max(self.context[0][var] for var in self.node.free_vars))
+            if len(self.node.free_agg_vars) > 0:
+                bind_depth = max(bind_depth, max(self.context[1][var] for var in self.node.free_agg_vars))
+            if len(self.node.free_scan_vars) > 0:
+                bind_depth = max(bind_depth, max(self.context[2][var] for var in self.node.free_scan_vars))
             return bind_depth
 
         def make_child_frame(self, depth: int):
@@ -398,34 +370,9 @@ class CSEAnalysisPass:
                 child_min_value_binding_depth = depth
                 child_scan_scope = True
 
-            # compute vars bound in 'child' by 'node'
-            eval_bindings = x.bindings(i, 0).keys()
-            agg_bindings = x.agg_bindings(i, 0).keys()
-            scan_bindings = x.scan_bindings(i, 0).keys()
-            new_bindings = (eval_bindings, agg_bindings, scan_bindings)
-            self._child_bindings = new_bindings
             child_context = x.child_context(i, self.context, depth)
 
             return CSEAnalysisPass.StackFrame(child_min_binding_depth, child_min_value_binding_depth, child_scan_scope, child_context, child)
-
-        def free_vars(self):
-            # subtract vars that will be bound by inserted lets
-            def bound_vars():
-                yield from self.lifted_lets.values()
-                yield from self.agg_lifted_lets.values()
-                yield from self.scan_lifted_lets.values()
-            for var in bound_vars():
-                self._free_vars.pop(var, 0)
-            return self._free_vars
-
-        def update_free_vars(self, child_frame):
-            child_free_vars = child_frame.free_vars()
-            # subtract vars bound by parent from free_vars
-            (eval_bindings, agg_bindings, scan_bindings) = self._child_bindings
-            for var in [*eval_bindings, *agg_bindings, *scan_bindings]:
-                child_free_vars.pop(var, 0)
-            # update parent's free variables
-            self._free_vars.update(child_free_vars)
 
 
 class CSEPrintPass:

@@ -412,7 +412,7 @@ class CSETests(unittest.TestCase):
             '(Let row (I32 5)' 
                 ' (Let row (GetField idx (Ref row))'
                 ' (GetField idx (Ref row))))')
-        print(CSERenderer()(outer))
+        assert expected == CSERenderer()(outer)
 
     # fix to test ApplyAggOp repeated inside and outside AggFilter
     def test_agg_cse(self):
@@ -447,4 +447,4 @@ class CSETests(unittest.TestCase):
                     ' ((Let __cse_3 (I32 5)'
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
-        assert expected == CSERenderer()(top)
+        assert expected == CSERenderer()(top, free_vars={ir.BaseIR.agg_capability})
