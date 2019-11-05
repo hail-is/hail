@@ -59,6 +59,7 @@ object IsAggResult {
 
 object ContainsAgg {
   def apply(root: IR): Boolean = IsAggResult(root) || (root match {
+    case l: AggLet => !l.isScan
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _: ArrayAgg => true // this should be permitted, but causes problems elsewhere in the IR
@@ -90,6 +91,7 @@ object ContainsNonCommutativeAgg {
 
 object ContainsScan {
   def apply(root: IR): Boolean = IsScanResult(root) || (root match {
+    case l: AggLet => l.isScan
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _: ArrayAggScan => true // this should be permitted, but causes problems elsewhere in the IR
