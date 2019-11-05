@@ -791,6 +791,7 @@ steps:
       timeout: 1200
    dependsOn:
     - default_ns
+    - base_image
     - batch_pods_ns
     - deploy_batch2
     - test_batch2_image

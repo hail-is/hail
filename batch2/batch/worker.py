@@ -165,11 +165,26 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                try:
-                    await docker_call_retry(docker.images.get, self.image)
-                except DockerError as e:
-                    if e.status == 404:
-                        await docker_call_retry(docker.images.pull, self.image)
+                if self.image.startswith('gcr.io/'):
+                    key = base64.b64decode(
+                        self.spec['gsa_key']['privateKeyData']).decode()
+                    auth = {
+                        'username': '_json_key',
+                        'password': key
+                    }
+                    # Pull to verify this user has access to this
+                    # image.
+                    # FIXME improve the performance of this with a
+                    # per-user image cache.
+                    await docker_call_retry(
+                        docker.images.pull, self.image, auth=auth)
+                else:
+                    # this caches public images
+                    try:
+                        docker_call_retry(docker.images.get, self.image)
+                    except DockerError as e:
+                        if e.status == 404:
+                            await docker_call_retry(docker.images.pull, self.image)
 
             async with self.step('creating'):
                 config = self.container_config()
