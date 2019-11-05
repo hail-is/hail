@@ -24,3 +24,18 @@ roleRef:
   kind: Role
   name: ci-agent-role
   apiGroup: ""
+# FIXME: this isn't needed once batch_pods_ns is gone
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ci-agent-binding
+  namespace: {{ default_ns.name }}
+subjects:
+- kind: ServiceAccount
+  name: ci-agent
+  namespace: {{ default_ns.name }}
+roleRef:
+  kind: Role
+  name: ci-agent-role
+  apiGroup: ""
