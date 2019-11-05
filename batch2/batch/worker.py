@@ -134,7 +134,8 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100}
+                           'CpuQuota': self.cpu_in_mcpu * 100},
+            'Env': self.spec['env']
         }
 
         volume_mounts = self.spec.get('volume_mounts')
@@ -381,6 +382,10 @@ class Job:
                 if secret.get('mount_in_copy', False):
                     copy_volume_mounts.append(volume_mount)
 
+        env = []
+        for name, value in job_spec.get('env', []):
+            env.append(f'{name}={shq(value)}')
+
         # create containers
         containers = {}
 
@@ -394,7 +399,7 @@ class Job:
             'command': job_spec['command'],
             'image': job_spec['image'],
             'name': 'main',
-            # FIXME env
+            'env': env,
             'cpu': job_spec['resources']['cpu'],
             'volume_mounts': main_volume_mounts
         }

@@ -7,7 +7,8 @@ from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
-from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, \
+    KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
 
@@ -250,7 +251,7 @@ apiVersion: v1
 clusters:
 - cluster:
     certificate-authority-data: {cert}
-    server: <server>  # FIXME: put in actual server address
+    server: {KUBERNETES_SERVER_URL}
   name: default-cluster
 contexts:
 - context:
@@ -270,10 +271,14 @@ users:
         job_spec['secrets'].append({
             'namespace': 'batch-pods',  # FIXME unused
             'name': 'kube-config',
-            'mount_path': '~/.kube/config',
+            'mount_path': '/.kube/config',
             'mount_in_copy': False,
             'data': {'kube-config': base64.b64encode(kube_config).decode()}
         })
+
+        env = job_spec['env']
+        env.append({'name': 'KUBECONFIG',
+                    'value': '/.kube/config'})
 
     return {
         'batch_id': record['batch_id'],

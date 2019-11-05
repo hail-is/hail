@@ -282,6 +282,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_in_copy': True
                 })
 
+                env = spec.get('env')
+                if not env:
+                    env = []
+                    spec['env'] = env
+
                 state = 'Ready' if len(parent_ids) == 0 else 'Pending'
 
                 jobs_args.append(
