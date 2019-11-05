@@ -41,10 +41,6 @@ spec:
            value: "{{ batch2_worker_image.image }}"
          - name: BATCH_NAMESPACE
            value: "{{ default_ns.name }}"
-{% if deploy %}
-         - name: HAIL_INSTANCE_ID
-           value: cd50b95a89914efb897965a5e982a29d
-{% endif %}
 {% if not deploy %}
          - name: WORKER_TYPE
            value: "standard"
@@ -56,16 +52,6 @@ spec:
            value: "1"
          - name: MAX_INSTANCES
            value: "2"
-         - name: HAIL_BATCH_JOB_DEFAULT_CPU
-           value: "0.1"
-         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
-           value: "375M"
-{% endif %}
-{% if not deploy %}
-         - name: HAIL_BATCH_JOB_DEFAULT_CPU
-           value: "0.1"
-         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
-           value: "375M"
 {% endif %}
         ports:
          - containerPort: 5000
@@ -157,9 +143,11 @@ spec:
            value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
-{% if deploy %}
-         - name: HAIL_INSTANCE_ID
-           value: cd50b95a89914efb897965a5e982a29d
+{% if not deploy %}
+         - name: HAIL_BATCH_JOB_DEFAULT_CPU
+           value: "0.1"
+         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
+           value: "375M"
 {% endif %}
         ports:
          - containerPort: 5000
@@ -261,3 +249,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: batch2
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: batch2

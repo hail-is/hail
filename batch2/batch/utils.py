@@ -1,13 +1,8 @@
 import re
-import secrets
+import time
 import logging
 
 log = logging.getLogger('utils')
-
-
-def new_token(n=5):
-    return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(n)])
-
 
 cpu_regex = re.compile(r"^(\d*\.\d+|\d+)([m]?)$")
 
@@ -30,3 +25,37 @@ def parse_image_tag(image_string):
     if match:
         return match.group(3)
     return None
+
+
+class LoggingTimerStep:
+    def __init__(self, timer, name):
+        self.timer = timer
+        self.name = name
+        self.start_time = None
+
+    async def __aenter__(self):
+        self.start_time = time.time()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time.time()
+        self.timer.timing[self.name] = finish_time - self.start_time
+
+
+class LoggingTimer:
+    def __init__(self, description):
+        self.description = description
+        self.timing = {}
+        self.start_time = None
+
+    def step(self, name):
+        return LoggingTimerStep(self, name)
+
+    async def __aenter__(self):
+        self.start_time = time.time()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time.time()
+        self.timing['total'] = finish_time - self.start_time
+
+        log.info(f'{self.description} timing {self.timing}')

@@ -1,11 +1,11 @@
 import os
 import sys
+import json
 from shlex import quote as shq
 import time
 import logging
 import asyncio
 import random
-import json
 import traceback
 import base64
 import uuid
@@ -15,6 +15,7 @@ from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
+import google.oauth2.service_account
 from hailtop.utils import request_retry_transient_errors
 
 # import uvloop
@@ -25,17 +26,35 @@ from gear import configure_logging
 from .utils import parse_cpu_in_mcpu, parse_image_tag
 from .semaphore import WeightedSemaphore
 from .log_store import LogStore
-from .google_storage import GCS
 
 # uvloop.install()
 
 configure_logging()
-log = logging.getLogger('batch2-agent')
+log = logging.getLogger('batch2-worker')
+
+MAX_IDLE_TIME_SECS = 5 * 60
+
+CORES = int(os.environ['CORES'])
+NAME = os.environ['NAME']
+NAMESPACE = os.environ['NAMESPACE']
+# ACTIVATION_TOKEN
+IP_ADDRESS = os.environ['IP_ADDRESS']
+BUCKET_NAME = os.environ['BUCKET_NAME']
+INSTANCE_ID = os.environ['INSTANCE_ID']
+PROJECT = os.environ['PROJECT']
+
+log.info(f'CORES {CORES}')
+log.info(f'NAME {NAME}')
+log.info(f'NAMESPACE {NAMESPACE}')
+# ACTIVATION_TOKEN
+log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'BUCKET_NAME {BUCKET_NAME}')
+log.info(f'INSTANCE_ID {INSTANCE_ID}')
+log.info(f'PROJECT {PROJECT}')
+
+deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker = aiodocker.Docker()
-
-MAX_IDLE_TIME_WITH_PODS = 60 * 2  # seconds
-MAX_IDLE_TIME_WITHOUT_PODS = 60 * 1  # seconds
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -57,7 +76,7 @@ async def docker_call_retry(f, *args, **kwargs):
         delay = min(delay * 2, 60.0)
 
 
-class PodDeletedError(Exception):
+class JobDeletedError(Exception):
     pass
 
 
@@ -70,10 +89,10 @@ class ContainerStepManager:
         self.start_time = None
 
     async def __aenter__(self):
-        if self.container.pod.deleted:
-            raise PodDeletedError()
+        if self.container.job.deleted:
+            raise JobDeletedError()
         if self.state:
-            log.info(f'container {self.container.pod.name}/{self.container.name} state changed: {self.container.state} => {self.state}')
+            log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
         self.start_time = time.time()
 
@@ -84,15 +103,15 @@ class ContainerStepManager:
 
 
 class Container:
-    def __init__(self, pod, name, spec):
-        self.pod = pod
+    def __init__(self, job, name, spec):
+        self.job = job
         self.name = name
         self.spec = spec
 
         image = spec['image']
         tag = parse_image_tag(self.spec['image'])
         if not tag:
-            log.info(f'adding latest tag to image {self.spec["image"]} for container {self.pod.name}/{self.name}')
+            log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image += ':latest'
         self.image = image
 
@@ -129,7 +148,7 @@ class Container:
 
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
-        log.info(f'container {self.pod.name}/{self.name}" container info {c}')
+        log.info(f'{self} container info {c}')
         cstate = c['State']
         status = {
             'state': cstate['Status'],
@@ -146,14 +165,33 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                try:
-                    await docker_call_retry(docker.images.get, self.image)
-                except DockerError as e:
-                    if e.status == 404:
-                        await docker_call_retry(docker.images.pull, self.image)
+                if self.image.startswith('gcr.io/'):
+                    key = base64.b64decode(
+                        self.job.gsa_key['privateKeyData']).decode()
+                    auth = {
+                        'username': '_json_key',
+                        'password': key
+                    }
+                    # Pull to verify this user has access to this
+                    # image.
+                    # FIXME improve the performance of this with a
+                    # per-user image cache.
+                    await docker_call_retry(
+                        docker.images.pull, self.image, auth=auth)
+                else:
+                    # this caches public images
+                    try:
+                        await docker_call_retry(docker.images.get, self.image)
+                    except DockerError as e:
+                        if e.status == 404:
+                            await docker_call_retry(docker.images.pull, self.image)
 
             async with self.step('creating'):
-                self.container = await docker_call_retry(docker.containers.create, self.container_config())
+                config = self.container_config()
+                log.info(f'starting {self} config {config}')
+                self.container = await docker_call_retry(
+                    docker.containers.create,
+                    config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with self.step(None, 'runtime'):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
@@ -164,12 +202,12 @@ class Container:
                         await docker_call_retry(self.container.wait)
 
             self.container_status = await self.get_container_status()
-            log.info(f'container {self.pod.name}/{self.name}: container status {self.container_status}')
+            log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
-                self.log = await self.get_container_log()
-                log_path = LogStore.container_log_path(self.pod.output_directory, self.name)
-                await worker.gcs_client.write_gs_file(log_path, self.log)
+                await worker.log_store.write_log_file(
+                    self.job.batch_id, self.job.job_id, self.name,
+                    await self.get_container_log())
 
             async with self.step('deleting'):
                 await self.delete_container()
@@ -181,7 +219,7 @@ class Container:
             else:
                 self.state = 'failed'
         except Exception:
-            log.exception(f'while running container {self.pod.name}/{self.name}')
+            log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -204,15 +242,16 @@ class Container:
     async def delete_container(self):
         if self.container:
             try:
-                log.info('container {self.pod.name}/{self.name}: deleting container')
+                log.info(f'{self}: deleting container')
                 await docker_call_retry(self.container.stop)
                 # v=True deletes anonymous volumes created by the container
                 await docker_call_retry(self.container.delete, v=True)
+                self.container = None
             except Exception:
                 log.exception('while deleting up container, ignoring')
-            self.container = None
 
     async def delete(self):
+        log.info(f'deleting {self}')
         await self.delete_container()
 
     # {
@@ -244,6 +283,9 @@ class Container:
             status['container_status'] = await self.get_container_status()
         return status
 
+    def __str__(self):
+        return f'container {self.job.id}/{self.name}'
+
 
 def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
@@ -255,48 +297,58 @@ def populate_secret_host_path(host_path, secret_data):
 
 def copy_command(src, dst):
     if not dst.startswith('gs://'):
-        mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
+        mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
     else:
-        mkdirs = ""
-    return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
+        mkdirs = ''
+    return f'{mkdirs}retry gsutil -m cp -R {shq(src)} {shq(dst)}'
 
 
 def copy(files):
     if files is None:
         return 'true'
 
-    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
-    return f'{authenticate} && {copies}'
+    return f'''
+set -ex
+
+function retry() {{
+    "$@" ||
+        (sleep 2 && "$@") ||
+        (sleep 5 && "$@")
+}}
+
+retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+
+{copies}
+'''
 
 
-def copy_container(pod, name, files, volume_mounts):
+def copy_container(job, name, files, volume_mounts):
     sh_expression = copy(files)
     copy_spec = {
-        'image': 'google/cloud-sdk:237.0.0-alpine',
+        'image': 'google/cloud-sdk:269.0.0-alpine',
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
         'cpu': '500m' if files else '100m',
         'volume_mounts': volume_mounts
     }
-    return Container(pod, name, copy_spec)
+    return Container(job, name, copy_spec)
 
 
-class Pod:
+class Job:
     def secret_host_path(self, secret):
         return f'{self.scratch}/{secret["name"]}'
 
-    def __init__(self, name, batch_id, user, job_spec, output_directory):
-        self.name = name
+    def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
         self.user = user
+        self.gsa_key = gsa_key
         self.job_spec = job_spec
-        self.output_directory = output_directory
 
         self.deleted = False
 
         token = uuid.uuid4().hex
-        self.scratch = f'/batch/pods/{token}'
+        self.scratch = f'/batch/{token}'
 
         self.state = 'pending'
         self.error = None
@@ -322,7 +374,7 @@ class Pod:
         secrets = job_spec.get('secrets')
         self.secrets = secrets
         if secrets:
-            for secret in job_spec['secrets']:
+            for secret in secrets:
                 volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
                 main_volume_mounts.append(volume_mount)
                 # this will be the user gsa-key
@@ -355,10 +407,18 @@ class Pod:
 
         self.containers = containers
 
+    @property
+    def job_id(self):
+        return self.job_spec['job_id']
+
+    @property
+    def id(self):
+        return (self.batch_id, self.job_id)
+
     async def run(self, worker):
         io = None
         try:
-            log.info(f'pod {self.name}: initializing')
+            log.info(f'{self}: initializing')
             self.state = 'initializing'
 
             if self.mount_io:
@@ -370,27 +430,27 @@ class Pod:
 
             self.state = 'running'
 
-            log.info(f'pod {self.name}: running setup')
+            log.info(f'{self}: running setup')
 
             setup = self.containers['setup']
             await setup.run(worker)
 
-            log.info(f'pod {self.name} setup: {setup.state}')
+            log.info(f'{self} setup: {setup.state}')
 
             if setup.state == 'succeeded':
-                log.info(f'pod {self.name}: running main')
+                log.info(f'{self}: running main')
 
                 main = self.containers['main']
                 await main.run(worker)
 
-                log.info(f'pod {self.name} main: {main.state}')
+                log.info(f'{self} main: {main.state}')
 
-                log.info(f'pod {self.name}: running cleanup')
+                log.info(f'{self}: running cleanup')
 
                 cleanup = self.containers['cleanup']
                 await cleanup.run(worker)
 
-                log.info(f'pod {self.name} cleanup: {cleanup.state}')
+                log.info(f'{self} cleanup: {cleanup.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
@@ -401,22 +461,16 @@ class Pod:
                         self.state = 'succeeded'
             else:
                 self.state = setup.state
-
-            log.info(f'pod {self.name}: uploading status')
-
-            await worker.gcs_client.write_gs_file(
-                LogStore.pod_status_path(self.output_directory),
-                json.dumps(await self.status(), indent=4))
         except Exception:
-            log.exception(f'while running pod {self.name}')
+            log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            log.info(f'pod {self.name}: marking complete')
-            await worker.post_pod_complete(await self.status())
+            log.info(f'{self}: marking complete')
+            await worker.post_job_complete(await self.status())
 
-            log.info(f'pod {self.name}: cleaning up')
+            log.info(f'{self}: cleaning up')
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
                 if io:
@@ -428,6 +482,7 @@ class Pod:
         return {name: await c.get_log() for name, c in self.containers.items()}
 
     async def delete(self):
+        log.info(f'deleting {self}')
         self.deleted = True
         for _, c in self.containers.items():
             await c.delete()
@@ -443,7 +498,7 @@ class Pod:
     # }
     async def status(self):
         status = {
-            'name': self.name,
+            'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
             'user': self.user,
@@ -456,68 +511,96 @@ class Pod:
         }
         return status
 
+    def __str__(self):
+        return f'job {self.id}'
+
 
 class Worker:
-    def __init__(self, image, cores, deploy_config, token, ip_address):
-        self.image = image
-        self.cores_mcpu = cores * 1000
-        self.deploy_config = deploy_config
-        self.token = token
+    def __init__(self):
+        self.cores_mcpu = CORES * 1000
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time.time()
-        self.pods = {}
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
-        self.ip_address = ip_address
+        self.pool = concurrent.futures.ThreadPoolExecutor()
+        self.jobs = {}
 
-        pool = concurrent.futures.ThreadPoolExecutor()
+        # filled in during activation
+        self.log_store = None
+        self.headers = None
 
-        self.gcs_client = GCS(pool)
+    async def run_job(self, job):
+        try:
+            await job.run(self)
+        except Exception:
+            log.exception(f'while running {job}, ignoring')
+        finally:
+            self.last_updated = time.time()
 
-    async def _create_pod(self, parameters):
-        name = parameters['name']
-        if name in self.pods:
-            return
+            log.info(f'{job} complete, removing from jobs')
 
-        batch_id = parameters['batch_id']
-        user = parameters['user']
-        job_spec = parameters['job_spec']
-        output_directory = parameters['output_directory']
+            if job.id in self.jobs:
+                del self.jobs[job.id]
 
-        pod = Pod(name, batch_id, user, job_spec, output_directory)
-        self.pods[name] = pod
-        await pod.run(self)
+    async def create_job_1(self, request):
+        body = await request.json()
 
-    async def create_pod(self, request):
-        self.last_updated = time.time()
-        parameters = await request.json()
-        await asyncio.shield(self._create_pod(parameters))
+        batch_id = body['batch_id']
+        job_spec = body['job_spec']
+        job_id = job_spec['job_id']
+        id = (batch_id, job_id)
+
+        # already running
+        if id in self.jobs:
+            return web.Response()
+
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
+
+        log.info(f'created {job}, adding to jobs')
+
+        self.jobs[job.id] = job
+
+        asyncio.ensure_future(self.run_job(job))
+
         return web.Response()
 
-    async def get_pod_log(self, request):
-        pod_name = request.match_info['pod_name']
-        pod = self.pods.get(pod_name)
-        if not pod:
-            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
-        return web.json_response(await pod.get_log())
+    async def create_job(self, request):
+        return await asyncio.shield(self.create_job_1(request))
 
-    async def get_pod_status(self, request):
-        pod_name = request.match_info['pod_name']
-        pod = self.pods.get(pod_name)
-        if not pod:
-            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
-        return web.json_response(await pod.status())
+    async def get_job_log(self, request):
+        batch_id = int(request.match_info['batch_id'])
+        job_id = int(request.match_info['job_id'])
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
+        return web.json_response(await job.get_log())
 
-    async def _delete_pod(self, request):
-        pod_name = request.match_info['pod_name']
-        pod = self.pods.get(pod_name)
-        if not pod:
-            raise web.HTTPNotFound(reason=f'unknown pod {pod_name}')
-        del self.pods[pod_name]
-        await pod.delete()
+    async def get_job_status(self, request):
+        batch_id = int(request.match_info['batch_id'])
+        job_id = int(request.match_info['job_id'])
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
+        return web.json_response(await job.status())
 
-    async def delete_pod(self, request):  # pylint: disable=unused-argument
-        await asyncio.shield(self._delete_pod(request))
+    async def delete_job_1(self, request):
+        batch_id = int(request.match_info['batch_id'])
+        job_id = int(request.match_info['job_id'])
+        id = (batch_id, job_id)
+
+        log.info(f'deleting job {id}, removing from jobs')
+
+        job = self.jobs.pop(id, None)
+        if job is None:
+            raise web.HTTPNotFound()
+
+        asyncio.ensure_future(job.delete())
+
         return web.Response()
+
+    async def delete_job(self, request):
+        return await asyncio.shield(self.delete_job_1(request))
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
         return web.Response()
@@ -528,10 +611,10 @@ class Worker:
         try:
             app = web.Application()
             app.add_routes([
-                web.post('/api/v1alpha/pods/create', self.create_pod),
-                web.get('/api/v1alpha/pods/{pod_name}/log', self.get_pod_log),
-                web.get('/api/v1alpha/pods/{pod_name}/status', self.get_pod_status),
-                web.post('/api/v1alpha/pods/{pod_name}/delete', self.delete_pod),
+                web.post('/api/v1alpha/batches/jobs/create', self.create_job),
+                web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck)
             ])
 
@@ -542,26 +625,24 @@ class Worker:
 
             await self.activate()
 
-            last_ping = time.time() - self.last_updated
-            while (self.pods and last_ping < MAX_IDLE_TIME_WITH_PODS) \
-                    or last_ping < MAX_IDLE_TIME_WITHOUT_PODS:
-                log.info(f'n_pods {len(self.pods)} free_cores {self.free_cores_mcpu / 1000} age {last_ping}')
+            idle_duration = time.time() - self.last_updated
+            while (self.jobs or idle_duration < MAX_IDLE_TIME_SECS):
+                log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
-                last_ping = time.time() - self.last_updated
+                idle_duration = time.time() - self.last_updated
 
-            if self.pods:
-                log.info(f'idle {MAX_IDLE_TIME_WITH_PODS} seconds with pods, exiting')
-            else:
-                log.info(f'idle {MAX_IDLE_TIME_WITHOUT_PODS} seconds with no pods, exiting')
+            log.info(f'idle {idle_duration} seconds, exiting')
 
-            body = {'inst_token': self.token}
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await request_retry_transient_errors(
-                    session, 'POST',
-                    self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
-                    json=body)
-                log.info('deactivated')
+                # Don't retry.  If it doesn't go through, the driver
+                # monitoring loops will recover.  If the driver is
+                # gone (e.g. testing a PR), this would go into an
+                # infinite loop and the instance won't be deleted.
+                await session.post(
+                    deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
+                    headers=self.headers)
+            log.info('deactivated')
         finally:
             log.info('shutting down')
             if site:
@@ -571,10 +652,9 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def post_pod_complete(self, pod_status):
+    async def post_job_complete(self, job_status):
         body = {
-            'inst_token': self.token,
-            'status': pod_status
+            'status': job_status
         }
 
         delay = 0.1
@@ -583,41 +663,47 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
-                        self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/pod_complete'),
-                        json=body)
+                        deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
+                        json=body, headers=self.headers)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:
-                log.exception(f'failed to mark pod {pod_status["name"]} complete, retrying')
+            except Exception as e:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
+                    raise
+                log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
             # exponentially back off, up to (expected) max of 30s
             t = delay * random.random()
             await asyncio.sleep(t)
             delay = min(delay * 2, 60.0)
 
     async def activate(self):
-        body = {
-            'inst_token': self.token,
-            'ip_address': self.ip_address
-        }
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await request_retry_transient_errors(
+            resp = await request_retry_transient_errors(
                 session, 'POST',
-                self.deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
-                json=body)
+                deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
+                json={'ip_address': os.environ['IP_ADDRESS']},
+                headers={
+                    'X-Hail-Instance-Name': NAME,
+                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
+                })
+            resp_json = await resp.json()
+            self.headers = {
+                'X-Hail-Instance-Name': NAME,
+                'Authorization': f'Bearer {resp_json["token"]}'
+            }
+
+            with open('key.json', 'w') as f:
+                f.write(json.dumps(resp_json['key']))
+
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+                'key.json')
+            self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool,
+                                      project=PROJECT, credentials=credentials)
 
 
-cores = int(os.environ['CORES'])
-namespace = os.environ['NAMESPACE']
-inst_token = os.environ['INST_TOKEN']
-ip_address = os.environ['INTERNAL_IP']
-batch_worker_image = os.environ['BATCH_WORKER_IMAGE']
-
-log.info(f'BATCH_WORKER_IMAGE={batch_worker_image}')
-
-deploy_config = DeployConfig('gce', namespace, {})
-worker = Worker(batch_worker_image, cores, deploy_config, inst_token, ip_address)
+worker = Worker()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())

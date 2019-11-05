@@ -748,6 +748,37 @@ object Simplify {
           (keyField, GetField(Ref("row", child.typ.rowType), keyField))
         })))
       TableKeyBy(TableFilter(child, pred), keys, isSorted)
+
+    case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
+      && tr.spec.indexed(tr.path)
+      && tr.options.forall(_.filterIntervals) =>
+      val newOpts = tr.options match {
+        case None =>
+          val pt = t.keyType
+          NativeReaderOptions(Interval.union(intervals.toArray, pt.ordering.intervalEndpointOrdering), pt, true)
+        case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
+          val iord = intervalPointType.ordering.intervalEndpointOrdering
+          NativeReaderOptions(
+            Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
+            intervalPointType, true)
+      }
+      TableRead(t, false, TableNativeReader(tr.path, Some(newOpts), tr.spec))
+
+    case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true) if canRepartition
+      && tr.specLeft.indexed(tr.pathLeft)
+      && tr.options.forall(_.filterIntervals) =>
+      val newOpts = tr.options match {
+        case None =>
+          val pt = t.keyType
+          NativeReaderOptions(Interval.union(intervals.toArray, pt.ordering.intervalEndpointOrdering), pt, true)
+        case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
+          val iord = intervalPointType.ordering.intervalEndpointOrdering
+          NativeReaderOptions(
+            Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
+            intervalPointType, true)
+      }
+      TableRead(t, false, TableNativeZippedReader(tr.pathLeft, tr.pathRight, Some(newOpts), tr.specLeft, tr.specRight))
+
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {

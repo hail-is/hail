@@ -347,7 +347,7 @@ class Task:
         :class:`.Task`
             Same task object with memory requirements set.
         """
-        self._memory = memory
+        self._memory = str(memory)
         return self
 
     def cpu(self, cores):
@@ -373,7 +373,7 @@ class Task:
             Same task object with CPU requirements set.
         """
 
-        self._cpu = cores
+        self._cpu = str(cores)
         return self
 
     def image(self, image):

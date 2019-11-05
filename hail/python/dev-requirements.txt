@@ -7,3 +7,4 @@ nbsphinx==0.4
 sphinx_rtd_theme==0.4.2
 jupyter==1.0.0
 tornado<6
+sphinxcontrib.katex==0.5.1

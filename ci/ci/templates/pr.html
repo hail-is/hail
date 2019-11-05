@@ -51,10 +51,10 @@
             {% endif %}
           </td>
           <td>
-            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
+            <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
           </td>
           <td>
-            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
+            <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
           </td>
           <td>
             {% if 'link' in job['attributes'] %}
@@ -89,7 +89,7 @@
         {% for batch in history %}
         <tr>
           <td class="numeric-cell">
-            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+            <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
           </td>
           <td>
             {% if 'state' in batch and batch['state'] %}

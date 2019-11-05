@@ -36,7 +36,7 @@ spec:
              value: '[["hail-is/hail:master",true]]'
 {% else %}
            - name: HAIL_WATCHED_BRANCHES
-             value: '[]'
+             value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
 {% endif %}
            - name: HAIL_GCP_PROJECT
              value: "{{ global.project }}"
@@ -48,6 +48,8 @@ spec:
              value: "{{ global.domain }}"
            - name: HAIL_SELF_HOSTNAME
              value: ci
+           - name: HAIL_CI_NAMESPACE
+             value: "{{ default_ns.name }}"
           ports:
             - containerPort: 5000
           volumeMounts:

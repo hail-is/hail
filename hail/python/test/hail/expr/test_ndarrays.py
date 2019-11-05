@@ -177,6 +177,9 @@ def test_ndarray_reshape():
         (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3)))
     )
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 2)).reshape((4, 5))) is None
+    assert hl.eval(hl._ndarray(hl.range(20)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64)))) is None
+
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
     assert "more than one -1" in str(exc)
@@ -213,8 +216,10 @@ def test_ndarray_map():
         (c, [[True, True, True],
              [True, True, True]]))
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
+
 @skip_unless_spark_backend()
-def test_ndarray_ops():
+def test_ndarray_map2():
 
     a = 2.0
     b = 3.0
@@ -311,6 +316,14 @@ def test_ndarray_ops():
         (ncube1 / nrow_vec, cube1 / row_vec),
         (nrow_vec / ncube1, row_vec / cube1))
 
+    # Missingness tests
+    missing = hl.null(hl.tndarray(hl.tfloat64, 2))
+    present = hl._ndarray(np.arange(10).reshape(5, 2))
+
+    assert hl.eval(missing + missing) is None
+    assert hl.eval(missing + present) is None
+    assert hl.eval(present + missing) is None
+
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
 def test_ndarray_to_numpy():
@@ -367,6 +380,8 @@ def test_ndarray_transpose():
         (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
         (cube.T, np_cube.T))
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).T) is None
+
     with pytest.raises(ValueError) as exc:
         v.transpose((1,))
     assert "Invalid axis: 1" in str(exc.value)
@@ -418,6 +433,10 @@ def test_ndarray_matmul():
         (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
     )
 
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
+    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)) @ hl._ndarray(np.arange(10).reshape(5, 2))) is None
+    assert hl.eval(hl._ndarray(np.arange(10).reshape(5, 2)) @ hl.null(hl.tndarray(hl.tint64, 2))) is None
+
     with pytest.raises(ValueError):
         m @ 5
 
@@ -453,3 +472,11 @@ def test_ndarray_full():
     assert hl.eval(hl._nd.zeros((5, 5), dtype=hl.tfloat32)).dtype, np.float32
     assert hl.eval(hl._nd.ones(3, dtype=hl.tint64)).dtype, np.int64
     assert hl.eval(hl._nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
+
+@skip_unless_spark_backend()
+def test_ndarray_mixed():
+    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(lambda x: x * x).reshape((4, 5)).T) is None
+    assert hl.eval(
+        (hl._nd.zeros((5, 10)).map(lambda x: x - 2) +
+         hl._nd.ones((5, 10)).map(lambda x: x + 5)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64))).T.reshape((10, 5))) is None
+    assert hl.eval(hl.or_missing(False, hl._ndarray(np.arange(10)).reshape((5,2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None

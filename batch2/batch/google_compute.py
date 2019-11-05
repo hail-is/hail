@@ -87,11 +87,11 @@ class GServices:
         self.credentials = credentials
 
         self.filter = f'''
-        logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
-        resource.type=gce_instance AND
-        jsonPayload.resource.name:"{self.machine_name_prefix}" AND
-        jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
-        '''
+logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
+resource.type=gce_instance AND
+jsonPayload.resource.name:"{self.machine_name_prefix}" AND
+jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
+'''
         log.info(f'filter {self.filter}')
 
     def get_clients(self):

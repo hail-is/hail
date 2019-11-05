@@ -22,7 +22,7 @@
       </div>
       <div>Deploy Batch:
 	{% if wb.deploy_batch_id is not none %}
-	<a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+	<a href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
 	{% endif %}
       </div>
     </div>
@@ -51,7 +51,7 @@
             </td>
             <td>
               {% if pr.build_state is not none %}
-                <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
+                <a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
               {% else %}
                 pending
               {% endif %}

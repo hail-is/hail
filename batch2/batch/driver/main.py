@@ -1,40 +1,129 @@
-import asyncio
-import concurrent
+import secrets
 import logging
-
+import json
+from functools import wraps
+import concurrent
+import asyncio
 from aiohttp import web
-import kubernetes as kube
-
-import prometheus_client as pc
+import kubernetes_asyncio as kube
+import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-
+from gear import Database
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 
 # import uvloop
 
-from ..batch import Batch, Job
+from ..batch import mark_job_complete
 from ..log_store import LogStore
-from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    INSTANCE_ID, BATCH_NAMESPACE
-from ..database import BatchDatabase
+from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
+    BATCH_NAMESPACE
+from ..google_compute import GServices
 
-from .driver import Driver
-from .k8s import K8s
+from .instance_pool import InstancePool
+from .scheduler import Scheduler
 
 # uvloop.install()
 
 log = logging.getLogger('batch')
 
-POD_EVICTIONS = pc.Counter('batch_pod_evictions', 'Count of batch pod evictions')
-
-log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
-log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+
+def authorization_token(request):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+    if not auth_header.startswith('Bearer '):
+        return None
+    return auth_header[7:]
+
+
+def batch_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        token = authorization_token(request)
+        if not token:
+            raise web.HTTPUnauthorized()
+
+        if not secrets.compare_digest(token, request.app['internal_token']):
+            raise web.HTTPUnauthorized()
+
+        return await fun(request)
+    return wrapped
+
+
+def instance_from_request(request):
+    instance_name = request.headers.get('X-Hail-Instance-Name')
+    if not instance_name:
+        return None
+
+    instance_pool = request.app['inst_pool']
+    return instance_pool.name_instance.get(instance_name)
+
+
+def activating_instances_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        instance = instance_from_request(request)
+        if not instance:
+            log.info('instance not found')
+            raise web.HTTPUnauthorized()
+
+        if instance.state != 'pending':
+            log.info('instance not pending')
+            raise web.HTTPUnauthorized()
+
+        activation_token = authorization_token(request)
+        if not activation_token:
+            log.info('activation token not found')
+            raise web.HTTPUnauthorized()
+
+        db = request.app['db']
+        record = await db.execute_and_fetchone(
+            'SELECT state FROM instances WHERE name = %s AND activation_token = %s;',
+            (instance.name, activation_token))
+        if not record:
+            log.info('instance, activation token not found in database')
+            raise web.HTTPUnauthorized()
+
+        resp = await fun(request, instance)
+
+        return resp
+    return wrapped
+
+
+def active_instances_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        instance = instance_from_request(request)
+        if not instance:
+            log.info('instance not found')
+            raise web.HTTPUnauthorized()
+
+        if instance.state != 'active':
+            log.info('instance not active')
+            raise web.HTTPUnauthorized()
+
+        token = authorization_token(request)
+        if not token:
+            log.info('token not found')
+            raise web.HTTPUnauthorized()
+
+        db = request.app['db']
+        record = await db.execute_and_fetchone(
+            'SELECT state FROM instances WHERE name = %s AND token = %s;',
+            (instance.name, token))
+        if not record:
+            log.info('instance, token not found in database')
+            raise web.HTTPUnauthorized()
+
+        return await fun(request, instance)
+    return wrapped
 
 
 @routes.get('/healthcheck')
@@ -43,156 +132,157 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
+@batch_only
 async def close_batch(request):
+    db = request.app['db']
+
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app, batch_id, user)
-    if not batch:
+
+    record = db.execute_and_fetchone(
+        '''
+SELECT state FROM batches WHERE user = %s AND id = %s;
+''',
+        (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(batch._close_jobs())
+
+    request.app['scheduler_state_changed'].set()
+
     return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
+@batch_only
 async def cancel_batch(request):
+    db = request.app['db']
+
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app, batch_id, user)
-    if not batch:
+
+    record = db.execute_and_fetchone(
+        '''
+SELECT state FROM batches WHERE user = %s AND id = %s;
+''',
+        (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    asyncio.ensure_future(batch._cancel_jobs())
+
+    request.app['cancel_state_changed'].set()
+    request.app['scheduler_state_changed'].set()
+
     return web.Response()
 
 
 @routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
+@batch_only
 async def delete_batch(request):
+    db = request.app['db']
+
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(request.app, batch_id, user)
-    if not batch:
+
+    record = db.execute_and_fetchone(
+        '''
+SELECT state FROM batches WHERE user = %s AND id = %s;
+''',
+        (user, batch_id))
+    if not record:
         raise web.HTTPNotFound()
-    # FIXME call from front end.  Can't yet, becuase then
-    # Batch.from_db won't be able to find batch
-    await batch.mark_deleted()
-    asyncio.ensure_future(batch._cancel_jobs())
+
+    request.app['cancel_state_changed'].set()
+    request.app['scheduler_state_changed'].set()
+
     return web.Response()
 
 
-async def update_job_with_pod(app, job, pod_status):  # pylint: disable=R0911
-    if pod_status:
-        pod_name = pod_status["name"]
-    else:
-        pod_name = None
-
-    log.info(f'update job {job.id if job else "None"} with pod {pod_name}')
-    if job and job._state == 'Pending':
-        if pod_status:
-            log.error(f'pending job {job.id} has pod {pod_name}, ignoring')
-        return
-
-    if pod_status and (not job or job.is_complete()):
-        await app['driver'].delete_pod(name=pod_name)
-        return
-
-    if job and job._cancelled and not job.always_run and job._state == 'Running':
-        await job.set_state('Cancelled')
-        await job._delete_pod()
-        return
-
-    if not pod_status:
-        log.info(f'job {job.id} no pod found, rescheduling')
-        await job.mark_unscheduled()
-        return
-
-    if pod_status:
-        pod_state = pod_status["state"]
-    else:
-        pod_state = None
-
-    if pod_state and pod_state in ('succeeded', 'error', 'failed'):
-        log.info(f'job {job.id} mark complete')
-        await job.mark_complete(pod_status)
-        return
-
-
-async def pod_changed(app, pod_status):
-    job = await Job.from_pod(app, pod_status)
-    await update_job_with_pod(app, job, pod_status)
-
-
-async def refresh_pods(app):
-    log.info(f'refreshing pods')
-
-    pod_jobs = [Job.from_record(app, record) for record in await app['db'].jobs.get_records_where({'state': 'Running'})]
-
-    pod_statuses = app['driver'].list_pods()
-    log.info(f'batch had {len(pod_statuses)} pods')
-
-    seen_pods = set()
-    for pod_status in pod_statuses:
-        pod_name = pod_status["name"]
-        seen_pods.add(pod_name)
-        asyncio.ensure_future(pod_changed(app, pod_status))
-
-    if len(seen_pods) != len(pod_jobs):
-        log.info('restarting running jobs with pods not seen in batch')
-
-    async def restart_job(job):
-        log.info(f'restarting job {job.id}')
-        await update_job_with_pod(app, job, None)
-    asyncio.gather(*[restart_job(job)
-                     for job in pod_jobs
-                     if job._pod_name not in seen_pods])
-
-
-async def driver_event_loop(app):
-    await asyncio.sleep(1)
+async def db_cleanup_event_loop(db, log_store):
     while True:
         try:
-            pod_status = await app['driver'].complete_queue.get()
-            await pod_changed(app, pod_status)
-        except Exception:  # pylint: disable=broad-except
-            log.exception(f'driver event loop failed due to exception')
-
-
-async def polling_event_loop(app):
-    await asyncio.sleep(1)
-    while True:
-        try:
-            await refresh_pods(app)
-        except Exception:  # pylint: disable=broad-except
-            log.exception(f'polling event loop failed due to exception')
-        await asyncio.sleep(60 * 10)
-
-
-async def db_cleanup_event_loop(app):
-    await asyncio.sleep(1)
-    while True:
-        try:
-            for record in await app['db'].batch.get_finished_deleted_records():
-                batch = Batch.from_record(app, record, deleted=True)
-                await batch.delete()
-        except Exception as exc:  # pylint: disable=W0703
-            log.exception(f'Could not delete batches due to exception: {exc}')
+            async for record in db.execute_and_fetchall('''
+SELECT id FROM batches
+WHERE deleted AND (NOT closed OR n_jobs = n_completed);
+'''):
+                batch_id = record['id']
+                await log_store.delete_batch_logs(batch_id)
+                await db.just_execute('DELETE FROM batches WHERE id = %s;',
+                                      (batch_id,))
+        except Exception:
+            log.exception(f'in db cleanup loop')
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+async def activate_instance_1(request, instance):
+    body = await request.json()
+    ip_address = body['ip_address']
+
+    log.info(f'activating {instance}')
+    token = await instance.activate(ip_address)
+    await instance.mark_healthy()
+
+    with open('/batch-gsa-key/privateKeyData', 'r') as f:
+        key = json.loads(f.read())
+    return web.json_response({
+        'token': token,
+        'key': key
+    })
+
+
 @routes.post('/api/v1alpha/instances/activate')
-async def activate_worker(request):
-    return await asyncio.shield(request.app['driver'].activate_worker(request))
+@activating_instances_only
+async def activate_instance(request, instance):
+    return await asyncio.shield(activate_instance_1(request, instance))
+
+
+async def deactivate_instance_1(instance):
+    log.info(f'deactivating {instance}')
+    await instance.deactivate()
+    await instance.mark_healthy()
+    return web.Response()
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-async def deactivate_worker(request):
-    return await asyncio.shield(request.app['driver'].deactivate_worker(request))
+@active_instances_only
+async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(deactivate_instance_1(instance))
 
 
-@routes.post('/api/v1alpha/instances/pod_complete')
-async def pod_complete(request):
-    return await asyncio.shield(request.app['driver'].pod_complete(request))
+async def job_complete_1(request, instance):
+    body = await request.json()
+    status = body['status']
+
+    batch_id = status['batch_id']
+    job_id = status['job_id']
+
+    status_state = status['state']
+    if status_state == 'succeeded':
+        new_state = 'Success'
+    elif status_state == 'error':
+        new_state = 'Error'
+    else:
+        assert status_state == 'failed', status_state
+        new_state = 'Failed'
+
+    await mark_job_complete(request.app, batch_id, job_id, new_state, status)
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/instances/job_complete')
+@active_instances_only
+async def job_complete(request, instance):
+    return await asyncio.shield(job_complete_1(request, instance))
 
 
 async def on_startup(app):
+    userinfo = await async_get_userinfo()
+    log.info(f'running as {userinfo["username"]}')
+
+    bucket_name = userinfo['bucket_name']
+    log.info(f'bucket_name {bucket_name}')
+
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -200,30 +290,47 @@ async def on_startup(app):
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
-    k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, k8s_client)
-
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
-
-    db = await BatchDatabase('/sql-config/sql-config.json')
+    db = Database()
+    await db.async_init()
     app['db'] = db
 
-    driver = Driver(db, k8s, bucket_name)
-    app['driver'] = driver
-    app['log_store'] = LogStore(pool, INSTANCE_ID, bucket_name)
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'instance_id')
+    instance_id = row['token']
+    log.info(f'instance_id {instance_id}')
+    app['instance_id'] = instance_id
 
-    await driver.initialize()
-    await refresh_pods(app)  # this is really slow for large N
+    row = await db.execute_and_fetchone(
+        'SELECT token FROM tokens WHERE name = %s;',
+        'internal')
+    app['internal_token'] = row['token']
 
-    asyncio.ensure_future(driver.run())
-    # we need a polling event loop in case a delete happens before a create job, but this is too slow
-    # we also need a polling loop in case pod creation fails
-    # asyncio.ensure_future(polling_event_loop(app))
-    asyncio.ensure_future(driver_event_loop(app))
-    asyncio.ensure_future(db_cleanup_event_loop(app))
+    machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
+
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/batch-gsa-key/privateKeyData')
+    gservices = GServices(machine_name_prefix, credentials)
+    app['gservices'] = gservices
+
+    scheduler_state_changed = asyncio.Event()
+    app['scheduler_state_changed'] = scheduler_state_changed
+
+    cancel_state_changed = asyncio.Event()
+    app['cancel_state_changed'] = cancel_state_changed
+
+    log_store = LogStore(bucket_name, instance_id, pool, credentials=credentials)
+    app['log_store'] = log_store
+
+    inst_pool = InstancePool(app, machine_name_prefix)
+    app['inst_pool'] = inst_pool
+    await inst_pool.async_init()
+
+    scheduler = Scheduler(app)
+    await scheduler.async_init()
+    app['scheduler'] = scheduler
+
+    asyncio.ensure_future(db_cleanup_event_loop(db, log_store))
 
 
 async def on_cleanup(app):
