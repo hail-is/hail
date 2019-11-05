@@ -244,13 +244,13 @@ async def job_config(app, record):
 
         token = base64.b64decode(secret.data['token']).decode()
         namespace = base64.b64decode(secret.data['namespace']).decode()
-        cert = base64.b64decode(secret.data['ca.crt']).decode().rstrip()
+        cert = secret.data['ca.crt'] # base64.b64decode(secret.data['ca.crt']).decode()
 
         kube_config = f'''
 apiVersion: v1
 clusters:
 - cluster:
-    certificate-authority-data: {cert}
+    certificate-authority: /.kube/ca.crt
     server: {KUBERNETES_SERVER_URL}
   name: default-cluster
 contexts:
@@ -273,7 +273,8 @@ users:
             'name': 'kube-config',
             'mount_path': '/.kube',
             'mount_in_copy': False,
-            'data': {'config': base64.b64encode(kube_config.encode()).decode()}
+            'data': {'config': base64.b64encode(kube_config.encode()).decode(),
+                     'ca.crt': cert}
         })
 
         env = job_spec['env']
