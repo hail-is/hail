@@ -1,7 +1,14 @@
 import time
+import datetime
 import secrets
+import humanize
 
 from ..database import check_call_procedure
+
+
+def fmt_timestamp(t):
+    return datetime.datetime.utcfromtimestamp(t).strftime(
+        '%Y-%m-%dT%H:%M:%SZ')
 
 
 class Instance:
@@ -152,6 +159,14 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
         self.instance_pool.adjust_for_remove_instance(self)
         self._last_updated = now
         self.instance_pool.adjust_for_add_instance(self)
+
+    def time_created_str(self):
+        return datetime.datetime.utcfromtimestamp(self.time_created).strftime(
+            '%Y-%m-%dT%H:%M:%SZ')
+
+    def last_updated_str(self):
+        return humanize.naturaldelta(
+            datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(self.last_updated))
 
     def __str__(self):
         return f'instance {self.name}'
