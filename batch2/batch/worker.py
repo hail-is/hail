@@ -386,8 +386,8 @@ class Job:
                     copy_volume_mounts.append(volume_mount)
 
         env = []
-        for name, value in job_spec.get('env', []):
-            env.append(f'{name}={shq(value)}')
+        for item in job_spec.get('env', []):
+            env.append(f'{item["name"]}={shq(item["value"])}')
 
         # create containers
         containers = {}
