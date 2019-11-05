@@ -10,7 +10,7 @@ class CalledProcessError(Exception):
 
     def __str__(self):
         return (f'Command {self.command} returned non-zero exit status {self.returncode}.'
-                f' Output:\n{outerr}')
+                f' Output:\n{self.outerr}')
 
 
 async def check_shell_output(script):
