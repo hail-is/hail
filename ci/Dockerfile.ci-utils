@@ -9,9 +9,9 @@ RUN apt-get update && \
     apt-transport-https && \
   rm -rf /var/lib/apt/lists/*
 
-RUN curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+RUN curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 
-RUN echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+RUN echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
 
 RUN apt-get update && \
   apt-get install -y kubectl && \
