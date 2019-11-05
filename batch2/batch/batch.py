@@ -244,7 +244,7 @@ async def job_config(app, record):
 
         token = base64.b64decode(secret.data['token']).decode()
         namespace = base64.b64decode(secret.data['namespace']).decode()
-        cert = base64.b64decode(secret.data['ca.crt']).decode()
+        cert = base64.b64decode(secret.data['ca.crt']).decode().rstrip()
 
         kube_config = f'''
 apiVersion: v1
