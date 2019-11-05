@@ -292,7 +292,7 @@ async def get_index(request, userdata):
     page_context = {
         'instance_id': app['instance_id'],
         'n_instances_by_state': instance_pool.n_instances_by_state,
-        'instances': instance_pool.name_instances.values(),
+        'instances': instance_pool.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
         'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
     }
