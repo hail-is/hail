@@ -220,7 +220,7 @@ async def job_config(app, record):
 
     gsa_key = None
     for secret, k8s_secret in zip(secrets, k8s_secrets):
-        if secret['gsa_key_secret_name'] == job_spec['userdata']['gsa_key_secret_name']:
+        if secret['name'] == job_spec['userdata']['gsa_key_secret_name']:
             gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
 
