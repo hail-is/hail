@@ -134,9 +134,12 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100},
-            'Env': self.spec['env']
+                           'CpuQuota': self.cpu_in_mcpu * 100}
         }
+
+        env = self.spec.get('env')
+        if env:
+            config['Env'] = env
 
         volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
