@@ -552,7 +552,8 @@ private class Emit(
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
-        val eltType = -atyp.elementType.virtualType
+        val eltType = -atyp.elementType
+        val eltVType = eltType.virtualType
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(er, vab)
 
@@ -560,17 +561,19 @@ private class Emit(
           case ArraySort(a, l, r, comp) => (a, Subst(comp, BindingEnv(Env[IR](l -> In(0, eltType), r -> In(1, eltType)))), Code._empty[Unit])
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
+            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            (a, ApplyComparisonOp(Compare(eltType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
+            (a, ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
           case ToDict(a) =>
-            val dType = coerce[PDict](ir.pType).virtualType
-            val k0 = GetField(In(0, dType.elementType), "key")
-            val k1 = GetField(In(1, dType.elementType), "key")
+            val elementType = a.pType.asInstanceOf[PStreamable].elementType
+            val (k0, k1, keyType) = elementType match {
+              case t: PStruct => (GetField(In(0, elementType.virtualType), "key"), GetField(In(1, elementType.virtualType), "key"), t.fieldType("key"))
+              case t: PTuple => (GetTupleElement(In(0, elementType.virtualType), 0), GetTupleElement(In(1, elementType.virtualType), 0), t.types(0))
+            }
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(dType.keyType), k0, k1), Env.empty, er, container)
+            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            (a, ApplyComparisonOp(Compare(dType.keyType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
+            (a, ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
         }
 
         val compF = vab.ti match {
@@ -634,10 +637,10 @@ private class Emit(
         val sorter = new ArraySorter(er, eab)
 
         val (k1, k2) = etyp match {
-          case t: PStruct => GetField(In(0, t.virtualType), "key") -> GetField(In(1, t.virtualType), "key")
+          case t: PStruct => GetField(In(0, t), "key") -> GetField(In(1, t), "key")
           case t: PTuple =>
             assert(t.fields(0).index == 0)
-            GetTupleElement(In(0, t.virtualType), 0) -> GetTupleElement(In(1, t.virtualType), 0)
+            GetTupleElement(In(0, t), 0) -> GetTupleElement(In(1, t), 0)
         }
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
@@ -1445,7 +1448,7 @@ private class Emit(
         impl.apply(er, codeArgs: _*)
       case x@Uniroot(argname, fn, min, max) =>
         val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
-        val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, TFloat64())), env, missingError)
+        val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, PFloat64())), env, missingError)
 
         val localF = mb.newField[AsmFunction3[Region, Double, Boolean, Double]]
         val codeMin = emit(min)
@@ -2062,6 +2065,7 @@ private class Emit(
         // no missing
         val lelt = coerce[TStreamable](left.typ).elementType
         val relt = coerce[TStreamable](right.typ).elementType
+        val rEltPType = coerce[PStreamable](right.pType).elementType
         val rtyp = coerce[PStreamable](right.pType).asPArray
 
         val larray = emitArrayIterator(left)
@@ -2083,7 +2087,7 @@ private class Emit(
         val et = new Emit(compKeyF, 1).emit(compKey, fenv, er, container)
         compKeyF.emit(Code(et.setup, et.m.mux(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing"), et.value[Int])))
         val joinF = mb.fb.newMethod(typeInfo[Region], typeToTypeInfo(relt), typeInfo[Boolean], typeToTypeInfo(join.typ))
-        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, relt)))), fenv, er, container)
+        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, rEltPType)))), fenv, er, container)
         joinF.emit(Code(jet.setup, jet.m.mux(Code._fatal("ArrayLeftJoinDistinct: joined can't be missing"), jet.v)))
 
         val ae = { cont: Emit.F =>
