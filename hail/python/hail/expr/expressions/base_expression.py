@@ -198,13 +198,7 @@ def to_expr(e, dtype=None) -> 'Expression':
         if dtype and not dtype == e.dtype:
             raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
         return e
-    if not dtype:
-        dtype = impute_type(e)
-    x = _to_expr(e, dtype)
-    if isinstance(x, Expression):
-        return x
-    else:
-        return hl.literal(x, dtype)
+    return cast_expr(e, dtype)
 
 def cast_expr(e, dtype=None) -> 'Expression':
     if not dtype:
