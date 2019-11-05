@@ -30,7 +30,7 @@ object Interpret {
     if (optimize)
       lowered = Optimize(lowered, noisy = true)
 
-    lowered = EvaluateRelationalLets(lowered).asInstanceOf[TableIR]
+    lowered = EvaluateRelationalLets(InterpretNonCompilable(ctx, lowered)).asInstanceOf[TableIR]
 
     if (optimize)
       lowered = Optimize(lowered, noisy = true)
@@ -49,7 +49,7 @@ object Interpret {
     if (optimize)
       lowered = Optimize(lowered, noisy = true  )
 
-    lowered = EvaluateRelationalLets(lowered).asInstanceOf[TableIR]
+    lowered = EvaluateRelationalLets(InterpretNonCompilable(ctx, lowered)).asInstanceOf[TableIR]
 
     if (optimize)
       lowered = Optimize(lowered, noisy = true)
