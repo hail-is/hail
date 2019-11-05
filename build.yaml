@@ -65,6 +65,8 @@ steps:
    scopes:
     - test
     - dev
+# deploy_ci_agent_sa and deploy_ci_agent_role are only needed
+# when ci is submitting jobs in batch-pods
  - kind: deploy
    name: deploy_ci_agent_sa
    namespace:
