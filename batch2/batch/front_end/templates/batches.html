@@ -28,7 +28,7 @@
           {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
             <td>
               <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
-                <input type="hidden" name="_csrf" value="{{ token }}"/>
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
                 <button>Cancel</button>
               </form>
             </td>

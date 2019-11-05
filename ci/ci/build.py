@@ -8,9 +8,19 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
+from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, CI_NAMESPACE
 
 log = logging.getLogger('ci')
+
+
+pretty_print_log = "jq -Rr '. as $raw | try \
+(fromjson | if .hail_log == 1 then \
+    ([.levelname, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
+    else $raw end) \
+catch $raw'"
+
+
+is_test_deployment = CI_NAMESPACE != 'default'
 
 
 def expand_value_from(value, config):
@@ -202,7 +212,7 @@ class BuildImageStep(Step):
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
-        if params.scope == 'deploy' and publish_as:
+        if params.scope == 'deploy' and publish_as and not is_test_deployment:
             self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
         else:
             self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
@@ -260,7 +270,7 @@ class BuildImageStep(Step):
         push_image = f'''
 time docker push {self.image}
 '''
-        if scope == 'deploy' and self.publish_as:
+        if scope == 'deploy' and self.publish_as and not is_test_deployment:
             push_image = f'''
 docker tag {shq(self.image)} {self.base_image}:latest
 docker push {self.base_image}:latest
@@ -305,68 +315,25 @@ date
 
         log.info(f'step {self.name}, script:\n{script}')
 
-        volumes = [{
-            'volume': {
-                'name': 'docker-sock-volume',
-                'hostPath': {
-                    'path': '/var/run/docker.sock',
-                    'type': 'File'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/var/run/docker.sock',
-                'name': 'docker-sock-volume'
-            }
-        }, {
-            'volume': {
-                'name': 'gcr-push-service-account-key',
-                'secret': {
-                    'optional': False,
-                    'secretName': 'gcr-push-service-account-key'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/secrets/gcr-push-service-account-key',
-                'name': 'gcr-push-service-account-key',
-                'readOnly': True
-            }
-        }]
-
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
+                                    mount_docker_socket=True,
+                                    secrets=[{
+                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'name': 'gcr-push-service-account-key',
+                                        'mount_path': '/secrets/gcr-push-service-account-key'
+                                    }],
                                     resources={
-                                        'requests': {
-                                            'memory': '2G',
-                                            'cpu': '1'
-                                        },
-                                        'limits': {
-                                            'memory': '2G',
-                                            'cpu': '1'
-                                        }
+                                        'memory': '2G',
+                                        'cpu': '1'
                                     },
                                     attributes={'name': self.name},
-                                    volumes=volumes,
                                     input_files=input_files,
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope == 'deploy' and self.publish_as:
+        if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
-
-        volumes = [{
-            'volume': {
-                'name': 'gcr-push-service-account-key',
-                'secret': {
-                    'optional': False,
-                    'secretName': 'gcr-push-service-account-key'
-                }
-            },
-            'volume_mount': {
-                'mountPath': '/secrets/gcr-push-service-account-key',
-                'name': 'gcr-push-service-account-key',
-                'readOnly': True
-            }
-        }]
 
         script = f'''
 set -x
@@ -384,7 +351,11 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    volumes=volumes,
+                                    secrets=[{
+                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'name': 'gcr-push-service-account-key',
+                                        'mount_path': '/secrets/gcr-push-service-account-key'
+                                    }],
                                     parents=parents,
                                     always_run=True)
 
@@ -445,23 +416,15 @@ class RunImageStep(Step):
         else:
             output_files = None
 
-        volumes = []
+        secrets = []
         if self.secrets:
             for secret in self.secrets:
                 name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
-                volumes.append({
-                    'volume': {
-                        'name': name,
-                        'secret': {
-                            'optional': False,
-                            'secretName': name
-                        }
-                    },
-                    'volume_mount': {
-                        'mountPath': mount_path,
-                        'name': name
-                    }
+                secrets.append({
+                    'namespace': 'batch-pods',  # FIXME unused
+                    'name': name,
+                    'mount_path': mount_path
                 })
 
         self.job = batch.create_job(
@@ -471,7 +434,7 @@ class RunImageStep(Step):
             attributes={'name': self.name},
             input_files=input_files,
             output_files=output_files,
-            volumes=volumes,
+            secrets=secrets,
             service_account_name=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run)
@@ -494,6 +457,11 @@ class CreateNamespaceStep(Step):
         self.public = public
         self.secrets = secrets
         self.job = None
+
+        if CI_NAMESPACE != 'default':
+            self._name = CI_NAMESPACE
+            return
+
         if params.scope == 'deploy':
             self._name = namespace_name
         elif params.scope == 'test':
@@ -525,6 +493,9 @@ class CreateNamespaceStep(Step):
         }
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        if is_test_deployment:
+            return
+
         config = ""
         if scope in ['deploy', 'test']:
             # FIXME label
@@ -633,7 +604,7 @@ date
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope in ['deploy', 'dev']:
+        if scope in ['deploy', 'dev'] or is_test_deployment:
             return
 
         script = f'''
@@ -714,21 +685,31 @@ set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
-kubectl -n {self.namespace} logs --tail=999999 -l app={name}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
 (exit $EC)
 '''
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
                     port = w.get('port', 80)
+                    resource_type = w.get('resource_type', 'deployment').lower()
+                    endpoint = w.get('endpoint', '/healthcheck')
+                    headers = w.get('headers', dict())
+                    header_arg = ' '.join([f"--header '{flag}' '{value}'" for flag, value in headers.items()])
                     timeout = w.get('timeout', 60)
+                    if resource_type == 'statefulset':
+                        wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
+                    else:
+                        assert resource_type == 'deployment'
+                        wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}'
+
                     script += f'''
 set +e
-kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
-  kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name} && \
-  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
+kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
+  {wait_cmd} && \
+  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name} --endpoint {endpoint} {header_arg}
 EC=$?
-kubectl -n {self.namespace} logs --tail=999999 -l app={name}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
 (exit $EC)
 '''
@@ -741,7 +722,7 @@ set +e
 kubectl -n {self.namespace} wait --timeout=1h pod --for=condition=podscheduled {name} \
   && python3 wait-for.py {timeout} {self.namespace} Pod {name}
 EC=$?
-kubectl -n {self.namespace} logs {name}
+kubectl -n {self.namespace} logs --tail=999999 {name} | {pretty_print_log}
 set -e
 (exit $EC)
 '''
@@ -768,13 +749,13 @@ date
             for w in self.wait:
                 name = w['name']
                 if w['kind'] == 'Deployment':
-                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}\n'
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
-                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}\n'
                 else:
                     assert w['kind'] == 'Pod', w['kind']
-                    script += f'kubectl -n {self.namespace} logs {name}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 {name} | {pretty_print_log}\n'
             script += 'date\n'
             self.job = batch.create_job(CI_UTILS_IMAGE,
                                         command=['bash', '-c', script],
@@ -810,6 +791,12 @@ class CreateDatabaseStep(Step):
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
+        self.secrets = [{
+            'namespace': 'batch-pods',  # FIXME unused
+            'name': 'database-server-config',
+            'mount_path': '/secrets/db-config'
+        }]
+
     def wrapped_job(self):
         if self.job:
             return [self.job]
@@ -835,12 +822,17 @@ class CreateDatabaseStep(Step):
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         if scope == 'dev':
             return
+
         script = f'''
 set -e
 echo date
 date
 
-DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --host=10.80.0.3 -u root -s)
+HOST=$(cat /secrets/db-config/sql-config.json | jq -r '.host')
+INSTANCE=$(cat /secrets/db-config/sql-config.json | jq -r '.instance')
+PORT=$(cat /secrets/db-config/sql-config.json | jq -r '.port')
+
+DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf -s)
 if [ "$DBS" == "{self._name}" ]; then
     exit 0
 fi
@@ -848,34 +840,34 @@ fi
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
-cat | mysql --host=10.80.0.3 -u root <<EOF
+cat | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf <<EOF
 CREATE DATABASE \\`{self._name}\\`;
 
 CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
 GRANT ALL ON \\`{self._name}\\`.* TO '{self.admin_username}'@'%';
 
 CREATE USER '{self.user_username}'@'%' IDENTIFIED BY '$USER_PASSWORD';
-GRANT SELECT, INSERT, UPDATE, DELETE ON \\`{self._name}\\`.* TO '{self.user_username}'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON \\`{self._name}\\`.* TO '{self.user_username}'@'%';
 EOF
 
 echo create database, admin and user...
-echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
+echo "$SQL_SCRIPT" | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf
 
 echo create admin secret...
 cat > sql-config.json <<EOF
 {{
-  "host": "10.80.0.3",
-  "port": 3306,
+  "host": "$HOST",
+  "port": $PORT,
   "user": "{self.admin_username}",
   "password": "$ADMIN_PASSWORD",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "instance": "$INSTANCE",
+  "connection_name": "hail-vdc:us-central1:$INSTANCE",
   "db": "{self._name}"
 }}
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-host=10.80.0.3
+host=$HOST
 user={self.admin_username}
 password="$ADMIN_PASSWORD"
 database={self._name}
@@ -885,18 +877,18 @@ kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_na
 echo create user secret...
 cat > sql-config.json <<EOF
 {{
-  "host": "10.80.0.3",
-  "port": 3306,
+  "host": "$HOST",
+  "port": $PORT,
   "user": "{self.user_username}",
   "password": "$USER_PASSWORD",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "instance": "$INSTANCE",
+  "connection_name": "hail-vdc:us-central1:$INSTANCE",
   "db": "{self._name}"
 }}
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-host=10.80.0.3
+host=$HOST
 user={self.user_username}
 password="$USER_PASSWORD"
 database={self._name}
@@ -917,7 +909,7 @@ echo done.
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
-                                    # FIXME configuration
+                                    secrets=self.secrets,
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
@@ -929,7 +921,7 @@ echo done.
 set -x
 date
 
-cat | mysql --host=10.80.0.3 -u root <<EOF
+cat | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf <<EOF
 DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
@@ -942,7 +934,7 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    # FIXME configuration
+                                    secrets=self.secrets,
                                     service_account_name='ci-agent',
                                     parents=parents,
                                     always_run=True)

@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.backend.BroadcastValue
+import is.hail.table.{ Ascending, SortOrder }
 import java.io._
 
 import is.hail.HailContext
@@ -98,17 +100,34 @@ class EmitMethodBuilder(
 
   def getPType(t: PType): Code[PType] = fb.getPType(t)
 
-  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op): CodeOrdering.F[T] =
-    getCodeOrdering[T](t, op, ignoreMissingness = false)
+  def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
 
-  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t, op, ignoreMissingness)
+  def getCodeOrdering(t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness)
 
-  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t1, t2, op, ignoreMissingness = false)
+  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness = false)
 
-  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t1, t2, op, ignoreMissingness)
+  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
+
+  def getCodeOrdering(
+    t1: PType,
+    t2: PType,
+    sortOrder: SortOrder,
+    op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
+
+  def getCodeOrdering(
+    t1: PType,
+    t2: PType,
+    sortOrder: SortOrder,
+    op: CodeOrdering.Op,
+    ignoreMissingness: Boolean
+  ): CodeOrdering.F[op.ReturnType] =
+    fb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
   def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
 }
@@ -169,8 +188,9 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] val pTypeMap: mutable.Map[PType, Code[PType]] = mutable.Map[PType, Code[PType]]()
 
-  private[this] val compareMap: mutable.Map[(PType, PType, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
-    mutable.Map[(PType, PType, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
+  private[this] type CompareMapKey = (PType, PType, CodeOrdering.Op, SortOrder, Boolean)
+  private[this] val compareMap: mutable.Map[CompareMapKey, CodeOrdering.F[_]] =
+    mutable.Map[CompareMapKey, CodeOrdering.F[_]]()
 
   private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder] = mutable.HashMap.empty
 
@@ -368,14 +388,40 @@ class EmitFunctionBuilder[F >: Null](
       newLazyField[Type](setup))
   }
 
-  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] = {
-    val f = compareMap.getOrElseUpdate((t1, t2, op, ignoreMissingness), {
+  def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
+
+  def getCodeOrdering(t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness)
+
+  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness = false)
+
+  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
+
+  def getCodeOrdering(
+    t1: PType,
+    t2: PType,
+    sortOrder: SortOrder,
+    op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
+
+  def getCodeOrdering(
+    t1: PType,
+    t2: PType,
+    sortOrder: SortOrder,
+    op: CodeOrdering.Op,
+    ignoreMissingness: Boolean
+  ): CodeOrdering.F[op.ReturnType] = {
+    val f = compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
       val ti = typeToTypeInfo(t1)
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
         val newMB = newMethod(Array[TypeInfo[_]](ti, ti), rt)
-        val ord = t1.codeOrdering(newMB, t2)
+        val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val v1 = newMB.getArg(1)(ti)
         val v2 = newMB.getArg(3)(ti)
         val c: Code[_] = op match {
@@ -391,7 +437,7 @@ class EmitFunctionBuilder[F >: Null](
         newMB
       } else {
         val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
-        val ord = t1.codeOrdering(newMB, t2)
+        val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val m1 = newMB.getArg[Boolean](1)
         val v1 = newMB.getArg(2)(ti)
         val m2 = newMB.getArg[Boolean](3)
@@ -416,11 +462,16 @@ class EmitFunctionBuilder[F >: Null](
       }
       f
     })
-    (v1: (Code[Boolean], Code[_]), v2: (Code[Boolean], Code[_])) => coerce[T](f(v1, v2))
+    (v1: (Code[Boolean], Code[_]), v2: (Code[Boolean], Code[_])) => coerce[op.ReturnType](f(v1, v2))
   }
 
-  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
-    getCodeOrdering[T](t, t, op, ignoreMissingness)
+  def getCodeOrdering(
+    t: PType,
+    op: CodeOrdering.Op,
+    sortOrder: SortOrder,
+    ignoreMissingness: Boolean
+  ): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder, op, ignoreMissingness)
 
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
@@ -445,32 +496,32 @@ class EmitFunctionBuilder[F >: Null](
     wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, Array(), Array(), size)
 
   def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
-    prefix: String,
+    suffix: String,
     argTypes: Array[TypeInfo[_]],
     args: Array[Code[_]],
     size: Int = 32): Code[Unit] = {
     coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
-      val mb = newMethod(prefix + s"_group$i", argTypes, UnitInfo)
+      val mb = newMethod(suffix + s"_group$i", argTypes, UnitInfo)
       val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a).load() }
       mb.emit(Code(codes.map(_.apply(methodArgs)): _*))
       mb.invoke(args: _*)
     }.toArray: _*))
   }
 
-  def getOrDefineMethod(prefix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
+  def getOrDefineMethod(suffix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
     (f: EmitMethodBuilder => Unit): EmitMethodBuilder = {
     methodMemo.get(key) match {
       case Some(mb) => mb
       case None =>
-        val mb = newMethod(prefix, argsInfo, returnInfo)
+        val mb = newMethod(suffix, argsInfo, returnInfo)
         f(mb)
         methodMemo(key) = mb
         mb
     }
   }
 
-  override def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
-    val mb = new EmitMethodBuilder(this, s"${prefix}_${ methods.size }", argsInfo, returnInfo)
+  override def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
+    val mb = new EmitMethodBuilder(this, s"m${ methods.size }_${suffix}", argsInfo, returnInfo)
     methods.append(mb)
     mb
   }

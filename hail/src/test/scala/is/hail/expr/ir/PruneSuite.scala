@@ -413,6 +413,11 @@ class PruneSuite extends HailSuite {
     val mmc = MatrixMapCols(mat, matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2"), Some(FastIndexedSeq()))
     checkMemo(mmc, subsetMatrixTable(mmc.typ, "va.r3", "sa.foo"),
       Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3", "NO_COL_KEY"), null))
+    val mmc2 = MatrixMapCols(mat, MakeStruct(FastSeq(
+      ("ck" -> GetField(Ref("sa", mat.typ.colType), "ck")),
+        ("foo",matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2")))), None)
+    checkMemo(mmc2, subsetMatrixTable(mmc2.typ, "va.r3", "sa.foo.foo"),
+      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null))
   }
 
   @Test def testMatrixMapRowsMemo() {
@@ -696,6 +701,20 @@ class PruneSuite extends HailSuite {
       TableCollect(tab),
       TStruct("rows" -> TArray(TStruct("3" -> TString())), "global" -> TStruct("g2" -> TInt32())),
       Array(subsetTable(tab.typ, "row.3", "global.g2")))
+  }
+
+  @Test def testTableHeadMemo() {
+    checkMemo(
+      TableHead(tab, 10L),
+      subsetTable(tab.typ.copy(key = FastIndexedSeq()), "global.g1"),
+      Array(subsetTable(tab.typ, "row.3", "global.g1")))
+  }
+
+  @Test def testTableTailMemo() {
+    checkMemo(
+      TableTail(tab, 10L),
+      subsetTable(tab.typ.copy(key = FastIndexedSeq()), "global.g1"),
+      Array(subsetTable(tab.typ, "row.3", "global.g1")))
   }
 
   @Test def testTableToValueApplyMemo() {

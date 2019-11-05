@@ -1,15 +1,59 @@
-"""A work in progress pipeline to combine (g)VCFs into an alternate format"""
+"""An experimental library for combining (g)VCFS into sparse matrix tables"""
 
 import hail as hl
 from hail import MatrixTable, Table
 from hail.expr import StructExpression
-from hail.expr.expressions import expr_call, expr_array, expr_int32
+from hail.expr.expressions import expr_bool, expr_call, expr_array, expr_int32, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_ints(string, has_non_ref):
+    ints = string.split(r'\|')
+    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_doubles(string, has_non_ref):
+    ints = string.split(r'\|')
+    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_sb_table(string, has_non_ref):
+    ints = string.split(r'\|')
+    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda xs: xs.split(",").map(hl.int32))
+
+@typecheck(string=expr_str, has_non_ref=expr_bool)
+def parse_as_ranksum(string, has_non_ref):
+    typ = hl.ttuple(hl.tfloat64, hl.tint32)
+    items = string.split(r'\|')
+    items = hl.cond(has_non_ref, items[:-1], items)
+    return items.map(lambda s: hl.cond(
+        (hl.len(s) == 0) | (s == '.'),
+        hl.null(typ),
+        hl.rbind(s.split(','), lambda ss: hl.cond(
+            hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
+            hl.null(hl.ttuple(hl.tfloat64, hl.tint32)),
+            hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
+
+_as_function_map = {
+    'AS_QUALapprox': parse_as_ints,
+    'AS_RAW_MQ': parse_as_doubles,
+    'AS_RAW_MQRankSum': parse_as_ranksum,
+    'AS_RAW_ReadPosRankSum': parse_as_ranksum,
+    'AS_SB_TABLE': parse_as_sb_table,
+    'AS_VarDP': parse_as_ints,
+}
+
+def parse_as_fields(info, has_non_ref):
+    return hl.struct(**{f: info[f] if f not in _as_function_map
+                        else _as_function_map[f](info[f], has_non_ref) for f in info})
 
 def localize(mt):
     if isinstance(mt, MatrixTable):
@@ -23,14 +67,6 @@ def unlocalize(mt):
 
 @typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
 def transform_one(mt, info_to_keep=[]) -> Table:
-    """transforms a gvcf into a form suitable for combining
-
-    The input to this should be some result of either :func:`.import_vcf` or
-    :func:`.import_vcfs` with `array_elements_required=False`.
-
-    There is a strong assumption that this function will be called on a matrix
-    table with one column.
-    """
     if not info_to_keep:
         info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
     mt = localize(mt)
@@ -69,7 +105,11 @@ def transform_one(mt, info_to_keep=[]) -> Table:
                             SB=e.SB,
                             gvcf_info=hl.case()
                                 .when(hl.is_missing(row.info.END),
-                                      hl.struct(**(row.info.select(*info_to_keep))))
+                                      hl.struct(**(
+                                          parse_as_fields(
+                                              row.info.select(*info_to_keep),
+                                              has_non_ref)
+                                      )))
                                 .or_missing()
                         ))),
             ),
@@ -77,6 +117,45 @@ def transform_one(mt, info_to_keep=[]) -> Table:
         _transform_rows_function_map[mt.row.dtype] = f
     transform_row = _transform_rows_function_map[mt.row.dtype]
     return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
+
+@typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
+def transform_gvcf(mt, info_to_keep=[]) -> Table:
+    """transforms a gvcf into a form suitable for combining
+
+    The input to this should be some result of either :func:`.import_vcf` or
+    :func:`.import_vcfs` with ``array_elements_required=False``.
+
+    There is an assumption that this function will be called on a matrix table
+    with one column (or a localized table version of the same).
+
+    Parameters
+    ----------
+    mt : :obj:`Union[Table, MatrixTable]`
+        The gvcf being transformed, if it is a table, then it must be a localized matrix table with
+        the entries array named ``__entries``
+    info_to_keep : :obj:`List[str]`
+        Any ``INFO`` fields in the gvcf that are to be kept and put in the ``gvcf_info`` entry
+        field. By default, all ``INFO`` fields except ``END`` and ``DP`` are kept.
+
+    Returns
+    -------
+    :obj:`.Table`
+        A localized matrix table that can be used as part of the input to :func:`.combine_gvcfs`
+
+    Notes
+    -----
+    This function will parse the following allele specific annotations from
+    pipe delimited strings into proper values. ::
+
+        AS_QUALapprox
+        AS_RAW_MQ
+        AS_RAW_MQRankSum
+        AS_RAW_ReadPosRankSum
+        AS_SB_TABLE
+        AS_VarDP
+
+    """
+    return transform_one(mt, info_to_keep)
 
 def combine(ts):
     def merge_alleles(alleles):
@@ -146,15 +225,47 @@ def combine(ts):
                                            TopLevelReference('global'))))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
+@typecheck(mts=sequenceof(oneof(Table, MatrixTable)))
 def combine_gvcfs(mts):
-    """merges vcfs using multi way join"""
+    """Merges gvcfs and/or sparse matrix tables
+
+    Parameters
+    ----------
+    mts : :obj:`List[Union[Table, MatrixTable]]`
+        The matrix tables (or localized versions) to combine
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+
+    Notes
+    -----
+    All of the input tables/matrix tables must have the same partitioning. This
+    module provides no method of repartitioning data.
+    """
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     return unlocalize(combined)
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
-    """A method for transforming Local GT and Local Alleles into the true GT"""
+    """Transforming Local GT and Local Alleles into the true GT
+
+    Parameters
+    ----------
+    lgt : :class:`.CallExpression`
+        The LGT value
+    la : :class:`.ArrayExpression`
+        The Local Alleles array
+
+    Returns
+    -------
+    :class:`.CallExpression`
+
+    Notes
+    -----
+    This function assumes diploid genotypes.
+    """
     return hl.call(la[lgt[0]], la[lgt[1]])
 
 @typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)

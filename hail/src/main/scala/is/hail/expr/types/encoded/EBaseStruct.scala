@@ -93,44 +93,68 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PBaseStruct]
-    val addr = coerce[Long](v)
     val writeMissingBytes = if (ft.size == size) {
-      out.writeBytes(addr, ft.nMissingBytes)
+      out.writeBytes(coerce[Long](v), ft.nMissingBytes)
     } else {
-      var c: Code[Unit] = Code._empty[Unit]
+      val groupSize = 64
+      var methodIdx = 0
+      var currentMB = mb.fb.newMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+      var wrappedC: Code[Unit] = Code._empty[Unit]
+      var methodC: Code[Unit] = Code._empty[Unit]
+
       var j = 0
       var n = 0
       while (j < size) {
+        if (n % groupSize == 0) {
+          currentMB.emit(methodC)
+          methodC = Code._empty[Unit]
+          wrappedC = Code(wrappedC, currentMB.invoke[Unit](v, out))
+          methodIdx += 1
+          currentMB = mb.fb.newMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+        }
         var b = const(0)
         var k = 0
         while (k < 8 && j < size) {
           val f = fields(j)
           if (!f.typ.required) {
             val i = ft.fieldIdx(f.name)
-            b = b | (ft.isFieldMissing(addr, i).toI << k)
+            b = b | (ft.isFieldMissing(currentMB.getArg[Long](1), i).toI << k)
             k += 1
           }
           j += 1
         }
         if (k > 0) {
-          c = Code(c, out.writeByte(b.toB))
+          methodC = Code(methodC, currentMB.getArg[OutputBuffer](2).load().writeByte(b.toB))
           n += 1
         }
       }
+      currentMB.emit(methodC)
+      wrappedC = Code(wrappedC, currentMB.invoke[Unit](v, out))
+
       assert(n == nMissingBytes)
-      c
+      wrappedC
     }
 
-    val writeFields = Code(fields.map { ef =>
-      val i = ft.fieldIdx(ef.name)
-      val pf = ft.fields(i)
-      val encodeField = ef.typ.buildEncoder(pf.typ, mb)
-      val v = Region.loadIRIntermediate(pf.typ)(ft.fieldOffset(addr, i))
-      ft.isFieldDefined(addr, i).mux(
-        encodeField(v, out),
-        Code._empty[Unit]
-      )
-    }: _*)
+    val writeFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+      val groupMB = mb.fb.newMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+
+      val addr = groupMB.getArg[Long](1)
+      val out2 = groupMB.getArg[OutputBuffer](2)
+      groupMB.emit(coerce[Unit](Code(
+        fieldGroup.map { ef =>
+          val i = ft.fieldIdx(ef.name)
+          val pf = ft.fields(i)
+          val encodeField = ef.typ.buildEncoder(pf.typ, groupMB)
+          val v = Region.loadIRIntermediate(pf.typ)(ft.fieldOffset(addr, i))
+          ft.isFieldDefined(addr, i).mux(
+            encodeField(v, out2),
+            Code._empty[Unit]
+          )
+        }: _*
+      )))
+
+      groupMB.invoke[Unit](v, out)
+    }.toArray: _*))
 
     Code(writeMissingBytes, writeFields, Code._empty[Unit])
   }
@@ -157,37 +181,46 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     addr: Code[Long],
     in: Code[InputBuffer]
   ): Code[Unit] = {
-    val mbytes = mb.newLocal[Long]("mbytes")
 
     val t = pt.asInstanceOf[PBaseStruct]
-    val readFields = fields.map { f =>
-      if (t.hasField(f.name)) {
-        val rf = t.field(f.name)
-        val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb)
-        val rFieldAddr = t.fieldOffset(addr, rf.index)
-        if (f.typ.required)
-          readElemF(region, rFieldAddr, in)
-        else
-          Region.loadBit(mbytes, const(missingIdx(f.index).toLong)).mux(
-            t.setFieldMissing(addr, rf.index),
-            Code(
-              t.setFieldPresent(addr, rf.index),
-              readElemF(region, rFieldAddr, in)))
-      } else {
-        val skip = f.typ.buildSkip(mb)
-        if (f.typ.required)
-          skip(region, in)
-        else
-          Region.loadBit(mbytes, const(missingIdx(f.index).toLong)).mux(
-            Code._empty[Unit],
-            skip(region, in))
-      }
-    }
+    val mbytes = mb.newLocal[Long]("mbytes")
+
+    val readFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+      val groupMB = mb.fb.newMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](classInfo[Region], LongInfo, LongInfo, classInfo[InputBuffer]), UnitInfo)
+      val regionArg = groupMB.getArg[Region](1)
+      val addrArg = groupMB.getArg[Long](2)
+      val mbytesArg = groupMB.getArg[Long](3)
+      val inArg = groupMB.getArg[InputBuffer](4)
+      groupMB.emit(Code(fieldGroup.map { f =>
+        if (t.hasField(f.name)) {
+          val rf = t.field(f.name)
+          val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb.fb)
+          val rFieldAddr = t.fieldOffset(addrArg, rf.index)
+          if (f.typ.required)
+            readElemF(regionArg, rFieldAddr, inArg)
+          else
+            Region.loadBit(mbytesArg, const(missingIdx(f.index).toLong)).mux(
+              t.setFieldMissing(addrArg, rf.index),
+              Code(
+                t.setFieldPresent(addrArg, rf.index),
+                readElemF(regionArg, rFieldAddr, inArg)))
+        } else {
+          val skip = f.typ.buildSkip(groupMB)
+          if (f.typ.required)
+            skip(regionArg, inArg)
+          else
+            Region.loadBit(mbytesArg, const(missingIdx(f.index).toLong)).mux(
+              Code._empty[Unit],
+              skip(regionArg, inArg))
+        }
+      }))
+      groupMB.invoke[Unit](region, addr, mbytes, in)
+    }.toArray: _*))
 
     Code(
       mbytes := region.allocate(const(1), const(nMissingBytes)),
       in.readBytes(region, mbytes, nMissingBytes),
-      Code(readFields: _*),
+      readFields,
       Code._empty[Unit])
   }
   def _buildSkip(mb: EmitMethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {

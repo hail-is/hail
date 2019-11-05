@@ -1096,6 +1096,10 @@ object IRParser {
         val n = int64_literal(it)
         val child = table_ir(env)(it)
         TableHead(child, n)
+      case "TableTail" =>
+        val n = int64_literal(it)
+        val child = table_ir(env)(it)
+        TableTail(child, n)
       case "TableJoin" =>
         val joinType = identifier(it)
         val joinKey = int32_literal(it)
@@ -1316,6 +1320,14 @@ object IRParser {
         val n = int32_literal(it)
         val child = matrix_ir(env)(it)
         MatrixColsHead(child, n)
+      case "MatrixRowsTail" =>
+        val n = int64_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixRowsTail(child, n)
+      case "MatrixColsTail" =>
+        val n = int32_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixColsTail(child, n)
       case "CastTableToMatrix" =>
         val entriesField = identifier(it)
         val colsField = identifier(it)

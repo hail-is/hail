@@ -1299,9 +1299,9 @@ class DictExpression(Expression):
 
         if default is not None:
             if not self._vc.can_coerce(default.dtype):
-                raise TypeError("'get' expects parameter 'default' to have the "
-                                "same type as the dictionary value type, found '{}' and '{}'"
-                                .format(self.dtype, default.dtype))
+                raise TypeError("'get' expects parameter 'default' to have the same type "
+                                "as the dictionary value type, expected '{}' and found '{}'"
+                                .format(self.dtype.value_type, default.dtype))
             return self._method("get", self.dtype.value_type, key, self._vc.coerce(default))
         else:
             return self._method("get", self.dtype.value_type, key)
@@ -1490,7 +1490,7 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __len__(self):
         return len(self._fields)
 
-    @typecheck_method(item=oneof(str, int))
+    @typecheck_method(item=oneof(str, int, slice))
     def __getitem__(self, item):
         """Access a field of the struct by name or index.
 
@@ -1515,8 +1515,14 @@ class StructExpression(Mapping[str, Expression], Expression):
         """
         if isinstance(item, str):
             return self._get_field(item)
-        else:
+        if isinstance(item, int):
             return self._get_field(self.dtype.fields[item])
+        else:
+            assert item.start is None or isinstance(item.start, int)
+            assert item.stop is None or isinstance(item.stop, int)
+            assert item.step is None or isinstance(item.step, int)
+            return self.select(
+                *self.dtype.fields[item.start:item.stop:item.step])
 
     def __iter__(self):
         return iter(self._fields)
@@ -1692,7 +1698,7 @@ class TupleExpression(Expression, Sequence):
     >>> tup = hl.literal(("a", 1, [1, 2, 3]))
     """
 
-    @typecheck_method(item=int)
+    @typecheck_method(item=oneof(int, slice))
     def __getitem__(self, item):
         """Index into the tuple.
 
@@ -1711,6 +1717,14 @@ class TupleExpression(Expression, Sequence):
         -------
         :class:`.Expression`
         """
+        if isinstance(item, slice):
+            assert item.start is None or isinstance(item.start, int)
+            assert item.stop is None or isinstance(item.stop, int)
+            assert item.step is None or isinstance(item.step, int)
+            return hl.or_missing(hl.is_defined(self),
+                                 hl.tuple([
+                                     self[i]
+                                     for i in range(len(self))[item.start:item.stop:item.step]]))
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
         return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)
@@ -2593,6 +2607,31 @@ class StringExpression(Expression):
         """
         return self._method('firstMatchIn', tarray(tstr), regex)
 
+    @typecheck_method(mapping=expr_dict(expr_str, expr_str))
+    def translate(self, mapping):
+        """Translates characters of the string using `mapping`.
+
+        Examples
+        --------
+        >>> string = hl.literal('ATTTGCA')
+        >>> hl.eval(string.translate({'T': 'U'}))
+        'AUUUGCA'
+
+        Parameters
+        ----------
+        mapping : :class:`.DictExpression`
+            Dictionary of character-character translations.
+
+        Returns
+        -------
+        :class:`.StringExpression`
+
+        See Also
+        --------
+        :meth:`.replace`
+        """
+        return self._method('translate', tstr, mapping)
+
     @typecheck_method(regex=str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
@@ -2630,6 +2669,21 @@ class StringExpression(Expression):
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
         return to_expr(regex, tstr)._method("~", tbool, self)
+
+    def reverse(self):
+        """Returns the reversed value.
+        Examples
+        --------
+
+        >>> string = hl.literal('ATGCC')
+        >>> hl.eval(string.reverse())
+        'CCGTA'
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('reverse', tstr)
 
     def _extra_summary_fields(self, agg_result):
         return {
@@ -3479,7 +3533,7 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
-    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, shape):
         """Reshape this ndarray to a new shape.
 
@@ -3498,15 +3552,16 @@ class NDArrayExpression(Expression):
         -------
         :class:`.NDArrayExpression`.
         """
-        shape = wrap_to_list(shape)
-        if len(shape) == 0:
-            if self.ndim == 0:
-                return self
-            else:
-                raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
+        if isinstance(shape, TupleExpression):
+            shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
+            ndim = len(shape)
+        else:
+            wrapped_shape = wrap_to_list(shape)
+            ndim = len(wrapped_shape)
+            shape_ir = hl.tuple(wrapped_shape)._ir
 
-        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
-                              tndarray(self._type.element_type, len(shape)),
+        return construct_expr(NDArrayReshape(self._ir, shape_ir),
+                              tndarray(self._type.element_type, ndim),
                               self._indices,
                               self._aggregations)
 

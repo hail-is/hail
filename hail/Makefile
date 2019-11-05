@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 25
+HAIL_PATCH_VERSION := 26
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
@@ -31,7 +31,10 @@ JAR_TEST_SOURCES := $(shell git ls-files src/test)
 PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
-PYTHON_VERSION_INFO := python/hail/hail_version python/hail/hail_pip_version python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO := python/hail/hail_version
+PYTHON_VERSION_INFO += python/hail/hail_pip_version
+PYTHON_VERSION_INFO += python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
 SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
@@ -84,6 +87,10 @@ python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
 
 python/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	echo $(HAIL_PIP_VERSION) > $@
+
+python/hail/docs/_static/hail_version.js: python/hail/hail_version python/hail/hail_pip_version
+	printf 'hail_version="$(shell cat python/hail/hail_version)";' > $@
+	printf 'hail_pip_version="$(shell cat python/hail/hail_pip_version)"' >> $@
 
 python/hailtop/hailctl/hail_version: python/hail/hail_version
 	cp -f $< $@
@@ -202,7 +209,7 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
+cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
@@ -219,9 +226,9 @@ DEPLOYED_VERSION = $(shell \
 .PHONY: check-pypi
 check-pypi:
 	if [ -z "$$DEPLOY_PROD" ]; then \
-	  echo "DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
-	if [ "$(DEPLOYED_VERSION)" == "$(HAIL_PIP_VERSION)" ]; then \
-	  echo "version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
+	  echo "ERROR: DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
+	if [ "$(DEPLOYED_VERSION)" = "$(HAIL_PIP_VERSION)" ]; then \
+	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
@@ -234,7 +241,7 @@ pypi-deploy: check-pypi test-dataproc set-docs-sha
 TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
 .PHONY: check-tag
 check-tag:
-	if [ -z "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
+	if [ -z "$(TAG_EXISTS)" ]; then echo "ERROR: tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
 GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
@@ -244,11 +251,17 @@ tag: check-tag pypi-deploy
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
 	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
 
+annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)-$(SHORT_REVISION)/annotation_db.json
+.PHONY: deploy-annotation-db
+deploy-annotation-db:
+	gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)
+	gsutil -m retention temp set $(annotation_db_json_url)
+
 docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
 local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
 cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
 .PHONY: set-docs-sha
-set-docs-sha:
+set-docs-sha: deploy-annotation-db
 	mkdir -p $(dir $(local_sha_location))
 	gsutil ls $(docs_location)  # make sure file exists
 	echo "$(REVISION)" > $(local_sha_location)
@@ -294,7 +307,7 @@ docs: install $(PYTHON_VERSION_INFO)
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
@@ -325,7 +338,7 @@ docs-no-test: install $(PYTHON_VERSION_INFO)
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	find ./build/www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt

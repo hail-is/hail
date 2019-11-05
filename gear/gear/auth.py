@@ -5,6 +5,7 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
+from hailtop.utils import request_retry_transient_errors
 
 log = logging.getLogger('gear.auth')
 
@@ -15,13 +16,21 @@ async def _userdata_from_session_id(session_id):
     headers = {'Authorization': f'Bearer {session_id}'}
     try:
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
-                                   headers=headers) as resp:
-                return await resp.json()
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            resp = await request_retry_transient_errors(
+                session, 'GET', deploy_config.url('auth', '/api/v1alpha/userinfo'),
+                headers=headers)
+            assert resp.status == 200
+            return await resp.json()
+    except aiohttp.ClientResponseError as e:
+        if e.status == 401:
+            return None
+
+        log.exception('unknown exception getting userinfo')
+        raise web.HTTPInternalServerError()
     except Exception:  # pylint: disable=broad-except
-        log.exception('getting userinfo')
-        return None
+        log.exception('unknown exception getting userinfo')
+        raise web.HTTPInternalServerError()
 
 
 async def userdata_from_web_request(request):

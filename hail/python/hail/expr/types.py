@@ -975,6 +975,16 @@ class tstruct(HailType, Mapping):
         super(tstruct, self).__init__()
 
     @property
+    def types(self):
+        """Struct field types.
+
+        Returns
+        -------
+        :obj:`tuple` of :class:`.HailType`
+        """
+        return tuple(self._field_types.values())
+
+    @property
     def fields(self):
         """Struct field names.
 
@@ -1222,7 +1232,7 @@ class tunion(HailType, Mapping):
         return HailTypeContext.union(*self.values())
 
 
-class ttuple(HailType):
+class ttuple(HailType, Sequence):
     """Hail type for tuples.
 
     In Python, these are represented as :obj:`tuple`.
@@ -1265,6 +1275,14 @@ class ttuple(HailType):
             if len(annotation) != len(self.types):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
                                 (self, len(self.types), annotation))
+
+    @typecheck_method(item=int)
+    def __getitem__(self, item):
+        return self._types[item]
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
     def __len__(self):
         return len(self._types)

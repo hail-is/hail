@@ -261,10 +261,12 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     Examples
     --------
     Estimate the median of the `HT` field.
+
     >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +SKIP_OUTPUT_CHECK
     64
 
     Estimate the quartiles of the `HT` field.
+
     >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +SKIP_OUTPUT_CHECK
     [50, 60, 64, 71, 86]
 
@@ -279,7 +281,7 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     qs : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
         Number or array of numbers between 0 and 1.
     k : :obj:`int`
-        Parameter controlling the accuracy vs. memory usage tradeoff.
+        Parameter controlling the accuracy vs. memory usage tradeoff. Increasing k increases both memory use and accuracy.
 
     Returns
     -------
@@ -292,6 +294,41 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     else:
         return _quantile_from_cdf(approx_cdf(expr, k), qs)
 
+@typecheck(expr=expr_numeric, k=int)
+def approx_median(expr, k=100) -> Expression:
+    """Compute the approximate median. This function is a shorthand for `approx_quantiles(expr, .5, k)`
+
+    .. include: _templates/experimental.rst
+
+    Examples
+    --------
+    Estimate the median of the `HT` field.
+
+    >>> table1.aggregate(hl.agg.approx_median(table1.HT)) # doctest: +SKIP_OUTPUT_CHECK
+    64
+
+    Warning
+    -------
+    This is an approximate and nondeterministic method.
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Expression to collect.
+    k : :obj:`int`
+        Parameter controlling the accuracy vs. memory usage tradeoff. Increasing k increases both memory use and accuracy.
+
+    See Also
+    --------
+    :func:`approx_quantiles`
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+        The estimated median.
+    """
+
+    return approx_quantiles(expr, .5, k)
 
 @typecheck(expr=expr_any)
 def collect(expr) -> ArrayExpression:

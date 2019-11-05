@@ -1,7 +1,7 @@
 import math
 import operator
 import random
-import unittest
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -98,6 +98,57 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, 2).count() == (1, 2)
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
+
+    def test_tail(self):
+        # no empty partitions
+        mt1 = hl.utils.range_matrix_table(10, 10)
+
+        # empty partitions at front
+        mt2 = hl.utils.range_matrix_table(20, 10, 20)
+        mt2 = mt2.filter_rows(mt2.row_idx > 9)
+        mts = [mt1, mt2]
+
+        for mt in mts:
+            tmp_file = new_temp_file(suffix='mt')
+
+            mt.write(tmp_file)
+            mt_readback = hl.read_matrix_table(tmp_file)
+            for mt_ in [mt, mt_readback]:
+                assert mt_.tail(1).count_rows() == 1
+                assert mt_.tail(1)._force_count_rows() == 1
+                assert mt_.tail(100).count_rows() == 10
+                assert mt_.tail(100)._force_count_rows() == 10
+
+    def test_tail_cols(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        assert mt1.tail(1, 2).count() == (1, 2)
+        assert mt1.tail(1, None).count() == (1, 10)
+        assert mt1.tail(None, 1).count() == (10, 1)
+
+    def test_tail_entries(self):
+        mt = hl.utils.range_matrix_table(100, 30)
+        mt = mt.filter_cols(mt.col_idx != 29)
+
+        def tail(*args):
+            ht = mt.tail(*args).entries()
+            return ht.aggregate(hl.agg.collect_as_set(hl.tuple([ht.row_idx, ht.col_idx])))
+
+        def expected(n, m):
+            return set((i, j) for i in range(100 - n, 100) for j in range(29 - m, 29))
+
+        assert tail(None, 10) == expected(100, 10)
+        assert tail(30, None) == expected(30, 29)
+        assert tail(30, 10) == expected(30, 10)
+
+    def test_tail_scan(self):
+        mt = hl.utils.range_matrix_table(30, 40)
+        mt = mt.annotate_rows(i = hl.scan.count())
+        mt = mt.annotate_cols(j = hl.scan.count())
+        mt = mt.tail(10, 11)
+        ht = mt.entries()
+        assert ht.aggregate(agg.collect_as_set(hl.tuple([ht.i, ht.j]))) == set(
+            (i, j) for i in range(20, 30) for j in range(29, 40)
+        )
 
     def test_filter(self):
         mt = self.get_mt()
@@ -949,6 +1000,13 @@ class Tests(unittest.TestCase):
         self.assertEqual([r.row_idx for r in mt.rows().collect()], list(range(13)))
         self.assertEqual([r.col_idx for r in mt.cols().collect()], list(range(7)))
 
+    def test_range_matrix_table_0_rows_0_cols(self):
+        mt = hl.utils.range_matrix_table(0, 0)
+        self.assertEqual(mt.col_idx.collect(), [])
+        self.assertEqual(mt.row_idx.collect(), [])
+        mt = mt.annotate_entries(x=mt.row_idx * mt.col_idx)
+        self.assertEqual(mt.x.collect(), [])
+
     def test_make_table(self):
         mt = hl.utils.range_matrix_table(3, 2)
         mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
@@ -1334,6 +1392,29 @@ class Tests(unittest.TestCase):
                                                  n_remaining=40,
                                                  fraction_filtered=hl.float32(0.0))})
         assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
+
+    def test_annotate_col_agg_lowering(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2)
+        mt = mt.annotate_cols(c1=[mt.col_idx, mt.col_idx * 2])
+        mt = mt.annotate_entries(e1=mt.col_idx + mt.row_idx, e2=[mt.col_idx * mt.row_idx, mt.col_idx * mt.row_idx ** 2])
+        common_ref = mt.c1[1]
+        mt = mt.annotate_cols(exploded=hl.agg.explode(lambda e: common_ref + hl.agg.sum(e), mt.e2),
+                              array=hl.agg.array_agg(lambda e: common_ref + hl.agg.sum(e), mt.e2),
+                              filt=hl.agg.filter(mt.e1 < 5, hl.agg.sum(mt.e1) + common_ref),
+                              grouped=hl.agg.group_by(mt.e1 % 5, hl.agg.sum(mt.e1) + common_ref))
+        mt.cols()._force_count()
+
+    @pytest.mark.skip("does not pass due to CSE bug")
+    def test_annotate_rows_scan_lowering(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2)
+        mt = mt.annotate_rows(r1=[mt.row_idx, mt.row_idx * 2])
+        common_ref = mt.r1[1]
+        mt = mt.annotate_rows(exploded=hl.scan.explode(lambda e: common_ref + hl.scan.sum(e), mt.r1),
+                              array=hl.scan.array_agg(lambda e: common_ref + hl.scan.sum(e), mt.r1),
+                              filt=hl.scan.filter(mt.row_idx < 5, hl.scan.sum(mt.row_idx) + common_ref),
+                              grouped=hl.scan.group_by(mt.row_idx % 5, hl.scan.sum(mt.row_idx) + common_ref),
+                              an_agg = hl.agg.sum(mt.row_idx * mt.col_idx))
+        mt.cols()._force_count()
 
     def test_show(self):
         mt = self.get_mt()

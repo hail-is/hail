@@ -8,4 +8,4 @@ RUN python3 -m pip install --no-cache-dir /hailtop \
 COPY pipeline/test /test/
 RUN python3 -m pip install --no-cache-dir pytest-instafail
 
-CMD ["python3", "-m", "pytest", "--instafail", "-v", "-s", "/test/"]
+CMD ["python3", "-m", "pytest", "--log-cli-level=INFO", "-s", "-v", "--instafail", "/test/"]

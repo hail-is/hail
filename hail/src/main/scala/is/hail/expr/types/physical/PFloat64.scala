@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
+import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
@@ -13,8 +14,10 @@ import scala.reflect.{ClassTag, _}
 case object PFloat64Optional extends PFloat64(false)
 case object PFloat64Required extends PFloat64(true)
 
-class PFloat64(override val required: Boolean) extends PType {
+class PFloat64(override val required: Boolean) extends PNumeric {
   lazy val virtualType: TFloat64 = TFloat64(required)
+
+  override type NType = PFloat64
 
   def _asIdent = "float64"
   override def _toPretty = "Float64"
@@ -50,6 +53,16 @@ class PFloat64(override val required: Boolean) extends PType {
   }
 
   override def byteSize: Long = 8
+
+  override def zero = coerce[PFloat64](const(0.0))
+
+  override def add(a: Code[_], b: Code[_]): Code[PFloat64] = {
+    coerce[PFloat64](coerce[Double](a) + coerce[Double](b))
+  }
+
+  override def multiply(a: Code[_], b: Code[_]): Code[PFloat64] = {
+    coerce[PFloat64](coerce[Double](a) * coerce[Double](b))
+  }
 }
 
 object PFloat64 {

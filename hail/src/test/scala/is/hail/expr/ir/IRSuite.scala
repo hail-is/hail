@@ -2464,6 +2464,7 @@ class IRSuite extends HailSuite {
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, RepartitionStrategy.COALESCE),
         TableHead(read, 10),
+        TableTail(read, 10),
         TableParallelize(
           MakeStruct(FastSeq(
             "rows" -> MakeArray(FastSeq(
@@ -2565,6 +2566,8 @@ class IRSuite extends HailSuite {
         MatrixDistinctByRow(range1),
         MatrixRowsHead(range1, 3),
         MatrixColsHead(range1, 3),
+        MatrixRowsTail(range1, 3),
+        MatrixColsTail(range1, 3),
         MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
         CastTableToMatrix(
           CastMatrixToTable(read, " # entries", " # cols"),

@@ -150,13 +150,13 @@ class Pipeline:
     def _new_task_resource_file(self, source, value=None):
         trf = TaskResourceFile(value if value else self._tmp_file())
         trf._add_source(source)
-        self._resource_map[trf._uid] = trf
+        self._resource_map[trf._uid] = trf  # pylint: disable=no-member
         return trf
 
     def _new_input_resource_file(self, input_path, value=None):
         irf = InputResourceFile(value if value else self._tmp_file())
         irf._add_input_path(input_path)
-        self._resource_map[irf._uid] = irf
+        self._resource_map[irf._uid] = irf  # pylint: disable=no-member
         self._input_resources.add(irf)
         return irf
 
@@ -170,7 +170,7 @@ class Pipeline:
                 raise PipelineException(f"value for name '{name}' is not a string. Found '{type(code)}' instead.")
             r = self._new_task_resource_file(source=source, value=eval(f'f"""{code}"""'))  # pylint: disable=W0123
             d[name] = r
-            new_resource_map[r._uid] = r
+            new_resource_map[r._uid] = r  # pylint: disable=no-member
 
         self._resource_map.update(new_resource_map)
         rg = ResourceGroup(source, root, **d)

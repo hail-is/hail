@@ -295,6 +295,7 @@ object Extract {
       new CollectAggregator(t.physicalType)
     case AggSignature2(LinearRegression(), _, _, _) =>
       LinearRegressionAggregator
+    case AggSignature2(Downsample(), _, Seq(_, _, label), _) => new DownsampleAggregator(label.physicalType.asInstanceOf[PArray])
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 

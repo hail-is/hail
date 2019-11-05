@@ -1,1 +1,1 @@
-recursive-include batch/templates *
+recursive-include batch/front_end/templates *

@@ -12,7 +12,7 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
   val inline: Boolean = typ.isPrimitive
   val storageType: PTuple = PTuple(if (inline) typ else PInt64(typ.required), PTuple())
   val compType: PType = typ
-  private val kcomp = fb.getCodeOrdering[Int](typ, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = fb.getCodeOrdering(typ, CodeOrdering.compare, ignoreMissingness = false)
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
   def loadKey(src: Code[Long]): Code[_] = Region.loadIRIntermediate(if (inline) typ else PInt64(typ.required))(storageType.fieldOffset(src, 0))

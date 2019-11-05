@@ -748,6 +748,43 @@ case class MatrixColsHead(child: MatrixIR, n: Int) extends MatrixIR {
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
+case class MatrixRowsTail(child: MatrixIR, n: Long) extends MatrixIR {
+  require(n >= 0)
+  val typ: MatrixType = child.typ
+
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTail = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixRowsTail(newChild, n)
+  }
+
+  override def columnCount: Option[Int] = child.columnCount
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound match {
+    case Some(c) => Some(c.min(n))
+    case None => Some(n)
+  }
+}
+
+case class MatrixColsTail(child: MatrixIR, n: Int) extends MatrixIR {
+  require(n >= 0)
+  val typ: MatrixType = child.typ
+
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): MatrixColsTail = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixColsTail(newChild, n)
+  }
+
+  override def columnCount: Option[Int] = child.columnCount.map(math.min(_, n))
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
+}
+
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)

@@ -33,7 +33,10 @@ steps:
        valueFrom: default_ns.name
    public: false
    secrets:
+    - database-server-config
+    - gcr-push-service-account-key
     - test-gsa-key
+    - hail-ci-0-1-service-account-key
    dependsOn:
     - default_ns
     - deploy_batch2_sa
@@ -52,6 +55,28 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+ - kind: deploy
+   name: deploy_ci_agent_sa
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: ci/ci-agent-sa.yaml
+   dependsOn:
+    - batch_pods_ns
+   scopes:
+    - test
+    - dev
+ - kind: deploy
+   name: deploy_ci_agent_role
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/ci-agent-role.yaml
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_ci_agent_sa
+   scopes:
+    - test
+    - dev
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -275,6 +300,13 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
+   name: test_ci_image
+   dockerFile: ci/Dockerfile.test
+   contextPath: .
+   publishAs: test-ci
+   dependsOn:
+     - base_image
+ - kind: buildImage
    name: image_fetcher_image
    dockerFile: image-fetcher/Dockerfile
    contextPath: image-fetcher
@@ -308,9 +340,8 @@ steps:
    image:
      valueFrom: hail_build_image.image
    resources:
-     requests:
-       memory: "4G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -358,9 +389,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -453,9 +483,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
@@ -518,6 +547,9 @@ steps:
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
+   resources:
+     memory: "7.5G"
+     cpu: "2"
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
@@ -592,7 +624,6 @@ steps:
     - users_database
     - create_auth_tables
     - auth_image
-    - check_auth
     - create_dummy_oauth2_client_secret
  - kind: createDatabase
    name: ci_database
@@ -640,7 +671,7 @@ steps:
    dockerFile: batch2/Dockerfile.tables
    contextPath: batch2
    dependsOn:
-    - base_image
+    - service_base_image
  - kind: deploy
    name: create_batch_tables
    namespace:
@@ -794,7 +825,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_batch2
-    - deploy_batch_pods
     - test_batch2_image
  - kind: runImage
    name: delete_batch2_instances
@@ -802,10 +832,13 @@ steps:
      valueFrom: base_image.image
    alwaysRun: true     
    script: |
-     set -e
+     set -ex
      ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     gcloud -q compute instances list --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' --format="value(name)" | xargs gcloud -q compute instances delete --zone $ZONE || true
+     gcloud -q compute instances list \
+         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
+         --format="value(name)" \
+       | xargs -r gcloud -q compute instances delete --zone $ZONE
    secrets:
     - name: test-gsa-key
       mountPath: /test-gsa-key
@@ -816,6 +849,53 @@ steps:
     - default_ns
     - base_image    
     - test_batch2
+ - kind: runImage
+   name: create_ci_test_repo
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -e
+     TOKEN=$(cat /secret/ci-secrets/user1)
+     REPO_NAME="ci-test-{{token}}"
+
+     echo creating $REPO_NAME...
+     curl -XPOST \
+       -i \
+       -sSL \
+       https://api.github.com/orgs/hail-ci-test/repos \
+       -H "Authorization: token ${TOKEN}" \
+       -d "{ \"name\" : \"$REPO_NAME\" }"
+
+     # checkout hail code
+     mkdir -p /repo/hail
+     cd /repo/hail
+     {{ code.checkout_script }}
+
+     # checkout new ci repo
+     cd /repo/
+     git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
+     cd $REPO_NAME
+
+     mkdir -p ./ci/test ./hail/python
+     cp /repo/hail/ci/test/resources/build.yaml ./
+     cp -R /repo/hail/ci/test/resources ./ci/test/
+     cp /repo/hail/pylintrc ./
+     cp /repo/hail/setup.cfg ./
+     cp -R /repo/hail/docker ./
+     cp -R /repo/hail/gear ./
+     cp -R /repo/hail/hail/python/hailtop ./hail/python/
+     cp -R /repo/hail/web_common ./
+     cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
+
+     git config user.name ci
+     git config user.email ci@hail.is
+     git add * && git commit -m "setup repo"
+     git push
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secret/ci-secrets
+   dependsOn:
+    - base_image
  - kind: deploy
    name: deploy_ci
    namespace:
@@ -834,6 +914,25 @@ steps:
     - create_ci_tables
     - deploy_auth
     - deploy_batch
+    - create_ci_test_repo
+    - deploy_ci_agent_role
+ - kind: deploy
+   name: test_ci
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: ci/test-ci-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-ci
+      for: completed
+      timeout: 900
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_ci
+    - deploy_ci_agent_role
+    - test_ci_image
+    - create_ci_test_repo
  - kind: runImage
    name: setup_pipeline
    image:
@@ -972,10 +1071,6 @@ steps:
    name: test_hail_java_distributed_backend
    image:
      valueFrom: hail_run_image.image
-   resources:
-     requests:
-       memory: "1G"
-       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -996,24 +1091,6 @@ steps:
     - deploy_scheduler
     - deploy_executors
  - kind: runImage
-   name: create_ci_test_repo
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -e
-     TOKEN=$(cat /secret/ci-secrets/user1)
-     echo creating ci-test-{{ token }}...
-     curl -XPOST \
-       -i \
-       https://api.github.com/orgs/hail-ci-test/repos \
-       -H "Authorization: token ${TOKEN}" \
-       -d "{ \"name\" : \"ci-test-{{ token }}\" }"
-   secrets:
-    - name: hail-ci-0-1-service-account-key
-      mountPath: /secret/ci-secrets
-   dependsOn:
-    - base_image
- - kind: runImage
    name: cleanup_ci_test_repo
    image:
      valueFrom: base_image.image
@@ -1032,6 +1109,8 @@ steps:
    dependsOn:
     - base_image
     - create_ci_test_repo
+    - deploy_ci
+    - test_ci
  - kind: runImage
    name: deploy_hail
    script: |
@@ -1073,3 +1152,20 @@ steps:
     - base_image
     - make_docs
     - build_hail
+ - kind: deploy
+   name: deploy_blog
+   namespace:
+     valueFrom: default_ns.name
+   config: blog/deployment.yaml
+   wait:
+    - kind: Service
+      name: blog
+      for: alive
+      resource_type: statefulset
+      endpoint: /
+      headers:
+        X-Forwarded-Proto: https
+   dependsOn:
+    - default_ns
+    - deploy_router
+

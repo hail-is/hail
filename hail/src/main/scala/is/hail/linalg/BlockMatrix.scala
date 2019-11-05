@@ -86,7 +86,7 @@ object BlockMatrix {
   val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
   val bufferSpec: BufferSpec =
     new BlockingBufferSpec(32 * 1024,
-      new LZ4BlockBufferSpec(32 * 1024,
+      new LZ4FastBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec))
   
   def apply(sc: SparkContext, gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =

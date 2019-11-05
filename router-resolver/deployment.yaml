@@ -25,7 +25,7 @@ roleRef:
   name: view-services
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: router-resolver
@@ -115,3 +115,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: router-resolver
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: router-resolver

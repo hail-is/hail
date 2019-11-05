@@ -13,13 +13,13 @@ def init_parser(parser):
     parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
                         help='New number of preemptible worker machines.')
     parser.add_argument('--graceful-decommission-timeout', '--graceful', type=str,
-                        help='If set, cluster size downgrade will use graceful decommissionnig with the given timeout (e.g. "60m").')
+                        help='If set, cluster size downgrade will use graceful decommissioning with the given timeout (e.g. "60m").')
     parser.add_argument('--max-idle', type=str, help='New maximum idle time before shutdown (e.g. "60m").')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
-    parser.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match"
-                        "the currently installed version")
+    parser.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match "
+                        "the currently installed version.")
 
 
 def main(args, pass_through_args):

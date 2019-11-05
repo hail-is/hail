@@ -1,69 +1,6 @@
 /* color on hail.is: #444 */
 /* border-color on hail.is: #ddd */
 /* background-color on hail.is: #fff */
-.section {
-  margin-top: -50px;
-  padding-top: 50px;
-}
-
-dl {
-  /*2*50px for the header, needed when dl's contain no inner elements
-  and are therefore very closely packed*/
-  min-height: 100px;
-}
-
-.rst-content dl.class:not(.docutils)>dt,
-.rst-content dl.class:not(.docutils)>dt:first-child,
-.rst-content dl.function:not(.docutils)>dt,
-.rst-content dl.function:not(.docutils)>dt:first-child,
-.rst-content dl.data:not(.docutils)>dt,
-.rst-content dl.data:not(.docutils)>dt:first-child {
-  border-top: 52px solid transparent;
-  margin-top: -52px;
-  background-clip: padding-box;
-}
-
-.rst-content dl.class:not(.docutils)>dt:before,
-.rst-content dl.function:not(.docutils)>dt:before,
-.rst-content dl.data:not(.docutils)>dt:before {
-  display: block;
-  content: "";
-  position: absolute;
-  top: -3px;
-  left: 0;
-  right: 0;
-  border-top: 3px solid #6ab0de;
-}
-
-.rst-content dl:not(.docutils) dl.method dt,
-.rst-content dl:not(.docutils) dl.method dt:first-child,
-.rst-content dl:not(.docutils) dl.attribute dt,
-.rst-content dl:not(.docutils) dl.attribute dt:first-child,
-.rst-content dl:not(.docutils) dl.classmethod dt,
-.rst-content dl:not(.docutils) dl.classmethod dt:first-child,
-.rst-content dl:not(.docutils) dl.staticmethod dt,
-.rst-content dl:not(.docutils) dl.staticmethod dt:first-child {
-  border-top: 49px solid transparent;
-  margin-top: -49px;
-  background-clip: padding-box;
-  border-left: 0px;
-  padding-left: 9px;
-}
-
-.rst-content dl.method:not(.docutils)>dt:before,
-.rst-content dl.attribute:not(.docutils)>dt:before,
-.rst-content dl.classmethod:not(.docutils)>dt:before,
-.rst-content dl.staticmethod:not(.docutils)>dt:before {
-  display: block;
-  content: "";
-  position: absolute;
-  top: 0px;
-  left: 0;
-  height: 100%;
-  background: #ccc;
-  width: 3px;
-}
-
 .wy-nav-content {
   max-width: 1140px !important;
   background-color: #fff;
