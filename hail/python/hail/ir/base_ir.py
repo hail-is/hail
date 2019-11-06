@@ -156,6 +156,9 @@ class BaseIR(Renderable):
             return parent_context
 
     def child_context(self, i: int, parent_context, default_value=None):
+        return self.renderable_child_context(self.renderable_idx_of_child(i), parent_context, default_value)
+
+    def renderable_child_context(self, i: int, parent_context, default_value=None):
         base = self.child_context_without_bindings(i, parent_context)
         eval_b = self.bindings(i, default_value)
         agg_b = self.agg_bindings(i, default_value)

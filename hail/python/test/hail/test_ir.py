@@ -409,14 +409,14 @@ class CSETests(unittest.TestCase):
         sum = ir.ApplyBinaryPrimOp('+', x, x)
         inner = ir.Let('row', sum, sum)
         outer = ir.Let('row', ir.I32(5), inner)
-        print(CSERenderer()(outer))
         expected = (
-            '(Let row (I32 5)' 
-                ' (Let row (GetField idx (Ref row))'
-                ' (GetField idx (Ref row))))')
-        # assert expected == CSERenderer()(outer)
+            '(Let row (I32 5)'
+            ' (Let __cse_1 (GetField idx (Ref row))'
+            ' (Let row (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            ' (Let __cse_2 (GetField idx (Ref row))'
+            ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))))))')
+        assert expected == CSERenderer()(outer)
 
-    # fix to test ApplyAggOp repeated inside and outside AggFilter
     def test_agg_cse(self):
         x = ir.GetField(ir.Ref('row'), 'idx')
         inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
@@ -424,14 +424,17 @@ class CSETests(unittest.TestCase):
         outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
         filter = ir.AggFilter(ir.TrueIR(), outer_sum, False)
         table_agg = ir.TableAggregate(ir.TableRange(5, 1), ir.MakeTuple([outer_sum, filter]))
-        print(CSERenderer()(table_agg))
-        # expected = (
-        #     '(TableAggregate (TableRange 5 1)'
-        #         ' (AggLet __cse_1 False (GetField idx (Ref row))'
-        #         ' (Let __cse_2 (ApplyAggOp AggOp () None'
-        #             ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
-        #         ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
-        # assert expected == CSERenderer()(table_agg)
+        expected = (
+            '(TableAggregate (TableRange 5 1)'
+                ' (AggLet __cse_1 False (GetField idx (Ref row))'
+                ' (AggLet __cse_3 False (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+                ' (Let __cse_2 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                ' (MakeTuple (0 1)'
+                    ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))'
+                    ' (AggFilter False (True)'
+                        ' (Let __cse_4 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))')
+        assert expected == CSERenderer()(table_agg)
 
     def test_init_op(self):
         x = ir.I32(5)
