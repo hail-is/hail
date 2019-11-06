@@ -269,15 +269,16 @@ users:
 '''
 
         job_spec['secrets'].append({
-            'namespace': 'batch-pods',  # FIXME unused
             'name': 'kube-config',
             'mount_path': '/.kube',
-            'mount_in_copy': False,
             'data': {'config': base64.b64encode(kube_config.encode()).decode(),
                      'ca.crt': cert}
         })
 
-        env = job_spec['env']
+        env = job_spec.get('env')
+        if not env:
+            env = []
+            job_spec['env'] = env
         env.append({'name': 'KUBECONFIG',
                     'value': '/.kube/config'})
 
