@@ -54,7 +54,7 @@ abstract class Backend {
       jvmLowerAndExecute(ir, optimize)
     } catch {
       case _: LowererUnsupportedOperation =>
-        ExecuteContext.scoped(ctx => CompileAndEvaluate(ctx, ir, optimize = optimize))
+        ExecuteContext.scoped(ctx => (CompileAndEvaluate(ctx, ir, optimize = optimize), ctx.timer.timings))
     }
   }
 
