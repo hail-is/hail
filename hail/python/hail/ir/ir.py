@@ -726,6 +726,25 @@ class NDArrayMatMul(IR):
         from hail.expr.expressions import unify_types
         self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
 
+class NDArrayQR(IR):
+    @typecheck_method(nd=IR, mode=str)
+    def __init__(self, nd, mode):
+        super().__init__(nd)
+        self.nd = nd
+        self.mode = mode
+
+    @typecheck_method(nd=IR, mode=str)
+    def copy(self):
+        return NDArrayQR(self.nd, self.mode)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+
+        if self.mode in ["complete", "reduced"]:
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2))
+        else:
+            raise ValueError("Cannot compute type for mode: " + self.mode)
+
 
 class NDArrayWrite(IR):
     @typecheck_method(nd=IR, path=IR)
