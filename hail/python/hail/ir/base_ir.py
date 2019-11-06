@@ -85,10 +85,10 @@ class BaseIR(Renderable):
     def __hash__(self):
         return 31 + hash(str(self))
 
-    @abc.abstractmethod
     def new_block(self, i: int) -> bool:
-        ...
+        return self.renderable_new_block(self.renderable_idx_of_child(i))
 
+    @abc.abstractmethod
     def renderable_new_block(self, i: int) -> bool:
         return self.new_block(i)
 
@@ -105,25 +105,37 @@ class BaseIR(Renderable):
             mapping from bound variables to 'default_value', if provided,
             otherwise to their types
         """
+        return self.renderable_bindings(self.renderable_idx_of_child(i), default_value)
+
+    def renderable_bindings(self, i: int, default_value=None):
         return {}
 
     def agg_bindings(self, i: int, default_value=None):
+        return self.renderable_agg_bindings(self.renderable_idx_of_child(i), default_value)
+
+    def renderable_agg_bindings(self, i: int, default_value=None):
         return {}
 
     def scan_bindings(self, i: int, default_value=None):
+        return self.renderable_scan_bindings(self.renderable_idx_of_child(i), default_value)
+
+    def renderable_scan_bindings(self, i: int, default_value=None):
         return {}
 
     def uses_agg_context(self, i: int) -> bool:
-        return False
+        return self.renderable_uses_agg_context(self.renderable_idx_of_child(i))
 
     def renderable_uses_agg_context(self, i: int) -> bool:
-        return self.uses_agg_context(i)
-
-    def uses_scan_context(self, i: int) -> bool:
         return False
 
+    def uses_scan_context(self, i: int) -> bool:
+        return self.renderable_uses_scan_context(self.renderable_idx_of_child(i))
+
     def renderable_uses_scan_context(self, i: int) -> bool:
-        return self.uses_scan_context(i)
+        return False
+
+    def renderable_idx_of_child(self, i: int) -> int:
+        return i
 
     # Used as a variable, bound by any node which defines the meaning of
     # aggregations (e.g. MatrixMapRows, AggFilter, etc.), and "referenced" by
@@ -215,7 +227,7 @@ class IR(BaseIR):
             assert self._type is not None, self
         return self._type
 
-    def new_block(self, i: int) -> bool:
+    def renderable_new_block(self, i: int) -> bool:
         return False
 
     @abc.abstractmethod
@@ -235,7 +247,7 @@ class IR(BaseIR):
                 return self.children[i].free_agg_vars
             if self.uses_scan_context(i):
                 return self.children[i].free_scan_vars
-            return self.children[i].free_vars.difference(self.bindings(i).keys())
+            return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
 
         if self._free_vars is None:
             self._free_vars = {
@@ -251,7 +263,7 @@ class IR(BaseIR):
             self._free_agg_vars = {
                 var for i in range(len(self.children))
                     for var in self.children[i].free_agg_vars.difference(
-                        self.agg_bindings(i).keys())}
+                        self.agg_bindings(i, 0).keys())}
         return self._free_agg_vars
 
     @property
@@ -260,7 +272,7 @@ class IR(BaseIR):
             self._free_scan_vars = {
                 var for i in range(len(self.children))
                 for var in self.children[i].free_scan_vars.difference(
-                    self.scan_bindings(i).keys())}
+                    self.scan_bindings(i, 0).keys())}
         return self._free_scan_vars
 
 
@@ -279,7 +291,7 @@ class TableIR(BaseIR):
             assert self._type is not None, self
         return self._type
 
-    def new_block(self, i: int) -> bool:
+    def renderable_new_block(self, i: int) -> bool:
         return True
 
     def parse(self, code, ref_map={}, ir_map={}):
@@ -304,7 +316,7 @@ class MatrixIR(BaseIR):
             assert self._type is not None, self
         return self._type
 
-    def new_block(self, i: int) -> bool:
+    def renderable_new_block(self, i: int) -> bool:
         return True
 
     def parse(self, code, ref_map={}, ir_map={}):
@@ -331,7 +343,7 @@ class BlockMatrixIR(BaseIR):
             assert self._type is not None, self
         return self._type
 
-    def new_block(self, i: int) -> bool:
+    def renderable_new_block(self, i: int) -> bool:
         return True
 
     def parse(self, code, ref_map={}, ir_map={}):
