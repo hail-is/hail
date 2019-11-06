@@ -436,41 +436,21 @@ class CSEPrintPass:
                 frame.builder.append(' ')
             child = frame.children[child_idx]
 
-            child_min_binding_depth = frame.min_binding_depth
-            child_min_value_binding_depth = frame.min_value_binding_depth
-            child_scan_scope = frame.scan_scope
-
-            # TODO: can this be moved into make_child_frame?
-            if isinstance(node, ir.BaseIR):
-                if node.renderable_new_block(child_idx):
-                    child_min_binding_depth = frame.depth + 1
-                    child_min_value_binding_depth = frame.depth + 1
-                elif node.renderable_uses_agg_context(child_idx):
-                    child_min_value_binding_depth = frame.depth + 1
-                    child_scan_scope = False
-                elif node.renderable_uses_scan_context(child_idx):
-                    child_min_value_binding_depth = frame.depth + 1
-                    child_scan_scope = True
-
-            child_frame = frame.make_child_frame(self.renderer, binding_sites,
-                                               bindings_stack,
-                                               child_min_binding_depth,
-                                               child_min_value_binding_depth,
-                                               child_scan_scope)
+            child_frame = frame.make_child_frame(self.renderer, binding_sites, bindings_stack)
 
             lift_to_frame = None
             if isinstance(child, ir.BaseIR):
                 bind_depth = child_frame.bind_depth()
                 if bind_depth in bindings_stack:
                     c = bindings_stack[bind_depth]
-                    if c.depth >= child_min_value_binding_depth and id(child) in c.lifted_lets:
+                    if c.depth >= child_frame.min_value_binding_depth and id(child) in c.lifted_lets:
                         lift_to_frame = c
                         lift_type = 'value'
-                    elif child_min_binding_depth <= c.depth < child_min_value_binding_depth:
-                        if child_scan_scope and id(child) in c.scan_lifted_lets:
+                    elif child_frame.min_binding_depth <= c.depth < child_frame.min_value_binding_depth:
+                        if child_frame.scan_scope and id(child) in c.scan_lifted_lets:
                             lift_to_frame = c
                             lift_type = 'scan'
-                        elif not child_scan_scope and id(child) in c.agg_lifted_lets:
+                        elif not child_frame.scan_scope and id(child) in c.agg_lifted_lets:
                             lift_to_frame = c
                             lift_type = 'agg'
 
@@ -520,11 +500,7 @@ class CSEPrintPass:
                 frame.builder.append(memo[id(child)])
                 continue
 
-            child_frame = frame.make_child_frame(self.renderer, binding_sites,
-                                                 bindings_stack,
-                                                 child_min_binding_depth,
-                                                 child_min_value_binding_depth,
-                                                 child_scan_scope)
+            child_frame = frame.make_child_frame(self.renderer, binding_sites, bindings_stack)
             child_frame.set_builder(frame.builder, self.renderer)
             stack.append(child_frame)
             continue
@@ -615,10 +591,23 @@ class CSEPrintPass:
         def make_child_frame(self,
                              renderer: 'CSERenderer',
                              binding_sites: Dict[int, BindingSite],
-                             bindings_stack: 'Dict[int, CSEPrintPass.BindingsStackFrame]',
-                             min_binding_depth: int,
-                             min_value_binding_depth: int,
-                             scan_scope: bool):
+                             bindings_stack: 'Dict[int, CSEPrintPass.BindingsStackFrame]'):
+            child_min_binding_depth = self.min_binding_depth
+            child_min_value_binding_depth = self.min_value_binding_depth
+            child_scan_scope = self.scan_scope
+
+            # TODO: can this be moved into make_child_frame?
+            if isinstance(self.node, ir.BaseIR):
+                if self.node.renderable_new_block(self.child_idx):
+                    child_min_binding_depth = self.depth + 1
+                    child_min_value_binding_depth = self.depth + 1
+                elif self.node.renderable_uses_agg_context(self.child_idx):
+                    child_min_value_binding_depth = self.depth + 1
+                    child_scan_scope = False
+                elif self.node.renderable_uses_scan_context(self.child_idx):
+                    child_min_value_binding_depth = self.depth + 1
+                    child_scan_scope = True
+
             child = self.children[self.child_idx]
             if isinstance(child, ir.BaseIR):
                 child_depth = self.depth + 1
@@ -629,8 +618,8 @@ class CSEPrintPass:
             else:
                 child_context = self.context
             return self.make(child, renderer, binding_sites, bindings_stack,
-                             min_binding_depth, min_value_binding_depth,
-                             scan_scope, child_context, child_depth)
+                             child_min_binding_depth, child_min_value_binding_depth,
+                             child_scan_scope, child_context, child_depth)
 
         @staticmethod
         def make(node: Renderable,
