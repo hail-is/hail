@@ -155,8 +155,8 @@ object UtilFunctions extends RegistryFunctions {
       }
       registerCodeWithMissingness(s"to${name}OrMissing", TString(), t, null) {
         case (r, rt, (xT: PString, x: EmitTriplet)) =>
-          val s = r.mb.newLocal[String]
-          val m = r.mb.newLocal[Boolean]
+          val s = r.mb.newField[String]
+          val m = r.mb.newField[Boolean]
           EmitTriplet(
             Code(x.setup, m := x.m, (!m).orEmpty(s := asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
             (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
