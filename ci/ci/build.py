@@ -464,7 +464,7 @@ class CreateNamespaceStep(Step):
         self.secrets = secrets
         self.job = None
 
-        if DEFAULT_NAMESPACE != 'default':
+        if is_test_deployment:
             self._name = DEFAULT_NAMESPACE
             return
 
@@ -779,6 +779,9 @@ class CreateDatabaseStep(Step):
         self.database_name = database_name
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
+
+        if is_test_deployment:
+            self.namespace = DEFAULT_NAMESPACE
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if params.scope == 'deploy':

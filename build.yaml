@@ -926,7 +926,7 @@ steps:
     - ci_database
     - create_ci_tables
     - deploy_auth
-    - deploy_batch
+    - deploy_batch2
     - create_ci_test_repo
     - deploy_ci_agent
     - deploy_ci_agent_default
@@ -975,7 +975,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - deploy_batch
+    - deploy_batch2
     - test_pipeline_image
     - setup_pipeline
  - kind: runImage
