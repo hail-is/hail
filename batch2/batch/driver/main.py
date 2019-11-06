@@ -18,7 +18,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 from ..batch import mark_job_complete
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    BATCH_NAMESPACE
+    DEFAULT_NAMESPACE
 from ..google_compute import GServices
 
 from .instance_pool import InstancePool
@@ -329,7 +329,7 @@ async def on_startup(app):
         'internal')
     app['internal_token'] = row['token']
 
-    machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
+    machine_name_prefix = f'batch2-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')

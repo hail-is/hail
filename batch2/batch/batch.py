@@ -7,7 +7,7 @@ from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
-from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, \
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_PODS_NAMESPACE,
     KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
@@ -216,7 +216,7 @@ async def job_config(app, record):
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
         k8s_client.read_namespaced_secret(
-            secret['name'], BATCH_NAMESPACE,
+            secret['name'], secret['namespace'],
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         for secret in secrets
     ])
@@ -232,14 +232,14 @@ async def job_config(app, record):
     service_account_name = job_spec.get('service_account_name')
     if service_account_name:
         sa = await k8s_client.read_namespaced_service_account(
-            service_account_name, BATCH_NAMESPACE,
+            service_account_name, BATCH_PODS_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
         secret = await k8s_client.read_namespaced_secret(
-            token_secret_name, BATCH_NAMESPACE,
+            token_secret_name, BATCH_PODS_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
