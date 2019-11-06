@@ -4,11 +4,51 @@ import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.types import HailType
 from hail.typecheck import *
-from hail.expr.expressions import expr_int64, expr_tuple, expr_any, Int64Expression, cast_expr
+from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, Int64Expression, cast_expr
+from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 
 
 def array(input_array):
     return _ndarray(input_array)
+
+
+@typecheck(start=expr_int32, stop=nullable(expr_int32), step=expr_int32)
+def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
+    """Returns a 1-dimensions ndarray of integers from `start` to `stop` by `step`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl._nd.arange(10))
+    array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=int32)
+
+    >>> hl.eval(hl._nd.arange(3, 10))
+    array([3, 4, 5, 6, 7, 8, 9], dtype=int32)
+
+    >>> hl.eval(hl._nd.arange(0, 10, step=3))
+    array([0, 3, 6, 9], dtype=int32)
+
+    Notes
+    -----
+    The range includes `start`, but excludes `stop`.
+
+    If provided exactly one argument, the argument is interpreted as `stop` and
+    `start` is set to zero. This matches the behavior of Python's ``range``.
+
+    Parameters
+    ----------
+    start : int or :class:`.Expression` of type :py:data:`.tint32`
+        Start of range.
+    stop : int or :class:`.Expression` of type :py:data:`.tint32`
+        End of range.
+    step : int or :class:`.Expression` of type :py:data:`.tint32`
+        Step of range.
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`
+    """
+    return array(hl.range(start, stop, step))
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), value=expr_any, dtype=nullable(HailType))
@@ -17,7 +57,7 @@ def full(shape, value, dtype=None):
         shape_product = shape
     else:
         shape_product = reduce(lambda a, b: a * b, shape)
-    return array(hl.range(hl.int32(shape_product)).map(lambda x: cast_expr(value, dtype))).reshape(shape)
+    return arange(hl.int32(shape_product)).map(lambda x: cast_expr(value, dtype)).reshape(shape)
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
