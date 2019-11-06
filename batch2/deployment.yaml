@@ -145,6 +145,8 @@ spec:
            value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
+         - name: KUBERNETES_SERVER_URL
+           value: "{{ global.k8s_server_url }}"	   
 {% if not deploy %}
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
            value: "0.1"
