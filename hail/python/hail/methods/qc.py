@@ -54,7 +54,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     - `n_hom_ref` (``int64``) -- Number of homozygous reference calls.
     - `n_het` (``int64``) -- Number of heterozygous calls.
     - `n_hom_var` (``int64``) -- Number of homozygous alternate calls.
-    - `n_non_ref` (``int64``) -- Sum of ``n_het`` and ``n_hom_var``.
+    - `n_non_ref` (``int64``) -- Sum of `n_het` and `n_hom_var`.
     - `n_snp` (``int64``) -- Number of SNP alternate alleles.
     - `n_insertion` (``int64``) -- Number of insertion alternate alleles.
     - `n_deletion` (``int64``) -- Number of deletion alternate alleles.

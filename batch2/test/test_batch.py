@@ -49,7 +49,6 @@ class Test(unittest.TestCase):
         self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
-        j.pod_status()
 
         self.assertTrue(j.is_complete())
 
@@ -97,8 +96,6 @@ class Test(unittest.TestCase):
         with self.assertRaises(ValueError):
             j.log()
         with self.assertRaises(ValueError):
-            j.pod_status()
-        with self.assertRaises(ValueError):
             j.wait()
 
         builder.submit()
@@ -121,6 +118,8 @@ class Test(unittest.TestCase):
             actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
 
+        assert_batch_ids({b1.id, b2.id})
+
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
 
         b2.wait()
@@ -142,14 +141,13 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
 
-    def test_limit_offset(self):
+    def test_include_jobs(self):
         b1 = self.client.create_batch()
-        for i in range(3):
+        for i in range(2):
             b1.create_job('ubuntu:18.04', ['true'])
         b1 = b1.submit()
-        s = b1.status(limit=2, offset=1)
-        filtered_jobs = {j['job_id'] for j in s['jobs']}
-        assert filtered_jobs == {2, 3}, s
+        s = b1.status(include_jobs=False)
+        assert 'jobs' not in s
 
     def test_fail(self):
         b = self.client.create_batch()
@@ -157,6 +155,19 @@ class Test(unittest.TestCase):
         b.submit()
         status = j.wait()
         self.assertEqual(status['exit_code']['main'], 1)
+
+    def test_running_job_log_and_status(self):
+        b = self.client.create_batch()
+        j = b.create_job('ubuntu:18.04', ['sleep', '300'])
+        b = b.submit()
+
+        while True:
+            if j.status()['state'] == 'Running' or j.is_complete():
+                break
+
+        j.log()
+        # FIXME after batch1 goes away, check running status
+        b.cancel()
 
     def test_deleted_job_log(self):
         b = self.client.create_batch()
@@ -299,7 +310,6 @@ class Test(unittest.TestCase):
         endpoints = [
             (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status', 401),
             (requests.get, '/api/v1alpha/batches', 401),
             (requests.post, '/api/v1alpha/batches/create', 401),
             (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),
@@ -311,8 +321,9 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0', 302),
             (requests.get, '/batches/0/jobs/0/log', 302)]
         for f, url, expected in endpoints:
-            r = f(deploy_config.url('batch2', url))
-            assert r.status_code == 401, r
+            full_url = deploy_config.url('batch2', url)
+            r = f(full_url, allow_redirects=False)
+            assert r.status_code == expected, (full_url, r, expected)
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
@@ -326,3 +337,19 @@ class Test(unittest.TestCase):
             assert e.status == 401, e
         finally:
             bc.close()
+
+    def test_gcr_image(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_BASE_IMAGE'], ['echo', 'test'])
+        b = builder.submit()
+        status = j.wait()
+
+        self.assertEqual(status['state'], 'Success', (status, j.log()))
+
+    def test_service_account(self):
+        b = self.client.create_batch()
+        j = b.create_job(os.environ['CI_UTILS_IMAGE'], ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
+                         service_account_name='ci-agent')
+        b.submit()
+        status = j.wait()
+        assert status['exit_code']['main'] == 0, status

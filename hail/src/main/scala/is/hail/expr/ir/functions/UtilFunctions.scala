@@ -18,18 +18,53 @@ object UtilFunctions extends RegistryFunctions {
 
   def parseInt64(s: String): Long = s.toLong
 
-  def parseFloat32(s: String): Float = s match {
-    case "nan" => Float.NaN
-    case "inf" => Float.PositiveInfinity
-    case "-inf" => Float.NegativeInfinity
+  private val NAN = 1
+  private val POS_INF = 2
+  private val NEG_INF = 3
+
+  def parseSpecialNum(s: String): Int = s.length match {
+    case 3 if s equalsCI "nan" => NAN
+    case 4 if (s equalsCI "+nan") || (s equalsCI "-nan") => NAN
+    case 3 if s equalsCI "inf" => POS_INF
+    case 4 if s equalsCI "+inf" => POS_INF
+    case 4 if s equalsCI "-inf" => NEG_INF
+    case 8 if s equalsCI "infinity" => POS_INF
+    case 9 if s equalsCI "+infinity" => POS_INF
+    case 9 if s equalsCI "-infinity" => NEG_INF
+    case _ => 0
+  }
+
+  def parseFloat32(s: String): Float = parseSpecialNum(s) match {
+    case NAN => Float.NaN
+    case POS_INF => Float.PositiveInfinity
+    case NEG_INF => Float.NegativeInfinity
     case _ => s.toFloat
   }
 
-  def parseFloat64(s: String): Double = s match {
-    case "nan" => Double.NaN
-    case "inf" => Double.PositiveInfinity
-    case "-inf" => Double.NegativeInfinity
+  def parseFloat64(s: String): Double = parseSpecialNum(s) match {
+    case NAN => Double.NaN
+    case POS_INF => Double.PositiveInfinity
+    case NEG_INF => Double.NegativeInfinity
     case _ => s.toDouble
+  }
+
+  def isValidBoolean(s: String): Boolean =
+    (s equalsCI "true") || (s equalsCI "false")
+
+  def isValidInt32(s: String): Boolean =
+    try { s.toInt; true } catch { case _: NumberFormatException => false }
+
+  def isValidInt64(s: String): Boolean =
+    try { s.toLong; true } catch { case _: NumberFormatException => false }
+
+  def isValidFloat32(s: String): Boolean = parseSpecialNum(s) match {
+    case 0 => try { s.toFloat; true } catch { case _: NumberFormatException => false }
+    case _ => true
+  }
+
+  def isValidFloat64(s: String): Boolean = parseSpecialNum(s) match {
+    case 0 => try { s.toDouble; true } catch { case _: NumberFormatException => false }
+    case _ => true
   }
 
   def min_ignore_missing(l: Int, lMissing: Boolean, r: Int, rMissing: Boolean): Int =
@@ -104,30 +139,29 @@ object UtilFunctions extends RegistryFunctions {
     registerCode[Boolean]("toInt64", TBoolean(), TInt64(), null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toL }
     registerCode[Boolean]("toFloat32", TBoolean(), TFloat32(), null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toF }
     registerCode[Boolean]("toFloat64", TBoolean(), TFloat64(), null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toD }
-    registerCode("toInt32", TString(), TInt32(), null) {
-      case (r, rt, (xT: PString, x: Code[Long])) =>
-        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-        Code.invokeScalaObject[String, Int](thisClass, "parseInt32", s)
-    }
-    registerCode("toInt64", TString(), TInt64(), null) {
-      case (r, rt, (xT: PString, x: Code[Long])) =>
-        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-        Code.invokeScalaObject[String, Long](thisClass, "parseInt64", s)
-    }
-    registerCode("toFloat32", TString(), TFloat32(), null) {
-      case (r, rt, (xT: PString, x: Code[Long])) =>
-        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-        Code.invokeScalaObject[String, Float](thisClass, "parseFloat32", s)
-    }
-    registerCode("toFloat64", TString(), TFloat64(), null) {
-      case (r, rt, (xT: PString, x: Code[Long])) =>
-        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-        Code.invokeScalaObject[String, Double](thisClass, "parseFloat64", s)
-    }
-    registerCode("toBoolean", TString(), TBoolean(), null) {
-      case (r, rt, (xT: PString, x: Code[Long])) =>
-        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-        Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
+
+    for ((name, t, ct) <- Seq[(String, Type, ClassTag[_])](
+      ("Boolean", TBoolean(), implicitly[ClassTag[Boolean]]),
+      ("Int32", TInt32(), implicitly[ClassTag[Int]]),
+      ("Int64", TInt64(), implicitly[ClassTag[Long]]),
+      ("Float64", TFloat64(), implicitly[ClassTag[Double]]),
+      ("Float32", TFloat32(), implicitly[ClassTag[Float]])
+    )) {
+      val ctString: ClassTag[String] = implicitly
+      registerCode(s"to$name", TString(), t, null) {
+        case (r, rt, (xT: PString, x: Code[Long])) =>
+          val s = asm4s.coerce[String](wrapArg(r, xT)(x))
+          Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)
+      }
+      registerCodeWithMissingness(s"to${name}OrMissing", TString(), t, null) {
+        case (r, rt, (xT: PString, x: EmitTriplet)) =>
+          val s = r.mb.newLocal[String]
+          val m = r.mb.newLocal[Boolean]
+          EmitTriplet(
+            Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
+            (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
+            Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct))
+      }
     }
 
     Array(TInt32(), TInt64()).foreach { t =>

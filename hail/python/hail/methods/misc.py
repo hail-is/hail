@@ -317,7 +317,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
 
     Notes
     -----
-    Based on the ``keep`` argument, this method will either restrict to points
+    Based on the `keep` argument, this method will either restrict to points
     in the supplied interval ranges, or remove all rows in those ranges.
 
     When ``keep=True``, partitions that don't overlap any supplied interval

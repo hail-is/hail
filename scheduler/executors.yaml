@@ -19,6 +19,9 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
        - name: executor
          image: "{{ hail_test_base_image.image }}"

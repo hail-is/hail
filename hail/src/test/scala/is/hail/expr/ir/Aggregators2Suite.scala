@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
@@ -683,5 +684,24 @@ class Aggregators2Suite extends HailSuite {
       expected = expected,
       args = FastIndexedSeq(("rows", (arrayType, rows))),
       transformResult = Some(_.asInstanceOf[IndexedSeq[_]].toSet))
+  }
+
+  @Test def testLoweringMatrixMapColsWithAggFilterAndLets(): Unit = {
+    val t = MatrixType(TStruct(), FastIndexedSeq("col_idx"), TStruct("col_idx" -> TInt32()), FastIndexedSeq("row_idx"), TStruct("row_idx" -> TInt32()), TStruct())
+    val ir = TableCollect(MatrixColsTable(MatrixMapCols(
+      MatrixRead(t, false, false, MatrixRangeReader(10, 10, None)),
+      InsertFields(Ref("sa", t.colType), FastSeq(("foo",
+        Let("bar",
+          GetField(Ref("sa", t.colType), "col_idx") + I32(1),
+          AggFilter(
+            GetField(Ref("va", t.rowType), "row_idx") < I32(5),
+            Ref("bar", TInt32()).toL + Ref("bar", TInt32()).toL + ApplyAggOp(
+              FastIndexedSeq(),
+              None,
+              FastIndexedSeq(GetField(Ref("va", t.rowType), "row_idx").toL),
+              AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))),
+            false))))),
+      Some(FastIndexedSeq()))))
+    assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)
   }
 }

@@ -8,7 +8,8 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
+from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, CI_NAMESPACE, \
+    KUBERNETES_SERVER_URL
 
 log = logging.getLogger('ci')
 
@@ -18,6 +19,9 @@ pretty_print_log = "jq -Rr '. as $raw | try \
     ([.levelname, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
     else $raw end) \
 catch $raw'"
+
+
+is_test_deployment = CI_NAMESPACE != 'default'
 
 
 def expand_value_from(value, config):
@@ -144,7 +148,8 @@ class Step(abc.ABC):
         config['global'] = {
             'project': GCP_PROJECT,
             'domain': DOMAIN,
-            'ip': IP
+            'ip': IP,
+            'k8s_server_url': KUBERNETES_SERVER_URL
         }
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
@@ -209,7 +214,7 @@ class BuildImageStep(Step):
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
-        if params.scope == 'deploy' and publish_as:
+        if params.scope == 'deploy' and publish_as and not is_test_deployment:
             self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
         else:
             self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
@@ -267,7 +272,7 @@ class BuildImageStep(Step):
         push_image = f'''
 time docker push {self.image}
 '''
-        if scope == 'deploy' and self.publish_as:
+        if scope == 'deploy' and self.publish_as and not is_test_deployment:
             push_image = f'''
 docker tag {shq(self.image)} {self.base_image}:latest
 docker push {self.base_image}:latest
@@ -329,7 +334,7 @@ date
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope == 'deploy' and self.publish_as:
+        if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
         script = f'''
@@ -454,6 +459,11 @@ class CreateNamespaceStep(Step):
         self.public = public
         self.secrets = secrets
         self.job = None
+
+        if CI_NAMESPACE != 'default':
+            self._name = CI_NAMESPACE
+            return
+
         if params.scope == 'deploy':
             self._name = namespace_name
         elif params.scope == 'test':
@@ -485,6 +495,9 @@ class CreateNamespaceStep(Step):
         }
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        if is_test_deployment:
+            return
+
         config = ""
         if scope in ['deploy', 'test']:
             # FIXME label
@@ -593,7 +606,7 @@ date
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope in ['deploy', 'dev']:
+        if scope in ['deploy', 'dev'] or is_test_deployment:
             return
 
         script = f'''

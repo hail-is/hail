@@ -129,6 +129,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: blog
+  labels:
+    app: blog
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 2368
+  selector:
+    app: blog
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: workshop
   labels:
     app: workshop
@@ -179,10 +193,10 @@ spec:
          image: {{ router_image.image }}
          resources:
            requests:
-             memory: "250M"
+             memory: "100M"
              cpu: "100m"
            limits:
-             memory: "1G"
+             memory: "250M"
              cpu: "1"
          env:
           - name: HAIL_DOMAIN
@@ -229,3 +243,13 @@ spec:
     resource:
       name: cpu
       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: router
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: router

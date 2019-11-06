@@ -35,7 +35,7 @@ spec:
   selector:
     matchLabels:
       app: notebook
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
@@ -46,9 +46,29 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - notebook
+              topologyKey: "kubernetes.io/hostname"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
        - name: notebook
          image: "{{ notebook_image.image }}"
+         resources:
+           requests:
+             memory: 200Mi
+             cpu: 100m
+           limits:
+             memory: 200Mi
+             cpu: "1"
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
@@ -111,3 +131,30 @@ spec:
     targetPort: 5000
   selector:
     app: notebook
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notebook
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: notebook
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: notebook
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: notebook

@@ -3,6 +3,7 @@ import unittest
 import pandas as pd
 import pyspark.sql
 import pytest
+import random
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1281,3 +1282,49 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     mt1.annotate_rows(match=match_row_expr)._force_count_rows()
 
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
+
+
+widths = [256, 512, 1024, 2048, 4096, 8192, 16384]
+
+
+def test_can_process_wide_tables():
+    for w in widths:
+        print(f'working on width {w}')
+        path = resource(f'width_scale_tests/{w}.tsv')
+        ht = hl.import_table(path, impute=True)
+        out_path = new_temp_file(suffix='ht')
+        ht.write(out_path)
+        ht = hl.read_table(out_path)
+        ht.annotate(another_field=5)._force_count()
+        ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
+
+
+def create_width_scale_files():
+    def write_file(n, n_rows=5):
+        assert n % 4 == 0
+        n2 = n // 4
+        d = {}
+        header = []
+        for i in range(n2):
+            header.append(f'i{i}')
+            header.append(f'f{i}')
+            header.append(f's{i}')
+            header.append(f'b{i}')
+        with open(resource(f'width_scale_tests/{n}.tsv'), 'w') as out:
+            out.write('\t'.join(header))
+            for i in range(n_rows):
+                out.write('\n')
+                for j in range(n2):
+                    if (j > 0):
+                        out.write('\t')
+                    out.write(str(j))
+                    out.write('\t')
+                    out.write(str(i / (i + 1)))
+                    out.write('\t')
+                    out.write(f's_{i}_{j}')
+                    out.write('\t')
+                    out.write(str(i % 2 == 0))
+
+    for w in widths:
+        write_file(w)
+

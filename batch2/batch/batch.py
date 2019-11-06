@@ -2,450 +2,324 @@ import json
 import logging
 import asyncio
 import aiohttp
-import traceback
+import base64
+from hailtop.utils import sleep_and_backoff, is_transient_error
 
-from .globals import states, complete_states, valid_state_transitions, tasks
-from .log_store import LogStore
+from .globals import complete_states, tasks
+from .database import check_call_procedure
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, \
+    KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
 
 
-class JobStateWriteFailure(Exception):
-    pass
+async def batch_record_to_dict(db, record, include_jobs=False):
+    if record['n_failed'] > 0:
+        state = 'failure'
+    elif record['n_cancelled'] > 0:
+        state = 'cancelled'
+    elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
+        state = 'success'
+    else:
+        state = 'running'
+
+    complete = record['closed'] and record['n_completed'] == record['n_jobs']
+
+    d = {
+        'id': record['id'],
+        'state': state,
+        'complete': complete,
+        'closed': record['closed']
+    }
+
+    attributes = json.loads(record['attributes'])
+    if attributes:
+        d['attributes'] = attributes
+
+    if include_jobs:
+        jobs = [
+            job_record_to_dict(record)
+            async for record
+            in db.execute_and_fetchall(
+                'SELECT * FROM jobs where batch_id = %s',
+                (record['id'],))
+        ]
+        d['jobs'] = sorted(jobs, key=lambda j: j['job_id'])
+
+    return d
 
 
-class Job:
-    async def _create_pod(self):
-        assert self.userdata is not None
-        assert self._state in states
-        assert self._state == 'Running'
+async def notify_batch_job_complete(db, batch_id):
+    record = await db.execute_and_fetchone(
+        '''
+SELECT *
+FROM batches
+WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
+   closed AND n_completed = n_jobs;
+''',
+        (batch_id,))
 
-        try:
-            await self.app['driver'].create_pod(
-                name=self._pod_name,
-                batch_id=self.batch_id,
-                job_spec=self._spec,
-                userdata=self.userdata,
-                output_directory=self.directory)
-        except Exception:
-            pod_status = {
-                'name': self._pod_name,
-                'batch_id': self.batch_id,
-                'job_id': self.job_id,
-                'user': self.user,
-                'state': 'error',
-                'error': traceback.format_exc()
-            }
-            await self.mark_complete(pod_status)
+    if not record:
+        return
+    callback = record['callback']
 
-    async def _delete_pod(self):
-        await self.app['driver'].delete_pod(name=self._pod_name)
+    log.info(f'making callback for batch {batch_id}: {callback}')
 
-    async def _read_logs(self):
-        if self._state in ('Pending', 'Cancelled'):
-            return None
+    try:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            await session.post(callback, json=await batch_record_to_dict(db, record))
+            log.info(f'callback for batch {batch_id} successful')
+    except Exception:
+        log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
-        if self._state == 'Running':
-            return await self.app['driver'].read_pod_logs(self._pod_name)
 
-        async def _read_log_from_gcs(task_name):
-            pod_log = await self.app['log_store'].read_gs_file(LogStore.container_log_path(self.directory, task_name))
-            return task_name, pod_log
+async def mark_job_complete(app, batch_id, job_id, new_state, status):
+    scheduler_state_changed = app['scheduler_state_changed']
+    db = app['db']
+    inst_pool = app['inst_pool']
 
-        assert self._state in ('Error', 'Failed', 'Success')
-        future_logs = asyncio.gather(*[_read_log_from_gcs(task) for task in tasks])
-        return {k: v for k, v in await future_logs}
+    id = (batch_id, job_id)
 
-    async def _read_pod_status(self):
-        if self._state in ('Pending', 'Cancelled'):
-            return None
+    rv = await check_call_procedure(
+        db,
+        'CALL mark_job_complete(%s, %s, %s, %s);',
+        (batch_id, job_id, new_state,
+         json.dumps(status) if status is not None else None))
 
-        if self._state == 'Running':
-            return await self.app['driver'].read_pod_status(self._pod_name)
+    log.info(f'mark_job_complete returned {rv} for job {id}')
 
-        return await self.app['log_store'].read_gs_file(LogStore.pod_status_path(self.directory))
+    old_state = rv['old_state']
+    if old_state in complete_states:
+        # already complete, do nothing
+        return
 
-    async def _delete_gs_files(self):
-        await self.app['log_store'].delete_gs_files(self.directory)
+    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    @staticmethod
-    def from_record(app, record):
-        if not record:
-            return None
+    instance_name = rv['instance_name']
+    if instance_name:
+        instance = inst_pool.name_instance.get(instance_name)
+        if instance:
+            log.info(f'updating {instance}')
 
-        userdata = json.loads(record['userdata'])
-        spec = json.loads(record['spec'])
-        status = json.loads(record['status']) if record['status'] else None
-
-        return Job(app, batch_id=record['batch_id'], job_id=record['job_id'],
-                   userdata=userdata, user=record['user'],
-                   status=status, state=record['state'],
-                   cancelled=record['cancelled'], directory=record['directory'],
-                   spec=spec)
-
-    @staticmethod
-    async def from_pod(app, pod_status):
-        batch_id = pod_status['batch_id']
-        job_id = pod_status['job_id']
-        user = pod_status['user']
-        return await Job.from_db(app, batch_id, job_id, user)
-
-    @staticmethod
-    async def from_db(app, batch_id, job_id, user):
-        jobs = await Job.from_db_multiple(app, batch_id, job_id, user)
-        if len(jobs) == 1:
-            return jobs[0]
-        return None
-
-    @staticmethod
-    async def from_db_multiple(app, batch_id, job_ids, user):
-        records = await app['db'].jobs.get_undeleted_records(batch_id, job_ids, user)
-        jobs = [Job.from_record(app, record) for record in records]
-        return jobs
-
-    def __init__(self, app, batch_id, job_id, userdata, user,
-                 status, state, cancelled, directory,
-                 spec):
-        self.app = app
-        self.batch_id = batch_id
-        self.job_id = job_id
-        self.id = (batch_id, job_id)
-
-        self.userdata = userdata
-        self.user = user
-        self.status = status
-        self.directory = directory
-
-        name = f'batch-{batch_id}-job-{job_id}'
-        self._pod_name = name
-        self._state = state
-        self._cancelled = cancelled
-        self._spec = spec
-
-    @property
-    def attributes(self):
-        return self._spec.get('attributes')
-
-    @property
-    def input_files(self):
-        return self._spec.get('input_files')
-
-    @property
-    def output_files(self):
-        return self._spec.get('output_files')
-
-    @property
-    def always_run(self):
-        return self._spec.get('always_run', False)
-
-    @property
-    def pvc_size(self):
-        return self._spec.get('pvc_size')
-
-    async def refresh_parents_and_maybe_create(self):
-        for record in await self.app['db'].jobs.get_parents(*self.id):
-            parent_job = Job.from_record(self.app, record)
-            assert parent_job.batch_id == self.batch_id
-            await self.parent_new_state(parent_job._state, *parent_job.id)
-
-    async def set_state(self, new_state):
-        assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
-        if self._state != new_state:
-            n_updated = await self.app['db'].jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
-            if n_updated == 0:
-                log.warning(f'changing the state from {self._state} -> {new_state} '
-                            f'for job {self.id} failed due to the expected state not in db')
-                raise JobStateWriteFailure()
-
-            log.info('job {} changed state: {} -> {}'.format(
-                self.id,
-                self._state,
-                new_state))
-            self._state = new_state
-            await self.notify_children(new_state)
-
-    async def notify_children(self, new_state):
-        if new_state not in complete_states:
-            return
-
-        children = [Job.from_record(self.app, record) for record in await self.app['db'].jobs.get_children(*self.id)]
-        for child in children:
-            await child.parent_new_state(new_state, *self.id)
-
-    async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
-        del parent_job_id
-        assert parent_batch_id == self.batch_id
-        if new_state in complete_states:
-            await self.create_if_ready()
-
-    async def create_if_ready(self):
-        incomplete_parent_ids = await self.app['db'].jobs.get_incomplete_parents(*self.id)
-        if self._state == 'Pending' and not incomplete_parent_ids:
-            await self.set_state('Running')
-            parents = [Job.from_record(self.app, record) for record in await self.app['db'].jobs.get_parents(*self.id)]
-            if (self.always_run or
-                    (not self._cancelled and all(p.is_successful() for p in parents))):
-                log.info(f'all parents complete for {self.id},'
-                         f' creating pod')
-                await self._create_pod()
-            else:
-                log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
-                await self.set_state('Cancelled')
-
-    async def cancel(self):
-        self._cancelled = True
-
-        if not self.always_run and self._state == 'Running':
-            await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-            await self._delete_pod()
-
-    def is_complete(self):
-        return self._state in complete_states
-
-    def is_successful(self):
-        return self._state == 'Success'
-
-    async def mark_unscheduled(self):
-        updated_job = await Job.from_db(self.app, *self.id, self.user)
-        if updated_job.is_complete():
-            log.info(f'job is already completed in db, not rescheduling pod')
-            return
-
-        await self._delete_pod()
-        if self._state == 'Running' and (not self._cancelled or self.always_run):
-            await self._create_pod()
-
-    async def mark_complete(self, status):
-        pod_state = status['state']
-        if pod_state == 'succeeded':
-            new_state = 'Success'
-        elif pod_state == 'error':
-            new_state = 'Error'
+            instance.adjust_free_cores_in_memory(rv['cores_mcpu'])
+            scheduler_state_changed.set()
         else:
-            assert pod_state == 'failed', pod_state
-            new_state = 'Failed'
+            log.warning(f'mark_complete for job {id} from unknown {instance}')
 
-        n_updated = await self.app['db'].jobs.update_record(*self.id,
-                                                            compare_items={'state': self._state},
-                                                            status=json.dumps(status),
-                                                            state=new_state)
-        if n_updated == 0:
-            log.info(f'could not update job {self.id} due to db not matching expected state')
-            raise JobStateWriteFailure()
+    await notify_batch_job_complete(db, batch_id)
 
-        self.status = status
 
-        if self._state != new_state:
-            log.info('job {} changed state: {} -> {}'.format(
-                self.id,
-                self._state,
-                new_state))
+def job_record_to_dict(record):
+    def getopt(obj, attr):
+        if obj is None:
+            return None
+        return obj.get(attr)
 
-        self._state = new_state
+    result = {
+        'batch_id': record['batch_id'],
+        'job_id': record['job_id'],
+        'state': record['state']
+    }
+    # FIXME can't change this yet, batch and batch2 share client
+    if record['status']:
+        status = json.loads(record['status'])
 
-        await self._delete_pod()
-        await self.notify_children(new_state)
-
-        log.info('job {} complete with state {}, status {}'.format(self.id, self._state, status))
-
-        if self.batch_id:
-            batch = await Batch.from_db(self.app, self.batch_id, self.user)
-            if batch is not None:
-                await batch.mark_job_complete()
-
-    def to_dict(self):
-        def getopt(obj, attr):
-            if obj is None:
-                return None
-            return obj.get(attr)
-
-        result = {
-            'batch_id': self.batch_id,
-            'job_id': self.job_id,
-            'state': self._state
+        if 'error' in status:
+            result['error'] = status['error']
+        result['exit_code'] = {
+            k: getopt(getopt(status['container_statuses'][k], 'container_status'), 'exit_code') for
+            k in tasks
         }
-        # FIXME can't change this yet, batch and batch2 share client
-        if self.status:
-            if 'error' in self.status:
-                result['error'] = self.status['error']
-            result['exit_code'] = {
-                k: getopt(getopt(self.status['container_statuses'][k], 'container_status'), 'exit_code') for
-                k in tasks
-            }
-            result['duration'] = {k: getopt(self.status['container_statuses'][k]['timing'], 'runtime') for k in tasks}
-            result['message'] = {
-                # the execution of the pod container might have
-                # failed, or the docker container might have completed
-                # (wait returned) but had status error
-                k: (getopt(self.status['container_statuses'][k], 'error') or
-                    getopt(getopt(self.status['container_statuses'][k], 'container_status'), 'error'))
-                for k in tasks
-            }
-        if self.attributes:
-            result['attributes'] = self.attributes
-        return result
+        result['duration'] = {k: getopt(status['container_statuses'][k]['timing'], 'runtime') for k in tasks}
+        result['message'] = {
+            # the execution of the job container might have
+            # failed, or the docker container might have completed
+            # (wait returned) but had status error
+            k: (getopt(status['container_statuses'][k], 'error') or
+                getopt(getopt(status['container_statuses'][k], 'container_status'), 'error'))
+            for k in tasks
+        }
+
+    spec = json.loads(record['spec'])
+    attributes = spec.get('attributes')
+    if attributes:
+        result['attributes'] = attributes
+    return result
 
 
-class Batch:
-    @staticmethod
-    def from_record(app, record, deleted=False):
-        if record is not None:
-            if not deleted:
-                assert not record['deleted']
-            attributes = json.loads(record['attributes'])
-            userdata = json.loads(record['userdata'])
+async def unschedule_job(app, record):
+    scheduler_state_changed = app['scheduler_state_changed']
+    db = app['db']
+    inst_pool = app['inst_pool']
 
-            if record['n_failed'] > 0:
-                state = 'failure'
-            elif record['n_cancelled'] > 0:
-                state = 'cancelled'
-            elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
-                state = 'success'
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    id = (batch_id, job_id)
+
+    instance_name = record['instance_name']
+    assert instance_name is not None
+
+    log.info(f'unscheduling job {id} from instance {instance_name}')
+
+    instance = inst_pool.name_instance.get(instance_name)
+    if not instance:
+        log.warning(f'unschedule job {id}: unknown instance {instance_name}')
+        return
+
+    await check_call_procedure(
+        db,
+        'CALL unschedule_job(%s, %s, %s);',
+        (batch_id, job_id, instance_name))
+
+    log.info(f'unschedule job {id}: updated database')
+
+    instance.adjust_free_cores_in_memory(record['cores_mcpu'])
+    scheduler_state_changed.set()
+
+    log.info(f'unschedule job {id}: updated {instance} free cores')
+
+    url = (f'http://{instance.ip_address}:5000'
+           f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
+    delay = 0.1
+    while True:
+        if instance.state in ('inactive', 'deleted'):
+            break
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                await session.delete(url)
+                await instance.mark_healthy()
+                break
+        except Exception as e:
+            if (isinstance(e, aiohttp.ClientResponseError) and
+                    e.status == 404):  # pylint: disable=no-member
+                await instance.mark_healthy()
+                break
             else:
-                state = 'running'
+                await instance.incr_failed_request_count()
+                if is_transient_error(e):
+                    pass
+                else:
+                    raise
+        delay = await sleep_and_backoff(delay)
 
-            complete = record['closed'] and record['n_completed'] == record['n_jobs']
+    log.info(f'unschedule job {id}: called delete job')
 
-            return Batch(app,
-                         id=record['id'],
-                         attributes=attributes,
-                         callback=record['callback'],
-                         userdata=userdata,
-                         user=record['user'],
-                         state=state,
-                         complete=complete,
-                         deleted=record['deleted'],
-                         cancelled=record['cancelled'],
-                         closed=record['closed'])
-        return None
 
-    @staticmethod
-    async def from_db(app, ids, user):
-        batches = await Batch.from_db_multiple(app, ids, user)
-        if len(batches) == 1:
-            return batches[0]
-        return None
+async def job_config(app, record):
+    k8s_client = app['k8s_client']
 
-    @staticmethod
-    async def from_db_multiple(app, ids, user):
-        records = await app['db'].batch.get_undeleted_records(ids, user)
-        batches = [Batch.from_record(app, record) for record in records]
-        return batches
+    job_spec = json.loads(record['spec'])
+    userdata = json.loads(record['userdata'])
 
-    @staticmethod
-    async def create_batch(app, attributes, callback, userdata, n_jobs):
-        user = userdata['username']
+    secrets = job_spec['secrets']
+    k8s_secrets = await asyncio.gather(*[
+        k8s_client.read_namespaced_secret(
+            secret['name'], BATCH_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        for secret in secrets
+    ])
 
-        id = await app['db'].batch.new_record(
-            attributes=json.dumps(attributes),
-            callback=callback,
-            userdata=json.dumps(userdata),
-            user=user,
-            deleted=False,
-            cancelled=False,
-            closed=False,
-            n_jobs=n_jobs)
+    gsa_key = None
+    for secret, k8s_secret in zip(secrets, k8s_secrets):
+        if secret['name'] == userdata['gsa_key_secret_name']:
+            gsa_key = k8s_secret.data
+        secret['data'] = k8s_secret.data
 
-        batch = Batch(app, id=id, attributes=attributes, callback=callback,
-                      userdata=userdata, user=user, state='running',
-                      complete=False, deleted=False, cancelled=False,
-                      closed=False)
+    assert gsa_key
 
-        if attributes is not None:
-            items = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
-            success = await app['db'].batch_attributes.new_records(items)
-            if not success:
-                await batch.delete()
-                return
+    service_account_name = job_spec.get('service_account_name')
+    if service_account_name:
+        sa = await k8s_client.read_namespaced_service_account(
+            service_account_name, BATCH_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        assert len(sa.secrets) == 1
 
-        return batch
+        token_secret_name = sa.secrets[0].name
 
-    def __init__(self, app, id, attributes, callback, userdata, user,
-                 state, complete, deleted, cancelled, closed):
-        self.app = app
-        self.id = id
-        self.attributes = attributes
-        self.callback = callback
-        self.userdata = userdata
-        self.user = user
-        self.state = state
-        self.complete = complete
-        self.deleted = deleted
-        self.cancelled = cancelled
-        self.closed = closed
+        secret = await k8s_client.read_namespaced_secret(
+            token_secret_name, BATCH_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
-    async def get_jobs(self, limit=None, offset=None):
-        jobs = await self.app['db'].jobs.get_records_by_batch(self.id, limit, offset)
-        return [Job.from_record(self.app, record) for record in jobs]
+        token = base64.b64decode(secret.data['token']).decode()
+        namespace = base64.b64decode(secret.data['namespace']).decode()
+        cert = secret.data['ca.crt']
 
-    # called by driver
-    async def _cancel_jobs(self):
-        for j in await self.get_jobs():
-            await j.cancel()
+        kube_config = f'''
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /.kube/ca.crt
+    server: {KUBERNETES_SERVER_URL}
+  name: default-cluster
+contexts:
+- context:
+    cluster: default-cluster
+    user: {service_account_name}
+    namespace: {namespace}
+  name: default-context
+current-context: default-context
+kind: Config
+preferences: {{}}
+users:
+- name: {service_account_name}
+  user:
+    token: {token}
+'''
 
-    # called by front end
-    async def cancel(self):
-        await self.app['db'].batch.update_record(self.id, cancelled=True, closed=True)
-        self.cancelled = True
-        self.closed = True
-        log.info(f'batch {self.id} cancelled')
+        job_spec['secrets'].append({
+            'name': 'kube-config',
+            'mount_path': '/.kube',
+            'data': {'config': base64.b64encode(kube_config.encode()).decode(),
+                     'ca.crt': cert}
+        })
 
-    # called by driver
-    async def _close_jobs(self):
-        for j in await self.get_jobs():
-            if j._state == 'Running':
-                await j._create_pod()
+        env = job_spec.get('env')
+        if not env:
+            env = []
+            job_spec['env'] = env
+        env.append({'name': 'KUBECONFIG',
+                    'value': '/.kube/config'})
 
-    # called by front end
-    async def close(self):
-        await self.app['db'].batch.update_record(self.id, closed=True)
-        self.closed = True
-        log.info(f'batch {self.id} closed')
+    return {
+        'batch_id': record['batch_id'],
+        'user': record['user'],
+        'gsa_key': gsa_key,
+        'job_spec': job_spec
+    }
 
-    # called by driver
-    # FIXME make called by front end
-    async def mark_deleted(self):
-        await self.cancel()
-        await self.app['db'].batch.update_record(self.id,
-                                                 deleted=True)
-        self.deleted = True
-        self.closed = True
-        log.info(f'batch {self.id} marked for deletion')
 
-    async def delete(self):
-        # Job deleted from database when batch is deleted with delete cascade
-        for j in await self.get_jobs():
-            await j._delete_gs_files()
-        await self.app['db'].batch.delete_record(self.id)
-        log.info(f'batch {self.id} deleted')
+async def schedule_job(app, record, instance):
+    assert instance.state == 'active'
 
-    async def mark_job_complete(self):
-        if self.complete and self.callback:
-            log.info(f'making callback for batch {self.id}: {self.callback}')
-            try:
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    await session.post(self.callback, json=await self.to_dict(include_jobs=False))
-                    log.info(f'callback for batch {self.id} successful')
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f'callback for batch {self.id} failed, will not retry.')
+    db = app['db']
 
-    def is_complete(self):
-        return self.complete
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    id = (batch_id, job_id)
 
-    def is_successful(self):
-        return self.state == 'success'
+    try:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            url = (f'http://{instance.ip_address}:5000'
+                   f'/api/v1alpha/batches/jobs/create')
+            body = await job_config(app, record)
+            await session.post(url, json=body)
+            await instance.mark_healthy()
+    except Exception:
+        await instance.incr_failed_request_count()
+        raise
 
-    async def to_dict(self, include_jobs=False, limit=None, offset=None):
-        result = {
-            'id': self.id,
-            'state': self.state,
-            'complete': self.complete,
-            'closed': self.closed
-        }
-        if self.attributes:
-            result['attributes'] = self.attributes
-        if include_jobs:
-            jobs = await self.get_jobs(limit, offset)
-            result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
-        return result
+    log.info(f'schedule job {id} on {instance}: called create job')
+
+    await check_call_procedure(
+        db,
+        'CALL schedule_job(%s, %s, %s);',
+        (batch_id, job_id, instance.name))
+
+    log.info(f'schedule job {id} on {instance}: updated database')
+
+    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
+
+    log.info(f'schedule job {id} on {instance}: adjusted instance pool')

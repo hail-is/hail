@@ -17,25 +17,19 @@ object CompileAndEvaluate {
     val timer = new ExecutionTimer(evalContext)
     var ir = ir0
 
-    def optimizeIR(canGenerateLiterals: Boolean, context: String) {
-      ir = timer.time(Optimize(ir, noisy = true, canGenerateLiterals, Some(s"$evalContext: $context")), context)
+    def optimizeIR(context: String) {
+      ir = timer.time(Optimize(ir, noisy = true, Some(s"$evalContext: $context")), context)
       TypeCheck(ir, BindingEnv(env.mapValues(_._2)))
     }
 
-    if (optimize) optimizeIR(true, "first pass")
+    if (optimize) optimizeIR("first pass")
     ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR(true, "after Matrix lowering")
-    ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
-    ir = LiftNonCompilable(ir).asInstanceOf[IR]
+    if (optimize) optimizeIR("after Matrix lowering")
+    ir = InterpretNonCompilable(ctx, ir).asInstanceOf[IR]
 
+    if (ir.typ == TVoid)
     // void is not really supported by IR utilities
-    if (ir.typ == TVoid) {
-      val res = timer.time(Interpret[T](ctx, ir, env, args, None, optimize = false), "interpret")
-      return (res, timer.timings)
-    }
-
-    val (evalIR, ncValue, ncType, ncVar) = timer.time(InterpretNonCompilable(ctx, ir), "interpret non-compilable")
-    ir = evalIR
+      return (().asInstanceOf[T], timer.timings)
 
     val argsInVar = genUID()
     val argsInType = TTuple(args.map(_._2): _*)
@@ -51,6 +45,7 @@ object CompileAndEvaluate {
             MapIR(rewriteArgsIn)(x)
         }
       }
+
       rewriteArgsIn
     }
 
@@ -60,7 +55,7 @@ object CompileAndEvaluate {
         case Array((envVar, (envValue, envType: TStruct))) => (envVar, envType, envValue, identity[IR])
         case eArray =>
           val envVar = genUID()
-          val envType = TStruct(eArray.map { case (name, (_, t)) => name -> t}: _*)
+          val envType = TStruct(eArray.map { case (name, (_, t)) => name -> t }: _*)
           val envValue = Row.fromSeq(eArray.map(_._2._1))
           (envVar,
             envType,
@@ -72,12 +67,10 @@ object CompileAndEvaluate {
     ir = rewriteArgsIn(ir)
     ir = rewriteEnv(ir)
 
-    val ncPType = PType.canonical(ncType)
     val argsInPType = PType.canonical(argsInType)
     val envPType = PType.canonical(envType)
 
-    val (resultPType, f) = timer.time(Compile[Long, Long, Long, Long](
-      ncVar, ncPType,
+    val (resultPType, f) = timer.time(Compile[Long, Long, Long](
       argsInVar, argsInPType,
       envVar, envPType,
       MakeTuple.ordered(FastSeq(ir))), "compile")
@@ -85,9 +78,6 @@ object CompileAndEvaluate {
     val value = timer.time(
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
-        rvb.start(ncPType)
-        rvb.addAnnotation(ncType, ncValue)
-        val ncOffset = rvb.end()
 
         rvb.start(argsInPType)
         rvb.addAnnotation(argsInType, argsInValue)
@@ -98,7 +88,6 @@ object CompileAndEvaluate {
         val envOffset = rvb.end()
 
         val resultOff = f(0, region)(region,
-          ncOffset, ncValue == null,
           argsInOffset, argsInValue == null,
           envOffset, envValue == null)
         SafeRow(resultPType.asInstanceOf[PBaseStruct], region, resultOff).getAs[T](0)

@@ -1,0 +1,6 @@
+{% extends "layout.html" %}
+{% block title %}Batch {{ batch_id }} Job {{ job_id }} Status{% endblock %}
+{% block content %}
+  <h1>Batch {{ batch_id }} Job {{ job_id }} Status</h1>
+  <pre>{{ job_status }}</pre>
+{% endblock %}

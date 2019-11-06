@@ -182,6 +182,15 @@ class SimplifySuite extends HailSuite {
     }
   }
 
+  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(): Unit = {
+    val reader = MatrixRangeReader(1, 1, None)
+    var mir: MatrixIR = MatrixRead(reader.fullMatrixType, false, false, reader)
+    val colType = reader.fullMatrixType.colType
+    mir = MatrixMapCols(mir, AggLet("foo", I32(1), InsertFields(Ref("sa", colType), FastSeq(("bar", I32(2)))), false), None)
+    val tir = MatrixColsTable(mir)
+
+    assert(Simplify(tir) == tir)
+  }
 
   @Test def testFilterParallelize() {
     for (rowsAndGlobals <- Array(

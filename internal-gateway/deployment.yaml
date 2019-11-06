@@ -56,3 +56,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: internal-gateway
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: internal-gateway

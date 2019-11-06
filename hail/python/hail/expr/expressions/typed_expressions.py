@@ -3553,7 +3553,7 @@ class NDArrayExpression(Expression):
         :class:`.NDArrayExpression`.
         """
         if isinstance(shape, TupleExpression):
-            shape_ir = hl.tuple([hl.int64(i) for i in shape])._ir
+            shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
             ndim = len(shape)
         else:
             wrapped_shape = wrap_to_list(shape)
