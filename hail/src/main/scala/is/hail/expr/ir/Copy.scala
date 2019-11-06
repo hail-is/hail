@@ -94,6 +94,9 @@ object Copy {
       case NDArrayMatMul(_, _) =>
         assert(newChildren.length == 2)
         NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case NDArrayQR(_, mode) =>
+        assert(newChildren.length == 1)
+        NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
       case NDArrayWrite(_, _) =>
         assert(newChildren.length == 2)
         NDArrayWrite(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])

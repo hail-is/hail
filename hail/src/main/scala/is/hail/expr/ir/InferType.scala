@@ -141,6 +141,12 @@ object InferType {
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)), lTyp.required && rTyp.required)
+      case NDArrayQR(nd, mode) =>
+        if (Array("complete", "reduced").contains(mode)) {
+          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(2), false))
+        } else {
+          throw new NotImplementedError("Cannot infer type unless it's complete or reduced")
+        }
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
