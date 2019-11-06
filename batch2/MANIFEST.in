@@ -1,1 +1,2 @@
 recursive-include batch/front_end/templates *
+recursive-include batch/driver/templates *
