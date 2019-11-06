@@ -2011,7 +2011,7 @@ case class BlockMatrixToTableApply(
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val b = bm.execute(ctx)
-    val (a, _) = CompileAndEvaluate[Any](ctx, aux, optimize = false)
+    val a = CompileAndEvaluate[Any](ctx, aux, optimize = false)
     function.execute(ctx, b, a)
   }
 }
