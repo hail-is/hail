@@ -920,6 +920,7 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - batch_pods_ns
     - ci_image
     - ci_utils_image
     - create_accounts
