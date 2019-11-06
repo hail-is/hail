@@ -226,7 +226,9 @@ def cond(condition,
          consequent,
          alternate,
          missing_false: bool = False):
-    """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
+    """Deprecated in favor of :func:`.if_else`.
+
+    Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
     --------
@@ -237,6 +239,58 @@ def cond(condition,
 
     >>> a = hl.literal([1, 2, 3, 4])
     >>> hl.eval(hl.cond(hl.len(a) > 0, 2.0 * a, a / 2.0))
+    [2.0, 4.0, 6.0, 8.0]
+
+    Notes
+    -----
+
+    If `condition` evaluates to ``True``, returns `consequent`. If `condition`
+    evaluates to ``False``, returns `alternate`. If `predicate` is missing, returns
+    missing.
+
+    Note
+    ----
+    The type of `consequent` and `alternate` must be the same.
+
+    Parameters
+    ----------
+    condition : :class:`.BooleanExpression`
+        Condition to test.
+    consequent : :class:`.Expression`
+        Branch to return if the condition is ``True``.
+    alternate : :class:`.Expression`
+        Branch to return if the condition is ``False``.
+    missing_false : :obj:`.bool`
+        If ``True``, treat missing `condition` as ``False``.
+
+    See Also
+    --------
+    :func:`.case`, :func:`.switch`, :func:`.if_else`
+
+    Returns
+    -------
+    :class:`.Expression`
+        One of `consequent`, `alternate`, or missing, based on `condition`.
+    """
+    return if_else(condition, consequent, alternate, missing_false)
+
+
+@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
+def if_else(condition,
+            consequent,
+            alternate,
+            missing_false: bool = False):
+    """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
+
+    Examples
+    --------
+
+    >>> x = 5
+    >>> hl.eval(hl.if_else(x < 2, 'Hi', 'Bye'))
+    'Bye'
+
+    >>> a = hl.literal([1, 2, 3, 4])
+    >>> hl.eval(hl.if_else(hl.len(a) > 0, 2.0 * a, a / 2.0))
     [2.0, 4.0, 6.0, 8.0]
 
     Notes
@@ -277,13 +331,13 @@ def cond(condition,
 
     consequent, alternate, success = unify_exprs(consequent, alternate)
     if not success:
-        raise TypeError(f"'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+        raise TypeError(f"'if_else' and 'cond' require the 'consequent' and 'alternate' arguments to have the same type\n"
                         f"    consequent: type '{consequent.dtype}'\n"
                         f"    alternate:  type '{alternate.dtype}'")
     assert consequent.dtype == alternate.dtype
 
     return construct_expr(If(condition._ir, consequent._ir, alternate._ir),
-                              consequent.dtype, indices, aggregations)
+                          consequent.dtype, indices, aggregations)
 
 
 def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
