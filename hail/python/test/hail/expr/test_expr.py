@@ -312,6 +312,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    def test_if_else(self):
+        self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
+
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
+
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
