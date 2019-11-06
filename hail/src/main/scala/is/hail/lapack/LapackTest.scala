@@ -37,21 +37,19 @@ object LapackTest {
     val bMem = new Memory (8 * 16) //HailMemory.malloc(8 * 16)
     val cMem = new Memory(8 * 16) //HailMemory.malloc(8 * 16)
 
-//    println(aMem.getDouble(0L))
-//    aMem.setDouble(0L, 100.0)
-//    println(aMem.getDouble(0L))
+
 
     (0 until 16).foreach{idx =>
       val adjusted = idx.toLong * 8
       aMem.setDouble(adjusted, 1.0)
       println("Set A in loop")
       bMem.setDouble(adjusted, 1.0)
-      //cMem.setDouble(idx.toLong, 0.0)
+      cMem.setDouble(idx.toLong, 0.0)
     }
 
 
     println(aMem.getDouble(0L))
-//    println(cMem.getDouble(0L))
+    println(cMem.getDouble(0L))
 //
     val TRANSA = new IntByReference('n'.toInt)
     val TRANSB = new IntByReference('n'.toInt)
@@ -67,8 +65,8 @@ object LapackTest {
       LDA, bMem, LDB, new DoubleByReference(1.0),
       cMem, LDC)
 //
-//    println(aMem.getDouble(0L))
-//    println(cMem.getDouble(0L))
+    println(aMem.getDouble(0L))
+    println(cMem.getDouble(0L))
 //
 //    //println(LAPACKLibrary.instance.disnan(4.3))
 ////    var x = 3.0
