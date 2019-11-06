@@ -3570,8 +3570,8 @@ class MatrixTable(ExprContainer):
                                      f"Datasets 0 and {wrong_keys+1} have different columns (or possibly different order).")
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
-    @typecheck_method(other=matrix_table_type)
-    def union_cols(self, other: 'MatrixTable') -> 'MatrixTable':
+    @typecheck_method(other=matrix_table_type, _outer=bool)
+    def union_cols(self, other: 'MatrixTable', _outer=False) -> 'MatrixTable':
         """Take the union of dataset columns.
 
         Examples
@@ -3628,7 +3628,7 @@ class MatrixTable(ExprContainer):
                              f'    left: {", ".join(self.row_key.dtype.values())}\n'
                              f'    right: {", ".join(other.row_key.dtype.values())}')
 
-        return MatrixTable(MatrixUnionCols(self._mir, other._mir))
+        return MatrixTable(MatrixUnionCols(self._mir, other._mir, "outer" if _outer else "inner"))
 
     @typecheck_method(n=nullable(int), n_cols=nullable(int))
     def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':

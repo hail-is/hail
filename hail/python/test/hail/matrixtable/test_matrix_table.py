@@ -530,6 +530,11 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    def test_union_cols_outer(self):
+        mt = hl.utils.range_matrix_table(10, 1)
+        mt2 = mt.key_rows_by(row_idx=mt.row_idx + 5)
+        assert mt.union_cols(mt2, _outer=True).count_rows() == 15
+
     def test_union_rows_different_col_schema(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt2 = hl.utils.range_matrix_table(10, 10)

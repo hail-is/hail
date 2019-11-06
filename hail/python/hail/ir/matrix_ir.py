@@ -121,10 +121,17 @@ class MatrixMapCols(MatrixIR):
 
 
 class MatrixUnionCols(MatrixIR):
-    def __init__(self, left, right):
+    def __init__(self, left, right, join_type):
         super().__init__(left, right)
         self.left = left
         self.right = right
+        self.join_type = join_type
+
+    def head_str(self):
+        return f'{escape_id(self.join_type)}'
+
+    def _eq(self, other):
+        return self.join_type == other.join_type
 
     def _compute_type(self):
         self.right.typ  # force
