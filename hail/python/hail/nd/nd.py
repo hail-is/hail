@@ -4,8 +4,9 @@ import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.types import HailType
 from hail.typecheck import *
-from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, Int64Expression, cast_expr
+from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, Int64Expression, cast_expr, construct_expr
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
+from hail.ir import NDArrayQR
 
 
 def array(input_array):
@@ -120,3 +121,10 @@ def ones(shape, dtype=hl.tfloat64):
            NDArray of the specified size full of ones.
        """
     return full(shape, 1, dtype)
+
+
+# Lapack stuff
+
+def qr(nd, mode = "reduced"):
+    ir = NDArrayQR(nd._ir, mode)
+    return construct_expr(ir, ...)
