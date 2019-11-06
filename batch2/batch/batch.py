@@ -2,11 +2,13 @@ import json
 import logging
 import asyncio
 import aiohttp
+import base64
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
-from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE, \
+    KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
 
@@ -226,6 +228,59 @@ async def job_config(app, record):
         secret['data'] = k8s_secret.data
 
     assert gsa_key
+
+    service_account_name = job_spec.get('service_account_name')
+    if service_account_name:
+        sa = await k8s_client.read_namespaced_service_account(
+            service_account_name, BATCH_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        assert len(sa.secrets) == 1
+
+        token_secret_name = sa.secrets[0].name
+
+        secret = await k8s_client.read_namespaced_secret(
+            token_secret_name, BATCH_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+        token = base64.b64decode(secret.data['token']).decode()
+        namespace = base64.b64decode(secret.data['namespace']).decode()
+        cert = secret.data['ca.crt']
+
+        kube_config = f'''
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /.kube/ca.crt
+    server: {KUBERNETES_SERVER_URL}
+  name: default-cluster
+contexts:
+- context:
+    cluster: default-cluster
+    user: {service_account_name}
+    namespace: {namespace}
+  name: default-context
+current-context: default-context
+kind: Config
+preferences: {{}}
+users:
+- name: {service_account_name}
+  user:
+    token: {token}
+'''
+
+        job_spec['secrets'].append({
+            'name': 'kube-config',
+            'mount_path': '/.kube',
+            'data': {'config': base64.b64encode(kube_config.encode()).decode(),
+                     'ca.crt': cert}
+        })
+
+        env = job_spec.get('env')
+        if not env:
+            env = []
+            job_spec['env'] = env
+        env.append({'name': 'KUBECONFIG',
+                    'value': '/.kube/config'})
 
     return {
         'batch_id': record['batch_id'],

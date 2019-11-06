@@ -137,6 +137,10 @@ class Container:
                            'CpuQuota': self.cpu_in_mcpu * 100}
         }
 
+        env = self.spec.get('env')
+        if env:
+            config['Env'] = env
+
         volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
@@ -381,6 +385,10 @@ class Job:
                 if secret.get('mount_in_copy', False):
                     copy_volume_mounts.append(volume_mount)
 
+        env = []
+        for item in job_spec.get('env', []):
+            env.append(f'{item["name"]}={item["value"]}')
+
         # create containers
         containers = {}
 
@@ -394,7 +402,7 @@ class Job:
             'command': job_spec['command'],
             'image': job_spec['image'],
             'name': 'main',
-            # FIXME env
+            'env': env,
             'cpu': job_spec['resources']['cpu'],
             'volume_mounts': main_volume_mounts
         }
