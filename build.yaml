@@ -23,7 +23,7 @@ steps:
      valueFrom: default_ns.name
    config: batch2/service-account.yaml
    dependsOn:
-    - default_ns    
+    - default_ns
  - kind: createNamespace
    name: batch_pods_ns
    namespaceName: batch-pods
@@ -39,6 +39,15 @@ steps:
     - hail-ci-0-1-service-account-key
    dependsOn:
     - default_ns
+    - deploy_batch2_sa
+ - kind: deploy
+   name: deploy_batch2_sa_batch_pods
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch2/service-account-batch-pods.yaml
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
     - deploy_batch2_sa
  - kind: deploy
    name: deploy_batch_output_sa
@@ -799,6 +808,7 @@ steps:
     - batch_pods_ns
     - deploy_router
     - deploy_batch2_sa
+    - deploy_batch2_sa_batch_pods
     - create_accounts
     - batch2_image
     - batch2_worker_image
