@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `tokens` (
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
   `state` VARCHAR(40) NOT NULL,
-  `activation_token` VARCHAR(100) NOT NULL,
+  `activation_token` VARCHAR(100),
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
