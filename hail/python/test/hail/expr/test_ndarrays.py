@@ -474,6 +474,18 @@ def test_ndarray_full():
     assert hl.eval(hl._nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
 
 @skip_unless_spark_backend()
+def test_ndarray_arange():
+    assert_ndarrays_eq(
+        (hl._nd.arange(40), np.arange(40)),
+        (hl._nd.arange(5, 50), np.arange(5, 50)),
+        (hl._nd.arange(2, 47, 13), np.arange(2, 47, 13))
+    )
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl._nd.arange(5, 20, 0))
+    assert "Array range cannot have step size 0" in str(exc)
+
+@skip_unless_spark_backend()
 def test_ndarray_mixed():
     assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(lambda x: x * x).reshape((4, 5)).T) is None
     assert hl.eval(
