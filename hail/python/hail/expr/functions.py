@@ -1950,7 +1950,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
     The range includes `start`, but excludes `stop`.
 
     If provided exactly one argument, the argument is interpreted as `stop` and
-    `start` is set to zero. This matches the behavior Python's ``range``.
+    `start` is set to zero. This matches the behavior of Python's ``range``.
 
     Parameters
     ----------
