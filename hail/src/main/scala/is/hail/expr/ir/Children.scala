@@ -107,6 +107,8 @@ object Children {
       Array(nd)
     case NDArrayMatMul(l, r) =>
       Array(l, r)
+    case NDArrayQR(nd, _) =>
+      Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>
