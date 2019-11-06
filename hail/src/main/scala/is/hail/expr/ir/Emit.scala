@@ -1687,6 +1687,24 @@ private class Emit(
         }
         emitter.emit(outputPType)
 
+      case NDArrayQR(nd, method) =>
+        val ndt = emit(nd)
+
+        val ndAddress = mb.newField[Long]
+
+        val ndPType = nd.pType.asInstanceOf[PNDArray]
+        val shapeAddress = ndPType.shape.load(region, ndAddress)
+        val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
+
+        // I want a way to lay out a Scala tuple in hail managed memory on the fly
+        val M = shapeTuple(0)
+        val N = shapeTuple(1)
+
+        val result = Code(
+          ndAddress := ndt.value[Long]
+        )
+
+        EmitTriplet(ndt.setup, ndt.m, result)
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType

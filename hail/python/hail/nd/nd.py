@@ -127,4 +127,4 @@ def ones(shape, dtype=hl.tfloat64):
 
 def qr(nd, mode = "reduced"):
     ir = NDArrayQR(nd._ir, mode)
-    return construct_expr(ir, ...)
+    return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))

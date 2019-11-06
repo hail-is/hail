@@ -737,6 +737,9 @@ class NDArrayQR(IR):
     def copy(self):
         return NDArrayQR(self.nd, self.mode)
 
+    def head_str(self):
+        return f'"{self.mode}"'
+
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
 
