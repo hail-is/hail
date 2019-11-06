@@ -57,7 +57,7 @@ def full(shape, value, dtype=None):
         shape_product = shape
     else:
         shape_product = reduce(lambda a, b: a * b, shape)
-    return array(hl.range(hl.int32(shape_product)).map(lambda x: cast_expr(value, dtype))).reshape(shape)
+    return arange(hl.int32(shape_product)).map(lambda x: cast_expr(value, dtype)).reshape(shape)
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
