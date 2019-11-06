@@ -195,6 +195,9 @@ object TypeCheck {
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
+      case x@NDArrayQR(nd, mode) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))
