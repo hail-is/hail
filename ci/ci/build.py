@@ -606,7 +606,7 @@ date
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     # FIXME configuration
-                                    service_account_name={
+                                    service_account={
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
@@ -956,7 +956,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=self.secrets,
-                                    service_account_name={
+                                    service_account={
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
