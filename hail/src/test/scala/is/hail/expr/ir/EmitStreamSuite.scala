@@ -352,4 +352,24 @@ class EmitStreamSuite extends HailSuite {
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
     assert(f2(null) == null)
   }
+
+  @Test def testEmitIf() {
+    val xs = MakeStream(Seq[IR](5, 3, 6), TStream(TInt32()))
+    val ys = StreamRange(0, 3, 1)
+    val na = NA(TStream(TInt32()))
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      If(True(), xs, ys) -> IndexedSeq(5, 3, 6),
+      If(False(), xs, ys) -> IndexedSeq(0, 1, 2),
+      If(True(), xs, na) -> IndexedSeq(5, 3, 6),
+      If(False(), xs, na) -> null,
+      If(NA(TBoolean()), xs, ys) -> null,
+      ArrayFlatMap(MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
+        "x", If(Ref("x", TBoolean()), xs, ys)) -> IndexedSeq(0, 1, 2, 5, 3, 6, 0, 1, 2)
+    )
+    val lens: Array[Option[Int]] = Array(Some(3), Some(3), Some(3), Some(0), Some(0), None)
+    for (((ir, v), len) <- tests zip lens) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir) == len, Pretty(ir))
+    }
+  }
 }
