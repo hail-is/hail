@@ -766,8 +766,8 @@ def job_spec_to_k8s_pod_spec(job_spec):
         }],
         'volumes': volumes
     }
-    if 'service_account_name' in job_spec:
-        pod_spec['serviceAccountName'] = job_spec['service_account_name']
+    if 'service_account' in job_spec:
+        pod_spec['serviceAccountName'] = job_spec['service_account']['name']
     return pod_spec
 
 

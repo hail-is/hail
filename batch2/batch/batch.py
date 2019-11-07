@@ -7,7 +7,7 @@ from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
-from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_PODS_NAMESPACE, \
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
@@ -229,21 +229,23 @@ async def job_config(app, record):
 
     assert gsa_key
 
-    service_account_name = job_spec.get('service_account_name')
-    if service_account_name:
+    service_account = job_spec.get('service_account')
+    if service_account:
+        namespace = service_account['namespace']
+        name = service_account['name']
+
         sa = await k8s_client.read_namespaced_service_account(
-            service_account_name, BATCH_PODS_NAMESPACE,
+            name, namespace,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
         secret = await k8s_client.read_namespaced_secret(
-            token_secret_name, BATCH_PODS_NAMESPACE,
+            token_secret_name, namespace,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
-        namespace = base64.b64decode(secret.data['namespace']).decode()
         cert = secret.data['ca.crt']
 
         kube_config = f'''
@@ -256,14 +258,14 @@ clusters:
 contexts:
 - context:
     cluster: default-cluster
-    user: {service_account_name}
+    user: {namespace}-{name}
     namespace: {namespace}
   name: default-context
 current-context: default-context
 kind: Config
 preferences: {{}}
 users:
-- name: {service_account_name}
+- name: {namespace}-{name}
   user:
     token: {token}
 '''

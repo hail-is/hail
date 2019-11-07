@@ -17,6 +17,8 @@ spec:
        value: {{ base_image.image }}
      - name: CI_UTILS_IMAGE
        value: {{ ci_utils_image.image }}
+     - name: HAIL_BATCH_PODS_NAMESPACE
+       value: {{ batch_pods_ns.name }}
     volumeMounts:
       - mountPath: /deploy-config
         readOnly: true

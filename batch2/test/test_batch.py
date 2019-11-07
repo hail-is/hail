@@ -348,8 +348,13 @@ class Test(unittest.TestCase):
 
     def test_service_account(self):
         b = self.client.create_batch()
-        j = b.create_job(os.environ['CI_UTILS_IMAGE'], ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
-                         service_account_name='ci-agent')
+        j = b.create_job(
+            os.environ['CI_UTILS_IMAGE'],
+            ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
+            service_account={
+                'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
+                'name': 'ci-agent'
+            })
         b.submit()
         status = j.wait()
         assert status['exit_code']['main'] == 0, status
