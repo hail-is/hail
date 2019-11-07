@@ -3,10 +3,8 @@ package is.hail.lapack
 import com.sun.jna.{Native, Library, Pointer, Memory}
 import com.sun.jna.ptr._
 import is.hail.annotations.{Memory => HailMemory}
+import is.hail.linalg.LAPACKLibrary
 
-object LAPACKLibrary {
-  val instance = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
-}
 
 object BLASLibrary {
   val instance = Native.loadLibrary("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
@@ -19,11 +17,6 @@ trait BLASLibrary extends Library {
     C: Long, LDC: IntByReference)
 }
 
-trait LAPACKLibrary extends Library {
-  def dsyevd(JOBZ: Char, UPLO: Char, N: Int, A: Pointer, LDA: Int, W: Pointer, WORK: Pointer, LWORK: Int, IWORK: Pointer, LIWORK: Int, INFO: Int)
-  //def disnan(DIN: Double)
-  def dlapy2(X: DoubleByReference, Y: DoubleByReference): Double
-}
 
 object LapackTest {
   final def main(args: Array[String]): Unit = {
@@ -43,14 +36,6 @@ object LapackTest {
 
     (0 until 16).foreach{idx =>
       val adjusted = idx.toLong * 8
-//      aMem.setDouble(adjusted, 1.0)
-//      if (idx % 4 == 0) {
-//        bMem.setDouble(adjusted, 1.0)
-//      }
-//      else {
-//        bMem.setDouble(adjusted, 0.0)
-//      }
-//      cMem.setDouble(idx.toLong, 0.0)
       HailMemory.storeDouble(aMemH + adjusted, 1.0)
       if (idx % 4 == 0) {
         HailMemory.storeDouble(bMemH + adjusted, 1.0)
