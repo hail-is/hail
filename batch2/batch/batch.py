@@ -3,6 +3,7 @@ import logging
 import asyncio
 import aiohttp
 import base64
+import kubernetes_asyncio as kube
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
@@ -11,6 +12,18 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
+
+
+class KubernetesResourceError(Exception):
+    def __init__(self, resource_type, name, namespace):
+        super().__init__()
+        self.resource_type = resource_type
+        self.name = name
+        self.namespace = namespace
+
+    def __str__(self):
+        return f"could not get {self.resource_type} with name '{self.name}' in " \
+            f"namespace '{self.namespace}'"
 
 
 async def batch_record_to_dict(db, record, include_jobs=False):
@@ -207,6 +220,28 @@ async def unschedule_job(app, record):
     log.info(f'unschedule job {id}: called delete job')
 
 
+async def get_k8s_secret(k8s_client, name, namespace):
+    try:
+        return await k8s_client.read_namespaced_secret(
+            name, namespace,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException:
+        raise KubernetesResourceError('secret', name, namespace)
+    except:
+        raise
+
+
+async def get_k8s_service_account(k8s_client, name, namespace):
+    try:
+        return await k8s_client.read_namespaced_service_account(
+            name, namespace,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException:
+        raise KubernetesResourceError('service account', name, namespace)
+    except:
+        raise
+
+
 async def job_config(app, record):
     k8s_client = app['k8s_client']
 
@@ -215,9 +250,7 @@ async def job_config(app, record):
 
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
-        k8s_client.read_namespaced_secret(
-            secret['name'], secret['namespace'],
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        get_k8s_secret(k8s_client, secret['name'], secret['namespace'])
         for secret in secrets
     ])
 
@@ -234,16 +267,12 @@ async def job_config(app, record):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await k8s_client.read_namespaced_service_account(
-            name, namespace,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        assert len(sa.secrets) == 1
+        sa = await get_k8s_service_account(k8s_client, name, namespace)
 
+        assert len(sa.secrets) == 1
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_client.read_namespaced_secret(
-            token_secret_name, namespace,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        secret = await get_k8s_secret(k8s_client, token_secret_name, namespace)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
@@ -302,11 +331,25 @@ async def schedule_job(app, record, instance):
     id = (batch_id, job_id)
 
     try:
+        body = await job_config(app, record)
+    except Exception as err:
+        status = {
+            'worker': None,
+            'batch_id': batch_id,
+            'job_id': job_id,
+            'user': record['user'],
+            'state': 'error',
+            'error': str(err),
+            'container_statuses': None
+        }
+        await mark_job_complete(app, batch_id, job_id, 'Error', status)
+        return
+
+    try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             url = (f'http://{instance.ip_address}:5000'
                    f'/api/v1alpha/batches/jobs/create')
-            body = await job_config(app, record)
             await session.post(url, json=body)
             await instance.mark_healthy()
     except Exception:
