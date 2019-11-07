@@ -938,7 +938,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_ci
-    - deploy_ci_default
     - test_ci_image
     - create_ci_test_repo
  - kind: runImage
