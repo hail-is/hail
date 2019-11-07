@@ -421,10 +421,7 @@ class RunImageStep(Step):
         secrets = []
         if self.secrets:
             for secret in self.secrets:
-                if 'namespace' in secret:
-                    namespace = get_namespace(secret['namespace'], self.input_config(code, scope))
-                else:
-                    namespace = BATCH_PODS_NAMESPACE
+                namespace = get_namespace(secret['namespace'], self.input_config(code, scope))
                 name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
                 secrets.append({
