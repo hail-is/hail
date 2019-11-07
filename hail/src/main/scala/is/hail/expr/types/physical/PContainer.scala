@@ -54,7 +54,7 @@ abstract class PContainer extends PIterable {
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(4, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
+      UnsafeUtils.roundUpAlignment(((length + 7) >>> 3) + 4, elementType.alignment)
 
   def _elementsOffset(length: Code[Int]): Code[Long] =
     if (elementType.required)
