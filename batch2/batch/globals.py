@@ -12,4 +12,4 @@ valid_state_transitions = {
     'Success': set(),
 }
 
-tasks = ('setup', 'main', 'cleanup')
+tasks = ('input', 'main', 'output')
