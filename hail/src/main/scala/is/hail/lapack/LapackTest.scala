@@ -12,7 +12,7 @@ object BLASLibrary {
 
 trait BLASLibrary extends Library {
   //def dgemm(TRANSA: Char, TRANSB: Char, M: Int, N: Int, K: Int, ALPHA: Double, A: Pointer, LDA: Int, B: Pointer, LDB: Int, BETA: Double, C: Pointer, LDC: Int)
-  def dgemm(TRANSA: IntByReference, TRANSB: IntByReference, M: IntByReference, N: IntByReference, K: IntByReference,
+  def dgemm(TRANSA: IntByReference, TRANSB: IntByReference, M: Long, N: Long, K: IntByReference,
     ALPHA: DoubleByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference, BETA: DoubleByReference,
     C: Long, LDC: IntByReference)
 }
@@ -26,13 +26,13 @@ object LapackTest {
     println(BLASLibrary.instance)
 
 
-    val aMem = new Memory(8 * 16)
-    val bMem = new Memory (8 * 16)
-    val cMem = new Memory(8 * 16)
 
     val aMemH = HailMemory.malloc(8 * 16) //16 8 byte doubles
     val bMemH = HailMemory.malloc(8 * 16)
     val cMemH = HailMemory.malloc(8 * 16)
+
+    // Byte 0, M, Byte 4: N, Byte 8: K
+    val scratchMemH = HailMemory.malloc(100)
 
     (0 until 16).foreach{idx =>
       val adjusted = idx.toLong * 8
@@ -64,15 +64,21 @@ object LapackTest {
 
     val TRANSA = new IntByReference('n'.toInt)
     val TRANSB = new IntByReference('n'.toInt)
-    val N = new IntByReference(4)
     val M = new IntByReference(4)
+    val MAddress = scratchMemH
+    HailMemory.storeInt(MAddress, 4)
+    val N = new IntByReference(4)
+    val NAddress = scratchMemH + 4
+    HailMemory.storeInt(NAddress, 4)
     val K = new IntByReference(4)
+    val KAddress = scratchMemH + 8
+    HailMemory.storeInt(KAddress, 4)
     val LDA = new IntByReference(4)
     val LDB = new IntByReference(4)
     val LDC = new IntByReference(4)
 
     BLASLibrary.instance.dgemm(TRANSA, TRANSB,
-      M, N, K, new DoubleByReference(1.0), bMemH,
+      MAddress, NAddress, K, new DoubleByReference(1.0), bMemH,
       LDA, aMemH, LDB, new DoubleByReference(0.0),
       cMemH, LDC)
 
