@@ -1699,6 +1699,12 @@ private class Emit(
         // I want a way to lay out a Scala tuple in hail managed memory on the fly
         val M = shapeTuple(0)
         val N = shapeTuple(1)
+        val LDA = M
+
+        val dataAddress = ndPType.data.load(region, ndAddress)
+
+        //Plan:
+        // First round,let's just give a lot of work space. Later we can figure out how to do better.
 
         val result = Code(
           ndAddress := ndt.value[Long]
