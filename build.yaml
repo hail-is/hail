@@ -858,6 +858,8 @@ steps:
     - batch_pods_ns
     - base_image    
     - test_batch2
+    - test_ci
+    - test_pipeline
  - kind: runImage
    name: create_ci_test_repo
    image:
