@@ -3,6 +3,7 @@ import logging
 import asyncio
 import aiohttp
 import base64
+import traceback
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
@@ -302,11 +303,25 @@ async def schedule_job(app, record, instance):
     id = (batch_id, job_id)
 
     try:
+        body = await job_config(app, record)
+    except Exception as err:
+        status = {
+            'worker': None,
+            'batch_id': batch_id,
+            'job_id': job_id,
+            'user': record['user'],
+            'state': 'error',
+            'error': traceback.format_exc(err),
+            'container_statuses': None
+        }
+        await mark_job_complete(app, batch_id, job_id, 'Error', status)
+        return
+
+    try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             url = (f'http://{instance.ip_address}:5000'
                    f'/api/v1alpha/batches/jobs/create')
-            body = await job_config(app, record)
             await session.post(url, json=body)
             await instance.mark_healthy()
     except Exception:
