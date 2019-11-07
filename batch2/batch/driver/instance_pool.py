@@ -99,7 +99,7 @@ class InstancePool:
         del self.name_instance[instance.name]
 
     def adjust_for_add_instance(self, instance):
-        assert instance not in self.instances_by_last
+        assert instance not in self.instances_by_last_updated
 
         self.n_instances_by_state[instance.state] += 1
 
