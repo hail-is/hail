@@ -10,6 +10,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.linalg.LAPACKLibrary
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1707,7 +1708,8 @@ private class Emit(
         // First round,let's just give a lot of work space. Later we can figure out how to do better.
 
         val result = Code(
-          ndAddress := ndt.value[Long]
+          ndAddress := ndt.value[Long],
+          Code.invokeStatic[LAPACKLibrary, LAPACKLibrary]("getInstance").dgeqrf(???, ???, ???, ???, ???, ???, ???, ???)
         )
 
         EmitTriplet(ndt.setup, ndt.m, result)
