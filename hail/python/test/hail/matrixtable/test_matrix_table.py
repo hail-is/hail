@@ -544,7 +544,7 @@ class Tests(unittest.TestCase):
             expected.col_idx < c,
             hl.cond(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
             hl.cond(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
-        assert mt.union_cols(mt2, _outer=True)._same(expected)
+        assert mt.union_cols(mt2, outer=True)._same(expected)
 
     def test_union_rows_different_col_schema(self):
         mt = hl.utils.range_matrix_table(10, 10)

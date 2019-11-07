@@ -3570,8 +3570,8 @@ class MatrixTable(ExprContainer):
                                      f"Datasets 0 and {wrong_keys+1} have different columns (or possibly different order).")
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
-    @typecheck_method(other=matrix_table_type, _outer=bool)
-    def union_cols(self, other: 'MatrixTable', _outer=False) -> 'MatrixTable':
+    @typecheck_method(other=matrix_table_type, outer=bool)
+    def union_cols(self, other: 'MatrixTable', outer=False) -> 'MatrixTable':
         """Take the union of dataset columns.
 
         Examples
@@ -3596,7 +3596,8 @@ class MatrixTable(ExprContainer):
         This method performs an inner join on rows and concatenates entries
         from the two datasets for each row. Only distinct keys from each
         dataset are included (equivalent to calling :meth:`.distinct_by_row`
-        on each dataset first).
+        on each dataset first). If ``outer=True``, then this will instead
+        perform an outer join on rows.
 
         This method does not deduplicate; if a column key exists identically in
         two datasets, then it will be duplicated in the result.
@@ -3605,6 +3606,9 @@ class MatrixTable(ExprContainer):
         ----------
         other : :class:`.MatrixTable`
             Dataset to concatenate.
+        outer : bool
+            If `True`, perform an outer join on rows, otherwise perform an
+            inner join. Default `False`.
 
         Returns
         -------
