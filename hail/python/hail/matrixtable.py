@@ -3632,7 +3632,7 @@ class MatrixTable(ExprContainer):
                              f'    left: {", ".join(self.row_key.dtype.values())}\n'
                              f'    right: {", ".join(other.row_key.dtype.values())}')
 
-        return MatrixTable(MatrixUnionCols(self._mir, other._mir, "outer" if _outer else "inner"))
+        return MatrixTable(MatrixUnionCols(self._mir, other._mir, "outer" if outer else "inner"))
 
     @typecheck_method(n=nullable(int), n_cols=nullable(int))
     def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
