@@ -1,5 +1,0 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ci-agent
-  namespace: {{ batch_pods_ns.name }}

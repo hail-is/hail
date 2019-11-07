@@ -30,6 +30,7 @@ from ..utils import parse_cpu_in_mcpu, LoggingTimer
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
+from ..batch_configuration import BATCH_PODS_NAMESPACE
 
 from . import schemas
 
@@ -276,7 +277,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     secrets = []
                     spec['secrets'] = secrets
                 secrets.append({
-                    'namespace': 'batch-pods',  # FIXME unused
+                    'namespace': BATCH_PODS_NAMESPACE,
                     'name': userdata['gsa_key_secret_name'],
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True

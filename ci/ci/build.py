@@ -8,8 +8,8 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, CI_NAMESPACE, \
-    KUBERNETES_SERVER_URL
+from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, \
+    DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL
 
 log = logging.getLogger('ci')
 
@@ -21,7 +21,7 @@ pretty_print_log = "jq -Rr '. as $raw | try \
 catch $raw'"
 
 
-is_test_deployment = CI_NAMESPACE != 'default'
+is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
 
 def expand_value_from(value, config):
@@ -321,7 +321,7 @@ date
                                     command=['bash', '-c', script],
                                     mount_docker_socket=True,
                                     secrets=[{
-                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
@@ -354,7 +354,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=[{
-                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
@@ -421,10 +421,14 @@ class RunImageStep(Step):
         secrets = []
         if self.secrets:
             for secret in self.secrets:
+                if 'namespace' in secret:
+                    namespace = get_namespace(secret['namespace'], self.input_config(code, scope))
+                else:
+                    namespace = BATCH_PODS_NAMESPACE
                 name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
                 secrets.append({
-                    'namespace': 'batch-pods',  # FIXME unused
+                    'namespace': namespace,
                     'name': name,
                     'mount_path': mount_path
                 })
@@ -460,8 +464,8 @@ class CreateNamespaceStep(Step):
         self.secrets = secrets
         self.job = None
 
-        if CI_NAMESPACE != 'default':
-            self._name = CI_NAMESPACE
+        if DEFAULT_NAMESPACE != 'default':
+            self._name = DEFAULT_NAMESPACE
             return
 
         if params.scope == 'deploy':
@@ -794,7 +798,7 @@ class CreateDatabaseStep(Step):
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
         self.secrets = [{
-            'namespace': 'batch-pods',  # FIXME unused
+            'namespace': BATCH_PODS_NAMESPACE,
             'name': 'database-server-config',
             'mount_path': '/secrets/db-config'
         }]

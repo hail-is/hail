@@ -6,7 +6,7 @@ import sortedcontainers
 import aiohttp
 import googleapiclient.errors
 
-from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, \
+from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
 
@@ -132,7 +132,7 @@ class InstancePool:
             'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
             'labels': {
                 'role': 'batch2-agent',
-                'namespace': BATCH_NAMESPACE
+                'namespace': DEFAULT_NAMESPACE
             },
 
             'disks': [{
@@ -250,7 +250,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
                     'value': BATCH_WORKER_IMAGE
                 }, {
                     'key': 'namespace',
-                    'value': BATCH_NAMESPACE
+                    'value': DEFAULT_NAMESPACE
                 }, {
                     'key': 'bucket_name',
                     'value': self.log_store.bucket_name
