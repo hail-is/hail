@@ -42,7 +42,7 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   def physicalType: PType = ???
 
-  def t: Type = b.get
+  lazy val t: Type = b.get
 
   override val required = true
 
@@ -72,6 +72,8 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   override def subst(): Type = {
     assert(b.isDefined)
+    if (!condf(t))
+      throw new RuntimeException(s"TVariable subst error: $this, ${t.parsableString()}")
     t
   }
 

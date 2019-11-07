@@ -31,17 +31,17 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     sb.append("ndarray<")
     elementType.pyString(sb)
     sb.append(", ")
-    sb.append(nDims)
+    sb.append(nDimsBase)
     sb.append('>')
   }
 
-  def _toPretty = s"NDArray[$elementType,$nDims]"
+  def _toPretty = s"NDArray[$elementType,$nDimsBase]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("NDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(",")
-    sb.append(nDims)
+    sb.append(nDimsBase)
     sb.append("]")
   }
 
