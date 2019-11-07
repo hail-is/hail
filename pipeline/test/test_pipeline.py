@@ -291,7 +291,7 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
-        self.backend = BatchBackend()
+        self.backend = BatchBackend(_service='batch2')
 
     def tearDown(self):
         self.backend.close()

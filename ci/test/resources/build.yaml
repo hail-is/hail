@@ -31,6 +31,13 @@ steps:
      python3 -m flake8 /hello/hello.py
    dependsOn:
      - hello_image
+ - kind: createDatabase
+   name: hello_database
+   databaseName: hello
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
  - kind: deploy
    name: deploy_hello
    namespace:
@@ -44,3 +51,4 @@ steps:
     - default_ns
     - hello_image
     - check_hello
+    - hello_database

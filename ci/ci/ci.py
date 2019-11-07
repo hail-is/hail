@@ -323,7 +323,7 @@ async def on_startup(app):
         timeout=aiohttp.ClientTimeout(total=60))
     app['client_session'] = session
     app['github_client'] = gh_aiohttp.GitHubAPI(session, 'ci', oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient(session=session)
+    app['batch_client'] = await BatchClient(session=session, _service='batch2')
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())
