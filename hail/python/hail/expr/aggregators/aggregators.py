@@ -1195,7 +1195,7 @@ def call_stats(call, alleles) -> StructExpression:
     return _agg_func('CallStats', [call], t, [], init_op_args=[n_alleles])
 
 _bin_idx_f = None
-_result_from_agg_f = None
+_result_from_hist_agg_f = None
 
 @typecheck(expr=expr_float64, start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:
@@ -1241,7 +1241,7 @@ def hist(expr, start, end, bins) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
-    global _bin_idx_f, _result_from_agg_f
+    global _bin_idx_f, _result_from_hist_agg_f
     if _bin_idx_f is None:
         _bin_idx_f = hl.experimental.define_function(
             lambda s, e, nbins, binsize, v:
@@ -1278,12 +1278,12 @@ def hist(expr, start, end, bins) -> StructExpression:
                                          hl.float64(e - s) / nbins))
                 .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
 
-    if _result_from_agg_f is None:
-        _result_from_agg_f = hl.experimental.define_function(
+    if _result_from_hist_agg_f is None:
+        _result_from_hist_agg_f = hl.experimental.define_function(
             wrap_errors,
             hl.tfloat64, hl.tfloat64, hl.tint32, hl.tdict(hl.tint32, hl.tint64))
 
-    return _result_from_agg_f(start, end, bins, freq_dict)
+    return _result_from_hist_agg_f(start, end, bins, freq_dict)
 
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
@@ -1432,6 +1432,9 @@ def info_score(gp) -> StructExpression:
                 ), _ctx=_agg_func.context
             ), _ctx=_agg_func.context
         )), _ctx=_agg_func.context)
+
+
+_result_from_linreg_agg_f = None
 
 
 @typecheck(y=expr_float64,
@@ -1604,13 +1607,13 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
             multiple_p_value=p0,
             n=n)
 
-    global _result_from_agg_f
-    if _result_from_agg_f is None:
-        _result_from_agg_f = hl.experimental.define_function(
+    global _result_from_linreg_agg_f
+    if _result_from_linreg_agg_f is None:
+        _result_from_linreg_agg_f = hl.experimental.define_function(
             result_from_agg,
             res_type, hl.tint64, hl.tfloat64, _name="linregResFromAgg")
 
-    return _result_from_agg_f(temp, n, yty)
+    return _result_from_linreg_agg_f(temp, n, yty)
 
 
 @typecheck(x=expr_float64, y=expr_float64)
