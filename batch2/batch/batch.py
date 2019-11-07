@@ -75,7 +75,42 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
+async def debug(app, batch_id, job_id):
+    db = app['db']
+
+    ready_cores = await db.execute_and_fetchone(
+        'SELECT * FROM ready_cores;')
+    log.info(f'ready_cores {ready_cores}')
+
+    computed_ready_cores = await db.execute_and_fetchone('''
+SELECT SUM(cores_mcpu) AS computed_ready_cores FROM jobs
+INNER JOIN batches
+  ON batches.id = jobs.batch_id
+WHERE state = 'Ready' AND batches.closed;
+''')
+    log.info(f'computed_ready_cores {computed_ready_cores}')
+
+    async for child in db.execute_and_fetchall(
+            '''
+SELECT jobs.job_id, jobs.state, jobs.cores_mcpu, jobs.n_pending_parents, jobs.cancelled FROM jobs
+INNER JOIN `job_parents`
+  ON jobs.batch_id = `job_parents`.batch_id AND
+     jobs.job_id = `job_parents`.job_id
+WHERE jobs.batch_id = %s AND
+        `job_parents`.batch_id = %s AND
+        `job_parents`.parent_id = %s);
+''',
+            batch_id, batch_id, job_id):
+        log.info(f'child {child}')
+
+
 async def mark_job_complete(app, batch_id, job_id, new_state, status):
+    await debug(app, batch_id, job_id)
+    await mark_job_complete(app, batch_id, job_id, new_state, status)
+    await debug(app, batch_id, job_id)
+
+
+async def mark_job_complete_2(app, batch_id, job_id, new_state, status):
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
     inst_pool = app['inst_pool']
