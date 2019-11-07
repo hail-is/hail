@@ -100,7 +100,7 @@ WHERE jobs.batch_id = %s AND
         `job_parents`.batch_id = %s AND
         `job_parents`.parent_id = %s);
 ''',
-            batch_id, batch_id, job_id):
+            (batch_id, batch_id, job_id)):
         log.info(f'child {child}')
 
 
