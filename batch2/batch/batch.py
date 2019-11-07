@@ -3,6 +3,7 @@ import logging
 import asyncio
 import aiohttp
 import base64
+import traceback
 import kubernetes_asyncio as kube
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
@@ -12,17 +13,6 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
-
-
-class KubernetesResourceError(Exception):
-    def __init__(self, kind, name, namespace):
-        super().__init__()
-        self.kind = kind
-        self.name = name
-        self.namespace = namespace
-
-    def __str__(self):
-        return f'could not get resource {self.namespace}/{self.name} of kind {self.kind}'
 
 
 async def batch_record_to_dict(db, record, include_jobs=False):
@@ -338,7 +328,7 @@ async def schedule_job(app, record, instance):
             'job_id': job_id,
             'user': record['user'],
             'state': 'error',
-            'error': str(err),
+            'error': traceback.format_exc(err),
             'container_statuses': None
         }
         await mark_job_complete(app, batch_id, job_id, 'Error', status)
