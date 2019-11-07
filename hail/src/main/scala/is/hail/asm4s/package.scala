@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.linalg.LAPACKLibrary
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -206,6 +207,8 @@ package object asm4s {
   implicit def toCodeString(c: Code[String]): CodeString = new CodeString(c)
 
   implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+
+  implicit def toCodeLapack(c: Code[LAPACKLibrary]): CodeLapack = new CodeLapack(c)
 
   implicit def toCodeObject[T <: AnyRef : ClassTag](c: Code[T]): CodeObject[T] =
     new CodeObject(c)
