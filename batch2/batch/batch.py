@@ -209,28 +209,6 @@ async def unschedule_job(app, record):
     log.info(f'unschedule job {id}: called delete job')
 
 
-async def get_k8s_secret(k8s_client, name, namespace):
-    try:
-        return await k8s_client.read_namespaced_secret(
-            name, namespace,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    except kube.client.rest.ApiException:
-        raise KubernetesResourceError('secret', name, namespace)
-    except:
-        raise
-
-
-async def get_k8s_service_account(k8s_client, name, namespace):
-    try:
-        return await k8s_client.read_namespaced_service_account(
-            name, namespace,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    except kube.client.rest.ApiException:
-        raise KubernetesResourceError('service account', name, namespace)
-    except:
-        raise
-
-
 async def job_config(app, record):
     k8s_client = app['k8s_client']
 
@@ -239,7 +217,9 @@ async def job_config(app, record):
 
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
-        get_k8s_secret(k8s_client, secret['name'], secret['namespace'])
+        k8s_client.read_namespaced_secret(
+            secret['name'], secret['namespace'],
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         for secret in secrets
     ])
 
@@ -256,12 +236,16 @@ async def job_config(app, record):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await get_k8s_service_account(k8s_client, name, namespace)
-
+        sa = await k8s_client.read_namespaced_service_account(
+            name, namespace,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         assert len(sa.secrets) == 1
+
         token_secret_name = sa.secrets[0].name
 
-        secret = await get_k8s_secret(k8s_client, token_secret_name, namespace)
+        secret = await k8s_client.read_namespaced_secret(
+            token_secret_name, namespace,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
