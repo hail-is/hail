@@ -838,7 +838,7 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil -m rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
    secrets:
-    # hail|test-batch
+    # hail|test-batch2
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
