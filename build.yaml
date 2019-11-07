@@ -67,35 +67,18 @@ steps:
  - kind: deploy
    name: deploy_ci_agent
    namespace:
-     valueFrom: default_ns.name
-   config: ci/service-account.yaml
-   dependsOn:
-    - default_ns
-   scopes:
-    - test
-    - dev
-# deploy_ci_agent_sa and deploy_ci_agent_role are only needed
-# when ci is submitting jobs in batch-pods
- - kind: deploy
-   name: deploy_ci_agent_sa
-   namespace:
      valueFrom: batch_pods_ns.name
-   config: ci/ci-agent-sa.yaml
+   config: ci/ci-agent.yaml
    dependsOn:
-    - batch_pods_ns
-   scopes:
-    - test
+    - default_ns
  - kind: deploy
-   name: deploy_ci_agent_role
+   name: deploy_ci_agent_default
    namespace:
      valueFrom: default_ns.name
-   config: ci/ci-agent-role.yaml
+   config: ci/ci-agent-default.yaml
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - deploy_ci_agent_sa
-   scopes:
-    - test
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
