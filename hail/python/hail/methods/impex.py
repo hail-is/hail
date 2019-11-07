@@ -2120,20 +2120,20 @@ def import_vcf(path,
            find_replace=nullable(sized_tupleof(str, str)),
            _external_sample_ids=nullable(sequenceof(sequenceof(str))),
            _external_header=nullable(str))
-def import_vcfs(path,
-                partitions,
-                force=False,
-                force_bgz=False,
-                call_fields=['PGT'],
-                entry_float_type=tfloat64,
-                reference_genome='default',
-                contig_recoding=None,
-                array_elements_required=True,
-                skip_invalid_loci=False,
-                filter=None,
-                find_replace=None,
-                _external_sample_ids=None,
-                _external_header=None) -> List[MatrixTable]:
+def import_gvcfs(path,
+                 partitions,
+                 force=False,
+                 force_bgz=False,
+                 call_fields=['PGT'],
+                 entry_float_type=tfloat64,
+                 reference_genome='default',
+                 contig_recoding=None,
+                 array_elements_required=True,
+                 skip_invalid_loci=False,
+                 filter=None,
+                 find_replace=None,
+                 _external_sample_ids=None,
+                 _external_header=None) -> List[MatrixTable]:
     """(Experimental) Import multiple vcfs as multiple :class:`.MatrixTable`.
 
     .. include:: ../_templates/experimental.rst
@@ -2153,8 +2153,8 @@ def import_vcfs(path,
     The ``includes_start`` and ``includes_end`` keys must be ``True``. The
     ``contig`` fields must be the same.
 
-    One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
-    :func:`.import_vcfs` only keys the resulting matrix tables by ``locus``
+    One difference between :func:`.import_gvcfs` and :func:`.import_vcf` is that
+    :func:`.import_gvcfs` only keys the resulting matrix tables by ``locus``
     rather than ``locus, alleles``.
     """
 
@@ -2191,6 +2191,37 @@ def import_vcfs(path,
                                   hl.tmatrix._from_json(vector_ref['type']))
 
     return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
+
+
+def import_vcfs(path,
+                partitions,
+                force=False,
+                force_bgz=False,
+                call_fields=['PGT'],
+                entry_float_type=tfloat64,
+                reference_genome='default',
+                contig_recoding=None,
+                array_elements_required=True,
+                skip_invalid_loci=False,
+                filter=None,
+                find_replace=None,
+                _external_sample_ids=None,
+                _external_header=None) -> List[MatrixTable]:
+    """This function is deprecated, use :func:`.import_gvcfs` instead"""
+    return import_gvcfs(path,
+                        partitions,
+                        force,
+                        force_bgz,
+                        call_fields,
+                        entry_float_type,
+                        reference_genome,
+                        contig_recoding,
+                        array_elements_required,
+                        skip_invalid_loci,
+                        filter,
+                        find_replace,
+                        _external_sample_ids,
+                        _external_header)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
