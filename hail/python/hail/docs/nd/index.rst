@@ -15,3 +15,7 @@ nd
     zeros
     ones
     full
+
+.. autofunction:: full
+.. autofunction:: ones
+.. autofunction:: zeros

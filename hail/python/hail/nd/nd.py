@@ -106,6 +106,10 @@ def zeros(shape, dtype=hl.tfloat64):
        dtype : `HailType`
             Desired hail type.
 
+        See Also
+        --------
+        :func:`.full`
+
        Returns
        -------
        :class:`.NDArrayNumericExpression`
@@ -136,6 +140,10 @@ def ones(shape, dtype=hl.tfloat64):
             Desired shape.
        dtype : `HailType`
             Desired hail type.
+
+       See Also
+       --------
+       :func:`.full`
 
        Returns
        -------

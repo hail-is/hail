@@ -3453,8 +3453,9 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(axes=nullable(tupleof(int)))
     def transpose(self, axes=None):
-        """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
-        `axes` maps the `j`th dimension of the ndarray to the `i`th dimension of the output ndarray.
+        """
+        Permute the dimensions of this ndarray according to the ordering of axes. Axis j in the ith index of
+        axes maps the jth dimension of the ndarray to the ith dimension of the output ndarray.
 
         Parameters
         ----------
@@ -3782,75 +3783,75 @@ class NDArrayNumericExpression(NDArrayExpression):
 
         return res if result_ndim > 0 else res[()]
 
-    @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
-    def sum(self, axis=None):
-        """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will
-        be summed to a single `NumericExpression`.
+    # @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
+    # def sum(self, axis=None):
+    #     """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will
+    #     be summed to a single `NumericExpression`.
+    #
+    #     Parameters
+    #     ----------
+    #     axis : :obj: `int` or :obj: `list` of :obj: `int`:, optional
+    #
+    #     Returns
+    #     -------
+    #     :class:`.NDArrayNumericExpression`
+    #     """
+    #     if axis is None:
+    #         axes = list(range(self.ndim))
+    #     else:
+    #         axes = wrap_to_list(axis)
+    #
+    #     for axis in axes:
+    #         if not 0 <= axis <= self.ndim:
+    #             raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
+    #
+    #     if len(set(axes)) != len(axes):
+    #         raise ValueError(f'Axes should not be repeated: {axes}')
+    #
+    #     return construct_expr(NDArrayAgg(self._ir, axes),
+    #                           tndarray(self._type.element_type, self.ndim - len(axes)),
+    #                           self._indices,
+    #                           self._aggregations)
 
-        Parameters
-        ----------
-        axis : :obj: `int` or :obj: `list` of :obj: `int:, optional
-
-        Returns
-        -------
-        :class:`.NDArrayNumericExpression`
-        """
-        if axis is None:
-            axes = list(range(self.ndim))
-        else:
-            axes = wrap_to_list(axis)
-
-        for axis in axes:
-            if not 0 <= axis <= self.ndim:
-                raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
-
-        if len(set(axes)) != len(axes):
-            raise ValueError(f'Axes should not be repeated: {axes}')
-
-        return construct_expr(NDArrayAgg(self._ir, axes),
-                              tndarray(self._type.element_type, self.ndim - len(axes)),
-                              self._indices,
-                              self._aggregations)
-
-    @typecheck_method(uri=str)
-    def save(self, uri):
-        """Write out the NDArray to the given path as in .npy format. If the URI does not
-        end with ".npy" the file extension will be appended. This method reflects the numpy
-        `save` method. NDArrays saved with this method can be loaded into numpy using numpy
-        `load`.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> nd.save('file://local/file') # doctest: +SKIP
-        >>> np.load('/local/file.npy') # doctest: +SKIP
-        array([[1, 2],
-               [3, 4]], dtype=int32)
-
-        Parameters
-        ----------
-        uri : :obj: `str`
-        """
-        if not uri.endswith('.npy'):
-            uri += '.npy'
-
-        Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
-
-    def to_numpy(self):
-        """Execute and convert this NDArray to a `NumPy` ndarray.
-
-        Examples
-        --------
-        >>> a = nd.to_numpy() # doctest: +SKIP
-
-        Returns
-        -------
-        :class:`numpy.ndarray`
-        """
-        # FIXME Use filesystem abstraction instead when that is ready
-        temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
-        self.save(temp_file)
-        return np.load(temp_file)
+    # @typecheck_method(uri=str)
+    # def save(self, uri):
+    #     """Write out the NDArray to the given path as in .npy format. If the URI does not
+    #     end with ".npy" the file extension will be appended. This method reflects the numpy
+    #     `save` method. NDArrays saved with this method can be loaded into numpy using numpy
+    #     `load`.
+    #
+    #     Examples
+    #     --------
+    #     >>> import numpy as np
+    #     >>> nd.save('file://local/file') # doctest: +SKIP
+    #     >>> np.load('/local/file.npy') # doctest: +SKIP
+    #     array([[1, 2],
+    #            [3, 4]], dtype=int32)
+    #
+    #     Parameters
+    #     ----------
+    #     uri : :obj: `str`
+    #     """
+    #     if not uri.endswith('.npy'):
+    #         uri += '.npy'
+    #
+    #     Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
+    #
+    # def to_numpy(self):
+    #     """Execute and convert this NDArray to a `NumPy` ndarray.
+    #
+    #     Examples
+    #     --------
+    #     >>> a = nd.to_numpy() # doctest: +SKIP
+    #
+    #     Returns
+    #     -------
+    #     :class:`numpy.ndarray`
+    #     """
+    #     # FIXME Use filesystem abstraction instead when that is ready
+    #     temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
+    #     self.save(temp_file)
+    #     return np.load(temp_file)
 
 
 scalars = {tbool: BooleanExpression,
