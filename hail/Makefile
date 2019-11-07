@@ -271,9 +271,13 @@ set-docs-sha: deploy-annotation-db
 .PHONY: deploy
 deploy: tag
 
+.PHONY: install-dev-deps
+install-dev-deps:
+	$(PIP) install -U -r python/dev-requirements.txt
+
 .PHONY: install-deps
-install-deps:
-	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
+install-deps: install-dev-deps
+	$(PIP) install -U -r python/requirements.txt
 
 .PHONY: benchmark
 benchmark: install
@@ -290,7 +294,7 @@ clean-docs:
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 
 .PHONY: docs
-docs: install $(PYTHON_VERSION_INFO)
+docs: install $(PYTHON_VERSION_INFO) install-dev-deps
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
@@ -321,7 +325,7 @@ upload-docs: docs
 test: pytest jvm-test doctest tutorial-test
 
 .PHONY: tutorial-test
-docs-no-test: install $(PYTHON_VERSION_INFO)
+docs-no-test: install $(PYTHON_VERSION_INFO) install-dev-deps
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
