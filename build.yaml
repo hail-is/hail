@@ -833,34 +833,6 @@ steps:
     - ci_utils_image
     - deploy_ci_agent
  - kind: runImage
-   name: delete_batch2_instances
-   image:
-     valueFrom: base_image.image
-   alwaysRun: true     
-   script: |
-     set -ex
-     ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     gcloud -q compute instances list \
-         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
-         --format="value(name)" \
-       | xargs -r gcloud -q compute instances delete --zone $ZONE
-   secrets:
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   scopes:
-    - dev
-    - test
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - base_image    
-    - test_batch2
-    - test_ci
-    - test_pipeline
- - kind: runImage
    name: create_ci_test_repo
    image:
      valueFrom: base_image.image
@@ -1195,4 +1167,31 @@ steps:
    dependsOn:
     - default_ns
     - deploy_router
-
+ - kind: runImage
+   name: delete_batch2_instances
+   image:
+     valueFrom: base_image.image
+   alwaysRun: true     
+   script: |
+     set -ex
+     ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gcloud -q compute instances list \
+         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
+         --format="value(name)" \
+       | xargs -r gcloud -q compute instances delete --zone $ZONE
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   scopes:
+    - dev
+    - test
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - base_image 
+    - test_batch2
+    - test_ci
+    - test_pipeline
