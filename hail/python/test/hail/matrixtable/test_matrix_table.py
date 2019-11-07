@@ -1404,7 +1404,6 @@ class Tests(unittest.TestCase):
                               grouped=hl.agg.group_by(mt.e1 % 5, hl.agg.sum(mt.e1) + common_ref))
         mt.cols()._force_count()
 
-    @pytest.mark.skip("does not pass due to CSE bug")
     def test_annotate_rows_scan_lowering(self):
         mt = hl.utils.range_matrix_table(10, 10, 2)
         mt = mt.annotate_rows(r1=[mt.row_idx, mt.row_idx * 2])
