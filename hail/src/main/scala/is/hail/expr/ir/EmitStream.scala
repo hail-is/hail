@@ -316,6 +316,55 @@ object EmitStream {
           k(EOS))
     }
 
+  def mux[P, A: ParameterPack](
+    cond: Code[Boolean],
+    left: Parameterized[P, A],
+    right: Parameterized[P, A]
+  ): Parameterized[P, A] = new Parameterized[P, A] {
+    implicit val lsP = left.stateP
+    implicit val rsP = right.stateP
+    type S = (left.S, right.S)
+    val stateP: ParameterPack[S] = implicitly
+    def emptyState: S = (left.emptyState, right.emptyState)
+
+    def length(s0: S): Option[Code[Int]] =
+      (left.length(s0._1) liftedZip right.length(s0._2))
+        .map { case (lLen, rLen) => cond.mux(lLen, rLen) }
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] = {
+      val missing = jb.joinPoint()
+      val start = jb.joinPoint[S](mb)
+      missing.define { _ => k(Missing) }
+      start.define { s => k(Start(s)) }
+      cond.mux(
+        left.init(mb, jb, param) {
+          case Start(s0) => start((s0, right.emptyState))
+          case Missing => missing(())
+        },
+        right.init(mb, jb, param) {
+          case Start(s0) => start((left.emptyState, s0))
+          case Missing => missing(())
+        })
+    }
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] = {
+      val (lS, rS) = state
+      val eos = jb.joinPoint()
+      val push = jb.joinPoint[(A, left.S, right.S)](mb)
+      eos.define { _ => k(EOS) }
+      push.define { case (elt, lS, rS) => k(Yield(elt, (lS, rS))) }
+      cond.mux(
+        left.step(mb, jb, lS) {
+          case Yield(a, lS1) => push((a, lS1, rS))
+          case EOS => eos(())
+        },
+        right.step(mb, jb, rS) {
+          case Yield(a, rS1) => push((a, lS, rS1))
+          case EOS => eos(())
+        })
+    }
+  }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -554,6 +603,21 @@ object EmitStream {
               _ => Code(aggSetup, init.setup),
               aggCleanup
             )
+
+        case If(condIR, thn, els) =>
+          val t = thn.pType.asInstanceOf[PStreamable].elementType
+          implicit val tP = TypedTriplet.pack(t)
+          val cond = fb.newField[Boolean]
+          mux(cond,
+            emitStream(thn, env).map(TypedTriplet(t, _)),
+            emitStream(els, env).map(TypedTriplet(t, _))
+          ).map(_.untyped)
+            .guardParam { (param, k) =>
+              val condt = emitIR(condIR, env)
+              Code(condt.setup, condt.m.mux(
+                k(None),
+                Code(cond := condt.value, k(Some(param)))))
+            }
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
