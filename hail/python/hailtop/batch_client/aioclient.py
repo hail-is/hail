@@ -265,7 +265,7 @@ class BatchBuilder:
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
-                   service_account_name=None, attributes=None, parents=None,
+                   service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
@@ -315,8 +315,8 @@ class BatchBuilder:
             job_spec['resources'] = resources
         if secrets:
             job_spec['secrets'] = secrets
-        if service_account_name:
-            job_spec['service_account_name'] = service_account_name
+        if service_account:
+            job_spec['service_account'] = service_account
 
         if attributes:
             job_spec['attributes'] = attributes

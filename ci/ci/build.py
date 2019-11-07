@@ -441,7 +441,7 @@ class RunImageStep(Step):
             input_files=input_files,
             output_files=output_files,
             secrets=secrets,
-            service_account_name=self.service_account,
+            service_account=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run)
 
@@ -606,7 +606,10 @@ date
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     # FIXME configuration
-                                    service_account_name='ci-agent',
+                                    service_account_name={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
@@ -626,7 +629,10 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=parents,
                                     always_run=True)
 
@@ -746,7 +752,10 @@ date
                                     command=['bash', '-c', script],
                                     attributes=attrs,
                                     # FIXME configuration
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
@@ -767,7 +776,10 @@ date
                                         command=['bash', '-c', script],
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
-                                        service_account_name='ci-agent',
+                                        service_account={
+                                            'namespace': BATCH_PODS_NAMESPACE,
+                                            'name': 'ci-agent'
+                                        },
                                         parents=parents,
                                         always_run=True)
 
@@ -916,7 +928,10 @@ echo done.
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     secrets=self.secrets,
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
@@ -941,6 +956,9 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=self.secrets,
-                                    service_account_name='ci-agent',
+                                    service_account_name={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=parents,
                                     always_run=True)
