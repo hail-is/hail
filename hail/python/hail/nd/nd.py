@@ -9,6 +9,29 @@ from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 
 
 def array(input_array):
+    """Construct an NDArrayExpression.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl._nd.array([1, 2, 3, 4]))
+    array([1, 2, 3, 4], dtype=int32)
+
+    >>> hl.eval(hl._nd.array([[1, 2, 3], [4, 5, 6]]))
+    array([[1, 2, 3],
+       [4, 5, 6]], dtype=int32)
+
+    >>> hl.eval(hl._nd.array(np.identity(3)))
+    array([[1., 0., 0.],
+       [0., 1., 0.],
+       [0., 0., 1.]])
+
+    >>> hl.eval(hl._nd.array(hl.range(10, 20)))
+    array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19], dtype=int32)
+
+    :param input_array: ArrayExpression or numpy ndarray or nested python lists
+    :return: A hail NDArrayExpression
+    """
     return _ndarray(input_array)
 
 
