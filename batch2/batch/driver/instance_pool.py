@@ -87,6 +87,9 @@ class InstancePool:
             self.healthy_instances_by_free_cores.remove(instance)
 
     async def remove_instance(self, instance):
+        if instance._state == 'deleted':
+            return
+        
         await instance.deactivate()
 
         await self.db.just_execute(
