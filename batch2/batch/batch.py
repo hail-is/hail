@@ -4,7 +4,6 @@ import asyncio
 import aiohttp
 import base64
 import traceback
-import kubernetes_asyncio as kube
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
