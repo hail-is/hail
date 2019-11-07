@@ -78,9 +78,12 @@ class InstancePool:
         return len(self.name_instance)
 
     def adjust_for_remove_instance(self, instance):
-        self.n_instances_by_state[instance.state] -= 1
+        assert instance in self.instances_by_last_updated
 
         self.instances_by_last_updated.remove(instance)
+
+        self.n_instances_by_state[instance.state] -= 1
+
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= instance.free_cores_mcpu
         if instance in self.healthy_instances_by_free_cores:
@@ -93,10 +96,11 @@ class InstancePool:
             'DELETE FROM instances WHERE name = %s;', (instance.name,))
 
         self.adjust_for_remove_instance(instance)
-
         del self.name_instance[instance.name]
 
     def adjust_for_add_instance(self, instance):
+        assert instance not in self.instances_by_last
+
         self.n_instances_by_state[instance.state] += 1
 
         self.instances_by_last_updated.add(instance)
@@ -108,8 +112,8 @@ class InstancePool:
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance
-        self.name_instance[instance.name] = instance
 
+        self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)
 
     async def create_instance(self):
