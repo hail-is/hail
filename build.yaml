@@ -922,8 +922,8 @@ steps:
     - deploy_auth
     - deploy_batch
     - create_ci_test_repo
-    - deploy_ci_agent_role
     - deploy_ci_agent
+    - deploy_ci_agent_default
  - kind: deploy
    name: test_ci
    namespace:
@@ -938,7 +938,7 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_ci
-    - deploy_ci_agent_role
+    - deploy_ci_default
     - test_ci_image
     - create_ci_test_repo
  - kind: runImage
