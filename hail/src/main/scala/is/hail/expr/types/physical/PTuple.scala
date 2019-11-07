@@ -82,6 +82,8 @@ class CodePTuple(
       pType.loadField(offset, i)
     ).asInstanceOf[Code[T]]
 
+  def fieldOffset(i: Int): Code[Long] = pType.fieldOffset(offset, i)
+
   def isMissing(i: Int): Code[Boolean] = {
     pType.isFieldMissing(offset, i)
   }

@@ -1698,18 +1698,53 @@ private class Emit(
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
 
         // I want a way to lay out a Scala tuple in hail managed memory on the fly
-        val M = shapeTuple(0)
-        val N = shapeTuple(1)
+        val M = shapeTuple[Long](0)
+        val N = shapeTuple[Long](1)
         val LDA = M
+        val LWORK = 1000
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
         //Plan:
         // First round,let's just give a lot of work space. Later we can figure out how to do better.
+        // Have to copy the data into the space where the answer should go, since QR just overrwrites its input
+        // Have to allocate a buffer of workspace.
+
+        // Contains M, N, LDA, LWORK, INFO
+        val tempStoragePType = PTuple(PInt32(), PInt32(), PInt32(), PInt32(), PInt32())
+        val tempStorageSrvb = new StagedRegionValueBuilder(mb, tempStoragePType, region)
+
+        val tempStorageTuple = new CodePTuple(tempStoragePType, region, tempStorageSrvb.offset)
+        val mAddress = tempStorageTuple.fieldOffset(0)
+        val nAddress = tempStorageTuple.fieldOffset(1)
+        val ldaAddress = tempStorageTuple.fieldOffset(2)
+        val lworkAddress = tempStorageTuple.fieldOffset(3)
+        val infoAddress = tempStorageTuple.fieldOffset(4)
+
+        val dataCopySrvb = new StagedRegionValueBuilder(mb, ndPType.data.pType, region)
+
+
 
         val result = Code(
           ndAddress := ndt.value[Long],
-          Code.invokeStatic[LAPACKLibrary, LAPACKLibrary]("getInstance").dgeqrf(???, ???, ???, ???, ???, ???, ???, ???)
+
+          // Set up the primitive arguments
+          tempStorageSrvb.start(),
+          tempStorageSrvb.addInt(M.toI),
+          tempStorageSrvb.advance(),
+          tempStorageSrvb.addInt(N.toI),
+          tempStorageSrvb.advance(),
+          tempStorageSrvb.addInt(LDA.toI),
+          tempStorageSrvb.advance(),
+          tempStorageSrvb.addInt(LWORK), //TODO LWORK should be negative 1 to request, for now it's just big.
+          tempStorageSrvb.advance(),
+          tempStorageSrvb.addInt(1), // Storing a 1, it will get overriden, just needed some not possible info code.
+          tempStorageSrvb.advance(),
+
+          // Make some space for the output (which means copying the input)
+
+
+          Code.invokeStatic[LAPACKLibrary, LAPACKLibrary]("getInstance").dgeqrf(mAddress, nAddress, ???, ldaAddress, ???, ???, lworkAddress, infoAddress)
         )
 
         EmitTriplet(ndt.setup, ndt.m, result)
