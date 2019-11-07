@@ -70,7 +70,7 @@ steps:
      valueFrom: batch_pods_ns.name
    config: ci/ci-agent.yaml
    dependsOn:
-    - default_ns
+    - batch_pods_ns
  - kind: deploy
    name: deploy_ci_agent_default
    namespace:
