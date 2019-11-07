@@ -15,15 +15,14 @@ log = logging.getLogger('batch')
 
 
 class KubernetesResourceError(Exception):
-    def __init__(self, resource_type, name, namespace):
+    def __init__(self, kind, name, namespace):
         super().__init__()
-        self.resource_type = resource_type
+        self.kind = kind
         self.name = name
         self.namespace = namespace
 
     def __str__(self):
-        return f"could not get {self.resource_type} with name '{self.name}' in " \
-            f"namespace '{self.namespace}'"
+        return f'could not get resource {self.namespace}/{self.name} of kind {self.kind}'
 
 
 async def batch_record_to_dict(db, record, include_jobs=False):
