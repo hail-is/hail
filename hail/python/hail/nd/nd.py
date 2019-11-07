@@ -76,6 +76,13 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), value=expr_any, dtype=nullable(HailType))
 def full(shape, value, dtype=None):
+    """
+    
+    :param shape:
+    :param value:
+    :param dtype:
+    :return:
+    """
     if isinstance(shape, Int64Expression):
         shape_product = shape
     else:

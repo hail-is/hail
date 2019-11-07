@@ -16,6 +16,7 @@ nd
     ones
     full
 
+.. autofunction:: array
 .. autofunction:: full
 .. autofunction:: ones
 .. autofunction:: zeros
