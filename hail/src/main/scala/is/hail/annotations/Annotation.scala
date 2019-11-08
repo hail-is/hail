@@ -47,6 +47,7 @@ object Annotation {
 
       case t: TArray =>
         val arr = a.asInstanceOf[IndexedSeq[Annotation]]
+        info(s"ARRAY OF LENGTH ${arr.length}")
         Array.tabulate(arr.length)(i => Annotation.copy(t.elementType, arr(i))).toFastIndexedSeq
 
       case t: TSet =>

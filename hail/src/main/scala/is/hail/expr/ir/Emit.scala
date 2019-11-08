@@ -1758,13 +1758,15 @@ private class Emit(
           Code.invokeScalaObject[LAPACKLibrary](LAPACKLibraryObj.getClass, "getInstance").dgeqrf(mAddress, nAddress, answerAddress, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress),
           Code._println("INVOKED LAPACK SUCCESSFULLY"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", Region.loadInt(infoAddress))
-          // TODO Free the memory I malloced.
+            "println", Region.loadInt(infoAddress))//,
+          //Code.invokeStatic[Memory, Long, Unit]("free", LWORK.toLong)
         )
 
         if (mode == "raw") {
           val rawPType = x.pType.asInstanceOf[PTuple]
           val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
+          val hPType = rawPType.types(0).asInstanceOf[PNDArray]
+          val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
 
           def hShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
             Code(
@@ -1776,6 +1778,8 @@ private class Emit(
             )
           }
 
+          val hStridesBuilder = hPType.makeDefaultStridesBuilder(Array(N, M), mb)
+
           def tauShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
             Code(
               srvb.start(),
@@ -1784,11 +1788,11 @@ private class Emit(
             )
           }
 
-          val hPType = rawPType.types(0).asInstanceOf[PNDArray]
-          val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
+          val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, ???, ???, mb)
-          val tau = tauPType.construct(0, 0, tauShapeBuilder, ???, ???, mb)
+
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, answerAddress, mb)
+          val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
             rawOutputSrvb.start(),
