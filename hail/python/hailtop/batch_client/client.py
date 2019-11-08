@@ -142,9 +142,9 @@ class BatchBuilder:
 
 class BatchClient:
     def __init__(self, deploy_config=None, session=None, headers=None,
-                 _token=None, _service='batch'):
+                 _token=None):
         self._async_client = async_to_blocking(
-            aioclient.BatchClient(deploy_config, session, headers=headers, _token=_token, _service=_service))
+            aioclient.BatchClient(deploy_config, session, headers=headers, _token=_token))
 
     @property
     def bucket(self):
