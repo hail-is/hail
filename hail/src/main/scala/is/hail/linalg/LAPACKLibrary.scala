@@ -3,8 +3,9 @@ package is.hail.linalg
 import com.sun.jna.{Library, Native, Pointer}
 import com.sun.jna.ptr.DoubleByReference
 
-object LAPACKLibrary {
-  def getInstance() = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+object LAPACKLibraryObj {
+  val instance = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+  def getInstance() = instance
 }
 
 trait LAPACKLibrary extends Library {

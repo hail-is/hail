@@ -22,8 +22,8 @@ object LapackTest {
   final def main(args: Array[String]): Unit = {
     println("Trying to call LAPACK")
 
-    println(LAPACKLibrary.getInstance())
-    println(BLASLibrary.instance)
+//    println(LAPACKLibrary.getInstance())
+//    println(BLASLibrary.instance)
 
 
 
