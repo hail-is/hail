@@ -144,8 +144,10 @@ object InferType {
       case NDArrayQR(nd, mode) =>
         if (Array("complete", "reduced").contains(mode)) {
           TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(2), false))
+        } else if (mode == "raw") {
+          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(1), false))
         } else {
-          throw new NotImplementedError("Cannot infer type unless it's complete or reduced")
+          throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>

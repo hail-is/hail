@@ -745,6 +745,8 @@ class NDArrayQR(IR):
 
         if self.mode in ["complete", "reduced"]:
             self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2))
+        elif self.mode == "raw":
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1))
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
 
