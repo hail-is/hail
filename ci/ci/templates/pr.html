@@ -22,7 +22,7 @@
           <th>exit_code</th>
           <th>duration</th>
           <th>log</th>
-          <th>pod status</th>
+          <th>status</th>
           <th>links</th>
         </tr>
       </thead>
@@ -54,7 +54,7 @@
             <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
           </td>
           <td>
-            <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
+            <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/status">status</a>
           </td>
           <td>
             {% if 'link' in job['attributes'] %}

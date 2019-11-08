@@ -51,7 +51,7 @@ spec:
          - name: WORKER_CORES
            value: "1"
          - name: WORKER_DISK_SIZE_GB
-           value: "10"
+           value: "100"
          - name: POOL_SIZE
            value: "2"
          - name: MAX_INSTANCES

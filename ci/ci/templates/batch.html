@@ -19,7 +19,7 @@
           <th>exit_code</th>
           <th>duration</th>
           <th>log</th>
-          <th>pod status</th>
+          <th>status</th>
         </tr>
       </thead>
       <tbody>
@@ -47,7 +47,7 @@
             {% endif %}
           </td>
           <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a></td>
-          <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a></td>
+          <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/status">status</a></td>
         </tr>
         {% endfor %}
       </tbody>

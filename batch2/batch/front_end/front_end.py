@@ -40,6 +40,7 @@ log = logging.getLogger('batch.front_end')
 
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_JOB_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/status', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
@@ -564,16 +565,8 @@ async def ui_get_job_log(request, userdata):
     return await render_template('batch2', request, userdata, 'job_log.html', page_context)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/status')
-@prom_async_time(REQUEST_TIME_GET_JOB_STATUS_UI)
-@aiohttp_jinja2.template('job_status.html')
-@web_authenticated_users_only()
-async def ui_get_job_status(request, userdata):
-    db = request.app['db']
-
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
+async def _get_job_status(app, batch_id, job_id, user):
+    db = app['db']
 
     record = await db.execute_and_fetchone('''
 SELECT jobs.state, status, ip_address
@@ -609,6 +602,31 @@ WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
                     status = None
                 else:
                     raise
+
+    return status
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+@prom_async_time(REQUEST_TIME_GET_JOB_STATUS)
+@rest_authenticated_users_only
+async def get_job_status(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    status = await _get_job_status(request.app, batch_id, job_id, user)
+    return web.json_response(status)
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/status')
+@prom_async_time(REQUEST_TIME_GET_JOB_STATUS_UI)
+@aiohttp_jinja2.template('job_status.html')
+@web_authenticated_users_only()
+async def ui_get_job_status(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+
+    status = await _get_job_status(request.app, batch_id, job_id, user)
 
     page_context = {
         'batch_id': batch_id,
