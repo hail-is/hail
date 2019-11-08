@@ -181,6 +181,21 @@ spec:
   selector:
     app: scheduler
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+  labels:
+    app: hello
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: hello
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
