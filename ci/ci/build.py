@@ -700,7 +700,6 @@ set -e
 '''
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
-                    port = w.get('port', 80)
                     resource_type = w.get('resource_type', 'deployment').lower()
                     endpoint = w.get('endpoint', '/healthcheck')
                     headers = w.get('headers', dict())
@@ -716,7 +715,7 @@ set -e
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
   {wait_cmd} && \
-  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name} --endpoint {endpoint} {header_arg}
+  python3 wait-for.py {timeout} {self.namespace} Service {name} --endpoint {endpoint} {header_arg}
 EC=$?
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
