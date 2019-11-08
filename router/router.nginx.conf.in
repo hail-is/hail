@@ -53,17 +53,6 @@ server {
 }
 
 server {
-    server_name batch.*;
-
-    location / {
-        proxy_pass http://batch/;
-    }
-
-    listen 80;
-    listen [::]:80;
-}
-
-server {
     server_name scheduler.*;
 
     location / {
