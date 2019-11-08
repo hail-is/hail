@@ -10,7 +10,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.linalg.LAPACKLibrary
+import is.hail.linalg.{LAPACKLibrary, LAPACKLibraryObj}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1696,12 +1696,13 @@ private class Emit(
         val ndPType = nd.pType.asInstanceOf[PNDArray]
         val shapeAddress = ndPType.shape.load(region, ndAddress)
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
+        val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_)).toArray
 
         // I want a way to lay out a Scala tuple in hail managed memory on the fly
-        val M = shapeTuple[Long](0)
-        val N = shapeTuple[Long](1)
+        val M = shapeArray(0)
+        val N = shapeArray(1)
         val LDA = M
-        val LWORK = 1000
+        val LWORK = 10000
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
@@ -1721,10 +1722,9 @@ private class Emit(
         val lworkAddress = tempStorageTuple.fieldOffset(3)
         val infoAddress = tempStorageTuple.fieldOffset(4)
 
-        val dataCopySrvb = new StagedRegionValueBuilder(mb, ndPType.data.pType, region)
-
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
+        val answerAddress = mb.newField[Long]
 
 
         val result = Code(
@@ -1744,14 +1744,20 @@ private class Emit(
           tempStorageSrvb.advance(),
 
           // Make some space for the output (which means copying the input)
+          answerAddress := region.allocate(8L, ndPType.numElements(shapeArray, mb) * 8L),
+          Region.copyFrom(dataAddress, answerAddress, ndPType.numElements(shapeArray, mb) * 8L),
 
           // Make some space for Tau
           tauAddress := region.allocate(8L, (M < N).mux(M, N) * 8L),
 
           // Make some space for work
-          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", ???),
+          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
 
-          Code.invokeStatic[LAPACKLibrary, LAPACKLibrary]("getInstance").dgeqrf(mAddress, nAddress, ???, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress)
+          LAPACKLibraryObj.instance.dgeqrf(mAddress, nAddress, answerAddress, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress),
+          Code._println("INVOKED LAPACK SUCCESSFULLY"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", Region.loadInt(infoAddress))
+
 
           // TODO Free the memory I malloced.
         )
