@@ -2,18 +2,37 @@ import re
 import time
 import logging
 
-log = logging.getLogger('utils')
+from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 
-cpu_regex = re.compile(r"^(\d*\.\d+|\d+)([m]?)$")
+
+log = logging.getLogger('utils')
 
 
 def parse_cpu_in_mcpu(cpu_string):
-    match = cpu_regex.fullmatch(cpu_string)
+    match = CPU_REGEX.fullmatch(cpu_string)
     if match:
         number = float(match.group(1))
         if match.group(2) == 'm':
             number /= 1000
         return int(number * 1000)
+    return None
+
+
+conv_factor = {
+    'K': 1000, 'Ki': 1024,
+    'M': 1000**2, 'Mi': 1024**2,
+    'G': 1000**3, 'Gi': 1024**3,
+    'T': 1000**4, 'Ti': 1024**4,
+    'P': 1000**5, 'Pi': 1024**5
+}
+
+
+def parse_memory_in_bytes(memory_string):
+    match = MEMORY_REGEX.fullmatch(memory_string)
+    if match:
+        number = float(match.group(1))
+        suffix = match.group(2)
+        return int(number * conv_factor[suffix])
     return None
 
 
