@@ -73,8 +73,6 @@ LIMIT 50;
             job_id = record['job_id']
             id = (batch_id, job_id)
 
-            log.info(f'scheduling job {id}')
-
             if record['cancel']:
                 log.info(f'cancelling job {id}')
                 await mark_job_complete(self.app, batch_id, job_id, 'Cancelled', None)

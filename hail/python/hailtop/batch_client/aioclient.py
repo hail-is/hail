@@ -195,6 +195,10 @@ class SubmittedJob:
         state = self._status['state']
         return state in complete_states
 
+    async def batch2_status(self):
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/status')
+        return await resp.json()
+
     async def status(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
         self._status = await resp.json()

@@ -82,6 +82,8 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 
     id = (batch_id, job_id)
 
+    log.info(f'marking job {id} complete new_state {new_state}')
+
     rv = await check_call_procedure(
         db,
         'CALL mark_job_complete(%s, %s, %s, %s);',
@@ -92,6 +94,7 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 
     old_state = rv['old_state']
     if old_state in complete_states:
+        log.info(f'old_state {old_state} complete, doing nothing')
         # already complete, do nothing
         return
 
@@ -305,6 +308,7 @@ async def schedule_job(app, record, instance):
     try:
         body = await job_config(app, record)
     except Exception as err:
+        log.exception('while making job config')
         status = {
             'worker': None,
             'batch_id': batch_id,
@@ -316,6 +320,8 @@ async def schedule_job(app, record, instance):
         }
         await mark_job_complete(app, batch_id, job_id, 'Error', status)
         return
+
+    log.info(f'schedule job {id} on {instance}: made job config')
 
     try:
         async with aiohttp.ClientSession(

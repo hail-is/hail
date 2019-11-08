@@ -180,9 +180,9 @@ async def get_job_log(request, userdata):
     return await render_template('ci', request, userdata, 'job_log.html', page_context)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/status')
 @web_authenticated_developers_only()
-async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argument
+async def get_job_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
@@ -190,10 +190,10 @@ async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argum
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_pod_status': json.dumps(json.loads(await job.pod_status()),
-                                     indent=2)
+        'job_status': json.dumps(json.loads(await job.batch2_status()),
+                                 indent=2)
     }
-    return await render_template('ci', request, userdata, 'job_pod_status.html', page_context)
+    return await render_template('ci', request, userdata, 'job_status.html', page_context)
 
 
 @routes.post('/authorize_source_sha')
