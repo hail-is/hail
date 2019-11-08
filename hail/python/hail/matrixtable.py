@@ -3571,7 +3571,7 @@ class MatrixTable(ExprContainer):
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type,
-                      row_join_type=enumeration('inner', 'outer', 'left', 'right'))
+                      row_join_type=enumeration('inner', 'outer'))
     def union_cols(self, other: 'MatrixTable', row_join_type='inner') -> 'MatrixTable':
         """Take the union of dataset columns.
 
@@ -3598,15 +3598,15 @@ class MatrixTable(ExprContainer):
         from both input datasets. The set of rows included in the result is
         determined by the `row_join_type` parameter.
 
-        - With the default ``row_join_type=inner``, an inner join is performed
+        - With the default value of ``'inner'``, an inner join is performed
           on rows, so that only rows whose row key exists in both input datasets
           are included. In this case, the entries for each row are the
           concatenation of all entries of the corresponding rows in the input
           datasets.
-        - With ``row_join_type=outer``, an outer join is perfomed on rows, so
-          that row keys which exist in only one input dataset are also included.
-          For those rows, the entrie fields for the columns coming from the
-          other dataset will be missing.
+        - With `row_join_type` set to  ``'outer'``, an outer join is perfomed on
+          rows, so that row keys which exist in only one input dataset are also
+          included. For those rows, the entry fields for the columns coming
+          from the other dataset will be missing.
 
         Only distinct row keys from each dataset are included (equivalent to
         calling :meth:`.distinct_by_row` on each dataset first).
