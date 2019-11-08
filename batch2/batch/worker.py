@@ -397,8 +397,8 @@ class Job:
 
         # FIXME
         # if input_files:
-        containers['setup'] = copy_container(
-            self, 'setup', input_files, copy_volume_mounts)
+        containers['input'] = copy_container(
+            self, 'input', input_files, copy_volume_mounts)
 
         # main container
         main_spec = {
@@ -413,8 +413,8 @@ class Job:
 
         # FIXME
         # if output_files:
-        containers['cleanup'] = copy_container(
-            self, 'cleanup', output_files, copy_volume_mounts)
+        containers['output'] = copy_container(
+            self, 'output', output_files, copy_volume_mounts)
 
         self.containers = containers
 
@@ -440,14 +440,14 @@ class Job:
 
             self.state = 'running'
 
-            log.info(f'{self}: running setup')
+            log.info(f'{self}: running input')
 
-            setup = self.containers['setup']
-            await setup.run(worker)
+            input = self.containers['input']
+            await input.run(worker)
 
-            log.info(f'{self} setup: {setup.state}')
+            log.info(f'{self} input: {input.state}')
 
-            if setup.state == 'succeeded':
+            if input.state == 'succeeded':
                 log.info(f'{self}: running main')
 
                 main = self.containers['main']
@@ -455,22 +455,22 @@ class Job:
 
                 log.info(f'{self} main: {main.state}')
 
-                log.info(f'{self}: running cleanup')
+                log.info(f'{self}: running output')
 
-                cleanup = self.containers['cleanup']
-                await cleanup.run(worker)
+                output = self.containers['output']
+                await output.run(worker)
 
-                log.info(f'{self} cleanup: {cleanup.state}')
+                log.info(f'{self} output: {output.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
                 else:
-                    if cleanup:
-                        self.state = cleanup.state
+                    if output:
+                        self.state = output.state
                     else:
                         self.state = 'succeeded'
             else:
-                self.state = setup.state
+                self.state = input.state
         except Exception:
             log.exception(f'while running {self}')
 
