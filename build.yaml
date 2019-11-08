@@ -1055,7 +1055,7 @@ steps:
       to: /io/hail-test.jar
     - from: /testng-scheduler.xml
       to: /io/testng-scheduler.xml
-   scopes:
+   scopes: []
    dependsOn:
     - default_ns
     - base_image
@@ -1079,7 +1079,7 @@ steps:
    outputs:
     - from: /io/test-output
       to: /test-distributed-backend-output
-   scopes:
+   scopes: []
    dependsOn:
     - default_ns
     - hail_run_image
