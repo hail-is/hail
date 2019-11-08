@@ -23,7 +23,7 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import parse_cpu_in_mcpu, parse_image_tag
+from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes
 from .semaphore import WeightedSemaphore
 from .log_store import LogStore
 
@@ -116,6 +116,7 @@ class Container:
         self.image = image
 
         self.cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+        self.memory_in_bytes = parse_memory_in_bytes(spec['memory'])
 
         self.container = None
         self.state = 'pending'
@@ -134,7 +135,8 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100}
+                           'CpuQuota': self.cpu_in_mcpu * 100,
+                           'Memory': self.memory_in_bytes}
         }
 
         env = self.spec.get('env')
@@ -334,6 +336,7 @@ def copy_container(job, name, files, volume_mounts):
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
         'cpu': '500m' if files else '100m',
+        'memory': '0.5Gi',
         'volume_mounts': volume_mounts
     }
     return Container(job, name, copy_spec)
@@ -407,6 +410,7 @@ class Job:
             'name': 'main',
             'env': env,
             'cpu': job_spec['resources']['cpu'],
+            'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
         containers['main'] = Container(self, 'main', main_spec)
