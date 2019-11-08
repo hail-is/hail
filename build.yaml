@@ -980,10 +980,10 @@ steps:
    wait:
     - kind: Service
       name: scheduler
-      port: 80
       for: alive
    dependsOn:
     - default_ns
+    - deploy_router
     - scheduler_image
  - kind: deploy
    name: deploy_executors
@@ -992,6 +992,7 @@ steps:
    config: scheduler/executors.yaml
    dependsOn:
     - default_ns
+    - deploy_router
     - hail_test_base_image
  - kind: createDatabase
    name: notebook_database
@@ -1054,6 +1055,7 @@ steps:
       to: /io/hail-test.jar
     - from: /testng-scheduler.xml
       to: /io/testng-scheduler.xml
+   scopes:
    dependsOn:
     - default_ns
     - base_image
@@ -1077,6 +1079,7 @@ steps:
    outputs:
     - from: /io/test-output
       to: /test-distributed-backend-output
+   scopes:
    dependsOn:
     - default_ns
     - hail_run_image
@@ -1174,12 +1177,11 @@ steps:
    alwaysRun: true     
    script: |
      set -ex
-     ZONE=$(curl http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="value(name)" \
-       | xargs -r gcloud -q compute instances delete --zone $ZONE
+       | xargs -r gcloud -q compute instances delete --zone {{ global.zone }}
    secrets:
     - name: test-gsa-key
       namespace:

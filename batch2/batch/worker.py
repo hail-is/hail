@@ -341,7 +341,10 @@ def copy_container(job, name, files, volume_mounts):
 
 class Job:
     def secret_host_path(self, secret):
-        return f'{self.scratch}/{secret["name"]}'
+        return f'{self.scratch}/secrets/{secret["name"]}'
+
+    def io_host_path(self):
+        return f'{self.scratch}/io'
 
     def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
@@ -369,7 +372,7 @@ class Job:
 
         if pvc_size or input_files or output_files:
             self.mount_io = True
-            volume_mount = 'io:/io'
+            volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
         else:
@@ -424,13 +427,12 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
-        io = None
         try:
             log.info(f'{self}: initializing')
             self.state = 'initializing'
 
             if self.mount_io:
-                io = await docker_call_retry(docker.volumes.create, {'Name': 'io'})
+                os.makedirs(self.io_host_path())
 
             if self.secrets:
                 for secret in self.secrets:
@@ -481,8 +483,6 @@ class Job:
             log.info(f'{self}: cleaning up')
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
-                if io:
-                    await docker_call_retry(io.delete)
             except Exception:
                 log.exception('while deleting volumes')
 
