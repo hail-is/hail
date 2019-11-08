@@ -307,7 +307,7 @@ async def schedule_job(app, record, instance):
 
     try:
         body = await job_config(app, record)
-    except Exception as err:
+    except Exception:
         log.exception('while making job config')
         status = {
             'worker': None,
