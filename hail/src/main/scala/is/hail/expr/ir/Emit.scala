@@ -1694,6 +1694,9 @@ private class Emit(
         val ndAddress = mb.newField[Long]
 
         val ndPType = nd.pType.asInstanceOf[PNDArray]
+
+        assert(ndPType.elementType.isInstanceOf[PFloat64])
+
         val shapeAddress = ndPType.shape.load(region, ndAddress)
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
         val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_)).toArray
@@ -1703,7 +1706,7 @@ private class Emit(
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
         val LDA = M
-        val LWORK = 10000
+        val LWORK = 100000
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
@@ -1723,9 +1726,11 @@ private class Emit(
         val lworkAddress = tempStorageTuple.fieldOffset(3)
         val infoAddress = tempStorageTuple.fieldOffset(4)
 
+        val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
         val answerAddress = mb.newField[Long]
+        val answerNumElements = ndPType.numElements(shapeArray, mb)
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
@@ -1743,22 +1748,53 @@ private class Emit(
           tempStorageSrvb.addInt(1), // Storing a 1, it will get overriden, just needed some not possible info code.
           tempStorageSrvb.advance(),
 
+          Code._println("answerNumElements.toI"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", answerNumElements.toI),
+
           // Make some space for the output (which means copying the input)
-          answerAddress := region.allocate(8L, ndPType.numElements(shapeArray, mb) * 8L),
-          Region.copyFrom(dataAddress, answerAddress, ndPType.numElements(shapeArray, mb) * 8L),
+          answerAddress := ndPType.data.pType.allocate(region, answerNumElements.toI),
+          ndPType.data.pType.stagedInitialize(answerAddress, answerNumElements.toI),
+          Region.copyFrom(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0),
+            ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), answerNumElements * ndPType.elementType.byteSize),
 
           // Make some space for Tau
-          tauAddress := region.allocate(8L, K * 8L),
+          tauAddress := tauPType.allocate(region, K.toI),
+          tauPType.stagedInitialize(tauAddress, K.toI),
+          Code._println("tau length before calling LAPACK"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", tauPType.loadLength(tauAddress)),
 
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
 
+          Code._println("Info before LAPACK invocation"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", Region.loadInt(infoAddress)),
-          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibraryObj.getClass, "getInstance").dgeqrf(mAddress, nAddress, answerAddress, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress),
-          Code._println("INVOKED LAPACK SUCCESSFULLY"),
+          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibraryObj.getClass, "getInstance").dgeqrf(
+            mAddress,
+            nAddress,
+            ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0),
+            ldaAddress,
+            tauPType.elementOffset(tauAddress, K.toI, 0),
+            workAddress,
+            lworkAddress,
+            infoAddress),
+          Code._println("Info after LAPACK invocation"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", Region.loadInt(infoAddress))//,
+            "println", Region.loadInt(infoAddress)),
+          Code._println("Initial data length"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", ndPType.data.pType.loadLength(dataAddress)),
+          Code._println("Answer data length"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", ndPType.data.pType.loadLength(answerAddress)),
+          Code._println("tau length"),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", tauPType.loadLength(tauAddress))
+
+
+
           //Code.invokeStatic[Memory, Long, Unit]("free", LWORK.toLong)
         )
 
