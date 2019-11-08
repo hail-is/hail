@@ -1,13 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
-import is.hail.expr.types.physical._
-import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.physical._
 import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
+import is.hail.utils._
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -534,6 +533,23 @@ object EmitStream {
     }
   }
 
+  def decode[T](region: Code[Region], spec: AbstractTypedCodecSpec)(
+    dec: spec.StagedDecoderF[T]
+  ): Parameterized[Code[InputBuffer], Code[T]] = new Parameterized[Code[InputBuffer], Code[T]] {
+    type S = Code[InputBuffer]
+    val stateP: ParameterPack[S] = implicitly
+    def emptyState: S = Code._null
+    def length(s0: S): Option[Code[Int]] = None
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, ib: Code[InputBuffer])(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      k(Start(ib))
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, ib: Code[InputBuffer])(
+      k: Step[Code[T], S] => Code[Ctrl]
+    ): Code[Ctrl] =
+      (ib.isNull || !ib.readByte().toZ).mux(k(EOS), k(Yield(dec(region, ib), ib)))
+  }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -824,6 +840,18 @@ object EmitStream {
               Code(condt.setup, condt.m.mux(
                 k(None),
                 Code(cond := condt.value, k(Some(param)))))
+            }
+
+        case ReadPartition(pathIR, spec, rowType) =>
+          val (returnedRowPType, rowDec) = spec.buildEmitDecoderF[Long](rowType, fb)
+          decode(er.region, spec)(rowDec)
+            .map(present)
+            .guardParam { (_, k) =>
+              val patht = emitIR(pathIR, env)
+              val pathString = Code.invokeScalaObject[Region, Long, String](
+                PString.getClass, "loadString", er.region, patht.value)
+              Code(patht.setup, patht.m.mux(k(None),
+                k(Some(spec.buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))))))
             }
 
         case _ =>
