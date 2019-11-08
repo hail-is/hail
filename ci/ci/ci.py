@@ -190,8 +190,7 @@ async def get_job_status(request, userdata):
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_status': json.dumps(json.loads(await job.batch2_status()),
-                                 indent=2)
+        'job_status': json.dumps(await job.batch2_status(), indent=2)
     }
     return await render_template('ci', request, userdata, 'job_status.html', page_context)
 

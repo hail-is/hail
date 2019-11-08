@@ -110,6 +110,9 @@ class Job:
     async def status(self):
         return await self._job.status()
 
+    async def batch2_status(self):
+        return await self._job.batch2_status()
+
     @property
     def _status(self):
         return self._job._status
@@ -156,6 +159,9 @@ class UnsubmittedJob:
 
     async def status(self):
         raise ValueError("cannot get the status of an unsubmitted job")
+
+    async def batch2_status(self):
+        raise ValueError("cannot get the batch2 status of an unsubmitted job")
 
     @property
     def _status(self):

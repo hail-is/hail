@@ -315,7 +315,7 @@ async def schedule_job(app, record, instance):
             'job_id': job_id,
             'user': record['user'],
             'state': 'error',
-            'error': traceback.format_exc(err),
+            'error': traceback.format_exc(),
             'container_statuses': None
         }
         await mark_job_complete(app, batch_id, job_id, 'Error', status)

@@ -565,7 +565,7 @@ async def ui_get_job_log(request, userdata):
     return await render_template('batch2', request, userdata, 'job_log.html', page_context)
 
 
-def _get_job_status(app, batch_id, job_id, user):
+async def _get_job_status(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.execute_and_fetchone('''
@@ -613,7 +613,7 @@ async def get_job_status(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
-    status = _get_job_status(request.app, batch_id, job_id, user)
+    status = await _get_job_status(request.app, batch_id, job_id, user)
     return web.json_response(status)
 
 
@@ -626,7 +626,7 @@ async def ui_get_job_status(request, userdata):
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    status = _get_job_status(request.app, batch_id, job_id, user)
+    status = await _get_job_status(request.app, batch_id, job_id, user)
 
     page_context = {
         'batch_id': batch_id,
