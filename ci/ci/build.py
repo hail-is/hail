@@ -8,7 +8,7 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, \
+from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
     DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL
 
 log = logging.getLogger('ci')
@@ -147,6 +147,7 @@ class Step(abc.ABC):
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
+            'zone': GCP_ZONE,
             'domain': DOMAIN,
             'ip': IP,
             'k8s_server_url': KUBERNETES_SERVER_URL
