@@ -1753,11 +1753,15 @@ private class Emit(
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
 
-          LAPACKLibraryObj.instance.dgeqrf(mAddress, nAddress, answerAddress, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress),
+          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
+            "println", Region.loadInt(infoAddress)),
+          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibraryObj.getClass, "getInstance").dgeqrf(mAddress, nAddress, answerAddress, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress),
           Code._println("INVOKED LAPACK SUCCESSFULLY"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", Region.loadInt(infoAddress))
+            "println", Region.loadInt(infoAddress)),
 
+
+          ndAddress.load() // This is the wrong result, but I had to return something
 
           // TODO Free the memory I malloced.
         )
