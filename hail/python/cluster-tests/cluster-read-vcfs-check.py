@@ -19,5 +19,5 @@ parts_json = [
 ]
 
 parts = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus('GRCh38'))))._convert_from_json(parts_json)
-for mt in hl.import_vcfs(gvcfs, parts):
+for mt in hl.import_gvcfs(gvcfs, parts):
     mt._force_count_rows()
