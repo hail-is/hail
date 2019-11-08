@@ -1688,7 +1688,7 @@ private class Emit(
         }
         emitter.emit(outputPType)
 
-      case NDArrayQR(nd, method) =>
+      case x@NDArrayQR(nd, mode) =>
         val ndt = emit(nd)
 
         val ndAddress = mb.newField[Long]
@@ -1701,6 +1701,7 @@ private class Emit(
         // I want a way to lay out a Scala tuple in hail managed memory on the fly
         val M = shapeArray(0)
         val N = shapeArray(1)
+        val K = (M < N).mux(M, N)
         val LDA = M
         val LWORK = 10000
 
@@ -1726,8 +1727,7 @@ private class Emit(
         val workAddress = mb.newField[Long]
         val answerAddress = mb.newField[Long]
 
-
-        val result = Code(
+        val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 
           // Set up the primitive arguments
@@ -1748,7 +1748,7 @@ private class Emit(
           Region.copyFrom(dataAddress, answerAddress, ndPType.numElements(shapeArray, mb) * 8L),
 
           // Make some space for Tau
-          tauAddress := region.allocate(8L, (M < N).mux(M, N) * 8L),
+          tauAddress := region.allocate(8L, K * 8L),
 
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
@@ -1758,15 +1758,60 @@ private class Emit(
           Code.invokeScalaObject[LAPACKLibrary](LAPACKLibraryObj.getClass, "getInstance").dgeqrf(mAddress, nAddress, answerAddress, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress),
           Code._println("INVOKED LAPACK SUCCESSFULLY"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", Region.loadInt(infoAddress)),
-
-
-          ndAddress.load() // This is the wrong result, but I had to return something
-
+            "println", Region.loadInt(infoAddress))
           // TODO Free the memory I malloced.
         )
 
-        EmitTriplet(ndt.setup, ndt.m, result)
+        if (mode == "raw") {
+          val rawPType = x.pType.asInstanceOf[PTuple]
+          val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
+
+          def hShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+            Code(
+              srvb.start(),
+              srvb.addLong(N),
+              srvb.advance(),
+              srvb.addLong(M),
+              srvb.advance()
+            )
+          }
+
+          def tauShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+            Code(
+              srvb.start(),
+              srvb.addLong(K),
+              srvb.advance()
+            )
+          }
+
+          val hPType = rawPType.types(0).asInstanceOf[PNDArray]
+          val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
+
+          val h = hPType.construct(0, 0, hShapeBuilder, ???, ???, mb)
+          val tau = tauPType.construct(0, 0, tauShapeBuilder, ???, ???, mb)
+
+          val ifRaw = Code(
+            rawOutputSrvb.start(),
+            rawOutputSrvb.addIRIntermediate(hPType)(h),
+            rawOutputSrvb.advance(),
+            rawOutputSrvb.addIRIntermediate(tauPType)(tau),
+            rawOutputSrvb.advance(),
+            rawOutputSrvb.end()
+          )
+
+
+          val result = Code(
+            alwaysNeeded,
+            //ndAddress.load() // This is the wrong result, but I had to return something
+            ifRaw
+          )
+
+          EmitTriplet(ndt.setup, ndt.m, result)
+        } else {
+          throw new IllegalArgumentException("Only support raw")
+        }
+
+
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
