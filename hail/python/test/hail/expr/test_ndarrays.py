@@ -518,3 +518,14 @@ def test_ndarray_show():
     hl._nd.arange(6).show()
     hl._nd.arange(6).reshape((2, 3)).show()
     hl._nd.arange(8).reshape((2, 2, 2)).show()
+
+@skip_unless_spark_backend
+def test_ndarray_qr():
+    np_identity4 = np.identity(4)
+    identity4 = hl._ndarray(np_identity4)
+
+    identity4_h, identity4_tau = hl.eval(hl._nd.qr(identity4, mode="raw"))
+    np_identity4_h, np_identity4_tau = np.linalg.qr(np_identity4, mode="raw")
+
+    assert np.array_equal(identity4_h, np_identity4_h)
+    assert np.array_equal(identity4_tau, np_identity4_tau)
