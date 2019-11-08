@@ -494,11 +494,11 @@ object EmitStream {
 
           val (newContainer, aggSetup, aggCleanup) =
             AggContainer.fromFunctionBuilder(extracted.aggs, fb, "array_agg_scan")
-          val initIR = Optimize(extracted.init, noisy = true, canGenerateLiterals = true,
+          val initIR = Optimize(extracted.init, noisy = true,
             context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
-          val seqPerEltIR = Optimize(extracted.seqPerElt, noisy = true, canGenerateLiterals = false,
+          val seqPerEltIR = Optimize(extracted.seqPerElt, noisy = true,
             context = Some("ArrayAggScan/StagedExtractAggregators/init"))
-          val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true, canGenerateLiterals = false,
+          val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
             context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
 
           val e = coerce[PStreamable](childIR.pType).elementType
