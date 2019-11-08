@@ -142,9 +142,10 @@ class InstancePool:
             'disks': [{
                 'boot': True,
                 'autoDelete': True,
-                'diskSizeGb': WORKER_DISK_SIZE_GB,
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-6',
+                    'diskType': f'projects/{PROJECT}/zones/{ZONE}/diskTypes/pd-ssd',
+                    'diskSizeGb': WORKER_DISK_SIZE_GB
                 }
             }],
 
