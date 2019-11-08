@@ -1723,6 +1723,8 @@ private class Emit(
 
         val dataCopySrvb = new StagedRegionValueBuilder(mb, ndPType.data.pType, region)
 
+        val tauAddress = mb.newField[Long]
+        val workAddress = mb.newField[Long]
 
 
         val result = Code(
@@ -1743,8 +1745,15 @@ private class Emit(
 
           // Make some space for the output (which means copying the input)
 
+          // Make some space for Tau
+          tauAddress := region.allocate(8L, (M < N).mux(M, N) * 8L),
 
-          Code.invokeStatic[LAPACKLibrary, LAPACKLibrary]("getInstance").dgeqrf(mAddress, nAddress, ???, ldaAddress, ???, ???, lworkAddress, infoAddress)
+          // Make some space for work
+          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", ???),
+
+          Code.invokeStatic[LAPACKLibrary, LAPACKLibrary]("getInstance").dgeqrf(mAddress, nAddress, ???, ldaAddress, tauAddress, workAddress, lworkAddress, infoAddress)
+
+          // TODO Free the memory I malloced.
         )
 
         EmitTriplet(ndt.setup, ndt.m, result)
