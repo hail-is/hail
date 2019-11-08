@@ -13,7 +13,7 @@ from .serverthread import ServerThread
 
 @pytest.fixture
 def client():
-    client = BatchClient(_service='batch2')
+    client = BatchClient()
     yield client
     client.close()
 

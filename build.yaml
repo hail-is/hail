@@ -11,13 +11,6 @@ steps:
     - auth-oauth2-client-secret
     - scorecard-github-access-token
  - kind: deploy
-   name: deploy_batch_sa
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/service-account.yaml
-   dependsOn:
-    - default_ns
- - kind: deploy
    name: deploy_batch2_sa
    namespace:
      valueFrom: default_ns.name
@@ -27,10 +20,6 @@ steps:
  - kind: createNamespace
    name: batch_pods_ns
    namespaceName: batch-pods
-   adminServiceAccount:
-     name: batch
-     namespace:
-       valueFrom: default_ns.name
    public: false
    secrets:
     - database-server-config
@@ -50,17 +39,10 @@ steps:
     - batch_pods_ns
     - deploy_batch2_sa
  - kind: deploy
-   name: deploy_batch_output_sa
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch/output-service-account.yaml
-   dependsOn:
-    - batch_pods_ns
- - kind: deploy
    name: deploy_default_admin_admin
    namespace:
      valueFrom: batch_pods_ns.name
-   config: batch/default-admin-admin.yaml
+   config: ci/default-admin-admin.yaml
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -242,23 +224,6 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
-   name: batch_image
-   dockerFile: batch/Dockerfile
-   contextPath: .
-   publishAs: batch
-   dependsOn:
-     - service_base_image
- - kind: runImage
-   name: check_batch
-   image:
-     valueFrom: batch_image.image
-   script: |
-     set -ex
-     python3 -m flake8 batch
-     python3 -m pylint --rcfile pylintrc batch
-   dependsOn:
-     - batch_image
- - kind: buildImage
    name: batch2_image
    dockerFile: batch2/Dockerfile
    contextPath: .
@@ -280,13 +245,6 @@ steps:
      python3 -m pylint --rcfile pylintrc batch
    dependsOn:
      - batch2_image
- - kind: buildImage
-   name: test_batch_image
-   dockerFile: batch/Dockerfile.test
-   contextPath: .
-   publishAs: test-batch
-   dependsOn:
-     - base_image
  - kind: buildImage
    name: test_batch2_image
    dockerFile: batch2/Dockerfile.test
@@ -649,13 +607,6 @@ steps:
      - base_image
      - ci_database
  - kind: createDatabase
-   name: batch_database
-   databaseName: batch
-   namespace:
-     valueFrom: default_ns.name
-   dependsOn:
-    - default_ns
- - kind: createDatabase
    name: batch2_database
    databaseName: batch2
    namespace:
@@ -663,31 +614,11 @@ steps:
    dependsOn:
     - default_ns
  - kind: buildImage
-   name: create_batch_tables_image
-   dockerFile: batch/Dockerfile.create-tables
-   contextPath: batch
-   dependsOn:
-    - base_image
- - kind: buildImage
    name: batch2_tables_image
    dockerFile: batch2/Dockerfile.tables
    contextPath: batch2
    dependsOn:
     - service_base_image
- - kind: deploy
-   name: create_batch_tables
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/create-batch-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-batch-tables
-      for: completed
-      timeout: 240
-   dependsOn:
-     - default_ns
-     - create_batch_tables_image
-     - batch_database
  - kind: deploy
    name: delete_batch2_tables
    namespace:
@@ -720,21 +651,6 @@ steps:
      - batch2_database
      - delete_batch2_tables
  - kind: deploy
-   name: create_batch_tables_2
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/create-batch-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-batch-tables
-      for: completed
-      timeout: 240
-   dependsOn:
-     - default_ns
-     - create_batch_tables_image
-     - batch_database
-     - create_batch_tables
- - kind: deploy
    name: create_batch2_tables_2
    namespace:
      valueFrom: default_ns.name
@@ -749,31 +665,6 @@ steps:
      - batch2_tables_image
      - batch2_database
      - create_batch2_tables
- - kind: deploy
-   name: deploy_batch
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/deployment.yaml
-   wait:
-    - kind: Service
-      name: batch
-      for: alive
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - deploy_batch_sa
-    - create_accounts
-    - batch_image
-    - batch_database
-    - deploy_auth
-    - create_batch_tables
- - kind: deploy
-   name: deploy_batch_pods
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch/batch-pods-deployment.yaml
-   dependsOn:
-    - batch_pods_ns
  - kind: deploy
    name: deploy_batch2
    namespace:
@@ -799,22 +690,6 @@ steps:
     - deploy_auth
     - create_batch2_tables
  - kind: deploy
-   name: test_batch
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch/test-batch-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-batch
-      for: completed
-      timeout: 900
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - deploy_batch
-    - deploy_batch_pods
-    - test_batch_image
- - kind: deploy
    name: test_batch2
    namespace:
      valueFrom: batch_pods_ns.name
@@ -832,6 +707,7 @@ steps:
     - test_batch2_image
     - ci_utils_image
     - deploy_ci_agent
+    - deploy_ci_agent_default
  - kind: runImage
    name: create_ci_test_repo
    image:
@@ -962,7 +838,7 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil -m rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
    secrets:
-    # hail|test-batch
+    # hail|test-batch2
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name

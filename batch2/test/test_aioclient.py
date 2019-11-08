@@ -6,7 +6,7 @@ pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
 async def client():
-    bc = await BatchClient(_service='batch2')
+    bc = await BatchClient()
     yield bc
     await bc.close()
 
