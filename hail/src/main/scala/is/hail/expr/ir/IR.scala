@@ -281,7 +281,7 @@ final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
 final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
 
-final case class NDArrayQR(nd: IR, mode: String) extends NDArrayIR
+final case class NDArrayQR(nd: IR, mode: String) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
