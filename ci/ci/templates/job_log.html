@@ -2,9 +2,9 @@
 {% block title %}Job {{ job_id }} Log{% endblock %}
 {% block content %}
     <h1>Job {{ job_id }} Log</h1>
-    {% if 'setup' in job_log %}
-    <h2 class="stacked-header">Setup</h2>
-    <pre>{{ job_log['setup'] }}</pre>
+    {% if 'input' in job_log %}
+    <h2 class="stacked-header">Input</h2>
+    <pre>{{ job_log['input'] }}</pre>
     {% endif %}
 
     {% if 'main' in job_log %}
@@ -12,8 +12,8 @@
     <pre>{{ job_log['main'] }}</pre>
     {% endif %}
 
-    {% if 'cleanup' in job_log %}
-    <h2>Cleanup</h2>
-    <pre>{{ job_log['cleanup'] }}</pre>
+    {% if 'output' in job_log %}
+    <h2>Output</h2>
+    <pre>{{ job_log['output'] }}</pre>
     {% endif %}
 {% endblock %}
