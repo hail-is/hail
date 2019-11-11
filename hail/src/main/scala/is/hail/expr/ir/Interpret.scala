@@ -702,7 +702,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(PTuple(ir.implementation.returnType.subst().physicalType), region, resultOffset)
+          SafeRow(PTuple(ir.implementation.returnPType(argTuple.types, ir.returnType)), region, resultOffset)
             .get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>

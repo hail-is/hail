@@ -266,9 +266,15 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(rType.subst()) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], rType: Type): PType = if (pt == null) {
+        unify(argTypes.map(_.virtualType) :+ rType)
+        PType.canonical(rType.subst())
+      } else pt(argTypes)
 
-      override def apply(r: EmitRegion, args: (PType, Code[_])*): Code[_] = impl(r, returnPType(args.map(_._1)), args.toArray)
+      override def apply(r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
+        unify(args.map(_._1.virtualType))
+        impl(r, returnPType(args.map(_._1), returnType.subst()), args.toArray)
+      }
     })
   }
 
@@ -281,9 +287,15 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(rType.subst()) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) {
+        unify(argTypes.map(_.virtualType) :+ returnType)
+        PType.canonical(rType.subst())
+      } else pt(argTypes)
 
-      override def apply(r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = impl(r, returnPType(args.map(_._1)), args.toArray)
+      override def apply(r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
+        unify(args.map(_._1.virtualType))
+        impl(r, returnPType(args.map(_._1), returnType.subst()), args.toArray)
+      }
     })
   }
 
@@ -425,9 +437,15 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(rType.subst()) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) {
+        unify(argTypes.map(_.virtualType) :+ returnType)
+        PType.canonical(rType.subst())
+      } else pt(argTypes)
 
-      def applySeeded(seed: Long, r: EmitRegion, args: (PType, Code[_])*): Code[_] = impl(r, returnPType(args.map(_._1)), seed, args.toArray)
+      def applySeeded(seed: Long, r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
+        unify(args.map(_._1.virtualType))
+        impl(r, returnPType(args.map(_._1), returnType.subst()), seed, args.toArray)
+      }
 
       def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
         val setup = args.map(_._2.setup)
@@ -478,7 +496,7 @@ sealed abstract class IRFunction {
 
   def returnType: Type
 
-  def returnPType(argTypes: Seq[PType]): PType
+  def returnPType(argTypes: Seq[PType], returnType: Type): PType
 
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 
@@ -510,7 +528,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
     val unified = unify(args.map(_.virtualType) :+ rt)
     assert(unified)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
-    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
+    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(rt))
     methodbuilder.emit(apply(EmitRegion.default(methodbuilder), args.zip(ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }): _*))
     methodbuilder
   }
