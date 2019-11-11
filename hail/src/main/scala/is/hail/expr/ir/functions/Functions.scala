@@ -266,9 +266,9 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType], rType: Type): PType = if (pt == null) {
-        unify(argTypes.map(_.virtualType) :+ rType)
-        PType.canonical(rType.subst())
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) {
+        unify(argTypes.map(_.virtualType) :+ returnType)
+        PType.canonical(returnType.subst())
       } else pt(argTypes)
 
       override def apply(r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
@@ -460,7 +460,7 @@ abstract class RegistryFunctions {
   }
 
   def registerSeeded(mname: String, rType: Type, pt: PType)(impl: (EmitRegion, PType, Long) => Code[_]): Unit =
-    registerSeeded(mname, Array[Type](), rType, (_: Seq[PType]) => pt) { case (r, rt, seed, array) => impl(r, rt, seed) }
+    registerSeeded(mname, Array[Type](), rType, if (pt == null) null else (_: Seq[PType]) => pt) { case (r, rt, seed, array) => impl(r, rt, seed) }
 
   def registerSeeded[A1](mname: String, arg1: Type, rType: Type, pt: PType => PType)(impl: (EmitRegion, PType, Long, (PType, Code[A1])) => Code[_]): Unit =
     registerSeeded(mname, Array(arg1), rType, unwrappedApply(pt)) {
