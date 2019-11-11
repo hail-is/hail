@@ -449,28 +449,41 @@ object LowerMatrixIR {
               }
           }))
 
-      case MatrixUnionCols(left, right) =>
+      case MatrixUnionCols(left, right, joinType) =>
         val rightEntries = genUID()
         val rightCols = genUID()
         val ll = lower(left, ab).distinct()
+        def handleMissingEntriesArray(entries: Symbol, cols: Symbol): IRProxy =
+          if (joinType == "inner")
+            'row(entries)
+          else
+            irIf('row(entries).isNA) {
+              irRange(0, 'global(cols).len)
+                .map('a ~> irToProxy(MakeStruct(right.typ.entryType.fieldNames.map(f => (f, NA(right.typ.entryType.fieldType(f)))))))
+            } {
+              'row(entries)
+            }
         TableJoin(
           ll,
           lower(right, ab).distinct()
             .mapRows('row
-              .insertFields(Symbol(rightEntries) -> 'row (entriesField))
+              .insertFields(Symbol(rightEntries) -> 'row(entriesField))
               .selectFields(right.typ.rowKey :+ rightEntries: _*))
             .mapGlobals('global
-              .insertFields(Symbol(rightCols) -> 'global (colsField))
+              .insertFields(Symbol(rightCols) -> 'global(colsField))
               .selectFields(rightCols)),
-          "inner")
+          joinType)
           .mapRows('row
             .insertFields(entriesField ->
-              makeArray('row (entriesField), 'row (Symbol(rightEntries))).flatMap('a ~> 'a))
+              makeArray(
+                handleMissingEntriesArray(entriesField, colsField),
+                handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)))
+                .flatMap('a ~> 'a))
             // TableJoin puts keys first; drop rightEntries, but also restore left row field order
             .selectFields(ll.typ.rowType.fieldNames: _*))
           .mapGlobals('global
             .insertFields(colsField ->
-              makeArray('global (colsField), 'global (Symbol(rightCols))).flatMap('a ~> 'a))
+              makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
             .dropFields(Symbol(rightCols)))
 
       case MatrixMapEntries(child, newEntries) =>
