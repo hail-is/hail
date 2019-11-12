@@ -1,4 +1,8 @@
 """An experimental library for combining (g)VCFS into sparse matrix tables"""
+# these are necessary for the diver script included at the end of this file
+import argparse
+import time
+import uuid
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -335,3 +339,114 @@ def default_exome_intervals(reference_genome='default'):
     return [hl.Interval(start=hl.Locus(contig=contig, position=1, reference_genome=reference_genome),
                         end=hl.Locus.parse(f'{contig}:END', reference_genome=reference_genome),
                         includes_end=True) for contig in contigs]
+
+
+# END OF VCF COMBINER LIBRARY, BEGINNING OF BEST PRACTICES SCRIPT #
+
+DEFAULT_REF = 'GRCh38'
+MAX_MULTI_WRITE_NUMBER = 100
+MAX_COMBINE_NUMBER = 100
+# The target number of rows per partition during each round of merging
+TARGET_RECORDS = 30_000
+
+def chunks(seq, size):
+    """iterate through a list size elements at a time"""
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+
+
+def stage_one(paths, sample_names, tmp_path, intervals, header, out_path):
+    """stage one of the combiner, responsible for importing gvcfs, transforming them
+       into what the combiner expects, and writing intermediates."""
+    def h(paths, sample_names, tmp_path, intervals, header, out_path, i, first):
+        vcfs = [transform_one(vcf)
+                for vcf in hl.import_gvcfs(paths, intervals, array_elements_required=False,
+                                           _external_header=header,
+                                           _external_sample_ids=sample_names if header is not None else None)]
+        combined = [combine_gvcfs(mts) for mts in chunks(vcfs, MAX_COMBINE_NUMBER)]
+        if first and len(paths) <= MAX_COMBINE_NUMBER:  # only 1 item, just write it, unless we have already written other items
+            combined[0].write(out_path, overwrite=True)
+            return []
+        pad = len(str(len(combined)))
+        hl.experimental.write_matrix_tables(combined, tmp_path + f'{i}/', overwrite=True)
+        return [tmp_path + f'{i}/' + str(n).zfill(pad) + '.mt' for n in range(len(combined))]
+
+    assert len(paths) == len(sample_names)
+    tmp_path += f'{uuid.uuid4()}/'
+    out_paths = []
+    i = 0
+    size = MAX_MULTI_WRITE_NUMBER * MAX_COMBINE_NUMBER
+    first = True
+    for pos in range(0, len(paths), size):
+        tmp = h(paths[pos:pos + size], sample_names[pos:pos + size], tmp_path, intervals, header,
+                out_path, i, first)
+        if not tmp:
+            return tmp
+        out_paths.extend(tmp)
+        first = False
+        i += 1
+    return out_paths
+
+def run_combiner(sample_names, sample_paths, intervals, out_file, tmp_path, header, overwrite):
+    tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
+    assert len(sample_names) == len(sample_paths)
+    out_paths = stage_one(sample_paths, sample_names, tmp_path, intervals, header, out_file)
+    if not out_paths:
+        return
+    tmp_path += f'{uuid.uuid4()}/'
+
+    ht = hl.read_matrix_table(out_paths[0]).rows()
+    intervals = calculate_new_intervals(ht, TARGET_RECORDS)
+
+    mts = [hl.read_matrix_table(path, _intervals=intervals) for path in out_paths]
+    combined_mts = [combine_gvcfs(mt) for mt in chunks(mts, MAX_COMBINE_NUMBER)]
+    i = 0
+    while len(combined_mts) > 1:
+        tmp = tmp_path + f'{i}/'
+        pad = len(str(len(combined_mts)))
+        hl.experimental.write_matrix_tables(combined_mts, tmp, overwrite=True)
+        paths = [tmp + str(n).zfill(pad) + '.mt' for n in range(len(combined_mts))]
+
+        ht = hl.read_matrix_table(out_paths[0]).rows()
+        intervals = calculate_new_intervals(ht, TARGET_RECORDS)
+
+        mts = [hl.read_matrix_table(path, _intervals=intervals) for path in paths]
+        combined_mts = [combine_gvcfs(mts) for mt in chunks(mts, MAX_COMBINE_NUMBER)]
+        i += 1
+    combined_mts[0].write(out_file, overwrite=overwrite)
+
+def drive_combiner(sample_map_path, intervals, out_file, tmp_path, header, overwrite=False):
+    with open(sample_map_path) as sample_map:
+        samples = [l.strip().split('\t') for l in sample_map]
+    sample_names, sample_paths = [list(x) for x in zip(*samples)]
+    sample_names = [[n] for n in sample_names]
+    run_combiner(sample_names, sample_paths, intervals, out_file, tmp_path, header, overwrite)
+
+def main():
+    parser = argparse.ArgumentParser(description="Driver for hail's gVCF combiner")
+    parser.add_argument('sample-map',
+                        help='path to the sample map (must be filesystem local). '
+                             'The sample map should be tab separated with two columns. '
+                             'The first column is the sample ID, and the second column '
+                             'is the gVCF path.\n')
+    parser.add_argument('out-file', help='path to final combiner output')
+    parser.add_argument('--tmp-path', help='path to folder for temp output (can be a cloud bucket)',
+                        default='/tmp')
+    parser.add_argument('--header',
+                        help='external header, must be cloud based\n'
+                             'WARNING: if this option is used, the sample names in the '
+                             'gvcfs will be overriden by the names in sample map.',
+                        required=False)
+    parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
+    args = parser.parse_args()
+    hl.init(default_reference=DEFAULT_REF,
+            log='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
+
+    # NOTE: This will need to be changed to support genomes as well
+    intervals = default_exome_intervals()
+    with open(args.sample_map) as sample_map:
+        samples = [l.strip().split('\t') for l in sample_map]
+    drive_combiner(samples, intervals, args.out_file, args.tmp_path, args.header, args.overwrite)
+
+
+if __name__ == '__main__':
+    main()
