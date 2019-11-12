@@ -15,7 +15,13 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
-  override def _toPretty = s"NDArray[${if (elementType.required) "+" else ""}${elementType._toPretty},$nDims]"
+  override def _toPretty = throw new NotImplementedError("Only _pretty should be called.")//s"NDArray[${if (elementType.required) "+" else ""}${elementType._toPretty},$nDims]"
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    sb.append("NDArray[")
+    elementType.pretty(sb, indent, compact)
+    sb.append(s",$nDims]")
+  }
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
