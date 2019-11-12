@@ -81,12 +81,11 @@ class JobDeletedError(Exception):
 
 
 class ContainerStepManager:
-    def __init__(self, container, state=None, name=None):
+    def __init__(self, container, name, state):
         self.container = container
         self.state = state
-        self.name = name or state
-        self.time = None
-        self.start_time = None
+        self.name = name
+        self.timing = None
 
     async def __aenter__(self):
         if self.container.job.deleted:
@@ -94,12 +93,15 @@ class ContainerStepManager:
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
-        self.start_time = time.time()
+        self.timing = {}
+        self.timing['start_time'] = time.time()
+        self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time.time()
-        if self.name:
-            self.container.timing[self.name] = finish_time - self.start_time
+        self.timing['finish_time'] = finish_time
+        start_time = self.timing['start_time']
+        self.timing['duration'] = finish_time - start_time
 
 
 class Container:
@@ -147,8 +149,9 @@ class Container:
 
         return config
 
-    def step(self, state=None, name=None):
-        return ContainerStepManager(self, state, name)
+    def step(self, name, **kwargs):
+        state = kwargs.get('state', name)
+        return ContainerStepManager(self, name, state)
 
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
@@ -197,7 +200,7 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with self.step(None, 'runtime'):
+            async with self.step('runtime', state=None):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
                     async with self.step('starting'):
                         await docker_call_retry(self.container.start)
