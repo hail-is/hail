@@ -1927,11 +1927,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     TableRename(newChild, rowMap, globalMap)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val prev = child.execute(ctx)
-
-    TableValue(typ, prev.globals.copy(t = prev.globals.t.rename(globalMap)), prev.rvd.cast(prev.rvd.rowPType.rename(rowMap)))
-  }
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue = child.execute(ctx).rename(globalMap, rowMap)
 }
 
 case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean) extends TableIR {
