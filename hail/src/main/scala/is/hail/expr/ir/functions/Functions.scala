@@ -266,10 +266,7 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) {
-        unify(argTypes.map(_.virtualType) :+ returnType)
-        PType.canonical(returnType.subst())
-      } else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
       override def apply(r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
         unify(args.map(_._1.virtualType))
@@ -287,10 +284,7 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) {
-        unify(argTypes.map(_.virtualType) :+ returnType)
-        PType.canonical(rType.subst())
-      } else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
       override def apply(r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
         unify(args.map(_._1.virtualType))
@@ -437,10 +431,7 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) {
-        unify(argTypes.map(_.virtualType) :+ returnType)
-        PType.canonical(rType.subst())
-      } else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
       def applySeeded(seed: Long, r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
         unify(args.map(_._1.virtualType))
