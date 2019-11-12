@@ -150,7 +150,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   }
 
   def rename(globalMap: Map[String, String], rowMap: Map[String, String]): TableValue = {
-    TableValue(typ, globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
+    TableValue(typ.copy(
+      rowType = typ.rowType.rename(rowMap),
+      globalType = typ.globalType.rename(globalMap),
+      key = typ.key.map(k => rowMap.getOrElse(k, k))),
+      globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
   }
 
   def toMatrixValue(colKey: IndexedSeq[String],
