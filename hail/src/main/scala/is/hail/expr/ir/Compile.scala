@@ -82,9 +82,10 @@ object Compile {
 
   def apply[R: TypeInfo : ClassTag](
     body: IR,
-    print: Option[PrintWriter]
+    print: Option[PrintWriter],
+    optimize: Boolean = true
   ): (PType, (Int, Region) => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
+    apply[AsmFunction1[Region, R], R](print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](

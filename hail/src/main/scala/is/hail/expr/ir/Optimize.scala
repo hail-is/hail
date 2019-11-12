@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.utils._
 
 object Optimize {
-  private def optimize(ir0: BaseIR, noisy: Boolean, context: Option[String]): BaseIR = {
+  def optimize(ir0: BaseIR, noisy: Boolean, context: Option[String]): BaseIR = {
     val contextStr = context.map(s => s" ($s)").getOrElse("")
     if (noisy)
       log.info(s"optimize$contextStr: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
@@ -26,7 +26,7 @@ object Optimize {
     }
 
     if (ir.typ != ir0.typ)
-      fatal(s"optimization changed type!\n  before: ${ ir0.typ.parsableString() }\n  after:  ${ ir.typ.parsableString() }" +
+      throw new RuntimeException(s"optimization changed type!\n  before: ${ ir0.typ.parsableString() }\n  after:  ${ ir.typ.parsableString() }" +
         s"\n  Before IR:\n  ----------\n${ Pretty(ir0) }\n  After IR:\n  ---------\n${ Pretty(ir) }")
 
     if (noisy)

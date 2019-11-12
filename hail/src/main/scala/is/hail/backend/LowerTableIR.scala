@@ -38,8 +38,7 @@ object LowerTableIR {
 
     def opt(context: String, ir: IR): IR =
       Optimize(ir, noisy = true,
-        Some(timer.map(t => s"${ t.context }: $context")
-          .getOrElse(context)))
+        Some(context))
 
     def time(context: String, ir: (String) => IR): IR =
       timer.map(t => t.time(ir(context), context))
