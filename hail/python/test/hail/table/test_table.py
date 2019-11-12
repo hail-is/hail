@@ -1336,5 +1336,11 @@ def test_join_distinct_preserves_count():
     right_table = hl.Table.parallelize([hl.struct(i=i) for i in right_pos], key='i')
     joined = left_table.annotate(r=right_table.index(left_table.i))
     n_defined, keys = joined.aggregate((hl.agg.count_where(hl.is_defined(joined.r)), hl.agg.collect(joined.i)))
-    assert n_defined == 5
+    assert n_defined == 7
     assert keys == left_pos
+
+    right_table_2 = hl.utils.range_table(1).filter(False)
+    joined_2 = left_table.annotate(r = right_table_2.index(left_table.i))
+    n_defined_2, keys_2 = joined_2.aggregate((hl.agg.count_where(hl.is_defined(joined_2.r)), hl.agg.collect(joined_2.i)))
+    assert n_defined_2 == 0
+    assert keys_2 == left_pos

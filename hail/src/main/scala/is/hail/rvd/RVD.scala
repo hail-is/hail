@@ -987,14 +987,6 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedJoin(right.keyBy(joinKey), joinType, joiner, joinedType, ctx)
 
-  def orderedJoinDistinct(
-    right: RVD,
-    joinType: String,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType
-  ): RVD =
-    orderedJoinDistinct(right, typ.key.length, joinType, joiner, joinedType)
-
   def orderedLeftJoinDistinct(
     right: RVD,
     joinKey: Int,

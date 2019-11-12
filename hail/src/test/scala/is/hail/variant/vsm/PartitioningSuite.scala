@@ -43,14 +43,6 @@ class PartitioningSuite extends HailSuite {
       .rvd.count()
   }
 
-  @Test def testEmptyRightRDDOrderedJoinDistinct() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.canonicalTableType.canonicalRVDType
-
-    mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "left", (_, it) => it.map(_._1), rvdType).count()
-    mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "inner", (_, it) => it.map(_._1), rvdType).count()
-  }
-
   @Test def testEmptyRDDOrderedJoin() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
     val rvdType = mt.matrixType.canonicalTableType.canonicalRVDType
