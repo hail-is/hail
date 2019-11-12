@@ -131,21 +131,14 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     }
   }
 
-  def orderedJoinDistinct(
+  def orderedLeftJoinDistinct(
     right: KeyedRVD,
-    joinType: String,
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: RVDType
   ): RVD = {
     checkJoinCompatability(right)
     val lTyp = virtType
     val rTyp = right.virtType
-
-    val compute: (OrderedRVIterator, OrderedRVIterator) => Iterator[JoinedRegionValue] =
-      (joinType: @unchecked) match {
-        case "inner" => _.innerJoinDistinct(_)
-        case "left" => _.leftJoinDistinct(_)
-      }
 
     rvd.alignAndZipPartitions(
       joinedType,
@@ -154,9 +147,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     ) { (ctx, leftIt, rightIt) =>
       joiner(
         ctx,
-        compute(
-          OrderedRVIterator(lTyp, leftIt, ctx),
-          OrderedRVIterator(rTyp, rightIt, ctx)))
+        OrderedRVIterator(lTyp, leftIt, ctx).leftJoinDistinct(OrderedRVIterator(rTyp, rightIt, ctx)))
     }
   }
 

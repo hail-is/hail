@@ -1328,3 +1328,13 @@ def create_width_scale_files():
     for w in widths:
         write_file(w)
 
+
+def test_join_distinct_preserves_count():
+    left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
+    right_pos = [1, 1, 1, 3, 4, 4, 6, 6, 8, 9, 13, 15]
+    left_table = hl.Table.parallelize([hl.struct(i=i) for i in left_pos], key='i')
+    right_table = hl.Table.parallelize([hl.struct(i=i) for i in right_pos], key='i')
+    joined = left_table.annotate(r=right_table.index(left_table.i))
+    n_defined, keys = joined.aggregate((hl.agg.count_where(hl.is_defined(joined.r)), hl.agg.collect(joined.i)))
+    assert n_defined == 5
+    assert keys == left_pos
