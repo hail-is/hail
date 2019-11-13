@@ -296,7 +296,7 @@ async def get_index(request, userdata):
         'ready_cores_mcpu': ready_cores_mcpu,
         'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
     }
-    return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
+    return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
 async def on_startup(app):
@@ -329,7 +329,7 @@ async def on_startup(app):
         'internal')
     app['internal_token'] = row['token']
 
-    machine_name_prefix = f'batch2-worker-{DEFAULT_NAMESPACE}-'
+    machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')
@@ -373,4 +373,4 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch2-driver'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)

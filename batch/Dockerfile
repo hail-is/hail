@@ -1,7 +1,7 @@
 FROM {{ service_base_image.image }}
 
-COPY batch2/setup.py batch2/MANIFEST.in /batch/
-COPY batch2/batch /batch/batch/
+COPY batch/setup.py batch/MANIFEST.in /batch/
+COPY batch/batch /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch
 

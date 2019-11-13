@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: test-batch2
+  name: test-batch
 spec:
   containers:
-  - name: test-batch2
-    image: "{{ test_batch2_image.image }}"
+  - name: test-batch
+    image: "{{ test_batch_image.image }}"
     env:
      - name: POD_IP
        valueFrom:

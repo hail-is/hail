@@ -322,7 +322,7 @@ class Test(unittest.TestCase):
             (requests.post, '/batches/0/cancel', 401),
             (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
-            full_url = deploy_config.url('batch2', url)
+            full_url = deploy_config.url('batch', url)
             r = f(full_url, allow_redirects=False)
             assert r.status_code == expected, (full_url, r, expected)
 
@@ -351,7 +351,7 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job(
             os.environ['CI_UTILS_IMAGE'],
-            ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
+            ['/bin/sh', '-c', 'kubectl get pods -l app=batch-driver'],
             service_account={
                 'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
                 'name': 'ci-agent'

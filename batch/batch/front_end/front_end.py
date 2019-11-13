@@ -38,7 +38,7 @@ from . import schemas
 
 log = logging.getLogger('batch.front_end')
 
-REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
+REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
@@ -417,7 +417,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'),
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'),
             headers=app['driver_headers'])
 
     return web.Response()
@@ -477,7 +477,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
-            deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
             headers=app['driver_headers'])
 
     return web.Response()
@@ -511,7 +511,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             try:
                 await request_retry_transient_errors(
                     session, 'DELETE',
-                    deploy_config.url('batch2-driver', f'/api/v1alpha/batches/{user}/{batch_id}'),
+                    deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}'),
                     headers=app['driver_headers'])
             except aiohttp.ClientResponseError as e:
                 if e.status == 404:
@@ -539,7 +539,7 @@ async def ui_batch(request, userdata):
     page_context = {
         'batch': batch
     }
-    return await render_template('batch2', request, userdata, 'batch.html', page_context)
+    return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
 @routes.post('/batches/{batch_id}/cancel')
@@ -566,7 +566,22 @@ async def ui_batches(request, userdata):
     page_context = {
         'batch_list': batches[::-1]
     }
-    return await render_template('batch2', request, userdata, 'batches.html', page_context)
+    return await render_template('batch', request, userdata, 'batches.html', page_context)
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
+@prom_async_time(REQUEST_TIME_GET_LOGS_UI)
+@web_authenticated_users_only()
+async def ui_get_job_log(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'job_log': await _get_job_log(request.app, batch_id, job_id, user)
+    }
+    return await render_template('batch', request, userdata, 'job_log.html', page_context)
 
 
 async def _get_job_running_status(record):
@@ -639,7 +654,7 @@ async def ui_get_job(request, userdata):
         'job_log': await _get_job_log(request.app, batch_id, job_id, user),
         'job_status': json.dumps(job_status, indent=2)
     }
-    return await render_template('batch2', request, userdata, 'job.html', page_context)
+    return await render_template('batch', request, userdata, 'job.html', page_context)
 
 
 @routes.get('')
@@ -700,4 +715,4 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch2'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'batch'), host='0.0.0.0', port=5000)

@@ -30,7 +30,7 @@ from .log_store import LogStore
 # uvloop.install()
 
 configure_logging()
-log = logging.getLogger('batch2-worker')
+log = logging.getLogger('batch-worker')
 
 MAX_IDLE_TIME_SECS = 5 * 60
 
@@ -645,7 +645,7 @@ class Worker:
                 # gone (e.g. testing a PR), this would go into an
                 # infinite loop and the instance won't be deleted.
                 await session.post(
-                    deploy_config.url('batch2-driver', '/api/v1alpha/instances/deactivate'),
+                    deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
                     headers=self.headers)
             log.info('deactivated')
         finally:
@@ -668,7 +668,7 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
-                        deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_complete'),
+                        deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
@@ -687,7 +687,7 @@ class Worker:
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',
-                deploy_config.url('batch2-driver', '/api/v1alpha/instances/activate'),
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
                 json={'ip_address': os.environ['IP_ADDRESS']},
                 headers={
                     'X-Hail-Instance-Name': NAME,

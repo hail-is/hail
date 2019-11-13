@@ -143,7 +143,7 @@ class InstancePool:
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-6',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-7',
                     'diskType': f'projects/{PROJECT}/zones/{ZONE}/diskTypes/pd-ssd',
                     'diskSizeGb': WORKER_DISK_SIZE_GB
                 }
@@ -245,7 +245,7 @@ INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.inter
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
 # this has to match LogStore.worker_log_path
-gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$INSTANCE_ID/worker/$NAME/
+gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
 '''
                 }, {
                     'key': 'activation_token',
