@@ -808,6 +808,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /gsa-key
    dependsOn:
+    - base_image
     - build_hail
     - batch_pods_ns
  - kind: runImage
