@@ -253,13 +253,6 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
-   name: test_pipeline_image
-   dockerFile: pipeline/Dockerfile.test
-   contextPath: .
-   publishAs: test-pipeline
-   dependsOn:
-     - base_image
- - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
    contextPath: .
@@ -342,6 +335,8 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
+     - from: /io/repo/pipeline/test
+       to: /pipeline/
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -799,34 +794,49 @@ steps:
  - kind: runImage
    name: setup_pipeline
    image:
-     valueFrom: test_pipeline_image.image
+     valueFrom: base_image.image
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
-     gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
+     gsutil -m cp -r /io/test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
+   inputs:
+    - from: /pipeline/test
+      to: /io/
    secrets:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /test-gsa-key
    dependsOn:
+    - base_image
+    - build_hail
     - batch_pods_ns
-    - test_pipeline_image
- - kind: deploy
+ - kind: runImage
    name: test_pipeline
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: pipeline/test-pipeline-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-pipeline
-      for: completed
-      timeout: 900
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     export SCRATCH=gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
+     python3 -m pytest --log-cli-level=INFO -s -v --instafail /io/test/
+   inputs:
+    - from: /pipeline/test
+      to: /io/
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - service_base_image
+    - build_hail
     - deploy_batch2
-    - test_pipeline_image
     - setup_pipeline
  - kind: runImage
    name: cleanup_pipeline
