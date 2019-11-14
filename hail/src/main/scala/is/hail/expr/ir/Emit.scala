@@ -2441,19 +2441,19 @@ private class Emit(
 
         val slicest = emit(slicesIR, env, resultRegion, None)
         val slicesValueAddress = mb.newField[Long]
-        val slicesTuple = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
+        val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
 
         val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
         val codeRefMap = mutable.Map[Int, Code[Long]]()
 
         var missingSliceElements = const(false)
 
-        slicesTuple.pType.types.zipWithIndex.foreach {
+        slices.pType.types.zipWithIndex.foreach {
           case (p: PTuple, dim) =>
-            val oneSlice = new CodePTuple(p, region, slicesTuple(dim))
+            val oneSlice = new CodePTuple(p, region, slices(dim))
             missingSliceElements ||= oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
             codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
-          case (_: PInt64, dim) => codeRefMap += dim -> slicesTuple(dim)
+          case (_: PInt64, dim) => codeRefMap += dim -> slices(dim)
         }
 
         val outputShape = codeSlices.map { case (start, stop, step) =>
