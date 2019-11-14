@@ -797,7 +797,7 @@ steps:
      valueFrom: base_image.image
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil -m cp -r /io/test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    inputs:
     - from: /pipeline/test
@@ -806,7 +806,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
     - base_image
     - build_hail
