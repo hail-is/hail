@@ -823,18 +823,19 @@ steps:
     - from: /pipeline/test
       to: /io/
    secrets:
-    - name: deploy-config
+    - name: gce-deploy-config
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
    dependsOn:
+    - default_ns
+    - batch_pods_ns
     - service_base_image
     - build_hail
-    - batch_pods_ns
     - deploy_batch2
     - setup_pipeline
  - kind: runImage
