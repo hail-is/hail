@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
@@ -12,13 +12,24 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   val storageType: PStruct = PStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
-    "container" -> PInt64(true))
-
+    "container" -> states.storageType)
   val compType: PType = kt
   private val kcomp = fb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
 
+  private val compLoader: EmitMethodBuilder = {
+    val mb = fb.newMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
+    val off = mb.getArg[Long](1).load()
+    val m = mb.getArg[Boolean](2).load()
+    val v = mb.getArg(3)(typeToTypeInfo(compType)).load()
+    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m -> v))
+    mb
+  }
+
+  override def compWithKey(off: Code[Long], k: (Code[Boolean], Code[_])): Code[Int] =
+    compLoader.invoke[Int](off, k._1, k._2)
+
   val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
-  val container = new TupleAggregatorState(fb, states, region, containerAddress(offset), regionIdx)
+  val container = new TupleAggregatorState(fb, states, region, containerOffset(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -37,7 +48,6 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
     Code(
       storeK,
       storeRegionIdx(dest, rIdx),
-      Region.storeAddress(containerOffset(dest), region.allocate(states.storageType.alignment, states.storageType.byteSize)),
       container.newState)
   }
 
@@ -51,20 +61,17 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   def containerOffset(off: Code[Long]): Code[Long] =
     storageType.fieldOffset(off, 2)
 
-  def containerAddress(off: Code[Long]): Code[Long] =
-    Region.loadAddress(containerOffset(off))
-
   def isEmpty(off: Code[Long]): Code[Boolean] =
-    Region.loadAddress(containerOffset(off)).ceq(0L)
+    Region.loadInt(storageType.fieldOffset(off, 1)) < 0
   def initializeEmpty(off: Code[Long]): Code[Unit] =
-    Region.storeAddress(containerOffset(off), 0L)
+    Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
     Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-      container.copyFrom(containerAddress(src)),
+      container.copyFrom(containerOffset(src)),
       container.store)
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
@@ -93,7 +100,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, initStatesOffset)
 
   val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
-  val tree = new AppendOnlyBTree(fb, keyed, region, root)
+  val tree = new AppendOnlyBTree(fb, keyed, region, root, maxElements = 6)
 
   def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     Code(
