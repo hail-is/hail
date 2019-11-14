@@ -492,3 +492,10 @@ def test_ndarray_mixed():
         (hl._nd.zeros((5, 10)).map(lambda x: x - 2) +
          hl._nd.ones((5, 10)).map(lambda x: x + 5)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64))).T.reshape((10, 5))) is None
     assert hl.eval(hl.or_missing(False, hl._ndarray(np.arange(10)).reshape((5,2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
+
+@skip_unless_spark_backend()
+def test_ndarray_show():
+    hl._nd.array(3).show()
+    hl._nd.arange(6).show()
+    hl._nd.arange(6).reshape((2, 3)).show()
+    hl._nd.arange(8).reshape((2, 2, 2)).show()
