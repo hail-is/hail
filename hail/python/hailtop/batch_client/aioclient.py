@@ -235,7 +235,7 @@ class Batch:
         if include_jobs:
             resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs')
             jobs = await resp.json()
-            batch['jobs'] = jobs['jobs']
+            batch['jobs'] = jobs
         reutrn batch
 
     async def wait(self):
