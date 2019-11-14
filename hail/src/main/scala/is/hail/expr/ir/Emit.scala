@@ -2448,22 +2448,22 @@ private class Emit(
 
         var missingSliceElements = const(false)
 
-        coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach {
+        slicesTuple.pType.types.zipWithIndex.foreach {
           case (p: PTuple, dim) =>
             val oneSlice = new CodePTuple(p, region, slicesTuple(dim))
-            missingSliceElements = missingSliceElements || oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
+            missingSliceElements ||= oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
             codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
           case (_: PInt64, dim) => codeRefMap += dim -> slicesTuple(dim)
         }
 
-        val outputShape = codeSlices.toArray.map { case (start, stop, step) =>
+        val outputShape = codeSlices.map { case (start, stop, step) =>
           (step >= 0L && start <= stop).mux(
             const(1L) + ((stop - start) - const(1L)) / step,
-            (step < 0L && stop <= start).mux(
-              (((stop - start) + const(1L)) / step) + const(1L),
+            (step < 0L && start >= stop).mux(
+              (((stop - start) + 1L) / step) + 1L,
               0L)
           )
-        }
+        }.toArray
 
         val setupMissing = Code(
           slicest.setup,
@@ -2471,13 +2471,9 @@ private class Emit(
           childEmitter.setupMissing
         )
 
-        val setupShape = Code(
-          childEmitter.setupShape
-        )
-
         val missing = childEmitter.missing || missingSliceElements
 
-        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, setupMissing, missing) {
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, setupMissing, missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val oldIdxVarsIter = idxVars.iterator
             val sliceIdxVarsIter = codeSlices.iterator
