@@ -1,10 +1,10 @@
 package is.hail.io.compress;
 
-import static htsjdk.tribble.util.TabixUtils.STANDARD_INDEX_EXTENSION;
+import static htsjdk.samtools.util.FileExtensions.TABIX_INDEX;
 
 public class BGzipCodecTbi extends BGzipCodec {
     @Override
     public String getDefaultExtension() {
-        return STANDARD_INDEX_EXTENSION;
+        return TABIX_INDEX;
     }
 }
