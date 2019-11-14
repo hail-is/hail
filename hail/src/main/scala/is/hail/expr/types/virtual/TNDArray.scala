@@ -58,11 +58,13 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
         else {
           sb.append("[")
           val howMany = shape.head
-          (0 until howMany).foreach{repeat =>
+          var repeat = 0
+          while (repeat < howMany) {
             dataToNestedString(data, shape.tail, sb)
             if (repeat != howMany - 1) {
               sb.append(", ")
             }
+            repeat += 1
           }
           sb.append("]")
         }
