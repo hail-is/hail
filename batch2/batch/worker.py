@@ -430,6 +430,8 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
+        start_time = time.time()
+
         try:
             log.info(f'{self}: initializing')
             self.state = 'initializing'
@@ -480,8 +482,10 @@ class Job:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
+            wall_time = time.time() - start_time
+
             log.info(f'{self}: marking complete')
-            await worker.post_job_complete(await self.status())
+            await worker.post_job_complete(await self.status(), wall_time)
 
             log.info(f'{self}: cleaning up')
             try:
@@ -663,13 +667,15 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def post_job_complete(self, job_status):
+    async def post_job_complete(self, job_status, wall_time):
         body = {
             'status': job_status
         }
 
         delay = 0.1
-        while True:
+        elapsed_time = 0
+        max_wait_time = max(wall_time / 2, 1800)
+        while elapsed_time < max_wait_time:
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -680,12 +686,13 @@ class Worker:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
-                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     raise
                 log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
             # exponentially back off, up to (expected) max of 30s
             t = delay * random.random()
             await asyncio.sleep(t)
+            elapsed_time += t
             delay = min(delay * 2, 60.0)
 
     async def activate(self):
