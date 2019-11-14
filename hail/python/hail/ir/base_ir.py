@@ -246,10 +246,6 @@ class IR(BaseIR):
     @property
     def free_vars(self):
         def vars_from_child(i):
-            if self.uses_agg_context(i):
-                return self.children[i].free_agg_vars
-            if self.uses_scan_context(i):
-                return self.children[i].free_scan_vars
             return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
 
         if self._free_vars is None:
@@ -262,20 +258,30 @@ class IR(BaseIR):
 
     @property
     def free_agg_vars(self):
+        def vars_from_child(i):
+            if self.uses_agg_context(i):
+                assert(len(self.children[i].free_agg_vars) == 0)
+                return self.children[i].free_vars
+            return self.children[i].free_agg_vars.difference(self.agg_bindings(i, 0).keys())
+
         if self._free_agg_vars is None:
             self._free_agg_vars = {
                 var for i in range(len(self.children))
-                    for var in self.children[i].free_agg_vars.difference(
-                        self.agg_bindings(i, 0).keys())}
+                    for var in vars_from_child(i)}
         return self._free_agg_vars
 
     @property
     def free_scan_vars(self):
+        def vars_from_child(i):
+            if self.uses_scan_context(i):
+                assert(len(self.children[i].free_scan_vars) == 0)
+                return self.children[i].free_vars
+            return self.children[i].free_scan_vars.difference(self.scan_bindings(i, 0).keys())
+
         if self._free_scan_vars is None:
             self._free_scan_vars = {
                 var for i in range(len(self.children))
-                for var in self.children[i].free_scan_vars.difference(
-                    self.scan_bindings(i, 0).keys())}
+                for var in vars_from_child(i)}
         return self._free_scan_vars
 
 

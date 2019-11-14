@@ -182,6 +182,9 @@ class CSERenderer(Renderer):
     def __call__(self, root: 'ir.BaseIR', free_vars=None) -> str:
         if not free_vars:
             free_vars = set()
+        assert(root.free_vars == free_vars)
+        assert(len(root.free_agg_vars) == 0)
+        assert(len(root.free_scan_vars) == 0)
         binding_sites = CSEAnalysisPass(self)(root, free_vars)
         return CSEPrintPass(self)(root, binding_sites, free_vars)
 
@@ -596,7 +599,6 @@ class CSEPrintPass:
             child_min_value_binding_depth = self.min_value_binding_depth
             child_scan_scope = self.scan_scope
 
-            # TODO: can this be moved into make_child_frame?
             if isinstance(self.node, ir.BaseIR):
                 if self.node.renderable_new_block(self.child_idx):
                     child_min_binding_depth = self.depth + 1
