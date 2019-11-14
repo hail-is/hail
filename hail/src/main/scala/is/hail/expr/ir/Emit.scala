@@ -2448,17 +2448,12 @@ private class Emit(
 
         var missingSliceElements = const(false)
 
-        coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
-          sliceOrIndex match {
-            case p: PTuple => {
-              val oneSlice = new CodePTuple(p, region, slicesTuple(dim))
-              missingSliceElements = missingSliceElements || oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
-              codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
-            }
-            case _: PInt64 => {
-              codeRefMap += dim -> slicesTuple(dim)
-            }
-          }
+        coerce[PTuple](slicesIR.pType).types.zipWithIndex.foreach {
+          case (p: PTuple, dim) =>
+            val oneSlice = new CodePTuple(p, region, slicesTuple(dim))
+            missingSliceElements = missingSliceElements || oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
+            codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
+          case (_: PInt64, dim) => codeRefMap += dim -> slicesTuple(dim)
         }
 
         val outputShape = codeSlices.toArray.map { case (start, stop, step) =>
