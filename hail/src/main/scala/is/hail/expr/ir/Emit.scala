@@ -2444,18 +2444,29 @@ private class Emit(
         val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
 
         val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
-        val codeRefMap = mutable.Map[Int, Code[Long]]()
+        val singleIndices = mutable.Map[Int, Code[Long]]()
 
         var missingSliceElements = const(false)
+
+        val slicers = slices.withTypes.collect {
+          case (t: PTuple, slice) => new CodePTuple(t, region, slice)
+        }
+
+        val indexers = slices.withTypesAndIndices.collect {
+          case(_: PInt64, indexer, i) => i -> coerce[Long](indexer)
+        }
+
+        val singleIndices2 = indexers.toMap
+
+        missingSliceElements ||= slicers.map(_.missingnessPattern.reduce(_ || _)).reduce(_ || _)
 
         slices.pType.types.zipWithIndex.foreach {
           case (p: PTuple, dim) =>
             val oneSlice = new CodePTuple(p, region, slices(dim))
-            missingSliceElements ||= oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
             codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
           case (_: PInt64, dim) => {
             missingSliceElements ||= slices.isMissing(dim)
-            codeRefMap(dim) = slices(dim)
+            singleIndices(dim) = slices(dim)
           }
         }
 
@@ -2482,8 +2493,8 @@ private class Emit(
             val sliceIdxVarsIter = codeSlices.iterator
 
             val sliceIdxVars = Array.tabulate(childEmitter.nDims) { dim =>
-              if (codeRefMap.contains(dim)) {
-                codeRefMap(dim)
+              if (singleIndices.contains(dim)) {
+                singleIndices(dim)
               } else {
                 val (start, _, step) = sliceIdxVarsIter.next()
                 val oldIdxVar = oldIdxVarsIter.next()

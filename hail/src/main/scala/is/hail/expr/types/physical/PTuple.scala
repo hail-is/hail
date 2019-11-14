@@ -85,4 +85,10 @@ class CodePTuple(
   def isMissing(i: Int): Code[Boolean] = {
     pType.isFieldMissing(offset, i)
   }
+
+  def withTypesAndIndices = (0 until pType.nFields).map(i => (pType.types(i), apply(i), i))
+
+  def withTypes = withTypesAndIndices.map(x => (x._1, x._2))
+
+  def missingnessPattern = (0 until pType.nFields).map(isMissing(_))
 }
