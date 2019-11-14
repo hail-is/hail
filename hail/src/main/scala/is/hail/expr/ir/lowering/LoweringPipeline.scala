@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.{BaseIR, ExecuteContext, Optimize}
+import is.hail.utils.FastSeq
 
 case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
   assert(lowerings.nonEmpty)
@@ -12,14 +13,17 @@ case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
     var x = ir
 
     if (optimize)
-      x = Optimize.optimize(x, noisy = true, context = Some(s"initial optimization"))
+      x = Optimize.optimize(x, noisy = true, context = "Lowerer, initial IR", ctx = Some(ctx))
 
     lowerings.foreach { l =>
-
-      x = l.apply(ctx, x)
-
-      if (optimize)
-        x = Optimize.optimize(x, noisy = true, context = Some(s"${ l.context }, after"))
+      try {
+        x = l.apply(ctx, x)
+        if (optimize)
+          x = Optimize.optimize(x, noisy = true, context = s"${l.context}, post Lowering", ctx = Some(ctx))
+      } catch {
+        case e: Throwable =>
+          throw new RuntimeException(s"error while applying lowering '${ l.context }'", e)
+      }
     }
 
     x

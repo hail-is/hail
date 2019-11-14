@@ -40,7 +40,7 @@ object Compile {
 
     var ir = body
     if (optimize)
-      ir = Optimize(ir, noisy = true, context = Some("Compile"))
+      ir = Optimize(ir, noisy = true, context = "Compile")
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
@@ -225,7 +225,7 @@ object CompileWithAggregators2 {
 
     var ir = body
     if (optimize)
-      ir = Optimize(ir, noisy = true, context = Some("Compile"))
+      ir = Optimize(ir, noisy = true, context = "Compile")
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
