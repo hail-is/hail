@@ -104,7 +104,7 @@ class ExecutionTimer {
       .map { case (tag, ab) => (tag, ab.map(_.duration).sum, ab.size) }
       .sortBy(_._2)
       .foreach { case (tag, sum, n) =>
-        log.info(s"Time taken for tag '$tag' ($n): ${ formatTime(sum) }")
+        log.info(s"Timer: Time taken for tag '$tag' ($n): ${ formatTime(sum) }")
       }
     val taggedSum = measurements.iterator.filter { t => t.isLeafNode }.map(_.duration).sum
     val totalTime = endTime - startTime
@@ -120,5 +120,4 @@ class ExecutionTimer {
     }
     m
   }
-
 }
