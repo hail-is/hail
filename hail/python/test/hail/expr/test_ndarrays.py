@@ -97,6 +97,7 @@ def test_ndarray_slice():
     assert hl.eval(flat[4:hl.null(hl.tint32)]) is None
     assert hl.eval(flat[4:10:hl.null(hl.tint32)]) is None
     assert hl.eval(rect_prism[:, :, 0:hl.null(hl.tint32):1]) is None
+    assert hl.eval(rect_prism[hl.null(hl.tint32), :, :]) is None
 
     with pytest.raises(FatalError) as exc:
         hl.eval(flat[::0])

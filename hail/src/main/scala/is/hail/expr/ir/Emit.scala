@@ -2453,7 +2453,10 @@ private class Emit(
             val oneSlice = new CodePTuple(p, region, slices(dim))
             missingSliceElements ||= oneSlice.isMissing(0) || oneSlice.isMissing(1) || oneSlice.isMissing(2)
             codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
-          case (_: PInt64, dim) => codeRefMap += dim -> slices(dim)
+          case (_: PInt64, dim) => {
+            missingSliceElements ||= slices.isMissing(dim)
+            codeRefMap(dim) = slices(dim)
+          }
         }
 
         val outputShape = codeSlices.map { case (start, stop, step) =>
