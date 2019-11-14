@@ -452,7 +452,7 @@ class CSETests(unittest.TestCase):
                     ' ((Let __cse_3 (I32 5)'
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
-        assert expected == CSERenderer()(top, free_vars={ir.BaseIR.agg_capability})
+        assert expected == CSERenderer()(top)
 
     def test_agg_let(self):
         agg = ir.ApplyAggOp('AggOp', [], [], [ir.Ref('foo')])
@@ -463,4 +463,4 @@ class CSETests(unittest.TestCase):
             ' (Let __cse_1 (ApplyAggOp AggOp () None ((Ref foo)))'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
         )
-        assert expected == CSERenderer()(agglet, free_vars={ir.BaseIR.agg_capability})
+        assert expected == CSERenderer()(agglet)

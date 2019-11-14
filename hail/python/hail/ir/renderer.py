@@ -179,14 +179,9 @@ class CSERenderer(Renderer):
 
         self.memo[id(node)] = jref
 
-    def __call__(self, root: 'ir.BaseIR', free_vars=None) -> str:
-        if not free_vars:
-            free_vars = set()
-        assert(root.free_vars == free_vars)
-        assert(len(root.free_agg_vars) == 0)
-        assert(len(root.free_scan_vars) == 0)
-        binding_sites = CSEAnalysisPass(self)(root, free_vars)
-        return CSEPrintPass(self)(root, binding_sites, free_vars)
+    def __call__(self, root: 'ir.BaseIR') -> str:
+        binding_sites = CSEAnalysisPass(self)(root)
+        return CSEPrintPass(self)(root, binding_sites)
 
 
 class CSEAnalysisPass:
@@ -210,9 +205,9 @@ class CSEAnalysisPass:
     # 'BindingSite' recording the depth of 'node' and a Dict 'lifted_lets',
     # where for each descendant 'x' which will be bound above 'node',
     # 'lifted_lets' maps 'id(x)' to the unique id 'x' will be bound to.
-    def __call__(self, root: 'ir.BaseIR', free_vars: Set[str]) -> Dict[int, BindingSite]:
+    def __call__(self, root: 'ir.BaseIR') -> Dict[int, BindingSite]:
         root_frame = self.StackFrame(0, 0, False,
-                                     ({var: 0 for var in free_vars}, {}, {}),
+                                     ({var: 0 for var in root.free_vars}, {}, {}),
                                      root)
         stack = [root_frame]
         binding_sites = {}
@@ -390,14 +385,14 @@ class CSEPrintPass:
     # 'bindings_stack' is a stack of 'BindingsStackFrame's, one for each
     # potential binding site on the path from 'root' to 'node'.
 
-    def __call__(self, root: 'ir.BaseIR', binding_sites: Dict[int, BindingSite], free_vars: Set[str]):
+    def __call__(self, root: 'ir.BaseIR', binding_sites: Dict[int, BindingSite]):
         root_builder = []
         bindings_stack: Dict[int, CSEPrintPass.BindingsStackFrame] = {}
         memo = self.renderer.memo
 
         if id(root) in memo:
             return ''.join(memo[id(root)])
-        root_ctx = ({var: 0 for var in free_vars}, {}, {})
+        root_ctx = ({var: 0 for var in root.free_vars}, {}, {})
         stack = [self.StackFrame.make(root, self.renderer, binding_sites,
                                       bindings_stack, 0, 0, False, root_ctx, 0)]
         stack[0].set_builder(root_builder, self.renderer)
