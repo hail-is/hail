@@ -336,7 +336,7 @@ steps:
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
      - from: /io/repo/pipeline/test
-       to: /pipeline/test
+       to: /pipeline/
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -801,7 +801,7 @@ steps:
      gsutil -m cp -r /io/test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    inputs:
     - from: /pipeline/test
-      to: /io/test
+      to: /io/
    secrets:
     - name: test-gsa-key
       namespace:
@@ -821,7 +821,7 @@ steps:
      python3 -m pytest --log-cli-level=INFO -s -v --instafail /io/test/
    inputs:
     - from: /pipeline/test
-      to: /io/test
+      to: /io/
    secrets:
     - name: deploy-config
       namespace:
