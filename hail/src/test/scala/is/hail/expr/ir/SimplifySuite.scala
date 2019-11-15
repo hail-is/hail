@@ -208,7 +208,7 @@ class SimplifySuite extends HailSuite {
     }
   }
 
-  @Test def testFilterIntervalsKeyByToFilter() {
+  @Test(enabled = false) def testFilterIntervalsKeyByToFilter() {
     var t: TableIR = TableRange(100, 10)
     t = TableMapRows(t, InsertFields(Ref("row", t.typ.rowType), FastSeq(("x", I32(1) - GetField(Ref("row", t.typ.rowType), "idx")))))
     t = TableKeyBy(t, FastIndexedSeq("x"))

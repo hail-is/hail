@@ -738,16 +738,17 @@ object Simplify {
         Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
 
-    case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
-      val ord = k.typ.keyType.ordering.intervalEndpointOrdering
-      val maybeFlip: IR => IR = if (keep) identity else !_
-      val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
-        TBoolean(),
-        Literal(TArray(TInterval(k.typ.keyType)), Interval.union(intervals.toArray, ord).toFastIndexedSeq),
-        MakeStruct(k.typ.keyType.fieldNames.map { keyField =>
-          (keyField, GetField(Ref("row", child.typ.rowType), keyField))
-        })))
-      TableKeyBy(TableFilter(child, pred), keys, isSorted)
+      // FIXME: Can try to serialize intervals shorter than the key
+      // case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
+      //   val ord = k.typ.keyType.ordering.intervalEndpointOrdering
+      //   val maybeFlip: IR => IR = if (keep) identity else !_
+      //   val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
+      //     TBoolean(),
+      //     Literal(TArray(TInterval(k.typ.keyType)), Interval.union(intervals.toArray, ord).toFastIndexedSeq),
+      //     MakeStruct(k.typ.keyType.fieldNames.map { keyField =>
+      //       (keyField, GetField(Ref("row", child.typ.rowType), keyField))
+      //     })))
+      //   TableKeyBy(TableFilter(child, pred), keys, isSorted)
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
       && tr.spec.indexed(tr.path)
