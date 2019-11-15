@@ -133,7 +133,8 @@ class Container:
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Cmd': self.spec['command'],
+            'Entrypoint': self.spec['command'][0],
+            'Cmd': self.spec['command'][1:],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
                            'CpuQuota': self.cpu_in_mcpu * 100}
