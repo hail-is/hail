@@ -144,7 +144,7 @@ class DBuf:
 
 
 class Server:
-    def __init__(self, hostname, binding_host, port, dbuf, leader, aiofiles):
+    def __init__(self, hostname, binding_host, port, dbuf, leader_url, aiofiles):
         self.app = web.Application(client_max_size=50 * 1024 * 1024)
         self.routes = web.RouteTableDef()
         self.workers = set()
@@ -153,7 +153,7 @@ class Server:
         self.port = port
         self.root_url = f'http://{self.hostname}:{self.port}'
         self.dbuf = dbuf
-        self.leader = leader
+        self.leader_url = leader_url
         self.aiofiles = aiofiles
         self.shuffle_create_lock = asyncio.Lock()
         self.app.add_routes([
@@ -168,27 +168,26 @@ class Server:
         self.app.on_cleanup.append(self.cleanup)
 
     @staticmethod
-    async def serve(hostname, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader=None):
+    async def serve(hostname, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader_url=None):
         aiofiles = af.AIOFiles()
         dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
-        server = Server(hostname, binding_host, port, dbuf, leader, aiofiles)
+        server = Server(hostname, binding_host, port, dbuf, leader_url, aiofiles)
         try:
             runner = web.AppRunner(server.app)
             await runner.setup()
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
             await site.start()
             log.info(f'serving at {server.binding_host}:{server.port}')
-            if server.leader is not None:
+            if server.leader_url is not None:
                 async def call():
                     async with ah.ClientSession(raise_for_status=True,
                                                 timeout=ah.ClientTimeout(total=60)) as cs:
-                        async with cs.post(f'http://{server.leader}/w',
-                                           data=f'http://{server.hostname}:{server.port}') as resp:
+                        async with cs.post(f'{server.leader_url}/w', data=server.root_url) as resp:
                             assert resp.status == 200
                             await resp.text()
                 await retry_forever(
                     call,
-                    lambda exc: f'could not join cluster due to {exc}')
+                    lambda exc: f'could not join cluster with leader {server.leader_url} due to {exc}')
             while True:
                 await asyncio.sleep(1 << 16)
         finally:
@@ -268,7 +267,7 @@ class Server:
         await self.dbuf.delete()
 
 
-def server(hostname, bufsize, data_dir, port, i, leader):
+def server(hostname, bufsize, data_dir, port, i, leader_url):
     loop = asyncio.get_event_loop()
 
     def die(signum, frame):
@@ -277,7 +276,7 @@ def server(hostname, bufsize, data_dir, port, i, leader):
     signal.signal(signal.SIGINT, die)
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGQUIT, die)
-    loop.run_until_complete(Server.serve(hostname, bufsize, data_dir, '0.0.0.0', port, leader))
+    loop.run_until_complete(Server.serve(hostname, bufsize, data_dir, '0.0.0.0', port, leader_url))
 
 
 parser = argparse.ArgumentParser(description='distributed buffer')
@@ -312,12 +311,12 @@ try:
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGQUIT, die)
 
-    leader = args.leader_url
-    servers = [mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000, 0, leader))]
-    if leader is None:
-        leader = args.hostname + ':5000'
+    leader_url = args.leader_url
+    servers = [mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000, 0, leader_url))]
+    if leader_url is None:
+        leader_url = f'http://{args.hostname}:5000'
     servers.extend(
-        mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000 + i, i, leader))
+        mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000 + i, i, leader_url))
         for i in range(1, args.n))
     for server in servers:
         server.start()
