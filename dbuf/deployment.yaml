@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: dbuf
-          image: gcr.io/hail-vdc/dbuf
+          image: {{ dbuf_image.image }}
           args:
             - "4"
             - "--hostname"
