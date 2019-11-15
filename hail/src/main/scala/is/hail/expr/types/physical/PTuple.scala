@@ -91,4 +91,9 @@ class CodePTuple(
   def withTypes = withTypesAndIndices.map(x => (x._1, x._2))
 
   def missingnessPattern = (0 until pType.nFields).map(isMissing(_))
+
+  def values[T, U, V] = {
+    assert(pType.nFields == 3)
+    (apply[T](0), apply[U](1), apply[V](2))
+  }
 }

@@ -2443,32 +2443,19 @@ private class Emit(
         val slicesValueAddress = mb.newField[Long]
         val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
 
-        val codeSlices = ArrayBuffer[(Code[Long], Code[Long], Code[Long])]()
-        val singleIndices = mutable.Map[Int, Code[Long]]()
-
-        var missingSliceElements = const(false)
-
         val slicers = slices.withTypes.collect {
           case (t: PTuple, slice) => new CodePTuple(t, region, slice)
         }
-
         val indexers = slices.withTypesAndIndices.collect {
           case(_: PInt64, indexer, i) => i -> coerce[Long](indexer)
         }
 
-        val singleIndices2 = indexers.toMap
+        val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(const(false))(_ || _)
+        val anyMissingess = missingSliceElements || slices.missingnessPattern.fold(const(false))(_ || _)
 
-        missingSliceElements ||= slicers.map(_.missingnessPattern.reduce(_ || _)).reduce(_ || _)
+        val codeSlices = slicers.map(_.values[Long, Long, Long])
 
-        slices.pType.types.zipWithIndex.foreach {
-          case (p: PTuple, dim) =>
-            val oneSlice = new CodePTuple(p, region, slices(dim))
-            codeSlices += ((oneSlice[Long](0), oneSlice[Long](1), oneSlice[Long](2)))
-          case (_: PInt64, dim) => {
-            missingSliceElements ||= slices.isMissing(dim)
-            singleIndices(dim) = slices(dim)
-          }
-        }
+        val singleIndices = indexers.toMap
 
         val outputShape = codeSlices.map { case (start, stop, step) =>
           (step >= 0L && start <= stop).mux(
@@ -2485,7 +2472,7 @@ private class Emit(
           childEmitter.setupMissing
         )
 
-        val missing = childEmitter.missing || missingSliceElements
+        val missing = childEmitter.missing || anyMissingess
 
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, setupMissing, missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
