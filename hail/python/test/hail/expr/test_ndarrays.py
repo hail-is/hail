@@ -519,7 +519,7 @@ def test_ndarray_show():
     hl._nd.arange(6).reshape((2, 3)).show()
     hl._nd.arange(8).reshape((2, 2, 2)).show()
 
-@skip_unless_spark_backend
+@skip_unless_spark_backend()
 def test_ndarray_qr():
     np_identity4 = np.identity(4)
     identity4 = hl._ndarray(np_identity4)
