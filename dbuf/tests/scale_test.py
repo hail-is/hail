@@ -51,13 +51,14 @@ async def main():
     parser.add_argument('bufsize', type=int, help='bufsize in MB')
     parser.add_argument('size', type=int, help='number of bytes to send per request')
     parser.add_argument('reqs', type=int, help='number of requests to send')
+    parser.add_argument('--leader-url', type=int, help='leader url')
     args = parser.parse_args()
 
     n = args.n
     d = int(math.log10(n)) + 1
 
     start = time.time()
-    async with dbuf.client.DBufClient('http://localhost:5000') as client:
+    async with dbuf.client.DBufClient(args.leader_url) as client:
         print(f'create')
         id = await client.create()
 
