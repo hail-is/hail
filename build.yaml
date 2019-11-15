@@ -1110,7 +1110,7 @@ steps:
    contextPath: dbuf/tests
    publishAs: dbuf_test
    dependsOn:
-     - base_image
+     - dbuf_image
  - kind: runImage
    name: dbuf_test
    image:
