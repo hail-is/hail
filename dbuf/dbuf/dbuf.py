@@ -10,8 +10,6 @@ import signal
 import struct
 import sys
 
-from gear import database as db
-
 from . import aiofiles as af
 from .logging import log
 from .retry_forever import retry_forever
@@ -146,7 +144,7 @@ class DBuf:
 
 
 class Server:
-    def __init__(self, hostname, binding_host, port, dbuf, leader, aiofiles, election_db):
+    def __init__(self, hostname, binding_host, port, dbuf, leader, aiofiles):
         self.app = web.Application(client_max_size=50 * 1024 * 1024)
         self.routes = web.RouteTableDef()
         self.workers = set()
@@ -157,7 +155,6 @@ class Server:
         self.dbuf = dbuf
         self.leader = leader
         self.aiofiles = aiofiles
-        self.election_db = election_db
         self.shuffle_create_lock = asyncio.Lock()
         self.app.add_routes([
             web.post('/s', self.create),
@@ -172,10 +169,9 @@ class Server:
 
     @staticmethod
     async def serve(hostname, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader=None):
-        election_db = await db.Database().async_init()
         aiofiles = af.AIOFiles()
         dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
-        server = Server(hostname, binding_host, port, dbuf, leader, aiofiles, election_db)
+        server = Server(hostname, binding_host, port, dbuf, leader, aiofiles)
         try:
             runner = web.AppRunner(server.app)
             await runner.setup()
