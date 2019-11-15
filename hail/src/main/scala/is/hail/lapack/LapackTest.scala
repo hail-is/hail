@@ -28,7 +28,7 @@ object LapackTest {
     val major = new IntByReference(0)
     val minor = new IntByReference(0)
     val patch = new IntByReference(0)
-    LAPACKLibrary.instance.ilaver(major, minor, patch)
+    LAPACKLibrary.getInstance().ilaver(major, minor, patch)
     val version = s"${major.getValue}.${minor.getValue}.${patch.getValue}"
     println(version)
 
