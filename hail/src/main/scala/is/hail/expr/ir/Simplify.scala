@@ -442,7 +442,7 @@ object Simplify {
             uid3,
             GetField(Ref(uid3, sorted.typ.asInstanceOf[TArray].elementType), "value"))),
           ("global", GetField(Ref(uid, x.typ), "global")))))
-    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+    case ArrayLen(GetField(TableCollect(child), "rows")) => Cast(TableCount(child), TInt32())
     case GetField(TableCollect(child), "global") => TableGetGlobals(child)
 
     case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
