@@ -2446,16 +2446,11 @@ private class Emit(
         val slicers = slices.withTypes.collect {
           case (t: PTuple, slice) => new CodePTuple(t, region, slice)
         }
-        val indexers = slices.withTypesAndIndices.collect {
-          case(_: PInt64, indexer, i) => i -> coerce[Long](indexer)
-        }
 
         val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(const(false))(_ || _)
-        val anyMissingess = missingSliceElements || slices.missingnessPattern.fold(const(false))(_ || _)
+        val anyMissingness = missingSliceElements || slices.missingnessPattern.fold(const(false))(_ || _)
 
         val codeSlices = slicers.map(_.values[Long, Long, Long])
-
-        val singleIndices = indexers.toMap
 
         val outputShape = codeSlices.map { case (start, stop, step) =>
           (step >= 0L && start <= stop).mux(
@@ -2472,24 +2467,21 @@ private class Emit(
           childEmitter.setupMissing
         )
 
-        val missing = childEmitter.missing || anyMissingess
+        val missing = childEmitter.missing || anyMissingness
 
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, setupMissing, missing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val oldIdxVarsIter = idxVars.iterator
-            val sliceIdxVarsIter = codeSlices.iterator
 
-            val sliceIdxVars = Array.tabulate(childEmitter.nDims) { dim =>
-              if (singleIndices.contains(dim)) {
-                singleIndices(dim)
-              } else {
-                val (start, _, step) = sliceIdxVarsIter.next()
-                val oldIdxVar = oldIdxVarsIter.next()
-                start + oldIdxVar * step
-              }
+            val sliceIdxVars2 = slices.withTypes.map {
+              case (_: PInt64, indexer) =>
+                coerce[Long](indexer)
+              case (t: PTuple, slicer) =>
+                val (start, _, step) = new CodePTuple(t, region, slicer).values[Long, Long, Long]
+                start + oldIdxVarsIter.next() * step
             }
 
-            childEmitter.outputElement(sliceIdxVars)
+            childEmitter.outputElement(sliceIdxVars2.toArray)
           }
         }
 
