@@ -2459,7 +2459,7 @@ private class Emit(
 
         val outputShape = codeSlices.map { case (start, stop, step) =>
           (step >= 0L && start <= stop).mux(
-            const(1L) + ((stop - start) - const(1L)) / step,
+            const(1L) + ((stop - start) - 1L) / step,
             (step < 0L && start >= stop).mux(
               (((stop - start) + 1L) / step) + 1L,
               0L)
