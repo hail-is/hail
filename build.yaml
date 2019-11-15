@@ -1121,6 +1121,10 @@ steps:
    name: dbuf_test
    image:
      valueFrom: dbuf_test_image.image
+   script: "python3 scale_test.py 10 5 40000 10000"
+   resources:
+     memory: "1G"
+     cpu: "1"
    scopes:
     - dev
     - test
