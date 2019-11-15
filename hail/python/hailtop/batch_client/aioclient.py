@@ -236,7 +236,7 @@ class Batch:
             resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs')
             jobs = await resp.json()
             batch['jobs'] = jobs
-        reutrn batch
+        return batch
 
     async def wait(self):
         i = 0
