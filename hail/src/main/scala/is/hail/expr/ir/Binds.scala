@@ -41,6 +41,7 @@ object Bindings {
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableAggregateByKey(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableKeyByAndAggregate(child, _, _, _, _) => if (i == 1) child.typ.globalEnv.m else if (i == 2) child.typ.rowEnv.m else empty
+    case TableMapPartitions(child, n, _) => if (i == 1) Array(n -> TStream(child.typ.rowType)) else empty
     case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case MatrixFilterRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.m else empty

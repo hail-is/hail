@@ -977,6 +977,37 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   }
 }
 
+case class TableMapPartitions(child: TableIR, name: String, body: IR) extends TableIR {
+  assert(body.typ.isInstanceOf[TStream], s"${body.typ}")
+  val bodyType = body.typ.asInstanceOf[TStream]
+  val newRowType = bodyType.elementType.asInstanceOf[TStruct]
+  lazy val typ = child.typ.copy(rowType = newRowType)
+
+  lazy val children: IndexedSeq[BaseIR] = Array(child, body)
+
+  val rowCountUpperBound = None
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableMapPartitions = {
+    assert(newChildren.length == 2)
+    TableMapPartitions(newChildren(0).asInstanceOf[TableIR], name, newChildren(1).asInstanceOf[IR])
+  }
+
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
+    val childPType = PStream(child.typ.rowType.physicalType, true)
+    val makeIterator = CompileIterator[Iterator[RegionValue]](
+      ctx,
+      childPType,
+      Subst(body, BindingEnv(Env(name -> In(0, childPType))))
+    )
+    val tv = child.execute(ctx)
+    tv.copy(
+      typ = typ,
+      rvd = tv.rvd.mapPartitionsWithIndex(
+        RVDType(newRowType.physicalType, typ.key),
+        { (i, ctx, it) => makeIterator(i, ctx.r, it, false) }))
+  }
+}
+
 // Must leave key fields unchanged.
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)
