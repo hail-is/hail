@@ -46,7 +46,7 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
-        self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
+        self.assertEqual(j._get_exit_code(status, 'main'), 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
         j = builder.create_job('dsafaaadsf', ['echo', 'test'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code'] == {'input': 0, 'main': None, 'output': 0}, status
+        assert j._get_exit_codes(status) == {'input': 0, 'main': None, 'output': 0}, status
         assert status['message']['main'] is not None
         assert status['state'] == 'Error', status
 
@@ -77,7 +77,7 @@ class Test(unittest.TestCase):
         j = builder.create_job('ubuntu:18.04', ['sleep 5'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code'] == {'input': 0, 'main': None, 'output': 0}, status
+        assert j._get_exit_codes(status) == {'input': 0, 'main': None, 'output': 0}, status
         assert status['message']['main'] is not None
         assert status['state'] == 'Error', status
 
@@ -154,7 +154,7 @@ class Test(unittest.TestCase):
         j = b.create_job('ubuntu:18.04', ['false'])
         b.submit()
         status = j.wait()
-        self.assertEqual(status['exit_code']['main'], 1)
+        self.assertEqual(j._get_exit_code(status, 'main'), 1)
 
     def test_running_job_log_and_status(self):
         b = self.client.create_batch()
@@ -300,7 +300,7 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Failed')
-        self.assertEqual(status['exit_code']['main'], 127)
+        self.assertEqual(j._get_exit_code(status, 'main'), 127)
 
         self.assertEqual(j.log()['main'], 'test\n')
 
@@ -357,4 +357,4 @@ class Test(unittest.TestCase):
             })
         b.submit()
         status = j.wait()
-        assert status['exit_code']['main'] == 0, status
+        assert j._get_exit_code(status, 'main') == 0, status

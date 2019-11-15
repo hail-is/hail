@@ -6,7 +6,7 @@ import base64
 import traceback
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
-from .globals import complete_states, tasks
+from .globals import complete_states
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
@@ -104,41 +104,28 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
     await notify_batch_job_complete(db, batch_id)
 
 
-def job_record_to_dict(record):
-    def getopt(obj, attr):
-        if obj is None:
-            return None
-        return obj.get(attr)
+def job_record_to_dict(record, running_status=None):
+    spec = json.loads(record['spec'])
+
+    attributes = spec.pop('attributes')
 
     result = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
-        'state': record['state']
+        'state': record['state'],
+        'spec': spec
     }
-    # FIXME can't change this yet, batch and batch2 share client
-    if record['status']:
-        status = json.loads(record['status'])
 
-        if 'error' in status:
-            result['error'] = status['error']
-        result['exit_code'] = {
-            k: getopt(getopt(status['container_statuses'][k], 'container_status'), 'exit_code') for
-            k in tasks
-        }
-        result['duration'] = {k: getopt(getopt(getopt(status['container_statuses'][k], 'timing'), 'runtime'), 'duration') for k in tasks}
-        result['message'] = {
-            # the execution of the job container might have
-            # failed, or the docker container might have completed
-            # (wait returned) but had status error
-            k: (getopt(status['container_statuses'][k], 'error') or
-                getopt(getopt(status['container_statuses'][k], 'container_status'), 'error'))
-            for k in tasks
-        }
-
-    spec = json.loads(record['spec'])
-    attributes = spec.get('attributes')
     if attributes:
         result['attributes'] = attributes
+
+    if record['status']:
+        status = json.loads(record['status'])
+    else:
+        status = running_status
+    if status:
+        result['status'] = status
+
     return result
 
 

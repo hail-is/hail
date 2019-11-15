@@ -37,12 +37,34 @@ def filter_params(complete, success, attributes):
 
 class Job:
     @staticmethod
-    def exit_code(job_status):
-        if 'exit_code' not in job_status or job_status['exit_code'] is None:
+    def _get_exit_code(job_status, task):
+        container_statuses = job_status.get('container_statuses')
+        if not container_statuses:
             return None
 
-        exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes[task] for task in ['setup', 'main', 'cleanup'] if task in exit_codes]
+        container_status = container_statuses.get(task)
+        if not container_statuses:
+            return None
+
+        dcontainer_status = container_status.get('container_status')
+        if not dcontainer_status:
+            return None
+
+        return dcontainer_status.get('exit_code')
+
+    @staticmethod
+    def _get_exit_codes(job_status):
+        return {
+            task: Job._get_exit_code(job_status, task)
+            for task in ['setup', 'main', 'cleanup']
+        }
+
+    @staticmethod
+    def exit_code(job_status):
+        exit_codes = [
+            Job._get_exit_code(job_status, task)
+            for task in ['setup', 'main', 'cleanup']
+        ]
 
         i = 0
         while i < len(exit_codes):
@@ -56,18 +78,25 @@ class Job:
 
     @staticmethod
     def total_duration(job_status):
-        if 'duration' not in job_status or job_status['duration'] is None:
+        container_statuses = job_status.get('container_statuses')
+        if not container_statuses:
             return None
 
-        durations = job_status['duration']
+        def _get_duration(task):
+            container_status = container_statuses.get(task)
+            if not container_statuses:
+                return None
+            timing = container_status['timing']
+            runtime = timing.get('runtime')
+            if not runtime:
+                return None
+            return runtime.get('duration')
 
-        setup_duration = durations.get('setup', 0)
-        main_duration = durations.get('main', 0)
-        cleanup_duration = durations.get('cleanup', 0)
-        if setup_duration is None or main_duration is None or cleanup_duration is None:
+        durations = [_get_duration(task) for task in ['setup', 'main', 'cleanup']]
+
+        if any(d is None for d in durations):
             return None
-
-        return setup_duration + max(main_duration, cleanup_duration)
+        return sum(durations)
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
@@ -109,9 +138,6 @@ class Job:
 
     async def status(self):
         return await self._job.status()
-
-    async def batch2_status(self):
-        return await self._job.batch2_status()
 
     @property
     def _status(self):
@@ -157,9 +183,6 @@ class UnsubmittedJob:
     async def status(self):
         raise ValueError("cannot get the status of an unsubmitted job")
 
-    async def batch2_status(self):
-        raise ValueError("cannot get the batch2 status of an unsubmitted job")
-
     @property
     def _status(self):
         raise ValueError("cannot get the _status of an unsubmitted job")
@@ -194,10 +217,6 @@ class SubmittedJob:
         await self.status()
         state = self._status['state']
         return state in complete_states
-
-    async def batch2_status(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/status')
-        return await resp.json()
 
     async def status(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')

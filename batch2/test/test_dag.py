@@ -62,7 +62,7 @@ def test_dag(client):
     for node in [head, left, right, tail]:
         status = node.status()
         assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert node._get_exit_code(status, 'main') == 0
 
 
 def test_cancel_tail(client):
@@ -83,7 +83,7 @@ def test_cancel_tail(client):
     for node in [head, left, right]:
         status = node.status()
         assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert node._get_exit_code(status, 'main') == 0
     assert tail.status()['state'] == 'Cancelled'
 
 
@@ -105,7 +105,7 @@ def test_cancel_left_after_tail(client):
     for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert node._get_exit_code(status, 'main') == 0
     for node in [left, tail]:
         assert node.status()['state'] == 'Cancelled'
 
@@ -219,7 +219,7 @@ def test_always_run_cancel(client):
     for node in [head, right, tail]:
         status = node.status()
         assert status['state'] == 'Success', status
-        assert status['exit_code']['main'] == 0, status
+        assert node._get_exit_code(status, 'main') == 0, status
 
 
 def test_always_run_error(client):
@@ -237,4 +237,4 @@ def test_always_run_error(client):
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
         assert status['state'] == state, status
-        assert status['exit_code']['main'] == ec, status
+        assert node._get_exit_code(status, 'main') == ec, status
