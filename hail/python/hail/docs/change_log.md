@@ -52,6 +52,7 @@ Released 2019-10-24
 - (hail#7344) Add `hl.reverse_complement` function.
 - (hail#7306) Teach the VCF combiner to handle allele specific (`AS_*`) fields.
 - (hail#7346) Add `hl.agg.approx_median` function.
+- (hail#7467) Added `hl.if_else` as an alias for `hl.cond`; deprecated `hl.cond`.
 
 ### Bug Fixes
 - (hail#7361) Fix `AD` calculation in `sparse_split_multi`.
