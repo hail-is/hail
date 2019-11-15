@@ -1060,7 +1060,7 @@ steps:
    name: delete_batch2_instances
    image:
      valueFrom: base_image.image
-   alwaysRun: true     
+   alwaysRun: true
    script: |
      set -ex
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
@@ -1079,7 +1079,52 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - base_image 
+    - base_image
     - test_batch2
     - test_ci
     - test_pipeline
+# dbuf
+ - kind: buildImage
+   name: dbuf_image
+   dockerFile: dbuf/Dockerfile
+   contextPath: dbuf
+   publishAs: dbuf
+   dependsOn:
+    - service_base_image
+ - kind: createDatabase
+   name: dbuf_database
+   databaseName: dbuf
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: deploy_dbuf
+   namespace:
+     valueFrom: default_ns.name
+   config: dbuf/deployment.yaml
+   wait:
+    - kind: Service
+      name: dbuf
+      for: alive
+   dependsOn:
+    - default_ns
+    - dbuf_image
+ - kind: buildImage
+   name: dbuf_test_image
+   dockerFile: dbuf/tests/Dockerfile
+   contextPath: dbuf/tests
+   publishAs: dbuf_test
+   dependsOn:
+     - base_image
+ - kind: runImage
+   name: dbuf_test
+   image:
+     valueFrom: dbuf_test_image.image
+   scopes:
+    - dev
+    - test
+   dependsOn:
+     - deploy_dbuf
+     - dbuf_test_image
+

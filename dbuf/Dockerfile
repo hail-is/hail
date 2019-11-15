@@ -1,4 +1,4 @@
-FROM python:3.6-slim
+FROM {{ service_base_image.image }}
 
 COPY setup.py setup.cfg dbuf/
 COPY dbuf dbuf/dbuf

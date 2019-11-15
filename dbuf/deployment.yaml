@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbuf
+spec:
+  serviceName: dbuf
+  selector:
+    matchLabels:
+      app: dbuf
+  replicas: 4
+  volumeClaimTemplates:
+    - metadata:
+        name: dbuf
+      spec:
+        storageClassName: ssd
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+  template:
+    metadata:
+      name: dbuf
+      labels:
+        app: dbuf
+    spec:
+      containers:
+        - name: dbuf
+          image: gcr.io/hail-vdc/dbuf
+          args:
+            - "1"
+            - "--hostname"
+            - "$(POD_IP)"
+            - "--leader-url"
+            - "http://$(POD_IP):5000"
+            - "--bufsize"
+            - "512"
+          resources:
+            requests:
+              memory: "15G"
+              cpu: "4"
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: dbuf
+              mountPath: "/tmp"
+          imagePullPolicy: Always
+          ports:
+           - name: leader
+             hostPort: 5000
+             containerPort: 5000
+           - name: w1
+             hostPort: 5001
+             containerPort: 5001
+           - name: w2
+             hostPort: 5002
+             containerPort: 5002
+           - name: w3
+             hostPort: 5003
+             containerPort: 5003
+           - name: w4
+             hostPort: 5004
+             containerPort: 5004
+           - name: w5
+             hostPort: 5005
+             containerPort: 5005
+           - name: w6
+             hostPort: 5006
+             containerPort: 5006
+           - name: w7
+             hostPort: 5007
+             containerPort: 5007
+      restartPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dbuf
+spec:
+  ports:
+   - port: 5000
+     targetPort: 5000
+  selector:
+    app: dbuf
