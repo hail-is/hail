@@ -69,7 +69,7 @@ class Test(unittest.TestCase):
         builder.submit()
         status = j.wait()
         assert j._get_exit_codes(status) == {'input': 0, 'main': None, 'output': 0}, status
-        assert status['message']['main'] is not None
+        assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
 
     def test_bad_command(self):
@@ -78,7 +78,7 @@ class Test(unittest.TestCase):
         builder.submit()
         status = j.wait()
         assert j._get_exit_codes(status) == {'input': 0, 'main': None, 'output': 0}, status
-        assert status['message']['main'] is not None
+        assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
 
     def test_unsubmitted_state(self):

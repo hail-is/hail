@@ -37,8 +37,38 @@ def filter_params(complete, success, attributes):
 
 class Job:
     @staticmethod
+    def _get_message(job_status, task):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        # don't return status error
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_statuses:
+            return None
+
+        error = container_status.get('error')
+        if error:
+            return error
+
+        dcontainer_status = container_status.get('container_status')
+        if not dcontainer_status:
+            return None
+
+        return dcontainer_status.get('error')
+
+    @staticmethod
     def _get_exit_code(job_status, task):
-        container_statuses = job_status.get('container_statuses')
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
         if not container_statuses:
             return None
 
@@ -218,7 +248,7 @@ class SubmittedJob:
         state = self._status['state']
         return state in complete_states
 
-    async def status(self):
+    async def status(self, full_status=False):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
         self._status = await resp.json()
         return self._status
