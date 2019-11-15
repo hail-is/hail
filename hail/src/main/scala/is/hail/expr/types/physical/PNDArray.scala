@@ -121,7 +121,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def linearizeIndices(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def linearizeIndicesRowMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val index = mb.newField[Long]
     val elementsInProcessedDimensions = mb.newField[Long]
     Code(
@@ -137,7 +137,13 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+  def linearizeIndicesColumnMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+    val index = mb.newField[Long]
+    val elementsInProcessedDimensions = mb.newField[Long]
+    ???
+  }
+
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
     val elementsInProcessedDimensions = mb.newField[Long]

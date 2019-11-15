@@ -2299,12 +2299,12 @@ private class Emit(
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndexRowMajor(storeElementIndex, childShapeCached, region, mb)
 
             assert(newIdxVars.length == childEmitter.nDims)
 
             Code(
-              storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
+              storeElementIndex := x.pType.linearizeIndicesRowMajor(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
