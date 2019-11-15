@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: dbuf
 spec:
@@ -7,7 +7,7 @@ spec:
   selector:
     matchLabels:
       app: dbuf
-  replicas: 4
+  replicas: 2
   volumeClaimTemplates:
     - metadata:
         name: dbuf
@@ -28,11 +28,11 @@ spec:
         - name: dbuf
           image: gcr.io/hail-vdc/dbuf
           args:
-            - "1"
+            - "4"
             - "--hostname"
             - "$(POD_IP)"
             - "--leader-url"
-            - "http://$(POD_IP):5000"
+            - "http://dbuf-0.dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
             - "--bufsize"
             - "512"
           resources:
@@ -61,18 +61,6 @@ spec:
            - name: w3
              hostPort: 5003
              containerPort: 5003
-           - name: w4
-             hostPort: 5004
-             containerPort: 5004
-           - name: w5
-             hostPort: 5005
-             containerPort: 5005
-           - name: w6
-             hostPort: 5006
-             containerPort: 5006
-           - name: w7
-             hostPort: 5007
-             containerPort: 5007
       restartPolicy: Never
 ---
 apiVersion: v1
@@ -80,6 +68,7 @@ kind: Service
 metadata:
   name: dbuf
 spec:
+  clusterIP: "None"
   ports:
    - port: 5000
      targetPort: 5000
