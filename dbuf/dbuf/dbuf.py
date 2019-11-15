@@ -10,6 +10,8 @@ import signal
 import struct
 import sys
 
+from gear import database as db
+
 from . import aiofiles as af
 from .logging import log
 from .retry_forever import retry_forever
@@ -25,17 +27,17 @@ def grouped(xs, size):
 
 class Session:
     @staticmethod
-    async def make(data_dir, id, aiofiles):
+    async def make(bufsize, data_dir, id, aiofiles):
         await aiofiles.mkdir(f'{data_dir}/{id}')
-        return Session(data_dir, id, aiofiles)
+        return Session(bufsize, data_dir, id, aiofiles)
 
-    def __init__(self, data_dir, id, aiofiles):
+    def __init__(self, bufsize, data_dir, id, aiofiles):
         self.data_dir = data_dir
         self.id = id
         self.aiofiles = aiofiles
         self.next_file = 1
         self.current_file = 0
-        self.max_size = 512 * 1024 * 1024
+        self.max_size = bufsize
         self.buf = bytearray(self.max_size)
         self.bufs = [bytearray(self.max_size)]
         self.cursor = 0
@@ -114,14 +116,15 @@ class Session:
 
 class DBuf:
     @staticmethod
-    async def make(aiofiles, data_dir):
+    async def make(bufsize, aiofiles, data_dir):
         await aiofiles.mkdir(data_dir)
-        return DBuf(data_dir, aiofiles)
+        return DBuf(bufsize, data_dir, aiofiles)
 
-    def __init__(self, data_dir, aiofiles):
+    def __init__(self, bufsize, data_dir, aiofiles):
         # consensus
         self.next_session = 0
         # local
+        self.bufsize = bufsize
         self.data_dir = data_dir
         self.aiofiles = aiofiles
         self.sessions = {}
@@ -129,7 +132,7 @@ class DBuf:
     async def new_session(self):
         id = self.next_session
         self.next_session += 1
-        self.sessions[id] = await Session.make(self.data_dir, id, self.aiofiles)
+        self.sessions[id] = await Session.make(self.bufsize, self.data_dir, id, self.aiofiles)
         return id
 
     async def delete_session(self, id):
@@ -143,7 +146,7 @@ class DBuf:
 
 
 class Server:
-    def __init__(self, hostname, binding_host, port, dbuf, leader, aiofiles):
+    def __init__(self, hostname, binding_host, port, dbuf, leader, aiofiles, election_db):
         self.app = web.Application(client_max_size=50 * 1024 * 1024)
         self.routes = web.RouteTableDef()
         self.workers = set()
@@ -154,6 +157,7 @@ class Server:
         self.dbuf = dbuf
         self.leader = leader
         self.aiofiles = aiofiles
+        self.election_db = election_db
         self.shuffle_create_lock = asyncio.Lock()
         self.app.add_routes([
             web.post('/s', self.create),
@@ -167,10 +171,11 @@ class Server:
         self.app.on_cleanup.append(self.cleanup)
 
     @staticmethod
-    async def serve(hostname, data_dir, binding_host='0.0.0.0', port=5000, leader=None):
+    async def serve(hostname, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader=None):
+        election_db = await db.Database().async_init()
         aiofiles = af.AIOFiles()
-        dbuf = await DBuf.make(aiofiles, f'{data_dir}/{port}')
-        server = Server(hostname, binding_host, port, dbuf, leader, aiofiles)
+        dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
+        server = Server(hostname, binding_host, port, dbuf, leader, aiofiles, election_db)
         try:
             runner = web.AppRunner(server.app)
             await runner.setup()
@@ -267,7 +272,7 @@ class Server:
         await self.dbuf.delete()
 
 
-def server(hostname, data_dir, port, i, leader):
+def server(hostname, bufsize, data_dir, port, i, leader):
     loop = asyncio.get_event_loop()
 
     def die(signum, frame):
@@ -276,13 +281,15 @@ def server(hostname, data_dir, port, i, leader):
     signal.signal(signal.SIGINT, die)
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGQUIT, die)
-    loop.run_until_complete(Server.serve(hostname, data_dir, '0.0.0.0', port, leader))
+    loop.run_until_complete(Server.serve(hostname, bufsize, data_dir, '0.0.0.0', port, leader))
 
 
 parser = argparse.ArgumentParser(description='distributed buffer')
 parser.add_argument('n', type=int, help='number of processes, must be at least one')
 parser.add_argument('--hostname', type=str, help='hostname to use to connect to myself', default='localhost')
 parser.add_argument('--data-dir', type=str, help='directory in which to store data', default='/tmp/shuffler')
+parser.add_argument('--leader-url', type=str, help='directory in which to store data', required=False)
+parser.add_argument('--bufsize', type=str, help='buffer size in MiB', default='512')
 args = parser.parse_args()
 
 if args.n <= 0:
@@ -291,8 +298,9 @@ if args.n <= 0:
     sys.exit(1)
 try:
     data_dir = args.data_dir
+    bufsize = args.bufsize * 1024 * 1024
     os.mkdir(data_dir)
-    servers = [mp.Process(target=server, args=(args.hostname, args.data_dir, 5000, 0, None))]
+    servers = []
 
     def die(signum, frame):
         log.info(f'terminating all servers due to signal {signum}')
@@ -307,9 +315,13 @@ try:
     signal.signal(signal.SIGINT, die)
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGQUIT, die)
-    leader = args.hostname + ':5000'
+
+    leader = args.leader_url
+    servers = [mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000, 0, leader))]
+    if leader is None:
+        leader = args.hostname + ':5000'
     servers.extend(
-        mp.Process(target=server, args=(args.hostname, args.data_dir, 5000 + i, i, leader))
+        mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000 + i, i, leader))
         for i in range(1, args.n))
     for server in servers:
         server.start()
