@@ -10,7 +10,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.linalg.{LAPACKLibrary, LAPACKLibraryObj}
+import is.hail.linalg.LAPACKLibrary
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1771,7 +1771,7 @@ private class Emit(
           Code._println("Info before LAPACK invocation"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", Region.loadInt(infoAddress)),
-          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibraryObj.getClass, "getInstance").dgeqrf(
+          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibrary.getClass, "getInstance").dgeqrf(
             mAddress,
             nAddress,
             ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0),
