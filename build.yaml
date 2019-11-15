@@ -1116,11 +1116,15 @@ steps:
    image:
      valueFrom: dbuf_test_image.image
    script: |
-     python3 scale_test.py 10 5 40000 10000 \
-             --leader-url 'http://dbuf-0.dbuf.{{ default_ns.name }}.svc.cluster.local:5000'
+     python3 scale_test.py 10 5 40000 10000
    resources:
      memory: "1G"
      cpu: "1"
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
    scopes:
     - dev
     - test
