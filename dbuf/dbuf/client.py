@@ -3,6 +3,8 @@ import aiohttp
 import collections
 import struct
 
+from hailtop.config import get_deploy_config
+
 from .logging import log
 from .retry_forever import retry_aiohttp_forever
 
@@ -25,12 +27,15 @@ class DBufClient:
         await self.aiosession.close()
 
     def __init__(self,
-                 url='http://localhost:5000',
                  id=None,
                  max_bufsize=10*1024*1024 - 1,
-                 retry_delay=1):
-        self.root_url = url
-        self.session_url = None if id is None else f'{url}/s/{id}'
+                 retry_delay=1,
+                 deploy_config=None):
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+        self.deploy_config = deploy_config
+        self.root_url = deploy_config.base_url('dbuf-0.dbuf')
+        self.session_url = None if id is None else f'{self.root_url}/s/{id}'
         self.aiosession = None
         self.id = id
         self.buf = bytearray(max_bufsize)

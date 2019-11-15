@@ -13,7 +13,7 @@ log = logging.getLogger('dbuf_scale_test')
 
 async def write(server, id, data, args, i):
     start = time.time()
-    async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
+    async with dbuf.client.DBufClient(id, max_bufsize=args.bufsize*1024*1024-1) as client:
         keys = []
         for i in range(args.reqs):
             keys += await client.append(data[i])
@@ -23,7 +23,7 @@ async def write(server, id, data, args, i):
 
 async def read(server, id, args, i, keys):
     start = time.time()
-    async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
+    async with dbuf.client.DBufClient(id, max_bufsize=args.bufsize*1024*1024-1) as client:
         data = await client.getmany(keys)
     return data, time.time() - start
 
@@ -51,14 +51,13 @@ async def main():
     parser.add_argument('bufsize', type=int, help='bufsize in MB')
     parser.add_argument('size', type=int, help='number of bytes to send per request')
     parser.add_argument('reqs', type=int, help='number of requests to send')
-    parser.add_argument('--leader-url', type=str, help='leader url')
     args = parser.parse_args()
 
     n = args.n
     d = int(math.log10(n)) + 1
 
     start = time.time()
-    async with dbuf.client.DBufClient(args.leader_url) as client:
+    async with dbuf.client.DBufClient() as client:
         print(f'create')
         id = await client.create()
 

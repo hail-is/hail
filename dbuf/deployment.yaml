@@ -26,6 +26,11 @@ spec:
       labels:
         app: dbuf
     spec:
+      volumes:
+       - name: deploy-config
+         secret:
+           optional: false
+           secretName: deploy-config
       containers:
         - name: dbuf
           image: {{ dbuf_image.image }}
@@ -49,6 +54,9 @@ spec:
           volumeMounts:
             - name: dbuf
               mountPath: "/tmp"
+            - name: deploy-config
+              mountPath: /deploy-config
+              readOnly: true
           imagePullPolicy: Always
           ports:
            - name: leader

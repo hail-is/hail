@@ -260,3 +260,16 @@ server {
 	client_max_body_size 8M;
 }
 
+server {
+    server_name ~^(?<sub_domain>.*)\.dbuf\..*$;
+
+    location / {
+        proxy_pass http://$sub_domain.dbuf/;
+
+        proxy_set_header Host $updated_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
