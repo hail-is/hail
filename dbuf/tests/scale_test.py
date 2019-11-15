@@ -51,7 +51,7 @@ async def main():
     parser.add_argument('bufsize', type=int, help='bufsize in MB')
     parser.add_argument('size', type=int, help='number of bytes to send per request')
     parser.add_argument('reqs', type=int, help='number of requests to send')
-    parser.add_argument('--leader-url', type=int, help='leader url')
+    parser.add_argument('--leader-url', type=str, help='leader url')
     args = parser.parse_args()
 
     n = args.n
