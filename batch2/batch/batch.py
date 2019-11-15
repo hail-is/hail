@@ -6,7 +6,7 @@ import base64
 import traceback
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
-from .globals import complete_states
+from .globals import complete_states, tasks
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
