@@ -61,7 +61,6 @@ spec:
            - name: w3
              hostPort: 5003
              containerPort: 5003
-      restartPolicy: Never
 ---
 apiVersion: v1
 kind: Service
