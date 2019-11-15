@@ -1,3 +1,5 @@
+{% set n_replicas = 3 %}
+{% set n_process_per_replica = 3 %}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -7,7 +9,7 @@ spec:
   selector:
     matchLabels:
       app: dbuf
-  replicas: 2
+  replicas: {{ n_replicas }}
   volumeClaimTemplates:
     - metadata:
         name: dbuf
@@ -28,7 +30,7 @@ spec:
         - name: dbuf
           image: {{ dbuf_image.image }}
           args:
-            - "4"
+            - "{{ n_process_per_replica }}"
             - "--hostname"
             - "$(POD_IP)"
             - "--leader-url"
@@ -37,8 +39,8 @@ spec:
             - "512"
           resources:
             requests:
-              memory: "15G"
-              cpu: "4"
+              memory: "{{ n_process_per_replica * 375 }}Mi"
+              cpu: "{{ n_process_per_replica }}"
           env:
             - name: POD_IP
               valueFrom:
