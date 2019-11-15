@@ -209,7 +209,7 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 6)
+cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
@@ -247,7 +247,7 @@ GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
 tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
-	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
+	git push git@github.com:hail-is/hail.git $(HAIL_PIP_VERSION)
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
 	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
 
