@@ -133,7 +133,9 @@ object InferType {
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
       case NDArraySlice(nd, slices) =>
         val childTyp = coerce[TNDArray](nd.typ)
-        val remainingDims = coerce[TTuple](slices.typ).types.filter(_.isInstanceOf[TTuple])
+        val slicesTyp = coerce[TTuple](slices.typ)
+        assert(childTyp.nDims == slicesTyp.size)
+        val remainingDims = slicesTyp.types.filter(_.isInstanceOf[TTuple])
         TNDArray(childTyp.elementType, Nat(remainingDims.length))
       case NDArrayMatMul(l, r) =>
         val lTyp = coerce[TNDArray](l.typ)
