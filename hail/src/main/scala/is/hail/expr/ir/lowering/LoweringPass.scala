@@ -46,3 +46,11 @@ case object InterpretNonCompilablePass extends LoweringPass {
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
 }
+
+case object LowerTableToDistributedArrayPass extends LoweringPass {
+  val before: IRState = MatrixLoweredToTable
+  val after: IRState = CompilableIR
+  val context: String = "LowerTableToDistributedArray"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerTableIR.lower(ir.asInstanceOf[IR])
+}

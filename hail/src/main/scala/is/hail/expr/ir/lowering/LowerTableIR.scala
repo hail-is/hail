@@ -1,4 +1,4 @@
-package is.hail.backend
+package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.expr.ir._
@@ -33,30 +33,6 @@ case class TableStage(
 }
 
 object LowerTableIR {
-
-  def apply(ir0: IR, timer: Option[ExecutionTimer], optimize: Boolean = true): IR = {
-
-    def opt(context: String, ir: IR): IR =
-      Optimize(ir, noisy = true, context)
-
-    def time(context: String, ir: (String) => IR): IR =
-      timer.map(t => t.time(context)(ir(context)))
-        .getOrElse(ir(context))
-
-    var ir = ir0
-
-    if (optimize) { ir = time( "first pass", opt(_, ir)) }
-
-    ir = time("lowering MatrixIR", _ => LowerMatrixIR(ir))
-
-    if (optimize) { ir = time("after MatrixIR lowering", opt(_, ir)) }
-
-    ir = time("lowering TableIR", _ => LowerTableIR.lower(ir))
-
-    if (optimize) { ir = time("after TableIR lowering", opt(_, ir)) }
-    ir
-  }
-
   def lower(ir: IR): IR = ir match {
 
     case TableCount(tableIR) =>

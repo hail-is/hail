@@ -33,4 +33,5 @@ case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
 object LoweringPipeline {
   val relationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, InterpretNonCompilablePass))
   val legacyRelationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LegacyInterpretNonCompilablePass))
+  val tableLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LowerTableToDistributedArrayPass))
 }
