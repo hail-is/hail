@@ -377,9 +377,3 @@ clean: clean-env clean-docs native-lib-clean
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)
-
-.PHONY: update-hail-repl
-update-hail-repl: NAMESPACE ?= default
-update-hail-repl: wheel
-	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
-	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl

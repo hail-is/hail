@@ -479,17 +479,19 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars python-version-info wheel
+     make jars python-version-info
+     ./gradlew jar
      (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
-     (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
+     - from: /io/repo/hail/build/libs/hail.jar
+       to: /hail-no-spark.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
@@ -500,8 +502,6 @@ steps:
        to: /testng-distributed-backend.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
-     - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-       to: /wheel-container.tar
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
      - from: /io/repo/hail/resources.tar.gz
@@ -1321,16 +1321,16 @@ steps:
     - default_ns
     - dbuf_image
  - kind: buildImage
-   name: test_dbuf_image
+   name: dbuf_test_image
    dockerFile: dbuf/tests/Dockerfile
    contextPath: dbuf/tests
-   publishAs: test_dbuf
+   publishAs: dbuf_test
    dependsOn:
      - dbuf_image
  - kind: runImage
-   name: test_dbuf
+   name: dbuf_test
    image:
-     valueFrom: test_dbuf_image.image
+     valueFrom: dbuf_test_image.image
    script: |
      set -ex
      python3 scale_test.py dbuf-0.dbuf 10 1 40000 1000
@@ -1349,4 +1349,90 @@ steps:
    dependsOn:
      - default_ns
      - deploy_dbuf
-     - test_dbuf_image
+     - dbuf_test_image
+ - kind: buildImage
+   name: shuffler_build_image
+   dockerFile: shuffler/Dockerfile.build
+   contextPath: shuffler
+   publishAs: shuffler
+   dependsOn:
+    - hail_build_image
+ - kind: runImage
+   name: shuffler_build
+   image:
+     valueFrom: shuffler_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     mkdir -p hail/build/libs
+     mv /io/hail-no-spark.jar /io/repo/hail/build/libs/hail.jar
+     cd shuffler
+     sbt assembly
+   outputs:
+     - from: /io/repo/shuffler/target/scala-2.11/shuffler-assembly-0.1.jar
+       to: /shuffler-assembly-0.1.jar
+   inputs:
+     - from: /hail-no-spark.jar
+       to: /io/hail-no-spark.jar
+   dependsOn:
+     - shuffler_build_image
+     - build_hail
+ - kind: buildImage
+   name: shuffler_image
+   dockerFile: shuffler/Dockerfile
+   contextPath: shuffler
+   publishAs: shuffler
+   inputs:
+     - from: /shuffler-assembly-0.1.jar
+       to: /shuffler-assembly-0.1.jar
+   dependsOn:
+     - service_base_image
+     - shuffler_build
+ - kind: deploy
+   name: deploy_shuffler
+   namespace:
+     valueFrom: default_ns.name
+   config: shuffler/deployment.yaml
+   wait:
+    - kind: Service
+      name: shuffler
+      for: alive
+      resource_type: statefulset
+   dependsOn:
+    - default_ns
+    - shuffler_image
+ - kind: buildImage
+   name: test_shuffler_image
+   dockerFile: shuffler/test/Dockerfile
+   contextPath: shuffler/test
+   publishAs: test_shuffler
+   inputs:
+     - from: /wheel-container.tar
+       to: /wheel-container.tar
+   dependsOn:
+     - build_hail
+     - hail_run_image
+ - kind: runImage
+   name: test_shuffler
+   image:
+     valueFrom: test_shuffler_image.image
+   resources:
+     cpu: "2"
+   script: |
+     python3 -m pytest --log-cli-level=INFO -s -v --instafail test_shuffler.py
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /home/hail/.hail
+   dependsOn:
+    - default_ns
+    - test_shuffler_image
+    - deploy_shuffler

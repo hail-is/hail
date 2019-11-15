@@ -13,7 +13,7 @@ object CodeOrdering {
 
   sealed trait Op {
     type ReturnType
-    val rtti: TypeInfo[ReturnType]
+    def rtti: TypeInfo[ReturnType]
   }
   final case object compare extends Op {
     type ReturnType = Int
