@@ -5,6 +5,9 @@ import java.lang.reflect.Method
 import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary, Pointer}
 import com.sun.jna.ptr.{DoubleByReference, IntByReference}
 
+import scala.util.{Failure, Success, Try}
+import is.hail.utils._
+
 class UnderscoreFunctionMapper extends FunctionMapper {
   override def getFunctionName(library: NativeLibrary, method: Method): String = {
     method.getName() + "_"
@@ -13,13 +16,37 @@ class UnderscoreFunctionMapper extends FunctionMapper {
 
 object LAPACKLibrary {
   lazy val instance = {
-    val jmap = new java.util.HashMap[String, FunctionMapper]()
-    jmap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-    val foo = Native.loadLibrary("lapack", classOf[LAPACKLibrary], jmap)
-    //Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
-    foo.asInstanceOf[LAPACKLibrary]
+    val standard = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+
+    versionTest(standard) match {
+      case Success(version) =>
+        log.info(s"Imported LAPACK version ${version} with standard names")
+        standard
+      case Failure(exception) =>
+        val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
+        underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
+        val underscoreAfter = Native.loadLibrary("lapack", classOf[LAPACKLibrary], underscoreAfterMap).asInstanceOf[LAPACKLibrary]
+        versionTest(underscoreAfter) match {
+          case Success(version) =>
+            log.info(s"Imported LAPACK version ${version} with underscore names")
+            underscoreAfter
+          case Failure(exception) =>
+            throw exception
+        }
+    }
   }
   def getInstance() = instance
+
+  private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
+    val major = new IntByReference()
+    val minor = new IntByReference()
+    val patch = new IntByReference()
+
+    Try({
+      libInstance.ilaver(major, minor, patch)
+      s"${major.getValue}.${minor.getValue}.${patch.getValue}"
+    })
+  }
 }
 
 trait LAPACKLibrary extends Library {
