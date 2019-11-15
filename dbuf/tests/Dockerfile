@@ -1,3 +1,3 @@
 FROM {{ base_image.image }}
 
-COPY scale_tests.py .
+COPY scale_test.py .
