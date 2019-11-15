@@ -909,10 +909,9 @@ class RVD(
       }
     }
     assert(typ.key.length >= right.typ.key.length, s"$typ >= ${ right.typ }\n  $this\n  $right")
-    orderedJoinDistinct(
+    orderedLeftJoinDistinct(
       right,
       right.typ.key.length,
-      "left",
       joiner,
       typ.copy(rowType = newRowType))
   }
@@ -936,22 +935,13 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedJoin(right.keyBy(joinKey), joinType, joiner, joinedType, ctx)
 
-  def orderedJoinDistinct(
-    right: RVD,
-    joinType: String,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType
-  ): RVD =
-    orderedJoinDistinct(right, typ.key.length, joinType, joiner, joinedType)
-
-  def orderedJoinDistinct(
+  def orderedLeftJoinDistinct(
     right: RVD,
     joinKey: Int,
-    joinType: String,
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: RVDType
   ): RVD =
-    keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
+    keyBy(joinKey).orderedLeftJoinDistinct(right.keyBy(joinKey), joiner, joinedType)
 
   def orderedLeftIntervalJoin(
     right: RVD,
