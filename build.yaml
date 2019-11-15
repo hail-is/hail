@@ -1098,6 +1098,7 @@ steps:
    config: dbuf/deployment.yaml
    wait:
     - kind: Service
+      resource_type: statefulset
       name: dbuf
       for: alive
    dependsOn:
