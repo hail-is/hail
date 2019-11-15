@@ -13,6 +13,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.language.{existentials, postfixOps}
 
 object Emit {
@@ -1599,6 +1600,7 @@ private class Emit(
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
+      case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
         val lT = emit(lChild)
@@ -2431,6 +2433,55 @@ private class Emit(
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
+          }
+        }
+
+      case x@NDArraySlice(child, slicesIR) =>
+        val childEmitter = deforest(child)
+
+        val slicest = emit(slicesIR, env, resultRegion, None)
+        val slicesValueAddress = mb.newField[Long]
+        val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
+
+        val slicers = slices.withTypes.collect {
+          case (t: PTuple, slice) => new CodePTuple(t, region, slice)
+        }
+
+        val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(const(false))(_ || _)
+        val anyMissingness = missingSliceElements || slices.missingnessPattern.fold(const(false))(_ || _)
+
+        val codeSlices = slicers.map(_.values[Long, Long, Long])
+
+        val outputShape = codeSlices.map { case (start, stop, step) =>
+          (step >= 0L && start <= stop).mux(
+            const(1L) + ((stop - start) - 1L) / step,
+            (step < 0L && start >= stop).mux(
+              (((stop - start) + 1L) / step) + 1L,
+              0L)
+          )
+        }.toArray
+
+        val setupMissing = Code(
+          slicest.setup,
+          slicesValueAddress := slicest.value[Long],
+          childEmitter.setupMissing
+        )
+
+        val missing = childEmitter.missing || anyMissingness
+
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, setupMissing, missing) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val oldIdxVarsIter = idxVars.iterator
+
+            val sliceIdxVars2 = slices.withTypes.map {
+              case (_: PInt64, indexer) =>
+                coerce[Long](indexer)
+              case (t: PTuple, slicer) =>
+                val (start, _, step) = new CodePTuple(t, region, slicer).values[Long, Long, Long]
+                start + oldIdxVarsIter.next() * step
+            }
+
+            childEmitter.outputElement(sliceIdxVars2.toArray)
           }
         }
 

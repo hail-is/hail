@@ -61,28 +61,47 @@ def test_ndarray_ref():
     assert "Index out of bounds" in str(exc)
 
 @skip_unless_spark_backend()
-@run_with_cxx_compile()
 def test_ndarray_slice():
-    np_arr = np.array([[[0, 1, 2, 3],
-                        [4, 5, 6, 7],
-                        [8, 9, 10, 11]],
-                       [[12, 13, 14, 15],
-                        [16, 17, 18, 19],
-                        [20, 21, 22, 23]]])
-    arr = hl._ndarray(np_arr)
-    np_mat = np.array([[1, 2, 3, 4],
-                       [5, 6, 7, 8]])
+    np_rect_prism = np.arange(24).reshape((2, 3, 4))
+    rect_prism = hl._ndarray(np_rect_prism)
+    np_mat = np.arange(8).reshape((2, 4))
     mat = hl._ndarray(np_mat)
+    np_flat = np.arange(20)
+    flat = hl._ndarray(np_flat)
 
     assert_ndarrays_eq(
-        (arr[:, :, :], np_arr[:, :, :]),
-        (arr[:, :, 1], np_arr[:, :, 1]),
-        (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
-        (arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2]),
-        (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
-        (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-        (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]))
+        (rect_prism[:, :, :], np_rect_prism[:, :, :]),
+        (rect_prism[:, :, 1], np_rect_prism[:, :, 1]),
+        (rect_prism[0:1, 1:3, 0:2], np_rect_prism[0:1, 1:3, 0:2]),
+        (rect_prism[:, :, 1:4:2], np_rect_prism[:, :, 1:4:2]),
+        (rect_prism[:, 2, 1:4:2], np_rect_prism[:, 2, 1:4:2]),
+        (rect_prism[0, 2, 1:4:2], np_rect_prism[0, 2, 1:4:2]),
+        (rect_prism[0, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
+        (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
+        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
+        (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
+        (flat[15:5:-1], np_flat[15:5:-1]),
+        (flat[::-1], np_flat[::-1]),
+        (flat[::22], np_flat[::22]),
+        (flat[::-22], np_flat[::-22]),
+        (flat[15:5], np_flat[15:5]),
+        (flat[3:12:-1], np_flat[3:12:-1]),
+        (flat[12:3:1], np_flat[12:3:1]),
+        (mat[::-1, :], np_mat[::-1, :]),
+        (flat[4:1:-2], np_flat[4:1:-2]),
+        (flat[0:0:1], np_flat[0:0:1]),
+        (flat[-4:-1:2], np_flat[-4:-1:2])
+    )
+
+    assert hl.eval(flat[hl.null(hl.tint32):4:1]) is None
+    assert hl.eval(flat[4:hl.null(hl.tint32)]) is None
+    assert hl.eval(flat[4:10:hl.null(hl.tint32)]) is None
+    assert hl.eval(rect_prism[:, :, 0:hl.null(hl.tint32):1]) is None
+    assert hl.eval(rect_prism[hl.null(hl.tint32), :, :]) is None
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(flat[::0])
+    assert "Slice step cannot be zero" in str(exc)
 
 @skip_unless_spark_backend()
 def test_ndarray_eval():
