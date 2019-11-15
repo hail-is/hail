@@ -1,0 +1,5 @@
+/project/boot/
+/project/plugins/project
+build
+shuffler/libhail.dylib
+target/

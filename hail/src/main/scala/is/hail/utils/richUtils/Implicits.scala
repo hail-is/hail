@@ -9,6 +9,10 @@ import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
+import java.util.Comparator
+import java.util.concurrent.Callable
+import java.util.function.{ BiConsumer, Consumer, Supplier }
+import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
@@ -115,4 +119,19 @@ trait Implicits {
   implicit def toRichCodeArray[T](arr: Array[Code[T]]): RichCodeArray[T] = new RichCodeArray[T](arr)
 
   implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
+
+  implicit def scalaFunToConsumer[A](f: A => Unit): Consumer[A] =
+    new Consumer[A]() { def accept(a: A): Unit = f(a) }
+
+  implicit def scalaFunToBiConsumer[A, B](f: (A, B) => Unit): BiConsumer[A, B] =
+    new BiConsumer[A, B]() {def accept(a: A, b: B): Unit = f(a, b) }
+
+  implicit def scalaFunToComparator[A](f: (A, A) => Int): Comparator[A] =
+    new Comparator[A]() { override def compare(l: A, r: A): Int = f(l, r) }
+
+  implicit def scalaFunToSupplier[A](f: () => A): Supplier[A] =
+    new Supplier[A]() { def get(): A = f() }
+
+  implicit def scalaFunToCallable[A](f: () => A): Callable[A] =
+    new Callable[A]() { def call(): A = f() }
 }
