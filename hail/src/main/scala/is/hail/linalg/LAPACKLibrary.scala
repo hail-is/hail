@@ -1,11 +1,23 @@
 package is.hail.linalg
 
-import com.sun.jna.{Library, Native, Pointer}
+import java.lang.reflect.Method
+
+import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary, Pointer}
 import com.sun.jna.ptr.{DoubleByReference, IntByReference}
 
+class UnderscoreFunctionMapper extends FunctionMapper {
+  override def getFunctionName(library: NativeLibrary, method: Method): String = {
+    method.getName() + "_"
+  }
+}
+
 object LAPACKLibrary {
-  val instance = {
-    Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+  lazy val instance = {
+    val jmap = new java.util.HashMap[String, FunctionMapper]()
+    jmap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
+    val foo = Native.loadLibrary("lapack", classOf[LAPACKLibrary], jmap)
+    //Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+    foo.asInstanceOf[LAPACKLibrary]
   }
   def getInstance() = instance
 }
@@ -16,3 +28,8 @@ trait LAPACKLibrary extends Library {
   def dgeqrf(M: Long, N: Long, A: Long, LDA: Long, TAU: Long, WORK: Long, LWORK: Long, INFO: Long)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
 }
+//
+//trait LAPACKLibraryUnderscore extends Library {
+//  def dgeqrf_(M: Long, N: Long, A: Long, LDA: Long, TAU: Long, WORK: Long, LWORK: Long, INFO: Long)
+//  def ilaver_(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
+//}
