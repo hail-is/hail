@@ -369,9 +369,6 @@ class Tests(unittest.TestCase):
         array_agg_count = t.aggregate(hl.agg.array_agg(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
         self.assertEqual(array_agg_count, [10 for i in range(10)])
 
-
-
-
     def test_approx_cdf(self):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)

@@ -205,6 +205,7 @@ def _check_agg_bindings(expr, bindings):
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
+@typecheck(expr=expr_numeric, k=int)
 def approx_cdf(expr, k=100):
     """Produce a summary of the distribution of values.
 
@@ -249,7 +250,16 @@ def approx_cdf(expr, k=100):
     :class:`.StructExpression`
         Struct containing `values` and `ranks` arrays.
     """
-    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64), _compaction_counts=tarray(tint32)), constructor_args=[k])
+    res = _agg_func('ApproxCDF', [hl.float64(expr)],
+                    tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
+                    constructor_args=[k])
+    conv = {
+        tint32: lambda x: x.map(hl.int),
+        tint64: lambda x: x.map(hl.int64),
+        tfloat32: lambda x: x.map(hl.float32),
+        tfloat64: identity
+    }
+    return hl.struct(values=conv[expr.dtype](res.values), ranks=res.ranks, _compaction_counts=res._compaction_counts)
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)
