@@ -302,8 +302,7 @@ set -ex
 date
 
 rm -rf repo
-mkdir repo
-(cd repo; {code.checkout_script()})
+mv /io/repo repo
 {render_dockerfile}
 {init_context}
 {copy_inputs}
@@ -327,6 +326,8 @@ date
 
         log.info(f'step {self.name}, script:\n{script}')
 
+        git_clone_job = code.checkout_job(batch)
+
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     mount_docker_socket=True,
@@ -340,8 +341,8 @@ date
                                         'cpu': '1'
                                     },
                                     attributes={'name': self.name},
-                                    input_files=input_files,
-                                    parents=self.deps_parents())
+                                    input_files=input_files + [(x[1], x[0]) for x in git_clone_job.output_files],
+                                    parents=self.deps_parents() + git_clone_job.id)
 
     def cleanup(self, batch, scope, parents):
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
