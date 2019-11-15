@@ -26,7 +26,6 @@ object LapackTest {
 //    println(BLASLibrary.instance)
 
 
-
     val aMemH = HailMemory.malloc(8 * 16) //16 8 byte doubles
     val bMemH = HailMemory.malloc(8 * 16)
     val cMemH = HailMemory.malloc(8 * 16)
