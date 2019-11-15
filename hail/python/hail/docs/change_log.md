@@ -40,6 +40,11 @@ Released 2019-11-15
 ### Bug fixes
 
 - (hail#7479)(hail#7368)(hail#7402) Fix optimizer bugs.
+- (hail#7506) Updated to latest htsjdk to resolve VCF parsing problems.
+
+### `hailctl dataproc`
+
+- (hail#7460) The Spark monitor widget now automatically collapses after a job completes.
 
 ---
 
