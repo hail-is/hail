@@ -14,6 +14,15 @@ class UnderscoreFunctionMapper extends FunctionMapper {
   }
 }
 
+object TryAll {
+  def apply[K](f: => K): Try[K] =
+    try {
+      Success(f)
+    } catch {
+      case e: Throwable => Failure(e)
+    }
+}
+
 object LAPACKLibrary {
   lazy val instance = {
     val standard = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
@@ -42,7 +51,7 @@ object LAPACKLibrary {
     val minor = new IntByReference()
     val patch = new IntByReference()
 
-    Try({
+    TryAll({
       libInstance.ilaver(major, minor, patch)
       s"${major.getValue}.${minor.getValue}.${patch.getValue}"
     })
