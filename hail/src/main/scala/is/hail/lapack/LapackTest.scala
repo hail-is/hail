@@ -22,9 +22,15 @@ object LapackTest {
   final def main(args: Array[String]): Unit = {
     println("Trying to call LAPACK")
 
-//    println(LAPACKLibrary.getInstance())
+    println(LAPACKLibrary.getInstance())
 //    println(BLASLibrary.instance)
 
+    val major = new IntByReference(0)
+    val minor = new IntByReference(0)
+    val patch = new IntByReference(0)
+    LAPACKLibrary.instance.ilaver(major, minor, patch)
+    val version = s"${major.getValue}.${minor.getValue}.${patch.getValue}"
+    println(version)
 
     val aMemH = HailMemory.malloc(8 * 16) //16 8 byte doubles
     val bMemH = HailMemory.malloc(8 * 16)
