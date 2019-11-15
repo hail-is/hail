@@ -1,5 +1,5 @@
-{% set n_replicas = 3 %}
-{% set n_process_per_replica = 3 %}
+{% set n_replicas = 2 %}
+{% set n_process_per_replica = 2 %}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
