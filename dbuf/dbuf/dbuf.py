@@ -177,7 +177,7 @@ class Server:
             await runner.setup()
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
             await site.start()
-            log.info(f'serving at {server.binding_host}:{server.port}')
+            log.info(f'server on {server.hostname} bound to {server.binding_host}:{server.port}')
             if server.leader_url is not None:
                 async def call():
                     async with ah.ClientSession(raise_for_status=True,
@@ -257,6 +257,7 @@ class Server:
 
     async def post_worker(self, request):
         worker = await request.text()
+        log.info(f'new worker: {worker} + {self.workers}')
         self.workers.add(worker)
         return web.json_response(list(self.workers))
 

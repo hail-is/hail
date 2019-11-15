@@ -1096,11 +1096,11 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: dbuf/deployment.yaml
-   wait:
-    - kind: Service
-      resource_type: statefulset
-      name: dbuf
-      for: alive
+   # wait:
+   #  - kind: Service
+   #    resource_type: statefulset
+   #    name: dbuf
+   #    for: alive
    dependsOn:
     - default_ns
     - dbuf_image
