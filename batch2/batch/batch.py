@@ -107,7 +107,7 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 def job_record_to_dict(record, running_status=None):
     spec = json.loads(record['spec'])
 
-    attributes = spec.pop('attributes')
+    attributes = spec.pop('attributes', None)
 
     result = {
         'batch_id': record['batch_id'],
