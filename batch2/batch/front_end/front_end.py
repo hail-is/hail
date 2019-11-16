@@ -96,7 +96,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 async def get_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    return web.json_response(_get_batch_jobs(request.app, batch_id, user))
+    return web.json_response(await _get_batch_jobs(request.app, batch_id, user))
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
@@ -549,7 +549,7 @@ async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     batch = await _get_batch(app, batch_id, user)
-    batch['jobs'] = _get_batch_jobs(app, batch_id, user)
+    batch['jobs'] = await _get_batch_jobs(app, batch_id, user)
     page_context = {
         'batch': batch
     }
