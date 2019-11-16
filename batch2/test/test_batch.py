@@ -319,7 +319,7 @@ class Test(unittest.TestCase):
             # redirect to auth/login
             (requests.get, '/batches', 302),
             (requests.get, '/batches/0', 302),
-            (requests.post, '/batches/0/cancel', 302),
+            (requests.post, '/batches/0/cancel', 401),
             (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
             full_url = deploy_config.url('batch2', url)
