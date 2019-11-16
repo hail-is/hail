@@ -49,7 +49,7 @@ class Job:
             return None
 
         container_status = container_statuses.get(task)
-        if not container_statuses:
+        if not container_status:
             return None
 
         error = container_status.get('error')
@@ -73,7 +73,7 @@ class Job:
             return None
 
         container_status = container_statuses.get(task)
-        if not container_statuses:
+        if not container_status:
             return None
 
         dcontainer_status = container_status.get('container_status')
