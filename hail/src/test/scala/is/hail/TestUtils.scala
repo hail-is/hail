@@ -163,144 +163,146 @@ object TestUtils {
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None
   ): Any = {
-    val inputTypesB = new ArrayBuilder[Type]()
-    val inputsB = new ArrayBuilder[Any]()
+    ExecuteContext.scoped { ctx =>
+      val inputTypesB = new ArrayBuilder[Type]()
+      val inputsB = new ArrayBuilder[Any]()
 
-    args.foreach { case (v, t) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    env.m.foreach { case (name, (v, t)) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    val argsType = TTuple(inputTypesB.result(): _*)
-    val resultType = TTuple(x.typ)
-    val argsVar = genUID()
-
-    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
-      (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
-    }
-
-    def rewrite(x: IR): IR = {
-      x match {
-        case In(i, t) =>
-          GetTupleElement(Ref(argsVar, argsType), i)
-        case _ =>
-          MapIR(rewrite)(x)
+      args.foreach { case (v, t) =>
+        inputsB += v
+        inputTypesB += t
       }
-    }
 
-    val argsPType = PType.canonical(argsType)
-    agg match {
-      case Some((aggElements, aggType)) =>
-        val aggVar = genUID()
-        val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
+      env.m.foreach { case (name, (v, t)) =>
+        inputsB += v
+        inputTypesB += t
+      }
+
+      val argsType = TTuple(inputTypesB.result(): _*)
+      val resultType = TTuple(x.typ)
+      val argsVar = genUID()
+
+      val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+        (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
+      }
+
+      def rewrite(x: IR): IR = {
+        x match {
+          case In(i, t) =>
+            GetTupleElement(Ref(argsVar, argsType), i)
+          case _ =>
+            MapIR(rewrite)(x)
+        }
+      }
+
+      val argsPType = PType.canonical(argsType)
+      agg match {
+        case Some((aggElements, aggType)) =>
+          val aggVar = genUID()
+          val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
-        }
-        val aggPType = PType.canonical(aggType)
-        val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          argsVar, argsPType,
-          argsVar, argsPType,
-          aggVar, aggPType,
-          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
-          (i, x) => x,
-          (i, x) => x)
-
-        val (resultType2, f) = Compile[Long, Long, Long](
-          "AGGR", aggResultType,
-          argsVar, argsPType,
-          postAggIR,
-          print = bytecodePrinter)
-        assert(resultType2.virtualType == resultType)
-
-        Region.scoped { region =>
-          val rvb = new RegionValueBuilder(region)
-
-          // copy args into region
-          rvb.start(argsPType)
-          rvb.startTuple()
-          var i = 0
-          while (i < inputsB.length) {
-            rvb.addAnnotation(inputTypesB(i), inputsB(i))
-            i += 1
           }
-          rvb.endTuple()
-          val argsOff = rvb.end()
+          val aggPType = PType.canonical(aggType)
+          val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](ctx,
+            argsVar, argsPType,
+            argsVar, argsPType,
+            aggVar, aggPType,
+            MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
+            (i, x) => x,
+            (i, x) => x)
 
-          // aggregate
-          i = 0
-          rvAggs.foreach(_.clear())
-          initOps(0, region)(region, rvAggs, argsOff, false)
-          var seqOpF = seqOps(0, region)
-          while (i < (aggElements.length / 2)) {
-            // FIXME use second region for elements
-            rvb.start(aggPType)
-            rvb.addAnnotation(aggType, aggElements(i))
-            val aggElementOff = rvb.end()
+          val (resultType2, f) = Compile[Long, Long, Long](ctx,
+            "AGGR", aggResultType,
+            argsVar, argsPType,
+            postAggIR,
+            print = bytecodePrinter)
+          assert(resultType2.virtualType == resultType)
 
-            seqOpF(region, rvAggs, argsOff, false, aggElementOff, false)
+          Region.scoped { region =>
+            val rvb = new RegionValueBuilder(region)
 
-            i += 1
+            // copy args into region
+            rvb.start(argsPType)
+            rvb.startTuple()
+            var i = 0
+            while (i < inputsB.length) {
+              rvb.addAnnotation(inputTypesB(i), inputsB(i))
+              i += 1
+            }
+            rvb.endTuple()
+            val argsOff = rvb.end()
+
+            // aggregate
+            i = 0
+            rvAggs.foreach(_.clear())
+            initOps(0, region)(region, rvAggs, argsOff, false)
+            var seqOpF = seqOps(0, region)
+            while (i < (aggElements.length / 2)) {
+              // FIXME use second region for elements
+              rvb.start(aggPType)
+              rvb.addAnnotation(aggType, aggElements(i))
+              val aggElementOff = rvb.end()
+
+              seqOpF(region, rvAggs, argsOff, false, aggElementOff, false)
+
+              i += 1
+            }
+
+            val rvAggs2 = rvAggs.map(_.newInstance())
+            rvAggs2.foreach(_.clear())
+            initOps(0, region)(region, rvAggs2, argsOff, false)
+            seqOpF = seqOps(1, region)
+            while (i < aggElements.length) {
+              // FIXME use second region for elements
+              rvb.start(aggPType)
+              rvb.addAnnotation(aggType, aggElements(i))
+              val aggElementOff = rvb.end()
+
+              seqOpF(region, rvAggs2, argsOff, false, aggElementOff, false)
+
+              i += 1
+            }
+
+            rvAggs.zip(rvAggs2).foreach { case (agg1, agg2) => agg1.combOp(agg2) }
+
+            // build aggregation result
+            rvb.start(aggResultType)
+            rvb.startTuple()
+            i = 0
+            while (i < rvAggs.length) {
+              rvAggs(i).result(rvb)
+              i += 1
+            }
+            rvb.endTuple()
+            val aggResultsOff = rvb.end()
+
+            val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
+            SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
           }
 
-          val rvAggs2 = rvAggs.map(_.newInstance())
-          rvAggs2.foreach(_.clear())
-          initOps(0, region)(region, rvAggs2, argsOff, false)
-          seqOpF = seqOps(1, region)
-          while (i < aggElements.length) {
-            // FIXME use second region for elements
-            rvb.start(aggPType)
-            rvb.addAnnotation(aggType, aggElements(i))
-            val aggElementOff = rvb.end()
+        case None =>
+          val (resultType2, f) = Compile[Long, Long](ctx,
+            argsVar, argsPType,
+            MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
+            optimize = true,
+            print = bytecodePrinter)
+          assert(resultType2.virtualType == resultType)
 
-            seqOpF(region, rvAggs2, argsOff, false, aggElementOff, false)
+          Region.scoped { region =>
+            val rvb = new RegionValueBuilder(region)
+            rvb.start(argsPType)
+            rvb.startTuple()
+            var i = 0
+            while (i < inputsB.length) {
+              rvb.addAnnotation(inputTypesB(i), inputsB(i))
+              i += 1
+            }
+            rvb.endTuple()
+            val argsOff = rvb.end()
 
-            i += 1
+            val resultOff = f(0, region)(region, argsOff, false)
+            SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
           }
-
-          rvAggs.zip(rvAggs2).foreach{ case(agg1, agg2) => agg1.combOp(agg2) }
-
-          // build aggregation result
-          rvb.start(aggResultType)
-          rvb.startTuple()
-          i = 0
-          while (i < rvAggs.length) {
-            rvAggs(i).result(rvb)
-            i += 1
-          }
-          rvb.endTuple()
-          val aggResultsOff = rvb.end()
-
-          val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
-          SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
-        }
-
-      case None =>
-        val (resultType2, f) = Compile[Long, Long](
-          argsVar, argsPType,
-          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
-          optimize = true,
-          print = bytecodePrinter)
-        assert(resultType2.virtualType == resultType)
-
-        Region.scoped { region =>
-          val rvb = new RegionValueBuilder(region)
-          rvb.start(argsPType)
-          rvb.startTuple()
-          var i = 0
-          while (i < inputsB.length) {
-            rvb.addAnnotation(inputTypesB(i), inputsB(i))
-            i += 1
-          }
-          rvb.endTuple()
-          val argsOff = rvb.end()
-
-          val resultOff = f(0, region)(region, argsOff, false)
-          SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
-        }
+      }
     }
   }
 

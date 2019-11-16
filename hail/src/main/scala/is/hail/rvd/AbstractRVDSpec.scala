@@ -132,7 +132,7 @@ object AbstractRVDSpec {
       case _ => (None, None)
     }
 
-    val (t, crdd) = hc.readRowsSplit(
+    val (t, crdd) = hc.readRowsSplit(ctx,
       pathLeft, pathRight, isl, isr,
       specLeft.typedCodecSpec, specRight.typedCodecSpec, parts, tmpPartitioner.rangeBounds,
       requestedTypeLeft, requestedTypeRight)

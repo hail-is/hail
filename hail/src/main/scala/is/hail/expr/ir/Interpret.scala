@@ -687,7 +687,7 @@ object Interpret {
             }.toFastIndexedSeq
             val wrappedIR = Copy(ir, wrappedArgs)
 
-            val (rt, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple.ordered(FastSeq(wrappedIR)), optimize = false)
+            val (rt, makeFunction) = Compile[Long, Long](ctx, "in", argTuple, MakeTuple.ordered(FastSeq(wrappedIR)), optimize = false)
             (rt, makeFunction(0, region))
           })
           val rvb = new RegionValueBuilder()
@@ -747,7 +747,7 @@ object Interpret {
             val extracted = agg.Extract(query, res)
 
             val wrapped = if (extracted.aggs.isEmpty) {
-              val (rt: PTuple, f) = Compile[Long, Long](
+              val (rt: PTuple, f) = Compile[Long, Long](ctx,
                 "global", value.globals.t,
                 MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
@@ -757,22 +757,22 @@ object Interpret {
             } else {
               val spec = BufferSpec.defaultUncompressed
 
-              val (_, initOp) = CompileWithAggregators2[Long, Unit](
+              val (_, initOp) = CompileWithAggregators2[Long, Unit](ctx,
                 extracted.aggs,
                 "global", value.globals.t,
                 extracted.init)
 
-              val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](
+              val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](ctx,
                 extracted.aggs,
                 "global", value.globals.t,
                 "row", value.rvd.rowPType,
                 extracted.seqPerElt)
 
-              val read = extracted.deserialize(spec)
-              val write = extracted.serialize(spec)
-              val combOpF = extracted.combOpF(spec)
+              val read = extracted.deserialize(ctx, spec)
+              val write = extracted.serialize(ctx, spec)
+              val combOpF = extracted.combOpF(ctx, spec)
 
-              val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](
+              val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](ctx,
                 extracted.aggs,
                 "global", value.globals.t,
                 Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
@@ -825,7 +825,7 @@ object Interpret {
           }
         }
 
-        val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
+        val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](ctx,
           "global", value.globals.t,
           "global", value.globals.t,
           "row", value.rvd.rowPType,
@@ -833,7 +833,7 @@ object Interpret {
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
-        val (t, f) = Compile[Long, Long, Long](
+        val (t, f) = Compile[Long, Long, Long](ctx,
           "global", value.globals.t,
           "AGGR", aggResultType,
           postAggIR)

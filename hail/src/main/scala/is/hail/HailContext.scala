@@ -811,7 +811,7 @@ class HailContext private(
       })
   }
 
-  def readRowsSplit(
+  def readRowsSplit(ctx: ExecuteContext,
     pathRows: String,
     pathEntries: String,
     indexSpecRows: Option[AbstractIndexSpec],
@@ -833,7 +833,7 @@ class HailContext private(
       requestedTypeEntries.fieldNames.map(f =>
           f -> ir.GetField(ir.Ref("right", requestedTypeEntries), f)))
 
-    val (t: PStruct, makeInserter) = ir.Compile[Long, Long, Long](
+    val (t: PStruct, makeInserter) = ir.Compile[Long, Long, Long](ctx,
       "left", rowsType,
       "right", entriesType,
       inserterIR)
