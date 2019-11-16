@@ -583,7 +583,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.execute_and_fetchone('''
-SELECT jobs.state, status, ip_address
+SELECT jobs.*, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
