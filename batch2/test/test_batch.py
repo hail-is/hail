@@ -1,7 +1,7 @@
 import random
 import math
 import collections
-from hailtop.batch_client.client import BatchClient
+from hailtop.batch_client.client import BatchClient, Job
 import json
 import os
 import base64
@@ -259,7 +259,7 @@ class Test(unittest.TestCase):
         assert n_cancelled <= 1, bstatus
         assert n_cancelled + n_complete == 3, bstatus
 
-        n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
+        n_failed = sum([Job._get_exit_code(j, 'main') > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
         assert n_failed == 1, bstatus
 
     def test_batch_status(self):
@@ -319,7 +319,8 @@ class Test(unittest.TestCase):
             # redirect to auth/login
             (requests.get, '/batches', 302),
             (requests.get, '/batches/0', 302),
-            (requests.get, '/batches/0/jobs/0/log', 302)]
+            (requests.post, '/batches/0/cancel', 302),
+            (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
             full_url = deploy_config.url('batch2', url)
             r = f(full_url, allow_redirects=False)

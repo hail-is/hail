@@ -86,14 +86,14 @@ class Job:
     def _get_exit_codes(job_status):
         return {
             task: Job._get_exit_code(job_status, task)
-            for task in ['setup', 'main', 'cleanup']
+            for task in ['input', 'main', 'output']
         }
 
     @staticmethod
     def exit_code(job_status):
         exit_codes = [
             Job._get_exit_code(job_status, task)
-            for task in ['setup', 'main', 'cleanup']
+            for task in ['input', 'main', 'output']
         ]
 
         i = 0
@@ -122,7 +122,7 @@ class Job:
                 return None
             return runtime.get('duration')
 
-        durations = [_get_duration(task) for task in ['setup', 'main', 'cleanup']]
+        durations = [_get_duration(task) for task in ['input', 'main', 'output']]
 
         if any(d is None for d in durations):
             return None
