@@ -74,7 +74,7 @@ async def _get_batch_jobs(app, batch_id, user):
 
     record = await db.execute_and_fetchone(
         '''
-SELECT state FROM batches
+SELECT id FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''', (user, batch_id))
     if not record:
