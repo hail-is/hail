@@ -37,7 +37,7 @@ def filter_params(complete, success, attributes):
 
 class Job:
     @staticmethod
-    def _get_message(job_status, task):
+    def _get_error(job_status, task):
         status = job_status.get('status')
         if not status:
             return None

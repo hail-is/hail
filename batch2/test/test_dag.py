@@ -23,7 +23,7 @@ def batch_status_job_counter(batch_status, job_state):
 
 
 def batch_status_exit_codes(batch_status):
-    return [j['exit_code'] for j in batch_status['jobs']]
+    return [Job._get_exit_codes(j) for j in batch_status['jobs']]
 
 
 def test_simple(client):
@@ -177,7 +177,7 @@ def test_input_dependency(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head.status()['exit_code']['main'] == 0, head._status
+    assert head._get_exit_code(head.status(), 'main') == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
@@ -193,7 +193,7 @@ def test_input_dependency_directory(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head.status()['exit_code']['main'] == 0, head._status
+    assert head._get_exit_code(head.status(), 'main') == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
