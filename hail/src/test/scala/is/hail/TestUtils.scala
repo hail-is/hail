@@ -5,7 +5,6 @@ import java.io.{File, PrintWriter}
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
-import is.hail.backend.LowererUnsupportedOperation
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation

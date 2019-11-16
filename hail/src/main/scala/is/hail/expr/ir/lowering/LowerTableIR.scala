@@ -2,6 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.expr.ir._
+import is.hail.expr.types
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
@@ -182,10 +183,10 @@ object LowerTableIR {
       var fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
       if (!fieldRef.typ.isInstanceOf[TArray])
         fieldRef = ToArray(fieldRef)
-      val elt = Ref(genUID(), coerce[TContainer](fieldRef.typ).elementType)
+      val elt = Ref(genUID(), types.coerce[TContainer](fieldRef.typ).elementType)
 
       val refs = path.scanLeft(row)((struct, name) =>
-        Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
+        Ref(genUID(), types.coerce[TStruct](struct.typ).field(name).typ))
       val newRow = path.zip(refs).zipWithIndex.foldRight[IR](elt) {
         case (((field, ref), i), arg) =>
           InsertFields(ref, FastIndexedSeq(field ->
