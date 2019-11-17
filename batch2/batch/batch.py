@@ -14,7 +14,7 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
 log = logging.getLogger('batch')
 
 
-async def batch_record_to_dict(record):
+def batch_record_to_dict(record):
     if record['n_failed'] > 0:
         state = 'failure'
     elif record['n_cancelled'] > 0:
@@ -59,7 +59,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
     try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await session.post(callback, json=await batch_record_to_dict(record))
+            await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')

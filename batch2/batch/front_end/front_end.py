@@ -227,7 +227,7 @@ SELECT * FROM batches
 WHERE {" AND ".join(where_conditions)};
 '''
 
-    return [await batch_record_to_dict(record)
+    return [batch_record_to_dict(record)
             async for record in db.execute_and_fetchall(sql, where_args)]
 
 
@@ -412,7 +412,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    return await batch_record_to_dict(record)
+    return batch_record_to_dict(record)
 
 
 async def _cancel_batch(app, batch_id, user):
