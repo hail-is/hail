@@ -237,4 +237,4 @@ def test_always_run_error(client):
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
         assert status['state'] == state, status
-        assert node._get_exit_code(status, 'main') == ec, status
+        assert job._get_exit_code(status, 'main') == ec, status
