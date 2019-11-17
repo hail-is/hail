@@ -446,7 +446,7 @@ class Job:
                 await input.run(worker)
                 log.info(f'{self} input: {input.state}')
 
-            if input.state == 'succeeded':
+            if not input or input.state == 'succeeded':
                 log.info(f'{self}: running main')
 
                 main = self.containers['main']
