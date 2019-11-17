@@ -182,6 +182,15 @@ class SimplifySuite extends HailSuite {
     }
   }
 
+  @Test def testArrayLenCollectToTableCount(): Unit = {
+    val tr = TableRange(10, 10)
+    val a = ArrayLen(GetField(TableCollect(tr), "rows"))
+    assert(a.typ == TInt32())
+    val s = Simplify(a).asInstanceOf[IR]
+    assertEvalsTo(s, 10)
+    assert(s.typ == TInt32())
+  }
+
   @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(): Unit = {
     val reader = MatrixRangeReader(1, 1, None)
     var mir: MatrixIR = MatrixRead(reader.fullMatrixType, false, false, reader)
