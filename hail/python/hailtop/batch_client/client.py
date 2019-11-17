@@ -9,6 +9,10 @@ def async_to_blocking(coro):
 
 class Job:
     @staticmethod
+    def _get_error(job_status, task):
+        return aioclient.Job._get_error(job_status, task)
+
+    @staticmethod
     def _get_exit_code(job_status, task):
         return aioclient.Job._get_exit_code(job_status, task)
 
