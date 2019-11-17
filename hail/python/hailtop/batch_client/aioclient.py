@@ -63,6 +63,14 @@ class Job:
         return docker_container_status.get('error')
 
     @staticmethod
+    def _get_container_status_exit_code(container_status):
+        dcontainer_status = container_status.get('container_status')
+        if not dcontainer_status:
+            return None
+
+        return dcontainer_status.get('exit_code')
+
+    @staticmethod
     def _get_exit_code(job_status, task):
         status = job_status.get('status')
         if not status:
@@ -76,24 +84,30 @@ class Job:
         if not container_status:
             return None
 
-        docker_container_status = container_status.get('container_status')
-        if not docker_container_status:
-            return None
-
-        return docker_container_status.get('exit_code')
+        return Job._get_container_status_exit_code(container_status)
 
     @staticmethod
     def _get_exit_codes(job_status):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
         return {
-            task: Job._get_exit_code(job_status, task)
-            for task in tasks
+            task: Job._get_container_status_exit_code(container_status)
+            for task, container_status in container_statuses.items()
         }
 
     @staticmethod
     def exit_code(job_status):
+        exit_codes = Job._get_exit_codes(job_status)
         exit_codes = [
-            Job._get_exit_code(job_status, task)
+            exit_codes[task]
             for task in tasks
+            if task in exit_codes
         ]
 
         i = 0
@@ -116,8 +130,7 @@ class Job:
         if not container_statuses:
             return None
 
-        def _get_duration(task):
-            container_status = container_statuses.get(task)
+        def _get_duration(container_status):
             if not container_status:
                 return None
 
@@ -131,7 +144,10 @@ class Job:
 
             return runtime.get('duration')
 
-        durations = [_get_duration(task) for task in tasks]
+        durations = [
+            _get_duration(container_status)
+            for task, container_status in container_statuses.items()
+        ]
 
         if any(d is None for d in durations):
             return None
