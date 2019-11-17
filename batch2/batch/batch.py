@@ -135,7 +135,7 @@ def job_record_to_dict(record):
             k: getopt(getopt(status['container_statuses'][k], 'container_status'), 'exit_code') for
             k in tasks
         }
-        result['duration'] = {k: getopt(getopt(status['container_statuses'][k]['timing'], 'runtime'), 'duration') for k in tasks}
+        result['duration'] = {k: getopt(getopt(getopt(status['container_statuses'][k], 'timing'), 'runtime'), 'duration') for k in tasks}
         result['message'] = {
             # the execution of the job container might have
             # failed, or the docker container might have completed
