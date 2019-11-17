@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
         j = builder.create_job('dsafaaadsf', ['echo', 'test'])
         builder.submit()
         status = j.wait()
-        assert j._get_exit_codes(status) == {'input': 0, 'main': None, 'output': 0}, status
+        assert j._get_exit_codes(status) == {'main': None}, status
         assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
 
