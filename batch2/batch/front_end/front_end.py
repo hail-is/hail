@@ -6,6 +6,7 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
+import humanize
 import cerberus
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
@@ -16,6 +17,7 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
+from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     check_csrf_token
@@ -521,8 +523,13 @@ async def ui_batch(request, userdata):
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
+
     batch = await _get_batch(app, batch_id, user)
-    batch['jobs'] = await _get_batch_jobs(app, batch_id, user)
+    jobs = await _get_batch_jobs(app, batch_id, user)
+    for job in jobs:
+        job['exit_code'] = Job.exit_code(job)
+        job['duration'] = humanize.naturaldelta(Job.total_duration(job))
+    batch['jobs'] = jobs
     page_context = {
         'batch': batch
     }

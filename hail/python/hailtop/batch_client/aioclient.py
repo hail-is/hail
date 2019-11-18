@@ -10,7 +10,7 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
 from hailtop.utils import bounded_gather, grouped, request_retry_transient_errors
 
-from .globals import complete_states
+from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
 
@@ -56,11 +56,11 @@ class Job:
         if error:
             return error
 
-        dcontainer_status = container_status.get('container_status')
-        if not dcontainer_status:
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
             return None
 
-        return dcontainer_status.get('error')
+        return docker_container_status.get('error')
 
     @staticmethod
     def _get_exit_code(job_status, task):
@@ -76,24 +76,24 @@ class Job:
         if not container_status:
             return None
 
-        dcontainer_status = container_status.get('container_status')
-        if not dcontainer_status:
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
             return None
 
-        return dcontainer_status.get('exit_code')
+        return docker_container_status.get('exit_code')
 
     @staticmethod
     def _get_exit_codes(job_status):
         return {
             task: Job._get_exit_code(job_status, task)
-            for task in ['input', 'main', 'output']
+            for task in tasks
         }
 
     @staticmethod
     def exit_code(job_status):
         exit_codes = [
             Job._get_exit_code(job_status, task)
-            for task in ['input', 'main', 'output']
+            for task in tasks
         ]
 
         i = 0
@@ -122,7 +122,7 @@ class Job:
                 return None
             return runtime.get('duration')
 
-        durations = [_get_duration(task) for task in ['input', 'main', 'output']]
+        durations = [_get_duration(task) for task in tasks]
 
         if any(d is None for d in durations):
             return None
