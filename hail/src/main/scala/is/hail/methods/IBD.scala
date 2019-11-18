@@ -304,26 +304,6 @@ object IBD {
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
   private val ibdKey = FastIndexedSeq("i", "j")
 
-  def toKeyTable(hc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
-    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(hc, ktRdd, ibdPType, FastIndexedSeq("i", "j"))
-  }
-
-  def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
-    val rvd = tv.rvd
-    rvd.map { rv =>
-      val region = rv.region
-      val i = PString.loadString(region, ibdPType.loadField(rv, 0))
-      val j = PString.loadString(region, ibdPType.loadField(rv, 1))
-      val ibd = IBDInfo.fromRegionValue(region, ibdPType.loadField(rv, 2))
-      val ibs0 = Region.loadLong(ibdPType.loadField(rv, 3))
-      val ibs1 = Region.loadLong(ibdPType.loadField(rv, 4))
-      val ibs2 = Region.loadLong(ibdPType.loadField(rv, 5))
-      val eibd = ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
-      ((i, j), eibd)
-    }
-  }
-
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
     val rvRowType = input.rvRowType
     val rvRowPType = input.rvRowPType
