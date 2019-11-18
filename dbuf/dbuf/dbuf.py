@@ -10,6 +10,8 @@ import signal
 import struct
 import sys
 
+from hailtop.config import get_deploy_config
+
 from . import aiofiles as af
 from .logging import log
 from .retry_forever import retry_forever
@@ -168,11 +170,14 @@ class Server:
         self.app.on_cleanup.append(self.cleanup)
 
     @staticmethod
-    async def serve(hostname, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader_url=None):
+    async def serve(hostname, k8s_service, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader_url=None):
         aiofiles = af.AIOFiles()
         dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
         server = Server(hostname, binding_host, port, dbuf, leader_url, aiofiles)
         try:
+            app = server.app
+            if k8s_service is not None:
+                app = get_deploy_config().prefix_application(app, k8s_service)
             runner = web.AppRunner(server.app)
             await runner.setup()
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
@@ -284,8 +289,9 @@ parser = argparse.ArgumentParser(description='distributed buffer')
 parser.add_argument('n', type=int, help='number of processes, must be at least one')
 parser.add_argument('--hostname', type=str, help='hostname to use to connect to myself', default='localhost')
 parser.add_argument('--data-dir', type=str, help='directory in which to store data', default='/tmp/shuffler')
-parser.add_argument('--port', type=str, help='directory in which to store data', default='80')
+parser.add_argument('--port', type=str, help='port to bind to', default='80')
 parser.add_argument('--leader-url', type=str, help='directory in which to store data', required=False)
+parser.add_argument('--k8s-service', type=str, help='k8s service name', required=False)
 parser.add_argument('--bufsize', type=int, help='buffer size in MiB', default=512)
 args = parser.parse_args()
 
@@ -315,11 +321,11 @@ try:
     signal.signal(signal.SIGQUIT, die)
 
     leader_url = args.leader_url
-    servers = [mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, port, 0, leader_url))]
+    servers = [mp.Process(target=server, args=(args.hostname, args.k8s_service, bufsize, args.data_dir, port, 0, leader_url))]
     if leader_url is None:
         leader_url = f'http://{args.hostname}:{port}'
     servers.extend(
-        mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, port + i, i, leader_url))
+        mp.Process(target=server, args=(args.hostname, args.k8s_service, bufsize, args.data_dir, port + i, i, leader_url))
         for i in range(1, args.n))
     for server in servers:
         server.start()
