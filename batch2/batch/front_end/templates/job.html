@@ -3,7 +3,7 @@
 {% block content %}
   <h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
 
-  {% job_log %}
+  {% if job_log %}
     <h2>Log</h2>
 
     {% if 'input' in job_log %}
