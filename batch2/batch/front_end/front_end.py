@@ -144,7 +144,7 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.execute_and_fetchone('''
-SELECT jobs.state, ip_address
+SELECT jobs.state, jobs.spec, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
