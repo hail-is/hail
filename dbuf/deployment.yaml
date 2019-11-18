@@ -37,7 +37,7 @@ spec:
           args:
             - "{{ n_process_per_replica }}"
             - "--hostname"
-            - "$(POD_IP)"
+            - "http://$POD_NAME.dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
             - "--leader-url"
             - "http://dbuf-0.dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
             - "--bufsize"
@@ -47,10 +47,10 @@ spec:
               memory: "{{ n_process_per_replica * 375 }}Mi"
               cpu: "{{ n_process_per_replica }}"
           env:
-            - name: POD_IP
+            - name: POD_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: status.podIP
+                  fieldPath: metadata.name
           volumeMounts:
             - name: dbuf
               mountPath: "/tmp"
