@@ -35,7 +35,7 @@ spec:
           args:
             - "1"
             - "--k8s-service"
-            - "$(POD_NAME)"
+            - "$(POD_NAME).dbuf"
             - "--hostname"
             - "$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local:80"
             - "--leader-url"
