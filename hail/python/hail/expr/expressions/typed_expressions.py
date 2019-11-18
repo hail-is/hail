@@ -3545,7 +3545,7 @@ class NDArrayExpression(Expression):
         Examples
         --------
 
-        >>> v = hl._ndarray([1, 2, 3, 4]) # doctest: +SKIP
+        >>> v = hl._nd.array([1, 2, 3, 4]) # doctest: +SKIP
         >>> m = v.reshape((2, 2)) # doctest: +SKIP
 
         Returns
