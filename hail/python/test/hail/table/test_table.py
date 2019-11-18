@@ -1344,3 +1344,11 @@ def test_join_distinct_preserves_count():
     n_defined_2, keys_2 = joined_2.aggregate((hl.agg.count_where(hl.is_defined(joined_2.r)), hl.agg.collect(joined_2.i)))
     assert n_defined_2 == 0
     assert keys_2 == left_pos
+
+def test_write_table_containing_ndarray():
+    t = hl.utils.range_table(5)
+    t = t.annotate(n = hl._nd.arange(t.idx))
+    f = new_temp_file(suffix='ht')
+    t.write(f)
+    t2 = hl.read_table(f)
+    assert t._same(t2)
