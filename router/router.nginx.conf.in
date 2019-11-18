@@ -271,12 +271,6 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
-    listen *:5000;
-    listen [::]:5000;
-    listen *:5001;
-    listen [::]:5001;
-    listen *:5002;
-    listen [::]:5002;
-    listen *:5003;
-    listen [::]:5003;
+    listen 80;
+    listen [::]:80;
 }

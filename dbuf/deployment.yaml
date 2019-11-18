@@ -1,5 +1,3 @@
-{% set n_replicas = 2 %}
-{% set n_process_per_replica = 2 %}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -9,7 +7,7 @@ spec:
   selector:
     matchLabels:
       app: dbuf
-  replicas: {{ n_replicas }}
+  replicas: 4
   volumeClaimTemplates:
     - metadata:
         name: dbuf
@@ -35,7 +33,7 @@ spec:
         - name: dbuf
           image: {{ dbuf_image.image }}
           args:
-            - "{{ n_process_per_replica }}"
+            - "1"
             - "--hostname"
             - "http://$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
             - "--leader-url"
@@ -44,8 +42,8 @@ spec:
             - "512"
           resources:
             requests:
-              memory: "{{ n_process_per_replica * 375 }}Mi"
-              cpu: "{{ n_process_per_replica }}"
+              memory: "3750Mi"
+              cpu: "1"
           env:
             - name: POD_NAME
               valueFrom:
@@ -59,18 +57,9 @@ spec:
               readOnly: true
           imagePullPolicy: Always
           ports:
-           - name: leader
-             hostPort: 5000
+           - name: port
+             hostPort: 80
              containerPort: 5000
-           - name: w1
-             hostPort: 5001
-             containerPort: 5001
-           - name: w2
-             hostPort: 5002
-             containerPort: 5002
-           - name: w3
-             hostPort: 5003
-             containerPort: 5003
 ---
 apiVersion: v1
 kind: Service
@@ -79,7 +68,7 @@ metadata:
 spec:
   clusterIP: "None"
   ports:
-   - port: 5000
-     targetPort: 5000
+   - port: 80
+     targetPort: 80
   selector:
     app: dbuf
