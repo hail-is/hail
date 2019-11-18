@@ -1468,15 +1468,15 @@ private class Emit(
         // Have to allocate a buffer of workspace.
 
         // Contains M, N, LDA, LWORK, INFO
-        val tempStoragePType = PTuple(PInt32(), PInt32(), PInt32(), PInt32(), PInt32())
-        val tempStorageSrvb = new StagedRegionValueBuilder(mb, tempStoragePType, region)
-
-        val tempStorageTuple = new CodePTuple(tempStoragePType, region, tempStorageSrvb.offset)
-        val mAddress = tempStorageTuple.fieldOffset(0)
-        val nAddress = tempStorageTuple.fieldOffset(1)
-        val ldaAddress = tempStorageTuple.fieldOffset(2)
-        val lworkAddress = tempStorageTuple.fieldOffset(3)
-        val infoAddress = tempStorageTuple.fieldOffset(4)
+//        val tempStoragePType = PTuple(PInt32(), PInt32(), PInt32(), PInt32(), PInt32())
+//        val tempStorageSrvb = new StagedRegionValueBuilder(mb, tempStoragePType, region)
+//
+//        val tempStorageTuple = new CodePTuple(tempStoragePType, region, tempStorageSrvb.offset)
+//        val mAddress = tempStorageTuple.fieldOffset(0)
+//        val nAddress = tempStorageTuple.fieldOffset(1)
+//        val ldaAddress = tempStorageTuple.fieldOffset(2)
+//        val lworkAddress = tempStorageTuple.fieldOffset(3)
+//        val infoAddress = tempStorageTuple.fieldOffset(4)
 
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
@@ -1484,21 +1484,23 @@ private class Emit(
         val answerAddress = mb.newField[Long]
         val answerNumElements = ndPType.numElements(shapeArray, mb)
 
+        val infoResult = mb.newLocal[Int]
+
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 
-          // Set up the primitive arguments
-          tempStorageSrvb.start(),
-          tempStorageSrvb.addInt(M.toI),
-          tempStorageSrvb.advance(),
-          tempStorageSrvb.addInt(N.toI),
-          tempStorageSrvb.advance(),
-          tempStorageSrvb.addInt(LDA.toI),
-          tempStorageSrvb.advance(),
-          tempStorageSrvb.addInt(LWORK), //TODO LWORK should be negative 1 to request, for now it's just big.
-          tempStorageSrvb.advance(),
-          tempStorageSrvb.addInt(1), // Storing a 1, it will get overriden, just needed some not possible info code.
-          tempStorageSrvb.advance(),
+//          // Set up the primitive arguments
+//          tempStorageSrvb.start(),
+//          tempStorageSrvb.addInt(M.toI),
+//          tempStorageSrvb.advance(),
+//          tempStorageSrvb.addInt(N.toI),
+//          tempStorageSrvb.advance(),
+//          tempStorageSrvb.addInt(LDA.toI),
+//          tempStorageSrvb.advance(),
+//          tempStorageSrvb.addInt(LWORK), //TODO LWORK should be negative 1 to request, for now it's just big.
+//          tempStorageSrvb.advance(),
+//          tempStorageSrvb.addInt(1), // Storing a 1, it will get overriden, just needed some not possible info code.
+//          tempStorageSrvb.advance(),
 
           Code._println("answerNumElements.toI"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
@@ -1523,18 +1525,27 @@ private class Emit(
           Code._println("Info before LAPACK invocation"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", Region.loadInt(infoAddress)),
-          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibrary.getClass, "getInstance").dgeqrf(
-            mAddress,
-            nAddress,
+//          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibrary.getClass, "getInstance").dgeqrf(
+//            mAddress,
+//            nAddress,
+//            ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0),
+//            ldaAddress,
+//            tauPType.elementOffset(tauAddress, K.toI, 0),
+//            workAddress,
+//            lworkAddress,
+//            infoAddress),
+          infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
+            M.toI,
+            N.toI,
             ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0),
-            ldaAddress,
+            LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
             workAddress,
-            lworkAddress,
-            infoAddress),
+            LWORK
+          ),
           Code._println("Info after LAPACK invocation"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", Region.loadInt(infoAddress)),
+            "println", infoResult),
           Code._println("Initial data length"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", ndPType.data.pType.loadLength(dataAddress)),

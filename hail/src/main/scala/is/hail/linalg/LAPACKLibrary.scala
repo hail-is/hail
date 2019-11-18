@@ -24,7 +24,7 @@ object TryAll {
 }
 
 object LAPACKLibrary {
-  lazy val instance = {
+  lazy val libraryInstance = {
     val standard = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
 
     versionTest(standard) match {
@@ -44,7 +44,18 @@ object LAPACKLibrary {
         }
     }
   }
-  def getInstance() = instance
+  def getInstance() = libraryInstance
+
+  // Return info
+  def dgeqrf(M: Int, N: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {
+    val mInt = new IntByReference(M)
+    val nInt = new IntByReference(N)
+    val LDAInt = new IntByReference(LDA)
+    val LWORKInt = new IntByReference(LWORK)
+    val infoInt = new IntByReference(1)
+    libraryInstance.dgeqrf(mInt, nInt, A, LDAInt, TAU, WORK, LWORKInt, infoInt)
+    infoInt.getValue()
+  }
 
   private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
     val major = new IntByReference()
@@ -62,10 +73,6 @@ trait LAPACKLibrary extends Library {
   def dsyevd(JOBZ: Char, UPLO: Char, N: Int, A: Pointer, LDA: Int, W: Pointer, WORK: Pointer, LWORK: Int, IWORK: Pointer, LIWORK: Int, INFO: Int)
   def dlapy2(X: DoubleByReference, Y: DoubleByReference): Double
   def dgeqrf(M: Long, N: Long, A: Long, LDA: Long, TAU: Long, WORK: Long, LWORK: Long, INFO: Long)
+  def dgeqrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
 }
-//
-//trait LAPACKLibraryUnderscore extends Library {
-//  def dgeqrf_(M: Long, N: Long, A: Long, LDA: Long, TAU: Long, WORK: Long, LWORK: Long, INFO: Long)
-//  def ilaver_(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
-//}
