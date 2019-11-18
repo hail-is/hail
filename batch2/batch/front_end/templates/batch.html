@@ -35,8 +35,16 @@
             {% endif %}
           </td>
           <td>{{ job['state'] }}</td>
-          <td>{{ job['exit_code'] }}</td>
-          <td>{{ job['duration'] }}</td>
+          <td>
+	    {% if 'exit_code' in job and job['exit_code'] is not none %}
+	      {{ job['exit_code'] }}
+	    {% endif %}
+	  </td>
+          <td>
+	    {% if 'duration' in job and job['duration'] is not none %}
+	      {{ job['duration'] }}
+	    {% endif %}
+	  </td>
         </tr>
         {% endfor %}
       </tbody>

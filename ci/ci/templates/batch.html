@@ -42,7 +42,7 @@
               {% endif %}
           </td>
           <td>
-            {% if 'duration' in job and job['duration'] %}
+            {% if 'duration' in job and job['duration'] is not none %}
             {{ job['duration'] }}
             {% endif %}
           </td>
