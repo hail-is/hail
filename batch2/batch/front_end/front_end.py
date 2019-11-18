@@ -39,6 +39,7 @@ from . import schemas
 log = logging.getLogger('batch.front_end')
 
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
+REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/status', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
@@ -66,6 +67,36 @@ BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
+
+
+async def _get_batch_jobs(app, batch_id, user):
+    db = app['db']
+
+    record = await db.execute_and_fetchone(
+        '''
+SELECT id FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''', (user, batch_id))
+    if not record:
+        raise web.HTTPNotFound()
+
+    jobs = [
+        job_record_to_dict(record)
+        async for record
+        in db.execute_and_fetchall(
+            'SELECT * FROM jobs WHERE batch_id = %s',
+            (batch_id,))
+    ]
+    return sorted(jobs, key=lambda j: j['job_id'])
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs')
+@prom_async_time(REQUEST_TIME_GET_JOBS)
+@rest_authenticated_users_only
+async def get_jobs(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    return web.json_response(await _get_batch_jobs(request.app, batch_id, user))
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
@@ -196,7 +227,7 @@ SELECT * FROM batches
 WHERE {" AND ".join(where_conditions)};
 '''
 
-    return [await batch_record_to_dict(db, record, include_jobs=False)
+    return [batch_record_to_dict(record)
             async for record in db.execute_and_fetchall(sql, where_args)]
 
 
@@ -370,7 +401,7 @@ VALUES (%s, %s, %s)
     return web.json_response({'id': id})
 
 
-async def _get_batch(app, batch_id, user, include_jobs):
+async def _get_batch(app, batch_id, user):
     db = app['db']
 
     record = await db.execute_and_fetchone(
@@ -380,7 +411,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
 ''', (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
-    return await batch_record_to_dict(db, record, include_jobs=include_jobs)
+
+    return batch_record_to_dict(record)
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -416,9 +448,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    params = request.query
-    include_jobs = params.get('include_jobs') == '1'
-    return web.json_response(await _get_batch(request.app, batch_id, user, include_jobs))
+    return web.json_response(await _get_batch(request.app, batch_id, user))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -515,10 +545,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @web_authenticated_users_only()
 async def ui_batch(request, userdata):
+    app = request.app
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
+    batch = await _get_batch(app, batch_id, user)
+    batch['jobs'] = await _get_batch_jobs(app, batch_id, user)
     page_context = {
-        'batch': await _get_batch(request.app, batch_id, user, include_jobs=True)
+        'batch': batch
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 

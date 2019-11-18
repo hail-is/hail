@@ -123,9 +123,6 @@ class Job:
     async def log(self):
         return await self._job.log()
 
-    async def pod_status(self):
-        return await self._job.pod_status()
-
 
 class UnsubmittedJob:
     def _submit(self, batch):
@@ -172,9 +169,6 @@ class UnsubmittedJob:
 
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
-
-    async def pod_status(self):
-        raise ValueError("cannot get the pod status of an unsubmitted job")
 
 
 class SubmittedJob:
@@ -225,10 +219,6 @@ class SubmittedJob:
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
         return await resp.json()
 
-    async def pod_status(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
-        return await resp.json()
-
 
 class Batch:
     def __init__(self, client, id, attributes):
@@ -240,12 +230,13 @@ class Batch:
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
     async def status(self, include_jobs=True):
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
+        batch = await resp.json()
         if include_jobs:
-            params = {'include_jobs': '1'}
-        else:
-            params = None
-        resp = await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
-        return await resp.json()
+            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs')
+            jobs = await resp.json()
+            batch['jobs'] = jobs
+        return batch
 
     async def wait(self):
         i = 0
