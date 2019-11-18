@@ -5,7 +5,7 @@ import java.io.PrintWriter
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PType, PBaseStruct}
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
@@ -306,3 +306,105 @@ object CompileWithAggregators2 {
   }
 }
 
+object CompileIterator {
+  import is.hail.asm4s.joinpoint._
+
+  private abstract class RegionValueIteratorWrapper extends Iterator[RegionValue] {
+    def step(rv: RegionValue): Boolean
+
+    private val rv = RegionValue()
+    private var _stepped = false
+    private var _hasNext = false
+    def hasNext: Boolean = {
+      if (!_stepped)
+        _hasNext = step(rv)
+      _stepped = true
+      _hasNext
+    }
+    def next(): RegionValue = {
+      if (!hasNext)
+        return Iterator.empty.next()
+      _stepped = false
+      rv
+    }
+  }
+
+  private def compileStepper[F >: Null: TypeInfo](
+    ctx: ExecuteContext,
+    ir: IR,
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    printWriter: Option[PrintWriter]
+  ): (Int, Region) => F = {
+
+    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[Boolean], namePrefix = "stream")
+    val stepF = fb.apply_method
+    val rv = stepF.getArg[RegionValue](2).load
+    val er = EmitRegion.default(stepF)
+    val emitter = new Emit(ctx, stepF, nSpecialArguments = 2)
+
+    val EmitStream(stream, eltPType) = EmitStream(emitter, ir, Env.empty, er, None)
+    val (setState, state) = stream.stateP.newFields(fb, "state")
+    assert(eltPType.isInstanceOf[PBaseStruct])
+
+    val didInit = fb.newField[Boolean]("did_init")
+    fb.addInitInstructions(didInit := false)
+
+    stepF.emit(JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
+      val step = jb.joinPoint()
+      step.define(_ => stream.step(stepF, jb, state) {
+        case EmitStream.EOS => ret(false)
+        case EmitStream.Yield(elt, s1) =>
+          Code(
+            elt.setup,
+            elt.m.mux(Code._fatal("empty row!"),
+              Code(
+                rv.invoke[Region, Unit]("setRegion", er.region),
+                rv.invoke[Long, Unit]("setOffset", elt.value))),
+            setState(s1),
+            ret(true))
+      })
+      didInit.mux(step(()), stream.init(stepF, jb, ()) {
+        case EmitStream.Missing => Code._fatal("missing stream!")
+        case EmitStream.Start(s0) => Code(didInit := true, setState(s0), step(()))
+      })
+    })
+
+    fb.resultWithIndex(printWriter)
+  }
+
+  def apply(
+    ctx: ExecuteContext,
+    ir: IR
+  ): (Int, Region) => Iterator[RegionValue] = {
+    val makeStepper = compileStepper[AsmFunction2[Region, RegionValue, Boolean]](
+      ctx, ir,
+      Array[MaybeGenericTypeInfo[_]](
+        GenericTypeInfo[Region], GenericTypeInfo[RegionValue]),
+      None)
+    (idx, r) => {
+      val stepper = makeStepper(idx, r)
+      new RegionValueIteratorWrapper {
+        def step(rv: RegionValue): Boolean = stepper(r, rv)
+      }
+    }
+  }
+
+  def apply[T0: TypeInfo](
+    ctx: ExecuteContext,
+    typ0: PType,
+    ir: IR
+  ): (Int, Region, T0, Boolean) => Iterator[RegionValue] = {
+    val makeStepper = compileStepper[AsmFunction4[Region, RegionValue, T0, Boolean, Boolean]](
+      ctx, ir,
+      Array[MaybeGenericTypeInfo[_]](
+        GenericTypeInfo[Region], GenericTypeInfo[RegionValue],
+        GenericTypeInfo[T0], GenericTypeInfo[Boolean]),
+      None)
+    (idx, r, v1, m1) => {
+      val stepper = makeStepper(idx, r)
+      new RegionValueIteratorWrapper {
+        def step(rv: RegionValue): Boolean = stepper(r, rv, v1, m1)
+      }
+    }
+  }
+}
