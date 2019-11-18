@@ -470,39 +470,4 @@ object TestUtils {
     )
     new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
-
-  def vdsFromCallMatrix(hc: HailContext)(
-    callMat: Matrix[BoxedCall],
-    samplesIdsOpt: Option[Array[String]] = None,
-    nPartitions: Int = hc.sc.defaultMinPartitions): MatrixTable = {
-
-    require(samplesIdsOpt.forall(_.length == callMat.rows))
-    require(samplesIdsOpt.forall(_.areDistinct()))
-
-    val sampleIds = samplesIdsOpt.getOrElse((0 until callMat.rows).map(_.toString).toArray)
-
-    val rdd = hc.sc.parallelize(
-      (0 until callMat.cols).map { j =>
-        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
-          (0 until callMat.rows).map { i =>
-            Genotype(callMat(i, j))
-          }: Iterable[Annotation])
-      },
-      nPartitions)
-
-    ExecuteContext.scoped { ctx =>
-      MatrixTable.fromLegacy(hc, MatrixType(
-        globalType = TStruct.empty(),
-        colKey = Array("s"),
-        colType = TStruct("s" -> TString()),
-        rowKey = Array("locus", "alleles"),
-        rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
-          "alleles" -> TArray(TString())),
-        entryType = Genotype.htsGenotypeType),
-        Annotation.empty,
-        sampleIds.map(Annotation(_)),
-        rdd,
-        ctx)
-    }
-  }
 }
