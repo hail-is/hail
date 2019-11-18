@@ -285,7 +285,7 @@ parser.add_argument('n', type=int, help='number of processes, must be at least o
 parser.add_argument('--hostname', type=str, help='hostname to use to connect to myself', default='localhost')
 parser.add_argument('--data-dir', type=str, help='directory in which to store data', default='/tmp/shuffler')
 parser.add_argument('--leader-url', type=str, help='directory in which to store data', required=False)
-parser.add_argument('--bufsize', type=str, help='buffer size in MiB', default='512')
+parser.add_argument('--bufsize', type=int, help='buffer size in MiB', default=512)
 args = parser.parse_args()
 
 if args.n <= 0:
