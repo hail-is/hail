@@ -34,7 +34,7 @@ class DBufClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
         self.deploy_config = deploy_config
-        self.root_url = deploy_config.base_url('dbuf-0.dbuf') + ':5000'
+        self.root_url = deploy_config.base_url('dbuf-0.dbuf', port=5000)
         self.session_url = None if id is None else f'{self.root_url}/s/{id}'
         self.aiosession = None
         self.id = id
