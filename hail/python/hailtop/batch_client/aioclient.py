@@ -104,6 +104,9 @@ class Job:
     @staticmethod
     def exit_code(job_status):
         exit_codes = Job._get_exit_codes(job_status)
+        if exit_codes is None:
+            return None
+
         exit_codes = [
             exit_codes[task]
             for task in tasks
