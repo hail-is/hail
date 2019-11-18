@@ -129,7 +129,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
         input_files = spec.get('input_files')
         if input_files:
             tasks.append('input')
-        tasks.append('output')
+        tasks.append('main')
         output_files = spec.get('output_files')
         if output_files:
             tasks.append('output')
