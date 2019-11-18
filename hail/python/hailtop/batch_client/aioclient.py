@@ -108,18 +108,27 @@ class Job:
 
     @staticmethod
     def total_duration(job_status):
-        container_statuses = job_status.get('container_statuses')
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
         if not container_statuses:
             return None
 
         def _get_duration(task):
             container_status = container_statuses.get(task)
-            if not container_statuses:
+            if not container_status:
                 return None
-            timing = container_status['timing']
+
+            timing = container_status.get('timing')
+            if not timing:
+                return None
+
             runtime = timing.get('runtime')
             if not runtime:
                 return None
+
             return runtime.get('duration')
 
         durations = [_get_duration(task) for task in tasks]

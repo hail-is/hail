@@ -125,16 +125,6 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 log = None
             return task, log
 
-        spec = json.loads(record['spec'])
-        tasks = []
-        input_files = spec.get('input_files')
-        if input_files:
-            tasks.append('input')
-        tasks.append('main')
-        output_files = spec.get('output_files')
-        if output_files:
-            tasks.append('output')
-
         return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
 
     return None
