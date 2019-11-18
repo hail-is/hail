@@ -51,11 +51,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: HAIL_DEPLOY_CONFIG_FILE
+              value: /deploy-config/deploy-config.json
           volumeMounts:
             - name: dbuf
               mountPath: "/tmp"
             - name: deploy-config
-              mountPath: /home/dbuf/.dbuf
+              mountPath: /deploy-config
               readOnly: true
           imagePullPolicy: Always
           ports:
