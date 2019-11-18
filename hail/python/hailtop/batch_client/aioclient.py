@@ -386,7 +386,7 @@ class BatchClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
 
-        self.url = deploy_config.base_url('dbuf-0.dbuf')
+        self.url = deploy_config.base_url('batch2')
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
