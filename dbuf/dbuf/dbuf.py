@@ -181,7 +181,7 @@ class Server:
             app = server.app
             if k8s_service is not None:
                 app = get_deploy_config().prefix_application(app, k8s_service)
-            runner = web.AppRunner(server.app)
+            runner = web.AppRunner(app)
             await runner.setup()
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
             await site.start()
