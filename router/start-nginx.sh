@@ -17,6 +17,7 @@ esac
 sed -e "s,@domain@,$DOMAIN,g" \
     -e "s,@notebook_base_path@,$NOTEBOOK_BASE_PATH,g" \
     -e "s,@workshop_base_path@,$WORKSHOP_BASE_PATH,g" \
+    -e "s,@namespace@,$HAIL_DEFAULT_NAMESPACE,g" \
     < /router.nginx.conf.in > /etc/nginx/conf.d/router.conf
 
 nginx -g "daemon off;"
