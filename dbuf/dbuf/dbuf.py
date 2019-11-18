@@ -273,7 +273,7 @@ class Server:
         await self.dbuf.delete()
 
 
-def server(hostname, bufsize, data_dir, port, i, leader_url):
+def server(hostname, k8s_service, bufsize, data_dir, port, i, leader_url):
     loop = asyncio.get_event_loop()
 
     def die(signum, frame):
@@ -282,7 +282,7 @@ def server(hostname, bufsize, data_dir, port, i, leader_url):
     signal.signal(signal.SIGINT, die)
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGQUIT, die)
-    loop.run_until_complete(Server.serve(hostname, bufsize, data_dir, '0.0.0.0', port, leader_url))
+    loop.run_until_complete(Server.serve(hostname, k8s_service, bufsize, data_dir, '0.0.0.0', port, leader_url))
 
 
 parser = argparse.ArgumentParser(description='distributed buffer')
