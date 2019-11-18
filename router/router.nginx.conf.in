@@ -264,6 +264,7 @@ server {
     server_name ~^(?<sub_domain>.*)\.dbuf\..*$;
 
     location / {
+        resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$sub_domain.dbuf/;
 
         proxy_set_header Host $updated_host;
