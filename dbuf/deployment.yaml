@@ -34,6 +34,8 @@ spec:
           image: {{ dbuf_image.image }}
           args:
             - "1"
+            - "--k8s-service"
+            - "$(POD_NAME)"
             - "--hostname"
             - "http://$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local:80"
             - "--leader-url"
@@ -53,7 +55,7 @@ spec:
             - name: dbuf
               mountPath: "/tmp"
             - name: deploy-config
-              mountPath: /deploy-config
+              mountPath: /home/dbuf/.dbuf
               readOnly: true
           imagePullPolicy: Always
           ports:
