@@ -247,7 +247,7 @@ GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
 tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
-	git push git@github.com:hail-is/hail.git $(HAIL_PIP_VERSION)
+	git push $(DEPLOY_PROD) $(HAIL_PIP_VERSION)
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
 	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
 
