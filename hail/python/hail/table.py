@@ -1292,6 +1292,8 @@ class Table(ExprContainer):
             column_blocks.append((start, i))
 
             def format_hline(widths):
+                if not widths:
+                    return "++\n"
                 return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
 
             def pad(v, w, ra):
@@ -1302,6 +1304,8 @@ class Table(ExprContainer):
                     return v + ' ' * e
 
             def format_line(values, widths, right_align):
+                if not values:
+                    return "||\n"
                 values = map(pad, values, widths, right_align)
                 return '| ' + ' | '.join(values) + ' |\n'
 
