@@ -1088,6 +1088,9 @@ class Tests(unittest.TestCase):
     def test_empty_show(self):
         hl.utils.range_table(1).filter(False).show()
 
+    def test_no_row_fields_show(self):
+        hl.utils.range_table(5).key_by().select().show()
+
     def test_same_equal(self):
         t1 = hl.utils.range_table(1)
         self.assertTrue(t1._same(t1))
