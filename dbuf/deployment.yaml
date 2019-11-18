@@ -37,7 +37,7 @@ spec:
           args:
             - "{{ n_process_per_replica }}"
             - "--hostname"
-            - "http://$POD_NAME.dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
+            - "http://$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
             - "--leader-url"
             - "http://dbuf-0.dbuf.{{ default_ns.name }}.svc.cluster.local:5000"
             - "--bufsize"
