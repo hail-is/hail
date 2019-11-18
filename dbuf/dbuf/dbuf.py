@@ -146,14 +146,17 @@ class DBuf:
 
 
 class Server:
-    def __init__(self, hostname, binding_host, port, dbuf, leader_url, aiofiles):
+    def __init__(self, hostname, k8s_service, binding_host, port, dbuf, leader_url, aiofiles):
         self.app = web.Application(client_max_size=50 * 1024 * 1024)
         self.routes = web.RouteTableDef()
         self.workers = set()
         self.hostname = hostname
         self.binding_host = binding_host
         self.port = port
-        self.root_url = f'http://{self.hostname}:{self.port}'
+        if k8s_service:
+            self.root_url = get_deploy_config().base_url(k8s_service)
+        else:
+            self.root_url = f'http://{self.hostname}:{self.port}'
         self.dbuf = dbuf
         self.leader_url = leader_url
         self.aiofiles = aiofiles
@@ -173,7 +176,7 @@ class Server:
     async def serve(hostname, k8s_service, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader_url=None):
         aiofiles = af.AIOFiles()
         dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
-        server = Server(hostname, binding_host, port, dbuf, leader_url, aiofiles)
+        server = Server(hostname, k8s_service, binding_host, port, dbuf, leader_url, aiofiles)
         try:
             app = server.app
             if k8s_service is not None:
