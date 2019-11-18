@@ -19,5 +19,5 @@ def check_csrf_token(fun):
         if token1 is not None and token2 is not None and token1 == token2:
             return await fun(request, *args, **kwargs)
         log.info('request made with invalid csrf tokens')
-        raise web.HTTPForbidden()
+        raise web.HTTPUnauthorized()
     return wrapped

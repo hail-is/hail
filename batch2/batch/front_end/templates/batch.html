@@ -21,24 +21,30 @@
           <th>State</th>
           <th>Exit Code</th>
           <th>Duration</th>
-          <th>Log</th>
-          <th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td class="numeric-cell">{{ job['job_id'] }}</td>
+          <td class="numeric-cell">
+	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+	  </td>
           <td>
             {% if 'attributes' in job and 'name' in job['attributes'] and job['attributes']['name'] is not none %}
             {{ job['attributes']['name'] }}
             {% endif %}
           </td>
           <td>{{ job['state'] }}</td>
-          <td>{{ job['exit_code'] }}</td>
-          <td>{{ job['duration'] }}</td>
-          <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a></td>
-          <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/status">status</a></td>
+          <td>
+	    {% if 'exit_code' in job and job['exit_code'] is not none %}
+	      {{ job['exit_code'] }}
+	    {% endif %}
+	  </td>
+          <td>
+	    {% if 'duration' in job and job['duration'] is not none %}
+	      {{ job['duration'] }}
+	    {% endif %}
+	  </td>
         </tr>
         {% endfor %}
       </tbody>
