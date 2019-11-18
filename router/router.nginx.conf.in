@@ -279,12 +279,4 @@ server {
     listen [::]:5002;
     listen *:5003;
     listen [::]:5003;
-    listen *:5004;
-    listen [::]:5004;
-    listen *:5005;
-    listen [::]:5005;
-    listen *:5006;
-    listen [::]:5006;
-    listen *:5007;
-    listen [::]:5007;
 }
