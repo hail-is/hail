@@ -521,11 +521,19 @@ def test_ndarray_show():
 
 @skip_unless_spark_backend()
 def test_ndarray_qr():
+    def assert_raw_equivalence(hl_ndarray, np_ndarray):
+        ndarray_h, ndarray_tau = hl.eval(hl._nd.qr(hl_ndarray, mode="raw"))
+        np_ndarray_h, np_ndarray_tau = np.linalg.qr(np_ndarray, mode="raw")
+
+        assert np.allclose(ndarray_h, np_ndarray_h)
+        assert np.allclose(ndarray_tau, np_ndarray_tau)
+
     np_identity4 = np.identity(4)
     identity4 = hl._ndarray(np_identity4)
 
-    identity4_h, identity4_tau = hl.eval(hl._nd.qr(identity4, mode="raw"))
-    np_identity4_h, np_identity4_tau = np.linalg.qr(np_identity4, mode="raw")
+    assert_raw_equivalence(identity4, np_identity4)
 
-    assert np.array_equal(identity4_h, np_identity4_h)
-    assert np.array_equal(identity4_tau, np_identity4_tau)
+    np_all3 = np.full((3, 3), 3)
+    all3 = hl._nd.full((3, 3), 3)
+
+    assert_raw_equivalence(all3, np_all3)
