@@ -1124,7 +1124,7 @@ steps:
     - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /deploy-config
+      mountPath: /home/hail/.hail
    scopes:
     - dev
     - test
