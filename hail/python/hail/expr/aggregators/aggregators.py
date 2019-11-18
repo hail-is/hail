@@ -209,8 +209,6 @@ def _check_agg_bindings(expr, bindings):
 def approx_cdf(expr, k=100):
     """Produce a summary of the distribution of values.
 
-    .. include: _templates/experimental.rst
-
     Notes
     -----
     This method returns a struct containing two arrays: `values` and `ranks`.
@@ -266,8 +264,6 @@ def approx_cdf(expr, k=100):
 def approx_quantiles(expr, qs, k=100) -> Expression:
     """Compute an array of approximate quantiles.
 
-    .. include: _templates/experimental.rst
-
     Examples
     --------
     Estimate the median of the `HT` field.
@@ -307,8 +303,6 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
 @typecheck(expr=expr_numeric, k=int)
 def approx_median(expr, k=100) -> Expression:
     """Compute the approximate median. This function is a shorthand for `approx_quantiles(expr, .5, k)`
-
-    .. include: _templates/experimental.rst
 
     Examples
     --------
@@ -1300,8 +1294,6 @@ def hist(expr, start, end, bins) -> StructExpression:
 def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     """Downsample (x, y) coordinate datapoints.
 
-    .. include: _templates/experimental.rst
-
     Parameters
     ----------
     x : :class:`.NumericExpression`
@@ -1637,8 +1629,6 @@ def corr(x, y) -> Float64Expression:
            agg_expr=agg_expr(expr_any))
 def group_by(group, agg_expr) -> DictExpression:
     """Compute aggregation statistics stratified by one or more groups.
-
-    .. include:: _templates/experimental.rst
 
     Examples
     --------
