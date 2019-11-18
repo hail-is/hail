@@ -145,10 +145,7 @@ WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
                                            (user, batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
-    log = await _get_job_log_from_record(app, batch_id, job_id, record)
-    if log:
-        return log
-    raise web.HTTPNotFound()
+    return await _get_job_log_from_record(app, batch_id, job_id, record)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
