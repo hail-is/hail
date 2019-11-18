@@ -284,6 +284,7 @@ parser = argparse.ArgumentParser(description='distributed buffer')
 parser.add_argument('n', type=int, help='number of processes, must be at least one')
 parser.add_argument('--hostname', type=str, help='hostname to use to connect to myself', default='localhost')
 parser.add_argument('--data-dir', type=str, help='directory in which to store data', default='/tmp/shuffler')
+parser.add_argument('--port', type=str, help='directory in which to store data', default='80')
 parser.add_argument('--leader-url', type=str, help='directory in which to store data', required=False)
 parser.add_argument('--bufsize', type=int, help='buffer size in MiB', default=512)
 args = parser.parse_args()
@@ -295,6 +296,7 @@ if args.n <= 0:
 try:
     data_dir = args.data_dir
     bufsize = args.bufsize * 1024 * 1024
+    port = args.port
     os.mkdir(data_dir)
     servers = []
 
@@ -313,11 +315,11 @@ try:
     signal.signal(signal.SIGQUIT, die)
 
     leader_url = args.leader_url
-    servers = [mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000, 0, leader_url))]
+    servers = [mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, port, 0, leader_url))]
     if leader_url is None:
-        leader_url = f'http://{args.hostname}:5000'
+        leader_url = f'http://{args.hostname}:{port}'
     servers.extend(
-        mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, 5000 + i, i, leader_url))
+        mp.Process(target=server, args=(args.hostname, bufsize, args.data_dir, port + i, i, leader_url))
         for i in range(1, args.n))
     for server in servers:
         server.start()
