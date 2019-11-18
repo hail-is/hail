@@ -3418,7 +3418,7 @@ class IntervalExpression(Expression):
 class NDArrayExpression(Expression):
     """Expression of type :class:`.tndarray`.
 
-    >>> nd = hl._ndarray([[1, 2], [3, 4]])
+    >>> nd = hl._nd.array([[1, 2], [3, 4]])
     """
 
     @property
@@ -3626,14 +3626,14 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl._ndarray(other)
+            other = hl._nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl._ndarray(other)
+            other = hl._nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
@@ -3761,7 +3761,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
         if not isinstance(other, NDArrayNumericExpression):
-            other = hl._ndarray(other)
+            other = hl._nd.array(other)
 
         if self.ndim == 0 or other.ndim == 0:
             raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
