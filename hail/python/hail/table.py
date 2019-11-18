@@ -1281,15 +1281,14 @@ class Table(ExprContainer):
             column_blocks = []
             start = 0
             i = 1
-            w = column_width[0] + 4
-            while i < len(fields):
+            w = column_width[0] + 4 if column_width else 0
+            while i < n_fields:
                 w = w + column_width[i] + 3
                 if w > self.width:
                     column_blocks.append((start, i))
                     start = i
                     w = column_width[i] + 4
                 i = i + 1
-            assert i == n_fields
             column_blocks.append((start, i))
 
             def format_hline(widths):
