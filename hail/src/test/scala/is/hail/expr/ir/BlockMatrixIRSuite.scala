@@ -59,10 +59,10 @@ class BlockMatrixIRSuite extends HailSuite {
 
 
   @Test def testBlockMatrixMap() {
-    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
-    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
-    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
-    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
+    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()), false)
+    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())), false)
+    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()), false)
+    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()), false)
 
     assertBmEq(sqrtFoursIR.execute(ctx), twos)
     assertBmEq(negFoursIR.execute(ctx), negFours)

@@ -149,7 +149,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   val blockCostIsLinear: Boolean = true // not guaranteed
 }
 
-case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends BlockMatrixIR {
+case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, keepSparsity: Boolean) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
 
   override lazy val typ: BlockMatrixType = child.typ
@@ -158,7 +158,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixMap = {
     val IndexedSeq(newChild: BlockMatrixIR, newF: IR) = newChildren
-    BlockMatrixMap(newChild, eltName, newF)
+    BlockMatrixMap(newChild, eltName, newF, keepSparsity)
   }
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
@@ -210,7 +210,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
 
-    if (reqDense)
+    if ((!keepSparsity) && reqDense)
       prev.densify().blockMap(breezeF, name, reqDense = true)
     else
       prev.blockMap(breezeF, name, reqDense = false)

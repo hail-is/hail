@@ -1390,9 +1390,10 @@ object IRParser {
         BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
         val name = identifier(it)
+        val keepSparsity = boolean_literal(it)
         val child = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env + (name -> child.typ.elementType))(it)
-        BlockMatrixMap(child, name, f)
+        BlockMatrixMap(child, name, f, keepSparsity)
       case "BlockMatrixMap2" =>
         val lName = identifier(it)
         val rName = identifier(it)

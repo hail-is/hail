@@ -780,6 +780,23 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
+    def test_block_matrix_preserve_sparsity(self):
+        bm = BlockMatrix.fill(45, 54, value = 7, block_size = 3)
+        bm = bm.sparsify_row_intervals([max(i-3, 0) for i in range(45)], [min(i+3, 53) for i in range(45)])
+        bm = bm._apply_map(lambda x: x + 1, keep_sparsity = True)
+        actual = bm.to_numpy()
+        def get_expected_value(row, col):
+            if col - row < 3 and col - row >= -3:
+                return 8
+            elif col // 3 <= (row + 3) // 3 and col // 3 >= (row - 3) // 3:
+                return 1
+            else:
+                return 0
+
+        expected = np.array([[float(get_expected_value(i, j)) for j in range(54)] for i in range(45)])
+
+        self._assert_eq(expected, actual)
+
     def test_from_entry_expr_filtered(self):
         mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
         bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error

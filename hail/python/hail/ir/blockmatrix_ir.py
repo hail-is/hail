@@ -29,18 +29,19 @@ class BlockMatrixRead(BlockMatrixIR):
 
 
 class BlockMatrixMap(BlockMatrixIR):
-    @typecheck_method(child=BlockMatrixIR, name=str, f=IR)
-    def __init__(self, child, name, f):
+    @typecheck_method(child=BlockMatrixIR, name=str, f=IR, keep_sparsity=bool)
+    def __init__(self, child, name, f, keep_sparsity):
         super().__init__(child, f)
         self.child = child
         self.name = name
         self.f = f
+        self.keep_sparsity = keep_sparsity
 
     def _compute_type(self):
         self._type = self.child.typ
 
     def head_str(self):
-        return escape_id(self.name)
+        return escape_id(self.name) + " " + str(self.keep_sparsity)
 
     def bindings(self, i: int, default_value=None):
         if i == 1:

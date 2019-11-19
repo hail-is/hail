@@ -1289,10 +1289,10 @@ class BlockMatrix(object):
     def _binary_op(op):
         return lambda l, r: construct_expr(ApplyBinaryPrimOp(op, l._ir, r._ir), hl.tfloat64)
 
-    @typecheck_method(f=func_spec(1, expr_float64))
-    def _apply_map(self, f):
+    @typecheck_method(f=func_spec(1, expr_float64), keep_sparsity=bool)
+    def _apply_map(self, f, keep_sparsity = False):
         uid = Env.get_uid()
-        return BlockMatrix(BlockMatrixMap(self._bmir, uid, f(construct_variable(uid, hl.tfloat64))._ir))
+        return BlockMatrix(BlockMatrixMap(self._bmir, uid, f(construct_variable(uid, hl.tfloat64))._ir, keep_sparsity))
 
     @typecheck_method(f=func_spec(2, expr_float64),
                       other=oneof(numeric, np.ndarray, block_matrix_type),
