@@ -1,8 +1,11 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PInt64, PStruct, PType}
 import is.hail.expr.types.virtual._
+import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
+import org.apache.commons.lang.SerializationUtils
 import org.apache.spark.sql.Row
 
 object ApproxCDFHelper {
@@ -122,6 +125,17 @@ object ApproxCDFCombiner {
     numLevels: Int, capacity: Int, keepRatio: Option[Double]
   ): ApproxCDFCombiner =
     apply(numLevels, capacity, keepRatio, new java.util.Random())
+
+  def deserializeFrom(ib: InputBuffer): ApproxCDFCombiner = {
+    val n = ib.readInt()
+    val a = new Array[Byte](n)
+    var i = 0
+    while (i < n) {
+      a(i) = ib.readByte()
+      i += 1
+    }
+    SerializationUtils.deserialize(a).asInstanceOf[ApproxCDFCombiner]
+  }
 }
 
 /* Keep a collection of values, grouped into levels.
@@ -144,6 +158,16 @@ class ApproxCDFCombiner(
   val keepRatio: Double,
   val rand: java.util.Random
 ) extends Serializable {
+
+  def serializeTo(ob: OutputBuffer): Unit = {
+    val bytes = SerializationUtils.serialize(this)
+    ob.writeInt(bytes.length)
+    var i = 0
+    while (i < bytes.size) {
+      ob.writeByte(bytes(i))
+      i += 1
+    }
+  }
 
   def copy(): ApproxCDFCombiner =
     new ApproxCDFCombiner(levels.clone(), items.clone(), compactionCounts.clone(), numLevels, keepRatio, rand)
@@ -404,7 +428,7 @@ class ApproxCDFCombiner(
     numLevels = other.numLevels
   }
 
-  def cdf: (Array[Double], Array[Long]) = {
+  def computeCDF(): (Array[Double], Array[Long]) = {
     val builder: ArrayBuilder[(Long, Double)] = new ArrayBuilder(size)
 
     var level = 0
@@ -435,6 +459,15 @@ class ApproxCDFCombiner(
     }
 
     (values.result(), ranks.result())
+  }
+}
+
+object RegionValueApproxCDFAggregator {
+  def deserializeFrom(k: Int, ib: InputBuffer): RegionValueApproxCDFAggregator = {
+    val a = new RegionValueApproxCDFAggregator(k)
+    a.n = ib.readLong()
+    a.combiner = ApproxCDFCombiner.deserializeFrom(ib)
+    a
   }
 }
 
@@ -499,7 +532,7 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
    */
 
   var n: Long = 0
-  var initLevelsCapacity = QuantilesAggregator.findInitialLevelsCapacity(k, m)
+  var initLevelsCapacity: Int = QuantilesAggregator.findInitialLevelsCapacity(k, m)
   var combiner: ApproxCDFCombiner = ApproxCDFCombiner(
     initLevelsCapacity,
     QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m),
@@ -517,10 +550,10 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
   private[aggregators] def capacity: Int = combiner.capacity
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
-    if (!missing) _seqOp(x)
+    if (!missing) checkedSeq(x)
   }
 
-  private[aggregators] def _seqOp(x: Double) {
+  def checkedSeq(x: Double): Unit = {
     if (combiner.isFull) {
       if (eager)
         compactEager()
@@ -533,15 +566,15 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
   }
 
   def combOp(other: RegionValueAggregator) {
-    _combOp(other.asInstanceOf[RegionValueApproxCDFAggregator])
+    checkedComb(other.asInstanceOf[RegionValueApproxCDFAggregator])
   }
 
-  private[aggregators] def _combOp(other: RegionValueApproxCDFAggregator) {
+  def checkedComb(other: RegionValueApproxCDFAggregator) {
     assert(m == other.m)
     if (other.numLevels == 1) {
       var i = other.levels(0)
       while (i < other.levels(1)) {
-        _seqOp(other.items(i))
+        checkedSeq(other.items(i))
         i += 1
       }
     } else {
@@ -550,7 +583,7 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
   }
 
   private[aggregators] def makeCdf(): (IndexedSeq[Double], IndexedSeq[Long]) = {
-    val (values, ranks) = combiner.cdf
+    val (values, ranks) = combiner.computeCDF()
 
     assert(ranks.last == n)
 
@@ -560,7 +593,14 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
   def result(rvb: RegionValueBuilder): Unit = {
     val cdf = makeCdf()
     val res = Row(cdf._1, cdf._2, combiner.compactionCounts.toFastIndexedSeq)
-    rvb.addAnnotation(QuantilesAggregator.resultType, res)
+    rvb.addAnnotation(QuantilesAggregator.resultType.virtualType, res)
+  }
+
+  def rvResult(r: Region): Long = {
+    val rvb = new RegionValueBuilder(r)
+    rvb.start(QuantilesAggregator.resultType)
+    result(rvb)
+    rvb.end()
   }
 
   def clear() {
@@ -651,11 +691,16 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
     newAgg.combiner = combiner.copy()
     newAgg
   }
+
+  def serializeTo(ob: OutputBuffer): Unit = {
+    ob.writeLong(n)
+    combiner.serializeTo(ob)
+  }
 }
 
 object QuantilesAggregator {
-  def resultType: Type =
-    TStruct("values" -> TArray(TFloat64()), "ranks" -> TArray(TInt64()), "_compaction_counts" -> TArray(TInt32()))
+  def resultType: PType =
+    PStruct("values" -> PArray(PFloat64()), "ranks" -> PArray(PInt64()), "_compaction_counts" -> PArray(PInt32()))
 
   def floorOfLog2OfFraction(numer: Long, denom: Long): Int = {
     var count = 0
