@@ -186,7 +186,7 @@ class Server:
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
             await site.start()
             log.info(f'server on {server.hostname} bound to {server.binding_host}:{server.port}')
-            if server.leader_url is not None:
+            if server.leader_url and server.leader_url != server.root_url:
                 async def call():
                     async with ah.ClientSession(raise_for_status=True,
                                                 timeout=ah.ClientTimeout(total=60)) as cs:
@@ -300,6 +300,7 @@ parser.add_argument('--leader-url', type=str, help='directory in which to store 
 parser.add_argument('--k8s-service', type=str, help='k8s service name', required=False)
 parser.add_argument('--bufsize', type=int, help='buffer size in MiB', default=512)
 args = parser.parse_args()
+print(args)
 
 if args.n <= 0:
     print(f'n must be greater than zero, was {args.n}',
