@@ -308,6 +308,10 @@ object Pretty {
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " "
+            case BlockMatrixMap(_, name, _) =>
+              prettyIdentifier(name)
+            case BlockMatrixMap2(_, _, lName, rName, _) =>
+              prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixColsHead(_, n) => n.toString
             case MatrixRowsTail(_, n) => n.toString

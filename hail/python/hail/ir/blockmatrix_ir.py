@@ -30,35 +30,45 @@ class BlockMatrixRead(BlockMatrixIR):
 class BlockMatrixMap(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, f=IR)
     def __init__(self, child, f):
-        super().__init__(child, f)
+        super().__init__(child, name, f)
         self.child = child
+        self.name = name
         self.f = f
 
     def _compute_type(self):
         self._type = self.child.typ
 
+    def head_str(self):
+        return escape_id(self.name)
+
     def bindings(self, i: int, default_value=None):
         if i == 1:
             value = self.child.typ.element_type if default_value is None else default_value
-            return {'element': value}
+            return {self.name: value}
         else:
             return {}
 
     def binds(self, i):
-        return {'element'} if i == 1 else {}
+        return {self.name} if i == 1 else {}
 
 
 class BlockMatrixMap2(BlockMatrixIR):
     @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, f=IR)
     def __init__(self, left, right, f):
-        super().__init__(left, right, f)
+        super().__init__(left, right, left_name, right_name, f)
         self.left = left
         self.right = right
+        self.left_name = left_name
+        self.right_name = right_name
         self.f = f
 
     def _compute_type(self):
         self.right.typ  # Force
         self._type = self.left.typ
+
+
+    def head_str(self):
+        return escape_id(self.left_name) + " " + escape_id(self.right_name)
 
     def bindings(self, i: int, default_value=None):
         if i == 2:

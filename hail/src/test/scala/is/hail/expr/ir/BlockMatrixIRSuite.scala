@@ -40,7 +40,7 @@ class BlockMatrixIRSuite extends HailSuite {
 
   def makeMap2(left: BlockMatrixIR, right: BlockMatrixIR,  op: BinaryOp):
   BlockMatrixMap2 = {
-    BlockMatrixMap2(left, right, ApplyBinaryPrimOp(op, Ref("l", TFloat64()), Ref("l", TFloat64())))
+    BlockMatrixMap2(left, right, "l", "r", ApplyBinaryPrimOp(op, Ref("l", TFloat64()), Ref("r", TFloat64())))
   }
 
   def assertBmEq(actual: BlockMatrix, expected: BlockMatrix) {
@@ -59,10 +59,10 @@ class BlockMatrixIRSuite extends HailSuite {
 
 
   @Test def testBlockMatrixMap() {
-    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
-    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
-    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), Apply("log", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
-    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), Apply("abs", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
+    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
+    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
+    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
+    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
 
     assertBmEq(sqrtFoursIR.execute(ctx), twos)
     assertBmEq(negFoursIR.execute(ctx), negFours)
@@ -79,7 +79,7 @@ class BlockMatrixIRSuite extends HailSuite {
     val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
     val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
     val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
-    val twosPowTwo = BlockMatrixMap2(new BlockMatrixLiteral(twos), broadcastTwo,
+    val twosPowTwo = BlockMatrixMap2(new BlockMatrixLiteral(twos), broadcastTwo, "l", "r",
       Apply("**", FastIndexedSeq(Ref("l", TFloat64()), Ref("r", TFloat64())), TFloat64()))
 
     assertBmEq(onesAddTwo.execute(ctx), threes)
