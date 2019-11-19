@@ -569,21 +569,6 @@ async def ui_batches(request, userdata):
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-@prom_async_time(REQUEST_TIME_GET_LOGS_UI)
-@web_authenticated_users_only()
-async def ui_get_job_log(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-    page_context = {
-        'batch_id': batch_id,
-        'job_id': job_id,
-        'job_log': await _get_job_log(request.app, batch_id, job_id, user)
-    }
-    return await render_template('batch', request, userdata, 'job_log.html', page_context)
-
-
 async def _get_job_running_status(record):
     state = record['state']
     if state != 'Running':
