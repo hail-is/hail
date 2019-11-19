@@ -3,31 +3,14 @@ package is.hail.variant.vsm
 import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
-import is.hail.expr.ir.{ ExecuteContext, Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue }
+import is.hail.expr.ir.{ExecuteContext, Interpret, MatrixAnnotateRowsTable, TableLiteral, TableRange, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
-import is.hail.table.Table
-import is.hail.variant.MatrixTable
-import is.hail.testUtils._
 import is.hail.utils.FastIndexedSeq
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class PartitioningSuite extends HailSuite {
-
-  def compare(vds1: MatrixTable, vds2: MatrixTable): Boolean = {
-    val s1 = vds1.variantsAndAnnotations
-      .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
-      .collect()
-      .toSet
-    val s2 = vds2.variantsAndAnnotations
-      .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
-      .collect()
-      .toSet
-    s1 == s2
-  }
-
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32()), FastIndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(
@@ -44,10 +27,10 @@ class PartitioningSuite extends HailSuite {
   }
 
   @Test def testEmptyRDDOrderedJoin() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.canonicalTableType.canonicalRVDType
+    val tv = Interpret.apply(TableRange(100, 6), ctx)
 
-    val nonEmptyRVD = mt.rvd
+    val nonEmptyRVD = tv.rvd
+    val rvdType = nonEmptyRVD.typ
     val emptyRVD = RVD.empty(hc.sc, rvdType)
 
     ExecuteContext.scoped { ctx =>

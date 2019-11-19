@@ -12,7 +12,10 @@ import org.testng.annotations.{DataProvider, Test}
 
 class MatrixIRSuite extends HailSuite {
 
-  def rangeMatrix: MatrixIR = MatrixTable.range(hc, 20, 20, Some(4)).ast
+  def rangeMatrix: MatrixIR = {
+    val reader = MatrixRangeReader(20, 20, Some(4))
+    MatrixRead(reader.fullMatrixType, false, false, reader)
+  }
 
   def getRows(mir: MatrixIR): Array[Row] =
     Interpret(MatrixRowsTable(mir), ctx).rdd.collect()

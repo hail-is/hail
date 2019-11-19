@@ -81,11 +81,6 @@ object RegressionUtils {
   }
 
   def getPhenosCovCompleteSamples(
-    mv: MatrixTable,
-    yFields: Array[String],
-    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(mv, yFields, covFields)
-
-  def getPhenosCovCompleteSamples(
     mv: MatrixValue,
     yFields: Array[String],
     covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
