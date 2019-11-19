@@ -443,13 +443,13 @@ class VCFTests(unittest.TestCase):
                          hl.Struct(GL=[None, None, None], GP=[None, None, None])]
 
     def test_same_bgzip(self):
-        mt = hl.import_vcf(resource('sample.vcf'))
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(suffix='vcf.bgz')
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
 
     def test_sorted(self):
-        mt = hl.utils.range_matrix_table(10, 10).filter_cols(False)
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
         mt = mt.key_cols_by(s='dummy')
         mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(0))
         mt = mt.key_rows_by(locus=hl.locus('1', 100 - mt.row_idx), alleles=['A', 'T'])
@@ -467,7 +467,7 @@ class VCFTests(unittest.TestCase):
                     last = pos
 
     def test_empty_read_write(self):
-        mt = hl.import_vcf(resource('sample.vcf')).filter_rows(False)
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
 
         out1 = new_temp_file(suffix='vcf')
         out2 = new_temp_file(suffix='vcf.bgz')
