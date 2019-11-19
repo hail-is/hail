@@ -371,10 +371,13 @@ class RunImageStep(Step):
         self.inputs = inputs
         self.outputs = outputs
         self.resources = resources
-        self.service_account = {
-            'name': service_account['name'],
-            'namespace': get_namespace(service_account['namespace'], self.input_config(params.code, params.scope))
-        }
+        if service_account:
+            self.service_account = {
+                'name': service_account['name'],
+                'namespace': get_namespace(service_account['namespace'], self.input_config(params.code, params.scope))
+            }
+        else:
+            self.service_account = None
         self.secrets = secrets
         self.always_run = always_run
         self.job = None
