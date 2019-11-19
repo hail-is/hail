@@ -25,8 +25,7 @@ async def retry_aiohttp_forever(f):
     i = 0
     while True:
         try:
-            await f()
-            break
+            return await f()
         except (concurrent.futures._base.TimeoutError,
                 aiohttp.client_exceptions.ClientResponseError,
                 aiohttp.client_exceptions.ClientOSError,
