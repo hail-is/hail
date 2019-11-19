@@ -37,9 +37,9 @@ spec:
             - "--k8s-service"
             - "$(POD_NAME).dbuf"
             - "--hostname"
-            - "$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local:80"
+            - "$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local"
             - "--leader-url"
-            - "http://dbuf-0.dbuf.{{ default_ns.name }}:80/{{ default_ns.name }}/dbuf-0.dbuf"
+            - "http://dbuf-0.dbuf.{{ default_ns.name }}/{{ default_ns.name }}/dbuf-0.dbuf"
             - "--bufsize"
             - "512"
           resources:
