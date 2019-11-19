@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.TNDArray
+import is.hail.expr.types.virtual._
 
 object Interpretable {
   def apply(ir: IR): Boolean = {
     !ir.typ.isInstanceOf[TNDArray] &&
+    !ir.typ.isInstanceOf[TStream] &&
       (ir match {
       case
         _: InitOp2 |
