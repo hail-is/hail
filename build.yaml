@@ -218,8 +218,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /sql-config
-    - name:
-        valueFrom: gce-deploy-config
+    - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
