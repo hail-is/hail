@@ -2584,7 +2584,8 @@ class MatrixTable(ExprContainer):
         displayed_n_cols = min(actual_n_cols, n_cols)
 
         t = self.localize_entries('entries', 'cols')
-        t = t.key_by()
+        if len(t.key) > 0:
+            t = t.order_by(*t.key)
         col_key_type = self.col_key.dtype
         if len(col_key_type) == 1 and col_key_type[0] == hl.tstr:
             col_key_field_name = list(col_key_type)[0]
