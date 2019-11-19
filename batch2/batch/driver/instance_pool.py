@@ -6,7 +6,7 @@ import sortedcontainers
 import aiohttp
 import googleapiclient.errors
 
-from ..batch_configuration import BATCH_NAMESPACE, BATCH_WORKER_IMAGE, \
+from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
     POOL_SIZE, MAX_INSTANCES
 
@@ -78,9 +78,12 @@ class InstancePool:
         return len(self.name_instance)
 
     def adjust_for_remove_instance(self, instance):
-        self.n_instances_by_state[instance.state] -= 1
+        assert instance in self.instances_by_last_updated
 
         self.instances_by_last_updated.remove(instance)
+
+        self.n_instances_by_state[instance.state] -= 1
+
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= instance.free_cores_mcpu
         if instance in self.healthy_instances_by_free_cores:
@@ -93,10 +96,11 @@ class InstancePool:
             'DELETE FROM instances WHERE name = %s;', (instance.name,))
 
         self.adjust_for_remove_instance(instance)
-
         del self.name_instance[instance.name]
 
     def adjust_for_add_instance(self, instance):
+        assert instance not in self.instances_by_last_updated
+
         self.n_instances_by_state[instance.state] += 1
 
         self.instances_by_last_updated.add(instance)
@@ -108,8 +112,8 @@ class InstancePool:
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance
-        self.name_instance[instance.name] = instance
 
+        self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)
 
     async def create_instance(self):
@@ -132,15 +136,16 @@ class InstancePool:
             'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
             'labels': {
                 'role': 'batch2-agent',
-                'namespace': BATCH_NAMESPACE
+                'namespace': DEFAULT_NAMESPACE
             },
 
             'disks': [{
                 'boot': True,
                 'autoDelete': True,
-                'diskSizeGb': WORKER_DISK_SIZE_GB,
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-6',
+                    'diskType': f'projects/{PROJECT}/zones/{ZONE}/diskTypes/pd-ssd',
+                    'diskSizeGb': WORKER_DISK_SIZE_GB
                 }
             }],
 
@@ -225,13 +230,22 @@ docker run \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker >worker.log 2>&1
 
-# this has to match LogStore.worker_log_path
-gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$INSTANCE_ID/worker/$NAME/
-
 while true; do
   gcloud -q compute instances delete $NAME --zone=$ZONE
   sleep 1
 done
+'''
+                }, {
+                    'key': 'shutdown-script',
+                    'value': '''
+set -x
+
+BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
+INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+
+# this has to match LogStore.worker_log_path
+gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$INSTANCE_ID/worker/$NAME/
 '''
                 }, {
                     'key': 'activation_token',
@@ -241,7 +255,7 @@ done
                     'value': BATCH_WORKER_IMAGE
                 }, {
                     'key': 'namespace',
-                    'value': BATCH_NAMESPACE
+                    'value': DEFAULT_NAMESPACE
                 }, {
                     'key': 'bucket_name',
                     'value': self.log_store.bucket_name

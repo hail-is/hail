@@ -312,6 +312,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    def test_if_else(self):
+        self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
+
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
+
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
@@ -361,9 +368,6 @@ class Tests(unittest.TestCase):
 
         array_agg_count = t.aggregate(hl.agg.array_agg(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
         self.assertEqual(array_agg_count, [10 for i in range(10)])
-
-
-
 
     def test_approx_cdf(self):
         table = hl.utils.range_table(100)
@@ -883,6 +887,23 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
+    def test_aggregator_cse(self):
+        ht = hl.utils.range_table(10)
+        x = hl.agg.count()
+        self.assertEqual(ht.aggregate((x, hl.agg.filter(ht.idx % 2 == 0, x))), (10, 5))
+
+        mt = hl.utils.range_matrix_table(10, 10)
+        x = hl.int64(5)
+        rows = mt.annotate_rows(agg=hl.agg.sum(x+x), scan=hl.scan.sum(x+x), val=x+x).rows()
+        expected = hl.utils.range_table(10)
+        expected = expected.key_by(row_idx=expected.idx)
+        expected = expected.select(
+            agg=hl.int64(100),
+            scan=hl.int64(expected.row_idx*10),
+            val=hl.int64(10))
+        self.assertTrue(rows._same(expected))
+
+
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
@@ -1315,22 +1336,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.float32(s)), 1.5)
         self.assertEqual(hl.eval(hl.float64(s)), 1.5)
 
-        s1 = hl.literal('true')
-        s2 = hl.literal('True')
-        s3 = hl.literal('TRUE')
-
-        s4 = hl.literal('false')
-        s5 = hl.literal('False')
-        s6 = hl.literal('FALSE')
-
-        self.assertTrue(hl.eval(hl.bool(s1)))
-        self.assertTrue(hl.eval(hl.bool(s2)))
-        self.assertTrue(hl.eval(hl.bool(s3)))
-
-        self.assertFalse(hl.eval(hl.bool(s4)))
-        self.assertFalse(hl.eval(hl.bool(s5)))
-        self.assertFalse(hl.eval(hl.bool(s6)))
-
         s = hl.literal('abcABC123')
         self.assertEqual(hl.eval(s.lower()), 'abcabc123')
         self.assertEqual(hl.eval(s.upper()), 'ABCABC123')
@@ -1352,17 +1357,40 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
 
     def test_str_parsing(self):
+        for x in ('true', 'True', 'TRUE'):
+            self.assertTrue(hl.eval(hl.bool(x)))
+
+        for x in ('false', 'False', 'FALSE'):
+            self.assertFalse(hl.eval(hl.bool(x)))
+
         for x in ('nan', 'Nan', 'naN', 'NaN'):
-            for f in (hl.float, hl.float32, hl.float64):
+            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
                 self.assertTrue(hl.eval(hl.is_nan(f(x))))
                 self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
                 self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
+
         for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
-            for f in (hl.float, hl.float32, hl.float64):
+            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
                 self.assertTrue(hl.eval(hl.is_infinite(f(x))))
                 self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))
                 self.assertTrue(hl.eval(hl.is_infinite(f('-' + x))))
                 self.assertTrue(hl.eval(f('-' + x) < 0.0))
+
+        for x in ('0', '1', '-5', '12382421'):
+            for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), int(x))
+            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+
+        for x in ('-1.5', '0.0', '2.5'):
+            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+            for f in (hl.parse_int32, hl.parse_int64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+
+        for x in ('abc', '1abc', ''):
+            for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), None)
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')

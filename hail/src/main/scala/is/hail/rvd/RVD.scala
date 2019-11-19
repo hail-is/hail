@@ -65,12 +65,6 @@ class RVD(
     new RVD(newTyp, newPartitioner, crdd)
   }
 
-  // Change the row type to a physically equivalent type.
-  def changeType(newRowType: PStruct): RVD = {
-    require(typ.key.forall(newRowType.fieldNames.contains))
-    copy(typ = typ.copy(rowType = newRowType))
-  }
-
   // Exporting
 
   def toRows: RDD[Row] = {
@@ -398,10 +392,6 @@ class RVD(
     f: (Iterator[RegionValue]) => Iterator[T]
   ): RDD[T] = crdd.mapPartitions(f).clearingRun
 
-  def mapPartitions[T: ClassTag](
-    f: (RVDContext, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = crdd.cmapPartitions(f).clearingRun
-
   def mapPartitions(
     newTyp: RVDType
   )(f: (Iterator[RegionValue]) => Iterator[RegionValue]
@@ -433,17 +423,6 @@ class RVD(
   ): RDD[T] = crdd.cmapPartitionsWithIndex(f).clearingRun
 
   def mapPartitionsWithIndex(
-    newTyp: RVDType
-  )(f: (Int, Iterator[RegionValue]) => Iterator[RegionValue]
-  ): RVD = {
-    require(newTyp.kType isPrefixOf typ.kType)
-    RVD(
-      newTyp,
-      partitioner.coarsen(newTyp.key.length),
-      crdd.mapPartitionsWithIndex(f))
-  }
-
-  def mapPartitionsWithIndex(
     newTyp: RVDType,
     f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
   ): RVD = {
@@ -464,34 +443,6 @@ class RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
       crdd.cmapPartitionsWithIndexAndValue(values, f))
-  }
-
-  def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD = {
-    assert(!typ.key.contains(name))
-
-    val (newRowPType, ins) = rowPType.unsafeStructInsert(PInt64(), List(name))
-    val newRowType = newRowPType
-
-    val a = HailContext.backend.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
-
-    val newCRDD = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
-      val rv2 = RegionValue()
-      val rvb = ctx.rvb
-      var index = a.value(i)
-      it.map { rv =>
-        rvb.start(newRowType)
-        ins(rv.region, rv.offset, rvb, () => rvb.addLong(index))
-        index += 1
-        rv2.set(rvb.region, rvb.end())
-        rv2
-      }
-    }, preservesPartitioning = true)
-
-    RVD(
-      typ.copy(rowType = newRowType),
-      partitioner,
-      crdd = newCRDD
-    )
   }
 
   // Filtering
@@ -680,9 +631,6 @@ class RVD(
 
   def forall(p: RegionValue => Boolean): Boolean =
     crdd.map(p).clearingRun.forall(x => x)
-
-  def exists(p: RegionValue => Boolean): Boolean =
-    crdd.map(p).clearingRun.exists(x => x)
 
   def count(): Long =
     crdd.cmapPartitions { (ctx, it) =>
@@ -961,10 +909,9 @@ class RVD(
       }
     }
     assert(typ.key.length >= right.typ.key.length, s"$typ >= ${ right.typ }\n  $this\n  $right")
-    orderedJoinDistinct(
+    orderedLeftJoinDistinct(
       right,
       right.typ.key.length,
-      "left",
       joiner,
       typ.copy(rowType = newRowType))
   }
@@ -988,22 +935,13 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedJoin(right.keyBy(joinKey), joinType, joiner, joinedType, ctx)
 
-  def orderedJoinDistinct(
-    right: RVD,
-    joinType: String,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType
-  ): RVD =
-    orderedJoinDistinct(right, typ.key.length, joinType, joiner, joinedType)
-
-  def orderedJoinDistinct(
+  def orderedLeftJoinDistinct(
     right: RVD,
     joinKey: Int,
-    joinType: String,
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: RVDType
   ): RVD =
-    keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
+    keyBy(joinKey).orderedLeftJoinDistinct(right.keyBy(joinKey), joiner, joinedType)
 
   def orderedLeftIntervalJoin(
     right: RVD,
@@ -1048,41 +986,6 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedMerge(right.keyBy(joinKey), ctx)
 
-  def partitionSortedUnion(rdd2: RVD): RVD = {
-    assert(typ == rdd2.typ)
-    assert(partitioner == rdd2.partitioner)
-
-    val localTyp = typ
-    zipPartitions(typ, rdd2) { (ctx, it, it2) =>
-      new Iterator[RegionValue] {
-        private val bit = it.buffered
-        private val bit2 = it2.buffered
-        private val rv = RegionValue()
-
-        def hasNext: Boolean = bit.hasNext || bit2.hasNext
-
-        def next(): RegionValue = {
-          val old =
-            if (!bit.hasNext)
-              bit2.next()
-            else if (!bit2.hasNext)
-              bit.next()
-            else {
-              val c = localTyp.kInRowOrd.compare(bit.head, bit2.head)
-              if (c < 0)
-                bit.next()
-              else
-                bit2.next()
-            }
-          ctx.rvb.start(localTyp.rowType)
-          ctx.rvb.addRegionValue(localTyp.rowType, old)
-          rv.set(ctx.region, ctx.rvb.end())
-          rv
-        }
-      }
-    }
-  }
-
   // Zipping
 
   def zip(
@@ -1102,27 +1005,6 @@ class RVD(
     newTyp,
     partitioner,
     boundary.crdd.czipPartitions(that.boundary.crdd)(zipper))
-
-  def zipPartitions[T: ClassTag](
-    newTyp: RVDType,
-    that: ContextRDD[RVDContext, T]
-  )(zipper: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue]
-  ): RVD = RVD(
-    newTyp,
-    partitioner,
-    boundary.crdd.zipPartitions(that)(zipper))
-
-  def zipPartitionsAndContext(
-    newTyp: RVDType,
-    that: RVD
-  )(zipper: (RVDContext, RVDContext => Iterator[RegionValue], RVDContext => Iterator[RegionValue]) => Iterator[RegionValue]
-  ): RVD = RVD(
-    newTyp,
-    partitioner,
-    crdd.czipPartitionsAndContext(that.crdd) { (ctx, lit, rit) =>
-      zipper(ctx, ctx => lit.flatMap(_ (ctx)), ctx => rit.flatMap(_ (ctx)))
-    }
-  )
 
   def zipPartitionsWithIndex(
     newTyp: RVDType,
@@ -1473,9 +1355,9 @@ object RVD {
     crdd: ContextRDD[RVDContext, RegionValue]
   ): RVD = {
     if (!HailContext.get.checkRVDKeys)
-      return new RVD(typ, partitioner, crdd)
+      new RVD(typ, partitioner, crdd)
     else
-      return new RVD(typ, partitioner, crdd).checkKeyOrdering()
+      new RVD(typ, partitioner, crdd).checkKeyOrdering()
   }
 
   def union(

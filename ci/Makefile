@@ -1,6 +1,7 @@
 PROJECT := $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
+KUBERNETES_SERVER_URL ?= https://104.198.230.143
 
 PROJECT := $(shell gcloud config get-value project)
 
@@ -48,5 +49,5 @@ push: build
 
 .PHONY: deploy
 deploy: push push-ci-utils
-	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-ci-user-config"}}' deployment.yaml deployment.yaml.out
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","ip":"$(IP)","domain":"$(DOMAIN)", "k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-ci-user-config"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out

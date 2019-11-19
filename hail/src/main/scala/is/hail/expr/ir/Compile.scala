@@ -40,12 +40,12 @@ object Compile {
 
     var ir = body
     if (optimize)
-      ir = Optimize(ir, noisy = true, context = Some("Compile"))
+      ir = Optimize(ir, noisy = true, context = "Compile")
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
       .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
@@ -82,9 +82,10 @@ object Compile {
 
   def apply[R: TypeInfo : ClassTag](
     body: IR,
-    print: Option[PrintWriter]
+    print: Option[PrintWriter],
+    optimize: Boolean = true
   ): (PType, (Int, Region) => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
+    apply[AsmFunction1[Region, R], R](print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
@@ -224,12 +225,12 @@ object CompileWithAggregators2 {
 
     var ir = body
     if (optimize)
-      ir = Optimize(ir, noisy = true, context = Some("Compile"))
+      ir = Optimize(ir, noisy = true, context = "Compile")
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
       .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])

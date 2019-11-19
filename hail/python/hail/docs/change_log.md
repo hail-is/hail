@@ -24,6 +24,30 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.27
+
+Released 2019-11-15
+
+### New Features
+
+- (hail#7379) Add `delimiter` argument to `hl.import_matrix_table`
+- (hail#7389) Add `force` and `force_bgz` arguments to `hl.experimental.import_gtf`
+- (hail#7386)(hail#7394) Add `{Table, MatrixTable}.tail`.
+- (hail#7467) Added `hl.if_else` as an alias for `hl.cond`; deprecated `hl.cond`.
+- (hail#7453) Add `hl.parse_int{32, 64}` and `hl.parse_float{32, 64}`, which can parse strings to numbers and return missing on failure.
+- (hail#7475) Add `row_join_type` argument to `MatrixTable.union_cols` to support outer joins on rows.
+
+### Bug fixes
+
+- (hail#7479)(hail#7368)(hail#7402) Fix optimizer bugs.
+- (hail#7506) Updated to latest htsjdk to resolve VCF parsing problems.
+
+### `hailctl dataproc`
+
+- (hail#7460) The Spark monitor widget now automatically collapses after a job completes.
+
+---
+
 ## Version 0.2.26
 
 Released 2019-10-24

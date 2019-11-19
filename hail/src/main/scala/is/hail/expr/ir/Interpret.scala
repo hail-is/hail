@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.TypedAggregator
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
@@ -20,50 +21,16 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val tiropt = if (optimize)
-      Optimize(tir)
-    else
-      tir
-
-    var lowered = LowerMatrixIR(tiropt)
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true)
-
-    lowered = LiftNonCompilable(EvaluateRelationalLets(lowered)).asInstanceOf[TableIR]
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true)
-
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, tir, optimize).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val miropt = if (optimize)
-      Optimize(mir)
-    else
-      mir
-
-    var lowered = LowerMatrixIR(miropt)
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true  )
-
-    lowered = LiftNonCompilable(EvaluateRelationalLets(lowered)).asInstanceOf[TableIR]
-
-    if (optimize)
-      lowered = Optimize(lowered, noisy = true)
-
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
-  def apply[T](ctx: ExecuteContext, ir: IR): T = {
-    ExecuteContext.scoped { ctx =>
-      apply[T](ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None)
-    }
-  }
-
-  def apply[T](ctx: ExecuteContext, ir: IR, optimize: Boolean): T = apply(ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
+  def apply[T](ctx: ExecuteContext, ir: IR): T = apply(ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
   def apply[T](ctx: ExecuteContext,
     ir0: IR,
@@ -79,7 +46,7 @@ object Interpret {
     var ir = ir0.unwrap
 
     def optimizeIR(context: String) {
-      ir = Optimize(ir, noisy = true, context = Some(context))
+      ir = Optimize(ir, noisy = true, context = context)
       TypeCheck(ir, BindingEnv(typeEnv, agg = aggArgs.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
@@ -90,14 +57,14 @@ object Interpret {
     if (optimize) optimizeIR("Interpret, first pass")
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR("Interpret, after lowering MatrixIR")
-    ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
-    ir = LiftNonCompilable(ir).asInstanceOf[IR]
+    ir = InterpretNonCompilable(ctx, ir).asInstanceOf[IR]
 
-
-    val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
+    val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty).asInstanceOf[T]
 
     result
   }
+
+  def alreadyLowered(ctx: ExecuteContext, ir: IR): Any = apply(ctx, ir, Env.empty, FastIndexedSeq(), None, None, Memo.empty)
 
   private def apply(ctx: ExecuteContext,
     ir: IR,
@@ -105,7 +72,7 @@ object Interpret {
     args: IndexedSeq[(Any, Type)],
     aggArgs: Option[Agg],
     aggregator: Option[TypedAggregator[Any]],
-    functionMemo: Memo[AsmFunction3[Region, Long, Boolean, Long]]): Any = {
+    functionMemo: Memo[(PType, AsmFunction3[Region, Long, Boolean, Long])]): Any = {
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, aggArgs: Option[Agg] = aggArgs, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
       apply(ctx, ir, env, args, aggArgs, aggregator, functionMemo)
 
@@ -714,14 +681,14 @@ object Interpret {
       case ir: AbstractApplyNode[_] =>
         val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).asInstanceOf[PTuple]
         Region.scoped { region =>
-          val f = functionMemo.getOrElseUpdate(ir, {
+          val (rt, f) = functionMemo.getOrElseUpdate(ir, {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
               GetTupleElement(Ref("in", argTuple.virtualType), i)
             }.toFastIndexedSeq
             val wrappedIR = Copy(ir, wrappedArgs)
 
-            val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple.ordered(FastSeq(wrappedIR)), optimize = false)
-            makeFunction(0, region)
+            val (rt, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple.ordered(FastSeq(wrappedIR)), optimize = false)
+            (rt, makeFunction(0, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -735,8 +702,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(PTuple(ir.implementation.returnType.subst().physicalType), region, resultOffset)
-            .get(0)
+          SafeRow(rt.asInstanceOf[PTuple], region, resultOffset).get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>
         val f = { x: Double => interpret(fn, env.bind(functionid, x), args, aggArgs).asInstanceOf[Double] }

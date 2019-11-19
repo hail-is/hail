@@ -53,10 +53,21 @@ server {
 }
 
 server {
-    server_name batch.*;
+    server_name scheduler.*;
 
     location / {
-        proxy_pass http://batch/;
+        proxy_pass http://scheduler/;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name hello.*;
+
+    location / {
+        proxy_pass http://hello/;
     }
 
     listen 80;

@@ -1,7 +1,7 @@
 package is.hail.expr.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.{NatBase, Nat}
+import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
+import is.hail.expr.{Nat, NatBase}
 import is.hail.expr.types.physical.PNDArray
 import org.apache.spark.sql.Row
 
@@ -43,6 +43,40 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     sb.append(",")
     sb.append(nDims)
     sb.append("]")
+  }
+
+  override def str(a: Annotation): String = {
+    if (a == null) "NA" else {
+      val a_row = a.asInstanceOf[Row]
+      val shape = a_row(2).asInstanceOf[Row].toSeq.asInstanceOf[Seq[Long]].map(_.toInt)
+      val data = a_row(4).asInstanceOf[UnsafeIndexedSeq]
+
+      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Int], sb: StringBuilder):Unit  = {
+        if (shape.isEmpty) {
+          sb.append(data.next().toString)
+        }
+        else {
+          sb.append("[")
+          val howMany = shape.head
+          var repeat = 0
+          while (repeat < howMany) {
+            dataToNestedString(data, shape.tail, sb)
+            if (repeat != howMany - 1) {
+              sb.append(", ")
+            }
+            repeat += 1
+          }
+          sb.append("]")
+        }
+      }
+
+      val stringBuilder = new StringBuilder("")
+      dataToNestedString(data.iterator, shape, stringBuilder)
+      val prettyData = stringBuilder.result()
+      val prettyShape = "(" + shape.mkString(", ") + ")"
+
+      s"ndarray{shape=${prettyShape}, data=${prettyData}}"
+    }
   }
 
   override def unify(concrete: Type): Boolean = {

@@ -1281,18 +1281,19 @@ class Table(ExprContainer):
             column_blocks = []
             start = 0
             i = 1
-            w = column_width[0] + 4
-            while i < len(fields):
+            w = column_width[0] + 4 if column_width else 0
+            while i < n_fields:
                 w = w + column_width[i] + 3
                 if w > self.width:
                     column_blocks.append((start, i))
                     start = i
                     w = column_width[i] + 4
                 i = i + 1
-            assert i == n_fields
             column_blocks.append((start, i))
 
             def format_hline(widths):
+                if not widths:
+                    return "++\n"
                 return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
 
             def pad(v, w, ra):
@@ -1303,6 +1304,8 @@ class Table(ExprContainer):
                     return v + ' ' * e
 
             def format_line(values, widths, right_align):
+                if not values:
+                    return "||\n"
                 values = map(pad, values, widths, right_align)
                 return '| ' + ' | '.join(values) + ' |\n'
 

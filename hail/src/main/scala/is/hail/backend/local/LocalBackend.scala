@@ -2,7 +2,7 @@ package is.hail.backend.local
 
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir._
-import is.hail.utils.{ExecutionTimer, Timings}
+import is.hail.utils.ExecutionTimer
 
 import scala.reflect.ClassTag
 

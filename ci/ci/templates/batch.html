@@ -10,7 +10,7 @@
       {% endif %}
     </div>
     <h2>Jobs</h2>
-    <table class="data-table">
+    <table class="data-table" style="line-height: 175%">
       <thead>
         <tr>
           <th>id</th>
@@ -18,14 +18,14 @@
           <th>state</th>
           <th>exit_code</th>
           <th>duration</th>
-          <th>log</th>
-          <th>pod status</th>
         </tr>
       </thead>
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td class="numeric-cell">{{ job['job_id'] }}</td>
+          <td class="numeric-cell">
+	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+	  </td>
           <td>{{ job['attributes']['name'] }}</td>
           <td>{{ job['state'] }}</td>
           <td>
@@ -42,12 +42,10 @@
               {% endif %}
           </td>
           <td>
-            {% if 'duration' in job and job['duration'] %}
+            {% if 'duration' in job and job['duration'] is not none %}
             {{ job['duration'] }}
             {% endif %}
           </td>
-          <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a></td>
-          <td><a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a></td>
         </tr>
         {% endfor %}
       </tbody>

@@ -10,4 +10,4 @@ RUN python3 -m pip install --no-cache-dir \
   pytest-instafail==0.4.1 \
   pytest-asyncio==0.10.0
 
-CMD ["python3", "-m", "pytest", "--log-cli-level=INFO", "-s", "-v", "--instafail", "-k", "not test_scale", "/test/"]
+CMD ["python3", "-m", "pytest", "--log-cli-level=INFO", "-s", "-vv", "--instafail", "-k", "not test_scale", "/test/"]

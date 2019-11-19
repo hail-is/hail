@@ -20,13 +20,19 @@
     </a>
   {% endif %}
 
-  <a class="header-link" href="{{ batch_base_url }}">
-    Batch
-  </a>
-
-  <a class="header-link" href="{{ batch2_base_url }}">
-    Batch2
-  </a>
+  {% if userdata['developer'] == 1 %}
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<a href="{{ batch2_base_url }}" class="header-dropdown-link">Batch2</a>
+	<div class="header-dropdown-menu">
+	  <div class="batch2-caret header-dropdown-menu-caret"></div>
+	  <a class="header-dropdown-menu-link" href="{{ batch2_driver_base_url }}">Driver</a>
+	</div>
+      </div>
+    </div>
+  {% else %}
+    <a class="header-link" href="{{ batch2_base_url }}">Batch2</a>
+  {% endif %}
 
   {% if userdata['developer'] == 1 %}
     <a class="header-link" href="{{ ci_base_url }}">

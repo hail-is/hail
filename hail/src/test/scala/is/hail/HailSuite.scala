@@ -2,7 +2,7 @@ package is.hail
 
 import is.hail.annotations.Region
 import is.hail.expr.ir.ExecuteContext
-import is.hail.utils.TempDir
+import is.hail.utils.{ExecutionTimer, TempDir}
 import is.hail.io.fs.FS
 import org.apache.spark.SparkContext
 import org.scalatest.testng.TestNGSuite
@@ -43,7 +43,7 @@ class HailSuite extends TestNGSuite {
 
   @BeforeClass def ensureHailContextInitialized() { hc }
 
-  val ctx = ExecuteContext(Region()) // will get cleaned up on suite GC
+  val ctx = ExecuteContext(Region(), new ExecutionTimer) // will get cleaned up on suite GC
 
   def sFS: FS = hc.sFS
 

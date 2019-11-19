@@ -131,7 +131,7 @@ class TableMapGlobals(TableIR):
                                self.child.typ.row_type,
                                self.child.typ.row_key)
 
-    def bindings(self, i, default_value=None):
+    def renderable_bindings(self, i, default_value=None):
         return self.child.typ.global_env(default_value) if i == 1 else {}
 
 
@@ -187,10 +187,15 @@ class TableMapRows(TableIR):
             self.new_row.typ,
             self.child.typ.row_key)
 
-    def bindings(self, i, default_value=None):
-        return self.child.typ.row_env(default_value) if i == 1 else {}
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            env = self.child.typ.row_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
-    def scan_bindings(self, i, default_value=None):
+    def renderable_scan_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
@@ -254,7 +259,7 @@ class TableFilter(TableIR):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
 
-    def bindings(self, i, default_value=None):
+    def renderable_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
@@ -280,15 +285,17 @@ class TableKeyByAndAggregate(TableIR):
                                self.new_key.typ._concat(self.expr.typ),
                                list(self.new_key.typ))
 
-    def bindings(self, i, default_value=None):
+    def renderable_bindings(self, i, default_value=None):
         if i == 1:
-            return self.child.typ.global_env(default_value)
+            env = self.child.typ.global_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
         elif i == 2:
             return self.child.typ.row_env(default_value)
         else:
             return {}
 
-    def agg_bindings(self, i, default_value=None):
+    def renderable_agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
@@ -305,10 +312,15 @@ class TableAggregateByKey(TableIR):
                                child_typ.key_type._concat(self.expr.typ),
                                child_typ.row_key)
 
-    def bindings(self, i, default_value=None):
-        return self.child.typ.row_env(default_value) if i == 1 else {}
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            env = self.child.typ.row_env(default_value)
+            env[BaseIR.agg_capability] = default_value
+            return env
+        else:
+            return {}
 
-    def agg_bindings(self, i, default_value=None):
+    def renderable_agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
 

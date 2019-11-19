@@ -9,6 +9,18 @@ def async_to_blocking(coro):
 
 class Job:
     @staticmethod
+    def _get_error(job_status, task):
+        return aioclient.Job._get_error(job_status, task)
+
+    @staticmethod
+    def _get_exit_code(job_status, task):
+        return aioclient.Job._get_exit_code(job_status, task)
+
+    @staticmethod
+    def _get_exit_codes(job_status):
+        return aioclient.Job._get_exit_codes(job_status)
+
+    @staticmethod
     def exit_code(job_status):
         return aioclient.Job.exit_code(job_status)
 
@@ -56,14 +68,14 @@ class Job:
     def status(self):
         return async_to_blocking(self._async_job.status())
 
+    def batch2_status(self):
+        return async_to_blocking(self._async_job.batch2_status())
+
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
     def log(self):
         return async_to_blocking(self._async_job.log())
-
-    def pod_status(self):
-        return async_to_blocking(self._async_job.pod_status())
 
 
 class Batch:
@@ -117,7 +129,7 @@ class BatchBuilder:
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
-                   service_account_name=None, attributes=None, parents=None,
+                   service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if parents:
             parents = [parent._async_job for parent in parents]
@@ -125,7 +137,7 @@ class BatchBuilder:
         async_job = self._async_builder.create_job(
             image, command, env=env, mount_docker_socket=mount_docker_socket,
             resources=resources, secrets=secrets,
-            service_account_name=service_account_name,
+            service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
             pvc_size=pvc_size)
@@ -139,9 +151,9 @@ class BatchBuilder:
 
 class BatchClient:
     def __init__(self, deploy_config=None, session=None, headers=None,
-                 _token=None, _service='batch'):
+                 _token=None):
         self._async_client = async_to_blocking(
-            aioclient.BatchClient(deploy_config, session, headers=headers, _token=_token, _service=_service))
+            aioclient.BatchClient(deploy_config, session, headers=headers, _token=_token))
 
     @property
     def bucket(self):

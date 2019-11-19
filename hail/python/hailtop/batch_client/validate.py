@@ -26,11 +26,14 @@ import re
 #     'name': str,
 #     'mount_path': str
 #   }],
-#   service_account_name: str
+#   service_account: {
+#     'namespace': str,
+#     'name': str
+#   }
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'resources', 'secrets', 'service_account_name'
+    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'resources', 'secrets', 'service_account'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -265,11 +268,27 @@ def validate_job(i, job):
                 if not isinstance(name, str):
                     raise ValidationError(f'jobs[{i}].secrets[{j}].mount_path is not str')
 
-    if 'service_account_name' in job:
-        service_account_name = job['service_account_name']
-        if not isinstance(service_account_name, str):
-            raise ValidationError(f'jobs[{i}].service_account_name not str')
-        if len(service_account_name) > 253:
-            raise ValidationError(f'length of jobs[{i}].service_account_name must be <= 253')
-        if not K8S_NAME_REGEX.fullmatch(service_account_name):
-            raise ValidationError(f'jobs[{i}].service_account_name must match regex: {K8S_NAME_REGEXPAT}')
+    if 'service_account' in job:
+        service_account = job['service_account']
+        if not isinstance(service_account, dict):
+            raise ValidationError(f'jobs[{i}].service_account is not dict')
+
+        if 'namespace' not in service_account:
+            raise ValidationError(f'no required key namespace in jobs[{i}].service_account')
+        namespace = service_account['namespace']
+        if not isinstance(namespace, str):
+            raise ValidationError(f'jobs[{i}].service_account.namespace is not str')
+        if len(namespace) > 253:
+            raise ValidationError(f'length of jobs[{i}].service_account.namespace must be <= 253')
+        if not K8S_NAME_REGEX.fullmatch(namespace):
+            raise ValidationError(f'jobs[{i}].service_account.namespace must match regex: {K8S_NAME_REGEXPAT}')
+
+        if 'name' not in service_account:
+            raise ValidationError(f'no required key name in jobs[{i}].service_account')
+        name = service_account['name']
+        if not isinstance(name, str):
+            raise ValidationError(f'jobs[{i}].service_account.name not str')
+        if len(name) > 253:
+            raise ValidationError(f'length of jobs[{i}].service_account.name must be <= 253')
+        if not K8S_NAME_REGEX.fullmatch(name):
+            raise ValidationError(f'jobs[{i}].service_account.name must match regex: {K8S_NAME_REGEXPAT}')

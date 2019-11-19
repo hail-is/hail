@@ -8,7 +8,8 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, CI_NAMESPACE
+from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
+    DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL
 
 log = logging.getLogger('ci')
 
@@ -20,7 +21,7 @@ pretty_print_log = "jq -Rr '. as $raw | try \
 catch $raw'"
 
 
-is_test_deployment = CI_NAMESPACE != 'default'
+is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
 
 def expand_value_from(value, config):
@@ -146,8 +147,10 @@ class Step(abc.ABC):
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
+            'zone': GCP_ZONE,
             'domain': DOMAIN,
-            'ip': IP
+            'ip': IP,
+            'k8s_server_url': KUBERNETES_SERVER_URL
         }
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
@@ -319,7 +322,7 @@ date
                                     command=['bash', '-c', script],
                                     mount_docker_socket=True,
                                     secrets=[{
-                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
@@ -352,7 +355,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=[{
-                                        'namespace': 'batch-pods',  # FIXME unused
+                                        'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
@@ -419,10 +422,11 @@ class RunImageStep(Step):
         secrets = []
         if self.secrets:
             for secret in self.secrets:
+                namespace = get_namespace(secret['namespace'], self.input_config(code, scope))
                 name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
                 secrets.append({
-                    'namespace': 'batch-pods',  # FIXME unused
+                    'namespace': namespace,
                     'name': name,
                     'mount_path': mount_path
                 })
@@ -435,7 +439,7 @@ class RunImageStep(Step):
             input_files=input_files,
             output_files=output_files,
             secrets=secrets,
-            service_account_name=self.service_account,
+            service_account=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run)
 
@@ -458,8 +462,8 @@ class CreateNamespaceStep(Step):
         self.secrets = secrets
         self.job = None
 
-        if CI_NAMESPACE != 'default':
-            self._name = CI_NAMESPACE
+        if is_test_deployment:
+            self._name = DEFAULT_NAMESPACE
             return
 
         if params.scope == 'deploy':
@@ -600,7 +604,10 @@ date
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     # FIXME configuration
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
@@ -620,7 +627,10 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=parents,
                                     always_run=True)
 
@@ -691,7 +701,6 @@ set -e
 '''
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
-                    port = w.get('port', 80)
                     resource_type = w.get('resource_type', 'deployment').lower()
                     endpoint = w.get('endpoint', '/healthcheck')
                     headers = w.get('headers', dict())
@@ -707,7 +716,7 @@ set -e
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
   {wait_cmd} && \
-  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name} --endpoint {endpoint} {header_arg}
+  python3 wait-for.py {timeout} {self.namespace} Service {name} --endpoint {endpoint} {header_arg}
 EC=$?
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
@@ -740,7 +749,10 @@ date
                                     command=['bash', '-c', script],
                                     attributes=attrs,
                                     # FIXME configuration
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
@@ -761,7 +773,10 @@ date
                                         command=['bash', '-c', script],
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
-                                        service_account_name='ci-agent',
+                                        service_account={
+                                            'namespace': BATCH_PODS_NAMESPACE,
+                                            'name': 'ci-agent'
+                                        },
                                         parents=parents,
                                         always_run=True)
 
@@ -773,6 +788,9 @@ class CreateDatabaseStep(Step):
         self.database_name = database_name
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
+
+        if is_test_deployment:
+            self.namespace = DEFAULT_NAMESPACE
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if params.scope == 'deploy':
@@ -792,7 +810,7 @@ class CreateDatabaseStep(Step):
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
         self.secrets = [{
-            'namespace': 'batch-pods',  # FIXME unused
+            'namespace': BATCH_PODS_NAMESPACE,
             'name': 'database-server-config',
             'mount_path': '/secrets/db-config'
         }]
@@ -910,7 +928,10 @@ echo done.
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     secrets=self.secrets,
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
@@ -935,6 +956,9 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=self.secrets,
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=parents,
                                     always_run=True)

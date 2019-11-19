@@ -8,16 +8,17 @@ from aiohttp import web
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-from gear import Database
+from gear import Database, setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 # import uvloop
 
 from ..batch import mark_job_complete
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    BATCH_NAMESPACE
+    DEFAULT_NAMESPACE
 from ..google_compute import GServices
 
 from .instance_pool import InstancePool
@@ -276,6 +277,28 @@ async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
 
+@routes.get('/')
+@routes.get('')
+@web_authenticated_developers_only()
+async def get_index(request, userdata):
+    app = request.app
+    db = app['db']
+    instance_pool = app['inst_pool']
+
+    ready_cores = await db.execute_and_fetchone(
+        'SELECT * FROM ready_cores;')
+    ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+
+    page_context = {
+        'instance_id': app['instance_id'],
+        'n_instances_by_state': instance_pool.n_instances_by_state,
+        'instances': instance_pool.name_instance.values(),
+        'ready_cores_mcpu': ready_cores_mcpu,
+        'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
+    }
+    return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
+
+
 async def on_startup(app):
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
@@ -306,7 +329,7 @@ async def on_startup(app):
         'internal')
     app['internal_token'] = row['token']
 
-    machine_name_prefix = f'batch2-worker-{BATCH_NAMESPACE}-'
+    machine_name_prefix = f'batch2-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')
@@ -339,8 +362,11 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(client_max_size=None)
+    app = web.Application()
+    setup_aiohttp_session(app)
 
+    setup_aiohttp_jinja2(app, 'batch.driver')
+    setup_common_static_routes(routes)
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

@@ -18,7 +18,7 @@ import is.hail.io.index._
 import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
-import is.hail.sparkextras.ContextRDD
+import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
 import is.hail.table.Table
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome}
@@ -37,8 +37,9 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
+import is.hail.sparkextras.IndexedFilePartition
+
 case class FilePartition(index: Int, file: String) extends Partition
-case class IndexedFilePartition(index: Int, file: String, bounds: Option[Interval]) extends Partition
 
 object HailContext {
   val tera: Long = 1024L * 1024L * 1024L * 1024L
@@ -766,24 +767,14 @@ class HailContext private(
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    new RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)](sc, Nil) {
-      def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions) { i =>
-          IndexedFilePartition(i, partFiles(i), intervalBounds.map(_(i)))
-        }
-
-      override def compute(
-          split: Partition, context: TaskContext
-      ): Iterator[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
-        val p = split.asInstanceOf[IndexedFilePartition]
-        val fs = localFS.value
-        val idxname = s"$path/$idxPath/${ p.file }.idx"
-        val filename = s"$path/parts/${ p.file }"
-        val idxr = mkIndexReader(fs, idxname, 8) // default cache capacity
-        val in = fs.unsafeReader(filename)
-        Iterator.single((in, idxr, p.bounds, context.taskMetrics().inputMetrics))
-      }
-    }
+    new IndexReadRDD(sc, partFiles, intervalBounds, (p, context) => {
+      val fs = localFS.value
+      val idxname = s"$path/$idxPath/${ p.file }.idx"
+      val filename = s"$path/parts/${ p.file }"
+      val idxr = mkIndexReader(fs, idxname, 8) // default cache capacity
+      val in = fs.unsafeReader(filename)
+      (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
+    })
   }
 
   def readRows(
@@ -862,26 +853,16 @@ class HailContext private(
       IndexReaderBuilder.fromSpec(indexSpec)
     }
 
-    val rdd = new RDD[(InputStream, InputStream, Option[IndexReader], Option[Interval], InputMetrics)](sc, Nil) {
-      def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions) { i =>
-          IndexedFilePartition(i, partFiles(i), indexSpecRows.map(_ => bounds(i)))
-        }
-
-      override def compute(
-        split: Partition, context: TaskContext
-      ): Iterator[(InputStream, InputStream, Option[IndexReader], Option[Interval], InputMetrics)] = {
-        val p = split.asInstanceOf[IndexedFilePartition]
-        val fs = localFS.value
-        val idxr = mkIndexReader.map { mk =>
-          val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
-          mk(fs, idxname, 8) // default cache capacity
-        }
-        val inRows = fs.unsafeReader(s"$pathRows/parts/${ p.file }")
-        val inEntries = fs.unsafeReader(s"$pathEntries/parts/${ p.file }")
-        Iterator.single((inRows, inEntries, idxr, p.bounds, context.taskMetrics().inputMetrics))
+    val rdd = new IndexReadRDD(sc, partFiles, indexSpecRows.map(_ => bounds), (p, context) => {
+      val fs = localFS.value
+      val idxr = mkIndexReader.map { mk =>
+        val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
+        mk(fs, idxname, 8) // default cache capacity
       }
-    }
+      val inRows = fs.unsafeReader(s"$pathRows/parts/${ p.file }")
+      val inEntries = fs.unsafeReader(s"$pathEntries/parts/${ p.file }")
+      (inRows, inEntries, idxr, p.bounds, context.taskMetrics().inputMetrics)
+    })
 
     val rowsOffsetField = indexSpecRows.flatMap(_.offsetField)
     val entriesOffsetField = indexSpecEntries.flatMap(_.offsetField)

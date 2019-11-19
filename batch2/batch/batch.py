@@ -2,16 +2,19 @@ import json
 import logging
 import asyncio
 import aiohttp
+import base64
+import traceback
 from hailtop.utils import sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
-from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, BATCH_NAMESPACE
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
+    KUBERNETES_SERVER_URL
 
 log = logging.getLogger('batch')
 
 
-async def batch_record_to_dict(db, record, include_jobs=False):
+def batch_record_to_dict(record):
     if record['n_failed'] > 0:
         state = 'failure'
     elif record['n_cancelled'] > 0:
@@ -33,16 +36,6 @@ async def batch_record_to_dict(db, record, include_jobs=False):
     attributes = json.loads(record['attributes'])
     if attributes:
         d['attributes'] = attributes
-
-    if include_jobs:
-        jobs = [
-            job_record_to_dict(record)
-            async for record
-            in db.execute_and_fetchall(
-                'SELECT * FROM jobs where batch_id = %s',
-                (record['id'],))
-        ]
-        d['jobs'] = sorted(jobs, key=lambda j: j['job_id'])
 
     return d
 
@@ -66,7 +59,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
     try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await session.post(callback, json=await batch_record_to_dict(db, record))
+            await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
@@ -79,6 +72,8 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 
     id = (batch_id, job_id)
 
+    log.info(f'marking job {id} complete new_state {new_state}')
+
     rv = await check_call_procedure(
         db,
         'CALL mark_job_complete(%s, %s, %s, %s);',
@@ -89,6 +84,7 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
 
     old_state = rv['old_state']
     if old_state in complete_states:
+        log.info(f'old_state {old_state} complete, doing nothing')
         # already complete, do nothing
         return
 
@@ -108,41 +104,28 @@ async def mark_job_complete(app, batch_id, job_id, new_state, status):
     await notify_batch_job_complete(db, batch_id)
 
 
-def job_record_to_dict(record):
-    def getopt(obj, attr):
-        if obj is None:
-            return None
-        return obj.get(attr)
+def job_record_to_dict(record, running_status=None):
+    spec = json.loads(record['spec'])
+
+    attributes = spec.pop('attributes', None)
 
     result = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
-        'state': record['state']
+        'state': record['state'],
+        'spec': spec
     }
-    # FIXME can't change this yet, batch and batch2 share client
-    if record['status']:
-        status = json.loads(record['status'])
 
-        if 'error' in status:
-            result['error'] = status['error']
-        result['exit_code'] = {
-            k: getopt(getopt(status['container_statuses'][k], 'container_status'), 'exit_code') for
-            k in tasks
-        }
-        result['duration'] = {k: getopt(status['container_statuses'][k]['timing'], 'runtime') for k in tasks}
-        result['message'] = {
-            # the execution of the job container might have
-            # failed, or the docker container might have completed
-            # (wait returned) but had status error
-            k: (getopt(status['container_statuses'][k], 'error') or
-                getopt(getopt(status['container_statuses'][k], 'container_status'), 'error'))
-            for k in tasks
-        }
-
-    spec = json.loads(record['spec'])
-    attributes = spec.get('attributes')
     if attributes:
         result['attributes'] = attributes
+
+    if record['status']:
+        status = json.loads(record['status'])
+    else:
+        status = running_status
+    if status:
+        result['status'] = status
+
     return result
 
 
@@ -209,20 +192,83 @@ async def job_config(app, record):
     k8s_client = app['k8s_client']
 
     job_spec = json.loads(record['spec'])
+    userdata = json.loads(record['userdata'])
 
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
         k8s_client.read_namespaced_secret(
-            secret['name'], BATCH_NAMESPACE,
+            secret['name'], secret['namespace'],
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         for secret in secrets
     ])
+
+    gsa_key = None
     for secret, k8s_secret in zip(secrets, k8s_secrets):
+        if secret['name'] == userdata['gsa_key_secret_name']:
+            gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
+
+    assert gsa_key
+
+    service_account = job_spec.get('service_account')
+    if service_account:
+        namespace = service_account['namespace']
+        name = service_account['name']
+
+        sa = await k8s_client.read_namespaced_service_account(
+            name, namespace,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        assert len(sa.secrets) == 1
+
+        token_secret_name = sa.secrets[0].name
+
+        secret = await k8s_client.read_namespaced_secret(
+            token_secret_name, namespace,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+        token = base64.b64decode(secret.data['token']).decode()
+        cert = secret.data['ca.crt']
+
+        kube_config = f'''
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /.kube/ca.crt
+    server: {KUBERNETES_SERVER_URL}
+  name: default-cluster
+contexts:
+- context:
+    cluster: default-cluster
+    user: {namespace}-{name}
+    namespace: {namespace}
+  name: default-context
+current-context: default-context
+kind: Config
+preferences: {{}}
+users:
+- name: {namespace}-{name}
+  user:
+    token: {token}
+'''
+
+        job_spec['secrets'].append({
+            'name': 'kube-config',
+            'mount_path': '/.kube',
+            'data': {'config': base64.b64encode(kube_config.encode()).decode(),
+                     'ca.crt': cert}
+        })
+
+        env = job_spec.get('env')
+        if not env:
+            env = []
+            job_spec['env'] = env
+        env.append({'name': 'KUBECONFIG',
+                    'value': '/.kube/config'})
 
     return {
         'batch_id': record['batch_id'],
         'user': record['user'],
+        'gsa_key': gsa_key,
         'job_spec': job_spec
     }
 
@@ -237,11 +283,28 @@ async def schedule_job(app, record, instance):
     id = (batch_id, job_id)
 
     try:
+        body = await job_config(app, record)
+    except Exception:
+        log.exception('while making job config')
+        status = {
+            'worker': None,
+            'batch_id': batch_id,
+            'job_id': job_id,
+            'user': record['user'],
+            'state': 'error',
+            'error': traceback.format_exc(),
+            'container_statuses': {k: {} for k in tasks}
+        }
+        await mark_job_complete(app, batch_id, job_id, 'Error', status)
+        return
+
+    log.info(f'schedule job {id} on {instance}: made job config')
+
+    try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             url = (f'http://{instance.ip_address}:5000'
                    f'/api/v1alpha/batches/jobs/create')
-            body = await job_config(app, record)
             await session.post(url, json=body)
             await instance.mark_healthy()
     except Exception:

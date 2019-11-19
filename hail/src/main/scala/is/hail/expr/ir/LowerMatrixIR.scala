@@ -125,7 +125,7 @@ object LowerMatrixIR {
 
       case MatrixFilterRows(child, pred) =>
         lower(child, ab)
-          .filter(subst(pred, matrixSubstEnv(child)))
+          .filter(subst(lower(pred, ab), matrixSubstEnv(child)))
 
       case MatrixFilterCols(child, pred) =>
         lower(child, ab)
@@ -133,7 +133,7 @@ object LowerMatrixIR {
             irRange(0, 'global (colsField).len)
               .filter('i ~>
                 (let(sa = 'global (colsField)('i))
-                  in subst(pred, matrixGlobalSubstEnv(child))))))
+                  in subst(lower(pred, ab), matrixGlobalSubstEnv(child))))))
           .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
           .mapGlobals('global
             .insertFields(colsField ->
@@ -171,7 +171,7 @@ object LowerMatrixIR {
       case MatrixMapGlobals(child, newGlobals) =>
         lower(child, ab)
           .mapGlobals(
-            subst(newGlobals, BindingEnv(Env[IRProxy](
+            subst(lower(newGlobals, ab), BindingEnv(Env[IRProxy](
               "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))))
               .insertFields(colsField -> 'global (colsField)))
 
@@ -270,7 +270,7 @@ object LowerMatrixIR {
 
         val lc = lower(child, ab)
         lc.mapRows(
-          liftScans(Subst(newRow, matrixSubstEnvIR(child, lc)))
+          liftScans(Subst(lower(newRow, ab), matrixSubstEnvIR(child, lc)))
             .insertFields(entriesField -> 'row(entriesField)))
 
       case MatrixMapCols(child, newCol, _) =>
@@ -367,7 +367,7 @@ object LowerMatrixIR {
         val scanBuilder = new ArrayBuilder[(String, IR)]
         val aggBuilder = new ArrayBuilder[(String, IR)]
 
-        val b0 = lift(Subst(newCol, matrixSubstEnvIR(child,loweredChild)), scanBuilder, aggBuilder)
+        val b0 = lift(Subst(lower(newCol, ab), matrixSubstEnvIR(child, loweredChild)), scanBuilder, aggBuilder)
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
 
@@ -441,7 +441,7 @@ object LowerMatrixIR {
             'i ~>
               let(g = 'row (entriesField)('i)) {
                 irIf(let(sa = 'global (colsField)('i))
-                  in !subst(pred, matrixSubstEnv(child))) {
+                  in !subst(lower(pred, ab), matrixSubstEnv(child))) {
                   NA(child.typ.entryType)
                 } {
                   'g
@@ -449,28 +449,41 @@ object LowerMatrixIR {
               }
           }))
 
-      case MatrixUnionCols(left, right) =>
+      case MatrixUnionCols(left, right, joinType) =>
         val rightEntries = genUID()
         val rightCols = genUID()
         val ll = lower(left, ab).distinct()
+        def handleMissingEntriesArray(entries: Symbol, cols: Symbol): IRProxy =
+          if (joinType == "inner")
+            'row(entries)
+          else
+            irIf('row(entries).isNA) {
+              irRange(0, 'global(cols).len)
+                .map('a ~> irToProxy(MakeStruct(right.typ.entryType.fieldNames.map(f => (f, NA(right.typ.entryType.fieldType(f)))))))
+            } {
+              'row(entries)
+            }
         TableJoin(
           ll,
           lower(right, ab).distinct()
             .mapRows('row
-              .insertFields(Symbol(rightEntries) -> 'row (entriesField))
+              .insertFields(Symbol(rightEntries) -> 'row(entriesField))
               .selectFields(right.typ.rowKey :+ rightEntries: _*))
             .mapGlobals('global
-              .insertFields(Symbol(rightCols) -> 'global (colsField))
+              .insertFields(Symbol(rightCols) -> 'global(colsField))
               .selectFields(rightCols)),
-          "inner")
+          joinType)
           .mapRows('row
             .insertFields(entriesField ->
-              makeArray('row (entriesField), 'row (Symbol(rightEntries))).flatMap('a ~> 'a))
+              makeArray(
+                handleMissingEntriesArray(entriesField, colsField),
+                handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)))
+                .flatMap('a ~> 'a))
             // TableJoin puts keys first; drop rightEntries, but also restore left row field order
             .selectFields(ll.typ.rowType.fieldNames: _*))
           .mapGlobals('global
             .insertFields(colsField ->
-              makeArray('global (colsField), 'global (Symbol(rightCols))).flatMap('a ~> 'a))
+              makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
             .dropFields(Symbol(rightCols)))
 
       case MatrixMapEntries(child, newEntries) =>
@@ -479,7 +492,7 @@ object LowerMatrixIR {
             'i ~>
               let(g = 'row (entriesField)('i),
                 sa = 'global (colsField)('i)) {
-                subst(newEntries, BindingEnv(Env(
+                subst(lower(newEntries, ab), BindingEnv(Env(
                   "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
                   "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))))
               }
@@ -550,8 +563,8 @@ object LowerMatrixIR {
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
 
         val substEnv = matrixSubstEnv(child)
-        val eeSub = subst(entryExpr, substEnv)
-        val reSub = subst(rowExpr, substEnv)
+        val eeSub = subst(lower(entryExpr, ab), substEnv)
+        val reSub = subst(lower(rowExpr, ab), substEnv)
         lower(child, ab)
           .aggregateByKey(
             reSub.insertFields(entriesField -> irRange(0, 'global (colsField).len)
@@ -607,9 +620,9 @@ object LowerMatrixIR {
         val aggElementIdx = Symbol(genUID())
 
         val substEnv = matrixSubstEnv(child)
-        val ceSub = subst(colExpr, substEnv)
+        val ceSub = subst(lower(colExpr, ab), substEnv)
         val vaBinding = 'row.selectFields(child.typ.rowType.fieldNames: _*)
-        val eeSub = subst(entryExpr, substEnv.bindEval("va", vaBinding).bindAgg("va", vaBinding))
+        val eeSub = subst(lower(entryExpr, ab), substEnv.bindEval("va", vaBinding).bindAgg("va", vaBinding))
 
         lower(child, ab)
           .mapGlobals('global.insertFields(keyMap ->

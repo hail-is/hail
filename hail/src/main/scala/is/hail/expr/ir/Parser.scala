@@ -923,7 +923,7 @@ object IRParser {
       case "In" =>
         val typ = type_expr(env.typEnv)(it)
         val idx = int32_literal(it)
-        In(idx, typ)
+        In(idx, typ.physicalType)
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
         val msg = ir_value_expr(env)(it)
@@ -1248,9 +1248,10 @@ object IRParser {
         val newEntry = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
         MatrixMapEntries(child, newEntry)
       case "MatrixUnionCols" =>
+        val joinType = identifier(it)
         val left = matrix_ir(env)(it)
         val right = matrix_ir(env)(it)
-        MatrixUnionCols(left, right)
+        MatrixUnionCols(left, right, joinType)
       case "MatrixMapGlobals" =>
         val child = matrix_ir(env)(it)
         val newGlobals = ir_value_expr(env.withRefMap(child.typ.refMap))(it)

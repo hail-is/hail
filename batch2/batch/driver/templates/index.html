@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block title %}Batch2 Status{% endblock %}
+{% block content %}
+  <h1>Status</h1>
+  <div class="attributes">
+    <div>instance ID: {{ instance_id }}</div>
+    <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
+  </div>
+  <h1>Instances</h1>
+  <div class="attributes">
+    <div>pending: {{ n_instances_by_state['pending'] }}</div>
+    <div>active: {{ n_instances_by_state['active'] }}</div>
+    <div>inactive: {{ n_instances_by_state['inactive'] }}</div>
+    <div>deleted: {{ n_instances_by_state['deleted'] }}</div>
+    <div>live free cores: {{ live_free_cores_mcpu / 1000 }}</div>
+  </div>
+  <table class="data-table" id="instances">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>State</th>
+        <th>Free Cores</th>
+        <th>Failed Requests</th>
+        <th>Time Created</th>
+        <th>Last Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for instance in instances %}
+      <tr>
+        <td>{{ instance.name }}</td>
+        <td>{{ instance.state }}</td>
+        <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
+        <td class="numeric-cell">{{ instance.failed_request_count }}</td>
+        <td>{{ instance.time_created_str() }}</td>
+        <td>{{ instance.last_updated_str() }} ago</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -34,6 +34,19 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
+    def test_import_export_same(self):
+        for i in range(10):
+            mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
+            f1 = new_temp_file(suffix='vcf.bgz')
+            hl.export_vcf(mt, f1)
+            mt2 = hl.import_vcf(f1)
+            f2 = new_temp_file(suffix='vcf.bgz')
+            hl.export_vcf(mt2, f2)
+            mt3 = hl.import_vcf(f2)
+
+            assert mt._same(mt2)
+            assert mt._same(mt3)
+
     def test_info_float64(self):
         """Test that floating-point info fields are 64-bit regardless of the entry float type"""
         mt = hl.import_vcf(resource('infochar.vcf'), entry_float_type=hl.tfloat32)
@@ -268,7 +281,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
 
     @skip_unless_spark_backend()
-    def test_import_vcfs(self):
+    def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('20', 1)),
@@ -282,7 +295,7 @@ class VCFTests(unittest.TestCase):
                         includes_end=True)
         ]
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_vcfs([path], parts)[0]
+        vcf2 = hl.import_gvcfs([path], parts)[0]
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
 
@@ -301,7 +314,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
     @skip_unless_spark_backend()
-    def test_import_vcfs_subset(self):
+    def test_import_gvcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('20', 13509136)),
@@ -309,7 +322,7 @@ class VCFTests(unittest.TestCase):
                         includes_end=True)
         ]
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_vcfs([path], parts)[0]
+        vcf2 = hl.import_gvcfs([path], parts)[0]
         interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
         filter1 = hl.filter_intervals(vcf1, interval)
         self.assertTrue(vcf2._same(filter1))
@@ -346,7 +359,7 @@ class VCFTests(unittest.TestCase):
         ]
         int0 = hl.parse_locus_interval('[chr20:17821257-18708366]', reference_genome='GRCh38')
         int1 = hl.parse_locus_interval('[chr20:18708367-19776611]', reference_genome='GRCh38')
-        hg00096, hg00268 = hl.import_vcfs(paths, parts, reference_genome='GRCh38')
+        hg00096, hg00268 = hl.import_gvcfs(paths, parts, reference_genome='GRCh38')
         filt096 = hl.filter_intervals(hg00096, [int0])
         filt268 = hl.filter_intervals(hg00268, [int1])
         self.assertEqual(1, filt096.n_partitions())
@@ -375,7 +388,7 @@ class VCFTests(unittest.TestCase):
             MQ_DP=hl.null(hl.tint32),
             VarDP=hl.null(hl.tint32),
             QUALapprox=hl.null(hl.tint32))))
-                for mt in hl.import_vcfs(paths, parts, reference_genome='GRCh38',
+                for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
                                          array_elements_required=False)]
         comb = combine_gvcfs(vcfs)
         self.assertEqual(len(parts), comb.n_partitions())

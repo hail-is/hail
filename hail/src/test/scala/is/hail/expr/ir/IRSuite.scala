@@ -46,10 +46,12 @@ object IRSuite {
 
         override val returnType: Type = rType
 
-        override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
+        override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
-        def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet =
-          impl(r, returnPType(args.map(_._1)), seed, args.toArray)
+        def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
+          unify(args.map(_._1.virtualType))
+          impl(r, returnPType(args.map(_._1), returnType.subst()), seed, args.toArray)
+        }
       })
     }
 

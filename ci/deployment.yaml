@@ -40,6 +40,8 @@ spec:
 {% endif %}
            - name: HAIL_GCP_PROJECT
              value: "{{ global.project }}"
+           - name: HAIL_GCP_ZONE
+             value: "{{ global.zone }}"
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
            - name: HAIL_IP
@@ -48,8 +50,12 @@ spec:
              value: "{{ global.domain }}"
            - name: HAIL_SELF_HOSTNAME
              value: ci
-           - name: HAIL_CI_NAMESPACE
+           - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
+           - name: HAIL_BATCH_PODS_NAMESPACE
+             value: "{{ batch_pods_ns.name }}"
+           - name: KUBERNETES_SERVER_URL
+             value: "{{ global.k8s_server_url }}"
           ports:
             - containerPort: 5000
           volumeMounts:

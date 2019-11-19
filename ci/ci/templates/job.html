@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block title %}Batch {{ batch_id }} Job {{ job_id }}{% endblock %}
+{% block content %}
+    <h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
+
+    {% if job_log %}
+      <h2>Log</h2>
+
+      {% if 'input' in job_log %}
+      <h3 class="stacked-header">Input</h2>
+      <pre>{{ job_log['input'] }}</pre>
+      {% endif %}
+
+      {% if 'main' in job_log %}
+      <h3>Main</h2>
+      <pre>{{ job_log['main'] }}</pre>
+      {% endif %}
+
+      {% if 'output' in job_log %}
+      <h3>Output</h3>
+      <pre>{{ job_log['output'] }}</pre>
+      {% endif %}
+    {% endif %}
+
+    <h2>Status</h2>
+    <pre>{{ job_status }}</pre>
+{% endblock %}

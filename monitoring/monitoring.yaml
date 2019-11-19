@@ -354,7 +354,8 @@ spec:
           - "--storage.tsdb.path=/prometheus"
           - "--web.console.libraries=/usr/share/prometheus/console_libraries"
           - "--web.console.templates=/usr/share/prometheus/consoles"
-          - "--web.external-url=https://internal.hail.is/monitoring/prometheus"
+          - "--web.external-url=https://internal.hail.is/monitoring/prometheus/"
+          - "--web.route-prefix=/"
          ports:
           - containerPort: 9090
             protocol: TCP

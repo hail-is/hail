@@ -81,12 +81,11 @@ class JobDeletedError(Exception):
 
 
 class ContainerStepManager:
-    def __init__(self, container, state=None, name=None):
+    def __init__(self, container, name, state):
         self.container = container
         self.state = state
-        self.name = name or state
-        self.time = None
-        self.start_time = None
+        self.name = name
+        self.timing = None
 
     async def __aenter__(self):
         if self.container.job.deleted:
@@ -94,12 +93,15 @@ class ContainerStepManager:
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
-        self.start_time = time.time()
+        self.timing = {}
+        self.timing['start_time'] = time.time()
+        self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time.time()
-        if self.name:
-            self.container.timing[self.name] = finish_time - self.start_time
+        self.timing['finish_time'] = finish_time
+        start_time = self.timing['start_time']
+        self.timing['duration'] = finish_time - start_time
 
 
 class Container:
@@ -137,14 +139,19 @@ class Container:
                            'CpuQuota': self.cpu_in_mcpu * 100}
         }
 
+        env = self.spec.get('env')
+        if env:
+            config['Env'] = env
+
         volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
             config['HostConfig']['Binds'] = volume_mounts
 
         return config
 
-    def step(self, state=None, name=None):
-        return ContainerStepManager(self, state, name)
+    def step(self, name, **kwargs):
+        state = kwargs.get('state', name)
+        return ContainerStepManager(self, name, state)
 
     async def get_container_status(self):
         c = await docker_call_retry(self.container.show)
@@ -165,11 +172,26 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                try:
-                    await docker_call_retry(docker.images.get, self.image)
-                except DockerError as e:
-                    if e.status == 404:
-                        await docker_call_retry(docker.images.pull, self.image)
+                if self.image.startswith('gcr.io/'):
+                    key = base64.b64decode(
+                        self.job.gsa_key['privateKeyData']).decode()
+                    auth = {
+                        'username': '_json_key',
+                        'password': key
+                    }
+                    # Pull to verify this user has access to this
+                    # image.
+                    # FIXME improve the performance of this with a
+                    # per-user image cache.
+                    await docker_call_retry(
+                        docker.images.pull, self.image, auth=auth)
+                else:
+                    # this caches public images
+                    try:
+                        await docker_call_retry(docker.images.get, self.image)
+                    except DockerError as e:
+                        if e.status == 404:
+                            await docker_call_retry(docker.images.pull, self.image)
 
             async with self.step('creating'):
                 config = self.container_config()
@@ -178,7 +200,7 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with self.step(None, 'runtime'):
+            async with self.step('runtime', state=None):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
                     async with self.step('starting'):
                         await docker_call_retry(self.container.start)
@@ -289,8 +311,7 @@ def copy_command(src, dst):
 
 
 def copy(files):
-    if files is None:
-        return 'true'
+    assert files
 
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'''
@@ -322,11 +343,15 @@ def copy_container(job, name, files, volume_mounts):
 
 class Job:
     def secret_host_path(self, secret):
-        return f'{self.scratch}/{secret["name"]}'
+        return f'{self.scratch}/secrets/{secret["name"]}'
 
-    def __init__(self, batch_id, user, job_spec):
+    def io_host_path(self):
+        return f'{self.scratch}/io'
+
+    def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
         self.user = user
+        self.gsa_key = gsa_key
         self.job_spec = job_spec
 
         self.deleted = False
@@ -349,7 +374,7 @@ class Job:
 
         if pvc_size or input_files or output_files:
             self.mount_io = True
-            volume_mount = 'io:/io'
+            volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
         else:
@@ -365,29 +390,31 @@ class Job:
                 if secret.get('mount_in_copy', False):
                     copy_volume_mounts.append(volume_mount)
 
+        env = []
+        for item in job_spec.get('env', []):
+            env.append(f'{item["name"]}={item["value"]}')
+
         # create containers
         containers = {}
 
-        # FIXME
-        # if input_files:
-        containers['setup'] = copy_container(
-            self, 'setup', input_files, copy_volume_mounts)
+        if input_files:
+            containers['input'] = copy_container(
+                self, 'input', input_files, copy_volume_mounts)
 
         # main container
         main_spec = {
             'command': job_spec['command'],
             'image': job_spec['image'],
             'name': 'main',
-            # FIXME env
+            'env': env,
             'cpu': job_spec['resources']['cpu'],
             'volume_mounts': main_volume_mounts
         }
         containers['main'] = Container(self, 'main', main_spec)
 
-        # FIXME
-        # if output_files:
-        containers['cleanup'] = copy_container(
-            self, 'cleanup', output_files, copy_volume_mounts)
+        if output_files:
+            containers['output'] = copy_container(
+                self, 'output', output_files, copy_volume_mounts)
 
         self.containers = containers
 
@@ -400,13 +427,12 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
-        io = None
         try:
             log.info(f'{self}: initializing')
             self.state = 'initializing'
 
             if self.mount_io:
-                io = await docker_call_retry(docker.volumes.create, {'Name': 'io'})
+                os.makedirs(self.io_host_path())
 
             if self.secrets:
                 for secret in self.secrets:
@@ -414,14 +440,13 @@ class Job:
 
             self.state = 'running'
 
-            log.info(f'{self}: running setup')
+            input = self.containers.get('input')
+            if input:
+                log.info(f'{self}: running input')
+                await input.run(worker)
+                log.info(f'{self} input: {input.state}')
 
-            setup = self.containers['setup']
-            await setup.run(worker)
-
-            log.info(f'{self} setup: {setup.state}')
-
-            if setup.state == 'succeeded':
+            if not input or input.state == 'succeeded':
                 log.info(f'{self}: running main')
 
                 main = self.containers['main']
@@ -429,22 +454,20 @@ class Job:
 
                 log.info(f'{self} main: {main.state}')
 
-                log.info(f'{self}: running cleanup')
-
-                cleanup = self.containers['cleanup']
-                await cleanup.run(worker)
-
-                log.info(f'{self} cleanup: {cleanup.state}')
+                output = self.containers.get('output')
+                if output:
+                    log.info(f'{self}: running output')
+                    await output.run(worker)
+                    log.info(f'{self} output: {output.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
+                elif output:
+                    self.state = output.state
                 else:
-                    if cleanup:
-                        self.state = cleanup.state
-                    else:
-                        self.state = 'succeeded'
+                    self.state = 'succeeded'
             else:
-                self.state = setup.state
+                self.state = input.state
         except Exception:
             log.exception(f'while running {self}')
 
@@ -457,8 +480,6 @@ class Job:
             log.info(f'{self}: cleaning up')
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
-                if io:
-                    await docker_call_retry(io.delete)
             except Exception:
                 log.exception('while deleting volumes')
 
@@ -529,7 +550,6 @@ class Worker:
         body = await request.json()
 
         batch_id = body['batch_id']
-        user = body['user']
         job_spec = body['job_spec']
         job_id = job_spec['job_id']
         id = (batch_id, job_id)
@@ -538,7 +558,7 @@ class Worker:
         if id in self.jobs:
             return web.Response()
 
-        job = Job(batch_id, user, job_spec)
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
 
         log.info(f'created {job}, adding to jobs')
 

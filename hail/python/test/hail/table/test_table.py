@@ -1088,6 +1088,9 @@ class Tests(unittest.TestCase):
     def test_empty_show(self):
         hl.utils.range_table(1).filter(False).show()
 
+    def test_no_row_fields_show(self):
+        hl.utils.range_table(5).key_by().select().show()
+
     def test_same_equal(self):
         t1 = hl.utils.range_table(1)
         self.assertTrue(t1._same(t1))
@@ -1284,7 +1287,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 4096, 8192, 16384]
+widths = [256, 512, 1024, 2048, 4096]
 
 
 def test_can_process_wide_tables():
@@ -1328,3 +1331,27 @@ def create_width_scale_files():
     for w in widths:
         write_file(w)
 
+
+def test_join_distinct_preserves_count():
+    left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
+    right_pos = [1, 1, 1, 3, 4, 4, 6, 6, 8, 9, 13, 15]
+    left_table = hl.Table.parallelize([hl.struct(i=i) for i in left_pos], key='i')
+    right_table = hl.Table.parallelize([hl.struct(i=i) for i in right_pos], key='i')
+    joined = left_table.annotate(r=right_table.index(left_table.i))
+    n_defined, keys = joined.aggregate((hl.agg.count_where(hl.is_defined(joined.r)), hl.agg.collect(joined.i)))
+    assert n_defined == 7
+    assert keys == left_pos
+
+    right_table_2 = hl.utils.range_table(1).filter(False)
+    joined_2 = left_table.annotate(r = right_table_2.index(left_table.i))
+    n_defined_2, keys_2 = joined_2.aggregate((hl.agg.count_where(hl.is_defined(joined_2.r)), hl.agg.collect(joined_2.i)))
+    assert n_defined_2 == 0
+    assert keys_2 == left_pos
+
+def test_write_table_containing_ndarray():
+    t = hl.utils.range_table(5)
+    t = t.annotate(n = hl._nd.arange(t.idx))
+    f = new_temp_file(suffix='ht')
+    t.write(f)
+    t2 = hl.read_table(f)
+    assert t._same(t2)

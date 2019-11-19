@@ -24,7 +24,7 @@ with open('/secret/ci-secrets/user2', 'r') as f:
 
 
 def wait_for_hello():
-    wait_cmd = f'python3 wait-for.py 300 {namespace} Service -p 80 hello'
+    wait_cmd = f'python3 wait-for.py 900 {namespace} Service --location k8s hello'
     result = sp.run(wait_cmd, stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
     if result.returncode != 0:
         raise Exception(f'hello service was not deployed: {result!r}')

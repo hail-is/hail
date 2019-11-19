@@ -7,4 +7,4 @@ RUN pip3 install --no-cache-dir /notebook && \
 
 EXPOSE 5000
 
-ENTRYPOINT ["python3", "-m", "notebook"]
+CMD ["python3", "-m", "notebook"]

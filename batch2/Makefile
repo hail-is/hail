@@ -1,5 +1,6 @@
 PROJECT := $(shell gcloud config get-value project)
 ZONE := us-central1-a
+KUBERNETES_SERVER_URL := https://104.198.230.143
 
 BATCH2_LATEST = gcr.io/$(PROJECT)/batch2:latest
 BATCH2_IMAGE = gcr.io/$(PROJECT)/batch2:$(shell docker images -q --no-trunc batch2 | sed -e 's,[^:]*:,,')
@@ -34,7 +35,7 @@ push: build
 	docker push $(BATCH2_WORKER_IMAGE)
 
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch2_image":{"image":"$(BATCH2_IMAGE)"},"batch2_worker_image":{"image":"$(BATCH2_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch2_database":{"user_secret_name":"sql-batch2-batch2-admin-config"},"global":{"domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch2_image":{"image":"$(BATCH2_IMAGE)"},"batch2_worker_image":{"image":"$(BATCH2_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch2_database":{"user_secret_name":"sql-batch2-batch2-admin-config"},"global":{"domain":"$(DOMAIN)", "k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 
 create-build-worker-image-instance:

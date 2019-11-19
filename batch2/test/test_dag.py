@@ -13,7 +13,7 @@ from .serverthread import ServerThread
 
 @pytest.fixture
 def client():
-    client = BatchClient(_service='batch2')
+    client = BatchClient()
     yield client
     client.close()
 
@@ -23,7 +23,7 @@ def batch_status_job_counter(batch_status, job_state):
 
 
 def batch_status_exit_codes(batch_status):
-    return [j['exit_code'] for j in batch_status['jobs']]
+    return [Job._get_exit_codes(j) for j in batch_status['jobs']]
 
 
 def test_simple(client):
@@ -34,7 +34,7 @@ def test_simple(client):
     status = batch.wait()
     assert batch_status_job_counter(status, 'Success') == 2, status
     assert batch_status_exit_codes(status) == [
-        {'setup': 0, 'main': 0, 'cleanup': 0}, {'setup': 0, 'main': 0, 'cleanup': 0}], status
+        {'main': 0}, {'main': 0}], status
 
 
 def test_missing_parent_is_400(client):
@@ -62,7 +62,7 @@ def test_dag(client):
     for node in [head, left, right, tail]:
         status = node.status()
         assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert node._get_exit_code(status, 'main') == 0
 
 
 def test_cancel_tail(client):
@@ -83,7 +83,7 @@ def test_cancel_tail(client):
     for node in [head, left, right]:
         status = node.status()
         assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert node._get_exit_code(status, 'main') == 0
     assert tail.status()['state'] == 'Cancelled'
 
 
@@ -105,7 +105,7 @@ def test_cancel_left_after_tail(client):
     for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert node._get_exit_code(status, 'main') == 0
     for node in [left, tail]:
         assert node.status()['state'] == 'Cancelled'
 
@@ -177,7 +177,7 @@ def test_input_dependency(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head.status()['exit_code']['main'] == 0, head._status
+    assert head._get_exit_code(head.status(), 'main') == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
@@ -193,7 +193,7 @@ def test_input_dependency_directory(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head.status()['exit_code']['main'] == 0, head._status
+    assert head._get_exit_code(head.status(), 'main') == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
@@ -219,7 +219,7 @@ def test_always_run_cancel(client):
     for node in [head, right, tail]:
         status = node.status()
         assert status['state'] == 'Success', status
-        assert status['exit_code']['main'] == 0, status
+        assert node._get_exit_code(status, 'main') == 0, status
 
 
 def test_always_run_error(client):
@@ -237,4 +237,4 @@ def test_always_run_error(client):
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
         assert status['state'] == state, status
-        assert status['exit_code']['main'] == ec, status
+        assert job._get_exit_code(status, 'main') == ec, status

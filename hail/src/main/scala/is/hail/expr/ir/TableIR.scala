@@ -319,7 +319,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
-    val (Row(_rows: IndexedSeq[_], globals: Row), _) = CompileAndEvaluate[Row](ctx, rowsAndGlobal, optimize = false)
+    val Row(_rows: IndexedSeq[_], globals: Row) = CompileAndEvaluate[Row](ctx, rowsAndGlobal, optimize = false)
     val rows = _rows.asInstanceOf[IndexedSeq[Row]]
     rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
@@ -1150,19 +1150,10 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
 
-    val (evalIR, ncValue, ncType, ncVar) = InterpretNonCompilable(ctx, newGlobals)
+    val (resultPType, f) = Compile[Long, Long]("global", tv.globals.t, newGlobals)
 
-    val ncPType = PType.canonical(ncType)
-
-    val (resultPType, f) = Compile[Long, Long, Long]("global", tv.globals.t, ncVar, ncPType, evalIR)
-
-    val rvb = new RegionValueBuilder(ctx.r)
-    rvb.start(ncPType)
-    rvb.addAnnotation(ncType, ncValue)
-    val ncOffset = rvb.end()
     val resultOff = f(0, ctx.r)(ctx.r,
-      tv.globals.value.offset, false,
-      ncOffset, ncValue == null
+      tv.globals.value.offset, false
     )
     tv.copy(typ = typ,
       globals = BroadcastRow(RegionValue(ctx.r, resultOff), resultPType.asInstanceOf[PStruct], HailContext.get.backend))
@@ -1936,11 +1927,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     TableRename(newChild, rowMap, globalMap)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val prev = child.execute(ctx)
-
-    TableValue(typ, prev.globals.copy(t = prev.globals.t.rename(globalMap)), prev.rvd.cast(prev.rvd.rowPType.rename(rowMap)))
-  }
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue = child.execute(ctx).rename(globalMap, rowMap)
 }
 
 case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean) extends TableIR {
@@ -2020,7 +2007,7 @@ case class BlockMatrixToTableApply(
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val b = bm.execute(ctx)
-    val (a, _) = CompileAndEvaluate[Any](ctx, aux, optimize = false)
+    val a = CompileAndEvaluate[Any](ctx, aux, optimize = false)
     function.execute(ctx, b, a)
   }
 }

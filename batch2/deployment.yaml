@@ -39,8 +39,12 @@ spec:
            value: /deploy-config/deploy-config.json
          - name: BATCH_WORKER_IMAGE
            value: "{{ batch2_worker_image.image }}"
-         - name: BATCH_NAMESPACE
+         - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
+         - name: HAIL_BATCH_PODS_NAMESPACE
+           value: "{{ batch_pods_ns.name }}"
+         - name: KUBERNETES_SERVER_URL
+           value: "{{ global.k8s_server_url }}"
 {% if not deploy %}
          - name: WORKER_TYPE
            value: "standard"
@@ -49,9 +53,9 @@ spec:
          - name: WORKER_DISK_SIZE_GB
            value: "10"
          - name: POOL_SIZE
-           value: "1"
-         - name: MAX_INSTANCES
            value: "2"
+         - name: MAX_INSTANCES
+           value: "3"
 {% endif %}
         ports:
          - containerPort: 5000
@@ -131,6 +135,15 @@ spec:
                     values:
                     - auth
               topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: preemptible
+                operator: In
+                values:
+                - "true"
       containers:
       - name: batch2
         image: {{ batch2_image.image }}
@@ -143,6 +156,12 @@ spec:
            value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
+         - name: HAIL_DEFAULT_NAMESPACE
+           value: "{{ default_ns.name }}"
+         - name: HAIL_BATCH_PODS_NAMESPACE
+           value: "{{ batch_pods_ns.name }}"
+         - name: KUBERNETES_SERVER_URL
+           value: "{{ global.k8s_server_url }}"
 {% if not deploy %}
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
            value: "0.1"

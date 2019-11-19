@@ -187,8 +187,8 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self, _service='batch'):
-        self._batch_client = BatchClient(_service=_service)
+    def __init__(self):
+        self._batch_client = BatchClient()
 
     def close(self):
         self._batch_client.close()
@@ -339,7 +339,8 @@ class BatchBackend(Backend):
             print('Pipeline completed successfully!')
             return
 
-        failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
+        failed_jobs = [(j, Job.exit_code(j)) for j in status['jobs']]
+        failed_jobs = [((j['batch_id'], j['job_id']), Job._get_exit_codes(j)) for j, ec in failed_jobs if ec != 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:

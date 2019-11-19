@@ -152,12 +152,17 @@ a {
 }
 
 .notebook-caret:after {
-    /* 74 (measured) / 2 + 9 - 20 / 2 = 38px */
+    /* 74 (measured width of Notebook) / 2 + 9 - 20 / 2 = 38px */
     left: 36px;
 }
 
+.batch2-caret:after {
+    /* 52 (measured width of Batch2) / 2 + 9 - 20 / 2 = 25px */
+    left: 25px;
+}
+
 .monitoring-caret:after {
-    /* 82 (measured) / 2 + 9 - 20 / 2 = 42px */
+    /* 82 (measured width of Monitoring) / 2 + 9 - 20 / 2 = 42px */
     left: 40px;
 }
 

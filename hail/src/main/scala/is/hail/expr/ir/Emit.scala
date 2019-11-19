@@ -13,6 +13,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.language.{existentials, postfixOps}
 
 object Emit {
@@ -552,7 +553,8 @@ private class Emit(
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
-        val eltType = -atyp.elementType.virtualType
+        val eltType = -atyp.elementType
+        val eltVType = eltType.virtualType
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(er, vab)
 
@@ -560,17 +562,19 @@ private class Emit(
           case ArraySort(a, l, r, comp) => (a, Subst(comp, BindingEnv(Env[IR](l -> In(0, eltType), r -> In(1, eltType)))), Code._empty[Unit])
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
+            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            (a, ApplyComparisonOp(Compare(eltType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
+            (a, ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
           case ToDict(a) =>
-            val dType = coerce[PDict](ir.pType).virtualType
-            val k0 = GetField(In(0, dType.elementType), "key")
-            val k1 = GetField(In(1, dType.elementType), "key")
+            val elementType = a.pType.asInstanceOf[PStreamable].elementType
+            val (k0, k1, keyType) = elementType match {
+              case t: PStruct => (GetField(In(0, elementType.virtualType), "key"), GetField(In(1, elementType.virtualType), "key"), t.fieldType("key"))
+              case t: PTuple => (GetTupleElement(In(0, elementType.virtualType), 0), GetTupleElement(In(1, elementType.virtualType), 0), t.types(0))
+            }
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(dType.keyType), k0, k1), Env.empty, er, container)
+            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            (a, ApplyComparisonOp(Compare(dType.keyType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
+            (a, ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
         }
 
         val compF = vab.ti match {
@@ -634,10 +638,10 @@ private class Emit(
         val sorter = new ArraySorter(er, eab)
 
         val (k1, k2) = etyp match {
-          case t: PStruct => GetField(In(0, t.virtualType), "key") -> GetField(In(1, t.virtualType), "key")
+          case t: PStruct => GetField(In(0, t), "key") -> GetField(In(1, t), "key")
           case t: PTuple =>
             assert(t.fields(0).index == 0)
-            GetTupleElement(In(0, t.virtualType), 0) -> GetTupleElement(In(1, t.virtualType), 0)
+            GetTupleElement(In(0, t), 0) -> GetTupleElement(In(1, t), 0)
         }
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
@@ -873,11 +877,11 @@ private class Emit(
             val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg")
 
             val init = Optimize(extracted.init, noisy = true,
-              context = Some("ArrayAgg/agg.Extract/init"))
+              context = "ArrayAgg/agg.Extract/init")
             val perElt = Optimize(extracted.seqPerElt, noisy = true,
-              context = Some("ArrayAgg/agg.Extract/perElt"))
+              context = "ArrayAgg/agg.Extract/perElt")
             val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
-              context = Some("ArrayAgg/agg.Extract/postAggIR"))
+              context = "ArrayAgg/agg.Extract/postAggIR")
 
             val codeInit = emit(init, env = env, container = Some(newContainer))
             val codePerElt = emit(perElt, env = perEltEnv, container = Some(newContainer))
@@ -917,11 +921,11 @@ private class Emit(
 
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = ExtractAggregators.staged(mb.fb, query)
         val postAggIR = Optimize(postAggIR_, noisy = true,
-          context = Some("ArrayAgg/StagedExtractAggregators/postAggIR"))
+          context = "ArrayAgg/StagedExtractAggregators/postAggIR")
         val init = Optimize(init_, noisy = true,
-          context = Some("ArrayAgg/StagedExtractAggregators/init"))
+          context = "ArrayAgg/StagedExtractAggregators/init")
         val perElt = Optimize(perElt_, noisy = true,
-          context = Some("ArrayAgg/StagedExtractAggregators/perElt"))
+          context = "ArrayAgg/StagedExtractAggregators/perElt")
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
 
@@ -1445,7 +1449,7 @@ private class Emit(
         impl.apply(er, codeArgs: _*)
       case x@Uniroot(argname, fn, min, max) =>
         val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
-        val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, TFloat64())), env, missingError)
+        val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, PFloat64())), env, missingError)
 
         val localF = mb.newField[AsmFunction3[Region, Double, Boolean, Double]]
         val codeMin = emit(min)
@@ -1596,6 +1600,7 @@ private class Emit(
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
+      case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
         val lT = emit(lChild)
@@ -2062,6 +2067,7 @@ private class Emit(
         // no missing
         val lelt = coerce[TStreamable](left.typ).elementType
         val relt = coerce[TStreamable](right.typ).elementType
+        val rEltPType = coerce[PStreamable](right.pType).elementType
         val rtyp = coerce[PStreamable](right.pType).asPArray
 
         val larray = emitArrayIterator(left)
@@ -2083,7 +2089,7 @@ private class Emit(
         val et = new Emit(compKeyF, 1).emit(compKey, fenv, er, container)
         compKeyF.emit(Code(et.setup, et.m.mux(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing"), et.value[Int])))
         val joinF = mb.fb.newMethod(typeInfo[Region], typeToTypeInfo(relt), typeInfo[Boolean], typeToTypeInfo(join.typ))
-        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, relt)))), fenv, er, container)
+        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, rEltPType)))), fenv, er, container)
         joinF.emit(Code(jet.setup, jet.m.mux(Code._fatal("ArrayLeftJoinDistinct: joined can't be missing"), jet.v)))
 
         val ae = { cont: Emit.F =>
@@ -2129,11 +2135,11 @@ private class Emit(
             val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggSigs, mb.fb, "array_agg_scan")
 
             val init = Optimize(extracted.init, noisy = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+              context = "ArrayAggScan/StagedExtractAggregators/postAggIR")
             val perElt = Optimize(extracted.seqPerElt, noisy = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+              context = "ArrayAggScan/StagedExtractAggregators/init")
             val postAgg = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
-              context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+              context = "ArrayAggScan/StagedExtractAggregators/perElt")
 
             val codeInit = this.emit(init, env, None, er, Some(newContainer))
             val codeSeq = this.emit(perElt, bodyEnv, None, er, Some(newContainer))
@@ -2164,11 +2170,11 @@ private class Emit(
           ExtractAggregators.staged(mb.fb, CompileWithAggregators.liftScan(query))
 
         val postAggIR = Optimize(postAggIR_, noisy = true,
-          context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+          context = "ArrayAggScan/StagedExtractAggregators/postAggIR")
         val init = Optimize(init_, noisy = true,
-          context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+          context = "ArrayAggScan/StagedExtractAggregators/init")
         val perElt = Optimize(perElt_, noisy = true,
-          context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+          context = "ArrayAggScan/StagedExtractAggregators/perElt")
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
         val aggInit = this.emit(init, env, Some(rvas), er, container)
@@ -2427,6 +2433,55 @@ private class Emit(
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
+          }
+        }
+
+      case x@NDArraySlice(child, slicesIR) =>
+        val childEmitter = deforest(child)
+
+        val slicest = emit(slicesIR, env, resultRegion, None)
+        val slicesValueAddress = mb.newField[Long]
+        val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
+
+        val slicers = slices.withTypes.collect {
+          case (t: PTuple, slice) => new CodePTuple(t, region, slice)
+        }
+
+        val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(const(false))(_ || _)
+        val anyMissingness = missingSliceElements || slices.missingnessPattern.fold(const(false))(_ || _)
+
+        val codeSlices = slicers.map(_.values[Long, Long, Long])
+
+        val outputShape = codeSlices.map { case (start, stop, step) =>
+          (step >= 0L && start <= stop).mux(
+            const(1L) + ((stop - start) - 1L) / step,
+            (step < 0L && start >= stop).mux(
+              (((stop - start) + 1L) / step) + 1L,
+              0L)
+          )
+        }.toArray
+
+        val setupMissing = Code(
+          slicest.setup,
+          slicesValueAddress := slicest.value[Long],
+          childEmitter.setupMissing
+        )
+
+        val missing = childEmitter.missing || anyMissingness
+
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, setupMissing, missing) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val oldIdxVarsIter = idxVars.iterator
+
+            val sliceIdxVars2 = slices.withTypes.map {
+              case (_: PInt64, indexer) =>
+                coerce[Long](indexer)
+              case (t: PTuple, slicer) =>
+                val (start, _, step) = new CodePTuple(t, region, slicer).values[Long, Long, Long]
+                start + oldIdxVarsIter.next() * step
+            }
+
+            childEmitter.outputElement(sliceIdxVars2.toArray)
           }
         }
 

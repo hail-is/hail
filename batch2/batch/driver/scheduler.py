@@ -59,8 +59,8 @@ LIMIT 50;
         records = self.db.execute_and_fetchall(
             '''
 SELECT job_id, batch_id, spec, cores_mcpu,
-  ((jobs.cancelled OR batches.cancelled) AND NOT always_run) as cancel,
-  batches.user
+  ((jobs.cancelled OR batches.cancelled) AND NOT always_run) AS cancel,
+  userdata, user
 FROM jobs
 INNER JOIN batches ON batches.id = jobs.batch_id
 WHERE jobs.state = 'Ready' AND batches.closed
@@ -72,8 +72,6 @@ LIMIT 50;
             batch_id = record['batch_id']
             job_id = record['job_id']
             id = (batch_id, job_id)
-
-            log.info(f'scheduling job {id}')
 
             if record['cancel']:
                 log.info(f'cancelling job {id}')

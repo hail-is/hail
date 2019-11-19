@@ -24,6 +24,8 @@ final class ArrayStack[@specialized T](hintSize: Int = 16)(implicit tct: ClassTa
     a(size_ - 1)
   }
 
+  def topOption: Option[T] = if (size_ > 0) Some(top) else None
+
   def push(x: T) {
     if (size_ == a.length) {
       val newA = new Array[T](size_ * 2)
@@ -51,4 +53,6 @@ final class ArrayStack[@specialized T](hintSize: Int = 16)(implicit tct: ClassTa
     assert(i >= 0 && i < size_)
     a(size_ - i - 1)
   }
+
+  def toArray: Array[T] = (0 until size).map(apply).toArray
 }

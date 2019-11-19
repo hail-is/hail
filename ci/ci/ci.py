@@ -165,9 +165,9 @@ async def get_batch(request, userdata):
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
+@routes.get('/batches/{batch_id}/jobs/{job_id}')
 @web_authenticated_developers_only()
-async def get_job_log(request, userdata):
+async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
@@ -175,25 +175,10 @@ async def get_job_log(request, userdata):
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_log': await job.log()
+        'job_log': await job.log(),
+        'job_status': json.dumps(await job.status(), indent=2)
     }
-    return await render_template('ci', request, userdata, 'job_log.html', page_context)
-
-
-@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
-@web_authenticated_developers_only()
-async def get_job_pod_status(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    batch_client = request.app['batch_client']
-    job = await batch_client.get_job(batch_id, job_id)
-    page_context = {
-        'batch_id': batch_id,
-        'job_id': job_id,
-        'job_pod_status': json.dumps(json.loads(await job.pod_status()),
-                                     indent=2)
-    }
-    return await render_template('ci', request, userdata, 'job_pod_status.html', page_context)
+    return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
 @routes.post('/authorize_source_sha')

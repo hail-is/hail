@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `tokens` (
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
   `state` VARCHAR(40) NOT NULL,
-  `activation_token` VARCHAR(100) NOT NULL,
+  `activation_token` VARCHAR(100),
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
@@ -132,10 +132,12 @@ BEGIN
 
   IF cur_state = 'pending' or cur_state = 'active' THEN
     UPDATE ready_cores
-    SET ready_cores_mcpu = ready_cores_mcpu + (
-      SELECT SUM(cores_mcpu)
-      FROM jobs
-      WHERE instance_name = in_instance_name);
+    SET ready_cores_mcpu = ready_cores_mcpu +
+      COALESCE(
+        (SELECT SUM(cores_mcpu)
+         FROM jobs
+         WHERE instance_name = in_instance_name),
+	0);
 
     UPDATE jobs
     SET state = 'Ready',
@@ -195,9 +197,11 @@ BEGIN
     IF actual_n_jobs = expected_n_jobs THEN
       UPDATE batches SET closed = 1 WHERE id = in_batch_id;
       UPDATE ready_cores
-	SET ready_cores_mcpu = ready_cores_mcpu + (
-	  SELECT SUM(cores_mcpu) FROM jobs
-	  WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id);
+	SET ready_cores_mcpu = ready_cores_mcpu +
+	  COALESCE(
+	    (SELECT SUM(cores_mcpu) FROM jobs
+	     WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
+	    0);
       COMMIT;
       SELECT 0 as rc;
     ELSE
@@ -321,15 +325,17 @@ BEGIN
       UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     END IF;
     UPDATE ready_cores
-      SET ready_cores_mcpu = ready_cores_mcpu + (
-        SELECT SUM(jobs.cores_mcpu) FROM jobs
-	INNER JOIN `job_parents`
-	  ON jobs.batch_id = `job_parents`.batch_id AND
-	     jobs.job_id = `job_parents`.job_id
-	WHERE jobs.batch_id = in_batch_id AND
-	      `job_parents`.batch_id = in_batch_id AND
-	      `job_parents`.parent_id = in_job_id AND
-	      jobs.n_pending_parents = 1);
+      SET ready_cores_mcpu = ready_cores_mcpu +
+        COALESCE(
+	  (SELECT SUM(jobs.cores_mcpu) FROM jobs
+	   INNER JOIN `job_parents`
+	     ON jobs.batch_id = `job_parents`.batch_id AND
+		jobs.job_id = `job_parents`.job_id
+	   WHERE jobs.batch_id = in_batch_id AND
+		 `job_parents`.batch_id = in_batch_id AND
+		 `job_parents`.parent_id = in_job_id AND
+		 jobs.n_pending_parents = 1),
+          0);
 
     UPDATE jobs
       INNER JOIN `job_parents`

@@ -25,28 +25,31 @@ abstract class Backend {
   def lower(ir: IR, timer: Option[ExecutionTimer], optimize: Boolean = true): IR =
       LowerTableIR(ir, timer, optimize)
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, Timings) = {
-    val timer = new ExecutionTimer("Backend.execute")
+  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) = {
+    val timer = new ExecutionTimer()
     val ir = lower(ir0, Some(timer), optimize)
 
     if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
+      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
-    val res = Region.scoped { region =>
-      ir.typ match {
-        case TVoid =>
-          val (_, f) = timer.time(Compile[Unit](ir, print), "JVM compile")
-          timer.time(f(0, region)(region), "Runtime")
-        case _ =>
-          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple.ordered(FastSeq(ir)), print), "JVM compile")
-          timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
+    val res = timer.time("JVMLowerAndExecute") {
+      Region.scoped { region =>
+        ir.typ match {
+          case TVoid =>
+            val (_, f) = timer.time("Compile")(Compile[Unit](ir, print))
+            timer.time("Run")(f(0, region)(region))
+
+          case _ =>
+            val (pt: PTuple, f) = timer.time("Compile")(Compile[Long](MakeTuple.ordered(FastSeq(ir)), print))
+            timer.time("Run")(SafeRow(pt, region, f(0, region)(region)).get(0))
+        }
       }
     }
 
-    (res, timer.timings)
+    (res, timer)
   }
 
-  def execute(ir: IR, optimize: Boolean): (Any, Timings) = {
+  def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) = {
     TypeCheck(ir)
     try {
       if (HailContext.get.flags.get("lower") == null)
@@ -54,7 +57,7 @@ abstract class Backend {
       jvmLowerAndExecute(ir, optimize)
     } catch {
       case _: LowererUnsupportedOperation =>
-        ExecuteContext.scoped(ctx => CompileAndEvaluate(ctx, ir, optimize = optimize))
+        ExecuteContext.scoped(ctx => (CompileAndEvaluate(ctx, ir, optimize = optimize), ctx.timer))
     }
   }
 
@@ -62,9 +65,10 @@ abstract class Backend {
     val t = ir.typ
     val (value, timings) = execute(ir, optimize = true)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+    timings.finish()
     timings.logInfo()
 
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
+    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
