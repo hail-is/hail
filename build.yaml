@@ -528,10 +528,6 @@ steps:
    dependsOn:
     - default_ns
     - router_image
-   wait:
-    - kind: Service
-      name: router
-      for: alive
  - kind: deploy
    name: deploy_site
    namespace:
@@ -1103,20 +1099,6 @@ steps:
    dependsOn:
     - default_ns
     - dbuf_image
- # - kind: runImage
- #   name: deploy_dbuf
- #   dependsOn:
- #     - _deploy_dbuf
- #     - default_ns
- #   image: gcr.io/hail-vdc/ci-utils:latest
- #   script: |
- #     set +e
- #     kubectl -n {{ default_ns.name }} rollout status --timeout=1h statefulset dbuf
- #     kubectl -n {{ default_ns.name }} wait --timeout=1h --for=condition=ready pods --selector=app=dbuf
- #     EC=$?
- #     kubectl -n {{ default_ns.name }} logs --tail=999999 -l app=dbuf
- #     set -e
- #     (exit $EC)
  - kind: buildImage
    name: dbuf_test_image
    dockerFile: dbuf/tests/Dockerfile
@@ -1131,6 +1113,7 @@ steps:
    # we sleep 5 to give dbuf time to come up while CI's wait for stateful sets
    # is broken
    script: |
+     set -ex
      sleep 5
      python3 scale_test.py dbuf-0.dbuf 10 1 40000 10000
    resources:
