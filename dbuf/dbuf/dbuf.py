@@ -146,19 +146,19 @@ class DBuf:
 
 
 class Server:
-    def __init__(self, hostname, k8s_service, binding_host, port, dbuf, leader_url, aiofiles):
-        self.app = web.Application(client_max_size=50 * 1024 * 1024)
+    def __init__(self, name, binding_host, port, leader, dbuf, aiofiles):
+        self.deploy_config = get_deploy_config()
+        self.app = self.deploy_config.prefix_application(
+            web.Application(client_max_size=50 * 1024 * 1024),
+            name)
         self.routes = web.RouteTableDef()
         self.workers = set()
-        self.hostname = hostname
+        self.name = name
         self.binding_host = binding_host
         self.port = port
-        if k8s_service:
-            self.root_url = get_deploy_config().base_url(k8s_service)
-        else:
-            self.root_url = f'http://{self.hostname}:{self.port}'
         self.dbuf = dbuf
-        self.leader_url = leader_url
+        self.leader = leader
+        self.leader_url = self.deploy_config.base_url(leader)
         self.aiofiles = aiofiles
         self.shuffle_create_lock = asyncio.Lock()
         self.app.add_routes([
@@ -173,29 +173,26 @@ class Server:
         self.app.on_cleanup.append(self.cleanup)
 
     @staticmethod
-    async def serve(hostname, k8s_service, bufsize, data_dir, binding_host='0.0.0.0', port=5000, leader_url=None):
+    async def serve(name, bufsize, data_dir, leader, binding_host='0.0.0.0', port=5000):
         aiofiles = af.AIOFiles()
         dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
-        server = Server(hostname, k8s_service, binding_host, port, dbuf, leader_url, aiofiles)
+        server = Server(name, binding_host, port, leader, dbuf, aiofiles)
         try:
-            app = server.app
-            if k8s_service is not None:
-                app = get_deploy_config().prefix_application(app, k8s_service)
-            runner = web.AppRunner(app)
+            runner = web.AppRunner(server.app)
             await runner.setup()
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
             await site.start()
-            log.info(f'server on {server.hostname} bound to {server.binding_host}:{server.port}')
-            if server.leader_url and server.leader_url != server.root_url:
+            log.info(f'server {server.name} bound to {server.binding_host}:{server.port}')
+            if server.leader != server.name:
                 async def call():
                     async with ah.ClientSession(raise_for_status=True,
                                                 timeout=ah.ClientTimeout(total=60)) as cs:
-                        async with cs.post(f'{server.leader_url}/w', data=server.root_url) as resp:
+                        async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
                 await retry_forever(
                     call,
-                    lambda exc: f'could not join cluster with leader {server.leader_url} due to {exc}')
+                    lambda exc: f'could not join cluster with leader {server.leader} at {server.leader_url} due to {exc}')
             while True:
                 await asyncio.sleep(1 << 16)
         finally:
@@ -219,11 +216,12 @@ class Server:
         async with ah.ClientSession(raise_for_status=True,
                                     timeout=ah.ClientTimeout(total=60)) as cs:
             async def call(worker):
-                async with cs.post(f'{worker}/s') as resp:
+                worker_url = self.deploy_config.base_url(worker)
+                async with cs.post(f'{worker_url}/s') as resp:
                     assert resp.status == 200
                     text = resp.text()
                     assert await text == f'{session_id}', f'{text}, {session_id}'
-                    log.info(f'successfully created shuffle on {worker}')
+                    log.info(f'successfully created shuffle on {worker} at {worker_url}')
             log.info(f'getting shuffle lock for {session_id}')
             async with self.shuffle_create_lock:
                 log.info(f'creating shuffle {session_id} on workers {self.workers}')
@@ -234,12 +232,12 @@ class Server:
     async def post(self, request):
         session = self.session(request)
         file_id, pos, n = await session.write(await request.read())
-        return web.json_response((self.root_url, file_id, pos, n))
+        return web.json_response((self.name, file_id, pos, n))
 
     async def get(self, request):
         session = self.session(request)
         server, file_id, pos, n = await request.json()
-        assert server == self.root_url
+        assert server == self.name
         key = file_id, pos, n
         data = bytearray(n)
         await session.read(key, data)
@@ -249,7 +247,7 @@ class Server:
         session = self.session(request)
         keys = await request.json()
         if len(keys) > 0:
-            assert keys[0][0] == self.root_url
+            assert keys[0][0] == self.name
         keys = [key[1:] for key in keys]
         data = await session.readmany(keys)
         return web.Response(body=data)
@@ -260,7 +258,8 @@ class Server:
         async with ah.ClientSession(raise_for_status=True,
                                     timeout=ah.ClientTimeout(total=60)) as cs:
             async def call(worker):
-                async with cs.delete(f'{worker}/s/{session_id}') as resp:
+                worker_url = self.deploy_config.base_url(worker)
+                async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
                     assert resp.status == 200
                     await resp.text()
             await asyncio.gather(*[call(worker) for worker in self.workers])
@@ -273,70 +272,36 @@ class Server:
         return web.json_response(list(self.workers))
 
     async def get_workers(self, request):
-        return web.json_response([self.root_url] + list(self.workers))
+        return web.json_response([self.name] + list(self.workers))
 
     async def cleanup(self, what):
         await self.dbuf.delete()
 
 
-def server(hostname, k8s_service, bufsize, data_dir, port, i, leader_url):
-    loop = asyncio.get_event_loop()
-
-    def die(signum, frame):
-        loop.stop()
-        sys.exit(signum)
-    signal.signal(signal.SIGINT, die)
-    signal.signal(signal.SIGTERM, die)
-    signal.signal(signal.SIGQUIT, die)
-    loop.run_until_complete(Server.serve(hostname, k8s_service, bufsize, data_dir, '0.0.0.0', port, leader_url))
-
-
 parser = argparse.ArgumentParser(description='distributed buffer')
-parser.add_argument('n', type=int, help='number of processes, must be at least one')
-parser.add_argument('--hostname', type=str, help='hostname to use to connect to myself', default='localhost')
+parser.add_argument('--name', type=str, help='my name in k8s, e.g. dbuf-0.dbuf', default='localhost')
+parser.add_argument('--leader', type=str, help='directory in which to store data', required=False)
 parser.add_argument('--data-dir', type=str, help='directory in which to store data', default='/tmp/shuffler')
+parser.add_argument('--host', type=str, help='host to bind to', default='0.0.0.0')
 parser.add_argument('--port', type=str, help='port to bind to', default='80')
-parser.add_argument('--leader-url', type=str, help='directory in which to store data', required=False)
-parser.add_argument('--k8s-service', type=str, help='k8s service name', required=False)
 parser.add_argument('--bufsize', type=int, help='buffer size in MiB', default=512)
 args = parser.parse_args()
 print(args)
 
-if args.n <= 0:
-    print(f'n must be greater than zero, was {args.n}',
-          file=sys.stderr)
-    sys.exit(1)
+
+def die(signum, frame):
+    sys.exit(signum)
+
+
+signal.signal(signal.SIGINT, die)
+signal.signal(signal.SIGTERM, die)
+signal.signal(signal.SIGQUIT, die)
+
+loop = asyncio.get_event_loop()
+bufsize = args.bufsize * 1024 * 1024
 try:
-    data_dir = args.data_dir
-    bufsize = args.bufsize * 1024 * 1024
-    port = args.port
-    os.mkdir(data_dir)
-    servers = []
-
-    def die(signum, frame):
-        log.info(f'terminating all servers due to signal {signum}')
-        for server in servers:
-            try:
-                server.terminate()
-                server.join()
-                server.close()
-            except Exception as exc:
-                log.error(f'could not shutdown {server} deu to {exc}')
-        sys.exit(signum)
-    signal.signal(signal.SIGINT, die)
-    signal.signal(signal.SIGTERM, die)
-    signal.signal(signal.SIGQUIT, die)
-
-    leader_url = args.leader_url
-    servers = [mp.Process(target=server, args=(args.hostname, args.k8s_service, bufsize, args.data_dir, port, 0, leader_url))]
-    if leader_url is None:
-        leader_url = f'http://{args.hostname}:{port}'
-    servers.extend(
-        mp.Process(target=server, args=(args.hostname, args.k8s_service, bufsize, args.data_dir, port + i, i, leader_url))
-        for i in range(1, args.n))
-    for server in servers:
-        server.start()
-    for server in servers:
-        server.join()
+    os.mkdir(args.data_dir)
+    loop.run_until_complete(Server.serve(
+        args.name, bufsize, args.data_dir, args.leader, args.host, args.port))
 finally:
-    shutil.rmtree(data_dir)
+    shutil.rmtree(args.data_dir)

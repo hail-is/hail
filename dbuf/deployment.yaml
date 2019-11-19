@@ -33,13 +33,10 @@ spec:
         - name: dbuf
           image: {{ dbuf_image.image }}
           args:
-            - "1"
-            - "--k8s-service"
+            - "--name"
             - "$(POD_NAME).dbuf"
-            - "--hostname"
-            - "$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local"
-            - "--leader-url"
-            - "http://dbuf-0.dbuf.{{ default_ns.name }}/{{ default_ns.name }}/dbuf-0.dbuf"
+            - "--leader"
+            - "dbuf-0.dbuf"
             - "--bufsize"
             - "512"
           resources:

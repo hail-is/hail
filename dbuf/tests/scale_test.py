@@ -13,7 +13,7 @@ log = logging.getLogger('dbuf_scale_test')
 
 async def write(server, id, data, args, i):
     start = time.time()
-    async with dbuf.client.DBufClient(id, max_bufsize=args.bufsize*1024*1024-1) as client:
+    async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
         keys = []
         for i in range(args.reqs):
             keys += await client.append(data[i])
@@ -23,7 +23,7 @@ async def write(server, id, data, args, i):
 
 async def read(server, id, args, i, keys):
     start = time.time()
-    async with dbuf.client.DBufClient(id, max_bufsize=args.bufsize*1024*1024-1) as client:
+    async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
         data = await client.getmany(keys)
     return data, time.time() - start
 
@@ -47,6 +47,7 @@ def unzip(xys):
 
 async def main():
     parser = argparse.ArgumentParser(description='distributed buffer scale test')
+    parser.add_argument('cluster_leader', type=int, help='cluster leader name, e.g. dbuf-0.dbuf')
     parser.add_argument('n', type=int, help='number of clients')
     parser.add_argument('bufsize', type=int, help='bufsize in MB')
     parser.add_argument('size', type=int, help='number of bytes to send per request')
@@ -57,7 +58,7 @@ async def main():
     d = int(math.log10(n)) + 1
 
     start = time.time()
-    async with dbuf.client.DBufClient() as client:
+    async with dbuf.client.DBufClient(args.cluster_leader) as client:
         print(f'create')
         id = await client.create()
 
