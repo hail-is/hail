@@ -1522,9 +1522,6 @@ private class Emit(
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
 
-          Code._println("Info before LAPACK invocation"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", Region.loadInt(infoAddress)),
 //          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibrary.getClass, "getInstance").dgeqrf(
 //            mAddress,
 //            nAddress,
@@ -1589,7 +1586,6 @@ private class Emit(
 
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-
           val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, answerAddress, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
@@ -1605,7 +1601,6 @@ private class Emit(
 
           val result = Code(
             alwaysNeeded,
-            //ndAddress.load() // This is the wrong result, but I had to return something
             ifRaw
           )
 
