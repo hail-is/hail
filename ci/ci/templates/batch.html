@@ -10,44 +10,38 @@
       {% endif %}
     </div>
     <h2>Jobs</h2>
-    <table class="data-table" style="line-height: 175%">
-      <thead>
-        <tr>
-          <th>id</th>
-          <th>name</th>
-          <th>state</th>
-          <th>exit_code</th>
-          <th>duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in batch['jobs'] %}
-        <tr>
-          <td class="numeric-cell">
-	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-	  </td>
-          <td>{{ job['attributes']['name'] }}</td>
-          <td>{{ job['state'] }}</td>
-          <td>
-            {% if 'exit_code' in job and job['exit_code'] is not none %}
-            {% if job['exit_code'] == 0 %}
-            <span style="color: #55aa33;">
-              Success 🎉
-              {% else %}
-              <span style="color: #a93333;">
-                Failure 🤷‍♀️
-                {% endif %}
-                ({{ job['exit_code'] }})
-              </span>
+    <div class="data-table" role="grid">
+      <div class="headerrow" role="row">
+        <div class="headercell" role="gridcell">id</div>
+        <div class="headercell" role="gridcell">name</div>
+        <div class="headercell" role="gridcell">state</div>
+        <div class="headercell" role="gridcell">exit_code</div>
+        <div class="headercell" role="gridcell">duration</div>
+      </div>
+      {% for job in batch['jobs'] %}
+      <a class="row" role="row" href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">
+        <div class="numeric-cell" role="gridcell">{{ job['job_id'] }}</div>
+        <div class="cell" role="gridcell">{{ job['attributes']['name'] }}</div>
+        <div class="cell" role="gridcell">{{ job['state'] }}</div>
+        <div class="cell" role="gridcell">
+          {% if 'exit_code' in job and job['exit_code'] is not none %}
+          {% if job['exit_code'] == 0 %}
+          <span style="color: #55aa33;">
+            Success 🎉
+            {% else %}
+            <span style="color: #a93333;">
+              Failure 🤷‍♀️
               {% endif %}
-          </td>
-          <td>
+              ({{ job['exit_code'] }})
+            </span>
+            {% endif %}
+        </div>
+        <div class="cell" role="gridcell">
             {% if 'duration' in job and job['duration'] is not none %}
             {{ job['duration'] }}
             {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
 {% endblock %}

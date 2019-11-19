@@ -218,24 +218,42 @@ a {
 }
 
 .data-table {
-    min-width: 480px;
-    border-spacing: 2px;
-    thead {
-	color: $white;
-	background-color: #888;
+  line-height:140%;
+  display: table;
+  min-width: 480px;
+  border-spacing: 2px;
+  .headerrow {
+    display: table-row;
+	  color: $white;
+	  background-color: #888;
+    .headercell {
+      display: table-cell;
+      white-space: nowrap;
+	    padding: 3px 10px;
     }
-    th {
-        white-space: nowrap;
-	padding: 3px 10px;
+  }
+  a.row {
+    color:#000;
+    &:hover {
+      text-decoration:none;
     }
-    tr {
-        &:nth-child(even) {
-            background-color: #f2f2f2;
-        }
+  }
+  .row {
+    color:#000;
+    display: table-row;
+    &:nth-child(even) {
+      background-color: #f2f2f2;
     }
-    tbody tr:hover {
-        background-color: #ddd;
+    &:hover {
+      background-color: #ddd;
     }
+    .cell {
+      display: table-cell;
+    }
+    .numeric-cell {
+      display: table-cell;
+    }
+  }
 }
 
 .numeric-cell {

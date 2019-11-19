@@ -13,48 +13,46 @@
   <h2>Jobs</h2>
   <div class="searchbar-table">
     <input size=30 type="text" id="searchBar" onkeyup="searchTable('batch', 'searchBar')" placeholder="Search terms...">
-    <table class="data-table" id="batch">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>State</th>
-          <th>Exit Code</th>
-          <th>Duration</th>
-          <th>Cost</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in batch['jobs'] %}
-        <tr>
-          <td class="numeric-cell">
-	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-	  </td>
-          <td>
-            {% if 'attributes' in job and 'name' in job['attributes'] and job['attributes']['name'] is not none %}
-            {{ job['attributes']['name'] }}
+    <div class="data-table" role="grid">
+      <div class="headerrow" role="row">
+        <div class="headercell" role="gridcell">ID</div>
+        <div class="headercell" role="gridcell">Name</div>
+        <div class="headercell" role="gridcell">State</div>
+        <div class="headercell" role="gridcell">Exit Code</div>
+        <div class="headercell" role="gridcell">Duration</div>
+        <div class="headercell" role="gridcell">Cost</div>
+      </div>
+      {% for job in batch['jobs'] %}
+      <a class="row" role="row" href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">
+        <div class="numeric-cell" role="gridcell">{{ job['job_id'] }}</div>
+        <div class="cell" role="gridcell">{{ job['attributes']['name'] }}</div>
+        <div class="cell" role="gridcell">{{ job['state'] }}</div>
+        <div class="cell" role="gridcell">
+          {% if 'exit_code' in job and job['exit_code'] is not none %}
+          {% if job['exit_code'] == 0 %}
+          <span style="color: #55aa33;">
+            Success 🎉
+            {% else %}
+            <span style="color: #a93333;">
+              Failure 🤷‍♀️
+              {% endif %}
+              ({{ job['exit_code'] }})
+            </span>
             {% endif %}
-          </td>
-          <td>{{ job['state'] }}</td>
-          <td>
-	    {% if 'exit_code' in job and job['exit_code'] is not none %}
-	      {{ job['exit_code'] }}
-	    {% endif %}
-	  </td>
-          <td>
-	    {% if 'duration' in job and job['duration'] is not none %}
-	      {{ job['duration'] }}
-	    {% endif %}
-	  </td>
-          <td>
+        </div>
+        <div class="cell" role="gridcell">
+            {% if 'duration' in job and job['duration'] is not none %}
+            {{ job['duration'] }}
+            {% endif %}
+        </div>
+        <div class="cell" role="gridcell">
             {% if 'cost' in job and job['cost'] is not none %}
               {{ job['cost'] }}
             {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
   </div>
   <script type="text/javascript">
     document.getElementById("searchBar").focus();
