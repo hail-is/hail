@@ -47,7 +47,7 @@ def unzip(xys):
 
 async def main():
     parser = argparse.ArgumentParser(description='distributed buffer scale test')
-    parser.add_argument('cluster_leader', type=int, help='cluster leader name, e.g. dbuf-0.dbuf')
+    parser.add_argument('cluster_leader', type=str, help='cluster leader name, e.g. dbuf-0.dbuf')
     parser.add_argument('n', type=int, help='number of clients')
     parser.add_argument('bufsize', type=int, help='bufsize in MB')
     parser.add_argument('size', type=int, help='number of bytes to send per request')
