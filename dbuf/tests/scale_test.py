@@ -59,7 +59,6 @@ async def main():
 
     start = time.time()
     async with dbuf.client.DBufClient(args.cluster_leader) as client:
-        print(f'create')
         id = await client.create()
 
         workers = await client.get_workers()
