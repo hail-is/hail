@@ -814,7 +814,8 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
 
     val rvdType: RVDType = RVDType(inserter.pType, tv1.rvd.typ.key)
 
-    val (t2, makeF) = ir.Compile[Long, Long, Long](ctx,
+    val (t2, makeF) = ir.Compile[Long, Long, Long](
+      ctx,
       "left", tv1.rvd.typ.rowType,
       "right", tv2.rvd.typ.rowType,
       inserter)
@@ -1008,7 +1009,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     var scanSeqNeedsGlobals = false
     var rowIterationNeedsGlobals = false
 
-    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](ctx,
+    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
+      ctx,
       "global", gType,
       "global", gType,
       "row", tv.rvd.rowPType,
@@ -1020,7 +1022,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         seqOp
       })
 
-    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](ctx,
+    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
+      ctx,
       "global", tv.globals.t,
       "row", tv.rvd.rowPType,
       "SCANR", scanResultType,
@@ -1205,7 +1208,8 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     val prev = child.execute(ctx)
 
     val (_, l) = Compile[Long, Int](ctx, "row", prev.rvd.rowPType, length)
-    val (t, f) = Compile[Long, Int, Long](ctx,
+    val (t, f) = Compile[Long, Int, Long](
+      ctx,
       "row", prev.rvd.rowPType,
       idx.name, PInt32(),
       newRow)

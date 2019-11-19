@@ -811,7 +811,8 @@ class HailContext private(
       })
   }
 
-  def readRowsSplit(ctx: ExecuteContext,
+  def readRowsSplit(
+    ctx: ExecuteContext,
     pathRows: String,
     pathEntries: String,
     indexSpecRows: Option[AbstractIndexSpec],
