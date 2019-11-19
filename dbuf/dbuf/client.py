@@ -1,11 +1,9 @@
-import asyncio
 import aiohttp
 import collections
 import struct
 
 from hailtop.config import get_deploy_config
 
-from .logging import log
 from .retry_forever import retry_aiohttp_forever
 
 
@@ -30,7 +28,6 @@ class DBufClient:
                  name,
                  id=None,
                  max_bufsize=10*1024*1024 - 1,
-                 retry_delay=1,
                  deploy_config=None):
         if not deploy_config:
             deploy_config = get_deploy_config()
@@ -44,12 +41,13 @@ class DBufClient:
         self.sizes = []
         self.cursor = 0
         self.max_bufsize = max_bufsize
-        self.retry_delay = retry_delay
 
     async def create(self):
-        async with self.aiosession.post(f'{self.root_url}/s') as resp:
-            assert resp.status == 200
-            self.id = int(await resp.text())
+        def call():
+            async with self.aiosession.post(f'{self.root_url}/s') as resp:
+                assert resp.status == 200
+                self.id = int(await resp.text())
+        retry_aiohttp_forever(call)
         self.session_url = f'{self.root_url}/s/{self.id}'
         return self.id
 
@@ -68,43 +66,32 @@ class DBufClient:
     async def flush(self):
         if self.cursor == 0:
             return []
-        retry_delay = self.retry_delay
-        while True:
-            try:
-                buf = self.buf
-                offs = self.offs
-                sizes = self.sizes
-                cursor = self.cursor
-                self.buf = bytearray(self.max_bufsize)
-                self.offs = []
-                self.sizes = []
-                self.cursor = 0
-                async with self.aiosession.post(self.session_url, data=buf[0:cursor]) as resp:
-                    assert resp.status == 200
-                    server, file_id, pos, _ = await resp.json()
-                    return [(server, file_id, pos + off, size)
-                            for off, size in zip(offs, sizes)]
-            except (aiohttp.client_exceptions.ClientOSError,
-                    aiohttp.client_exceptions.ClientConnectorError) as exc:
+        buf = self.buf
+        offs = self.offs
+        sizes = self.sizes
+        cursor = self.cursor
+        self.buf = bytearray(self.max_bufsize)
+        self.offs = []
+        self.sizes = []
+        self.cursor = 0
 
-                log.info(f'backing off due to {exc}')
-                await asyncio.sleep(retry_delay)
-                retry_delay = retry_delay * 2
+        def call():
+            async with self.aiosession.post(self.session_url, data=buf[0:cursor]) as resp:
+                assert resp.status == 200
+                server, file_id, pos, _ = await resp.json()
+                return [(server, file_id, pos + off, size)
+                        for off, size in zip(offs, sizes)]
+        retry_aiohttp_forever(call)
 
-    async def get(self, key, retry_delay=1):
+    async def get(self, key):
         server = key[0]
-        while True:
-            try:
-                server_url = self.deploy_config.base_url(server)
-                async with self.aiosession.post(f'{server_url}/s/{self.id}/get', json=key) as resp:
-                    assert resp.status == 200
-                    return await resp.read()
-            except (aiohttp.client_exceptions.ClientResponseError,
-                    aiohttp.client_exceptions.ClientOSError,
-                    aiohttp.client_exceptions.ClientConnectorError) as exc:
-                log.warning(f'backing off due to {exc}')
-                await asyncio.sleep(retry_delay)
-                retry_delay = retry_delay * 2
+        server_url = self.deploy_config.base_url(server)
+
+        def call():
+            async with self.aiosession.post(f'{server_url}/s/{self.id}/get', json=key) as resp:
+                assert resp.status == 200
+                return await resp.read()
+        retry_aiohttp_forever(call)
 
     def decode(self, byte_array):
         off = 0
@@ -136,14 +123,14 @@ class DBufClient:
                     else:
                         break
 
-                async def http():
+                async def call():
                     async with self.aiosession.post(f'{server_url}/s/{self.id}/getmany',
                                                     json=[x[0] for x in batch]) as resp:
                         assert resp.status == 200
                         data = await resp.read()
                         for v, j in zip(self.decode(data), (x[1] for x in batch)):
                             results[j] = v
-                await retry_aiohttp_forever(http)
+                await retry_aiohttp_forever(call)
         return results
 
     async def delete(self):
