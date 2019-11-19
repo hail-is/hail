@@ -95,7 +95,8 @@ class DBufClient:
         server = key[0]
         while True:
             try:
-                async with self.aiosession.post(f'{server}/s/{self.id}/get', json=key) as resp:
+                server_url = self.deploy_config.base_url(server)
+                async with self.aiosession.post(f'{server_url}/s/{self.id}/get', json=key) as resp:
                     assert resp.status == 200
                     return await resp.read()
             except (aiohttp.client_exceptions.ClientResponseError,
@@ -121,6 +122,7 @@ class DBufClient:
         for i, key in enumerate(keys):
             servers[key[0]].append((key, i))
         for server, keys in servers.items():
+            server_url = self.deploy_config.base_url(server)
             i = 0
             while i < len(keys):
                 batch = []
@@ -135,7 +137,7 @@ class DBufClient:
                         break
 
                 async def http():
-                    async with self.aiosession.post(f'{server}/s/{self.id}/getmany',
+                    async with self.aiosession.post(f'{server_url}/s/{self.id}/getmany',
                                                     json=[x[0] for x in batch]) as resp:
                         assert resp.status == 200
                         data = await resp.read()
