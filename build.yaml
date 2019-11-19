@@ -1096,18 +1096,27 @@ steps:
    dependsOn:
     - service_base_image
  - kind: deploy
-   name: deploy_dbuf
+   name: _deploy_dbuf
    namespace:
      valueFrom: default_ns.name
    config: dbuf/deployment.yaml
-   wait:
-    - kind: Service
-      resource_type: statefulset
-      name: dbuf
-      for: alive
    dependsOn:
     - default_ns
     - dbuf_image
+ - kind: runImage
+   name: deploy_dbuf
+   dependsOn:
+     - _deploy_dbuf
+     - default_ns
+   image: gcr.io/hail-vdc/ci-utils:latest
+   script: |
+     set +e
+     kubectl -n {{ default_ns.name }} rollout status --timeout=1h statefulset dbuf
+     kubectl -n {{ default_ns.name }} wait --timeout=1h --for=condition=ready pods --selector=app=dbuf
+     EC=$?
+     kubectl -n {{ default_ns.name }} logs --tail=999999 -l app=dbuf
+     set -e
+     (exit $EC)
  - kind: buildImage
    name: dbuf_test_image
    dockerFile: dbuf/tests/Dockerfile
