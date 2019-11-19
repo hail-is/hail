@@ -167,6 +167,7 @@ class Server:
             web.delete('/s/{session}', self.delete),
             web.post('/w', self.post_worker),
             web.get('/w', self.get_workers),
+            web.get('/healthcheck', self.healthcheck),
         ])
         self.app.on_cleanup.append(self.cleanup)
 
@@ -272,6 +273,9 @@ class Server:
 
     async def get_workers(self, request):
         return web.json_response([self.name] + list(self.workers))
+
+    async def healthcheck(self, request):
+        return web.Response()
 
     async def cleanup(self, what):
         await self.dbuf.delete()
