@@ -1250,7 +1250,6 @@ steps:
     - test_batch
     - test_ci
     - test_pipeline
-# dbuf
  - kind: buildImage
    name: dbuf_image
    dockerFile: dbuf/Dockerfile
