@@ -199,7 +199,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: router-deployment
+  name: router
   labels:
     app: router
     hail.is/sha: "{{ code.sha }}"
