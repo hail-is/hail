@@ -444,7 +444,8 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     else if (pred == False())
       return tv.copy(rvd = RVD.empty(HailContext.get.sc, typ.canonicalRVDType))
 
-    val (rTyp, f) = ir.Compile[Long, Long, Boolean](ctx,
+    val (rTyp, f) = ir.Compile[Long, Long, Boolean](
+      ctx,
       "row", tv.rvd.rowPType,
       "global", tv.globals.t,
       pred)
