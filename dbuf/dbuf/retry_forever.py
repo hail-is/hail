@@ -1,5 +1,6 @@
 import asyncio
 import aiohttp
+import concurrent
 
 from .logging import log
 
@@ -26,7 +27,8 @@ async def retry_aiohttp_forever(f):
         try:
             await f()
             break
-        except (aiohttp.client_exceptions.ClientResponseError,
+        except (concurrent.futures._base.TimeoutError,
+                aiohttp.client_exceptions.ClientResponseError,
                 aiohttp.client_exceptions.ClientOSError,
                 aiohttp.client_exceptions.ClientConnectorError) as exc:
             log.warning(f'backing off due to {exc}')
