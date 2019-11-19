@@ -47,7 +47,7 @@ class DBufClient:
             async with self.aiosession.post(f'{self.root_url}/s') as resp:
                 assert resp.status == 200
                 self.id = int(await resp.text())
-        retry_aiohttp_forever(call)
+        await retry_aiohttp_forever(call)
         self.session_url = f'{self.root_url}/s/{self.id}'
         return self.id
 
@@ -81,7 +81,7 @@ class DBufClient:
                 server, file_id, pos, _ = await resp.json()
                 return [(server, file_id, pos + off, size)
                         for off, size in zip(offs, sizes)]
-        retry_aiohttp_forever(call)
+        return await retry_aiohttp_forever(call)
 
     async def get(self, key):
         server = key[0]
@@ -91,7 +91,7 @@ class DBufClient:
             async with self.aiosession.post(f'{server_url}/s/{self.id}/get', json=key) as resp:
                 assert resp.status == 200
                 return await resp.read()
-        retry_aiohttp_forever(call)
+        return await retry_aiohttp_forever(call)
 
     def decode(self, byte_array):
         off = 0
