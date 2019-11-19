@@ -27,6 +27,7 @@ class DBufClient:
         await self.aiosession.close()
 
     def __init__(self,
+                 name,
                  id=None,
                  max_bufsize=10*1024*1024 - 1,
                  retry_delay=1,
@@ -34,7 +35,7 @@ class DBufClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
         self.deploy_config = deploy_config
-        self.root_url = deploy_config.base_url('dbuf-0.dbuf')
+        self.root_url = deploy_config.base_url(name)
         self.session_url = None if id is None else f'{self.root_url}/s/{id}'
         self.aiosession = None
         self.id = id
@@ -85,6 +86,7 @@ class DBufClient:
                             for off, size in zip(offs, sizes)]
             except (aiohttp.client_exceptions.ClientOSError,
                     aiohttp.client_exceptions.ClientConnectorError) as exc:
+
                 log.info(f'backing off due to {exc}')
                 await asyncio.sleep(retry_delay)
                 retry_delay = retry_delay * 2
