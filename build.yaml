@@ -1116,7 +1116,7 @@ steps:
    image:
      valueFrom: dbuf_test_image.image
    script: |
-     python3 scale_test.py 10 1 40000 10000
+     python3 scale_test.py dbuf-0.dbuf 10 1 40000 10000
    resources:
      memory: "1G"
      cpu: "1"
