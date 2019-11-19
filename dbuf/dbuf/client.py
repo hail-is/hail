@@ -43,7 +43,7 @@ class DBufClient:
         self.max_bufsize = max_bufsize
 
     async def create(self):
-        def call():
+        async def call():
             async with self.aiosession.post(f'{self.root_url}/s') as resp:
                 assert resp.status == 200
                 self.id = int(await resp.text())
@@ -75,7 +75,7 @@ class DBufClient:
         self.sizes = []
         self.cursor = 0
 
-        def call():
+        async def call():
             async with self.aiosession.post(self.session_url, data=buf[0:cursor]) as resp:
                 assert resp.status == 200
                 server, file_id, pos, _ = await resp.json()
@@ -87,7 +87,7 @@ class DBufClient:
         server = key[0]
         server_url = self.deploy_config.base_url(server)
 
-        def call():
+        async def call():
             async with self.aiosession.post(f'{server_url}/s/{self.id}/get', json=key) as resp:
                 assert resp.status == 200
                 return await resp.read()
