@@ -422,6 +422,20 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, child.typ.key)),
           globalType = requestedType.globalType)
         memoizeTableIR(child, dep, memo)
+      case TableMapPartitions(child, name, body) =>
+        val reqRowsType = TStream(requestedType.rowType)
+        val bodyDep = memoizeValueIR(body, reqRowsType, memo)
+        val depRowType = bodyDep.eval.lookupOption(name) match {
+          case Some(ab) =>
+            unifySeq(child.typ.rowType, ab.result().map(_.asInstanceOf[TStreamable].elementType))
+          case None =>
+            minimal(child.typ.rowType)
+        }
+        val dep = TableType(
+          key = requestedType.key,
+          rowType = depRowType.asInstanceOf[TStruct],
+          globalType = requestedType.globalType)
+        memoizeTableIR(child, dep, memo)
       case TableMapRows(child, newRow) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val dep = TableType(
@@ -1276,6 +1290,10 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         val pred2 = rebuildIR(pred, BindingEnv(child2.typ.rowEnv), memo)
         TableFilter(child2, pred2)
+      case TableMapPartitions(child, name, body) =>
+        val child2 = rebuild(child, memo)
+        val body2 = rebuildIR(body, BindingEnv(Env(name -> TStream(child2.typ.rowType))), memo)
+        TableMapPartitions(child2, name, body2)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuildIR(newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)
