@@ -68,9 +68,6 @@ class Job:
     def status(self):
         return async_to_blocking(self._async_job.status())
 
-    def batch2_status(self):
-        return async_to_blocking(self._async_job.batch2_status())
-
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
