@@ -1407,3 +1407,116 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
                                 line_width=1.5))
 
     return p
+
+
+@typecheck(entry_field=expr_any, row_field=nullable(oneof(expr_numeric, expr_locus)), column_field=nullable(expr_str),
+           window=int, plot_width=int, plot_height=int)
+def visualize_missingness(entry_field, row_field=None, column_field=None,
+                          window=6000000, plot_width=1800, plot_height=900):
+    """Visualize missingness in a MatrixTable.
+
+    Inspired by `naniar <https://cran.r-project.org/web/packages/naniar/index.html>`__.
+
+    Row field is windowed by default, and missingness is aggregated over this window to generate a proportion defined.
+    This windowing is set to 6,000,000 by default, so that the human genome is divided into ~500 rows.
+    With ~2,000 columns, this function returns a sensibly-sized plot with this windowing.
+
+    Warning
+    -------
+    Generating a plot with more than ~1M points takes a long time for Bokeh to render. Consider windowing carefully.
+
+    Parameters
+    ----------
+    entry_field : :class:`.Expression`
+        Field for which to check missingness.
+    row_field : :class:`.NumericExpression` or :class:`.LocusExpression`
+        Row field to use for y-axis (can be windowed). If not provided, the row key will be used.
+    column_field : :class:`.StringExpression`
+        Column field to use for x-axis. If not provided, the column key will be used.
+    window : int
+        Size of window to summarize by ``row_field``. If set to None, each field will be used individually.
+    plot_width : int
+        Plot width in px.
+    plot_height : int
+        Plot height in px.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    mt = entry_field._indices.source
+    row_source = row_field._indices.source
+    column_source = column_field._indices.source
+    if mt is None or row_source is None or column_source is None:
+        raise ValueError("visualize_missingness expects expressions of 'MatrixTable', found scalar expression")
+    if isinstance(mt, hail.Table):
+        raise ValueError("visualize_missingness requires source to be MatrixTable, not Table")
+    if not column_field:
+        column_field = hail.str(mt.col_key)
+    if not row_field:
+        row_field = mt.row_key
+    locus = row_field.dtype == hail.tlocus
+    columns = column_field.collect()
+    if not (mt == row_source == column_source):
+        raise ValueError(f"visualize_missingness expects expressions from the same 'MatrixTable', "
+                         f"found {mt} and {row_source} and {column_source}")
+    # check_row_indexed('visualize_missingness', row_source)
+    if window:
+        if locus:
+            grouping = hail.locus_from_global_position(hail.int64(window) *
+                                                       hail.int64(row_field.global_position() / window))
+        else:
+            grouping = hail.int64(window) * hail.int64(row_field / window)
+        mt = mt.group_rows_by(
+            _new_row_key=grouping
+        ).partition_hint(100).aggregate(
+            is_defined=hail.agg.fraction(hail.is_defined(entry_field))
+        )
+    else:
+        mt = mt.select_rows(_new_row_key=row_field)
+        mt = mt.select_entries(is_defined=hail.is_defined(entry_field))
+    ht = mt.localize_entries('entry_fields', 'phenos')
+    ht = ht.select(entry_fields=ht.entry_fields.map(lambda entry: entry.is_defined))
+    data = ht.entry_fields.collect()
+    if len(data) > 200:
+        import warnings
+        warnings.warn(f'Missingness dataset has {len(data)} rows. '
+                      f'This may take {"a very long time" if len(data) > 1000 else "a few minutes"} to plot.')
+    rows = hail.str(ht._new_row_key).collect()
+
+    df = pd.DataFrame(data)
+    df = df.rename(columns=dict(enumerate(columns))).rename(index=dict(enumerate(rows)))
+    df.index.name = 'rows'
+    df.columns.name = 'columns'
+
+    df = pd.DataFrame(df.stack(), columns=['defined']).reset_index()
+
+    from bokeh.plotting import figure
+    p = figure(x_range=columns, y_range=list(reversed(rows)),
+               x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
+               toolbar_location='below',
+               tooltips=[('defined', '@defined')]
+               )
+
+    p.grid.grid_line_color = None
+    p.axis.axis_line_color = None
+    p.axis.major_tick_line_color = None
+    p.axis.major_label_text_font_size = "5pt"
+    p.axis.major_label_standoff = 0
+    colors = ["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"]
+    from bokeh.models import LinearColorMapper, ColorBar, BasicTicker, PrintfTickFormatter
+
+    mapper = LinearColorMapper(palette=colors, low=df.defined.min(), high=df.defined.max())
+
+    p.rect(x='columns', y='rows', width=1, height=1,
+           source=df,
+           fill_color={'field': 'defined', 'transform': mapper},
+           line_color=None)
+
+    color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size="5pt",
+                         ticker=BasicTicker(desired_num_ticks=len(colors)),
+                         formatter=PrintfTickFormatter(format="%d"),
+                         label_standoff=6, border_line_color=None, location=(0, 0))
+    p.add_layout(color_bar, 'right')
+    return p
+
