@@ -528,6 +528,10 @@ steps:
    dependsOn:
     - default_ns
     - router_image
+   wait:
+    - kind: Service
+      name: router
+      for: alive
  - kind: deploy
    name: deploy_site
    namespace:

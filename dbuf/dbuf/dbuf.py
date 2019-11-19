@@ -148,9 +148,7 @@ class DBuf:
 class Server:
     def __init__(self, name, binding_host, port, leader, dbuf, aiofiles):
         self.deploy_config = get_deploy_config()
-        self.app = self.deploy_config.prefix_application(
-            web.Application(client_max_size=50 * 1024 * 1024),
-            name)
+        self.app = web.Application(client_max_size=50 * 1024 * 1024)
         self.routes = web.RouteTableDef()
         self.workers = set()
         self.name = name
@@ -178,7 +176,8 @@ class Server:
         dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
         server = Server(name, binding_host, port, leader, dbuf, aiofiles)
         try:
-            runner = web.AppRunner(server.app)
+            prefixed_app = server.deploy_config.prefix_application(server.app, server.name)
+            runner = web.AppRunner(prefixed_app)
             await runner.setup()
             site = web.TCPSite(runner, host=server.binding_host, port=server.port)
             await site.start()
