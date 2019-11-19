@@ -311,8 +311,7 @@ def copy_command(src, dst):
 
 
 def copy(files):
-    if files is None:
-        return 'true'
+    assert files
 
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'''
@@ -398,10 +397,9 @@ class Job:
         # create containers
         containers = {}
 
-        # FIXME
-        # if input_files:
-        containers['input'] = copy_container(
-            self, 'input', input_files, copy_volume_mounts)
+        if input_files:
+            containers['input'] = copy_container(
+                self, 'input', input_files, copy_volume_mounts)
 
         # main container
         main_spec = {
@@ -414,10 +412,9 @@ class Job:
         }
         containers['main'] = Container(self, 'main', main_spec)
 
-        # FIXME
-        # if output_files:
-        containers['output'] = copy_container(
-            self, 'output', output_files, copy_volume_mounts)
+        if output_files:
+            containers['output'] = copy_container(
+                self, 'output', output_files, copy_volume_mounts)
 
         self.containers = containers
 
@@ -443,14 +440,13 @@ class Job:
 
             self.state = 'running'
 
-            log.info(f'{self}: running input')
+            input = self.containers.get('input')
+            if input:
+                log.info(f'{self}: running input')
+                await input.run(worker)
+                log.info(f'{self} input: {input.state}')
 
-            input = self.containers['input']
-            await input.run(worker)
-
-            log.info(f'{self} input: {input.state}')
-
-            if input.state == 'succeeded':
+            if not input or input.state == 'succeeded':
                 log.info(f'{self}: running main')
 
                 main = self.containers['main']
@@ -458,20 +454,18 @@ class Job:
 
                 log.info(f'{self} main: {main.state}')
 
-                log.info(f'{self}: running output')
-
-                output = self.containers['output']
-                await output.run(worker)
-
-                log.info(f'{self} output: {output.state}')
+                output = self.containers.get('output')
+                if output:
+                    log.info(f'{self}: running output')
+                    await output.run(worker)
+                    log.info(f'{self} output: {output.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
+                elif output:
+                    self.state = output.state
                 else:
-                    if output:
-                        self.state = output.state
-                    else:
-                        self.state = 'succeeded'
+                    self.state = 'succeeded'
             else:
                 self.state = input.state
         except Exception:
