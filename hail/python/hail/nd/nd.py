@@ -191,7 +191,14 @@ def ones(shape, dtype=hl.tfloat64):
 
 # Lapack stuff
 
-def qr(nd, mode = "reduced"):
+def qr(nd, mode="reduced"):
+    if mode not in ["reduced", "r", "raw", "complete"]:
+        raise ValueError("Mode not recognized")
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArrayQR(float_nd._ir, mode)
-    return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
+    if (mode == "raw"):
+        return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
+    elif (mode == "r"):
+        return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
+    else:
+        return None

@@ -1467,17 +1467,6 @@ private class Emit(
         // Have to copy the data into the space where the answer should go, since QR just overrwrites its input
         // Have to allocate a buffer of workspace.
 
-        // Contains M, N, LDA, LWORK, INFO
-//        val tempStoragePType = PTuple(PInt32(), PInt32(), PInt32(), PInt32(), PInt32())
-//        val tempStorageSrvb = new StagedRegionValueBuilder(mb, tempStoragePType, region)
-//
-//        val tempStorageTuple = new CodePTuple(tempStoragePType, region, tempStorageSrvb.offset)
-//        val mAddress = tempStorageTuple.fieldOffset(0)
-//        val nAddress = tempStorageTuple.fieldOffset(1)
-//        val ldaAddress = tempStorageTuple.fieldOffset(2)
-//        val lworkAddress = tempStorageTuple.fieldOffset(3)
-//        val infoAddress = tempStorageTuple.fieldOffset(4)
-
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
@@ -1488,19 +1477,6 @@ private class Emit(
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
-
-//          // Set up the primitive arguments
-//          tempStorageSrvb.start(),
-//          tempStorageSrvb.addInt(M.toI),
-//          tempStorageSrvb.advance(),
-//          tempStorageSrvb.addInt(N.toI),
-//          tempStorageSrvb.advance(),
-//          tempStorageSrvb.addInt(LDA.toI),
-//          tempStorageSrvb.advance(),
-//          tempStorageSrvb.addInt(LWORK), //TODO LWORK should be negative 1 to request, for now it's just big.
-//          tempStorageSrvb.advance(),
-//          tempStorageSrvb.addInt(1), // Storing a 1, it will get overriden, just needed some not possible info code.
-//          tempStorageSrvb.advance(),
 
           Code._println("answerNumElements.toI"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
@@ -1521,16 +1497,7 @@ private class Emit(
 
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
-
-//          Code.invokeScalaObject[LAPACKLibrary](LAPACKLibrary.getClass, "getInstance").dgeqrf(
-//            mAddress,
-//            nAddress,
-//            ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0),
-//            ldaAddress,
-//            tauPType.elementOffset(tauAddress, K.toI, 0),
-//            workAddress,
-//            lworkAddress,
-//            infoAddress),
+          
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
@@ -1567,14 +1534,14 @@ private class Emit(
           def hShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
             Code(
               srvb.start(),
-              srvb.addLong(N),
-              srvb.advance(),
               srvb.addLong(M),
+              srvb.advance(),
+              srvb.addLong(N),
               srvb.advance()
             )
           }
 
-          val hStridesBuilder = hPType.makeDefaultStridesBuilder(Array(N, M), mb)
+          val hStridesBuilder = hPType.makeDefaultStridesBuilder(Array(M, N), mb)
 
           def tauShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
             Code(
@@ -1605,8 +1572,58 @@ private class Emit(
           )
 
           EmitTriplet(ndt.setup, ndt.m, result)
-        } else {
-          throw new IllegalArgumentException("Only support raw")
+        }
+        else {
+          if (mode == "r") {
+            // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner and call it a day.
+            val rPType = x.pType.asInstanceOf[PNDArray]
+
+            def rShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+              Code(
+                srvb.start(),
+                srvb.addLong(M),
+                srvb.advance(),
+                srvb.addLong(N),
+                srvb.advance()
+              )
+            }
+            val rStridesBuilder = rPType.makeDefaultStridesBuilder(Array(M, N), mb)
+
+            val currRow = mb.newField[Int]
+            val currCol = mb.newField[Int]
+            val zeroOutCorner = Code(
+              currRow := 0,
+              Code.whileLoop(currRow < M.toI,
+                currCol := 0,
+                Code.whileLoop(currCol < N.toI,
+                  Code._println("In the loop"),
+                  Code._println(const("currRow = ").concat(currRow.toS)),
+                  Code._println(const("currCol = ").concat(currCol.toS)),
+                  (currRow > currCol).orEmpty(
+                    Code(Code._println("Zero this guy out"),
+                    // TODO Not row / column major agnostic!
+                    Region.storeDouble(ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI,
+                      currRow * N.toI + currCol), 0.0))
+                  ),
+                  currCol := currCol + 1
+                ),
+                currRow := currRow + 1,
+                Code._println(const("Incremented currRow, now it's ").concat(currRow.toS))
+              )
+            )
+
+            // Now I have the code to zero out a corner. I should run that code, then return only A.
+            val result = Code(
+              alwaysNeeded,
+              zeroOutCorner,
+              rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, answerAddress, mb)
+            )
+
+            EmitTriplet(ndt.setup, ndt.m, result)
+          }
+          else {
+            throw new IllegalArgumentException("Only support raw and R")
+          }
         }
 
 
