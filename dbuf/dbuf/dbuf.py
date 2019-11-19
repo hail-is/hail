@@ -223,7 +223,10 @@ class Server:
                     assert resp.status == 200
                     text = resp.text()
                     assert await text == f'{session_id}', f'{text}, {session_id}'
+                    log.info(f'successfully created shuffle on {worker}')
+            log.info(f'getting shuffle lock for {session_id}')
             async with self.shuffle_create_lock:
+                log.info(f'creating shuffle {session_id} on workers {self.workers}')
                 await asyncio.gather(*[call(worker) for worker in self.workers])
         log.info(f'created {session_id}')
         return web.json_response(session_id)
