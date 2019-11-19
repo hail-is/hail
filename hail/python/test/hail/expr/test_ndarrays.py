@@ -528,12 +528,17 @@ def test_ndarray_qr():
         assert np.allclose(ndarray_h, np_ndarray_h)
         assert np.allclose(ndarray_tau, np_ndarray_tau)
 
+    def assert_r_equivalence(hl_ndarray, np_ndarray):
+        assert np.allclose(hl.eval(hl._nd.qr(hl_ndarray, mode="r")), np.linalg.qr(np_ndarray, mode="r"))
+
     np_identity4 = np.identity(4)
-    identity4 = hl._ndarray(np_identity4)
+    identity4 = hl._nd.array(np_identity4)
 
     assert_raw_equivalence(identity4, np_identity4)
+    assert_r_equivalence(identity4, np_identity4)
 
     np_all3 = np.full((3, 3), 3)
     all3 = hl._nd.full((3, 3), 3)
 
     assert_raw_equivalence(all3, np_all3)
+    assert_r_equivalence(all3, np_all3)

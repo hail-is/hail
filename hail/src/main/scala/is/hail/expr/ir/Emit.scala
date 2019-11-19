@@ -1497,7 +1497,7 @@ private class Emit(
 
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
-          
+
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
