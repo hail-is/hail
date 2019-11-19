@@ -442,6 +442,120 @@ class VCFTests(unittest.TestCase):
         assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
                          hl.Struct(GL=[None, None, None], GP=[None, None, None])]
 
+    def test_same_bgzip(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        f = new_temp_file(suffix='vcf.bgz')
+        hl.export_vcf(mt, f)
+        assert hl.import_vcf(f)._same(mt)
+
+    def test_sorted(self):
+        mt = hl.utils.range_matrix_table(10, 10).filter_cols(False)
+        mt = mt.key_cols_by(s='dummy')
+        mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(0))
+        mt = mt.key_rows_by(locus=hl.locus('1', 100 - mt.row_idx), alleles=['A', 'T'])
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f)
+
+        last = 0
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('#'):
+                    continue
+                else:
+                    pos = int(line.split('\t')[1])
+                    assert pos >= last
+                    last = pos
+
+    def test_empty_read_write(self):
+        mt = hl.import_vcf(resource('sample.vcf')).filter_rows(False)
+
+        out1 = new_temp_file(suffix='vcf')
+        out2 = new_temp_file(suffix='vcf.bgz')
+
+        hl.export_vcf(mt, out1)
+        hl.export_vcf(mt, out2)
+
+        assert os.stat(uri_path(out1)).st_size > 0
+        assert os.stat(uri_path(out2)).st_size > 0
+
+        assert hl.import_vcf(out1)._same(mt)
+        assert hl.import_vcf(out2)._same(mt)
+
+    def test_format_header(self):
+        mt = hl.import_vcf(resource('sample2.vcf'))
+        metadata = hl.get_vcf_metadata(resource('sample2.vcf'))
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f, metadata=metadata)
+
+        s = set()
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('##FORMAT'):
+                    s.add(line.strip())
+
+        assert s == {
+            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+            '##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">',
+            '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">',
+            '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">',
+            '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">',
+        }
+
+    def test_format_genotypes(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f)
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('20\t13029920'):
+                    expected = "GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" \
+                               "1/1:0,4:4:12:163,12,0\t1/1:0,12:12:36:479,36,0\t" \
+                               "1/1:0,4:4:12:149,12,0\t1/1:0,6:6:18:232,18,0\t" \
+                               "1/1:0,6:6:18:242,18,0\t1/1:0,3:3:9:119,9,0\t1/1:0,9:9:27:374,27,0" \
+                               "\t./.:1,0:1\t1/1:0,3:3:9:133,9,0"
+                    assert expected in line
+                    break
+            else:
+                assert False, 'expected pattern not found'
+
+    def test_contigs_header(self):
+        mt = hl.import_vcf(resource('sample.vcf')).filter_cols(False)
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f)
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('##contig=<ID=10'):
+                    assert line.strip() == '##contig=<ID=10,length=135534747,assembly=GRCh37>'
+                    break
+            else:
+                assert False, 'expected pattern not found'
+
+    def test_metadata_argument(self):
+        mt = hl.import_vcf(resource('multipleChromosomes.vcf'))
+        f = new_temp_file(suffix='vcf')
+        metadata = {
+            'filter': {'LowQual': {'Description': 'Low quality'}},
+            'format': {'GT': {'Description': 'Genotype call.', 'Number': 'foo'}},
+            'fakeField': {}
+        }
+        hl.export_vcf(mt, f, metadata=metadata)
+
+        saw_gt = False
+        saw_lq = False
+        with open(uri_path(f), 'r') as f:
+            for line in f:
+                print(line[:25])
+                if line.startswith('##FORMAT=<ID=GT'):
+                    assert line.strip() == '##FORMAT=<ID=GT,Number=foo,Type=String,Description="Genotype call.">'
+                    assert not saw_gt
+                    saw_gt = True
+                elif line.startswith('##FILTER=<ID=LowQual'):
+                    assert line.strip() == '##FILTER=<ID=LowQual,Description="Low quality">'
+                    assert not saw_lq
+                    saw_lq = True
+        assert saw_gt
+        assert saw_lq
+
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):
