@@ -432,4 +432,49 @@ class TableIRSuite extends HailSuite {
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))
   }
+
+  @Test def testTableMapPartitions() {
+    implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
+
+    val rowType = TStruct("idx" -> TInt32())
+    val row2Type = TStruct("str" -> TString())
+
+    val table = TableKeyBy(TableRange(20, nPartitions = 4), IndexedSeq(), false)
+    val part = Ref("part", TStream(rowType))
+    val row = Ref("row", rowType)
+    val acc = Ref("acc", rowType)
+
+    assertEvalsTo(
+      collect(
+        TableMapPartitions(table, "part",
+          ArrayFlatMap(
+            ArrayMap(part, "row", MakeStruct(Seq("str" -> Str("world")))),
+            "row2",
+            MakeStream(Seq(
+              MakeStruct(Seq("str" -> Str("Hello"))),
+              MakeStruct(Seq("str" -> GetField(Ref("row2", row2Type), "str")))
+            ), TStream(row2Type))))
+      ),
+      Row(IndexedSeq.tabulate(40) { i =>
+        Row(if (i % 2 == 0) "Hello" else "world")
+      }, Row()))
+
+    assertEvalsTo(
+      collect(
+        TableMapPartitions(table, "part",
+          // replace every row in partition with the first row
+          ArrayFilter(
+            ArrayScan(part,
+              NA(rowType),
+              "acc", "row",
+              If(IsNA(acc), row, acc)),
+            "row",
+            !IsNA(row)))
+      ),
+      Row(IndexedSeq.tabulate(20) { i =>
+        // 0,1,2,3,4,5,6,7,8,9,... ==>
+        // 0,0,0,0,0,5,5,5,5,5,...
+        Row((i / 5) * 5)
+      }, Row()))
+  }
 }
