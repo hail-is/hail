@@ -39,7 +39,7 @@ spec:
             - "--hostname"
             - "$(POD_NAME).dbuf.{{ default_ns.name }}.svc.cluster.local:80"
             - "--leader-url"
-            - "http://dbuf-0.dbuf.{{ default_ns.name }}.svc.cluster.local:80/{{ default_ns.name }}/dbuf-0.dbuf"
+            - "http://dbuf-0.dbuf.{{ default_ns.name }}:80/{{ default_ns.name }}/dbuf-0.dbuf"
             - "--bufsize"
             - "512"
           resources:
