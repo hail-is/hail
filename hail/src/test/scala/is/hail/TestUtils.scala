@@ -1,13 +1,13 @@
 package is.hail
 
-import java.io.{PrintWriter, File}
+import java.io.{File, PrintWriter}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
-import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.expr.types.virtual._
