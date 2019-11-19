@@ -1353,13 +1353,13 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   private val blockSize = originalGP.blockSize
   @transient private val tempDenseGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
 
-  private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
+  @transient private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockRowRanges(keepRows, originalGP, tempDenseGP)
 
-  private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
+  @transient private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockColRanges(keepCols, originalGP, tempDenseGP)
 
-  private val originalMaybeBlocksSet = originalGP.maybeBlocks.map(_.toSet)
+  @transient private val originalMaybeBlocksSet = originalGP.maybeBlocks.map(_.toSet)
 
   private val blockParentMap = (0 until tempDenseGP.numPartitions).map {blockId =>
     val (newBlockRow, newBlockCol) = tempDenseGP.blockCoordinates(blockId)
@@ -1377,8 +1377,8 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
     (blockId, filteredParents)
   }.filter{case (_, parents) => !parents.isEmpty}.toMap
 
-  private val blockIndices = blockParentMap.keys.toArray.sorted
-  private val newGPMaybeBlocks: Option[Array[Int]] = if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
+  @transient private val blockIndices = blockParentMap.keys.toArray.sorted
+  @transient private val newGPMaybeBlocks: Option[Array[Int]] = if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(maybeBlocks = newGPMaybeBlocks)
 
   log.info(s"Finished constructing block matrix filter RDD. Total time ${(System.nanoTime() - t0).toDouble / 1000000000}")
