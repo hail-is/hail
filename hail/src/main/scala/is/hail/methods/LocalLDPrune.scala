@@ -276,15 +276,12 @@ object LocalLDPrune {
     })
   }
 
-  def apply(mt: MatrixTable,
+  def apply(ctx: ExecuteContext,
+    mt: MatrixValue,
     callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
-  ): Table = {
+  ): TableValue = {
     val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
-
-    ExecuteContext.scoped { ctx =>
-      new Table(HailContext.get,
-        TableLiteral(pruner.execute(ctx, Interpret(mt.lit, ctx, optimize = false).toMatrixValue(mt.colKey)), ctx))
-    }
+    pruner.execute(ctx, mt)
   }
 }
 
