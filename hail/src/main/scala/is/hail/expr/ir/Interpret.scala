@@ -45,34 +45,18 @@ object Interpret {
     aggArgs: Option[Agg],
     optimize: Boolean = true
   ): T = {
-    val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
-      case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
-    }
+    val rwIR = env.m.foldLeft[IR](ir0) { case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc) }
 
-    var ir = ir0.unwrap
+    val lowered = LoweringPipeline.relationalLowerer.apply(ctx, rwIR, optimize).asInstanceOf[IR]
 
-    def optimizeIR(context: String) {
-      ir = Optimize(ir, noisy = true, context = context, ctx)
-      TypeCheck(ir, BindingEnv(typeEnv, agg = aggArgs.map { agg =>
-        agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
-          env.bind(f.name, f.typ)
-        }
-      }))
-    }
-
-    if (optimize) optimizeIR("Interpret, first pass")
-    ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR("Interpret, after lowering MatrixIR")
-    ir = InterpretNonCompilable(ctx, ir).asInstanceOf[IR]
-
-    val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty).asInstanceOf[T]
+    val result = run(ctx, lowered, Env.empty[Any], args, aggArgs, None, Memo.empty).asInstanceOf[T]
 
     result
   }
 
-  def alreadyLowered(ctx: ExecuteContext, ir: IR): Any = apply(ctx, ir, Env.empty, FastIndexedSeq(), None, None, Memo.empty)
+  def alreadyLowered(ctx: ExecuteContext, ir: IR): Any = run(ctx, ir, Env.empty, FastIndexedSeq(), None, None, Memo.empty)
 
-  private def apply(ctx: ExecuteContext,
+  private def run(ctx: ExecuteContext,
     ir: IR,
     env: Env[Any],
     args: IndexedSeq[(Any, Type)],
@@ -80,7 +64,7 @@ object Interpret {
     aggregator: Option[TypedAggregator[Any]],
     functionMemo: Memo[(PType, AsmFunction3[Region, Long, Boolean, Long])]): Any = {
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, aggArgs: Option[Agg] = aggArgs, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
-      apply(ctx, ir, env, args, aggArgs, aggregator, functionMemo)
+      run(ctx, ir, env, args, aggArgs, aggregator, functionMemo)
 
     ir match {
       case I32(x) => x
