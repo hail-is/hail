@@ -4,16 +4,6 @@ import struct
 
 from hailtop.config import get_deploy_config
 
-from .retry_forever import retry_aiohttp_forever
-
-
-def grouped(xs, size):
-    n = len(xs)
-    i = 0
-    while i < n:
-        yield xs[i:(i+size)]
-        i += size
-
 
 class DBufClient:
     async def __aenter__(self):
