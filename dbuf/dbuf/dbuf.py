@@ -3,7 +3,6 @@ import aiohttp.web as web
 import argparse
 import asyncio
 import concurrent
-import multiprocessing as mp
 import os
 import shutil
 import signal
@@ -15,14 +14,6 @@ from hailtop.config import get_deploy_config
 from . import aiofiles as af
 from .logging import log
 from .retry_forever import retry_forever
-
-
-def grouped(xs, size):
-    n = len(xs)
-    i = 0
-    while i < n:
-        yield xs[i:(i+size)]
-        i += size
 
 
 class Session:
@@ -184,14 +175,14 @@ class Server:
             await site.start()
             log.info(f'server {server.name} bound to {server.binding_host}:{server.port}')
             if server.leader != server.name:
-                async def call():
+                async def join_cluster():
                     async with ah.ClientSession(raise_for_status=True,
                                                 timeout=ah.ClientTimeout(total=60)) as cs:
                         async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
                 await retry_forever(
-                    call,
+                    join_cluster,
                     lambda exc: f'could not join cluster with leader {server.leader} at {server.leader_url} due to {exc}')
             while True:
                 await asyncio.sleep(1 << 16)
