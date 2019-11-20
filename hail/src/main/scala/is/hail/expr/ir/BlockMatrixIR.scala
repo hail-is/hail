@@ -237,11 +237,11 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     left match {
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR,inIndexExpr, _, _) =>
+      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(x), _, _) =>
         val vector = coerceToVector(ctx , vectorIR)
-        inIndexExpr match {
-          case IndexedSeq(1) => rowVectorOnLeft(ctx, vector, right, f)
-          case IndexedSeq(0) => colVectorOnLeft(ctx, vector, right, f)
+        x match {
+          case 1 => rowVectorOnLeft(ctx, vector, right, f)
+          case 0 => colVectorOnLeft(ctx, vector, right, f)
         }
       case _ =>
         matrixOnLeft(ctx, left.execute(ctx), right, f)
@@ -256,12 +256,12 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
 
   private def matrixOnLeft(ctx: ExecuteContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(vectorIR, inIndexExpr, _, _) =>
-        inIndexExpr match {
-          case IndexedSeq(1) =>
+      case BlockMatrixBroadcast(vectorIR, IndexedSeq(x), _, _) =>
+        x match {
+          case 1 =>
             val rightAsRowVec = coerceToVector(ctx, vectorIR)
             opWithRowVector(matrix, rightAsRowVec, f, reverse = false)
-          case IndexedSeq(0) =>
+          case 0 =>
             val rightAsColVec = coerceToVector(ctx, vectorIR)
             opWithColVector(matrix, rightAsColVec, f, reverse = false)
         }
