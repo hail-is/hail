@@ -1485,3 +1485,21 @@ class Tests(unittest.TestCase):
         mt2 = hl.read_matrix_table(tmp)
         assert mt2.n_partitions() == len(parts)
         assert hl.filter_intervals(mt, parts)._same(mt2)
+
+    def test_overwrite(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        f = new_temp_file(suffix='mt')
+        mt.write(f)
+
+        with pytest.raises(hl.utils.FatalError, match= "file already exists"):
+            mt.write(f)
+
+        mt.write(f, overwrite=True)
+
+    def test_invalid_metadata(self):
+        with pytest.raises(hl.utils.FatalError, match='metadata does not contain file version'):
+            hl.read_matrix_table(resource('0.1-1fd5cc7.vds'))
+
+    def test_legacy_files_with_required_globals(self):
+        hl.read_table(resource('required_globals.ht'))._force_count()
+        hl.read_matrix_table(resource('required_globals.mt'))._force_count_rows()

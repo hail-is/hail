@@ -173,245 +173,14 @@ object MatrixTable {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable =
     new MatrixTable(hc, MatrixIR.read(hc, path, dropCols, dropRows, None))
 
-  def fromLegacy[T](
-    hc: HailContext,
-    matrixType: MatrixType,
-    globals: Annotation,
-    colValues: IndexedSeq[Annotation],
-    rdd: RDD[(Annotation, Iterable[T])],
-    ctx: ExecuteContext
-  ): MatrixTable = {
-
-    val localGType = matrixType.entryType
-    val tt = matrixType.canonicalTableType
-    val localRVDType= tt.canonicalRVDType
-    val localRVRowType = tt.canonicalRVDType.rowType
-
-    val localNCols = colValues.length
-
-    val ds = new MatrixTable(hc, matrixType,
-      globals.asInstanceOf[Row],
-      colValues.asInstanceOf[IndexedSeq[Row]],
-      RVD.coerce(
-        localRVDType,
-        ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
-          val region = ctx.region
-          val rvb = new RegionValueBuilder(region)
-          val rv = RegionValue(region)
-
-
-          it.map { case (va, gs) =>
-            val vaRow = va.asInstanceOf[Row]
-            assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
-
-            rvb.start(localRVRowType)
-            rvb.startStruct()
-            var i = 0
-            while (i < vaRow.length) {
-              rvb.addAnnotation(localRVRowType.types(i).virtualType, vaRow.get(i))
-              i += 1
-            }
-            rvb.startArray(localNCols) // gs
-            gs.foreach { g => rvb.addAnnotation(localGType, g) }
-            rvb.endArray() // gs
-            rvb.endStruct()
-            rv.setOffset(rvb.end())
-
-            rv
-          }
-        },
-        ctx))
-    ds
-  }
-
   def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixTable =
     if (nRows == 0) {
       new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions, dropRows=true))
     } else
       new MatrixTable(hc, MatrixIR.range(hc, nRows, nCols, nPartitions))
-
-  def gen(hc: HailContext, gen: VSMSubgen, ctx: ExecuteContext): Gen[MatrixTable] =
-    gen.gen(hc, ctx)
-
-  def fromRowsTable(kt: Table): MatrixTable = {
-    val matrixType = MatrixType(
-      kt.globalSignature,
-      Array.empty[String],
-      TStruct.empty(),
-      kt.key,
-      kt.signature,
-      TStruct.empty())
-
-    val rvRowType = matrixType.canonicalTableType.canonicalRVDType.rowType
-    val oldRowType = kt.rvd.rowPType
-
-    val rvd = kt.rvd.mapPartitions(matrixType.canonicalTableType.canonicalRVDType) { it =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-
-      it.map { rv =>
-        rvb.set(rv.region)
-        rvb.start(rvRowType)
-        rvb.startStruct()
-        rvb.addAllFields(oldRowType, rv)
-        rvb.startArray(0) // gs
-        rvb.endArray()
-        rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-        rv2
-      }
-    }
-
-    val colValues = IndexedSeq()
-
-    new MatrixTable(kt.hc, matrixType, kt.globals, colValues, rvd)
-  }
-}
-
-case class VSMSubgen(
-  sSigGen: Gen[Type],
-  saSigGen: Gen[TStruct],
-  vSigGen: Gen[Type],
-  rowPartitionKeyGen: (Type) => Gen[Array[String]],
-  vaSigGen: Gen[TStruct],
-  globalSigGen: Gen[TStruct],
-  tSigGen: Gen[TStruct],
-  sGen: (Type) => Gen[Annotation],
-  saGen: (TStruct) => Gen[Annotation],
-  vaGen: (TStruct) => Gen[Annotation],
-  globalGen: (TStruct) => Gen[Annotation],
-  vGen: (Type) => Gen[Annotation],
-  tGen: (TStruct, Annotation) => Gen[Annotation]) {
-
-  def gen(hc: HailContext, ctx: ExecuteContext): Gen[MatrixTable] =
-    for {
-      size <- Gen.size
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8)
-
-      vSig <- vSigGen.resize(3)
-      rowPartitionKey <- rowPartitionKeyGen(vSig)
-      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
-      sSig <- sSigGen.resize(3)
-      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3)
-      globalSig <- globalSigGen.resize(5)
-      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3)
-      global <- globalGen(globalSig).resize(25)
-      nPartitions <- Gen.choose(1, 10)
-
-      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-        .map(ids => ids.distinct)
-      nSamples = sampleIds.length
-      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5))
-      rows <- Gen.buildableOfN[Array](l,
-        for {
-          v <- vGen(vSig).resize(3)
-          va <- vaGen(vaSig).resize(5)
-          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3))
-        } yield (v, (va, ts: Iterable[Annotation])))
-    } yield {
-      assert(sampleIds.forall(_ != null))
-      val (finalSASig, sIns) = saSig.structInsert(sSig, List("s"))
-
-      val (finalVASig, vaIns, finalRowPartitionKey, rowKey) =
-        vSig match {
-          case vSig: TStruct =>
-            val (finalVASig, vaIns) = vaSig.annotate(vSig)
-            (finalVASig, vaIns, rowPartitionKey, vSig.fieldNames)
-          case _ =>
-            val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
-            (finalVASig, vaIns, Array("v"), Array("v"))
-        }
-
-      MatrixTable.fromLegacy(
-        hc,
-        MatrixType(globalSig, Array("s"), finalSASig, rowKey, finalVASig, tSig),
-        global,
-        sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
-        hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
-          (vaIns(va, v), gs)
-        }, nPartitions),
-        ctx)
-        .distinctByRow()
-    }
-}
-
-object VSMSubgen {
-  val random = VSMSubgen(
-    sSigGen = Gen.const(TString()),
-    saSigGen = Type.genInsertable,
-    vSigGen = ReferenceGenome.gen.map(rg =>
-      TStruct(
-        "locus" -> TLocus(rg),
-        "alleles" -> TArray(TString()))),
-    rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
-    vaSigGen = Type.genInsertable,
-    globalSigGen = Type.genInsertable.map(_.setRequired(false).asInstanceOf[TStruct]),
-    tSigGen = Gen.const(Genotype.htsGenotypeType),
-    sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
-    saGen = (t: Type) => t.genValue,
-    vaGen = (t: Type) => t.genValue,
-    globalGen = (t: Type) => t.genNonmissingValue,
-    vGen = (t: Type) => {
-      val rg = t.asInstanceOf[TStruct]
-        .field("locus")
-        .typ
-        .asInstanceOf[TLocus]
-        .rg.asInstanceOf[ReferenceGenome]
-      VariantSubgen.random(rg).genLocusAlleles
-    },
-    tGen = (t: Type, v: Annotation) => Genotype.genExtreme(
-      v.asInstanceOf[Row]
-        .getAs[IndexedSeq[String]](1)
-        .length))
-
-  val plinkSafeBiallelic: VSMSubgen = random.copy(
-    vSigGen = Gen.const(TStruct(
-      "locus" -> TLocus(ReferenceGenome.GRCh37),
-      "alleles" -> TArray(TString()))),
-    sGen = (t: Type) => Gen.plinkSafeIdentifier,
-    vGen = (t: Type) => VariantSubgen.plinkCompatibleBiallelic(ReferenceGenome.GRCh37).genLocusAlleles)
-
-  val callAndProbabilities = VSMSubgen(
-    sSigGen = Gen.const(TString()),
-    saSigGen = Type.genInsertable,
-    vSigGen = Gen.const(
-      TStruct(
-        "locus" -> TLocus(ReferenceGenome.GRCh37),
-        "alleles" -> TArray(TString()))),
-    rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
-    vaSigGen = Type.genInsertable,
-    globalSigGen = Type.genInsertable,
-    tSigGen = Gen.const(TStruct(
-      "GT" -> TCall(),
-      "GP" -> TArray(TFloat64()))),
-    sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
-    saGen = (t: Type) => t.genValue,
-    vaGen = (t: Type) => t.genValue,
-    globalGen = (t: Type) => t.genValue,
-    vGen = (t: Type) => VariantSubgen.random(ReferenceGenome.GRCh37).genLocusAlleles,
-    tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(
-      v.asInstanceOf[Row]
-        .getAs[IndexedSeq[String]](1)
-        .length))
-
-  val realistic = random.copy(
-    tGen = (t: Type, v: Annotation) => Genotype.genRealistic(
-      v.asInstanceOf[Row]
-        .getAs[IndexedSeq[String]](1)
-        .length))
 }
 
 class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
-
-  def this(hc: HailContext,
-    matrixType: MatrixType,
-    globals: Row,
-    colValues: IndexedSeq[Row],
-    rvd: RVD) =
-    this(hc, MatrixLiteral(matrixType, rvd, globals, colValues))
-
-  def referenceGenome: ReferenceGenome = matrixType.referenceGenome
-
   val matrixType: MatrixType = ast.typ
 
   val colType: TStruct = matrixType.colType
@@ -441,16 +210,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
   }
 
-  def partitionCounts(): Array[Long] = {
-    ast.partitionCounts match {
-      case Some(counts) => counts.toArray
-      case None => rvd.countPerPartition()
-    }
-  }
-
-  // length nPartitions + 1, first element 0, last element rvd count
-  def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
-
   def colKeys: IndexedSeq[Annotation] = {
     val queriers = colKey.map(colType.query(_))
     colValues.map(a => Row.fromSeq(queriers.map(q => q(a)))).toArray[Annotation]
@@ -462,25 +221,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (r: Row) => Row.fromSeq(queriers.map(_ (r)))
   }
 
-  def stringSampleIds: IndexedSeq[String] = {
-    assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
-    val querier = colType.query(colKey(0))
-    colValues.map(querier(_).asInstanceOf[String])
-  }
-
-  def stringSampleIdSet: Set[String] = stringSampleIds.toSet
-
   def countRows(): Long = ExecuteContext.scoped { ctx => Interpret[Long](ctx, TableCount(MatrixRowsTable(ast))) }
-
-  def countCols(): Long = ast.columnCount.map(_.toLong)
-    .getOrElse(ExecuteContext.scoped { ctx => Interpret[Long](ctx, TableCount(MatrixColsTable(ast))) })
-
-  def distinctByRow(): MatrixTable =
-    copyAST(ast = MatrixDistinctByRow(ast))
-
-  def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
-
-  def sparkContext: SparkContext = hc.sc
 
   def same(
     that: MatrixTable,
