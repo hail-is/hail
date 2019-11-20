@@ -136,7 +136,6 @@ class PR(Code):
         self.target_branch = target_branch
         self.author = author
         self.labels = labels
-        self.jobs = {}
 
         # pending, changes_requested, approve
         self.review_state = None
