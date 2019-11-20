@@ -253,7 +253,7 @@ class BuildImageStep(Step):
         config = self.input_config(code, scope)
 
         if self.context_path:
-            context = f'repo/{self.context_path}'
+            context = f'{self.context_path}'
             init_context = ''
         else:
             context = 'context'
@@ -300,12 +300,9 @@ cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
         script = f'''
 set -ex
 date
-
-rm -rf repo
-mv /io/repo repo
+{copy_inputs}
 {render_dockerfile}
 {init_context}
-{copy_inputs}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 

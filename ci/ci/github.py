@@ -460,29 +460,6 @@ git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
 
-    def checkout_job(self, batch):
-        if batch.id not in self.jobs:
-            script = f'''
-set -ex
-date
-
-cd /io/
-rm -rf repo
-mkdir repo
-cd repo
-{self.checkout_script()}
-'''
-            self.jobs[batch.id] = batch.create_job(
-                CI_UTILS_IMAGE,
-                command=['bash', '-c', script],
-                resources={
-                    'memory': '1G',
-                    'cpu': '1'
-                },
-                attributes={'name': 'git-clone'},
-                output_files=(f'/io/repo', f'{BUCKET}/build/{batch.attributes["token"]}-repo'))
-        return self.jobs[batch.id]
-
 
 class WatchedBranch(Code):
     def __init__(self, index, branch, deployable):
