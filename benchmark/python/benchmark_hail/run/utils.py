@@ -4,11 +4,11 @@ import os
 import re
 import signal
 import timeit
-from urllib.request import urlretrieve
 
 import hail as hl
 from py4j.protocol import Py4JError
 
+from .resources import all_resources
 from .. import init_logging
 
 
@@ -46,121 +46,49 @@ def timeout_signal(time_in_seconds):
         signal.alarm(0)
 
 
-def resource(filename):
-    assert _initialized
-    return os.path.join(_data_dir, filename)
+def benchmark(args=()):
+    if len(args) == 2 and callable(args[1]):
+        args = (args,)
 
+    groups = set(h[0] for h in args)
+    fs = tuple(h[1] for h in args)
 
-def get_mt():
-    return _mt
+    def inner(f):
+        _registry[f.__name__] = Benchmark(f, f.__name__, groups, fs)
 
-
-def benchmark(f):
-    _registry[f.__name__] = Benchmark(f, f.__name__)
-    return f
+    return inner
 
 
 class Benchmark:
-    def __init__(self, f, name):
+    def __init__(self, f, name, groups, args):
         self.name = name
         self.f = f
+        self.groups = groups
+        self.args = args
 
-    def run(self):
-        self.f()
+    def run(self, data_dir):
+        self.f(*(arg(data_dir) for arg in self.args))
 
 
 class RunConfig:
-    def __init__(self, n_iter, handler, noisy, timeout, dry_run):
+    def __init__(self, n_iter, handler, noisy, timeout, dry_run, data_dir):
         self.n_iter = n_iter
         self.handler = handler
         self.noisy = noisy
         self.timeout = timeout
         self.dry_run = dry_run
+        self.data_dir = data_dir
 
 
 _registry = {}
-_data_dir = ''
-_mt = None
 _initialized = False
 
 
 def download_data(data_dir):
-    global _data_dir, _mt
-    _data_dir = data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
-    logging.info(f'using benchmark data directory {_data_dir}')
-    os.makedirs(_data_dir, exist_ok=True)
-
-    files = map(lambda f: os.path.join(_data_dir, f), ['profile.vcf.bgz',
-                                                       'profile.mt',
-                                                       'table_10M_par_1000.ht',
-                                                       'table_10M_par_100.ht',
-                                                       'table_10M_par_10.ht',
-                                                       'gnomad_dp_simulation.mt',
-                                                       'many_strings_table.ht',
-                                                       'many_ints_table.ht',
-                                                       'sim_ukb.bgen'])
-    if not all(os.path.exists(file) for file in files):
-        hl.init()  # use all cores
-
-        vcf = os.path.join(_data_dir, 'profile.vcf.bgz')
-        logging.info('downloading profile.vcf.bgz...')
-        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/profile.vcf.bgz', vcf)
-        logging.info('done downloading profile.vcf.bgz.')
-        logging.info('importing profile.vcf.bgz...')
-        hl.import_vcf(vcf, min_partitions=16).write(os.path.join(_data_dir, 'profile.mt'), overwrite=True)
-        logging.info('done importing profile.vcf.bgz.')
-
-        logging.info('writing 10M row partitioned tables...')
-
-        ht = hl.utils.range_table(10_000_000, 1000).annotate(**{f'f_{i}': hl.rand_unif(0, 1) for i in range(5)})
-        ht = ht.checkpoint(os.path.join(_data_dir, 'table_10M_par_1000.ht'), overwrite=True)
-        ht = ht.naive_coalesce(100).checkpoint(os.path.join(_data_dir, 'table_10M_par_100.ht'), overwrite=True)
-        ht.naive_coalesce(10).write(os.path.join(_data_dir, 'table_10M_par_10.ht'), overwrite=True)
-        logging.info('done writing 10M row partitioned tables.')
-
-        logging.info('creating gnomad_dp_simulation matrix table...')
-        mt = hl.utils.range_matrix_table(n_rows=250_000, n_cols=1_000, n_partitions=32)
-        mt = mt.annotate_entries(x=hl.int(hl.rand_unif(0, 4.5) ** 3))
-        mt.write(os.path.join(_data_dir, 'gnomad_dp_simulation.mt'), overwrite=True)
-        logging.info('done creating gnomad_dp_simulation matrix table.')
-
-        logging.info('downloading many_strings_table.tsv.bgz...')
-        mst_tsv = os.path.join(_data_dir, 'many_strings_table.tsv.bgz')
-        mst_ht = os.path.join(_data_dir, 'many_strings_table.ht')
-        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_strings_table.tsv.bgz', mst_tsv)
-        logging.info('done downloading many_strings_table.tsv.bgz.')
-        logging.info('importing many_strings_table.tsv.bgz...')
-        hl.import_table(mst_tsv).write(mst_ht, overwrite=True)
-        logging.info('done importing many_strings_table.tsv.bgz.')
-
-        logging.info('downloading many_ints_table.tsv.bgz...')
-        mit_tsv = os.path.join(_data_dir, 'many_ints_table.tsv.bgz')
-        mit_ht = os.path.join(_data_dir, 'many_ints_table.ht')
-        urlretrieve('https://storage.googleapis.com/hail-common/benchmark/many_ints_table.tsv.bgz', mit_tsv)
-        logging.info('done downloading many_ints_table.tsv.bgz.')
-        logging.info('importing many_ints_table.tsv.bgz...')
-        hl.import_table(mit_tsv,
-                        types={'idx': 'int',
-                               **{f'i{i}': 'int' for i in range(5)},
-                               **{f'array{i}': 'array<int>' for i in range(2)}}
-                        ).write(mit_ht, overwrite=True)
-        logging.info('done importing many_ints_table.tsv.bgz.')
-
-        bgen = 'sim_ukb.bgen'
-        sample = 'sim_ukb.sample'
-        logging.info(f'downloading {bgen}...')
-        local_bgen = os.path.join(_data_dir, bgen)
-        local_sample = os.path.join(_data_dir, sample)
-        urlretrieve(f'https://storage.googleapis.com/hail-common/benchmark/{bgen}', local_bgen)
-        urlretrieve(f'https://storage.googleapis.com/hail-common/benchmark/{sample}', local_sample)
-        logging.info(f'done downloading {bgen}...')
-        logging.info(f'indexing {bgen}...')
-        hl.index_bgen(local_bgen)
-        logging.info(f'done indexing {bgen}.')
-
-        hl.stop()
-    else:
-        logging.info('all files found.')
+    logging.info(f'using benchmark data directory {data_dir}')
+    os.makedirs(data_dir, exist_ok=True)
+    for rg in all_resources:
+        rg.create(data_dir)
 
 
 def _ensure_initialized():
@@ -169,15 +97,14 @@ def _ensure_initialized():
                              "Are you running benchmark from the main module?")
 
 
-def initialize(args):
+def initialize(args, data_dir):
     global _initialized, _mt, _init_args
     assert not _initialized
     init_logging()
-    download_data(args.data_dir)
+    download_data(data_dir)
     _init_args = {'master': f'local[{args.cores}]', 'quiet': not args.verbose, 'log': args.log}
     hl.init(**_init_args)
     _initialized = True
-    _mt = hl.read_matrix_table(resource('profile.mt'))
 
     # make JVM do something to ensure that it is fresh
     hl.utils.range_table(1)._force_count()
@@ -185,10 +112,11 @@ def initialize(args):
     logging.getLogger('py4j.java_gateway').setLevel(logging.CRITICAL)
 
 
-def run_with_timeout(b, max_time):
+def run_with_timeout(b, config):
+    max_time = config.timeout
     with timeout_signal(max_time):
         try:
-            return timeit.Timer(b.run).timeit(1), False
+            return timeit.Timer(lambda: b.run(config.data_dir)).timeit(1), False
         except Py4JError as e:
             if _timeout_state:
                 return max_time, True
@@ -206,7 +134,7 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
     timed_out = False
     failed = False
     try:
-        burn_in_time, burn_in_timed_out = run_with_timeout(benchmark, config.timeout)
+        burn_in_time, burn_in_timed_out = run_with_timeout(benchmark, config)
         if burn_in_timed_out:
             if config.noisy:
                 logging.warning(f'burn in timed out after {burn_in_time:.2f}s')
@@ -223,7 +151,7 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
         if timed_out or failed:
             continue
         try:
-            t, run_timed_out = run_with_timeout(benchmark, config.timeout)
+            t, run_timed_out = run_with_timeout(benchmark, config)
             times.append(t)
             if run_timed_out:
                 if config.noisy:

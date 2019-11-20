@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, LoweringPipeline}
 import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
@@ -22,31 +23,26 @@ abstract class Backend {
 
   def parallelizeAndComputeWithIndex[T: ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U]
 
-  def lower(ir: IR, timer: Option[ExecutionTimer], optimize: Boolean = true): IR =
-      LowerTableIR(ir, timer, optimize)
-
   def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) = {
-    val timer = new ExecutionTimer()
-    val ir = lower(ir0, Some(timer), optimize)
+    ExecuteContext.scoped { ctx =>
 
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
+      val ir = LoweringPipeline.tableLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
 
-    val res = timer.time("JVMLowerAndExecute") {
-      Region.scoped { region =>
-        ir.typ match {
-          case TVoid =>
-            val (_, f) = timer.time("Compile")(Compile[Unit](ir, print))
-            timer.time("Run")(f(0, region)(region))
+      if (!Compilable(ir))
+        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
-          case _ =>
-            val (pt: PTuple, f) = timer.time("Compile")(Compile[Long](MakeTuple.ordered(FastSeq(ir)), print))
-            timer.time("Run")(SafeRow(pt, region, f(0, region)(region)).get(0))
-        }
+      val res = ir.typ match {
+        case TVoid =>
+          val (_, f) = ctx.timer.time("Compile")(Compile[Unit](ctx, ir, print))
+          ctx.timer.time("Run")(f(0, ctx.r)(ctx.r))
+
+        case _ =>
+          val (pt: PTuple, f) = ctx.timer.time("Compile")(Compile[Long](ctx, MakeTuple.ordered(FastSeq(ir)), print))
+          ctx.timer.time("Run")(SafeRow(pt, ctx.r, f(0, ctx.r)(ctx.r)).get(0))
       }
-    }
 
-    (res, timer)
+      (res, ctx.timer)
+    }
   }
 
   def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) = {

@@ -15,7 +15,7 @@ import scala.language.{existentials, postfixOps}
 
 object TableMapIRNew {
 
-  def apply(tv: TableValue, newRow: IR): TableValue = {
+  def apply(ctx: ExecuteContext, tv: TableValue, newRow: IR): TableValue = {
     val typ = tv.typ
 
     val scanRef = genUID()
@@ -43,22 +43,22 @@ object TableMapIRNew {
     // 3. load in partition aggregations, comb op as necessary, serialize.
     // 4. load in partStarts, calculate newRow based on those results.
 
-    val (_, initF) = ir.CompileWithAggregators2[Long, Unit](
+    val (_, initF) = ir.CompileWithAggregators2[Long, Unit](ctx,
       extracted.aggs,
       "global", tv.globals.t,
       Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
 
-    val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](
+    val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
       extracted.aggs,
       "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
       "row", typ.rowType.physicalType,
-      extracted.eltOp())
+      extracted.eltOp(ctx))
 
-    val read = extracted.deserialize(spec)
-    val write = extracted.serialize(spec)
-    val combOpF = extracted.combOpF(spec)
+    val read = extracted.deserialize(ctx, spec)
+    val write = extracted.serialize(ctx, spec)
+    val combOpF = extracted.combOpF(ctx, spec)
 
-    val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](
+    val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
       extracted.aggs,
       "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
       "row", typ.rowType.physicalType,
@@ -182,10 +182,13 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   def serializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
     SerializeAggs(i * nAggs, i2, spec, aggs)
 
-  def eltOp(optimize: Boolean = true): IR = if (optimize) Optimize(seqPerElt) else seqPerElt
+  def eltOp(ctx: ExecuteContext, optimize: Boolean = true): IR = if (optimize)
+    Optimize(seqPerElt, true, "eltOp", Some(ctx)).asInstanceOf[IR]
+  else
+    seqPerElt
 
-  def deserialize(spec: BufferSpec): ((Region, Array[Byte]) => Long) = {
-    val (_, f) = ir.CompileWithAggregators2[Unit](
+  def deserialize(ctx: ExecuteContext, spec: BufferSpec): ((Region, Array[Byte]) => Long) = {
+    val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
       aggs, ir.DeserializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, bytes: Array[Byte]) =>
@@ -197,8 +200,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     }
   }
 
-  def serialize(spec: BufferSpec): (Region, Long) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[Unit](
+  def serialize(ctx: ExecuteContext, spec: BufferSpec): (Region, Long) => Array[Byte] = {
+    val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
       aggs, ir.SerializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, off: Long) =>
@@ -209,8 +212,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     }
   }
 
-  def combOpF(spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[Unit](
+  def combOpF(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
+    val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
       aggs ++ aggs,
       Begin(
         deserializeSet(0, 0, spec) +:

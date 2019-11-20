@@ -216,19 +216,6 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
     getAttributes(k1, attributes).flatMap(_.get(k2))
 
-  def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
-    getAttributes(k1, k2, attributes).flatMap(_.get(k3))
-
-  def apply(mt: MatrixTable, path: String, append: Option[String] = None,
-    exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExecuteContext.scoped { ctx =>
-
-      ExportVCF(Interpret(mt.lit, ctx, optimize = false)
-        .toMatrixValue(mt.colKey),
-        path, append, exportType, metadata)
-    }
-  }
-
   def apply(mv: MatrixValue, path: String, append: Option[String],
     exportType: Int, metadata: Option[VCFMetadata]) {
 

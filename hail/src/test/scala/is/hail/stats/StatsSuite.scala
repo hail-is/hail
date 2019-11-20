@@ -50,22 +50,6 @@ class StatsSuite extends HailSuite {
     assert(D_==(qnorm(2.753624e-89), -20))
   }
 
-  @Test def vdsFromMatrixTest() {
-    val G = DenseMatrix((0, 1), (2, -1), (0, 1))
-    val vds = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(G))
-
-    val G1 = DenseMatrix.zeros[Int](3, 2)
-
-    vds.variantRDD.collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = Genotype.call(g).map(Call.nNonRefAlleles).getOrElse(-1) } }
-
-    assert(vds.stringSampleIds == FastIndexedSeq("0", "1", "2"))
-    assert(vds.variants.collect().toSet == Set(Variant("1", 1, "A", "C"), Variant("1", 2, "A", "C")))
-
-    for (i <- 0 to 2)
-      for (j <- 0 to 1)
-        assert(G(i, j) == G1(i, j))
-  }
-
   @Test def poissonTest() {
     // compare with R
     assert(D_==(dpois(5, 10), 0.03783327))
