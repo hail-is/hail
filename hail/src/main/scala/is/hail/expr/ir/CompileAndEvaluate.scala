@@ -19,7 +19,7 @@ object CompileAndEvaluate {
     // void is not really supported by IR utilities
       return ().asInstanceOf[T]
 
-    val (resultPType, f) = ctx.timer.time("Compile")(Compile[Long](
+    val (resultPType, f) = ctx.timer.time("Compile")(Compile[Long](ctx,
       MakeTuple.ordered(FastSeq(ir)), None, optimize = false))
 
     val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(0, ctx.r))

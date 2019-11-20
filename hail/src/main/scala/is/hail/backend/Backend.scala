@@ -33,11 +33,11 @@ abstract class Backend {
 
       val res = ir.typ match {
         case TVoid =>
-          val (_, f) = ctx.timer.time("Compile")(Compile[Unit](ir, print))
+          val (_, f) = ctx.timer.time("Compile")(Compile[Unit](ctx, ir, print))
           ctx.timer.time("Run")(f(0, ctx.r)(ctx.r))
 
         case _ =>
-          val (pt: PTuple, f) = ctx.timer.time("Compile")(Compile[Long](MakeTuple.ordered(FastSeq(ir)), print))
+          val (pt: PTuple, f) = ctx.timer.time("Compile")(Compile[Long](ctx, MakeTuple.ordered(FastSeq(ir)), print))
           ctx.timer.time("Run")(SafeRow(pt, ctx.r, f(0, ctx.r)(ctx.r)).get(0))
       }
 

@@ -37,15 +37,16 @@ object Graph {
 
   def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
     val nodeType = IRParser.parseType(nodeTypeStr)
-    
-    val edges = ExecuteContext.scoped { ctx => Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray }
+    ExecuteContext.scoped { ctx =>
+      val edges = Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray
 
-    val resultType = TSet(nodeType)
-    val result = maximalIndependentSet(edges, nodeType, tieBreaker)
-    Literal(resultType, result)
+      val resultType = TSet(nodeType)
+      val result = maximalIndependentSet(ctx, edges, nodeType, tieBreaker)
+      Literal(resultType, result)
+    }
   }
 
-  def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
+  def maximalIndependentSet(ctx: ExecuteContext, edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>
       val Row(x, y) = r
       (x, y)
@@ -59,7 +60,7 @@ object Graph {
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
+      val (t, f) = Compile[Long, Long, Long](ctx, "l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
       assert(t.virtualType.isOfType(TTuple(TInt64())))
 
       (l: Any, r: Any) => {

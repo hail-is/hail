@@ -880,7 +880,7 @@ private class Emit(
               context = "ArrayAgg/agg.Extract/init")
             val perElt = Optimize(extracted.seqPerElt, noisy = true,
               context = "ArrayAgg/agg.Extract/perElt")
-            val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
+            val postAggIR = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
               context = "ArrayAgg/agg.Extract/postAggIR")
 
             val codeInit = emit(init, env = env, container = Some(newContainer))
@@ -2138,7 +2138,7 @@ private class Emit(
               context = "ArrayAggScan/StagedExtractAggregators/postAggIR")
             val perElt = Optimize(extracted.seqPerElt, noisy = true,
               context = "ArrayAggScan/StagedExtractAggregators/init")
-            val postAgg = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
+            val postAgg = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
               context = "ArrayAggScan/StagedExtractAggregators/perElt")
 
             val codeInit = this.emit(init, env, None, er, Some(newContainer))
