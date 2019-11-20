@@ -1530,17 +1530,7 @@ private class Emit(
           val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
           val hPType = rawPType.types(0).asInstanceOf[PNDArray]
           val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
-
-          def hShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-            Code(
-              srvb.start(),
-              srvb.addLong(M),
-              srvb.advance(),
-              srvb.addLong(N),
-              srvb.advance()
-            )
-          }
-
+          val hShapeBuilder = hPType.makeShapeBuilder(Array(M, N))
           val hStridesBuilder = hPType.makeDefaultStridesBuilder(Array(M, N), mb)
 
           def tauShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
@@ -1577,16 +1567,7 @@ private class Emit(
           if (mode == "r") {
             // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner and call it a day.
             val rPType = x.pType.asInstanceOf[PNDArray]
-
-            def rShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-              Code(
-                srvb.start(),
-                srvb.addLong(M),
-                srvb.advance(),
-                srvb.addLong(N),
-                srvb.advance()
-              )
-            }
+            val rShapeBuilder = rPType.makeShapeBuilder(Array(M, N))
             val rStridesBuilder = rPType.makeDefaultStridesBuilder(Array(M, N), mb)
 
             val currRow = mb.newField[Int]

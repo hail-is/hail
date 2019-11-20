@@ -65,6 +65,16 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       shape.foldLeft(const(1L))(_ * _)
   }
 
+  def makeShapeBuilder(shapeArray: Array[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = {srvb =>
+    coerce[Unit](Code(
+      srvb.start(),
+      Code(shapeArray.map(shapeElement => Code(
+        srvb.addLong(shapeElement),
+        srvb.advance()
+      )):_*)
+    ))
+  }
+
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]
     val tempShapeStorage = mb.newLocal[Long]
