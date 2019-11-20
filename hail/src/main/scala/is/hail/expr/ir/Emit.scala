@@ -1596,19 +1596,14 @@ private class Emit(
               Code.whileLoop(currRow < M.toI,
                 currCol := 0,
                 Code.whileLoop(currCol < N.toI,
-                  Code._println("In the loop"),
-                  Code._println(const("currRow = ").concat(currRow.toS)),
-                  Code._println(const("currCol = ").concat(currCol.toS)),
                   (currRow > currCol).orEmpty(
-                    Code(Code._println("Zero this guy out"),
                     // TODO Not row / column major agnostic!
                     Region.storeDouble(ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI,
-                      currRow * N.toI + currCol), 0.0))
+                      currRow * N.toI + currCol), 0.0)
                   ),
                   currCol := currCol + 1
                 ),
-                currRow := currRow + 1,
-                Code._println(const("Incremented currRow, now it's ").concat(currRow.toS))
+                currRow := currRow + 1
               )
             )
 
