@@ -5,6 +5,7 @@ from hail.ir import BlockMatrixIR, IR
 from hail.ir.blockmatrix_reader import BlockMatrixReader
 from hail.ir import BlockMatrixIR, IR, tarray, Renderer
 from hail.typecheck import typecheck_method, sequenceof, sized_tupleof, oneof
+from hail.utils.misc import escape_id
 
 from typing import List
 
@@ -28,8 +29,9 @@ class BlockMatrixRead(BlockMatrixIR):
 
 
 class BlockMatrixMap(BlockMatrixIR):
-    @typecheck_method(child=BlockMatrixIR, f=IR)
-    def __init__(self, child, f):
+    @typecheck_method(child=BlockMatrixIR, name=str, f=IR)
+    def __init__(self, child, name, f):
+        super().__init__(child, f)
         super().__init__(child, name, f)
         self.child = child
         self.name = name
@@ -53,9 +55,9 @@ class BlockMatrixMap(BlockMatrixIR):
 
 
 class BlockMatrixMap2(BlockMatrixIR):
-    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, f=IR)
-    def __init__(self, left, right, f):
-        super().__init__(left, right, left_name, right_name, f)
+    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, left_name=str, right_name=str, f=IR)
+    def __init__(self, left, right, left_name, right_name, f):
+        super().__init__(left, right, f)
         self.left = left
         self.right = right
         self.left_name = left_name

@@ -151,7 +151,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply])
+  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
 
   override lazy val typ: BlockMatrixType = child.typ
 
@@ -165,10 +165,10 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
   private def evalIR(ctx: ExecuteContext, ir: IR): Double = {
-    val res: Double = CompileAndEvaluate(ctx, ir)
+    val res: Any = CompileAndEvaluate(ctx, ir)
     if (res == null)
       fatal("can't perform BlockMatrix operation on missing values!")
-    res
+    res.asInstanceOf[Double]
   }
 
   private def binaryOp(scalar: Double, f: (DenseMatrix[Double], Double) => DenseMatrix[Double]): DenseMatrix[Double] => DenseMatrix[Double] =
@@ -185,33 +185,33 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
       case Apply("ceil", _, _) => ("ceil", numerics.ceil(_), false)
       case Apply("floor", _, _) => ("floor", numerics.floor(_), false)
 
-      case Apply("**", Seq(Ref(eltName, _), r), _) if !Mentions(r, eltName) =>
-        ("**", binaryOp(evalIR(ctx, r), numerics.pow.apply), false)
-      case ApplyBinaryPrimOp(Add(), Ref(eltName, _), r) if !Mentions(r, eltName) =>
+      case Apply("**", Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
+        ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)), false)
+      case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("+", binaryOp(evalIR(ctx, r), _ + _), true)
-      case ApplyBinaryPrimOp(Add(), l, Ref(eltName, _)) if !Mentions(l, eltName) =>
+      case ApplyBinaryPrimOp(Add(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         ("+", binaryOp(evalIR(ctx, l), _ + _), true)
-      case ApplyBinaryPrimOp(Multiply(), Ref(eltName, _), r) if !Mentions(r, eltName) =>
+      case ApplyBinaryPrimOp(Multiply(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         val i = evalIR(ctx, r)
         ("*", binaryOp(i, _ *:* _), i.isNaN | i.isInfinity)
-      case ApplyBinaryPrimOp(Multiply(), l, Ref(eltName, _)) if !Mentions(l, eltName) =>
+      case ApplyBinaryPrimOp(Multiply(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         val i = evalIR(ctx, l)
         ("*", binaryOp(i, _ *:* _), i.isNaN | i.isInfinity)
-      case ApplyBinaryPrimOp(Subtract(), Ref(eltName, _), r) if !Mentions(r, eltName) =>
+      case ApplyBinaryPrimOp(Subtract(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("-", binaryOp(evalIR(ctx, r), (m, s) => m - s), true)
-      case ApplyBinaryPrimOp(Subtract(), l, Ref(eltName, _)) if !Mentions(l, eltName) =>
+      case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m), true)
-      case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(eltName, _), r) if !Mentions(r, eltName) =>
+      case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         val i = evalIR(ctx, r)
-        ("**", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s), i == 0.0 | i.isNaN | i.isInfinity)
-      case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(eltName, _)) if !Mentions(l, eltName) =>
+        ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s), i == 0.0 | i.isNaN | i.isInfinity)
+      case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         val i = evalIR(ctx, l)
-        ("**", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv), i == 0.0 | i.isNaN | i.isInfinity)
+        ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv), i == 0.0 | i.isNaN | i.isInfinity)
 
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
 
-    if (!keepSparsity & reqDense)
+    if (reqDense)
       prev.densify().blockMap(breezeF, name, reqDense = true)
 
     prev.blockMap(breezeF, name, reqDense = false)

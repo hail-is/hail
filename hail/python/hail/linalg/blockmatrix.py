@@ -7,7 +7,7 @@ import scipy.linalg as spla
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr import construct_expr
+from hail.expr import construct_expr, construct_variable
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
@@ -1289,12 +1289,12 @@ class BlockMatrix(object):
     def _binary_op(op):
         return lambda l, r: construct_expr(ApplyBinaryPrimOp(op, l._ir, r._ir), hl.tfloat64)
 
-    @typecheck_method(f=func_spec(1, expr_numeric))
+    @typecheck_method(f=func_spec(1, expr_float64))
     def _apply_map(self, f):
         uid = Env.get_uid()
         return BlockMatrix(BlockMatrixMap(self._bmir, uid, f(construct_variable(uid, hl.tfloat64))._ir))
 
-    @typecheck_method(f=func_spec(2, expr_numeric),
+    @typecheck_method(f=func_spec(2, expr_float64),
                       other=oneof(numeric, np.ndarray, block_matrix_type),
                       reverse=bool)
     def _apply_map2(self, f, other, reverse=False):
