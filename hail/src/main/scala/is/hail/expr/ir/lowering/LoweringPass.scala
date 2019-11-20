@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, ExecuteContext, IR, InterpretNonCompilable, LowerMatrixIR, MatrixIR, TableIR}
+import is.hail.expr.ir.{BaseIR, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, LowerMatrixIR, MatrixIR, TableIR}
 
 trait LoweringPass {
   val before: IRState
@@ -28,6 +28,7 @@ case object LowerMatrixToTablePass extends LoweringPass {
     case x: IR => LowerMatrixIR(x)
     case x: TableIR => LowerMatrixIR(x)
     case x: MatrixIR => LowerMatrixIR(x)
+    case x: BlockMatrixIR => LowerMatrixIR(x)
   }
 }
 

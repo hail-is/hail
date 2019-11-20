@@ -30,6 +30,13 @@ object LowerMatrixIR {
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
   }
 
+  def apply(bmir: BlockMatrixIR): BlockMatrixIR = {
+    val ab = new ArrayBuilder[(String, IR)]
+
+    val l1 = lower(bmir, ab)
+    ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) => RelationalLetBlockMatrix(ident, value, body) }
+  }
+
 
   private[this] def lowerChildren(ir: BaseIR, ab: ArrayBuilder[(String, IR)]): BaseIR = {
     val loweredChildren = ir.children.map {

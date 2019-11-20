@@ -79,12 +79,12 @@ class BlockMatrixMap2(BlockMatrixIR):
                 r_value = self.right.typ.element_type
             else:
                 (l_value, r_value) = (default_value, default_value)
-            return {'l': l_value, 'r': r_value}
+            return {self.left_name: l_value, self.right_name: r_value}
         else:
             return {}
 
     def binds(self, i):
-        return {'l', 'r'} if i == 2 else {}
+        return {self.left_name, self.right_name} if i == 2 else {}
 
 
 class BlockMatrixDot(BlockMatrixIR):
