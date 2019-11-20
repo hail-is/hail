@@ -60,7 +60,7 @@ LIMIT 50;
             '''
 SELECT job_id, batch_id, spec, cores_mcpu,
   ((jobs.cancelled OR batches.cancelled) AND NOT always_run) AS cancel,
-  userdata, user
+  userdata, user, n_attempts
 FROM jobs
 INNER JOIN batches ON batches.id = jobs.batch_id
 WHERE jobs.state = 'Ready' AND batches.closed
@@ -75,7 +75,8 @@ LIMIT 50;
 
             if record['cancel']:
                 log.info(f'cancelling job {id}')
-                await mark_job_complete(self.app, batch_id, job_id, 'Cancelled', None)
+                await mark_job_complete(self.app, batch_id, job_id, None,
+                                        'Cancelled', None, None, None)
                 should_wait = False
                 continue
 

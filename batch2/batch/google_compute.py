@@ -1,5 +1,5 @@
 import asyncio
-import time
+import datetime
 import concurrent
 import logging
 import threading
@@ -17,11 +17,21 @@ async def anext(ait):
 
 
 class EntryIterator:
-    def __init__(self, gservices):
+    def __init__(self, gservices, db):
         self.gservices = gservices
-        self.mark = time.time()
+        self.db = db
+        self.mark = None
         self.entries = None
-        self.latest = None
+
+    async def async_init(self):
+        row = await self.db.execute_and_fetchone('SELECT * FROM gevents;')
+        self.mark = row['mark']
+
+    async def _update_mark(self, timestamp):
+        await self.db.execute_update(
+            'UPDATE gevents SET mark = %s;',
+            (timestamp,))
+        self.mark = timestamp
 
     def __aiter__(self):
         return self
@@ -29,22 +39,19 @@ class EntryIterator:
     async def __anext__(self):
         while True:
             if not self.entries:
-                self.entries = await self.gservices.list_entries()
+                self.entries = await self.gservices.list_entries(self.mark)
+            timestamp = None
             try:
                 entry = await anext(self.entries)
                 timestamp = entry.timestamp.timestamp()
-                if not self.latest:
-                    self.latest = timestamp
                 # might miss events with duplicate times
                 # solution is to track resourceId
-                if timestamp <= self.mark:
-                    raise StopAsyncIteration
                 return entry
             except StopAsyncIteration:
-                if self.latest and self.mark < self.latest:
-                    self.mark = self.latest
                 self.entries = None
-                self.latest = None
+            finally:
+                if timestamp:
+                    await self._update_mark(timestamp)
 
 
 class PagedIterator:
@@ -105,12 +112,15 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
         return await self.loop.run_in_executor(self.thread_pool, lambda: f(*args, **kwargs))
 
     # logging
-    async def list_entries(self):
-        entries = self.logging_client.list_entries(filter_=self.filter, order_by=google.cloud.logging.DESCENDING)
+    async def list_entries(self, timestamp):
+        filter = self.filter + f' AND timestamp >= {datetime.datetime.fromtimestamp(timestamp).isoformat()}'
+        entries = self.logging_client.list_entries(filter_=filter)
         return PagedIterator(self, entries.pages)
 
-    async def stream_entries(self):
-        return EntryIterator(self)
+    async def stream_entries(self, db):
+        eit = EntryIterator(self, db)
+        await eit.async_init()
+        return eit
 
     # compute
     async def get_instance(self, instance):

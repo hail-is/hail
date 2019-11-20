@@ -287,13 +287,16 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
                 return
             raise
 
-    async def handle_preempt_event(self, instance):
+    async def handle_preempt_event(self, instance, timestamp):
+        await instance.mark_jobs_ended(timestamp)
         await self.call_delete_instance(instance)
 
-    async def handle_delete_done_event(self, instance):
+    async def handle_delete_done_event(self, instance, timestamp):
+        await instance.mark_jobs_ended(timestamp)
         await self.remove_instance(instance)
 
-    async def handle_call_delete_event(self, instance):
+    async def handle_call_delete_event(self, instance, timestamp):
+        await instance.mark_jobs_ended(timestamp)
         await instance.mark_deleted()
 
     async def handle_event(self, event):
@@ -301,6 +304,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
             log.warning(f'event has no payload')
             return
 
+        timestamp = event.timestamp.timestamp()
         payload = event.payload
         version = payload['version']
         if version != '1.2':
@@ -330,14 +334,14 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
 
         if event_subtype == 'compute.instances.preempted':
             log.info(f'event handler: handle preempt {instance}')
-            await self.handle_preempt_event(instance)
+            await self.handle_preempt_event(instance, timestamp)
         elif event_subtype == 'compute.instances.delete':
             if event_type == 'GCE_OPERATION_DONE':
                 log.info(f'event handler: delete {instance} done')
-                await self.handle_delete_done_event(instance)
+                await self.handle_delete_done_event(instance, timestamp)
             elif event_type == 'GCE_API_CALL':
                 log.info(f'event handler: handle call delete {instance}')
-                await self.handle_call_delete_event(instance)
+                await self.handle_call_delete_event(instance, timestamp)
             else:
                 log.warning(f'unknown event type {event_type}')
         else:
@@ -347,7 +351,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
         log.info(f'starting event loop')
         while True:
             try:
-                async for event in await self.gservices.stream_entries():
+                async for event in await self.gservices.stream_entries(self.db):
                     await self.handle_event(event)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise

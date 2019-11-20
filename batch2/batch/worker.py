@@ -212,11 +212,18 @@ class Container:
 
             async with self.step('runtime', state=None):
                 async with worker.cpu_sem(self.cpu_in_mcpu):
+                    if self.name == 'main':
+                        start_time = time.time()
+                        await self.job.mark_started(worker, start_time)
+
                     async with self.step('starting'):
                         await docker_call_retry(self.container.start)
 
                     async with self.step('running'):
                         await docker_call_retry(self.container.wait)
+
+                    if self.name == 'main':
+                        self.job.mark_ended(time.time())
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
@@ -374,6 +381,9 @@ class Job:
         self.state = 'pending'
         self.error = None
 
+        self.start_time = None
+        self.end_time = None
+
         pvc_size = job_spec.get('pvc_size')
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
@@ -434,6 +444,10 @@ class Job:
     @property
     def job_id(self):
         return self.job_spec['job_id']
+
+    @property
+    def attempt_id(self):
+        return self.job_spec['attempt_id']
 
     @property
     def id(self):
@@ -504,31 +518,53 @@ class Job:
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
 
-    async def delete(self):
+    async def delete(self, worker):
         log.info(f'deleting {self}')
         self.deleted = True
         for _, c in self.containers.items():
             await c.delete()
 
+        if self.start_time and not self.end_time:
+            await self.mark_cancelled(worker, time.time())
+
+    async def mark_started(self, worker, start_time):
+        assert not self.start_time and not self.end_time
+        self.start_time = start_time
+        asyncio.ensure_future(worker.post_job_timing(self))
+
+    async def mark_cancelled(self, worker, end_time):
+        self.mark_ended(end_time)
+        asyncio.ensure_future(worker.post_job_timing(self))
+
+    def mark_ended(self, end_time):
+        assert self.start_time and not self.end_time
+        self.end_time = end_time
+
     # {
     #   name: str,
     #   batch_id: int,
     #   job_id: int,
+    #   attempt_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
     #   error: str, (optional)
     #   container_statuses: [Container.status]
+    #   start_time: float, (optional)
+    #   end_time: float, (optional)
     # }
     async def status(self):
         status = {
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
+            'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
-            'state': self.state
+            'state': self.state,
         }
         if self.error:
             status['error'] = self.error
+        status['start_time'] = self.start_time
+        status['end_time'] = self.end_time
         status['container_statuses'] = {
             name: await c.status() for name, c in self.containers.items()
         }
@@ -611,7 +647,7 @@ class Worker:
         if job is None:
             raise web.HTTPNotFound()
 
-        asyncio.ensure_future(job.delete())
+        asyncio.ensure_future(job.delete(self))
 
         return web.Response()
 
@@ -713,6 +749,32 @@ class Worker:
             if job.id in self.jobs:
                 del self.jobs[job.id]
                 self.last_updated = time.time()
+
+    async def post_job_timing(self, job):
+        body = {
+            'status': await job.status()
+        }
+
+        delay = 0.1
+        while True:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    await session.post(
+                        deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_timing'),
+                        json=body, headers=self.headers)
+                    return
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception as e:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
+                    raise
+                log.exception(f'failed to post {job} timing, retrying')
+
+            # exponentially back off, up to (expected) max of 30s
+            t = delay * random.uniform(0.7, 1.3)
+            await asyncio.sleep(t)
+            delay = min(delay * 2, 30.0)
 
     async def activate(self):
         async with aiohttp.ClientSession(

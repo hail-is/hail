@@ -21,6 +21,7 @@
           <th>State</th>
           <th>Exit Code</th>
           <th>Duration</th>
+          <th>Cost</th>
         </tr>
       </thead>
       <tbody>
@@ -45,6 +46,11 @@
 	      {{ job['duration'] }}
 	    {% endif %}
 	  </td>
+          <td>
+            {% if 'cost' in job and job['cost'] is not none %}
+              {{ job['cost'] }}
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

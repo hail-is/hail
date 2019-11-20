@@ -9,6 +9,13 @@ from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 log = logging.getLogger('utils')
 
 
+def format_currency(value):
+    return "${:,.4f}".format(value)
+
+
+cpu_regex = re.compile(r"^(\d*\.\d+|\d+)([m]?)$")
+
+
 def parse_cpu_in_mcpu(cpu_string):
     match = CPU_REGEX.fullmatch(cpu_string)
     if match:
