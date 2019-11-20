@@ -1422,7 +1422,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(lambda l, r: l ** r, x)
+        return self._apply_map(lambda i: i ** x)
 
     def sqrt(self):
         """Element-wise square root.
