@@ -62,8 +62,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 
   def pyExecute(): BlockMatrix = {
     ExecuteContext.scoped { ctx =>
-      val opt = Optimize.optimize(this, noisy = true, context = "BlockMatrixIR", ctx = Some(ctx))
-      opt.asInstanceOf[BlockMatrixIR].execute(ctx)
+      Interpret(this, ctx, optimize = true)
     }
   }
 
