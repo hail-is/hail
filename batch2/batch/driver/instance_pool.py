@@ -8,7 +8,7 @@ import googleapiclient.errors
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
-    POOL_SIZE, MAX_INSTANCES
+    WORKER_MEMORY_PER_CORE_GB, POOL_SIZE, MAX_INSTANCES
 
 from .instance import Instance
 
@@ -17,6 +17,7 @@ log = logging.getLogger('instance_pool')
 WORKER_CORES_MCPU = WORKER_CORES * 1000
 
 log.info(f'WORKER_CORES {WORKER_CORES}')
+log.info(f'WORKER_MEMORY_PER_CORE_GB {WORKER_MEMORY_PER_CORE_GB}')
 log.info(f'WORKER_TYPE {WORKER_TYPE}')
 log.info(f'WORKER_DISK_SIZE_GB {WORKER_DISK_SIZE_GB}')
 log.info(f'POOL_SIZE {POOL_SIZE}')
@@ -34,14 +35,7 @@ class InstancePool:
         self.k8s = app['k8s_client']
         self.machine_name_prefix = machine_name_prefix
 
-        if WORKER_TYPE == 'standard':
-            m = 3.75
-        elif WORKER_TYPE == 'highmem':
-            m = 6.5
-        else:
-            assert WORKER_TYPE == 'highcpu', WORKER_TYPE
-            m = 0.9
-        self.worker_memory = 0.9 * m
+        self.worker_memory = WORKER_MEMORY_PER_CORE_GB
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)

@@ -81,6 +81,19 @@ class Test(unittest.TestCase):
         assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
 
+    def test_invalid_resource_requests(self):
+        builder = self.client.create_batch()
+        resources = {'cpu': '1', 'memory': '28Gi'}
+        builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+        with self.assertRaisesRegex('resource requests'):
+            builder.submit()
+
+        builder = self.client.create_batch()
+        resources = {'cpu': '0', 'memory': '1Gi'}
+        builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+        with self.assertRaisesRegex('resource requests'):
+            builder.submit()
+
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['echo', 'test'])

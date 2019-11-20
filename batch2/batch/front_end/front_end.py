@@ -26,11 +26,11 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..utils import parse_cpu_in_mcpu, LoggingTimer
+from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, LoggingTimer
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE
+from ..batch_configuration import BATCH_PODS_NAMESPACE, WORKER_CORES
 
 from . import schemas
 
@@ -274,6 +274,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 always_run = spec.pop('always_run', False)
                 attributes = spec.get('attributes')
 
+                id = (batch_id, job_id)
+
                 resources = spec.get('resources')
                 if not resources:
                     resources = {}
@@ -284,6 +286,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
                 cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                memory_bytes = parse_memory_in_bytes(resources['memory'])
+                cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes)
+                if cores_mcpu > WORKER_CORES:
+                    raise web.HTTPBadRequest(reason=f'resource requests for job {id} '
+                    f'are unsatisfiable: cpu={resources["cpu"]}, memory={resources["memory"]}')
+                if cores_mcpu == 0:
+                    raise web.HTTPBadRequest(reason=f'resource requests for job {id} '
+                                             f'are unsatisfiable: cpu must be greater than 0')
 
                 secrets = spec.get('secrets')
                 if not secrets:

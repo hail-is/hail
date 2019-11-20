@@ -23,7 +23,9 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes
+from .batch_configuration import WORKER_MEMORY_PER_CORE_GB
+from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
+    adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import WeightedSemaphore
 from .log_store import LogStore
 
@@ -117,8 +119,11 @@ class Container:
             image += ':latest'
         self.image = image
 
-        self.cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
-        self.memory_in_bytes = parse_memory_in_bytes(spec['memory'])
+        req_cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+        req_memory_in_bytes = parse_memory_in_bytes(spec['memory'])
+
+        self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes)
+        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu)
 
         self.container = None
         self.state = 'pending'
@@ -635,7 +640,7 @@ class Worker:
             await self.activate()
 
             idle_duration = time.time() - self.last_updated
-            while (self.jobs or idle_duration < MAX_IDLE_TIME_SECS):
+            while self.jobs or idle_duration < MAX_IDLE_TIME_SECS:
                 log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
                 idle_duration = time.time() - self.last_updated

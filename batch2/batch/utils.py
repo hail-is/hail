@@ -3,6 +3,7 @@ import time
 import logging
 
 from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
+from .batch_configuration import WORKER_MEMORY_PER_CORE_GB
 
 
 log = logging.getLogger('utils')
@@ -34,6 +35,19 @@ def parse_memory_in_bytes(memory_string):
         suffix = match.group(2)
         return int(number * conv_factor[suffix])
     return None
+
+
+def memory_bytes_to_cores_mcpu(memory_in_bytes):
+    return int((memory_in_bytes / (WORKER_MEMORY_PER_CORE_GB * 1024 * 1024 * 1024)) * 1000)
+
+
+def cores_mcpu_to_memory_bytes(cores_in_mcpu):
+    return int((cores_in_mcpu / 1000) * WORKER_MEMORY_PER_CORE_GB * 1024 * 1024 * 1024)
+
+
+def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes):
+    min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes)
+    return max(cores_in_mcpu, min_cores_mcpu)
 
 
 image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")

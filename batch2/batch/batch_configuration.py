@@ -13,3 +13,13 @@ WORKER_DISK_SIZE_GB = os.environ.get('WORKER_DISK_SIZE_GB', '100')
 POOL_SIZE = int(os.environ.get('POOL_SIZE', 10))
 MAX_INSTANCES = int(os.environ.get('MAX_INSTANCES', 12))
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
+
+
+if WORKER_TYPE == 'standard':
+    m = 3.75
+elif WORKER_TYPE == 'highmem':
+    m = 6.5
+else:
+    assert WORKER_TYPE == 'highcpu', WORKER_TYPE
+    m = 0.9
+WORKER_MEMORY_PER_CORE_GB = 0.9 * m
