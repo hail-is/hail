@@ -3,9 +3,10 @@ steps:
    name: clone
    image: alpine/git:1.0.7
    script: |
+     cd /io
      {{ code.checkout_script }}
    outputs:
-    - from: /repo
+    - from: /io/repo
       to: /repo
  - kind: createNamespace
    name: default_ns
@@ -71,25 +72,25 @@ steps:
     - batch_pods_ns
  - kind: buildImage
    name: base_image
-   dockerFile: /repo/docker/Dockerfile.base
-   contextPath: /repo
+   dockerFile: /io/repo/docker/Dockerfile.base
+   contextPath: /io/repo
    publishAs: base
    inputs:
     - from: /repo
-      to: /repo
+      to: /io/repo
    dependsOn:
      - clone
  - kind: buildImage
    name: service_base_image
-   dockerFile: /repo/docker/Dockerfile.service-base
-   contextPath: /repo
+   dockerFile: /io/repo/docker/Dockerfile.service-base
+   contextPath: /io/repo
    publishAs: service-base
    dependsOn:
     - base_image
     - clone
    inputs:
     - from: /repo
-    - to: /repo
+    - to: /io/repo
  - kind: runImage
    name: check_gear
    image:
@@ -111,14 +112,14 @@ steps:
     - default_ns
  - kind: buildImage
    name: create_auth_tables_image
-   dockerFile: /auth/Dockerfile.create-tables
-   contextPath: /auth
+   dockerFile: /io/auth/Dockerfile.create-tables
+   contextPath: /io/auth
    dependsOn:
     - base_image
     - clone
    inputs:
     - from: /repo/auth
-      to: /auth
+      to: /io/auth
  - kind: deploy
    name: create_auth_tables
    namespace:
@@ -293,37 +294,37 @@ steps:
     - create_deploy_config
  - kind: buildImage
    name: hail_build_image
-   dockerFile: /hail/Dockerfile.hail-build
-   contextPath: /hail
+   dockerFile: /io/hail/Dockerfile.hail-build
+   contextPath: /io/hail
    publishAs: hail-build
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo/hail
-       to: /hail
+       to: /io/hail
  - kind: buildImage
    name: hail_run_image
-   dockerFile: /hail/Dockerfile.hail-run
-   contextPath: /hail
+   dockerFile: /io/hail/Dockerfile.hail-run
+   contextPath: /io/hail
    publishAs: hail-run
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo/hail
-       to: /hail
+       to: /io/hail
  - kind: buildImage
    name: scorecard_image
-   dockerFile: /scorecard/Dockerfile
-   contextPath: /scorecard
+   dockerFile: /io/scorecard/Dockerfile
+   contextPath: /io/scorecard
    publishAs: scorecard
    dependsOn:
      - service_base_image
      - clone
    inputs:
      - from: /repo/scorecard
-       to: /scorecard
+       to: /io/scorecard
  - kind: runImage
    name: check_scorecard
    image:
@@ -336,15 +337,15 @@ steps:
      - scorecard_image
  - kind: buildImage
    name: auth_image
-   dockerFile: /auth/Dockerfile
-   contextPath: /auth
+   dockerFile: /io/auth/Dockerfile
+   contextPath: /io/auth
    publishAs: auth
    dependsOn:
      - service_base_image
      - clone
    inputs:
      - from: /repo/auth
-       to: /auth
+       to: /io/auth
  - kind: runImage
    name: check_auth
    image:
@@ -357,47 +358,47 @@ steps:
      - auth_image
  - kind: buildImage
    name: site_image
-   dockerFile: /site/Dockerfile
-   contextPath: /site
+   dockerFile: /io/site/Dockerfile
+   contextPath: /io/site
    publishAs: site
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo/site
-       to: /site
+       to: /io/site
  - kind: buildImage
    name: router_image
-   dockerFile: /router/Dockerfile
-   contextPath: /router
+   dockerFile: /io/router/Dockerfile
+   contextPath: /io/router
    publishAs: router
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo/router
-       to: /router
+       to: /io/router
  - kind: buildImage
    name: batch2_image
-   dockerFile: /batch2/Dockerfile
-   contextPath: /batch2
+   dockerFile: /io/batch2/Dockerfile
+   contextPath: /io/batch2
    publishAs: batch2
    dependsOn:
      - service_base_image
      - clone
    inputs:
      - from: /repo/batch2
-       to: /batch2
+       to: /io/batch2
  - kind: buildImage
    name: batch2_worker_image
-   dockerFile: /repo/batch2/Dockerfile.worker
-   contextPath: /repo
+   dockerFile: /io/repo/batch2/Dockerfile.worker
+   contextPath: /io/repo
    publishAs: batch2-worker
    dependsOn:
      - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: runImage
    name: check_batch2
    image:
@@ -410,47 +411,47 @@ steps:
      - batch2_image
  - kind: buildImage
    name: test_batch2_image
-   dockerFile: /repo/batch2/Dockerfile.test
-   contextPath: /repo/.
+   dockerFile: /io/repo/batch2/Dockerfile.test
+   contextPath: /io/repo/.
    publishAs: test-batch2
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: buildImage
    name: test_ci_image
-   dockerFile: /repo/ci/Dockerfile.test
-   contextPath: /repo
+   dockerFile: /io/repo/ci/Dockerfile.test
+   contextPath: /io/repo
    publishAs: test-ci
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: buildImage
    name: image_fetcher_image
-   dockerFile: /image-fetcher/Dockerfile
-   contextPath: /image-fetcher
+   dockerFile: /io/image-fetcher/Dockerfile
+   contextPath: /io/image-fetcher
    publishAs: image-fetcher
    dependsOn:
      - clone
    inputs:
      - from: /repo/image-fetcher
-       to: /image-fetcher
+       to: /io/image-fetcher
  - kind: buildImage
    name: ci_image
-   dockerFile: /repo/ci/Dockerfile
-   contextPath: /repo
+   dockerFile: /io/repo/ci/Dockerfile
+   contextPath: /io/repo
    publishAs: ci
    dependsOn:
      - service_base_image
      - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: runImage
    name: check_ci
    image:
@@ -463,15 +464,15 @@ steps:
      - ci_image
  - kind: buildImage
    name: ci_utils_image
-   dockerFile: /ci/Dockerfile.ci-utils
-   contextPath: /ci
+   dockerFile: /io/ci/Dockerfile.ci-utils
+   contextPath: /io/ci
    publishAs: ci-utils
    dependsOn:
      - base_image
      - clone
    inputs:
      - from: /repo/ci
-       to: /ci
+       to: /io/ci
  - kind: runImage
    name: build_hail
    image:
@@ -551,8 +552,8 @@ steps:
     - build_hail
  - kind: buildImage
    name: hail_base_image
-   dockerFile: /repo/apiserver/Dockerfile.hail-base
-   contextPath: /repo/
+   dockerFile: /io/repo/apiserver/Dockerfile.hail-base
+   contextPath: /io/repo/
    publishAs: hail-base
    dependsOn:
     - hail_run_image
@@ -560,15 +561,15 @@ steps:
     - clone
    inputs:
     - from: /repo
-      to: /repo
+      to: /io/repo
     - from: /hail.jar
       to: /hail.jar
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
    name: hail_test_base_image
-   dockerFile: /repo/apiserver/Dockerfile.hail-test-base
-   contextPath: /repo
+   dockerFile: /io/repo/apiserver/Dockerfile.hail-test-base
+   contextPath: /io/repo
    publishAs: hail-test-base
    dependsOn:
     - hail_run_image
@@ -576,7 +577,7 @@ steps:
     - clone
    inputs:
     - from: /repo
-      to: /repo
+      to: /io/repo
     - from: /hail-test.jar
       to: /hail-test.jar
     - from: /hail.zip
@@ -593,19 +594,19 @@ steps:
      - hail_base_image
  - kind: buildImage
    name: scheduler_image
-   dockerFile: /repo/scheduler/Dockerfile
-   contextPath: /repo
+   dockerFile: /io/repo/scheduler/Dockerfile
+   contextPath: /io/repo
    publishAs: scheduler
    dependsOn:
     - service_base_image
     - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: buildImage
    name: hail_jupyter_image
-   dockerFile: /repo/apiserver/Dockerfile.hail-jupyter
-   contextPath: /repo
+   dockerFile: /io/repo/apiserver/Dockerfile.hail-jupyter
+   contextPath: /io/repo
    publishAs: hail-jupyter
    dependsOn:
     - hail_base_image
@@ -613,18 +614,18 @@ steps:
     - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: buildImage
    name: notebook_image
-   dockerFile: /repo/notebook/Dockerfile
-   contextPath: /repo
+   dockerFile: /io/repo/notebook/Dockerfile
+   contextPath: /io/repo
    publishAs: notebook
    dependsOn:
     - service_base_image
     - clone
    inputs:
      - from: /repo
-       to: /repo
+       to: /io/repo
  - kind: runImage
    name: check_notebook
    image:
@@ -812,14 +813,14 @@ steps:
     - default_ns
  - kind: buildImage
    name: batch2_tables_image
-   dockerFile: /batch2/Dockerfile.tables
-   contextPath: /batch2
+   dockerFile: /io/batch2/Dockerfile.tables
+   contextPath: /io/batch2
    dependsOn:
     - service_base_image
     - clone
    inputs:
      - from: /repo/batch2
-       to: /batch2
+       to: /io/batch2
  - kind: deploy
    name: delete_batch2_tables
    namespace:
@@ -1109,14 +1110,14 @@ steps:
     - default_ns
  - kind: buildImage
    name: create_notebook_tables_image
-   dockerFile: /notebook/Dockerfile.create-tables
-   contextPath: /notebook
+   dockerFile: /io/notebook/Dockerfile.create-tables
+   contextPath: /io/notebook
    dependsOn:
     - base_image
     - clone
    inputs:
      - from: /repo/notebook
-       to: /notebook
+       to: /io/notebook
  - kind: deploy
    name: create_notebook_tables
    namespace:
