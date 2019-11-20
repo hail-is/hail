@@ -46,7 +46,7 @@ object LinearRegressionAggregator extends StagedAggregator {
   }
 
   def seqOpF(state: State)(mb: MethodBuilder, y: Code[Double], x: Code[Long]): Code[Unit] = {
-    val n = mb.newLocal[Int]
+    val k = mb.newLocal[Int]
     val i = mb.newLocal[Int]
     val j = mb.newLocal[Int]
     val sptr = mb.newLocal[Long]
@@ -58,11 +58,11 @@ object LinearRegressionAggregator extends StagedAggregator {
     val body = coerce[Unit](Code(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
-      sptr := vector.firstElementOffset(xty, n),
-      xptr := vector.firstElementOffset(x, n),
-      n := vector.loadLength(xty),
+      sptr := vector.firstElementOffset(xty, k),
+      xptr := vector.firstElementOffset(x, k),
+      k := vector.loadLength(xty),
       i := 0,
-      Code.whileLoop(i < n, Code(
+      Code.whileLoop(i < k, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr)
           + (Region.loadDouble(xptr) * y)),
         i := i + 1,
@@ -72,11 +72,11 @@ object LinearRegressionAggregator extends StagedAggregator {
 
       i := 0,
       sptr := vector.firstElementOffset(xtx),
-      xptr := vector.firstElementOffset(x, n),
-      Code.whileLoop(i < n, Code(
+      xptr := vector.firstElementOffset(x, k),
+      Code.whileLoop(i < k, Code(
         j := 0,
-        xptr2 := vector.firstElementOffset(x, n),
-        Code.whileLoop(j < n, Code(
+        xptr2 := vector.firstElementOffset(x, k),
+        Code.whileLoop(j < k, Code(
           Region.storeDouble(sptr, Region.loadDouble(sptr)
             + (Region.loadDouble(xptr) * Region.loadDouble(xptr2))),
           j += 1,

@@ -1572,7 +1572,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     n = tup[0]
     yty = tup[1]
 
-    def result_from_agg(linreg_res, n, yty):
+    def result_from_agg(linreg_res, n, k, k0, yty):
         xty = linreg_res.xty
         beta = linreg_res.beta
         diag_inv = linreg_res.diag_inv
@@ -1613,9 +1613,9 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     if _result_from_linreg_agg_f is None:
         _result_from_linreg_agg_f = hl.experimental.define_function(
             result_from_agg,
-            res_type, hl.tint64, hl.tfloat64, _name="linregResFromAgg")
+            res_type, hl.tint64, hl.tint32, hl.tint32, hl.tfloat64, _name="linregResFromAgg")
 
-    return _result_from_linreg_agg_f(temp, n, yty)
+    return _result_from_linreg_agg_f(temp, n, k, k0, yty)
 
 
 @typecheck(x=expr_float64, y=expr_float64)
