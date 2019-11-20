@@ -889,9 +889,9 @@ object Simplify {
       BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), ln, rn, f)
     case BlockMatrixMap2(BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), right, leftName, rightName, f) =>
       val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
-      BlockMatrixMap(right, rightName, Let(leftName, getElement, f))
+      BlockMatrixMap(right, rightName, Subst(f, BindingEnv.eval(leftName -> getElement)))
     case BlockMatrixMap2(left, BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), leftName, rightName, f) =>
       val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
-      BlockMatrixMap(left, leftName, Let(rightName, getElement, f))
+      BlockMatrixMap(left, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)))
   }
 }

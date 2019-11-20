@@ -308,11 +308,6 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.mul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) => left.sub(right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) => left.div(right)
-      case Apply("**", _, _) =>
-        assert(right.nRows == 1 && right.nCols == 1)
-        // BlockMatrix does not currently support elem-wise pow and this case would
-        // only get hit when left and right are both 1x1
-        left.pow(right.getElement(row = 0, col = 0))
     }
   }
 }

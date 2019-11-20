@@ -32,7 +32,6 @@ class BlockMatrixMap(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, name=str, f=IR)
     def __init__(self, child, name, f):
         super().__init__(child, f)
-        super().__init__(child, name, f)
         self.child = child
         self.name = name
         self.f = f
