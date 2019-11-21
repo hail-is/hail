@@ -754,7 +754,8 @@ object Simplify {
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
       && tr.spec.indexed(tr.path)
-      && tr.options.forall(_.filterIntervals) =>
+      && tr.options.forall(_.filterIntervals)
+      && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
@@ -769,7 +770,8 @@ object Simplify {
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true) if canRepartition
       && tr.specLeft.indexed(tr.pathLeft)
-      && tr.options.forall(_.filterIntervals) =>
+      && tr.options.forall(_.filterIntervals)
+      && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
