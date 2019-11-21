@@ -2,17 +2,15 @@ package is.hail.linalg
 
 
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
-import is.hail.{HailSuite, TestUtils}
 import is.hail.check.Arbitrary._
-import is.hail.check.Prop._
 import is.hail.check.Gen._
+import is.hail.check.Prop._
 import is.hail.check._
-import is.hail.expr.ir.TableLiteral
-import is.hail.linalg.BlockMatrix.ops._
-import is.hail.expr.types._
+import is.hail.expr.ir.{CompileAndEvaluate, GetField, TableCollect, TableLiteral}
 import is.hail.expr.types.virtual.{TFloat64Optional, TInt64Optional, TStruct}
-import is.hail.table.Table
+import is.hail.linalg.BlockMatrix.ops._
 import is.hail.utils._
+import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -742,11 +740,13 @@ class BlockMatrixSuite extends HailSuite {
     val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
 
     for {blockSize <- Seq(1, 4, 10)} {
-      val entriesTable = new Table(hc, TableLiteral(toBM(lm, blockSize).entriesTable(ctx), ctx))
-      val entries = entriesTable.collect().map(row => (row.get(0), row.get(1), row.get(2))).toSet
+      val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), ctx)
+      assert(entriesLiteral.typ.rowType == expectedSignature)
+      val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx,
+        GetField(TableCollect(entriesLiteral), "rows"))
+      val entries = rows.map(row => (row.get(0), row.get(1), row.get(2))).toSet
       // block size affects order of rows in table, but sets will be the same
       assert(entries === expectedEntries)
-      assert(entriesTable.signature === expectedSignature)
     }
   }
 
@@ -756,11 +756,11 @@ class BlockMatrixSuite extends HailSuite {
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
-    val expected = new Table(hc,
-      TableLiteral(bm
-        .filterBlocks(Array(0, 1, 6))
-        .entriesTable(ctx), ctx))
-      .collect()
+    val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(TableLiteral(bm
+      .filterBlocks(Array(0, 1, 6))
+      .entriesTable(ctx), ctx)),
+      "rows"))
+    val expected = rows
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
       .map(r => r.get(2).asInstanceOf[Double])
 
