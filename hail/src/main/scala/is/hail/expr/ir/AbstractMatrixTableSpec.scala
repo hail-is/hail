@@ -1,22 +1,14 @@
-package is.hail.variant
+package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.check.Gen
-import is.hail.expr.ir
-import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.rvd._
-import is.hail.sparkextras.ContextRDD
-import is.hail.table.{AbstractTableSpec, Table, TableSpec}
+import is.hail.table.{AbstractTableSpec, TableSpec}
 import is.hail.utils._
-import is.hail.{HailContext, utils}
-import is.hail.io.fs.FS
-import org.apache.hadoop
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import is.hail.variant.ReferenceGenome
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.Serialization
