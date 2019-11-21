@@ -285,18 +285,20 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-                cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                memory_bytes = parse_memory_in_bytes(resources['memory'])
-                cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, WORKER_TYPE)
+                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+
+                if req_cores_mcpu == 0:
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'cpu must be greater than 0')
+
+                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, WORKER_TYPE)
 
                 if cores_mcpu > WORKER_CORES * 1000:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'cpu={resources["cpu"]}, memory={resources["memory"]}')
-                if cores_mcpu == 0:
-                    raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cpu must be greater than 0')
 
                 secrets = spec.get('secrets')
                 if not secrets:
