@@ -1451,9 +1451,9 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
         raise ValueError("visualize_missingness expects expressions of 'MatrixTable', found scalar expression")
     if isinstance(mt, hail.Table):
         raise ValueError("visualize_missingness requires source to be MatrixTable, not Table")
-    if not column_field:
+    if column_field is None:
         column_field = hail.str(mt.col_key)
-    if not row_field:
+    if row_field is None:
         row_field = mt.row_key
     locus = row_field.dtype == hail.tlocus
     columns = column_field.collect()
