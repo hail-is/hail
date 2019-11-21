@@ -513,7 +513,7 @@ object Simplify {
     } => query
 
     case BlockMatrixToValueApply(ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _), functions.GetElement(Seq(i, j))) =>
-      if (child.typ.isInstanceOf[TArray]) ArrayRef(child, i * ncols + j) else child
+      if (child.typ.isInstanceOf[TArray]) ArrayRef(child, I32((i * ncols + j).toInt)) else child
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {

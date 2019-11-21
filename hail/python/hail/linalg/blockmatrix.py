@@ -1467,7 +1467,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(hl.log)
+        return self._apply_map(lambda x: hl.log(x))
 
     def diagonal(self):
         """Extracts diagonal elements as a row vector.
