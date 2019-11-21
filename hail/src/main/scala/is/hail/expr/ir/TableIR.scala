@@ -14,7 +14,6 @@ import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunct
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
 import java.io.{ObjectInputStream, ObjectOutputStream}

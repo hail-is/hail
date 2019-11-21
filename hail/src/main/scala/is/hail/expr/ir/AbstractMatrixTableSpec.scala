@@ -6,7 +6,6 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.rvd._
-import is.hail.table.{AbstractTableSpec, TableSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s._

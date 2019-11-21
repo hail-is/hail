@@ -9,7 +9,6 @@ import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.bgen.MatrixBGENReaderSerializer
 import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
-import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
