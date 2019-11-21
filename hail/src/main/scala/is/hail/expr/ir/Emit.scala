@@ -1485,9 +1485,9 @@ private class Emit(
           // Make some space for the output (which means copying the input)
           answerAddress := ndPType.data.pType.allocate(region, answerNumElements.toI),
           ndPType.data.pType.stagedInitialize(answerAddress, answerNumElements.toI),
-          //ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0), ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), M, N, mb),
-          Region.copyFrom(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0),
-            ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), answerNumElements * ndPType.elementType.byteSize),
+          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0), ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), M, N, mb),
+          //Region.copyFrom(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0),
+          //  ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), answerNumElements * ndPType.elementType.byteSize),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),

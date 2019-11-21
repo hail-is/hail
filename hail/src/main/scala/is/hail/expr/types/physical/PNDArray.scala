@@ -179,12 +179,11 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val rowMajorCoord = mb.newField[Long]
     val colMajorCoord = mb.newField[Long]
 
-
     // Problem: This does not consider the length
     val loopingCopy = Code(
       rowIndex := 0L,
-      colIndex := 0L,
       Code.whileLoop(rowIndex < nRows,
+        colIndex := 0L,
         Code.whileLoop(colIndex < nCols,
           rowMajorCoord := nCols * rowIndex + colIndex,
           colMajorCoord := nRows * colIndex + rowIndex,
