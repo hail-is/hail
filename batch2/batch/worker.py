@@ -166,13 +166,15 @@ class Container:
         status = {
             'state': cstate['Status'],
             'started_at': cstate['StartedAt'],
-            'finished_at': cstate['FinishedAt']
+            'finished_at': cstate['FinishedAt'],
+            'out_of_memory': cstate['OOMKilled']
         }
         cerror = cstate['Error']
         if cerror:
             status['error'] = cerror
         else:
             status['exit_code'] = cstate['ExitCode']
+
         return status
 
     async def run(self, worker):
@@ -276,8 +278,9 @@ class Container:
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
+    #     out_of_memory: boolean
     #     error: str, (one of error, exit_code will be present)
-    #     exit_code: int
+    #     exit_code: int,
     #   }
     # }
     async def status(self, state=None):
