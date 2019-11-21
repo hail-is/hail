@@ -274,8 +274,10 @@ class CSEAnalysisPass:
                         lets[id(child)] = uid
                     continue
 
-            # first time visiting 'child'
-            stack.append(child_frame)
+            # avoid lifting refs
+            if not isinstance(child, ir.Ref):
+                # first time visiting 'child'
+                stack.append(child_frame)
             continue
 
         return binding_sites

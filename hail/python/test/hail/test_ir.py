@@ -464,3 +464,16 @@ class CSETests(unittest.TestCase):
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
         )
         assert expected == CSERenderer()(agglet)
+
+    def test_refs(self):
+        ref = ir.Ref('row')
+        x = ir.TableMapRows(ir.TableRange(10, 1),
+                            ir.MakeStruct([('foo', ir.GetField(ref, 'idx')),
+                                           ('bar', ir.GetField(ref, 'idx'))]))
+        expected = (
+            '(TableMapRows (TableRange 10 1)'
+                ' (MakeStruct'
+                    ' (foo (GetField idx (Ref row)))'
+                    ' (bar (GetField idx (Ref row)))))'
+        )
+        assert expected == CSERenderer()(x)
