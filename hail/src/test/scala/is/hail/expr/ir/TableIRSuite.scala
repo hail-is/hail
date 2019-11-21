@@ -498,4 +498,16 @@ class TableIRSuite extends HailSuite {
 
     assert(testTable.globals == texp.globals)
   }
+
+  @Test def testPartitionCountsWithDropRows() {
+    val tr = new TableReader {
+      override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+
+      override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
+
+      override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct())
+    }
+    val tir = TableRead(tr.fullType, true, tr)
+    assert(tir.partitionCounts.forall(_.sum == 0))
+  }
 }
