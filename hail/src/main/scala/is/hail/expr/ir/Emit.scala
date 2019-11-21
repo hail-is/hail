@@ -1470,7 +1470,8 @@ private class Emit(
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
-        val answerAddress = mb.newField[Long]
+        val columnMajorCopyAddress = mb.newField[Long]
+        val answerCopyAddress = mb.newField[Long]
         val answerNumElements = ndPType.numElements(shapeArray, mb)
 
         val infoResult = mb.newLocal[Int]
@@ -1482,12 +1483,12 @@ private class Emit(
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", answerNumElements.toI),
 
-          // Make some space for the output (which means copying the input)
-          answerAddress := ndPType.data.pType.allocate(region, answerNumElements.toI),
-          ndPType.data.pType.stagedInitialize(answerAddress, answerNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0), ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), M, N, mb),
+          // Make some space for the column major form (which means copying the input)
+          columnMajorCopyAddress := ndPType.data.pType.allocate(region, answerNumElements.toI),
+          ndPType.data.pType.stagedInitialize(columnMajorCopyAddress, answerNumElements.toI),
+          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0), ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0), M, N, mb),
           //Region.copyFrom(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0),
-          //  ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0), answerNumElements * ndPType.elementType.byteSize),
+          //  ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0), answerNumElements * ndPType.elementType.byteSize),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
@@ -1502,7 +1503,7 @@ private class Emit(
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI, 0),
+            ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0),
             LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
             workAddress,
@@ -1516,7 +1517,7 @@ private class Emit(
             "println", ndPType.data.pType.loadLength(dataAddress)),
           Code._println("Answer data length"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", ndPType.data.pType.loadLength(answerAddress)),
+            "println", ndPType.data.pType.loadLength(columnMajorCopyAddress)),
           Code._println("tau length"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", tauPType.loadLength(tauAddress))
@@ -1544,10 +1545,14 @@ private class Emit(
 
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, answerAddress, mb)
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, columnMajorCopyAddress, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
+            answerCopyAddress := hPType.data.pType.allocate(region, answerNumElements.toI),
+            hPType.data.pType.stagedInitialize(answerCopyAddress, answerNumElements.toI),
+            hPType.copyColumnMajorToRowMajor(hPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0),
+              hPType.data.pType.elementOffset(answerCopyAddress, answerNumElements.toI, 0), M, N, mb),
             rawOutputSrvb.start(),
             rawOutputSrvb.addIRIntermediate(hPType)(h),
             rawOutputSrvb.advance(),
@@ -1580,7 +1585,7 @@ private class Emit(
                 Code.whileLoop(currCol < N.toI,
                   (currRow > currCol).orEmpty(
                     // TODO Not row / column major agnostic!
-                    Region.storeDouble(ndPType.data.pType.elementOffset(answerAddress, answerNumElements.toI,
+                    Region.storeDouble(ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI,
                       currRow * N.toI + currCol), 0.0)
                   ),
                   currCol := currCol + 1
@@ -1593,7 +1598,7 @@ private class Emit(
             val result = Code(
               alwaysNeeded,
               zeroOutCorner,
-              rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, answerAddress, mb)
+              rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, columnMajorCopyAddress, mb)
             )
 
             EmitTriplet(ndt.setup, ndt.m, result)

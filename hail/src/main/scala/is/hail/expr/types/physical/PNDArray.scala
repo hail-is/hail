@@ -196,6 +196,29 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     loopingCopy
   }
 
+  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
+    val rowIndex = mb.newField[Long]
+    val colIndex = mb.newField[Long]
+    val rowMajorCoord = mb.newField[Long]
+    val colMajorCoord = mb.newField[Long]
+
+    // Problem: This does not consider the length
+    val loopingCopy = Code(
+      rowIndex := 0L,
+      Code.whileLoop(rowIndex < nRows,
+        colIndex := 0L,
+        Code.whileLoop(colIndex < nCols,
+          rowMajorCoord := nCols * rowIndex + colIndex,
+          colMajorCoord := nRows * colIndex + rowIndex,
+          Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)),
+          colIndex := colIndex + 1L
+        ),
+        rowIndex := rowIndex + 1L
+      )
+    )
+    loopingCopy
+  }
+
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
     stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
