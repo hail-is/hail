@@ -294,11 +294,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 log.info(f'adjusted cores_mcpu {cores_mcpu}')
                 log.info(f'WORKER CORES = {WORKER_CORES}')
                 if cores_mcpu > WORKER_CORES:
-                    raise web.HTTPBadRequest(reason=f'resource requests for job {id} '
-                    f'are unsatisfiable: cpu={resources["cpu"]}, memory={resources["memory"]}')
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'cpu={resources["cpu"]}, memory={resources["memory"]}')
                 if cores_mcpu == 0:
-                    raise web.HTTPBadRequest(reason=f'resource requests for job {id} '
-                    f'are unsatisfiable: cpu must be greater than 0')
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'cpu must be greater than 0')
 
                 secrets = spec.get('secrets')
                 if not secrets:
