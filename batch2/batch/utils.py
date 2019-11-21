@@ -3,7 +3,6 @@ import time
 import logging
 
 from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
-from .batch_configuration import WORKER_MEMORY_PER_CORE_BYTES
 
 
 log = logging.getLogger('utils')
@@ -37,16 +36,27 @@ def parse_memory_in_bytes(memory_string):
     return None
 
 
-def memory_bytes_to_cores_mcpu(memory_in_bytes):
-    return int((memory_in_bytes / WORKER_MEMORY_PER_CORE_BYTES) * 1000)
+def worker_memory_per_core_bytes(worker_type):
+    if worker_type == 'standard':
+        m = 3.75
+    elif worker_type == 'highmem':
+        m = 6.5
+    else:
+        assert worker_type == 'highcpu', worker_type
+        m = 0.9
+    return int(0.9 * m * 1000**3)  # GCE memory/core are in GB not GiB
 
 
-def cores_mcpu_to_memory_bytes(cores_in_mcpu):
-    return int((cores_in_mcpu / 1000) * WORKER_MEMORY_PER_CORE_BYTES)
+def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
+    return int((memory_in_bytes / worker_memory_per_core_bytes(worker_type)) * 1000)
 
 
-def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes):
-    min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes)
+def cores_mcpu_to_memory_bytes(cores_in_mcpu, worker_type):
+    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(worker_type))
+
+
+def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type):
+    min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 

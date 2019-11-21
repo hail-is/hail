@@ -30,7 +30,7 @@ from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_m
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE, WORKER_CORES
+from ..batch_configuration import BATCH_PODS_NAMESPACE, WORKER_CORES, WORKER_TYPE
 
 from . import schemas
 
@@ -287,7 +287,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 memory_bytes = parse_memory_in_bytes(resources['memory'])
-                cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes)
+                cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, WORKER_TYPE)
 
                 if cores_mcpu > WORKER_CORES * 1000:
                     raise web.HTTPBadRequest(
