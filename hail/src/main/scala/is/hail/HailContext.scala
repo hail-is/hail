@@ -9,7 +9,7 @@ import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.ir.{BaseIR, TextTableReader, ExecuteContext}
+import is.hail.expr.ir.{BaseIR, ExecuteContext}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
@@ -19,7 +19,6 @@ import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.table.Table
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.hadoop
@@ -36,8 +35,6 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
-
-import is.hail.sparkextras.IndexedFilePartition
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -676,46 +673,6 @@ class HailContext private(
       IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci, ctx)
     }
     info(s"Number of BGEN files indexed: ${ files.length }")
-  }
-
-  def importTable(input: String,
-    keyNames: Option[IndexedSeq[String]] = None,
-    nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false
-  ): Table = importTables(List(input), keyNames, nPartitions, types, comment,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
-
-  def importTables(inputs: Seq[String],
-    keyNames: Option[IndexedSeq[String]] = None,
-    nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false): Table = {
-    require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
-
-    val files = sFS.globAll(inputs)
-    if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
-
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
-      TextTableReader.read(this)(files, types, comment, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
-        skipBlankLines).keyBy(keyNames)
-    }
   }
 
   def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
