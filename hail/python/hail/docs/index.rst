@@ -24,6 +24,7 @@ Contents
     Datasets <datasets>
     Annotation Database <annotation_database_ui>
     How-To Guides <guides>
+    Cheatsheets <cheatsheets>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
     Change Log <change_log>
