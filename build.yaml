@@ -90,7 +90,7 @@ steps:
     - clone
    inputs:
     - from: /repo
-    - to: /io/repo
+      to: /io/repo
  - kind: runImage
    name: check_gear
    image:
