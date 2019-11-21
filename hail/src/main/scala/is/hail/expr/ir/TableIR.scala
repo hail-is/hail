@@ -282,7 +282,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
   assert(PruneDeadFields.isSupertype(typ, tr.fullType),
     s"\n  original:  ${ tr.fullType }\n  requested: $typ")
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = tr.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastIndexedSeq(0L)) else tr.partitionCounts
 
   lazy val rowCountUpperBound: Option[Long] = partitionCounts.map(_.sum)
 
