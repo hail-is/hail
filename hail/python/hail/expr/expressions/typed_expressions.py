@@ -3505,9 +3505,9 @@ class NDArrayExpression(Expression):
         shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
         return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
 
-    opt_long_slice_ = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
+    _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, opt_long_slice_, tupleof(oneof(expr_int64, opt_long_slice_))))
+    @typecheck_method(item=oneof(expr_int64, _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)

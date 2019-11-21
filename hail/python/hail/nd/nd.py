@@ -60,11 +60,11 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
 
     Parameters
     ----------
-    start : int or :class:`.Expression` of type :py:data:`.tint32`
+    :param start: int or :class:`.Expression` of type :py:data:`.tint32`
         Start of range.
-    stop : int or :class:`.Expression` of type :py:data:`.tint32`
+    :param stop: int or :class:`.Expression` of type :py:data:`.tint32`
         End of range.
-    step : int or :class:`.Expression` of type :py:data:`.tint32`
+    :param step: int or :class:`.Expression` of type :py:data:`.tint32`
         Step of range.
 
     Returns
@@ -76,11 +76,26 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), value=expr_any, dtype=nullable(HailType))
 def full(shape, value, dtype=None):
-    """
+    """Creates a hail :class:`.NDArrayNumericExpression` full of the specified value.
+
+    Examples
+    --------
+
+    Create a 5 by 7 NDArray of type `tfloat64` 9s.
+
+    >>> hl._nd.full((5, 7), 9)
+
+    It is possible to specify a type other than `tfloat64` with the `dtype` argument.
+
+    >>> hl._nd.full((5, 7), 9, dtype=hl.tint32)
+
     
-    :param shape:
-    :param value:
-    :param dtype:
+    :param shape: `tuple` or `TupleExpression`
+            Desired shape.
+    :param value: `Expression` or python value
+            Value to fill ndarray with.
+    :param dtype: `HailType`
+            Desired hail type.
     :return:
     """
     if isinstance(shape, Int64Expression):
