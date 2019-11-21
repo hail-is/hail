@@ -155,6 +155,12 @@ final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) exte
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
+
+// Recur can't exist outside of loop
+// Loops can be nested, but we can't call outer loops in terms of inner loops
+final case class Loop(params: Seq[(String, IR)], body: IR, _typ: Type) extends IR
+final case class Recur(args: Seq[IR], _typ: Type) extends IR
+
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
 final case class RelationalRef(name: String, _typ: Type) extends IR
 

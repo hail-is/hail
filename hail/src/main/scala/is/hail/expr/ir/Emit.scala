@@ -1576,6 +1576,11 @@ private class Emit(
               ctxab.invoke[Array[Array[Byte]]]("result"),
               baos.invoke[Array[Byte]]("toByteArray")),
             decodeResult))
+      case x@Loop(args, body, rt) =>
+        val (argRefs, argIRs) = args.unzip
+        val refs = args.map { case (name, ir) => Ref(name, ir.typ) }
+        val args.map()
+
     }
   }
 
