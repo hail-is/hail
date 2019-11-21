@@ -293,7 +293,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     f'are unsatisfiable: cpu={resources["cpu"]}, memory={resources["memory"]}')
                 if cores_mcpu == 0:
                     raise web.HTTPBadRequest(reason=f'resource requests for job {id} '
-                                             f'are unsatisfiable: cpu must be greater than 0')
+                    f'are unsatisfiable: cpu must be greater than 0')
 
                 secrets = spec.get('secrets')
                 if not secrets:
