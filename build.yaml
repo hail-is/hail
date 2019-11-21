@@ -112,16 +112,32 @@ steps:
      - default_ns
      - create_auth_tables_image
      - users_database
- - kind: deploy
+ - kind: runImage
    name: create_deploy_config
-   namespace:
-     valueFrom: default_ns.name
-   config: auth/create-deploy-config-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-deploy-config
-      for: completed
-      timeout: 120
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # k8s deploy config
+     cat > deploy-config.json <<EOF
+     {"location":"k8s","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     EOF
+     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
+     kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     if [ {{ default_ns.name }} != {{ batch_pods_ns.name }} ]; then
+	 kubectl -n {{ batch_pods_ns.name }} delete --ignore-not-found secret deploy-config
+	 kubectl -n {{ batch_pods_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     fi
+     # gce deploy config
+     cat > deploy-config.json <<EOF
+     {"location":"gce","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     EOF
+     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
+     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
    dependsOn:
     - default_ns
     - batch_pods_ns
