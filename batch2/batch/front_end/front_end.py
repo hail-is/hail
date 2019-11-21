@@ -293,6 +293,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes)
                 log.info(f'adjusted cores_mcpu {cores_mcpu}')
 
+                log.info(f'WORKER_CORES = {WORKER_CORES}')
                 if cores_mcpu > WORKER_CORES * 1000:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
