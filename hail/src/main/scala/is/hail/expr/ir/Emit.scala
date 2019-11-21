@@ -1487,8 +1487,6 @@ private class Emit(
           columnMajorCopyAddress := ndPType.data.pType.allocate(region, answerNumElements.toI),
           ndPType.data.pType.stagedInitialize(columnMajorCopyAddress, answerNumElements.toI),
           ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0), ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0), M, N, mb),
-          //Region.copyFrom(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0),
-          //  ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0), answerNumElements * ndPType.elementType.byteSize),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
@@ -1509,20 +1507,14 @@ private class Emit(
             workAddress,
             LWORK
           ),
-          Code._println("Info after LAPACK invocation"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", infoResult),
+          Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS)),
+
           Code._println("Initial data length"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
             "println", ndPType.data.pType.loadLength(dataAddress)),
           Code._println("Answer data length"),
           Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", ndPType.data.pType.loadLength(columnMajorCopyAddress)),
-          Code._println("tau length"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", tauPType.loadLength(tauAddress))
-
-
+            "println", ndPType.data.pType.loadLength(columnMajorCopyAddress))
 
           //Code.invokeStatic[Memory, Long, Unit]("free", LWORK.toLong)
         )
@@ -1571,7 +1563,6 @@ private class Emit(
         }
         else {
           if (mode == "r") {
-            // TODO Need to flip R back into row major.
             // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner and call it a day.
             val rPType = x.pType.asInstanceOf[PNDArray]
             val rShapeBuilder = rPType.makeShapeBuilder(Array(M, N))
@@ -1586,7 +1577,7 @@ private class Emit(
                 Code.whileLoop(currCol < N.toI,
                   (currRow > currCol).orEmpty(
                     // TODO Not row / column major agnostic!
-                    Region.storeDouble(ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI,
+                    Region.storeDouble(ndPType.data.pType.elementOffset(answerCopyAddress, answerNumElements.toI,
                       currRow * N.toI + currCol), 0.0)
                   ),
                   currCol := currCol + 1
@@ -1598,8 +1589,12 @@ private class Emit(
             // Now I have the code to zero out a corner. I should run that code, then return only A.
             val result = Code(
               alwaysNeeded,
+              answerCopyAddress := rPType.data.pType.allocate(region, answerNumElements.toI),
+              rPType.data.pType.stagedInitialize(answerCopyAddress, answerNumElements.toI),
+              rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0),
+                rPType.data.pType.elementOffset(answerCopyAddress, answerNumElements.toI, 0), M, N, mb),
               zeroOutCorner,
-              rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, columnMajorCopyAddress, mb)
+              rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, answerCopyAddress, mb)
             )
 
             EmitTriplet(ndt.setup, ndt.m, result)
