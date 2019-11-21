@@ -9,9 +9,14 @@ def main(args_):
 
     parser.add_argument("--data-dir", "-d",
                         type=str,
+                        required=True,
                         help="Data directory.")
+    parser.add_argument("--group",
+                        type=str,
+                        required=False,
+                        help="Resource group to download.")
 
     args = parser.parse_args(args_)
 
     init_logging()
-    download_data(args.data_dir)
+    download_data(args.data_dir, args.group)
