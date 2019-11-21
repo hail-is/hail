@@ -22,4 +22,4 @@ elif WORKER_TYPE == 'highmem':
 else:
     assert WORKER_TYPE == 'highcpu', WORKER_TYPE
     m = 0.9
-WORKER_MEMORY_PER_CORE_GB = 0.9 * m
+WORKER_MEMORY_PER_CORE_BYTES = int(0.9 * m * 1024**3)

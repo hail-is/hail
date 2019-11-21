@@ -23,7 +23,6 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .batch_configuration import WORKER_MEMORY_PER_CORE_GB
 from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import WeightedSemaphore
