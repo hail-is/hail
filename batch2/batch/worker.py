@@ -435,7 +435,7 @@ class Job:
 
     @property
     def id(self):
-        return (self.batch_id, self.job_id)
+        return self.batch_id, self.job_id
 
     async def run(self, worker):
         try:
