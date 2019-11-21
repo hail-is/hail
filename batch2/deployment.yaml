@@ -166,7 +166,7 @@ spec:
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
            value: "0.1"
          - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
-           value: "375Mi"
+           value: "0.3375Gi"
          - name: WORKER_TYPE
            value: "standard"
          - name: WORKER_CORES

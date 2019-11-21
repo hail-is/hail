@@ -64,11 +64,11 @@ class Job:
 
     @staticmethod
     def _get_container_status_exit_code(container_status):
-        dcontainer_status = container_status.get('container_status')
-        if not dcontainer_status:
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
             return None
 
-        return dcontainer_status.get('exit_code')
+        return docker_container_status.get('exit_code')
 
     @staticmethod
     def _get_exit_code(job_status, task):
