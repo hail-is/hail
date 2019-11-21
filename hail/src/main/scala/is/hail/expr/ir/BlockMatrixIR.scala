@@ -154,11 +154,11 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
 
   override lazy val typ: BlockMatrixType = child.typ
 
-  lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, f)
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixMap = {
-    assert(newChildren.length == 1)
-    BlockMatrixMap(newChildren(0).asInstanceOf[BlockMatrixIR], eltName, f)
+    val IndexedSeq(newChild: BlockMatrixIR, newF: IR) = newChildren
+    BlockMatrixMap(newChild, eltName, newF)
   }
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
@@ -212,8 +212,8 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
 
     if (reqDense)
       prev.densify().blockMap(breezeF, name, reqDense = true)
-
-    prev.blockMap(breezeF, name, reqDense = false)
+    else
+      prev.blockMap(breezeF, name, reqDense = false)
   }
 }
 
