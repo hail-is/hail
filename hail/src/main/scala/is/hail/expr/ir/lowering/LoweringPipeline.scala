@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.{BaseIR, ExecuteContext, Optimize}
-import is.hail.utils.FastSeq
+import is.hail.utils.{FastSeq, HailException}
 
 case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
   assert(lowerings.nonEmpty)
@@ -21,6 +21,7 @@ case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
         if (optimize)
           x = Optimize(x, noisy = true, context = s"${l.context}, post Lowering", ctx)
       } catch {
+        case e: HailException => throw e
         case e: Throwable =>
           throw new RuntimeException(s"error while applying lowering '${ l.context }'", e)
       }
