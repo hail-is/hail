@@ -8,6 +8,7 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
+import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVDContext
 import is.hail.utils._
@@ -27,6 +28,11 @@ object Interpret {
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
+    lowered.execute(ctx)
+  }
+
+  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, bmir, optimize).asInstanceOf[BlockMatrixIR]
     lowered.execute(ctx)
   }
 
