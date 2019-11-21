@@ -173,7 +173,7 @@ object Code {
     }
   }
 
-  def forLoop(init: Code[Unit], cond: Code[Boolean], increment: Code[Unit], body: Code[_]*): Code[Unit] = {
+  def forLoop(init: Code[Unit], cond: Code[Boolean], increment: Code[Unit], body: Code[Unit]): Code[Unit] = {
     Code(
       init,
       Code.whileLoop(cond,
