@@ -85,13 +85,13 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {'cpu': '1', 'memory': '28Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-        with self.assertRaisesRegex('resource requests'):
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests'):
             builder.submit()
 
         builder = self.client.create_batch()
         resources = {'cpu': '0', 'memory': '1Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-        with self.assertRaisesRegex('resource requests'):
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests'):
             builder.submit()
 
     def test_out_of_memory(self):
@@ -102,7 +102,7 @@ class Test(unittest.TestCase):
                                resources=resources)
         builder.submit()
         status = j.wait()
-        assert status['container_statuses']['main']['out_of_memory']
+        assert j._get_out_of_memory(status, 'main')
 
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()
