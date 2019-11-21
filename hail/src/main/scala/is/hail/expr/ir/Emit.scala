@@ -1545,7 +1545,7 @@ private class Emit(
 
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, columnMajorCopyAddress, mb)
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, answerCopyAddress, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
@@ -1571,6 +1571,7 @@ private class Emit(
         }
         else {
           if (mode == "r") {
+            // TODO Need to flip R back into row major.
             // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner and call it a day.
             val rPType = x.pType.asInstanceOf[PNDArray]
             val rShapeBuilder = rPType.makeShapeBuilder(Array(M, N))
