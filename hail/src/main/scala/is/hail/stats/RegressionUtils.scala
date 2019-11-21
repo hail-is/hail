@@ -6,7 +6,6 @@ import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils._
-import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 object RegressionUtils {  

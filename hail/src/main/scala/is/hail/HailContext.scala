@@ -20,7 +20,7 @@ import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
 import is.hail.utils.{log, _}
-import is.hail.variant.{MatrixTable, ReferenceGenome}
+import is.hail.variant.ReferenceGenome
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
@@ -674,13 +674,6 @@ class HailContext private(
     }
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
-
-  def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
-    MatrixTable.read(this, file, dropCols = dropCols, dropRows = dropRows)
-  }
-
-  def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
-    read(file, dropSamples, dropVariants)
 
   def readPartitions[T: ClassTag](
     path: String,

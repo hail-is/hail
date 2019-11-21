@@ -1503,3 +1503,19 @@ class Tests(unittest.TestCase):
     def test_legacy_files_with_required_globals(self):
         hl.read_table(resource('required_globals.ht'))._force_count()
         hl.read_matrix_table(resource('required_globals.mt'))._force_count_rows()
+
+    def test_matrix_native_write_range(self):
+        mt = hl.utils.range_matrix_table(11, 3, n_partitions=3)
+        f = new_temp_file()
+        mt.write(f)
+        assert hl.read_matrix_table(f)._same(mt)
+
+    def test_matrix_multi_write_range(self):
+        mts = [
+            hl.utils.range_matrix_table(11, 27, n_partitions=10),
+            hl.utils.range_matrix_table(11, 3, n_partitions=10)
+        ]
+        f = new_temp_file()
+        hl.experimental.write_matrix_tables(mts, f)
+        assert hl.read_matrix_table(f + '0.mt')._same(mts[0])
+        assert hl.read_matrix_table(f + '1.mt')._same(mts[1])
