@@ -47,7 +47,6 @@ def cores_mcpu_to_memory_bytes(cores_in_mcpu):
 
 def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes):
     min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes)
-    log.info(f'min_cores_mcpu = {min_cores_mcpu} cores_in_mcpu = {cores_in_mcpu}')
     return max(cores_in_mcpu, min_cores_mcpu)
 
 

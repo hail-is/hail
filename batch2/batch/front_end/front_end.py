@@ -285,15 +285,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-                log.info(f'raw inputs from user {(resources["cpu"], resources["memory"])}')
                 cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                log.info(f'cores_mcpu from user = {cores_mcpu}')
                 memory_bytes = parse_memory_in_bytes(resources['memory'])
-                log.info(f'memory_bytes from user = {memory_bytes}')
                 cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes)
-                log.info(f'adjusted cores_mcpu {cores_mcpu}')
 
-                log.info(f'WORKER_CORES = {WORKER_CORES}')
                 if cores_mcpu > WORKER_CORES * 1000:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
