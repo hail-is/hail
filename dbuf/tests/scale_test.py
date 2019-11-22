@@ -13,7 +13,7 @@ import hailtop.utils as utils
 log = logging.getLogger('dbuf_scale_test')
 
 
-async def write(server, id, data, args, i):
+async def write(server, id, data, args):
     start = time.time()
     async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
         writer = client.start_write()
@@ -23,7 +23,7 @@ async def write(server, id, data, args, i):
         return keys, time.time() - start
 
 
-async def read(server, id, args, i, keys):
+async def read(server, id, args, keys):
     start = time.time()
     async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
         data = await client.getmany(keys)
@@ -40,7 +40,6 @@ async def main():
     args = parser.parse_args()
 
     n = args.n
-    d = int(math.log10(n)) + 1
 
     start = time.time()
     async with dbuf.client.DBufClient(args.cluster_leader) as client:
@@ -57,7 +56,7 @@ async def main():
         grouped_data = list(utils.grouped(data, args.reqs))
 
         keys, times = utils.unzip(await asyncio.gather(
-            *[write(server[i], id, grouped_data[i], args, str(i).zfill(d)) for i in range(n)]))
+            *[write(server[i], id, grouped_data[i], args) for i in range(n)]))
 
         end = time.time()
         duration = end - start
@@ -73,7 +72,7 @@ async def main():
         start = time.time()
 
         data2, times = utils.unzip(await asyncio.gather(
-            *[read(server[i], id, args, str(i).zfill(d), keys[i]) for i in range(n)]))
+            *[read(server[i], id, args, keys[i]) for i in range(n)]))
 
         end = time.time()
         duration = end - start
