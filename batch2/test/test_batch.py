@@ -96,13 +96,12 @@ class Test(unittest.TestCase):
 
     def test_out_of_memory(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '0.001', 'memory': '4M'}
+        resources = {'cpu': '0.001', 'memory': '10M'}
         j = builder.create_job('python:3.6-slim-stretch',
                                ['python', '-c', '"x = list([i for i in range(100000000)])"'],
                                resources=resources)
         builder.submit()
         status = j.wait()
-        print(status)
         assert j._get_out_of_memory(status, 'main')
 
     def test_unsubmitted_state(self):
