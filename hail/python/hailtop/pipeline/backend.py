@@ -187,8 +187,8 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self):
-        self._batch_client = BatchClient()
+    def __init__(self, billing_project):
+        self._batch_client = BatchClient(billing_project)
 
     def close(self):
         self._batch_client.close()

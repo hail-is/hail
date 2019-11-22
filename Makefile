@@ -12,7 +12,6 @@ check:
 	make -C notebook check
 	make -C auth check
 	make -C scorecard check
-	make -C batch check
 	make -C batch2 check
 	make -C ci check
 	make -C hail/python check

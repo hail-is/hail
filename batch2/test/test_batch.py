@@ -34,7 +34,7 @@ def poll_until(p, max_polls=None):
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.client = BatchClient()
+        self.client = BatchClient('test')
 
     def tearDown(self):
         self.client.close()
@@ -372,7 +372,7 @@ class Test(unittest.TestCase):
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-        bc = BatchClient(_token=token)
+        bc = BatchClient('test', _token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('ubuntu:18.04', ['false'])

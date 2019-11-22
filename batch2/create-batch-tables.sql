@@ -8,6 +8,19 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
+
+CREATE TABLE IF NOT EXISTS `billing_projects` (
+  `name` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`name`)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `billing_project_users` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`billing_project`, `user`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
   `state` VARCHAR(40) NOT NULL,
@@ -36,6 +49,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` VARCHAR(65535) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
+  `billing_project` VARCHAR(100) NOT NULL,
   `attributes` VARCHAR(65535),
   `callback` VARCHAR(65535),
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -50,7 +64,8 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`user`) REFERENCES user_resources(user) ON DELETE CASCADE
+  FOREIGN KEY (`user`) REFERENCES user_resources(user) ON DELETE CASCADE,
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
