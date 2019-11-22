@@ -24,6 +24,20 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.28
+
+Released 2019-11-22
+
+### Bug fixes
+- (hail#7577) Fixed a bug where `hl.filter(False).count()` would just return the count of table rows.
+
+### New Features
+
+- (hail#7575) Added `hl.version()` to quickly check hail version.
+
+### Documentation
+- (hail#7570) Hail has a cheatsheet for Tables now.
+
 ## Version 0.2.27
 
 Released 2019-11-15
