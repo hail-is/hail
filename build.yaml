@@ -844,7 +844,7 @@ steps:
     - create_ci_test_repo
     - deploy_ci_agent
     - deploy_ci_agent_default
- - kind: deploy
+ - kind: runImage
    name: test_ci
    image:
      valueFrom: test_ci_image.image
@@ -859,7 +859,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
-    - hail-ci-0-1-service-account-key
+    - name: hail-ci-0-1-service-account-key
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
