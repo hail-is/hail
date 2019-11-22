@@ -9,7 +9,7 @@ from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 
 
 def array(input_array):
-    """Construct an NDArrayExpression.
+    """Construct an :class:`.NDArrayExpression`
 
     Examples
     --------
@@ -30,7 +30,7 @@ def array(input_array):
     array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19], dtype=int32)
 
     :param input_array: ArrayExpression or numpy ndarray or nested python lists
-    :return: A hail NDArrayExpression
+    :return: A hail :class:`.NDArrayExpression`
     """
     return _ndarray(input_array)
 
@@ -58,8 +58,6 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     If provided exactly one argument, the argument is interpreted as `stop` and
     `start` is set to zero. This matches the behavior of Python's ``range``.
 
-    Parameters
-    ----------
     :param start: int or :class:`.Expression` of type :py:data:`.tint32`
         Start of range.
     :param stop: int or :class:`.Expression` of type :py:data:`.tint32`
@@ -67,9 +65,7 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     :param step: int or :class:`.Expression` of type :py:data:`.tint32`
         Step of range.
 
-    Returns
-    -------
-    :class:`.NDArrayNumericExpression`
+    :return: A 1-dimensional :class:`.NDArrayNumericExpression` from `start` to `stop` by `step`.
     """
     return array(hl.range(start, stop, step))
 
@@ -96,7 +92,8 @@ def full(shape, value, dtype=None):
             Value to fill ndarray with.
     :param dtype: `HailType`
             Desired hail type.
-    :return:
+
+    :return: A returned full thing
     """
     if isinstance(shape, Int64Expression):
         shape_product = shape
@@ -123,9 +120,9 @@ def zeros(shape, dtype=hl.tfloat64):
 
        Parameters
        ----------
-       shape : `tuple` or `TupleExpression`
+       :param shape: `tuple` or `TupleExpression`
             Desired shape.
-       dtype : `HailType`
+       :param dtype : `HailType`
             Desired hail type.
 
         See Also
@@ -158,10 +155,11 @@ def ones(shape, dtype=hl.tfloat64):
 
        Parameters
        ----------
-       shape : `tuple` or `TupleExpression`
+       :param shape: `tuple` or `TupleExpression`
             Desired shape.
-       dtype : `HailType`
+       :param dtype: `HailType`
             Desired hail type.
+
 
        See Also
        --------

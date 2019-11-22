@@ -16,11 +16,13 @@ This is a recently added, experimental module. We would love to hear what use ca
 .. autosummary::
 
     array
+    arange
     zeros
     ones
     full
 
 .. autofunction:: array
+.. autofunction:: arange
 .. autofunction:: full
 .. autofunction:: ones
 .. autofunction:: zeros
