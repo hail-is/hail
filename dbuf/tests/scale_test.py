@@ -18,7 +18,7 @@ async def write(data, args, client):
     writer = await client.start_write()
     for i in range(args.reqs):
         await writer.write(data[i])
-    keys = await writer.keys()
+    keys = await writer.finish()
     return keys, time.time() - start
 
 
