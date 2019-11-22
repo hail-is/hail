@@ -73,7 +73,7 @@ class Profile25(ResourceGroup):
 
     def path(self, resource):
         if resource == 'mt':
-            'profile.mt'
+            return 'profile.mt'
         elif resource == 'vcf':
             return 'profile.vcf.bgz'
         raise KeyError(resource)

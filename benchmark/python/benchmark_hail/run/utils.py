@@ -71,28 +71,32 @@ class Benchmark:
 
 
 class RunConfig:
-    def __init__(self, n_iter, handler, noisy, timeout, dry_run, data_dir):
+    def __init__(self, n_iter, handler, noisy, timeout, dry_run, data_dir, cores, verbose, log):
         self.n_iter = n_iter
         self.handler = handler
         self.noisy = noisy
         self.timeout = timeout
         self.dry_run = dry_run
         self.data_dir = data_dir
+        self.cores = cores
+        self.hail_verbose = verbose
+        self.log = log
 
 
 _registry = {}
 _initialized = False
 
 
-def download_data(data_dir, group=None):
+def ensure_single_resource(data_dir, group):
+    resources = [r for r in all_resources if r.name() == group]
+    if not resources:
+        raise RuntimeError(f"no group {group!r}")
+    ensure_resources(data_dir, resources)
+
+
+def ensure_resources(data_dir, resources):
     logging.info(f'using benchmark data directory {data_dir}')
     os.makedirs(data_dir, exist_ok=True)
-    if group:
-        resources = [r for r in all_resources if r.name() == group]
-        if not resources:
-            raise RuntimeError(f"no group {group!r}")
-    else:
-        resources = all_resources
     to_create = []
     for rg in resources:
         if not rg.exists(data_dir):
@@ -103,18 +107,17 @@ def download_data(data_dir, group=None):
             rg.create(data_dir)
         hl.stop()
 
+
 def _ensure_initialized():
     if not _initialized:
         raise AssertionError("Hail benchmark environment not initialized. "
                              "Are you running benchmark from the main module?")
 
 
-def initialize(args, data_dir):
+def initialize(config):
     global _initialized, _mt, _init_args
     assert not _initialized
-    init_logging()
-    download_data(data_dir)
-    _init_args = {'master': f'local[{args.cores}]', 'quiet': not args.verbose, 'log': args.log}
+    _init_args = {'master': f'local[{config.cores}]', 'quiet': not config.hail_verbose, 'log': config.log}
     hl.init(**_init_args)
     _initialized = True
 
@@ -200,14 +203,21 @@ def run_pattern(pattern, config: RunConfig):
 
 def run_list(tests, config: RunConfig):
     n_tests = len(tests)
+    to_run = []
     for i, name in enumerate(tests):
-        if name not in _registry:
+        b = _registry.get(name)
+        if not b:
             raise ValueError(f'test {name!r} not found')
         if config.dry_run:
             logging.info(f'found benchmark {name}')
         else:
-            _run(_registry[name], config, f'[{i + 1}/{n_tests}] ')
+            to_run.append(b)
+    resources = {rg for b in to_run for rg in b.groups}
+    ensure_resources(config.data_dir, resources)
+    initialize(config)
+    for i, b in enumerate(to_run):
+        _run(b, config, f'[{i + 1}/{n_tests}] ')
 
 
 def list_benchmarks():
-    return list(_registry)
+    return list(_registry.values())
