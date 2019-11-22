@@ -45,6 +45,8 @@ Released 2019-11-22
 ### Documentation
 - (hail#7570) Hail has a cheatsheet for Tables now.
 
+---
+
 ## Version 0.2.27
 
 Released 2019-11-15
