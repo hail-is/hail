@@ -262,7 +262,7 @@ async def batch_callback_handler(request):
                     await wb.notify_batch_changed(app)
 
 
-@routes.get('/api/v1alpha/dev_deploy_branch')
+@routes.get('/api/v1alpha/deploy_status')
 @rest_authenticated_developers_only
 async def deploy_status(request, userdata):
     wb_configs = [{
