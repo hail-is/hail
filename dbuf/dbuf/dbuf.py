@@ -105,11 +105,11 @@ class Session:
         await self.aiofiles.rmdir(f'{self.data_dir}/{self.id}')
 
 
-class DBuf:
+class Sessions:
     @staticmethod
     async def make(bufsize, aiofiles, data_dir):
         await aiofiles.mkdir(data_dir)
-        return DBuf(bufsize, data_dir, aiofiles)
+        return Sessions(bufsize, data_dir, aiofiles)
 
     def __init__(self, bufsize, data_dir, aiofiles):
         # consensus
@@ -165,7 +165,7 @@ class Server:
     @staticmethod
     async def serve(name, bufsize, data_dir, leader, binding_host='0.0.0.0', port=5000):
         aiofiles = af.AIOFiles()
-        dbuf = await DBuf.make(bufsize, aiofiles, f'{data_dir}/{port}')
+        dbuf = await Sessions.make(bufsize, aiofiles, f'{data_dir}/{port}')
         server = Server(name, binding_host, port, leader, dbuf, aiofiles)
         try:
             prefixed_app = server.deploy_config.prefix_application(server.app, server.name)
@@ -237,8 +237,9 @@ class Server:
     async def getmany(self, request):
         session = self.session(request)
         keys = await request.json()
-        if len(keys) > 0:
-            assert keys[0][0] == self.name
+        for key in keys:
+            if key[0] != self.name:
+                raise web.HTTPNotFound(text=f'{self.name} does not have key {key}')
         keys = [key[1:] for key in keys]
         data = await session.readmany(keys)
         return web.Response(body=data)
