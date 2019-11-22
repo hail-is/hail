@@ -195,12 +195,6 @@ class Server:
             raise web.HTTPNotFound(text=f'{session_id} not found')
         return session
 
-    def session_id(self, request):
-        session_id = int(request.match_info['session'])
-        if session_id not in self.dbuf.sessions:
-            raise web.HTTPNotFound(text=f'{session_id} not found')
-        return session_id
-
     async def create(self, request):
         session_id = await self.dbuf.new_session()
         async with ah.ClientSession(raise_for_status=True,
@@ -244,16 +238,17 @@ class Server:
         return web.Response(body=data)
 
     async def delete(self, request):
-        session_id = self.session_id(request)
-        await self.dbuf.delete_session(session_id)
-        async with ah.ClientSession(raise_for_status=True,
-                                    timeout=ah.ClientTimeout(total=60)) as cs:
-            async def call(worker):
-                worker_url = self.deploy_config.base_url(worker)
-                async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
-                    assert resp.status == 200
-                    await resp.text()
-            await asyncio.gather(*[call(worker) for worker in self.workers])
+        session_id = int(request.match_info['session'])
+        if session_id in self.dbuf.sessions:
+            await self.dbuf.delete_session(session_id)
+            async with ah.ClientSession(raise_for_status=True,
+                                        timeout=ah.ClientTimeout(total=60)) as cs:
+                async def call(worker):
+                    worker_url = self.deploy_config.base_url(worker)
+                    async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
+                        assert resp.status == 200
+                        await resp.text()
+                await asyncio.gather(*[call(worker) for worker in self.workers])
         return web.Response()
 
     async def post_worker(self, request):
