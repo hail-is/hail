@@ -262,7 +262,7 @@ class BuildImageStep(Step):
         rendered_dockerfile = 'Dockerfile'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            render_dockerfile = f'echo > Dockerfile.{self.token} {shq(self.dockerfile["inline"])}'
+            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token}'
             unrendered_dockerfile = f'Dockerfile.{self.token}'
         else:
             assert isinstance(self.dockerfile, str)
