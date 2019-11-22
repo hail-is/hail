@@ -846,14 +846,23 @@ steps:
     - deploy_ci_agent_default
  - kind: deploy
    name: test_ci
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: ci/test-ci-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-ci
-      for: completed
-      timeout: 900
+   image:
+     valueFrom: test_ci_image.image
+   script: |
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     export ORGANIZATION hail-ci-test
+     export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
+     export NAMESPACE="{{ default_ns.name }}"
+     python3 -m pytest --log-cli-level=INFO -s -v --instafail /test/
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - hail-ci-0-1-service-account-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /secret/ci-secrets
    dependsOn:
     - default_ns
     - batch_pods_ns
