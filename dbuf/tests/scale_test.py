@@ -15,7 +15,7 @@ log = logging.getLogger('dbuf_scale_test')
 
 async def write(data, args, client):
     start = time.time()
-    writer = client.start_write()
+    writer = await client.start_write()
     for i in range(args.reqs):
         await writer.write(data[i])
     keys = await writer.keys()
