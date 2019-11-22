@@ -147,6 +147,9 @@ class DBufAppender:
         offs = self.offs
         sizes = self.sizes
         cursor = self.cursor
+        n_keys = len(self.keys)
+        key_range = slice(n_keys, n_keys+len(self.offs))
+        self.keys.extend(None for _ in self.offs)
         self.buf = bytearray(len(self.buf))
         self.offs = []
         self.sizes = []
@@ -159,8 +162,8 @@ class DBufAppender:
                 data=buf[0:cursor]) as resp:
             assert resp.status == 200
             server, file_id, pos, _ = await resp.json()
-            self.keys.extend([(server, file_id, pos + off, size)
-                              for off, size in zip(offs, sizes)])
+            self.keys[key_range] = [(server, file_id, pos + off, size)
+                                    for off, size in zip(offs, sizes)]
 
     async def finish(self):
         await self.flush()
