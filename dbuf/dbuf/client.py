@@ -65,7 +65,7 @@ class DBufClient:
             assert resp.status == 200
             return await resp.read()
 
-    def decode(self, byte_array):
+    def _decode(self, byte_array):
         off = 0
         result = []
         while off < len(byte_array):
@@ -103,7 +103,7 @@ class DBufClient:
                         json=[x[0] for x in batch]) as resp:
                     assert resp.status == 200
                     data = await resp.read()
-                    for v, j in zip(self.decode(data), (x[1] for x in batch)):
+                    for v, j in zip(self._decode(data), (x[1] for x in batch)):
                         results[j] = v
         await asyncio.gather(*[get_from_server(server, keys)
                                for server, keys in servers.items()])
