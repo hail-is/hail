@@ -265,6 +265,8 @@ async def batch_callback_handler(request):
 @routes.get('/api/v1alpha/deploy_status')
 @rest_authenticated_developers_only
 async def deploy_status(request, userdata):
+    del request
+    del userdata
     wb_configs = [{
         'index': i,
         'branch': wb.branch.short_str(),
