@@ -131,8 +131,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     assert(rt.loadLength(rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
-      Region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
+    assert(Region.loadInt(rt.loadElement(rv.offset, 0)) ==
+      Region.loadInt(rt.loadElement(rv2.offset, 0)))
   }
 
   @Test

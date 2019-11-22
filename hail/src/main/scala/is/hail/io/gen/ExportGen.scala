@@ -121,10 +121,10 @@ class GenAnnotationView(rowType: PStruct) extends View {
   def setRegion(region: Region, offset: Long) {
     this.region = region
 
-    assert(rowType.isFieldDefined(region, offset, varidIdx))
-    assert(rowType.isFieldDefined(region, offset, rsidIdx))
-    this.rsidOffset = rowType.loadField(region, offset, rsidIdx)
-    this.varidOffset = rowType.loadField(region, offset, varidIdx)
+    assert(rowType.isFieldDefined(offset, varidIdx))
+    assert(rowType.isFieldDefined(offset, rsidIdx))
+    this.rsidOffset = rowType.loadField(offset, rsidIdx)
+    this.varidOffset = rowType.loadField(offset, varidIdx)
 
     cachedVarid = null
     cachedRsid = null

@@ -332,11 +332,11 @@ class RegionValueBuilder(var region: Region) {
               fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
 
             case t2: PArray =>
-              val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromAOff, length, i))
               Region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
 
             case _: PBinary =>
-              val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              val toBOff = fixupBinary(fromRegion, t.loadElement(fromAOff, length, i))
               Region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
 
             case _ =>

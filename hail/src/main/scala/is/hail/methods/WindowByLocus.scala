@@ -132,8 +132,8 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
         j = 0
         while (j < nCols) {
           rvb.startStruct()
-          if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
-            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
+          if (entryArrayType.isElementDefined(entriesOffset, j))
+            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(entriesOffset, j))
           else
             rvb.skipFields(entryType.size)
 
@@ -142,8 +142,8 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
           var k = 0
           while (k < rvs.length) {
             rvb.startStruct()
-            if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
-              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
+            if (entryArrayType.isElementDefined(prevEntriesOffsets(k), j))
+              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(prevEntriesOffsets(k), j))
             else
               rvb.skipFields(entryType.size)
             rvb.endStruct()

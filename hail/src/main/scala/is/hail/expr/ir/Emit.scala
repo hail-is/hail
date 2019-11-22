@@ -533,9 +533,9 @@ private class Emit(
             Code(
               xa := coerce[Long](codeA.v),
               xi := coerce[Int](codeI.v),
-              len := pArray.loadLength(region, xa),
+              len := pArray.loadLength(xa),
               (xi < len && xi >= 0).mux(
-                xmv := !pArray.isElementDefined(region, xa, xi),
+                xmv := !pArray.isElementDefined(xa, xi),
                 Code._fatal(
                   const("array index out of bounds: ")
                     .concat(xi.load().toS)
@@ -710,7 +710,7 @@ private class Emit(
                       Code(
                         arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
                         Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
-                          etyp.isFieldMissing(region, coerce[Long](eab(i)), 1).mux(
+                          etyp.isFieldMissing(coerce[Long](eab(i)), 1).mux(
                             arraybuilder.setMissing(),
                             arraybuilder.addIRIntermediate(etyp.types(1))(loadValue(i))
                           ),
@@ -1735,9 +1735,9 @@ private class Emit(
             gOff := gDec(bodyFB.getArg[Region](1), gCodec.buildCodeInputBuffer(gIS)),
             bOff := bodyMB.invoke[Long](bodyFB.getArg[Region](1),
               Region.loadIRIntermediate(ctxType)(ctxTypeTuple.fieldOffset(ctxOff, 0)),
-              ctxTypeTuple.isFieldMissing(region, ctxOff, 0),
+              ctxTypeTuple.isFieldMissing(ctxOff, 0),
               Region.loadIRIntermediate(gType)(gTypeTuple.fieldOffset(gOff, 0)),
-              gTypeTuple.isFieldMissing(region, gOff, 0)),
+              gTypeTuple.isFieldMissing(gOff, 0)),
             bOS := Code.newInstance[ByteArrayOutputStream](),
             bOB := bCodec.buildCodeOutputBuffer(bOS),
             bEnc(bodyFB.getArg[Region](1), bOff, bOB),
@@ -1800,7 +1800,7 @@ private class Emit(
             sab.start(encRes.length()),
             Code.whileLoop(sab.arrayIdx < encRes.length(),
               eltTupled := bDec(region, bCodec.buildCodeInputBuffer(bais)),
-              bTypeTuple.isFieldMissing(region, eltTupled, 0).mux(
+              bTypeTuple.isFieldMissing(eltTupled, 0).mux(
                 sab.setMissing(),
                 sab.addIRIntermediate(bType)(Region.loadIRIntermediate(bType)(bTypeTuple.fieldOffset(eltTupled, 0)))),
               sab.advance()),

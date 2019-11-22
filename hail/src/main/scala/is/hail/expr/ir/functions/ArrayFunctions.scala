@@ -313,7 +313,6 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64(), null) {
       case (r, rt, (t1: PArray, EmitTriplet(setup1, m1, v1)), (t2: PArray, EmitTriplet(setup2, m2, v2))) =>
-        val region = r.region
 
         val xSum = r.mb.newLocal[Double]
         val ySum = r.mb.newLocal[Double]
@@ -335,8 +334,8 @@ object ArrayFunctions extends RegistryFunctions {
             setup1,
             setup2),
           m1 || m2 || Code(
-            l1 := t1.loadLength(region, a1),
-            l2 := t2.loadLength(region, a2),
+            l1 := t1.loadLength(a1),
+            l2 := t2.loadLength(a2),
             l1.cne(l2).mux(
               Code._fatal(new CodeString("'corr': cannot compute correlation between arrays of different lengths: ")
                 .concat(l1.toS)
@@ -353,12 +352,12 @@ object ArrayFunctions extends RegistryFunctions {
             xySum := 0d,
             Code.whileLoop(i < l1,
               Code(
-                (t1.isElementDefined(region, a1, i) && t2.isElementDefined(region, a2, i)).mux(
+                (t1.isElementDefined(a1, i) && t2.isElementDefined(a2, i)).mux(
                   Code(
-                    x := Region.loadDouble(t1.loadElement(region, a1, i)),
+                    x := Region.loadDouble(t1.loadElement(a1, i)),
                     xSum := xSum + x,
                     xSqSum := xSqSum + x * x,
-                    y := Region.loadDouble(t2.loadElement(region, a2, i)),
+                    y := Region.loadDouble(t2.loadElement(a2, i)),
                     ySum := ySum + y,
                     ySqSum := ySqSum + y * y,
                     xySum := xySum + x * y,

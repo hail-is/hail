@@ -1863,10 +1863,10 @@ class WriteBlocksRDD(path: String,
             val n = gp.blockColNCols(blockCol)
             var j = 0
             while (j < n) {
-              if (entryArrayType.isElementDefined(region, entryArrayOffset, colIdx)) {
-                val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
-                if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-                  val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+              if (entryArrayType.isElementDefined(entryArrayOffset, colIdx)) {
+                val entryOffset = entryArrayType.loadElement(entryArrayOffset, colIdx)
+                if (entryType.isFieldDefined(entryOffset, fieldIdx)) {
+                  val fieldOffset = entryType.loadField(entryOffset, fieldIdx)
                   data(j) = Region.loadDouble(fieldOffset)
                 } else {
                   val rowIdx = blockRow * blockSize + i

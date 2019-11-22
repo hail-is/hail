@@ -20,7 +20,7 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, elementType: PType, m: Region, offset: Long) {
+  def strVCF(sb: StringBuilder, elementType: PType, offset: Long) {
     elementType match {
       case PInt32(_) =>
         val x = Region.loadInt(offset)
@@ -44,7 +44,7 @@ object ExportVCF {
         else
           sb.append(x.formatted("%.5e"))
       case PString(_) =>
-        sb.append(PString.loadString(m, offset))
+        sb.append(PString.loadString(offset))
       case PCall(_) =>
         val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
@@ -53,15 +53,15 @@ object ExportVCF {
     }
   }
 
-  def iterableVCF(sb: StringBuilder, t: PContainer, m: Region, length: Int, offset: Long, delim: Char) {
+  def iterableVCF(sb: StringBuilder, t: PContainer, length: Int, offset: Long, delim: Char) {
     if (length > 0) {
       var i = 0
       while (i < length) {
         if (i > 0)
           sb += delim
-        if (t.isElementDefined(m, offset, i)) {
-          val eOffset = t.loadElement(m, offset, length, i)
-          strVCF(sb, t.elementType, m, eOffset)
+        if (t.isElementDefined(offset, i)) {
+          val eOffset = t.loadElement(offset, length, i)
+          strVCF(sb, t.elementType, eOffset)
         } else
           sb += '.'
         i += 1
@@ -70,10 +70,10 @@ object ExportVCF {
       sb += '.'
   }
 
-  def emitInfo(sb: StringBuilder, f: PField, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
+  def emitInfo(sb: StringBuilder, f: PField, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
       case it: PContainer if !it.elementType.virtualType.isOfType(TBoolean()) =>
-        val length = it.loadLength(m, offset)
+        val length = it.loadLength(offset)
         if (length == 0)
           wroteLast
         else {
@@ -81,7 +81,7 @@ object ExportVCF {
             sb += ';'
           sb.append(f.name)
           sb += '='
-          iterableVCF(sb, it, m, length, offset, ',')
+          iterableVCF(sb, it, length, offset, ',')
           true
         }
       case PBoolean(_) =>
@@ -97,7 +97,7 @@ object ExportVCF {
           sb += ';'
         sb.append(f.name)
         sb += '='
-        strVCF(sb, t, m, offset)
+        strVCF(sb, t, offset)
         true
     }
   }
@@ -167,10 +167,10 @@ object ExportVCF {
     }
   }
 
-  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean], missingFormat: String) {
+  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, offset: Long, fieldDefined: Array[Boolean], missingFormat: String) {
     var i = 0
     while (i < formatFieldOrder.length) {
-      fieldDefined(i) = tg.isFieldDefined(m, offset, formatFieldOrder(i))
+      fieldDefined(i) = tg.isFieldDefined(offset, formatFieldOrder(i))
       i += 1
     }
 
@@ -187,19 +187,19 @@ object ExportVCF {
           sb += ':'
         val j = formatFieldOrder(i)
         val fIsDefined = fieldDefined(i)
-        val fOffset = tg.loadField(m, offset, j)
+        val fOffset = tg.loadField(offset, j)
 
         tg.fields(j).typ match {
           case it: PContainer =>
             val pt = it
             if (fIsDefined) {
-              val fLength = pt.loadLength(m, fOffset)
-              iterableVCF(sb, pt, m, fLength, fOffset, ',')
+              val fLength = pt.loadLength(fOffset)
+              iterableVCF(sb, pt, fLength, fOffset, ',')
             } else
               sb += '.'
           case t =>
             if (fIsDefined)
-              strVCF(sb, t, m, fOffset)
+              strVCF(sb, t, fOffset)
             else if (t.virtualType.isOfType(TCall()))
               sb.append("./.")
             else
@@ -378,7 +378,6 @@ object ExportVCF {
       it.map { rv =>
         sb.clear()
 
-        m = rv.region
         rvv.setRegion(rv)
 
         sb.append(rvv.contig())
@@ -388,7 +387,7 @@ object ExportVCF {
 
         if (idExists && fullRowType.isFieldDefined(rv, idIdx)) {
           val idOffset = fullRowType.loadField(rv, idIdx)
-          sb.append(PString.loadString(m, idOffset))
+          sb.append(PString.loadString(idOffset))
         } else
           sb += '.'
 
@@ -413,11 +412,11 @@ object ExportVCF {
 
         if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
           val filtersOffset = fullRowType.loadField(rv, filtersIdx)
-          val filtersLength = filtersPType.loadLength(m, filtersOffset)
+          val filtersLength = filtersPType.loadLength(filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
           else
-            iterableVCF(sb, filtersPType, m, filtersLength, filtersOffset, ';')
+            iterableVCF(sb, filtersPType, filtersLength, filtersOffset, ';')
         } else
           sb += '.'
 
@@ -429,8 +428,8 @@ object ExportVCF {
           val infoOffset = fullRowType.loadField(rv, infoIdx)
           var i = 0
           while (i < tinfo.size) {
-            if (tinfo.isFieldDefined(m, infoOffset, i)) {
-              wrote = emitInfo(sb, tinfo.fields(i), m, tinfo.loadField(m, infoOffset, i), wrote)
+            if (tinfo.isFieldDefined(infoOffset, i)) {
+              wrote = emitInfo(sb, tinfo.fields(i), tinfo.loadField(infoOffset, i), wrote)
               wroteAnyInfo = wroteAnyInfo || wrote
             }
             i += 1
@@ -447,8 +446,8 @@ object ExportVCF {
           var i = 0
           while (i < localNSamples) {
             sb += '\t'
-            if (localEntriesType.isElementDefined(m, gsOffset, i))
-              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatDefinedArray, missingFormatStr)
+            if (localEntriesType.isElementDefined(gsOffset, i))
+              emitGenotype(sb, formatFieldOrder, tg, localEntriesType.loadElement(gsOffset, localNSamples, i), formatDefinedArray, missingFormatStr)
             else
               sb.append(missingFormatStr)
 

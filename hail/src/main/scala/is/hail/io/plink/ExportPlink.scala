@@ -141,11 +141,11 @@ class BimAnnotationView(rowType: PStruct) extends View {
   def setRegion(region: Region, offset: Long) {
     this.region = region
 
-    assert(rowType.isFieldDefined(region, offset, varidIdx))
-    assert(rowType.isFieldDefined(region, offset, cmPosIdx))
+    assert(rowType.isFieldDefined(offset, varidIdx))
+    assert(rowType.isFieldDefined(offset, cmPosIdx))
 
-    this.varidOffset = rowType.loadField(region, offset, varidIdx)
-    this.cmPosOffset = rowType.loadField(region, offset, cmPosIdx)
+    this.varidOffset = rowType.loadField(offset, varidIdx)
+    this.cmPosOffset = rowType.loadField(offset, cmPosIdx)
 
     cachedVarid = null
   }

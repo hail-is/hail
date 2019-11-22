@@ -292,7 +292,6 @@ class OrderingSuite extends HailSuite {
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search")
-        val cregion = fb.getArg[Region](1).load()
         val cset = fb.getArg[Long](2)
         val cetuple = fb.getArg[Long](3)
 
@@ -332,12 +331,11 @@ class OrderingSuite extends HailSuite {
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search_dict")
-        val cregion = fb.getArg[Region](1).load()
         val cdict = fb.getArg[Long](2)
         val cktuple = fb.getArg[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pDict, keyOnly = true)
-        val m = ptuple.isFieldMissing(cregion, cktuple, 0)
+        val m = ptuple.isFieldMissing(cktuple, 0)
         val v = Region.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 

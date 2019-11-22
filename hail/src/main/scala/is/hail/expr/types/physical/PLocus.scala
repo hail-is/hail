@@ -95,7 +95,7 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
 
   val representation: PStruct = PLocus.representation(required)
 
-  def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
+  def contig(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
 
-  def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
+  def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 }

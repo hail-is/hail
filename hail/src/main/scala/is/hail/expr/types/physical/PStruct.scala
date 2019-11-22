@@ -100,8 +100,8 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
                 rvb.setMissing()
               i += 1
             }
-            if (region != null && isFieldDefined(region, offset, j))
-              fieldInserter(region, loadField(region, offset, j), rvb, inserter)
+            if (region != null && isFieldDefined(offset, j))
+              fieldInserter(region, loadField(offset, j), rvb, inserter)
             else
               fieldInserter(null, 0, rvb, inserter)
             i += 1

@@ -24,29 +24,27 @@ final class ArrayGenotypeView(rvType: PStruct) {
   private val (gtExists, gtIndex, gtType) = lookupField("GT", _ == PCall())
   private val (gpExists, gpIndex, gpType: PArray) = lookupField("GP",
     pt => pt.isInstanceOf[PArray] && pt.asInstanceOf[PArray].elementType.isInstanceOf[PFloat64])
-  private var m: Region = _
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
   var gIsDefined: Boolean = _
 
   def setRegion(mb: Region, offset: Long) {
-    this.m = mb
-    gsOffset = rvType.loadField(m, offset, entriesIndex)
-    gsLength = tgs.loadLength(m, gsOffset)
+    gsOffset = rvType.loadField(offset, entriesIndex)
+    gsLength = tgs.loadLength(gsOffset)
   }
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)
-    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
-    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
+    gIsDefined = tgs.isElementDefined(gsOffset, idx)
+    gOffset = tgs.loadElement(gsOffset, gsLength, idx)
   }
 
-  def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
+  def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(gOffset, gtIndex)
 
-  def hasGP: Boolean = gpExists && gIsDefined && tg.isFieldDefined(m, gOffset, gpIndex)
+  def hasGP: Boolean = gpExists && gIsDefined && tg.isFieldDefined(gOffset, gpIndex)
 
   def getGT: Call = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
@@ -64,8 +62,8 @@ final class ArrayGenotypeView(rvType: PStruct) {
   }
 
   def getGPLength(): Int = {
-    val gpOffset = tg.loadField(m, gOffset, gpIndex)
-    gpType.loadLength(m, gpOffset)
+    val gpOffset = tg.loadField(gOffset, gpIndex)
+    gpType.loadLength(gpOffset)
   }
 }
 
@@ -103,23 +101,23 @@ final class HardCallView(rvType: PStruct, callField: String) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    gsOffset = rvType.loadField(m, offset, entriesIndex)
-    gsLength = tgs.loadLength(m, gsOffset)
+    gsOffset = rvType.loadField(offset, entriesIndex)
+    gsLength = tgs.loadLength(gsOffset)
   }
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)
-    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
-    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
+    gIsDefined = tgs.isElementDefined(gsOffset, idx)
+    gOffset = tgs.loadElement(gsOffset, gsLength, idx)
   }
 
-  def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
+  def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(gOffset, gtIndex)
 
   def getGT: Call = {
     assert(gtExists && gIsDefined)
-    val callOffset = tg.loadField(m, gOffset, gtIndex)
+    val callOffset = tg.loadField(gOffset, gtIndex)
     Region.loadInt(callOffset)
   }
 
