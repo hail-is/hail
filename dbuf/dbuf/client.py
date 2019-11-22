@@ -81,7 +81,7 @@ class DBufClient:
         for i, key in enumerate(keys):
             servers[key[0]].append((key, i))
 
-        def get_from_server(server, keys):
+        async def get_from_server(server, keys):
             server_url = self.deploy_config.base_url(server)
             i = 0
             while i < len(keys):
