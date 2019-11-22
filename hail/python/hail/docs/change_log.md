@@ -32,10 +32,10 @@ Released 2019-11-22
 - (hail#7588) Fixes a bug where filtering old matrix tables in newer versions of hail did not work as expected. Please update from 0.2.27. 
 
 ### Bug fixes
+- (hail#7571) Don't set GQ to missing if PL is missing in `split_multi_hts`.
 - (hail#7577) Fixed an optimizer bug.
 
 ### New Features
-
 - (hail#7561) Added `hl.plot.visualize_missingness()` to plot missingness patterns for MatrixTables.
 - (hail#7575) Added `hl.version()` to quickly check hail version.
 
