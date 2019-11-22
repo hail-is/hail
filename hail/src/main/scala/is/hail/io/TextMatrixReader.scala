@@ -57,7 +57,7 @@ object TextMatrixReader {
             s"""File ${file} contains one line and you told me it had a header,
                |so I expected to see at least the ${nRowFields} row field names
                |on the header line, but instead I only saw ${headerValues.length}
-               |lines. The header was:
+               |separated values. The header was:
                |    ${header}""".stripMargin)
         }
         HeaderInfo(
