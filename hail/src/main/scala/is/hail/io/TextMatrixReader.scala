@@ -28,52 +28,78 @@ object TextMatrixReader {
     }
   }
 
-  def parseHeader(
+  private case class HeaderInfo (
+    headerValues: Array[String],
+    rowIdentifiers: Array[String],
+    columnIdentifiers: Array[String]
+  ) {
+    val nCols = columnIdentifiers.length
+  }
+
+  private def parseHeader(
     fs: FS,
     file: String,
     sep: Char,
     nRowFields: Int,
     hasHeader: Boolean
-  ): (Array[String], Int) = {
+  ): HeaderInfo = {
     val maybeFirstTwoLines = fs.readFile(file) { s =>
       Source.fromInputStream(s).getLines().take(2).toSeq }
 
     (hasHeader, maybeFirstTwoLines) match {
       case (true, Seq()) =>
         fatal(s"Expected header in every file, but found empty file: $file")
-      case (true, header +: maybeDataLine) =>
+      case (true, Seq(header)) =>
+        warn(s"File $file contains a header, but no lines of data.")
         val headerValues = header.split(sep)
-        val nSeparatedValues = maybeDataLine match {
-          case Seq(dataLine) => dataLine.split(sep).length
-          case Nil           => headerValues.length
+        if (headerValues.length < nRowFields) {
+          fatal(
+            s"""File ${file} contains one line and you told me it had a header,
+               |so I expected to see at least the ${nRowFields} row field names
+               |on the header line, but instead I only saw ${headerValues.length}
+               |lines. The header was:
+               |    ${header}""".stripMargin)
         }
-        if (nRowFields > nSeparatedValues) {
-          fatal(s"""Header did not contain expected $nRowFields fields,
-                     |found instead only $nSeparatedValues fields:
-                     |    ${header.truncate}""".stripMargin)
+        HeaderInfo(
+          headerValues,
+          headerValues.slice(0, nRowFields),
+          headerValues.slice(nRowFields))
+      case (true, Seq(header, dataLine)) =>
+        val headerValues = header.split(sep)
+        val nHeaderValues = headerValues.length
+        val nSeparatedValues = dataLine.split(sep).length
+        if (nHeaderValues + nRowFields == nSeparatedValues) {
+          HeaderInfo(
+            headerValues,
+            rowIdentifiers = Array.tabulate(nRowFields)(i => s"f$i"),
+            columnIdentifiers = headerValues)
+        } else if (nHeaderValues == nSeparatedValues) {
+          HeaderInfo(
+            headerValues,
+            rowIdentifiers = headerValues.slice(0, nRowFields),
+            columnIdentifiers = headerValues.slice(nRowFields))
+        } else {
+          fatal(
+            s"""In file $file, expected the header line to match either:
+               |    rowField0 rowField1 ... rowField${nRowFields} colId0 colId1 ...
+               |or
+               |    colId0 colId1 ...
+               |Instead the first two lines were:
+               |    ${header.truncate}
+               |    ${dataLine.truncate}
+               |The first line contained ${nHeaderValues} separated values and the
+               |second line contained ${nSeparatedValues} separated values.""".stripMargin)
         }
-        (headerValues, nSeparatedValues - nRowFields)
       case (false, Seq()) =>
         warn(s"File $file is empty and has no header, so we assume no columns.")
-        (Array(), 0)
+        HeaderInfo(Array(), Array.tabulate(nRowFields)(i => s"f$i"), Array())
       case (false, firstLine +: _) =>
         val nSeparatedValues = firstLine.split(sep).length
-        (Array(), nSeparatedValues - nRowFields)
+        HeaderInfo(
+          Array(),
+          Array.tabulate(nRowFields)(i => s"f$i"),
+          Array.range(0, nSeparatedValues))
     }
-  }
-
-  def splitHeader(cols: Array[String], nRowFields: Int, nColIDs: Int): (Array[String], Array[_]) = {
-    if (cols.length == nColIDs) {
-      (Array.tabulate(nRowFields)(i => s"f$i"), cols)
-    } else if (cols.length == nColIDs + nRowFields) {
-      (cols.take(nRowFields), cols.drop(nRowFields))
-    } else if (cols.isEmpty) {
-      (Array.tabulate(nRowFields)(i => s"f$i"), Array.range(0, nColIDs))
-    } else
-      fatal(
-        s"""Expected file header to contain all $nColIDs column IDs and
-            | optionally all $nRowFields row field names: found ${ cols.length } header elements.
-           """.stripMargin)
   }
 
   def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (RVDPartitioner, Array[Int]) = {
