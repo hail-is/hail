@@ -903,25 +903,6 @@ class Tests(unittest.TestCase):
             val=hl.int64(10))
         self.assertTrue(rows._same(expected))
 
-    def test_ld_score_doctest_dup(self):
-        mt = hl.import_matrix_table(
-            '/Users/pschulz/hail/hail/python/hail/docs/data/ld_score_regression.all_phenos.sumstats.tsv',
-            row_fields={'locus': hl.tstr,
-                        'alleles': hl.tstr,
-                        'ld_score': hl.tfloat64},
-            entry_type=hl.tstr)
-        mt = mt.key_cols_by(phenotype=mt.col_id)
-        mt = mt.key_rows_by(locus=hl.parse_locus(mt.locus), alleles=mt.alleles.split(','))
-        mt = mt.drop('row_id', 'col_id')
-        mt = mt.annotate_entries(x=mt.x.split(","))
-        mt = mt.transmute_entries(chi_squared=hl.float64(mt.x[0]), n=hl.int32(mt.x[1]))
-        mt = mt.annotate_rows(ld_score=hl.float64(mt.ld_score))
-        ht_results = hl.experimental.ld_score_regression(
-            weight_expr=mt['ld_score'],
-            ld_score_expr=mt['ld_score'],
-            chi_sq_exprs=mt['chi_squared'],
-            n_samples_exprs=mt['n'])
-
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
