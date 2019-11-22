@@ -280,16 +280,7 @@ parser.add_argument('--host', type=str, help='host to bind to', default='0.0.0.0
 parser.add_argument('--port', type=str, help='port to bind to', default='80')
 parser.add_argument('--bufsize', type=int, help='buffer size in MiB', default=512)
 args = parser.parse_args()
-print(args)
 
-
-def die(signum, frame):
-    sys.exit(signum)
-
-
-signal.signal(signal.SIGINT, die)
-signal.signal(signal.SIGTERM, die)
-signal.signal(signal.SIGQUIT, die)
 
 loop = asyncio.get_event_loop()
 bufsize = args.bufsize * 1024 * 1024

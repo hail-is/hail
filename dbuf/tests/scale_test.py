@@ -8,6 +8,8 @@ import struct
 
 import dbuf.client
 
+import hailtop.utils as utils
+
 log = logging.getLogger('dbuf_scale_test')
 
 
@@ -26,23 +28,6 @@ async def read(server, id, args, i, keys):
     async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
         data = await client.getmany(keys)
     return data, time.time() - start
-
-
-def grouped(xs, size):
-    n = len(xs)
-    i = 0
-    while i < n:
-        yield xs[i:(i+size)]
-        i += size
-
-
-def unzip(xys):
-    xs = []
-    ys = []
-    for x, y in xys:
-        xs.append(x)
-        ys.append(y)
-    return xs, ys
 
 
 async def main():
@@ -69,9 +54,9 @@ async def main():
             struct.pack_into('l', b, 0, i)
             return b
         data = [bytes(i) for i in range(n * args.reqs)]
-        grouped_data = list(grouped(data, args.reqs))
+        grouped_data = list(utils.grouped(data, args.reqs))
 
-        keys, times = unzip(await asyncio.gather(
+        keys, times = utils.unzip(await asyncio.gather(
             *[write(server[i], id, grouped_data[i], args, str(i).zfill(d)) for i in range(n)]))
 
         end = time.time()
@@ -82,12 +67,12 @@ async def main():
         np.random.shuffle(indices)
         keys = [keys[i] for i in indices]
         data = [data[i] for i in indices]
-        keys = list(grouped(keys, args.reqs))
-        data = list(grouped(data, args.reqs))
+        keys = list(utils.grouped(keys, args.reqs))
+        data = list(utils.grouped(data, args.reqs))
 
         start = time.time()
 
-        data2, times = unzip(await asyncio.gather(
+        data2, times = utils.unzip(await asyncio.gather(
             *[read(server[i], id, args, str(i).zfill(d), keys[i]) for i in range(n)]))
 
         end = time.time()
