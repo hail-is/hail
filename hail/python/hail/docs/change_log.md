@@ -28,8 +28,11 @@ an earlier version of Hail to read files written in a later version.
 
 Released 2019-11-22
 
+### Critical correctness bug fix
+- (hail#7588) Fixes a bug where filtering old matrix tables in newer versions of hail did not work as expected. Please update from 0.2.27. 
+
 ### Bug fixes
-- (hail#7577) Fixed a bug where `hl.filter(False).count()` would just return the count of table rows.
+- (hail#7577) Fixed an optimizer bug.
 
 ### New Features
 
