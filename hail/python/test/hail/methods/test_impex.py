@@ -1502,14 +1502,14 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
         hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[]).count()
+                               row_fields=row_fields, row_key=[])._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
-                               no_header=True).count()
+                               no_header=True)._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True,
-                               row_key=[]).count()
+                               row_key=[])._force_count_rows()
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1656,6 +1656,16 @@ class ImportMatrixTableTests(unittest.TestCase):
         assert actual == ['A', 'AGT', None, 'CTA']
         actual = mt.alt.collect()
         assert actual == ['T', 'TGG', 'A', None]
+
+    def test_empty_import_matrix_table(self):
+        path = new_temp_file(suffix='tsv.bgz')
+        mt = hl.utils.range_matrix_table(0, 0)
+        mt = mt.annotate_entries(x=1)
+        mt.x.export(path)
+        assert hl.import_matrix_table(path)._force_count_rows() == 0
+
+        mt.x.export(path, header=False)
+        assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
 
 
 class ImportTableTests(unittest.TestCase):
