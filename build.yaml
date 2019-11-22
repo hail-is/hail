@@ -147,6 +147,10 @@ steps:
      EOF
      python3 generate-session-key.py
      kubectl -n {{ default_ns.name }} create secret generic session-secret-key --from-file=/session-secret-key/session-secret-key
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
    dependsOn:
     - default_ns
     - base_image
