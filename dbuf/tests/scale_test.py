@@ -1,4 +1,4 @@
-import math
+import random
 import time
 import argparse
 import asyncio
@@ -13,20 +13,18 @@ import hailtop.utils as utils
 log = logging.getLogger('dbuf_scale_test')
 
 
-async def write(server, id, data, args):
+async def write(data, args, client):
     start = time.time()
-    async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
-        writer = client.start_write()
-        for i in range(args.reqs):
-            await writer.write(data[i])
-        keys = await writer.keys()
-        return keys, time.time() - start
+    writer = client.start_write()
+    for i in range(args.reqs):
+        await writer.write(data[i])
+    keys = await writer.keys()
+    return keys, time.time() - start
 
 
-async def read(leader, id, args, keys):
+async def read(args, keys, client):
     start = time.time()
-    async with dbuf.client.DBufClient(leader, id, max_bufsize=args.bufsize*1024*1024-1) as client:
-        data = await client.getmany(keys)
+    data = await client.getmany(keys)
     return data, time.time() - start
 
 
@@ -41,10 +39,8 @@ async def main():
 
     n = args.n
 
-    async with dbuf.client.DBufClient(args.cluster_leader) as client:
-        id = await client.create()
-
-        workers = await client.get_workers()
+    async with dbuf.client.DBufClient(args.cluster_leader, rng=random.Random(0)) as client:
+        await client.create()
 
         def bytearray_with_index(i):
             b = bytearray(args.size)
@@ -55,7 +51,7 @@ async def main():
 
         start = time.time()
         keys, times = utils.unzip(await asyncio.gather(
-            *[write(workers[i % len(workers)], id, data_for_worker[i], args) for i in range(n)]))
+            *[write(data_for_worker[i], args, client) for i in range(n)]))
         end = time.time()
         duration = end - start
         print(f'write aggregate-throughput: {n * args.size * args.reqs / duration / 1024 / 1024 / 1024 : 0.3f} GiB/s')
@@ -70,7 +66,7 @@ async def main():
 
         start = time.time()
         data2, times = utils.unzip(await asyncio.gather(
-            *[read(args.cluster_leader, id, args, keys[i]) for i in range(n)]))
+            *[read(args, keys[i], client) for i in range(n)]))
         end = time.time()
         duration = end - start
         print(f'read aggregate-throughput: {n * args.size * args.reqs / duration / 1024 / 1024 / 1024 : 0.3f} GiB/s')
