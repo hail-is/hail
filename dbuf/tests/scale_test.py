@@ -16,10 +16,10 @@ log = logging.getLogger('dbuf_scale_test')
 async def write(server, id, data, args, i):
     start = time.time()
     async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
-        keys = []
+        writer = client.start_write()
         for i in range(args.reqs):
-            keys += await client.append(data[i])
-        keys += await client.flush()
+            await writer.write(data[i])
+        keys = await writer.keys()
         return keys, time.time() - start
 
 
