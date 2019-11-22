@@ -7,6 +7,7 @@ import subprocess as sp
 import asyncio
 
 from hailtop.config import get_deploy_config
+import hailtop.utils as utils
 
 pytestmark = pytest.mark.asyncio
 
@@ -73,7 +74,20 @@ async def gh_client2():
 
 
 async def test_deploy():
-    wait_for_hello()
+    ci_url = deploy_config.url('ci')
+    async with aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
+        deploy_state = None
+        while deploy_state is None:
+            resp = await utils.request_retry_transient_errors(
+                session, 'POST', f'{ci_url}/api/v1alpha/deploy_status')
+            deploy_statuses = resp.json()
+            assert len(deploy_statuses) == 1, deploy_statuses
+            deploy_status = deploy_statuses
+            deploy_state = deploy_status['deploy_state']
+            await asyncio.sleep(5)
+        assert deploy_state == 'success', deploy_state
 
 
 # FIXME: This test requires either putting user1 as an authorized user
