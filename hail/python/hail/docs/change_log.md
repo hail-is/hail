@@ -36,7 +36,11 @@ Released 2019-11-22
 
 ### New Features
 
+- (hail#7561) Added `hl.plot.visualize_missingness()` to plot missingness patterns for MatrixTables.
 - (hail#7575) Added `hl.version()` to quickly check hail version.
+
+### `hailctl dataproc`
+- (hail#7586) `hailctl dataproc` now supports `--gcloud_configuration` option. 
 
 ### Documentation
 - (hail#7570) Hail has a cheatsheet for Tables now.
