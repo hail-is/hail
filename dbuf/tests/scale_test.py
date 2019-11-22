@@ -47,7 +47,7 @@ async def main():
             struct.pack_into('l', b, 0, i)
             return b
         data = [bytearray_with_index(i) for i in range(n * args.reqs)]
-        data_for_worker = list(utils.grouped(data, args.reqs))
+        data_for_worker = list(utils.grouped(args.reqs, data))
 
         start = time.time()
         keys, times = utils.unzip(await asyncio.gather(
@@ -61,8 +61,8 @@ async def main():
         np.random.shuffle(indices)
         keys = [keys[i] for i in indices]
         data = [data[i] for i in indices]
-        keys = list(utils.grouped(keys, args.reqs))
-        data = list(utils.grouped(data, args.reqs))
+        keys = list(utils.grouped(args.reqs, keys))
+        data = list(utils.grouped(args.reqs, data))
 
         start = time.time()
         data2, times = utils.unzip(await asyncio.gather(
