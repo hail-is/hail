@@ -61,7 +61,7 @@ final class RegionValue(
     offset = newOffset
   }
 
-  def pretty(t: PType): String = region.pretty(t, offset)
+  def pretty(t: PType): String = Region.pretty(t, offset)
 
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()
