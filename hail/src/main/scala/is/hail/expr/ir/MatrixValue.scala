@@ -62,7 +62,7 @@ case class MatrixValue(
 
   def nPartitions: Int = rvd.getNumPartitions
 
-  lazy val nCols: Int = colValues.t.loadLength(colValues.value.region, colValues.value.offset)
+  lazy val nCols: Int = colValues.t.loadLength(colValues.value.offset)
 
   def stringSampleIds: IndexedSeq[String] = {
     val colKeyTypes = typ.colKeyStruct.types
@@ -251,15 +251,14 @@ case class MatrixValue(
     val rows = rvd.mapPartitionsWithIndex { (pi, it) =>
       var i = partStartsBc.value(pi)
       it.map { rv =>
-        val region = rv.region
         val data = new Array[Double](numColsLocal)
         val entryArrayOffset = localRvRowPType.loadField(rv, localEntryArrayIdx)
         var j = 0
         while (j < numColsLocal) {
-          if (localEntryArrayPType.isElementDefined(region, entryArrayOffset, j)) {
-            val entryOffset = localEntryArrayPType.loadElement(region, entryArrayOffset, j)
-            if (localEntryPType.isFieldDefined(region, entryOffset, fieldIdx)) {
-              val fieldOffset = localEntryPType.loadField(region, entryOffset, fieldIdx)
+          if (localEntryArrayPType.isElementDefined(entryArrayOffset, j)) {
+            val entryOffset = localEntryArrayPType.loadElement(entryArrayOffset, j)
+            if (localEntryPType.isFieldDefined(entryOffset, fieldIdx)) {
+              val fieldOffset = localEntryPType.loadField(entryOffset, fieldIdx)
               data(j) = Region.loadDouble(fieldOffset)
             } else
               fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")

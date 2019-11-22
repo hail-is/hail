@@ -45,7 +45,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
 
   def alleles(): Array[String] = {
     if (cachedAlleles == null) {
-      val nAlleles = taa.loadLength(region, allelesOffset)
+      val nAlleles = taa.loadLength(allelesOffset)
       cachedAlleles = new Array[String](nAlleles)
       var i = 0
       while (i < nAlleles) {

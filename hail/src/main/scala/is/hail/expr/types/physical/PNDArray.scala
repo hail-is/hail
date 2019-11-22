@@ -25,23 +25,23 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
-  @transient lazy val flags = new StaticallyKnownField(PInt32Required, (r, off) => Region.loadInt(representation.loadField(r, off, "flags")))
+  @transient lazy val flags = new StaticallyKnownField(PInt32Required, off => Region.loadInt(representation.loadField(off, "flags")))
   @transient lazy val offset = new StaticallyKnownField(
     PInt32Required,
-    (r, off) => Region.loadInt(representation.loadField(r, off, "offset"))
+    off => Region.loadInt(representation.loadField(off, "offset"))
   )
   @transient lazy val shape = new StaticallyKnownField(
     PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
-    (r, off) => representation.loadField(r, off, "shape")
+    off => representation.loadField(off, "shape")
   )
   @transient lazy val strides = new StaticallyKnownField(
     PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
-    (r, off) => representation.loadField(r, off, "strides")
+    off => representation.loadField(off, "strides")
   )
 
   @transient lazy val data = new StaticallyKnownField(
     PArray(elementType, required = true),
-    (r, off) => representation.loadField(r, off, "data")
+    off => representation.loadField(off, "data")
   )
 
   val representation: PStruct = {

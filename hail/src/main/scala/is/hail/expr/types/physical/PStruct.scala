@@ -252,9 +252,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] =
-    loadField(region, offset, fieldIdx(fieldName))
-
   def loadField(offset: Code[Long], field: String): Code[Long] = loadField(offset, fieldIdx(field))
 
   def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = isFieldDefined(offset, fieldIdx(field))

@@ -228,7 +228,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   }
 
   private def appendShallow(mb: MethodBuilder, r: Code[Region], aoff: Code[Long]): Code[Unit] = {
-    val len = bufferType.loadLength(r, aoff)
+    val len = bufferType.loadLength(aoff)
     val newNode = mb.newLocal[Long]
     Code(
       newNode := r.allocate(nodeType.alignment, nodeType.byteSize),
@@ -250,15 +250,15 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     initF.emit {
       val i = initF.newLocal[Int]
       val buf = buffer(firstNode)
-      val bufi = bufferType.elementOffsetInRegion(r, buf, i)
+      val bufi = bufferType.elementOffset(buf, i)
       Code(
         initWithCapacity(r, other.totalCount),
         i := 0,
         other.foreach(initF) { et =>
           Code(
-            et.m.mux(bufferType.setElementMissing(r, buf, i),
+            et.m.mux(bufferType.setElementMissing(buf, i),
               Code(
-                bufferType.setElementPresent(r, buf, i),
+                bufferType.setElementPresent(buf, i),
                 StagedRegionValueBuilder.deepCopy(fb, r, elemType, et.value, bufi))),
             incrCount(firstNode),
             i := i + 1)

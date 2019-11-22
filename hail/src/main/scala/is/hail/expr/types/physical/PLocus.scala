@@ -46,17 +46,17 @@ case class PLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
     val binaryOrd = repr.fieldType("contig").asInstanceOf[PBinary].unsafeOrdering()
 
     new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val cOff1 = repr.loadField(r1, o1, 0)
-        val cOff2 = repr.loadField(r2, o2, 0)
+      def compare(o1: Long, o2: Long): Int = {
+        val cOff1 = repr.loadField(o1, 0)
+        val cOff2 = repr.loadField(o2, 0)
 
-        if (binaryOrd.compare(r1, cOff1, r2, cOff2) == 0) {
-          val posOff1 = repr.loadField(r1, o1, 1)
-          val posOff2 = repr.loadField(r2, o2, 1)
+        if (binaryOrd.compare(cOff1, cOff2) == 0) {
+          val posOff1 = repr.loadField(o1, 1)
+          val posOff2 = repr.loadField(o2, 1)
           java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
         } else {
-          val contig1 = PString.loadString(r1, cOff1)
-          val contig2 = PString.loadString(r2, cOff2)
+          val contig1 = PString.loadString(cOff1)
+          val contig2 = PString.loadString(cOff2)
           localRGBc.value.compare(contig1, contig2)
         }
       }

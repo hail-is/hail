@@ -80,8 +80,8 @@ object MathFunctions extends RegistryFunctions {
     x == y || withinTol || (nanSame && x.isNaN && y.isNaN)
   }
 
-  def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
-    val f: Double => Double = irf(region, _, false)
+  def iruniroot(irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
+    val f: Double => Double = irf(_, false)
     if (!(min < max))
       fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
 

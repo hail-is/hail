@@ -109,7 +109,7 @@ class RegionValueBuilder(var region: Region) {
     indexstk.push(0)
 
     if (init)
-      t.clearMissingBits(region, off)
+      t.clearMissingBits(off)
   }
 
   def endBaseStruct() {
@@ -171,13 +171,13 @@ class RegionValueBuilder(var region: Region) {
     offsetstk.push(aoff)
 
     if (init)
-      t.initialize(region, aoff, length, setMissing)
+      t.initialize(aoff, length, setMissing)
   }
 
   def endArray() {
     val t = typestk.top.asInstanceOf[PArray]
     val aoff = offsetstk.top
-    val length = t.loadLength(region, aoff)
+    val length = t.loadLength(aoff)
     assert(length == indexstk.top)
 
     endArrayUnchecked()
@@ -208,11 +208,11 @@ class RegionValueBuilder(var region: Region) {
       case t: PBaseStruct =>
         if (t.types(i).required)
           fatal(s"cannot set missing field for required type ${ t.types(i) }")
-        t.setFieldMissing(region, offsetstk.top, i)
+        t.setFieldMissing(offsetstk.top, i)
       case t: PArray =>
         if (t.elementType.required)
           fatal(s"cannot set missing field for required type ${ t.elementType }")
-        t.setElementMissing(region, offsetstk.top, i)
+        t.setElementMissing(offsetstk.top, i)
     }
     advance()
   }
@@ -221,9 +221,9 @@ class RegionValueBuilder(var region: Region) {
     val i = indexstk.top
     typestk.top match {
       case t: PBaseStruct =>
-        t.setFieldPresent(region, offsetstk.top, i)
+        t.setFieldPresent(offsetstk.top, i)
       case t: PArray =>
-        t.setElementPresent(region, offsetstk.top, i)
+        t.setElementPresent(offsetstk.top, i)
     }
   }
 
@@ -303,7 +303,7 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
-    val length = PBinary.loadLength(fromRegion, fromBOff)
+    val length = PBinary.loadLength(fromBOff)
     val toBOff = PBinary.allocate(region, length)
     Region.copyFrom(fromBOff, toBOff, PBinary.contentByteSize(length))
     toBOff
@@ -318,7 +318,7 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def fixupArray(t: PArray, fromRegion: Region, fromAOff: Long): Long = {
-    val length = t.loadLength(fromRegion, fromAOff)
+    val length = t.loadLength(fromAOff)
     val toAOff = t.allocate(region, length)
 
     Region.copyFrom(fromAOff, toAOff, t.contentsByteSize(length))
@@ -326,7 +326,7 @@ class RegionValueBuilder(var region: Region) {
     if (region.ne(fromRegion) && requiresFixup(t.elementType)) {
       var i = 0
       while (i < length) {
-        if (t.isElementDefined(fromRegion, fromAOff, i)) {
+        if (t.isElementDefined(fromAOff, i)) {
           t.elementType match {
             case t2: PBaseStruct =>
               fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
@@ -354,17 +354,17 @@ class RegionValueBuilder(var region: Region) {
 
     var i = 0
     while (i < t.size) {
-      if (t.isFieldDefined(fromRegion, fromOff, i)) {
+      if (t.isFieldDefined(fromOff, i)) {
         t.types(i) match {
           case t2: PBaseStruct =>
-            fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
+            fixupStruct(t2, t.fieldOffset(toOff, i), t.fieldOffset(fromOff, i))
 
           case _: PBinary =>
-            val toBOff = fixupBinary(fromRegion, t.loadField(fromRegion, fromOff, i))
+            val toBOff = fixupBinary(fromRegion, t.loadField(fromOff, i))
             Region.storeAddress(t.fieldOffset(toOff, i), toBOff)
 
           case t2: PArray =>
-            val toAOff = fixupArray(t2, fromRegion, t.loadField(fromRegion, fromOff, i))
+            val toAOff = fixupArray(t2, fromRegion, t.loadField(fromOff, i))
             Region.storeAddress(t.fieldOffset(toOff, i), toAOff)
 
           case _ =>
@@ -375,8 +375,8 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
-    if (t.isFieldDefined(fromRegion, fromOff, i))
-      addRegionValue(t.types(i), fromRegion, t.loadField(fromRegion, fromOff, i))
+    if (t.isFieldDefined(fromOff, i))
+      addRegionValue(t.types(i), fromRegion, t.loadField(fromOff, i))
     else
       setMissing()
   }
@@ -418,9 +418,9 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addElement(t: PArray, fromRegion: Region, fromAOff: Long, i: Int) {
-    if (t.isElementDefined(fromRegion, fromAOff, i))
+    if (t.isElementDefined(fromAOff, i))
       addRegionValue(t.elementType, fromRegion,
-        t.elementOffsetInRegion(fromRegion, fromAOff, i))
+        t.elementOffset(fromAOff, i))
     else
       setMissing()
   }

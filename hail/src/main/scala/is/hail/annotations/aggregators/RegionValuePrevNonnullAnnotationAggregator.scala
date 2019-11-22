@@ -79,9 +79,9 @@ class RegionValuePrevNonnullAnnotationAggregator(t: Type) extends RegionValueAgg
 
   override def isCommutative: Boolean = false
 
-  def seqOp(region: Region, offset: Long, missing: Boolean) {
+  def seqOp(offset: Long, missing: Boolean) {
     if (!missing)
-      last = SafeRow.read(t.physicalType, region, offset)
+      last = SafeRow.read(t.physicalType, offset)
   }
 
   def combOp(agg2: RegionValueAggregator) {

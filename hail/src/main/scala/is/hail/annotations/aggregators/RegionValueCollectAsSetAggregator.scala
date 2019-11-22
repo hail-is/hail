@@ -223,11 +223,12 @@ class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
 class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionValueAggregator {
   private var values = mutable.Set[Any]()
 
-  def seqOp(region: Region, offset: Long, missing: Boolean) {
+  // TODO: unused, remove?
+  def seqOp(offset: Long, missing: Boolean) {
     if (missing)
       values.add(null)
     else
-      values.add(SafeRow.read(typ.physicalType, region, offset))
+      values.add(SafeRow.read(typ.physicalType, offset))
   }
 
   def combOp(agg2: RegionValueAggregator) {

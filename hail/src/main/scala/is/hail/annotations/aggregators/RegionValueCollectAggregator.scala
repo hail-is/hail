@@ -199,11 +199,12 @@ class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggrega
 
   override def isCommutative: Boolean = false
 
-  def seqOp(region: Region, offset: Long, missing: Boolean) {
+  // TODO: unused, remove?
+  def seqOp(offset: Long, missing: Boolean) {
     if (missing)
       ab.addMissing()
     else
-      ab.add(SafeRow.read(t.physicalType, region, offset))
+      ab.add(SafeRow.read(t.physicalType, offset))
   }
 
   def combOp(agg2: RegionValueAggregator) {

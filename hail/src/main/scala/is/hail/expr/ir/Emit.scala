@@ -13,7 +13,6 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.language.{existentials, postfixOps}
 
 object Emit {
@@ -1262,7 +1261,7 @@ private class Emit(
             def emit(mbLike: EmitMethodBuilderLike): Code[Unit] = {
               val i = oldt.fieldIdx(name)
               val t = oldt.types(i)
-              val fieldMissing = oldt.isFieldMissing(region, oldv, i)
+              val fieldMissing = oldt.isFieldMissing(oldv, i)
               val fieldValue = Region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
               Code(
                 fieldMissing.mux(
@@ -1318,7 +1317,7 @@ private class Emit(
 
                       def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
                         Code(
-                          oldtype.isFieldMissing(region, xo, oldField.index).mux(
+                          oldtype.isFieldMissing(xo, oldField.index).mux(
                             srvb.setMissing(),
                             srvb.addIRIntermediate(f.typ)(Region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))),
                           srvb.advance())
@@ -1350,7 +1349,7 @@ private class Emit(
           xmo := codeO.m,
           xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
         EmitTriplet(setup,
-          xmo || !t.isFieldDefined(region, xo, fieldIdx),
+          xmo || !t.isFieldDefined(xo, fieldIdx),
           Region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
 
       case x@MakeTuple(fields) =>
@@ -1374,7 +1373,7 @@ private class Emit(
           xmo := codeO.m,
           xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
         EmitTriplet(setup,
-          xmo || !t.isFieldDefined(region, xo, idx),
+          xmo || !t.isFieldDefined(xo, idx),
           Region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
       case In(i, typ) =>
@@ -1451,7 +1450,7 @@ private class Emit(
         val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
         val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, PFloat64())), env, missingError)
 
-        val localF = mb.newField[AsmFunction3[Region, Double, Boolean, Double]]
+        val localF = mb.newField[AsmFunction2[Double, Boolean, Double]]
         val codeMin = emit(min)
         val codeMax = emit(max)
 
@@ -1465,9 +1464,9 @@ private class Emit(
             const(true)),
           Code(
             localF := asmfunction.newInstance(),
-            res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
+            res := Code.invokeScalaObject[AsmFunction2[Double, Boolean, Double], Double, Double, java.lang.Double](
               MathFunctions.getClass,
-              "iruniroot", region, localF, codeMin.value[Double], codeMax.value[Double]),
+              "iruniroot", localF, codeMin.value[Double], codeMax.value[Double]),
             res.isNull))
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
@@ -1864,9 +1863,9 @@ private class Emit(
 
   private def getAsDependentFunction[A1: TypeInfo, R: TypeInfo](
     ir: IR, argEnv: Env[IR], env: Emit.E, errorMsg: String
-  ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
+  ): DependentFunction[AsmFunction2[A1, Boolean, R]] = {
     val (newIR, getEnv) = capturedReferences(Subst(ir, BindingEnv(argEnv)))
-    val f = mb.fb.newDependentFunction[Region, A1, Boolean, R]
+    val f = mb.fb.newDependentFunction[A1, Boolean, R]
 
     val newEnv = getEnv(env, f)
 
@@ -2083,7 +2082,7 @@ private class Emit(
 
         val fenv = env.bind(
           (l, (typeToTypeInfo(lelt), lm.load(), lv.load())),
-          (r, (typeToTypeInfo(relt), rm.load() || rtyp.isElementMissing(region, rv, ri), rtyp.loadElement(region, rv, ri))))
+          (r, (typeToTypeInfo(relt), rm.load() || rtyp.isElementMissing(rv, ri), rtyp.loadElement(rv, ri))))
 
         val compKeyF = mb.fb.newMethod(typeInfo[Region], typeInfo[Int])
         val et = new Emit(compKeyF, 1).emit(compKey, fenv, er, container)
@@ -2102,7 +2101,7 @@ private class Emit(
               cont(
                 lm.load(),
                 ((ri < rlen) && coerce[Int](compKeyF.invoke(region)).ceq(0)).mux(
-                  joinF.invoke(region, rtyp.loadElement(region, rv, ri), rm.load() || rtyp.isElementMissing(region, rv, ri)),
+                  joinF.invoke(region, rtyp.loadElement(rv, ri), rm.load() || rtyp.isElementMissing(rv, ri)),
                   joinF.invoke(region, defaultValue(relt), true))))
           }
           val setup = Code(
@@ -2113,7 +2112,7 @@ private class Emit(
               rlen := 0,
               Code(
                 rv := rarray.value[Long],
-                rlen := rtyp.loadLength(region, rv))))
+                rlen := rtyp.loadLength(rv))))
           EmitArrayTriplet(Code(setup, aet.setup), aet.m, aet.addElements)
         }
 
@@ -2231,13 +2230,13 @@ private class Emit(
         val codeV = emit(ir, env)
         val calcLength = Code(
           aoff := coerce[Long](codeV.v),
-          len := t.loadLength(region, aoff))
+          len := t.loadLength(aoff))
         ArrayIteratorTriplet(calcLength, Some(len.load()), { continuation: F =>
           EmitArrayTriplet(codeV.setup, Some(codeV.m), Code(
             i := 0,
             Code.whileLoop(i < len,
-              continuation(t.isElementMissing(region, aoff, i),
-                Region.loadIRIntermediate(t.elementType)(t.elementOffsetInRegion(region, aoff, i))),
+              continuation(t.isElementMissing(aoff, i),
+                Region.loadIRIntermediate(t.elementType)(t.elementOffset(aoff, i))),
               i := i + 1)))
         })
     }

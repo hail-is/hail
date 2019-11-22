@@ -53,24 +53,24 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
   )
 
   def alleleCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
-    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(region, alleleCounts, length, idx))
+    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(alleleCounts, length, idx))
 
   def updateAlleleCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int]): Code[Unit] = Code(
-    addr := CallStatsState.callStatsInternalArrayType.loadElement(region, alleleCounts, length, idx),
+    addr := CallStatsState.callStatsInternalArrayType.loadElement(alleleCounts, length, idx),
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
   def homCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
-    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(region, homCounts, length, idx))
+    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(homCounts, length, idx))
 
 
   def updateHomCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int]): Code[Unit] = Code(
-    addr := CallStatsState.callStatsInternalArrayType.loadElement(region, homCounts, length, idx),
+    addr := CallStatsState.callStatsInternalArrayType.loadElement(homCounts, length, idx),
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    TypedCodecSpec(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(region, off, _)
+    TypedCodecSpec(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(off, _)
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {

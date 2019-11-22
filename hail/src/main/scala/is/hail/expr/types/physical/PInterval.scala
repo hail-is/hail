@@ -35,19 +35,19 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
   override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering()
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val sdef1 = startDefined(r1, o1)
-        if (sdef1 == startDefined(r2, o2)) {
-          val cmp = pOrd.compare(r1, loadStart(r1, o1), r2, loadStart(r2, o2))
+      def compare(o1: Long, o2: Long): Int = {
+        val sdef1 = startDefined(o1)
+        if (sdef1 == startDefined(o2)) {
+          val cmp = pOrd.compare(loadStart(o1), loadStart(o2))
           if (cmp == 0) {
-            val includesS1 = includesStart(r1, o1)
-            if (includesS1 == includesStart(r2, o2)) {
-              val edef1 = endDefined(r1, o1)
-              if (edef1 == endDefined(r2, o2)) {
-                val cmp = pOrd.compare(r1, loadEnd(r1, o1), r2, loadEnd(r2, o2))
+            val includesS1 = includesStart(o1)
+            if (includesS1 == includesStart(o2)) {
+              val edef1 = endDefined(o1)
+              if (edef1 == endDefined(o2)) {
+                val cmp = pOrd.compare(loadEnd(o1), loadEnd(o2))
                 if (cmp == 0) {
-                  val includesE1 = includesEnd(r1, o1)
-                  if (includesE1 == includesEnd(r2, o2)) {
+                  val includesE1 = includesEnd(o1)
+                  if (includesE1 == includesEnd(o2)) {
                     0
                   } else if (includesE1) 1 else -1
                 } else cmp
@@ -63,19 +63,19 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
   def endPrimaryUnsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering()
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val edef1 = endDefined(r1, o1)
-        if (edef1 == endDefined(r2, o2)) {
-          val cmp = pOrd.compare(r1, loadEnd(r1, o1), r2, loadEnd(r2, o2))
+      def compare(o1: Long, o2: Long): Int = {
+        val edef1 = endDefined(o1)
+        if (edef1 == endDefined(o2)) {
+          val cmp = pOrd.compare(loadEnd(o1), loadEnd(o2))
           if (cmp == 0) {
-            val includesE1 = includesEnd(r1, o1)
-            if (includesE1 == includesEnd(r2, o2)) {
-              val sdef1 = startDefined(r1, o1)
-              if (sdef1 == startDefined(r2, o2)) {
-                val cmp = pOrd.compare(r1, loadStart(r1, o1), r2, loadStart(r2, o2))
+            val includesE1 = includesEnd(o1)
+            if (includesE1 == includesEnd(o2)) {
+              val sdef1 = startDefined(o1)
+              if (sdef1 == startDefined(o2)) {
+                val cmp = pOrd.compare(loadStart(o1), loadStart(o2))
                 if (cmp == 0) {
-                  val includesS1 = includesStart(r1, o1)
-                  if (includesS1 == includesStart(r2, o2)) {
+                  val includesS1 = includesStart(o1)
+                  if (includesS1 == includesStart(o2)) {
                     0
                   } else if (includesS1) 1 else -1
                 } else cmp
@@ -99,23 +99,35 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
 
   def endOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 1)
 
-  def loadStart(region: Region, off: Long): Long = representation.loadField(region, off, 0)
+  def loadStart(off: Long): Long = representation.loadField(off, 0)
 
-  def loadStart(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
+  def loadStart(region: Region, off: Long): Long = representation.loadField(off, 0)
 
-  def loadStart(rv: RegionValue): Long = loadStart(rv.region, rv.offset)
+  def loadStart(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(off, 0)
+
+  def loadStart(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
+
+  def loadStart(rv: RegionValue): Long = loadStart(rv.offset)
 
   def loadEnd(region: Region, off: Long): Long = representation.loadField(region, off, 1)
+
+  def loadEnd(off: Long): Long = representation.loadField(off, 1)
 
   def loadEnd(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 1)
 
   def loadEnd(rv: RegionValue): Long = loadEnd(rv.region, rv.offset)
 
-  def startDefined(region: Region, off: Long): Boolean = representation.isFieldDefined(region, off, 0)
+  def startDefined(off: Long): Boolean = representation.isFieldDefined(off, 0)
+
+  def endDefined(off: Long): Boolean = representation.isFieldDefined(off, 1)
 
   def endDefined(region: Region, off: Long): Boolean = representation.isFieldDefined(region, off, 1)
 
+  def includesStart(off: Long): Boolean = Region.loadBoolean(representation.loadField(off, 2))
+
   def includesStart(region: Region, off: Long): Boolean = Region.loadBoolean(representation.loadField(region, off, 2))
+
+  def includesEnd(off: Long): Boolean = Region.loadBoolean(representation.loadField(off, 3))
 
   def includesEnd(region: Region, off: Long): Boolean = Region.loadBoolean(representation.loadField(region, off, 3))
 

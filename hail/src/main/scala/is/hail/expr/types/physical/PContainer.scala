@@ -32,6 +32,9 @@ abstract class PContainer extends PIterable {
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(aoff)
 
+  final def loadLength(aoff: Long): Int =
+    PContainer.loadLength(aoff)
+
   final def loadLength(aoff: Code[Long]): Code[Int] =
     PContainer.loadLength(aoff)
 
@@ -92,6 +95,9 @@ abstract class PContainer extends PIterable {
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
     elementType.required || !Region.loadBit(aoff + 4, i)
 
+  def isElementDefined(aoff: Long, i: Int): Boolean =
+    elementType.required || !Region.loadBit(aoff + 4, i)
+
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
 
@@ -149,7 +155,23 @@ abstract class PContainer extends PIterable {
     }
   }
 
+  def loadElement(aoff: Long, length: Int, i: Int): Long = {
+    val off = elementOffset(aoff, length, i)
+    elementType.fundamentalType match {
+      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _ => off
+    }
+  }
+
   def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+    val off = elementOffset(aoff, length, i)
+    elementType.fundamentalType match {
+      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _ => off
+    }
+  }
+
+  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -159,6 +181,9 @@ abstract class PContainer extends PIterable {
 
   def loadElement(region: Region, aoff: Long, i: Int): Long =
     loadElement(region, aoff, Region.loadInt(aoff), i)
+
+  def loadElement(aoff: Long, i: Int): Long =
+    loadElement(aoff, Region.loadInt(aoff), i)
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, Region.loadInt(aoff), i)
@@ -178,29 +203,29 @@ abstract class PContainer extends PIterable {
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
-  private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
+  private def writeMissingness(aoff: Long, length: Int, value: Byte) {
     val nMissingBytes = (length + 7) / 8
     Region.setMemory(aoff + 4, nMissingBytes, value)
   }
 
-  def setAllMissingBits(region: Region, aoff: Long, length: Int) {
+  def setAllMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff, length, -1)
+    writeMissingness(aoff, length, -1)
   }
 
-  def clearMissingBits(region: Region, aoff: Long, length: Int) {
+  def clearMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff, length, 0)
+    writeMissingness(aoff, length, 0)
   }
 
-  def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
+  def initialize(aoff: Long, length: Int, setMissing: Boolean = false) {
     Region.storeInt(aoff, length)
     if (setMissing)
-      setAllMissingBits(region, aoff, length)
+      setAllMissingBits(aoff, length)
     else
-      clearMissingBits(region, aoff, length)
+      clearMissingBits(aoff, length)
   }
 
   def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
@@ -223,19 +248,19 @@ abstract class PContainer extends PIterable {
       right.elementType)
 
     new UnsafeOrdering {
-      override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val length1 = loadLength(r1, o1)
-        val length2 = right.loadLength(r2, o2)
+      override def compare(o1: Long, o2: Long): Int = {
+        val length1 = loadLength(o1)
+        val length2 = right.loadLength(o2)
 
         var i = 0
         while (i < math.min(length1, length2)) {
-          val leftDefined = isElementDefined(r1, o1, i)
-          val rightDefined = right.isElementDefined(r2, o2, i)
+          val leftDefined = isElementDefined(o1, i)
+          val rightDefined = right.isElementDefined(o2, i)
 
           if (leftDefined && rightDefined) {
-            val eOff1 = loadElement(r1, o1, length1, i)
-            val eOff2 = right.loadElement(r2, o2, length2, i)
-            val c = eltOrd.compare(r1, eOff1, r2, eOff2)
+            val eOff1 = loadElement(o1, length1, i)
+            val eOff2 = right.loadElement(o2, length2, i)
+            val c = eltOrd.compare(eOff1, eOff2)
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {

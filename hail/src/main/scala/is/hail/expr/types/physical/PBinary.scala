@@ -23,8 +23,8 @@ class PBinary(override val required: Boolean) extends PType {
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      val l1 = PBinary.loadLength(r1, o1)
-      val l2 = PBinary.loadLength(r2, o2)
+      val l1 = PBinary.loadLength(o1)
+      val l2 = PBinary.loadLength(o2)
 
       val bOff1 = PBinary.bytesOffset(o1)
       val bOff2 = PBinary.bytesOffset(o2)

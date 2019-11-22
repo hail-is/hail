@@ -54,11 +54,11 @@ final class ArrayGenotypeView(rvType: PStruct) {
   }
 
   def getGP(idx: Int): Double = {
-    val gpOffset = tg.loadField(m, gOffset, gpIndex)
-    val length = gpType.loadLength(m, gpOffset)
+    val gpOffset = tg.loadField(gOffset, gpIndex)
+    val length = gpType.loadLength(gpOffset)
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
-    assert(gpType.isElementDefined(m, gpOffset, idx))
+    assert(gpType.isElementDefined(gpOffset, idx))
     val elementOffset = gpType.elementOffset(gpOffset, length, idx)
     Region.loadDouble(elementOffset)
   }

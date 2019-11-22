@@ -26,7 +26,7 @@ object StagedRegionValueBuilder {
             Code(off := typ.fieldOffset(value, f.index),
               fixupStruct(fb, region, t, off))
         }
-        typ.isFieldDefined(region, value, f.index).mux(fix, Code._empty)
+        typ.isFieldDefined(value, f.index).mux(fix, Code._empty)
       }
     }: _*))
   }
@@ -51,9 +51,9 @@ object StagedRegionValueBuilder {
     }
     Code(
       i := 0,
-      len := typ.loadLength(region, value),
+      len := typ.loadLength(value),
       Code.whileLoop(i < len,
-        typ.isElementDefined(region, value, i).mux(perElt, Code._empty),
+        typ.isElementDefined(value, i).mux(perElt, Code._empty),
         i := i + 1))
   }
 
@@ -75,12 +75,12 @@ object StagedRegionValueBuilder {
     val copy = typ.fundamentalType match {
       case _: PBinary =>
         Code(
-          offset := PBinary.allocate(region, PBinary.loadLength(region, value)),
-          Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
+          offset := PBinary.allocate(region, PBinary.loadLength(value)),
+          Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(value))))
       case t: PArray =>
         Code(
-          offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(region, value))),
-          Region.copyFrom(value, offset, t.contentsByteSize(t.loadLength(region, value))),
+          offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(value))),
+          Region.copyFrom(value, offset, t.contentsByteSize(t.loadLength(value))),
           fixupArray(fb, region, t, offset))
       case t =>
         Code(
@@ -189,18 +189,18 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     if (t.size > 0)
       c = Code(c, elementsOffset := startOffset + t.byteOffsets(0))
     if (init)
-      c = Code(c, t.clearMissingBits(region, startOffset))
+      c = Code(c, t.clearMissingBits(startOffset))
     c
   }
 
   def setMissing(): Code[Unit] = {
     ftype match {
-      case t: PArray => t.setElementMissing(region, startOffset, idx)
+      case t: PArray => t.setElementMissing(startOffset, idx)
       case t: PBaseStruct =>
         if (t.fieldRequired(staticIdx))
           Code._fatal("Required field cannot be missing.")
         else
-          t.setFieldMissing(region, startOffset, staticIdx)
+          t.setFieldMissing(startOffset, staticIdx)
     }
   }
 

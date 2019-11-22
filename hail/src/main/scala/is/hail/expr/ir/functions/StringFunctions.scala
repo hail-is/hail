@@ -192,7 +192,6 @@ object StringFunctions extends RegistryFunctions {
       val len = r.mb.newLocal[Int]
       val i = r.mb.newLocal[Int]
       val n = r.mb.newLocal[Int]
-      val region: Code[Region] = r.region
 
       val v1 = r.mb.newLocal[Long]
       val v2 = r.mb.newLocal[Long]
@@ -200,8 +199,8 @@ object StringFunctions extends RegistryFunctions {
       val m = Code(
         v1 := e1.value[Long],
         v2 := e2.value[Long],
-        len := PBinary.loadLength(region, v1),
-        len.cne(PBinary.loadLength(region, v2)))
+        len := PBinary.loadLength(v1),
+        len.cne(PBinary.loadLength(v2)))
       val v =
         Code(n := 0,
           i := 0,

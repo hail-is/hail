@@ -129,7 +129,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv2.pretty(rt))
     }
 
-    assert(rt.loadLength(rv.region, rv.offset) == 1)
+    assert(rt.loadLength(rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
     assert(Region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
       Region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
@@ -236,8 +236,8 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.offset)))
   }
 
   @Test
@@ -380,8 +380,8 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
-      new UnsafeRow(rt, rv2.region, rv2.offset))
+    assert(new UnsafeRow(rt, rv.offset) ==
+      new UnsafeRow(rt, rv2.offset))
   }
 
   @Test
@@ -422,8 +422,8 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.offset)))
   }
 
   def printRegion(region: Region, string: String) {

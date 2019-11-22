@@ -415,7 +415,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
                 val off = localRowType.allocate(region)
-                localRowType.setFieldPresent(region, off, 0)
+                localRowType.setFieldPresent(off, 0)
                 Region.storeInt(localRowType.fieldOffset(off, 0), j)
                 rv.setOffset(off)
                 rv
@@ -1420,7 +1420,7 @@ case class TableKeyByAndAggregate(
               val f = makeKeyF(i, partRegion)
               rv: RegionValue => {
                 val keyOff = f(rv.region, rv.offset, false, globals, false)
-                SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
+                SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
               }
             }
             val makeAgg = { () =>
@@ -1528,7 +1528,7 @@ case class TableKeyByAndAggregate(
           val f = makeKeyF(i, partRegion)
           rv: RegionValue => {
             val keyOff = f(rv.region, rv.offset, false, globals, false)
-            SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
+            SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
           }
         }
         val sequence = {
