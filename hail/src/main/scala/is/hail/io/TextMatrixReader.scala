@@ -31,7 +31,7 @@ object TextMatrixReader {
   private case class HeaderInfo (
     headerValues: Array[String],
     rowFieldNames: Array[String],
-    columnIdentifiers: Array[String]
+    columnIdentifiers: Array[_] // String or Int
   ) {
     val nCols = columnIdentifiers.length
   }
