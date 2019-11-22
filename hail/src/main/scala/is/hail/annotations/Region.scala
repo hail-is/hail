@@ -283,6 +283,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.releaseReferenceAtIndex(idx)
   }
 
+  def storeJavaObject(obj: AnyRef): Int = memory.storeJavaObject(obj)
+
+  def lookupJavaObject(idx: Int): AnyRef = memory.lookupJavaObject(idx)
+
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
       case _: PBoolean => v.visitBoolean(Region.loadBoolean(off))

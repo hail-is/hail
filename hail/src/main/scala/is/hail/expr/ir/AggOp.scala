@@ -57,7 +57,7 @@ object AggOp {
   val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
 
     case (ApproxCDF(), Seq(_: TInt32), None, Seq(elType)) =>
-      val resType = QuantilesAggregator.resultType
+      val resType = QuantilesAggregator.resultType.virtualType
       val constrArgTypes: Array[Class[_]] = Array(classOf[Int])
       assert(elType.isOfType(TFloat64()))
       CodeAggregator[RegionValueApproxCDFAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Double]))
