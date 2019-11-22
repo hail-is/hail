@@ -200,6 +200,21 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
+        case TailLoop(args, body) =>
+          sb += '\n'
+          if (args.nonEmpty) {
+            sb += '\n'
+            args.foreachBetween { case (n, a) =>
+              sb.append(" " * (depth + 2))
+              sb += '('
+              sb.append(prettyIdentifier(n))
+              sb += '\n'
+              pretty(a, depth + 4)
+              sb += ')'
+            }(sb += '\n')
+            sb += '\n'
+            pretty(body, depth + 2)
+          }
         case _ =>
           val header = ir match {
             case I32(x) => x.toString
@@ -219,6 +234,7 @@ object Pretty {
                 )
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case Recur(_, t) => t.parsableString()
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)

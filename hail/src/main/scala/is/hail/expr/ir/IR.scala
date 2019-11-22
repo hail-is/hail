@@ -157,8 +157,11 @@ final case class Ref(name: String, var _typ: Type) extends IR
 
 
 // Recur can't exist outside of loop
-// Loops can be nested, but we can't call outer loops in terms of inner loops
-final case class Loop(params: Seq[(String, IR)], body: IR, _typ: Type) extends IR
+// Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
+object TailLoop {
+  val bindingSym: String = "__TAIL_LOOP"
+}
+final case class TailLoop(params: Seq[(String, IR)], body: IR) extends IR
 final case class Recur(args: Seq[IR], _typ: Type) extends IR
 
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR

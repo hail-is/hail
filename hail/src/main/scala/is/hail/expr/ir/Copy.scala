@@ -33,6 +33,12 @@ object Copy {
       case AggLet(name, _, _, isScan) =>
         assert(newChildren.length == 2)
         AggLet(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
+      case TailLoop(params, body) =>
+        assert(newChildren.length == params.length + 1)
+        TailLoop(params.map(_._1).zip(newChildren.init.map(_.asInstanceOf[IR])), newChildren.last.asInstanceOf[IR])
+      case Recur(args, t) =>
+        assert(newChildren.length == args.length)
+        Recur(newChildren.map(_.asInstanceOf[IR]), t)
       case Ref(name, t) => Ref(name, t)
       case RelationalRef(name, t) => RelationalRef(name, t)
       case RelationalLet(name, _, _) =>
