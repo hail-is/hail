@@ -84,12 +84,24 @@ _registry = {}
 _initialized = False
 
 
-def download_data(data_dir):
+def download_data(data_dir, group=None):
     logging.info(f'using benchmark data directory {data_dir}')
     os.makedirs(data_dir, exist_ok=True)
-    for rg in all_resources:
-        rg.create(data_dir)
-
+    if group:
+        resources = [r for r in all_resources if r.name() == group]
+        if not resources:
+            raise RuntimeError(f"no group {group!r}")
+    else:
+        resources = all_resources
+    to_create = []
+    for rg in resources:
+        if not rg.exists(data_dir):
+            to_create.append(rg)
+    if to_create:
+        hl.init()
+        for rg in to_create:
+            rg.create(data_dir)
+        hl.stop()
 
 def _ensure_initialized():
     if not _initialized:
