@@ -98,7 +98,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {'cpu': '0.1', 'memory': '10M'}
         j = builder.create_job('python:3.6-slim-stretch',
-                               ['python', '-c', '"x = \'a\' * 400 * 1000**2; print(x)"'],
+                               ['python', '-c', 'x = "a" * 400 * 1000**2; print(x)'],
                                resources=resources)
         builder.submit()
         status = j.wait()
