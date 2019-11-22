@@ -850,7 +850,7 @@ steps:
      valueFrom: test_ci_image.image
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     export ORGANIZATION hail-ci-test
+     export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
      export NAMESPACE="{{ default_ns.name }}"
      python3 -m pytest --log-cli-level=INFO -s -v --instafail /test/
