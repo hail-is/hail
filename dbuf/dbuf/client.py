@@ -39,12 +39,12 @@ class DBufClient:
         self.max_bufsize = max_bufsize
 
     async def create(self):
-        async with utils.request_retry_transient_errors(
-                self.aiosession,
-                'POST',
-                f'{self.root_url}/s') as resp:
-            assert resp.status == 200
-            self.id = int(await resp.text())
+        resp = await utils.request_retry_transient_errors(
+            self.aiosession,
+            'POST',
+            f'{self.root_url}/s')
+        assert resp.status == 200
+        self.id = int(await resp.text())
         self.session_url = f'{self.root_url}/s/{self.id}'
         return self.id
 
@@ -57,13 +57,13 @@ class DBufClient:
         server = key[0]
         server_url = self.deploy_config.base_url(server)
 
-        async with utils.request_retry_transient_errors(
-                self.aiosession,
-                'POST',
-                f'{server_url}/s/{self.id}/get',
-                json=key) as resp:
-            assert resp.status == 200
-            return await resp.read()
+        resp = await utils.request_retry_transient_errors(
+            self.aiosession,
+            'POST',
+            f'{server_url}/s/{self.id}/get',
+            json=key)
+        assert resp.status == 200
+        return await resp.read()
 
     def _decode(self, byte_array):
         off = 0
@@ -96,15 +96,15 @@ class DBufClient:
                     else:
                         break
 
-                async with utils.request_retry_transient_errors(
-                        self.aiosession,
-                        'POST',
-                        f'{server_url}/s/{self.id}/getmany',
-                        json=[x[0] for x in batch]) as resp:
-                    assert resp.status == 200
-                    data = await resp.read()
-                    for v, j in zip(self._decode(data), (x[1] for x in batch)):
-                        results[j] = v
+                resp = await utils.request_retry_transient_errors(
+                    self.aiosession,
+                    'POST',
+                    f'{server_url}/s/{self.id}/getmany',
+                    json=[x[0] for x in batch])
+                assert resp.status == 200
+                data = await resp.read()
+                for v, j in zip(self._decode(data), (x[1] for x in batch)):
+                    results[j] = v
         await asyncio.gather(*[get_from_server(server, keys)
                                for server, keys in servers.items()])
         return results
@@ -155,15 +155,15 @@ class DBufAppender:
         self.sizes = []
         self.cursor = 0
 
-        async with utils.request_retry_transient_errors(
-                self.aiosession,
-                'POST',
-                self.session_url,
-                data=buf[0:cursor]) as resp:
-            assert resp.status == 200
-            server, file_id, pos, _ = await resp.json()
-            self.keys[key_range] = [(server, file_id, pos + off, size)
-                                    for off, size in zip(offs, sizes)]
+        resp = await utils.request_retry_transient_errors(
+            self.aiosession,
+            'POST',
+            self.session_url,
+            data=buf[0:cursor])
+        assert resp.status == 200
+        server, file_id, pos, _ = await resp.json()
+        self.keys[key_range] = [(server, file_id, pos + off, size)
+                                for off, size in zip(offs, sizes)]
 
     async def finish(self):
         await self.flush()
