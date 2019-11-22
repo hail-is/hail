@@ -39,7 +39,9 @@ async def main():
 
     n = args.n
 
-    async with dbuf.client.DBufClient(args.cluster_leader, rng=random.Random(0)) as client:
+    max_bufsize = args.bufsize*1024*1024
+
+    async with dbuf.client.DBufClient(args.cluster_leader, max_bufsize=max_bufsize, rng=random.Random(0)) as client:
         await client.create()
 
         def bytearray_with_index(i):
