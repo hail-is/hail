@@ -9,7 +9,6 @@ import is.hail.expr.types.virtual.{TFloat64, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype, HardCallView}
 import org.apache.spark.rdd.RDD

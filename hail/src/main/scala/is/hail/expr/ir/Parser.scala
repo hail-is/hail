@@ -1389,14 +1389,17 @@ object IRParser {
         val reader = deserialize[BlockMatrixReader](readerStr)
         BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
+        val name = identifier(it)
         val child = blockmatrix_ir(env)(it)
-        val f = ir_value_expr(env + ("element" -> child.typ.elementType))(it)
-        BlockMatrixMap(child, f)
+        val f = ir_value_expr(env + (name -> child.typ.elementType))(it)
+        BlockMatrixMap(child, name, f)
       case "BlockMatrixMap2" =>
+        val lName = identifier(it)
+        val rName = identifier(it)
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
-        val f = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
-        BlockMatrixMap2(left, right, f)
+        val f = ir_value_expr(env.update(Map(lName -> left.typ.elementType, rName -> right.typ.elementType)))(it)
+        BlockMatrixMap2(left, right, lName, rName, f)
       case "BlockMatrixDot" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)

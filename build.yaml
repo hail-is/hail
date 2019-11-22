@@ -112,47 +112,146 @@ steps:
      - default_ns
      - create_auth_tables_image
      - users_database
- - kind: deploy
+ - kind: runImage
    name: create_deploy_config
-   namespace:
-     valueFrom: default_ns.name
-   config: auth/create-deploy-config-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-deploy-config
-      for: completed
-      timeout: 120
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # k8s deploy config
+     cat > deploy-config.json <<EOF
+     {"location":"k8s","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     EOF
+     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
+     kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     if [ {{ default_ns.name }} != {{ batch_pods_ns.name }} ]; then
+         kubectl -n {{ batch_pods_ns.name }} delete --ignore-not-found secret deploy-config
+         kubectl -n {{ batch_pods_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     fi
+     # gce deploy config
+     cat > deploy-config.json <<EOF
+     {"location":"gce","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     EOF
+     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
+     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
    dependsOn:
     - default_ns
     - batch_pods_ns
     - base_image
     - deploy_default_admin_admin
- - kind: deploy
+ - kind: runImage
    name: create_session_key
-   namespace:
-     valueFrom: default_ns.name
-   config: auth/create-session-key-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-session-key
-      for: completed
-      timeout: 120
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # create session keys
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers session-secret-key | wc -l | tr -d '[:space:]')
+     if [[ $N != 0 ]]; then
+       exit
+     fi
+     mkdir /session-secret-key
+     cat > generate-session-key.py <<EOF
+     import base64
+     from cryptography import fernet
+     with open('/session-secret-key/session-secret-key', 'wb') as f:
+         f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))
+     EOF
+     python3 generate-session-key.py
+     kubectl -n {{ default_ns.name }} create secret generic session-secret-key --from-file=/session-secret-key/session-secret-key
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
    dependsOn:
     - default_ns
     - base_image
- - kind: deploy
+ - kind: runImage
    name: create_accounts
-   namespace:
-     valueFrom: default_ns.name
-   config: auth/create-accounts-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-accounts
-      for: completed
-      timeout: 120
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     # create accounts
+     mkdir /user-tokens
+     cat > create-session.py <<EOF
+     import sys
+     import json
+     import asyncio
+     from hailtop.config import get_deploy_config
+     from hailtop.auth import get_tokens
+     from hailtop.utils import async_to_blocking
+     from gear import create_database_pool, insert_user, create_session
+     async def main():
+         dbpool = await create_database_pool()
+         tokens = get_tokens()
+         user_spec = json.loads(sys.argv[1])
+         userdata = await insert_user(dbpool, user_spec)
+         deploy_config = get_deploy_config()
+         auth_ns = deploy_config.service_ns('auth')
+         tokens[auth_ns] = await create_session(dbpool, userdata['id'])
+         tokens.write()
+     async_to_blocking(main())
+     EOF
+     # create batch
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers batch-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         rm -f /user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+         kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
+         python3 create-session.py '{"username":"batch","user_id":"hail|batch","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch-gsa-key","jwt_secret_name":"batch-tokens"}'
+         kubectl -n {{ default_ns.name }} create secret generic batch-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created batch
+     # create batch2
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers batch2-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         rm -f /user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch2-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+         python3 create-session.py '{"username":"batch2","user_id":"hail|batch2","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch2-gsa-key","jwt_secret_name":"batch2-tokens"}'
+         kubectl -n {{ default_ns.name }} create secret generic batch2-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created batch2
+     # create ci
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         rm -f /user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+         kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
+         python3 create-session.py '{"username":"ci","user_id":"hail|ci","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","jwt_secret_name":"ci-tokens"}'
+         kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created ci
+     # create test
+     # test-gsa-key already exists
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         rm -f /user-tokens/tokens.json
+         python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-tokens"}'
+         kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
+     fi
    scopes:
     - test
     - dev
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   secrets:
+    - name:
+        valueFrom: users_database.user_secret_name
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -775,16 +874,25 @@ steps:
     - create_ci_test_repo
     - deploy_ci_agent
     - deploy_ci_agent_default
- - kind: deploy
+ - kind: runImage
    name: test_ci
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: ci/test-ci-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-ci
-      for: completed
-      timeout: 900
+   image:
+     valueFrom: test_ci_image.image
+   script: |
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     export ORGANIZATION=hail-ci-test
+     export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
+     export NAMESPACE="{{ default_ns.name }}"
+     python3 -m pytest --log-cli-level=INFO -s -v --instafail /test/
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: hail-ci-0-1-service-account-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /secret/ci-secrets
    dependsOn:
     - default_ns
     - batch_pods_ns

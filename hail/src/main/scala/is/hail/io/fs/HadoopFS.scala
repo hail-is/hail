@@ -13,6 +13,7 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream }
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
+import is.hail.utils._
 
 import scala.io.Source
 
@@ -240,10 +241,8 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val fs = _fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
-    val files = fs.globStatus(path)
-    if (files == null)
-      return Array.empty[FileStatus]
-
+    val files = Option(fs.globStatus(path)).getOrElse(Array())
+    log.info(s"globbing path $filename returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
     files.map(fileStatus => new HadoopFileStatus(fileStatus))
   }
 

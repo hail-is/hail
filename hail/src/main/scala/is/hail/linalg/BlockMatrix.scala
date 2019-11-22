@@ -201,6 +201,10 @@ object BlockMatrix {
     }
   }
 
+  def negationOp: BDM[Double] => BDM[Double] = -_
+
+  def reverseScalarDiv(r: BDM[Double], l: Double): BDM[Double] = l /:/ r
+
   object ops {
 
     implicit class Shim(l: M) {

@@ -449,7 +449,7 @@ object TestUtils {
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
-    partitionsJSON: String = null): MatrixTable = {
+    partitionsJSON: String = null): MatrixIR = {
     rg.foreach { referenceGenome =>
       ReferenceGenome.addReference(referenceGenome)
     }
@@ -470,6 +470,6 @@ object TestUtils {
       TextInputFilterAndReplace(),
       partitionsJSON
     )
-    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
+    MatrixRead(reader.fullMatrixType, dropSamples, false, reader)
   }
 }

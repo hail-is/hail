@@ -7,7 +7,7 @@ import scipy.linalg as spla
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr import construct_expr
+from hail.expr import construct_expr, construct_variable
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
@@ -1283,20 +1283,18 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(ApplyUnaryPrimOp('-', Ref('element')))
-
-    def _unary_func_ir(self, hail_func):
-        return hail_func(construct_expr(Ref('element'), self.element_type))._ir
+        return self._apply_map(lambda x: construct_expr(ApplyUnaryPrimOp('-', x._ir), hl.tfloat64))
 
     @staticmethod
-    def _binary_op_ir(op):
-        return ApplyBinaryPrimOp(op, Ref('l'), Ref('r'))
+    def _binary_op(op):
+        return lambda l, r: construct_expr(ApplyBinaryPrimOp(op, l._ir, r._ir), hl.tfloat64)
 
-    @typecheck_method(f=IR)
+    @typecheck_method(f=func_spec(1, expr_float64))
     def _apply_map(self, f):
-        return BlockMatrix(BlockMatrixMap(self._bmir, f))
+        uid = Env.get_uid()
+        return BlockMatrix(BlockMatrixMap(self._bmir, uid, f(construct_variable(uid, hl.tfloat64))._ir))
 
-    @typecheck_method(f=IR,
+    @typecheck_method(f=func_spec(2, expr_float64),
                       other=oneof(numeric, np.ndarray, block_matrix_type),
                       reverse=bool)
     def _apply_map2(self, f, other, reverse=False):
@@ -1314,7 +1312,10 @@ class BlockMatrix(object):
         else:
             left, right = self_bmir, other_bmir
 
-        return BlockMatrix(BlockMatrixMap2(left, right, f))
+        lv = Env.get_uid()
+        rv = Env.get_uid()
+        f_ir = f(construct_variable(lv, hl.tfloat64), construct_variable(rv, hl.tfloat64))._ir
+        return BlockMatrix(BlockMatrixMap2(left, right, lv, rv, f_ir))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
@@ -1328,7 +1329,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(BlockMatrix._binary_op_ir('+'), b)
+        return self._apply_map2(BlockMatrix._binary_op('+'), b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1342,7 +1343,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(BlockMatrix._binary_op_ir('-'), b)
+        return self._apply_map2(BlockMatrix._binary_op('-'), b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1356,7 +1357,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(BlockMatrix._binary_op_ir('*'), b)
+        return self._apply_map2(BlockMatrix._binary_op('*'), b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1370,23 +1371,23 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(BlockMatrix._binary_op_ir('/'), b)
+        return self._apply_map2(BlockMatrix._binary_op('/'), b)
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op_ir('+'), b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op('+'), b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op_ir('-'), b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op('-'), b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op_ir('*'), b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op('*'), b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op_ir('/'), b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op('/'), b, reverse=True)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
@@ -1421,8 +1422,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        pow_ir = (construct_expr(Ref('l'), self.element_type) ** construct_expr(Ref('r'), hl.tfloat64))._ir
-        return self._apply_map2(pow_ir, x)
+        return self._apply_map(lambda i: i ** x)
 
     def sqrt(self):
         """Element-wise square root.
@@ -1431,7 +1431,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(self._unary_func_ir(hl.sqrt))
+        return self._apply_map(hl.sqrt)
 
     def ceil(self):
         """Element-wise ceiling.
@@ -1440,7 +1440,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(self._unary_func_ir(hl.ceil))
+        return self._apply_map(hl.ceil)
 
     def floor(self):
         """Element-wise floor.
@@ -1449,7 +1449,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(self._unary_func_ir(hl.floor))
+        return self._apply_map(hl.floor)
 
     def abs(self):
         """Element-wise absolute value.
@@ -1458,7 +1458,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(self._unary_func_ir(hl.abs))
+        return self._apply_map(hl.abs)
 
     def log(self):
         """Element-wise natural logarithm.
@@ -1467,7 +1467,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(self._unary_func_ir(hl.log))
+        return self._apply_map(lambda x: hl.log(x))
 
     def diagonal(self):
         """Extracts diagonal elements as a row vector.

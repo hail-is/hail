@@ -13,18 +13,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
-  def getKT: Table = {
-    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = FastIndexedSeq("Sample")
-
-    val kt = Table(hc, rdd, signature, keyNames)
-    kt.typeCheck()
-    kt
-  }
-
-  def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
+  def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
 
   def collect(tir: TableIR): TableCollect = TableCollect(TableKeyBy(tir, FastIndexedSeq()))
 
@@ -432,70 +421,15 @@ class TableIRSuite extends HailSuite {
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
 
-  @Test def testTableMultiWayZipJoin() {
-    implicit val execStrats = ExecStrategy.interpretOnly
-    val rowSig = TStruct(
-      "id" -> TInt32(),
-      "name" -> TString(),
-      "data" -> TFloat64()
-    )
-    val key = FastIndexedSeq("id")
-    val d1 = sc.parallelize(Array(
-      Array(0, "a", 0.0),
-      Array(1, "b", 3.14),
-      Array(2, "c", 2.78)).map(Row.fromSeq(_)))
-    val d2 = sc.parallelize(Array(
-      Array(0, "d", 1.1),
-      Array(0, "x", 2.2),
-      Array(2, "v", 7.89)).map(Row.fromSeq(_)))
-    val d3 = sc.parallelize(Array(
-      Array(1, "f", 9.99),
-      Array(2, "g", -1.0),
-      Array(3, "z", 0.01)).map(Row.fromSeq(_)))
-    val t1 = Table(hc, d1, rowSig, key)
-    val t2 = Table(hc, d2, rowSig, key)
-    val t3 = Table(hc, d3, rowSig, key)
+  @Test def testPartitionCountsWithDropRows() {
+    val tr = new TableReader {
+      override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
-    val testIr = TableMultiWayZipJoin(FastIndexedSeq(t1, t2, t3).map(_.tir), "__data", "__globals")
-    val testTable = new Table(hc, testIr)
+      override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 
-    val expectedSchema = TStruct(
-      "id" -> TInt32(),
-      "__data" -> TArray(TStruct(
-        "name" -> TString(),
-        "data" -> TFloat64()))
-    )
-    val globalSig = TStruct("__globals" -> TArray(TStruct()))
-    val globalData = Row.fromSeq(Array(FastIndexedSeq(Array[Any](), Array[Any](), Array[Any]()).map(Row.fromSeq(_))))
-    val expectedData = sc.parallelize(Array(
-      Array(0, FastIndexedSeq(Row.fromSeq(Array("a", 0.0)), Row.fromSeq(Array("d", 1.1)), null)),
-      Array(0, FastIndexedSeq(null, Row.fromSeq(Array("x", 2.2)), null)),
-      Array(1, FastIndexedSeq(Row.fromSeq(Array("b", 3.14)), null, Row.fromSeq(Array("f", 9.99)))),
-      Array(2, FastIndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
-      Array(3, FastIndexedSeq(null, null, Row.fromSeq(Array("z", 0.01))))
-    ).map(Row.fromSeq(_)))
-    val expectedTable = Table(hc, expectedData, expectedSchema, key, globalSig, globalData)
-    assert(testTable.same(expectedTable))
-  }
-
-  @Test def testTableMultiWayZipJoinGlobals() {
-    implicit val execStrats = ExecStrategy.interpretOnly
-    val t1 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(5))))
-    val t2 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(0))))
-    val t3 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> NA(TInt32()))))
-    val testIr = TableMultiWayZipJoin(FastIndexedSeq(t1, t2, t3), "__data", "__globals")
-    val testTable = new Table(hc, testIr)
-    val texp = new Table(hc, TableMapGlobals(
-      TableRange(10, 1),
-      MakeStruct(Seq("__globals" -> MakeArray(
-        Seq(
-          MakeStruct(Seq("x" -> I32(5))),
-          MakeStruct(Seq("x" -> I32(0))),
-          MakeStruct(Seq("x" -> NA(TInt32())))),
-        TArray(TStruct("x" -> TInt32()))
-      )
-      ))))
-
-    assert(testTable.globals == texp.globals)
+      override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct())
+    }
+    val tir = TableRead(tr.fullType, true, tr)
+    assert(tir.partitionCounts.forall(_.sum == 0))
   }
 }

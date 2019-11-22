@@ -1502,14 +1502,14 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
         hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[]).count()
+                               row_fields=row_fields, row_key=[])._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
-                               no_header=True).count()
+                               no_header=True)._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True,
-                               row_key=[]).count()
+                               row_key=[])._force_count_rows()
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1657,6 +1657,16 @@ class ImportMatrixTableTests(unittest.TestCase):
         actual = mt.alt.collect()
         assert actual == ['T', 'TGG', 'A', None]
 
+    def test_empty_import_matrix_table(self):
+        path = new_temp_file(suffix='tsv.bgz')
+        mt = hl.utils.range_matrix_table(0, 0)
+        mt = mt.annotate_entries(x=1)
+        mt.x.export(path)
+        assert hl.import_matrix_table(path)._force_count_rows() == 0
+
+        mt.x.export(path, header=False)
+        assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
+
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
@@ -1672,3 +1682,64 @@ class ImportTableTests(unittest.TestCase):
     def test_glob(self):
         tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
         assert tables.count() == 346
+
+    def test_type_imputation(self):
+        ht = hl.import_table(resource('type_imputation.tsv'), delimiter=r' ', missing='.', impute=True)
+        assert ht.row.dtype == hl.dtype('struct{1:int32,2:float64,3:str,4:str,5:str,6:bool,7:str}')
+
+        ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True)
+        assert ht.row.dtype == hl.dtype(
+            'struct{Chromosome: int32, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}')
+
+        ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True, types={'Chromosome': 'str'})
+        assert ht.row.dtype == hl.dtype(
+            'struct{Chromosome: str, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}')
+
+        ht = hl.import_table(resource('variantAnnotations.alternateformat.tsv'), impute=True)
+        assert ht.row.dtype == hl.dtype(
+            'struct{`Chromosome:Position:Ref:Alt`: str, Rand1: float64, Rand2: float64, Gene: str}')
+
+        ht = hl.import_table(resource('sampleAnnotations.tsv'), impute=True)
+        assert ht.row.dtype == hl.dtype(
+            'struct{Sample: str, Status: str, qPhen: int32}')
+
+        ht = hl.import_table(resource('integer_imputation.txt'), impute=True, delimiter=r'\s+')
+        assert ht.row.dtype == hl.dtype(
+            'struct{A:int64, B:int32}')
+
+    def test_import_export_identity(self):
+        ht = hl.import_table(resource('sampleAnnotations.tsv'))
+        f = new_temp_file()
+        ht.export(f)
+
+        with open(resource('sampleAnnotations.tsv'), 'r') as i1:
+            expected = list(line.strip() for line in i1)
+        with open(uri_path(f), 'r') as i2:
+            observed = list(line.strip() for line in i2)
+
+        assert expected == observed
+
+    def small_dataset_1(self):
+        data = [
+            hl.Struct(Sample='Sample1',field1=5,field2=5),
+            hl.Struct(Sample='Sample2',field1=3,field2=5),
+            hl.Struct(Sample='Sample3',field1=2,field2=5),
+            hl.Struct(Sample='Sample4',field1=1,field2=5),
+        ]
+        return hl.Table.parallelize(data, key='Sample')
+
+    def test_read_write_identity(self):
+        ht = self.small_dataset_1()
+        f = new_temp_file(suffix='ht')
+        ht.write(f)
+        assert ht._same(hl.read_table(f))
+    def test_read_write_identity_keyed(self):
+        ht = self.small_dataset_1().key_by()
+        f = new_temp_file(suffix='ht')
+        ht.write(f)
+        assert ht._same(hl.read_table(f))
+
+    def test_import_same(self):
+        ht = hl.import_table(resource('sampleAnnotations.tsv'))
+        ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
+        assert ht._same(ht2)

@@ -30,7 +30,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.ClassTag
 
 object TableIR {
-  def read(hc: HailContext, path: String, dropRows: Boolean, requestedType: Option[TableType]): TableIR = {
+  def read(hc: HailContext, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableIR = {
     val successFile = path + "/_SUCCESS"
     if (!hc.sFS.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
@@ -282,7 +282,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
   assert(PruneDeadFields.isSupertype(typ, tr.fullType),
     s"\n  original:  ${ tr.fullType }\n  requested: $typ")
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = tr.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastIndexedSeq(0L)) else tr.partitionCounts
 
   lazy val rowCountUpperBound: Option[Long] = partitionCounts.map(_.sum)
 

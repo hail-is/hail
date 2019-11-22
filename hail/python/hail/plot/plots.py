@@ -1451,11 +1451,11 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
         raise ValueError("visualize_missingness expects expressions of 'MatrixTable', found scalar expression")
     if isinstance(mt, hail.Table):
         raise ValueError("visualize_missingness requires source to be MatrixTable, not Table")
-    if not column_field:
+    if column_field is None:
         column_field = hail.str(mt.col_key)
-    if not row_field:
+    if row_field is None:
         row_field = mt.row_key
-    locus = row_field.dtype == hail.tlocus
+    locus = isinstance(row_field.dtype, hail.tlocus)
     columns = column_field.collect()
     if not (mt == row_source == column_source):
         raise ValueError(f"visualize_missingness expects expressions from the same 'MatrixTable', "
@@ -1486,8 +1486,8 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
 
     df = pd.DataFrame(data)
     df = df.rename(columns=dict(enumerate(columns))).rename(index=dict(enumerate(rows)))
-    df.index.name = 'rows'
-    df.columns.name = 'columns'
+    df.index.name = 'row'
+    df.columns.name = 'column'
 
     df = pd.DataFrame(df.stack(), columns=['defined']).reset_index()
 
@@ -1495,7 +1495,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     p = figure(x_range=columns, y_range=list(reversed(rows)),
                x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
                toolbar_location='below',
-               tooltips=[('defined', '@defined')]
+               tooltips=[('defined', '@defined'), ('row', f'@row'), ('column', f'@column')]
                )
 
     p.grid.grid_line_color = None
@@ -1508,7 +1508,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
 
     mapper = LinearColorMapper(palette=colors, low=df.defined.min(), high=df.defined.max())
 
-    p.rect(x='columns', y='rows', width=1, height=1,
+    p.rect(x='column', y='row', width=1, height=1,
            source=df,
            fill_color={'field': 'defined', 'transform': mapper},
            line_color=None)

@@ -3,12 +3,12 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, Interpret, LowerMatrixIR, MatrixValue}
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
+import is.hail.variant.{Call, RegionValueVariant}
 
 import scala.io.Source
 
