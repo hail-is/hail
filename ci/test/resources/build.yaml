@@ -10,6 +10,15 @@ steps:
        FROM ubuntu:18.04
        RUN apt-get update && apt-get install -y git
    contextPath: .
+ - kind: runImage
+   name: run_inline_image
+   image:
+     valueFrom:
+       inline_image.image
+   script: |
+     git init
+   dependsOn:
+     - inline_image
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -59,4 +68,4 @@ steps:
     - hello_image
     - check_hello
     - hello_database
-    - inline_image
+    - run_inline_image
