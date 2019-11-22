@@ -59,3 +59,4 @@ steps:
     - hello_image
     - check_hello
     - hello_database
+    - inline_image

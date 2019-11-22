@@ -17,6 +17,9 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       containers:
+        - name: inline_image
+          image: "{{ inline_image.image }}"
+          command: ["git", "init"]
         - name: hello
           image: "{{ hello_image.image }}"
           resources:
