@@ -1,3 +1,4 @@
+import random
 import asyncio
 import aiohttp
 import collections
@@ -17,14 +18,18 @@ class DBufClient:
         await self.aiosession.close()
 
     def __init__(self,
-                 name,
+                 leader_name,
                  id=None,
                  max_bufsize=10*1024*1024 - 1,
-                 deploy_config=None):
+                 deploy_config=None,
+                 rng=None):
         if not deploy_config:
             deploy_config = get_deploy_config()
+        if rng is None:
+            rng = random.Random()
+        self.rng = rng
         self.deploy_config = deploy_config
-        self.root_url = deploy_config.base_url(name)
+        self.root_url = deploy_config.base_url(leader_name)
         self.session_url = None if id is None else f'{self.root_url}/s/{id}'
         self.aiosession = None
         self.id = id
@@ -44,7 +49,9 @@ class DBufClient:
         return self.id
 
     async def start_write(self):
-        return DBufAppender(self.max_bufsize, self.aiosession, self.session_url)
+        workers = await self.get_workers()
+        worker = workers[self.rng.randrange(len(workers))]
+        return DBufAppender(worker, self.deploy_config, self.id, self.max_bufsize, self.aiosession)
 
     async def get(self, key):
         server = key[0]
@@ -113,9 +120,10 @@ class DBufClient:
 
 
 class DBufAppender:
-    def __init__(self, max_bufsize, aiosession, session_url):
+    def __init__(self, worker_name, deploy_config, id, max_bufsize, aiosession):
         self.aiosession = aiosession
-        self.session_url = session_url
+        server_url = deploy_config.base_url(worker_name)
+        self.session_url = f'{server_url}/s/{id}'
         self.buf = bytearray(max_bufsize)
         self.offs = []
         self.sizes = []
