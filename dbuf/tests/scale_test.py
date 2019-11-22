@@ -23,9 +23,9 @@ async def write(server, id, data, args):
         return keys, time.time() - start
 
 
-async def read(server, id, args, keys):
+async def read(leader, id, args, keys):
     start = time.time()
-    async with dbuf.client.DBufClient(server, id, max_bufsize=args.bufsize*1024*1024-1) as client:
+    async with dbuf.client.DBufClient(leader, id, max_bufsize=args.bufsize*1024*1024-1) as client:
         data = await client.getmany(keys)
     return data, time.time() - start
 
@@ -41,26 +41,25 @@ async def main():
 
     n = args.n
 
-    start = time.time()
     async with dbuf.client.DBufClient(args.cluster_leader) as client:
         id = await client.create()
 
         workers = await client.get_workers()
-        server = [workers[i % len(workers)] for i in range(n)]
 
         def bytearray_with_index(i):
             b = bytearray(args.size)
             struct.pack_into('l', b, 0, i)
             return b
         data = [bytearray_with_index(i) for i in range(n * args.reqs)]
-        grouped_data = list(utils.grouped(data, args.reqs))
+        data_for_worker = list(utils.grouped(data, args.reqs))
 
+        start = time.time()
         keys, times = utils.unzip(await asyncio.gather(
-            *[write(server[i], id, grouped_data[i], args) for i in range(n)]))
-
+            *[write(workers[i % len(workers)], id, data_for_worker[i], args) for i in range(n)]))
         end = time.time()
         duration = end - start
         print(f'write aggregate-throughput: {n * args.size * args.reqs / duration / 1024 / 1024 / 1024 : 0.3f} GiB/s')
+
         keys = [x for xs in keys for x in xs]
         indices = list(range(len(keys)))
         np.random.shuffle(indices)
@@ -70,13 +69,10 @@ async def main():
         data = list(utils.grouped(data, args.reqs))
 
         start = time.time()
-
         data2, times = utils.unzip(await asyncio.gather(
-            *[read(server[i], id, args, keys[i]) for i in range(n)]))
-
+            *[read(args.cluster_leader, id, args, keys[i]) for i in range(n)]))
         end = time.time()
         duration = end - start
-
         print(f'read aggregate-throughput: {n * args.size * args.reqs / duration / 1024 / 1024 / 1024 : 0.3f} GiB/s')
 
         await client.delete()
