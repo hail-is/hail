@@ -534,18 +534,19 @@ def test_ndarray_qr():
     np_identity4 = np.identity(4)
     identity4 = hl._nd.array(np_identity4)
 
-    #assert_raw_equivalence(identity4, np_identity4)
+    assert_raw_equivalence(identity4, np_identity4)
     assert_r_equivalence(identity4, np_identity4)
 
     np_all3 = np.full((3, 3), 3)
     all3 = hl._nd.full((3, 3), 3)
 
-    #assert_raw_equivalence(all3, np_all3)
+    assert_raw_equivalence(all3, np_all3)
     assert_r_equivalence(all3, np_all3)
 
     np_nine_square = np.arange(9).reshape((3, 3))
     nine_square = hl._nd.arange(9).reshape((3, 3))
 
+    assert_raw_equivalence(nine_square, np_nine_square)
     assert_r_equivalence(nine_square, np_nine_square)
 
     np_wide_rect = np.arange(12).reshape((3, 4))

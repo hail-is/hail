@@ -1537,14 +1537,10 @@ private class Emit(
 
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, answerCopyAddress, mb)
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, columnMajorCopyAddress, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
-            answerCopyAddress := hPType.data.pType.allocate(region, answerNumElements.toI),
-            hPType.data.pType.stagedInitialize(answerCopyAddress, answerNumElements.toI),
-            hPType.copyColumnMajorToRowMajor(hPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0),
-              hPType.data.pType.elementOffset(answerCopyAddress, answerNumElements.toI, 0), M, N, mb),
             rawOutputSrvb.start(),
             rawOutputSrvb.addIRIntermediate(hPType)(h),
             rawOutputSrvb.advance(),
@@ -1552,7 +1548,6 @@ private class Emit(
             rawOutputSrvb.advance(),
             rawOutputSrvb.end()
           )
-
 
           val result = Code(
             alwaysNeeded,
