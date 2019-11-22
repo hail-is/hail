@@ -30,7 +30,7 @@ object TextMatrixReader {
 
   private case class HeaderInfo (
     headerValues: Array[String],
-    rowIdentifiers: Array[String],
+    rowFieldNames: Array[String],
     columnIdentifiers: Array[String]
   ) {
     val nCols = columnIdentifiers.length
@@ -71,12 +71,12 @@ object TextMatrixReader {
         if (nHeaderValues + nRowFields == nSeparatedValues) {
           HeaderInfo(
             headerValues,
-            rowIdentifiers = Array.tabulate(nRowFields)(i => s"f$i"),
+            rowFieldNames = Array.tabulate(nRowFields)(i => s"f$i"),
             columnIdentifiers = headerValues)
         } else if (nHeaderValues == nSeparatedValues) {
           HeaderInfo(
             headerValues,
-            rowIdentifiers = headerValues.slice(0, nRowFields),
+            rowFieldNames = headerValues.slice(0, nRowFields),
             columnIdentifiers = headerValues.slice(nRowFields))
         } else {
           fatal(
@@ -221,22 +221,21 @@ case class TextMatrixReader(
   })
 
 
-  private[this] val (header1, nCols) = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, hasHeader)
-  private[this] val (rowFieldNames, colIDs) = splitHeader(header1, rowFields.size, nCols)
-  if (addRowId && rowFieldNames.contains("row_id")) {
+  private[this] val headerInfo = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, hasHeader)
+  if (addRowId && headerInfo.rowFieldNames.contains("row_id")) {
     fatal(
       s"""If no key is specified, `import_matrix_table`, uses 'row_id'
          |as the key, please provide a key or choose a different row field name.\n
-         |  Row field names: ${rowFieldNames}""".stripMargin)
+         |  Row field names: ${headerInfo.rowFieldNames}""".stripMargin)
   }
   private[this] val rowFieldTypeWithoutRowId = verifyRowFields(
-    resolvedPaths.head, rowFieldNames, rowFields)
+    resolvedPaths.head, headerInfo.rowFieldNames, rowFields)
   private[this] val rowFieldType =
     if (addRowId) TStruct("row_id" -> TInt64()) ++ rowFieldTypeWithoutRowId
     else rowFieldTypeWithoutRowId
-  private[this] val header1Bc = hc.backend.broadcast(header1)
+  private[this] val header1Bc = hc.backend.broadcast(headerInfo.headerValues)
   if (hasHeader)
-    warnDuplicates(colIDs.asInstanceOf[Array[String]])
+    warnDuplicates(headerInfo.columnIdentifiers.asInstanceOf[Array[String]])
   private[this] val lines = HailContext.maybeGZipAsBGZip(gzipAsBGZip) {
     sc.textFilesLines(resolvedPaths, nPartitions.getOrElse(sc.defaultMinPartitions))
   }
@@ -252,7 +251,7 @@ case class TextMatrixReader(
     header1Bc,
     separator)
 
-  def columnCount = Some(nCols)
+  def columnCount = Some(headerInfo.nCols)
 
   def partitionCounts = Some(_partitionCounts)
 
@@ -269,7 +268,7 @@ case class TextMatrixReader(
     val compiledLineParser = new CompiledLineParser(
       rowFieldType,
       requestedType,
-      nCols,
+      headerInfo.nCols,
       missingValue,
       separator,
       _partitionCounts,
@@ -282,7 +281,7 @@ case class TextMatrixReader(
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
       RVD.unkeyed(PStruct.canonical(requestedType.rowType), rdd)
-    val globalValue = makeGlobalValue(ctx, requestedType, colIDs.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType, headerInfo.columnIdentifiers.map(Row(_)))
     TableValue(tr.typ, globalValue, rvd)
   }
 }
