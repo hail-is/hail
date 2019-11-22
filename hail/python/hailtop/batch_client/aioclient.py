@@ -76,7 +76,11 @@ class Job:
         if not container_status:
             return None
 
-        return container_status.get('out_of_memory')
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status.get('out_of_memory')
 
     @staticmethod
     def _get_container_status_exit_code(container_status):
