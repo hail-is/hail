@@ -143,16 +143,30 @@ steps:
     - batch_pods_ns
     - base_image
     - deploy_default_admin_admin
- - kind: deploy
+ - kind: runImage
    name: create_session_key
-   namespace:
-     valueFrom: default_ns.name
-   config: auth/create-session-key-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-session-key
-      for: completed
-      timeout: 120
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # create session keys
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers session-secret-key | wc -l | tr -d '[:space:]')
+     if [[ $N != 0 ]]; then
+       exit
+     fi
+     mkdir /session-secret-key
+     cat > generate-session-key.py <<EOF
+     import base64
+     from cryptography import fernet
+     with open('/session-secret-key/session-secret-key', 'wb') as f:
+         f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))
+     EOF
+     python3 generate-session-key.py
+     kubectl -n {{ default_ns.name }} create secret generic session-secret-key --from-file=/session-secret-key/session-secret-key
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
    dependsOn:
     - default_ns
     - base_image
