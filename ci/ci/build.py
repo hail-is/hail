@@ -267,10 +267,10 @@ class BuildImageStep(Step):
         else:
             assert isinstance(self.dockerfile, str)
             render_dockerfile = ''
-            unrendered_dockerfile = self.dockerfile
+            unrendered_dockerfile = f'repo/{self.dockerfile}'
         render_dockerfile += ';\n'
         render_dockerfile += (f'python3 jinja2_render.py {shq(json.dumps(config))} '
-                              f'{shq(f"repo/{unrendered_dockerfile}")} {rendered_dockerfile}')
+                              f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}')
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
