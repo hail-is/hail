@@ -1375,14 +1375,14 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
         hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[])._force_count()
+                               row_fields=row_fields, row_key=[])._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
-                               no_header=True)._force_count()
+                               no_header=True)._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True,
-                               row_key=[])._force_count()
+                               row_key=[])._force_count_rows()
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1477,6 +1477,8 @@ class ImportMatrixTableTests(unittest.TestCase):
                        mt[f])
             for f in mt.row})
         mt = mt.key_rows_by(*row_key)
+        mt.show()
+        actual.show()
         assert mt._same(actual)
 
     def test_key_by_after_empty_key_import(self):

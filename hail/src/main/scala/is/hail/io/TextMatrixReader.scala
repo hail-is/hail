@@ -63,7 +63,7 @@ object TextMatrixReader {
         HeaderInfo(
           headerValues,
           headerValues.slice(0, nRowFields),
-          headerValues.slice(nRowFields))
+          headerValues.drop(nRowFields))
       case (true, Seq(header, dataLine)) =>
         val headerValues = header.split(sep)
         val nHeaderValues = headerValues.length
@@ -77,7 +77,7 @@ object TextMatrixReader {
           HeaderInfo(
             headerValues,
             rowFieldNames = headerValues.slice(0, nRowFields),
-            columnIdentifiers = headerValues.slice(nRowFields))
+            columnIdentifiers = headerValues.drop(nRowFields))
         } else {
           fatal(
             s"""In file $file, expected the header line to match either:
@@ -98,7 +98,7 @@ object TextMatrixReader {
         HeaderInfo(
           Array(),
           Array.tabulate(nRowFields)(i => s"f$i"),
-          Array.range(0, nSeparatedValues))
+          Array.range(0, nSeparatedValues - nRowFields))
     }
   }
 
