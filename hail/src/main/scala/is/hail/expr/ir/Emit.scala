@@ -1453,7 +1453,6 @@ private class Emit(
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
         val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_)).toArray
 
-        // I want a way to lay out a Scala tuple in hail managed memory on the fly
         val M = shapeArray(0)
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
@@ -1472,28 +1471,25 @@ private class Emit(
         val workAddress = mb.newField[Long]
         val columnMajorCopyAddress = mb.newField[Long]
         val answerCopyAddress = mb.newField[Long]
-        val answerNumElements = ndPType.numElements(shapeArray, mb)
+        val aNumElements = ndPType.numElements(shapeArray, mb)
 
         val infoResult = mb.newLocal[Int]
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 
-          Code._println("answerNumElements.toI"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", answerNumElements.toI),
+          Code._println(const("M = ").concat(M.toS)),
+          Code._println(const("N = ").concat(N.toS)),
+          Code._println(const("aNumElements = ").concat(aNumElements.toS)),
 
           // Make some space for the column major form (which means copying the input)
-          columnMajorCopyAddress := ndPType.data.pType.allocate(region, answerNumElements.toI),
-          ndPType.data.pType.stagedInitialize(columnMajorCopyAddress, answerNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, answerNumElements.toI, 0), ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0), M, N, mb),
+          columnMajorCopyAddress := ndPType.data.pType.allocate(region, aNumElements.toI),
+          ndPType.data.pType.stagedInitialize(columnMajorCopyAddress, aNumElements.toI),
+          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(columnMajorCopyAddress, aNumElements.toI, 0), M, N, mb),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
-          Code._println("tau length before calling LAPACK"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", tauPType.loadLength(tauAddress)),
 
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
@@ -1501,7 +1497,7 @@ private class Emit(
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0),
+            ndPType.data.pType.elementOffset(columnMajorCopyAddress, aNumElements.toI, 0),
             LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
             workAddress,
@@ -1520,12 +1516,15 @@ private class Emit(
         )
 
         if (mode == "raw") {
+          // Raw returns the column major form as is.
           val rawPType = x.pType.asInstanceOf[PTuple]
           val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
           val hPType = rawPType.types(0).asInstanceOf[PNDArray]
           val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
-          val hShapeBuilder = hPType.makeShapeBuilder(Array(M, N))
-          val hStridesBuilder = hPType.makeDefaultStridesBuilder(Array(M, N), mb)
+
+          val hShapeArray = Array(N, M)
+          val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray)
+          val hStridesBuilder = hPType.makeDefaultStridesBuilder(hShapeArray, mb)
 
           def tauShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
             Code(
@@ -1572,7 +1571,7 @@ private class Emit(
                 Code.whileLoop(currCol < N.toI,
                   (currRow > currCol).orEmpty(
                     // TODO Not row / column major agnostic!
-                    Region.storeDouble(ndPType.data.pType.elementOffset(answerCopyAddress, answerNumElements.toI,
+                    Region.storeDouble(ndPType.data.pType.elementOffset(answerCopyAddress, aNumElements.toI,
                       currRow * N.toI + currCol), 0.0)
                   ),
                   currCol := currCol + 1
@@ -1584,10 +1583,10 @@ private class Emit(
             // Now I have the code to zero out a corner. I should run that code, then return only A.
             val result = Code(
               alwaysNeeded,
-              answerCopyAddress := rPType.data.pType.allocate(region, answerNumElements.toI),
-              rPType.data.pType.stagedInitialize(answerCopyAddress, answerNumElements.toI),
-              rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(columnMajorCopyAddress, answerNumElements.toI, 0),
-                rPType.data.pType.elementOffset(answerCopyAddress, answerNumElements.toI, 0), M, N, mb),
+              answerCopyAddress := rPType.data.pType.allocate(region, aNumElements.toI),
+              rPType.data.pType.stagedInitialize(answerCopyAddress, aNumElements.toI),
+              rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(columnMajorCopyAddress, aNumElements.toI, 0),
+                rPType.data.pType.elementOffset(answerCopyAddress, aNumElements.toI, 0), M, N, mb),
               zeroOutCorner,
               rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, answerCopyAddress, mb)
             )

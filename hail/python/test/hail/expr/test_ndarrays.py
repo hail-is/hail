@@ -552,4 +552,5 @@ def test_ndarray_qr():
     np_wide_rect = np.arange(12).reshape((3, 4))
     wide_rect = hl._nd.arange(12).reshape((3, 4))
 
+    assert_raw_equivalence(wide_rect, np_wide_rect)
     assert_r_equivalence(wide_rect, np_wide_rect)
