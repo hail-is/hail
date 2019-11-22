@@ -1477,8 +1477,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                        mt[f])
             for f in mt.row})
         mt = mt.key_rows_by(*row_key)
-        mt.show()
-        actual.show()
         assert mt._same(actual)
 
     def test_key_by_after_empty_key_import(self):
