@@ -49,11 +49,11 @@ async def main():
         workers = await client.get_workers()
         server = [workers[i % len(workers)] for i in range(n)]
 
-        def bytes(i):
+        def bytearray_with_index(i):
             b = bytearray(args.size)
             struct.pack_into('l', b, 0, i)
             return b
-        data = [bytes(i) for i in range(n * args.reqs)]
+        data = [bytearray_with_index(i) for i in range(n * args.reqs)]
         grouped_data = list(utils.grouped(data, args.reqs))
 
         keys, times = utils.unzip(await asyncio.gather(
