@@ -1550,9 +1550,10 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
 
     hl.methods.statgen._warn_if_no_intercept('linreg', x)
 
+    sqrt_weight = hl.sqrt(weight)
     if weight is not None:
-        y = hl.sqrt(weight) * y
-        x = [hl.sqrt(weight) * xi for xi in x]
+        y = sqrt_weight * y
+        x = [sqrt_weight * xi for xi in x]
 
     k = len(x)
     x = hl.array(x)
