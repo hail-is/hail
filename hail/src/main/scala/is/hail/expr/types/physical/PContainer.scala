@@ -32,6 +32,9 @@ abstract class PContainer extends PIterable {
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(aoff)
 
+  final def loadLength(aoff: Long): Int =
+    PContainer.loadLength(aoff)
+
   final def loadLength(aoff: Code[Long]): Code[Int] =
     PContainer.loadLength(aoff)
 
@@ -92,6 +95,9 @@ abstract class PContainer extends PIterable {
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
     elementType.required || !Region.loadBit(aoff + 4, i)
 
+  def isElementDefined(aoff: Long, i: Int): Boolean =
+    elementType.required || !Region.loadBit(aoff + 4, i)
+
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
 
@@ -142,6 +148,14 @@ abstract class PContainer extends PIterable {
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = {
+    val off = elementOffset(aoff, length, i)
+    elementType.fundamentalType match {
+      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _ => off
+    }
+  }
+
+  def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
