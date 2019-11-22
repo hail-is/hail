@@ -1526,14 +1526,7 @@ private class Emit(
           val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray)
           val hStridesBuilder = hPType.makeDefaultStridesBuilder(hShapeArray, mb)
 
-          def tauShapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-            Code(
-              srvb.start(),
-              srvb.addLong(K),
-              srvb.advance()
-            )
-          }
-
+          val tauShapeBuilder = tauPType.makeShapeBuilder(Array(K))
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
           val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, columnMajorCopyAddress, mb)
@@ -1557,7 +1550,7 @@ private class Emit(
         }
         else {
           if (mode == "r") {
-            // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner and call it a day.
+            // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner.
             val rPType = x.pType.asInstanceOf[PNDArray]
             val rShapeBuilder = rPType.makeShapeBuilder(Array(M, N))
             val rStridesBuilder = rPType.makeDefaultStridesBuilder(Array(M, N), mb)
