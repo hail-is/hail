@@ -34,7 +34,6 @@ class Session:
         self.cursor = 0
         self.writers = dict()
         self.file_budget = asyncio.BoundedSemaphore(128)
-        self.blocking_pool = concurrent.futures.ThreadPoolExecutor()
 
     async def _flush_to_file(self, fname, buf, cursor):
         async with self.file_budget:
@@ -84,7 +83,7 @@ class Session:
                 assert await self.aiofiles.readinto(f, buf) == n
 
     async def readmany(self, keys):
-        out = bytearray(sum(x[2] for x in keys) + 4 * len(keys))
+        out = bytearray(sum(4 + x[2] for x in keys))
         offs = [0] * len(keys)
         s = 0
         for i, n in enumerate(x[2] for x in keys):
