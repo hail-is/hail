@@ -32,6 +32,9 @@ abstract class PContainer extends PIterable {
   final def loadLength(aoff: Long): Int =
     PContainer.loadLength(aoff)
 
+  final def loadLength(aoff: Long): Int =
+    PContainer.loadLength(aoff)
+
   final def loadLength(aoff: Code[Long]): Code[Int] =
     PContainer.loadLength(aoff)
 
@@ -81,6 +84,8 @@ abstract class PContainer extends PIterable {
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
     elementType.required || !Region.loadBit(aoff + 4, i)
+
+  def isElementDefined(region: Region, aoff: Long, i: Int): Boolean = isElementDefined(aoff, i)
 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
