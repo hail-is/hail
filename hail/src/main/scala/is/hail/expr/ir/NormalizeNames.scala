@@ -87,6 +87,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg -> env.bindAgg(name, newName)
         AggLet(newName, normalize(value, valueEnv), normalize(body, bodyEnv), isScan)
+      case TailLoop(args, body) =>
+        val newNames = Array.tabulate(args.length)(i => gen())
+        val (names, values) = args.unzip
+        TailLoop(newNames.zip(values.map(v => normalize(v))), normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames): _*))))
       case ArraySort(a, left, right, compare) =>
         val newLeft = gen()
         val newRight = gen()

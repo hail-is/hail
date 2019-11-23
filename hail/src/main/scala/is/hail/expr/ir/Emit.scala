@@ -1580,27 +1580,25 @@ private class Emit(
               baos.invoke[Array[Byte]]("toByteArray")),
             decodeResult))
       case x@TailLoop(args, body) =>
-        val (storeInitArgs, refs) = args.map { case (name, ir) =>
-          val t = emit(ir)
+        val loopRefs = args.map { case (name, ir) =>
           val ti = typeToTypeInfo(ir.typ)
-          val m = mb.newField[Boolean]
-          val v: ClassFieldRef[_] = mb.newField()(ti)
-          (Code(t.setup, m := t.m, (!m).orEmpty(v := t.value)), (name, ti, m, v))
-        }.unzip
+          ti -> LoopRef(mb.newField[Boolean], mb.newField()(ti), mb.newLocal[Boolean], mb.newLocal()(ti))
+        }
+
+        val storeInitArgs = args.zip(loopRefs).map { case ((_, ir), (_, loopref)) =>
+          val t = emit(ir)
+          Code(t.setup, loopref.m := t.m, (!loopref.m).orEmpty(loopref.v := t.value))
+        }
 
         val label = new CodeLabel
         val m = mb.newField[Boolean]
         val v = mb.newField()(typeToTypeInfo(x.typ))
 
         val argEnv = env
-          .bind(refs.map { case (name, ti, m, v) => name -> (ti, m.load(), v.load()) } : _*)
+          .bind(args.zip(loopRefs).map { case ((name, _), (ti, ref)) => (name, (ti, ref.m.load(), ref.v.load())) } : _*)
           .bind(TailLoop.bindingSym, (typeToTypeInfo(x.typ), const(false), label.goto))
 
-        val newLoopRefs = refs.map { case (name, ti, m, v) =>
-            LoopRef(m, v, mb.newLocal[Boolean], mb.newLocal()(ti))
-        }
-
-        val bodyT = emit(body, argEnv, Some(newLoopRefs))
+        val bodyT = emit(body, argEnv, loopRefs = Some(loopRefs.map(_._2).toArray))
         val bodyF = Code(
           bodyT.setup,
           m := bodyT.m,
@@ -1612,11 +1610,11 @@ private class Emit(
         val (_, _, jump) = env.lookup(TailLoop.bindingSym)
         val refs = loopRefs.get
         val storeTempArgs = Array.tabulate(refs.length) { i =>
-          emit(args(i), env.delete())
-
-
+          val t = emit(args(i), env.delete(TailLoop.bindingSym), loopRefs = None)
+          Code(t.setup, refs(i).tempM := t.m, refs(i).tempV.storeAny(refs(i).tempM.mux(defaultValue(args(i).typ), t.v)))
         }
-        EmitTriplet(Code(Code(storeArgs: _*), jump), const(false), Code._empty)
+        val moveArgs = refs.map( ref =>  Code(ref.m := ref.tempM, ref.v.storeAny(ref.tempV)) )
+        EmitTriplet(Code(Code(storeTempArgs ++ moveArgs: _*), coerce[Unit](jump)), const(false), Code._empty)
     }
   }
 
@@ -1682,7 +1680,7 @@ private class Emit(
     }
 
   private def emitOldArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
-    def emit(ir: IR, env: E = env) = this.emit(ir, env, er, container)
+    def emit(ir: IR, env: E = env) = this.emit(ir, env, er, container, None)
 
     def emitArrayIterator(ir: IR, env: E = env) =
       this.emitOldArrayIterator(ir, env, er, container)
@@ -1940,9 +1938,9 @@ private class Emit(
         val postAgg = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
           context = "ArrayAggScan/StagedExtractAggregators/perElt", ctx)
 
-        val codeInit = this.emit(init, env, er, Some(newContainer))
-        val codeSeq = this.emit(perElt, bodyEnv, er, Some(newContainer))
-        val newElt = this.emit(postAgg, bodyEnv, er, Some(newContainer))
+        val codeInit = this.emit(init, env, er, Some(newContainer), None)
+        val codeSeq = this.emit(perElt, bodyEnv, er, Some(newContainer), None)
+        val newElt = this.emit(postAgg, bodyEnv, er, Some(newContainer), None)
 
         val it = emitArrayIterator(a)
         val ae = { cont: Emit.F =>

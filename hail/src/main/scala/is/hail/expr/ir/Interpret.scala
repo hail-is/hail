@@ -655,6 +655,21 @@ object Interpret {
         wrapped.get(0)
       case x: ReadPartition =>
         fatal(s"cannot interpret ${ Pretty(x) }")
+      case TailLoop(args, body) =>
+        val inits = args.map { case (name, arg) => name -> interpret(arg) }
+        val argEnv = env.bind(inits: _*)
+        val names = args.map(_._1)
+        val types = args.map(_._2.typ)
+        val f: Seq[IR] => Any = { newArgs: Seq[Any] =>
+          val lits = newArgs.zip(types).map { case (a, t) => Literal.coerce(t, a) }
+          interpret(TailLoop(names.zip(lits), body), env)
+        }
+        interpret(body, argEnv.bind(TailLoop.bindingSym, f))
+
+      case Recur(args, _) =>
+        val f = env.lookup(TailLoop.bindingSym).asInstanceOf[Seq[Any] => Any]
+        val argValues = args.map(interpret(_))
+        f(argValues)
     }
   }
 }

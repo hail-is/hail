@@ -2427,7 +2427,8 @@ class IRSuite extends HailSuite {
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
       ReadPartition(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32())),
-      RelationalLet("x", I32(0), I32(0))
+      RelationalLet("x", I32(0), I32(0)),
+      TailLoop(IndexedSeq("x" -> I32(0)), Recur(FastSeq(I32(4)), TInt32()))
     )
     irs.map(x => Array(x))
   }
@@ -2995,5 +2996,38 @@ class IRSuite extends HailSuite {
           Interval(
             Row(Locus("20", 10277621)), Row(Locus("20", 11898992)), includesStart = true, includesEnd = false)),
         v))
+  }
+
+  @Test def testSimpleTailLoop(): Unit = {
+    val triangleSum: IR = TailLoop(
+      FastIndexedSeq("x" -> In(0, TInt32()), "accum" -> I32(0)),
+      If(Ref("x", TInt32()) <= I32(0),
+        Ref("accum", TInt32()),
+        Recur(FastIndexedSeq(
+          Ref("x", TInt32()) - I32(1),
+          Ref("accum", TInt32()) + Ref("x", TInt32())),
+          TInt32())))
+
+    assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32()), 15)
+  }
+
+  @Test def testNestedTailLoop(): Unit = {
+    val triangleSum: IR = TailLoop(
+      FastIndexedSeq("x" -> In(0, TInt32()), "accum" -> I32(0)),
+      If(Ref("x", TInt32()) <= I32(0),
+        TailLoop(
+          FastIndexedSeq("x2" -> Ref("accum", TInt32()), "accum2" -> I32(0)),
+          If(Ref("x2", TInt32()) <= I32(0),
+            Ref("accum2", TInt32()),
+            Recur(FastIndexedSeq(
+              Ref("x2", TInt32()) - I32(5),
+              Ref("accum2", TInt32()) + Ref("x2", TInt32())),
+              TInt32()))),
+        Recur(FastIndexedSeq(
+          Ref("x", TInt32()) - I32(1),
+          Ref("accum", TInt32()) + Ref("x", TInt32())),
+          TInt32())))
+
+    assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32()), 15 + 10 + 5)
   }
 }

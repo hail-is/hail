@@ -124,9 +124,9 @@ object TypeCheck {
             false
           else
             node.children.zipWithIndex
-              .filterNot { case (c, _) => c.isInstanceOf[TailLoop] | !c.isInstanceOf[IR] }
+              .filterNot { case (c, _) => c.isInstanceOf[TailLoop] || !c.isInstanceOf[IR] }
               .forall { case (c, i) =>
-                checkRecurOnlyInTail(c.asInstanceOf[IR], tailPosition && InTailPosition(x, i))
+                checkRecurOnlyInTail(c.asInstanceOf[IR], tailPosition && InTailPosition(node, i))
               }
           }
         assert(checkRecurOnlyInTail(body, true))
