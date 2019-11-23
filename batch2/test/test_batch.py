@@ -102,7 +102,6 @@ class Test(unittest.TestCase):
                                resources=resources)
         builder.submit()
         status = j.wait()
-        print(status)
         assert j._get_out_of_memory(status, 'main')
 
     def test_unsubmitted_state(self):
