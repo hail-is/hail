@@ -512,10 +512,10 @@ class BatchClient:
             self._session, 'GET',
             self.url + path, params=params, headers=self._headers)
 
-    async def _post(self, path, json=None):
+    async def _post(self, path, data=None, json=None):
         return await request_retry_transient_errors(
             self._session, 'POST',
-            self.url + path, json=json, headers=self._headers)
+            self.url + path, data=data, json=json, headers=self._headers)
 
     async def _patch(self, path):
         return await request_retry_transient_errors(
