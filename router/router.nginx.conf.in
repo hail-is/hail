@@ -76,6 +76,7 @@ server {
 
 server {
     server_name batch2.*;
+    client_max_body_size 8m;
 
     location / {
         proxy_pass http://batch2/;
@@ -246,6 +247,7 @@ server {
 
 server {
     server_name blog.*;
+    client_max_body_size 8m;
 
     location / {
         proxy_pass http://blog/;
@@ -257,6 +259,5 @@ server {
 
     listen 80;
     listen [::]:80;
-	client_max_body_size 8M;
 }
 
