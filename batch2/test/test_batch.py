@@ -91,7 +91,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {'cpu': '0', 'memory': '1Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*not allowed'):
             builder.submit()
 
     def test_out_of_memory(self):

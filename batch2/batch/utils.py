@@ -36,7 +36,7 @@ def parse_memory_in_bytes(memory_string):
     return None
 
 
-def worker_memory_per_core_bytes(worker_type):
+def worker_memory_per_core_gb(worker_type):
     if worker_type == 'standard':
         m = 3.75
     elif worker_type == 'highmem':
@@ -44,6 +44,11 @@ def worker_memory_per_core_bytes(worker_type):
     else:
         assert worker_type == 'highcpu', worker_type
         m = 0.9
+    return m
+
+
+def worker_memory_per_core_bytes(worker_type):
+    m = worker_memory_per_core_gb(worker_type)
     return int(m * 1000**3)  # GCE memory/core are in GB not GiB
 
 

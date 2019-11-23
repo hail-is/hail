@@ -26,7 +26,8 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, LoggingTimer
+from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
+    worker_memory_per_core_gb, LoggingTimer
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -41,7 +42,6 @@ log = logging.getLogger('batch.front_end')
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
-REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
@@ -290,7 +290,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 if req_cores_mcpu == 0:
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        reason=f'resource requests for job {id} are not allowed: '
                         f'cpu must be greater than 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, WORKER_TYPE)
@@ -298,7 +298,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if cores_mcpu > WORKER_CORES * 1000:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cpu={resources["cpu"]}, memory={resources["memory"]}')
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
+                        f'maximum: cpu={WORKER_CORES}, memory={worker_memory_per_core_gb(WORKER_TYPE)}GB')
 
                 secrets = spec.get('secrets')
                 if not secrets:
