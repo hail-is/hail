@@ -363,7 +363,7 @@ class UnsafeSuite extends HailSuite {
 
       val c1 = ord.compare(a1, a2)
       val c2 = ord.compare(ur1, ur2)
-      val c3 = uord.compare(ur1.region, ur1.offset, ur2.region, ur2.offset)
+      val c3 = uord.compare(ur1.offset, ur2.offset)
 
       val p1 = math.signum(c1) == math.signum(c2)
       val p2 = math.signum(c2) == math.signum(c3)

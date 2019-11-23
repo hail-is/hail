@@ -32,9 +32,6 @@ abstract class PContainer extends PIterable {
   final def loadLength(aoff: Long): Int =
     PContainer.loadLength(aoff)
 
-  final def loadLength(aoff: Long): Int =
-    PContainer.loadLength(aoff)
-
   final def loadLength(aoff: Code[Long]): Code[Int] =
     PContainer.loadLength(aoff)
 
