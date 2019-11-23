@@ -1,7 +1,11 @@
-CREATE TABLE IF NOT EXISTS `tokens` (
-  `name` VARCHAR(100) NOT NULL,
-  `token` VARCHAR(100) NOT NULL,
-  PRIMARY KEY (`name`)
+CREATE TABLE IF NOT EXISTS `globals` (
+  `instance_id` VARCHAR(100) NOT NULL,
+  `internal_token` VARCHAR(100) NOT NULL,
+  `worker_cores` BIGINT NOT NULL,
+  `worker_type` VARCHAR(100) NOT NULL,
+  `worker_disk_size_gb` BIGINT NOT NULL,
+  `max_instances` BIGINT NOT NULL,
+  `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `instances` (

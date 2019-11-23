@@ -682,17 +682,13 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'instance_id')
-    instance_id = row['token']
+        'SELECT instance_id, internal_token FROM globals;')
+    instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'internal')
     app['driver_headers'] = {
-        'Authorization': f'Bearer {row["token"]}'
+        'Authorization': f'Bearer {row["internal_token"]}'
     }
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(

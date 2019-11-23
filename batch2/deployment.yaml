@@ -49,18 +49,6 @@ spec:
            value: "{{ global.zone }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
-{% if not deploy %}
-         - name: WORKER_TYPE
-           value: "standard"
-         - name: WORKER_CORES
-           value: "1"
-         - name: WORKER_DISK_SIZE_GB
-           value: "10"
-         - name: POOL_SIZE
-           value: "2"
-         - name: MAX_INSTANCES
-           value: "3"
-{% endif %}
         ports:
          - containerPort: 5000
         volumeMounts:
@@ -164,6 +152,10 @@ spec:
            value: "{{ default_ns.name }}"
          - name: HAIL_BATCH_PODS_NAMESPACE
            value: "{{ batch_pods_ns.name }}"
+         - name: PROJECT
+           value: "{{ global.project }}"
+         - name: ZONE
+           value: "{{ global.zone }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
 {% if not deploy %}

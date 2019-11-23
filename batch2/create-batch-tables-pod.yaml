@@ -15,7 +15,7 @@ spec:
        JOBS=$(echo "SHOW TABLES LIKE 'jobs';" | mysql --defaults-extra-file=/sql-config/sql-config.cnf -s)
        if [ "$JOBS" != "jobs" ]; then
          mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-batch-tables.sql
-         python3 ./insert-batch-tokens.py
+         python3 ./insert-batch-globals.py {{ scope }}
        fi
     volumeMounts:
       - mountPath: /sql-config

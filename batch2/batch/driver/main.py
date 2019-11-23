@@ -5,13 +5,16 @@ from functools import wraps
 import concurrent
 import asyncio
 from aiohttp import web
+import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-from gear import Database, setup_aiohttp_session, web_authenticated_developers_only
+from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
+    check_csrf_token
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
 
 # import uvloop
 
@@ -290,6 +293,7 @@ async def get_index(request, userdata):
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
+        'config': instance_pool.config(),
         'instance_id': app['instance_id'],
         'n_instances_by_state': instance_pool.n_instances_by_state,
         'instances': instance_pool.name_instance.values(),
@@ -297,6 +301,76 @@ async def get_index(request, userdata):
         'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
     }
     return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
+
+
+@routes.post('/config-update')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def config_update(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    inst_pool = app['inst_pool']
+
+    session = await aiohttp_session.get_session(request)
+
+    def validate(name, value, predicate, description):
+        if not predicate(value):
+            set_message(session,
+                        f'{name} invalid: {value}.  Must be {description}.',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+        return value
+
+    def validate_int(name, value, predicate, description):
+        try:
+            i = int(value)
+        except ValueError:
+            set_message(session,
+                        f'{name} invalid: {value}.  Must be an integer.',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+        return validate(name, i, predicate, description)
+
+    post = await request.post()
+
+    valid_worker_types = ('highcpu', 'standard', 'highmem')
+    worker_type = validate(
+        'Worker type',
+        post['worker_type'],
+        lambda v: v in valid_worker_types,
+        f'one of {", ".join(valid_worker_types)}')
+
+    valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+    worker_cores = validate_int(
+        'Worker cores',
+        post['worker_cores'],
+        lambda v: v in valid_worker_cores,
+        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+
+    worker_disk_size_gb = validate_int(
+        'Worker disk size',
+        post['worker_disk_size_gb'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    max_instances = validate_int(
+        'Max instances',
+        post['max_instances'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    pool_size = validate_int(
+        'Worker pool size',
+        post['pool_size'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    await inst_pool.configure(worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size)
+
+    set_message(session,
+                'Updated batch configuration.',
+                'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
 
 
 async def on_startup(app):
@@ -318,16 +392,12 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'instance_id')
-    instance_id = row['token']
+        'SELECT instance_id, internal_token FROM globals;')
+    instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'internal')
-    app['internal_token'] = row['token']
+    app['internal_token'] = row['internal_token']
 
     machine_name_prefix = f'batch2-worker-{DEFAULT_NAMESPACE}-'
 
