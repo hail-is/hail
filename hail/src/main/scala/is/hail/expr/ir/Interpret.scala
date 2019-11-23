@@ -52,7 +52,7 @@ object Interpret {
     var ir = ir0.unwrap
 
     def optimizeIR(context: String) {
-      ir = Optimize(ir, noisy = true, context = context)
+      ir = Optimize(ir, noisy = true, context = context, ctx)
       TypeCheck(ir, BindingEnv(typeEnv, agg = aggArgs.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
