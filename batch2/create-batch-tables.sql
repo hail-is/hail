@@ -22,6 +22,14 @@ CREATE TABLE IF NOT EXISTS `instances` (
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `user_resources` (
+  `user` VARCHAR(100) NOT NULL,
+  `n_ready_jobs` INT NOT NULL DEFAULT 0,
+  `n_running_jobs` INT NOT NULL DEFAULT 0,
+  `ready_cores_mcpu` INT NOT NULL DEFAULT 0,
+  `running_cores_mcpu` INT NOT NULL DEFAULT 0
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` VARCHAR(65535) NOT NULL,
@@ -39,7 +47,8 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`user`) REFERENCES user_resources(user)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
@@ -155,6 +164,34 @@ BEGIN
   UPDATE jobs
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+END $$
+
+CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+  IF OLD.state = 'Ready' THEN
+    UPDATE user_resources
+      SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
+      WHERE user = NEW.user;
+  END IF;
+
+  IF NEW.state = 'Ready' THEN
+    UPDATE user_resources
+      SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
+      WHERE user = NEW.user;
+  END IF;
+
+  IF OLD.state = 'Running' THEN
+    UPDATE user_resources
+      SET n_running_jobs = n_running_jobs - 1, running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu
+      WHERE user = NEW.user;
+  END IF;
+
+  IF NEW.state = 'Running' THEN
+    UPDATE user_resources
+      SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
+      WHERE user = NEW.user;
+  END IF;
 END $$
 
 CREATE PROCEDURE activate_instance(

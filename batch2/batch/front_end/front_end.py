@@ -384,10 +384,11 @@ async def create_batch(request, userdata):
             now = time_msecs()
             await cursor.execute(
                 '''
+INSERT IGNORE INTO user_resources (user) VALUES (%s);
 INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
 VALUES (%s, %s, %s, %s, %s, %s);
 ''',
-                (json.dumps(userdata), user, json.dumps(attributes),
+                (user, json.dumps(userdata), user, json.dumps(attributes),
                  batch_spec.get('callback'), batch_spec['n_jobs'],
                  now))
             id = cursor.lastrowid
