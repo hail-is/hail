@@ -411,8 +411,17 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_job(self, batch_id, job_specs):
-        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=job_specs)
+    async def _submit_jobs(self, batch_id, job_specs):
+        try:
+            await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=job_specs)
+        except aiohttp.ClientResponseError as e:
+            # request entity too large
+            if e.status == 413 and len(job_specs) > 1:
+                new_group_size = max(len(job_specs) // 10, 1)
+                for g in grouped(job_specs, new_group_size):
+                    await self._submit_job(batch_id, g)
+            else:
+                raise
 
     async def submit(self):
         if self._submitted:
@@ -430,7 +439,7 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], self.attributes)
 
-        await bounded_gather(*[functools.partial(self._submit_job, batch.id, specs)
+        await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, specs)
                                for specs in grouped(job_array_size, self._job_specs)],
                              parallelism=2)
 
