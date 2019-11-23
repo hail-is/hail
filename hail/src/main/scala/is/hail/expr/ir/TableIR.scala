@@ -1420,7 +1420,7 @@ case class TableKeyByAndAggregate(
               val f = makeKeyF(i, partRegion)
               rv: RegionValue => {
                 val keyOff = f(rv.region, rv.offset, false, globals, false)
-                SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
+                SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
               }
             }
             val makeAgg = { () =>
@@ -1528,7 +1528,7 @@ case class TableKeyByAndAggregate(
           val f = makeKeyF(i, partRegion)
           rv: RegionValue => {
             val keyOff = f(rv.region, rv.offset, false, globals, false)
-            SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
+            SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
           }
         }
         val sequence = {

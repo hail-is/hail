@@ -1484,7 +1484,7 @@ private class Emit(
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer, "NDArray cannot have missing data")
         val shapeAddress = mb.newField[Long]
 
-        val shapeTuple = new CodePTuple(shapePType, region, shapeAddress)
+        val shapeTuple = new CodePTuple(shapePType, shapeAddress)
 
         val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]).toArray
 
@@ -1520,7 +1520,7 @@ private class Emit(
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
 
-        EmitTriplet(ndt.setup, ndt.m, ndP.shape.load(region, ndt.value[Long]))
+        EmitTriplet(ndt.setup, ndt.m, ndP.shape.load(ndt.value[Long]))
       case NDArrayRef(nd, idxs) =>
         val ndt = emit(nd)
         val idxst = idxs.map(emit(_))
@@ -1536,7 +1536,7 @@ private class Emit(
         )
         val cachedIdxVals = idxFields.map(_.load()).toArray
 
-        val targetElementPosition = childPType.getElementAddress(cachedIdxVals, ndAddress, region, mb)
+        val targetElementPosition = childPType.getElementAddress(cachedIdxVals, ndAddress, mb)
 
         val setup = coerce[Unit](Code(
           ndt.setup,
@@ -1550,7 +1550,7 @@ private class Emit(
         val value = Code(
           ndAddress := ndt.value[Long],
           idxFieldsBinding,
-          childPType.outOfBounds(cachedIdxVals, ndAddress, region, mb).orEmpty(Code._fatal("Index out of bounds")),
+          childPType.outOfBounds(cachedIdxVals, ndAddress, mb).orEmpty(Code._fatal("Index out of bounds")),
           Region.loadIRIntermediate(childPType.data.pType.elementType)(targetElementPosition)
         )
 
@@ -1560,15 +1560,15 @@ private class Emit(
         val childAddress = mb.newField[Long]
         val childPType = coerce[PNDArray](child.pType)
 
-        val childShape = new CodePTuple(childPType.shape.pType, region, childPType.shape.load(region, childAddress))
-        val childStrides = new CodePTuple(childPType.strides.pType, region, childPType.strides.load(region, childAddress))
+        val childShape = new CodePTuple(childPType.shape.pType, childPType.shape.load(childAddress))
+        val childStrides = new CodePTuple(childPType.strides.pType, childPType.strides.load(childAddress))
 
         val setup = childt.setup
         val value = Code(
           childAddress := childt.value[Long],
           x.pType.construct(
-            childPType.flags.load(region, childAddress),
-            childPType.offset.load(region, childAddress),
+            childPType.flags.load(childAddress),
+            childPType.offset.load(childAddress),
             { srvb =>
               Code(
                 srvb.start(),
@@ -1591,7 +1591,7 @@ private class Emit(
                 }
               )
             },
-            childPType.data.load(region, childAddress),
+            childPType.data.load(childAddress),
             mb
           )
         )
@@ -1611,11 +1611,11 @@ private class Emit(
         val leftND = mb.newField[Long]
         val rightND = mb.newField[Long]
 
-        val leftShape = lPType.shape.load(region, leftND)
-        val rightShape = rPType.shape.load(region, rightND)
+        val leftShape = lPType.shape.load(leftND)
+        val rightShape = rPType.shape.load(rightND)
 
-        val lShapeTuple = new CodePTuple(lPType.shape.pType, region, leftShape)
-        val rShapeTuple = new CodePTuple(rPType.shape.pType, region, rightShape)
+        val lShapeTuple = new CodePTuple(lPType.shape.pType, leftShape)
+        val rShapeTuple = new CodePTuple(rPType.shape.pType, rightShape)
 
         val (leftShapeArraySetup, leftShapeArray) = (0 until lPType.nDims).map(i => coerce[Long](lShapeTuple(i))).toArray.cacheEntries(mb, LongInfo)
         val (rightShapeArraySetup, rightShapeArray) = (0 until rPType.nDims).map(i => coerce[Long](rShapeTuple(i))).toArray.cacheEntries(mb, LongInfo)
@@ -1664,8 +1664,8 @@ private class Emit(
               }
             }
 
-            val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
-            val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
+            val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, mb)
+            val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, mb)
             val kLen = mb.newField[Long]
 
             val innerMethod = mb.fb.newMethod(eVti)
@@ -2212,8 +2212,8 @@ private class Emit(
         val p = emit(path)
         val (returnedRowPType, rowDec) = spec.buildEmitDecoderF[Long](rowType, mb.fb)
         val rowBuf = mb.newField[InputBuffer]
-        val pathString = Code.invokeScalaObject[Region, Long, String](
-          PString.getClass, "loadString", region, p.value[Long])
+        val pathString = Code.invokeScalaObject[Long, String](
+          PString.getClass, "loadString", p.value[Long])
 
         ArrayIteratorTriplet(Code._empty, None, { cont: F =>
           EmitArrayTriplet(p.setup, Some(p.m), Code(
@@ -2396,7 +2396,7 @@ private class Emit(
         val requestedShapet = emit(shape, env, resultRegion, None)
         val requestedShapeAddress = mb.newField[Long]
         val requestedShapePType = coerce[PTuple](shape.pType)
-        val requestedShapeTuple = new CodePTuple(requestedShapePType, region, requestedShapeAddress)
+        val requestedShapeTuple = new CodePTuple(requestedShapePType, requestedShapeAddress)
         val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
 
         val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
@@ -2423,12 +2423,12 @@ private class Emit(
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, mb)
 
             assert(newIdxVars.length == childEmitter.nDims)
 
             Code(
-              storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
+              storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray,  mb),
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
@@ -2440,10 +2440,10 @@ private class Emit(
 
         val slicest = emit(slicesIR, env, resultRegion, None)
         val slicesValueAddress = mb.newField[Long]
-        val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), region, slicesValueAddress)
+        val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), slicesValueAddress)
 
         val slicers = slices.withTypes.collect {
-          case (t: PTuple, slice) => new CodePTuple(t, region, slice)
+          case (t: PTuple, slice) => new CodePTuple(t, slice)
         }
 
         val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(const(false))(_ || _)
@@ -2476,7 +2476,7 @@ private class Emit(
               case (_: PInt64, indexer) =>
                 coerce[Long](indexer)
               case (t: PTuple, slicer) =>
-                val (start, _, step) = new CodePTuple(t, region, slicer).values[Long, Long, Long]
+                val (start, _, step) = new CodePTuple(t, slicer).values[Long, Long, Long]
                 start + oldIdxVarsIter.next() * step
             }
 
@@ -2492,15 +2492,15 @@ private class Emit(
         )
         val xP = x.pType.asInstanceOf[PNDArray]
 
-        val shapeAddress = xP.shape.load(er.region, ndAddress)
-        val shapeTuple = new CodePTuple(xP.shape.pType, er.region, shapeAddress)
+        val shapeAddress = xP.shape.load(ndAddress)
+        val shapeTuple = new CodePTuple(xP.shape.pType, shapeAddress)
 
         val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i)).toArray
 
         new NDArrayEmitter(mb, nDims, shapeArray,
           xP.shape.pType, xP.elementType, setup, ndt.setup, ndt.m) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val elementLocation = xP.getElementAddress(idxVars, ndAddress, er.region, mb)
+            val elementLocation = xP.getElementAddress(idxVars, ndAddress, mb)
             Region.loadIRIntermediate(outputElementPType)(elementLocation)
           }
         }

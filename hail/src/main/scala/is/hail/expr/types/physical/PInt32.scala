@@ -25,7 +25,7 @@ class PInt32(override val required: Boolean) extends PIntegral {
   }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int = {
       Integer.compare(Region.loadInt(o1), Region.loadInt(o2))
     }
   }

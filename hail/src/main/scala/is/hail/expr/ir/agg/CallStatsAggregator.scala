@@ -70,7 +70,7 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
   )
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    TypedCodecSpec(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(off, _)
+    TypedCodecSpec(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(region, off, _)
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {

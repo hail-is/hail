@@ -74,7 +74,6 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
 
 class CodePTuple(
   val pType: PTuple,
-  val region: Code[Region],
   val offset: Code[Long]
 ) {
   def apply[T](i: Int): Code[T] =

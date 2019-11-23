@@ -16,14 +16,13 @@ class RegionValueDownsampleAggregator(nDivisions: Int) extends RegionValueAggreg
 
   var combiner: DownsampleCombiner = new DownsampleCombiner(nDivisions)
 
-  // TODO: unused, remove?
-  def seqOp(x: Double, xm: Boolean, y: Double, ym: Boolean, l: Long, lm: Boolean): Unit = {
+  def seqOp(region: Region, x: Double, xm: Boolean, y: Double, ym: Boolean, l: Long, lm: Boolean): Unit = {
     if (!xm && !ym) {
-      val label = if (lm) null else SafeRow.read(RegionValueDownsampleAggregator.labelType, l).asInstanceOf[IndexedSeq[String]]
+      val label = if (lm) null else SafeRow.read(RegionValueDownsampleAggregator.labelType, region, l).asInstanceOf[IndexedSeq[String]]
       combiner.merge(x, y, label)
     }
   }
-  
+
   def combOp(agg2: RegionValueAggregator) = combiner.merge(agg2.asInstanceOf[RegionValueDownsampleAggregator].combiner)
 
   def result(rvb: RegionValueBuilder) {

@@ -357,7 +357,7 @@ class RegionValueBuilder(var region: Region) {
       if (t.isFieldDefined(fromOff, i)) {
         t.types(i) match {
           case t2: PBaseStruct =>
-            fixupStruct(t2, t.fieldOffset(toOff, i), t.fieldOffset(fromOff, i))
+            fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
 
           case _: PBinary =>
             val toBOff = fixupBinary(fromRegion, t.loadField(fromOff, i))

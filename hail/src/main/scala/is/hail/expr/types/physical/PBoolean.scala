@@ -21,7 +21,7 @@ class PBoolean(override val required: Boolean) extends PType {
   }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int = {
       java.lang.Boolean.compare(Region.loadBoolean(o1), Region.loadBoolean(o2))
     }
   }

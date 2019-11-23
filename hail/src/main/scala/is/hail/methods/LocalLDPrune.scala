@@ -33,18 +33,16 @@ class BitPackedVectorView(rvRowType: PStruct) {
   private var centeredLengthRecOffset: Long = _
   private val bpvPType = PArray(PInt64Required)
 
-  def setRegion(mb: Region, offset: Long) {
-    bpvOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("bpv"))
+  def setRegion(rv: RegionValue) {
+    bpvOffset = rvRowType.loadField(rv.offset, rvRowType.fieldIdx("bpv"))
     bpvLength = bpvPType.loadLength(bpvOffset)
     bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("nSamples"))
-    meanOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("mean"))
-    centeredLengthRecOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("centered_length_rec"))
+    nSamplesOffset = rvRowType.loadField(rv.offset, rvRowType.fieldIdx("nSamples"))
+    meanOffset = rvRowType.loadField(rv.offset, rvRowType.fieldIdx("mean"))
+    centeredLengthRecOffset = rvRowType.loadField(rv.offset, rvRowType.fieldIdx("centered_length_rec"))
 
-    vView.setRegion(mb, offset)
+    vView.setRegion(rv.offset)
   }
-
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
   def getContig: String = vView.contig()
 

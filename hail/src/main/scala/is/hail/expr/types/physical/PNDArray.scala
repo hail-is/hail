@@ -88,13 +88,13 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
-    val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
+  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
+    val stridesTuple  = new CodePTuple(strides.pType, strides.load(nd))
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
 
     coerce[Long](Code(
-      dataStore := data.load(region, nd),
+      dataStore := data.load(nd),
       bytesAway := 0L,
       indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
         Code(
@@ -105,12 +105,12 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     ))
   }
 
-  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], region: Code[Region], mb: MethodBuilder): Code[_] = {
-    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, region, mb))
+  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_] = {
+    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, mb))
   }
 
-  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Boolean] = {
-    val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
+  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Boolean] = {
+    val shapeTuple = new CodePTuple(shape.pType, shape.load(nd))
     val outOfBounds = mb.newField[Boolean]
     Code(
       outOfBounds := false,
@@ -121,7 +121,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def linearizeIndices(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def linearizeIndices(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
     val index = mb.newField[Long]
     val elementsInProcessedDimensions = mb.newField[Long]
     Code(
@@ -137,7 +137,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+  def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
     val elementsInProcessedDimensions = mb.newField[Long]

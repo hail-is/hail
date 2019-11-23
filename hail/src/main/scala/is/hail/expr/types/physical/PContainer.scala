@@ -100,8 +100,14 @@ abstract class PContainer extends PIterable {
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
 
+  def elementOffset(aoff: Long, i: Int): Long =
+    aoff + elementsOffset(loadLength(aoff)) + i * elementByteSize
+
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     aoff + elementsOffset(length) + i.toL * const(elementByteSize)
+
+  def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
+    aoff + elementsOffset(loadLength(aoff)) + i.toL * const(elementByteSize)
 
   def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)

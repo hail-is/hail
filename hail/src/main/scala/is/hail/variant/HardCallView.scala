@@ -29,12 +29,12 @@ final class ArrayGenotypeView(rvType: PStruct) {
   private var gOffset: Long = _
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: Region, offset: Long) {
+  def setRegion(offset: Long) {
     gsOffset = rvType.loadField(offset, entriesIndex)
     gsLength = tgs.loadLength(gsOffset)
   }
 
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
+  def setRegion(rv: RegionValue): Unit = setRegion(rv.offset)
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)
@@ -47,7 +47,7 @@ final class ArrayGenotypeView(rvType: PStruct) {
   def hasGP: Boolean = gpExists && gIsDefined && tg.isFieldDefined(gOffset, gpIndex)
 
   def getGT: Call = {
-    val callOffset = tg.loadField(m, gOffset, gtIndex)
+    val callOffset = tg.loadField(gOffset, gtIndex)
     Region.loadInt(callOffset)
   }
 
@@ -92,20 +92,18 @@ final class HardCallView(rvType: PStruct, callField: String) {
 
   private val (gtExists, gtIndex) = lookupField(callField, PCall())
 
-  private var m: Region = _
   private var gsOffset: Long = _
   private var gOffset: Long = _
 
   var gsLength: Int = _
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: Region, offset: Long) {
-    this.m = mb
+  def setRegion(offset: Long) {
     gsOffset = rvType.loadField(offset, entriesIndex)
     gsLength = tgs.loadLength(gsOffset)
   }
 
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
+  def setRegion(rv: RegionValue): Unit = setRegion(rv.offset)
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)

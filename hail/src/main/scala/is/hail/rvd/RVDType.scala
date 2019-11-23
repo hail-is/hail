@@ -167,17 +167,17 @@ object RVDType {
     val nFields = fields1.length
 
     new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+      def compare(o1: Long, o2: Long): Int = {
         var i = 0
         var hasMissing=false
         while (i < nFields) {
           val f1 = fields1(i)
           val f2 = fields2(i)
-          val leftDefined = t1.isFieldDefined(r1, o1, f1)
-          val rightDefined = t2.isFieldDefined(r2, o2, f2)
+          val leftDefined = t1.isFieldDefined(o1, f1)
+          val rightDefined = t2.isFieldDefined(o2, f2)
 
           if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, t1.loadField(r1, o1, f1), r2, t2.loadField(r2, o2, f2))
+            val c = fieldOrderings(i).compare(t1.loadField(o1, f1), t2.loadField(o2, f2))
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {

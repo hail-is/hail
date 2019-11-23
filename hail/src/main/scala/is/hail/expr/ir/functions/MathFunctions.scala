@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.{AsmFunction3, Code}
+import is.hail.asm4s.{AsmFunction2, AsmFunction3, Code}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.apache.commons.math3.special.Gamma
@@ -80,7 +80,7 @@ object MathFunctions extends RegistryFunctions {
     x == y || withinTol || (nanSame && x.isNaN && y.isNaN)
   }
 
-  def iruniroot(irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
+  def iruniroot(irf: AsmFunction2[Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
     val f: Double => Double = irf(_, false)
     if (!(min < max))
       fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")

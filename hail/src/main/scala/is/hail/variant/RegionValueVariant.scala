@@ -11,7 +11,6 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private val allelesIdx = allelesField.index
   private val tl: PStruct = locusField.typ.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
-  private var region: Region = _
   private var locusOffset: Long = _
   private var allelesOffset: Long = _
 
@@ -19,9 +18,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private var cachedAlleles: Array[String] = null
   private var cachedLocus: Locus = null
 
-  def setRegion(region: Region, offset: Long) {
-    this.region = region
-
+  def setRegion(offset: Long) {
     if (!rowType.isFieldDefined(offset, locusIdx))
       fatal(s"The row field 'locus' cannot have missing values.")
     if (!rowType.isFieldDefined(offset, allelesIdx))

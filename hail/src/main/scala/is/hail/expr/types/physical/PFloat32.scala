@@ -26,7 +26,7 @@ class PFloat32(override val required: Boolean) extends PNumeric {
   }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int = {
       java.lang.Float.compare(Region.loadFloat(o1), Region.loadFloat(o2))
     }
   }

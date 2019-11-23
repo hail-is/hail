@@ -22,7 +22,7 @@ class PBinary(override val required: Boolean) extends PType {
   def _toPretty = "Binary"
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int = {
       val l1 = PBinary.loadLength(o1)
       val l2 = PBinary.loadLength(o2)
 
@@ -90,13 +90,7 @@ object PBinary {
 
   def loadLength(boff: Long): Int = Region.loadInt(boff)
 
-  def loadLength(region: Region, boff: Long): Int =
-    Region.loadInt(boff)
-
-  def loadLength(boff: Code[Long]): Code[Int] =
-    Region.loadInt(boff)
-
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
+  def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
 
   def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
