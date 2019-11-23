@@ -684,9 +684,8 @@ class Worker:
                     elapsed > 180.0 and
                     elapsed > run_duration / 2):
                 log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
-                if job.id in self.jobs:
-                    del self.jobs[job.id]
-                    self.last_updated = time.time()
+                del self.jobs[job.id]
+                self.last_updated = time.time()
 
             # exponentially back off, up to (expected) max of 30s
             t = delay * random.uniform(0.7, 1.3)
