@@ -1,6 +1,7 @@
 import math
 import random
 import logging
+import json
 import functools
 import asyncio
 import aiohttp
@@ -8,13 +9,11 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import bounded_gather, grouped, request_retry_transient_errors
+from hailtop.utils import bounded_gather, request_retry_transient_errors
 
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
-
-job_array_size = 1000
 
 
 def filter_params(complete, success, attributes):
@@ -411,17 +410,26 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_jobs(self, batch_id, job_specs):
-        try:
-            await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=job_specs)
-        except aiohttp.ClientResponseError as e:
-            # request entity too large
-            if e.status == 413 and len(job_specs) > 1:
-                new_group_size = max(len(job_specs) // 10, 1)
-                for g in grouped(job_specs, new_group_size):
-                    await self._submit_job(batch_id, g)
-            else:
-                raise
+    async def _submit_jobs(self, batch_id, byte_job_specs):
+        assert len(byte_job_specs) > 0
+
+        b = bytearray()
+        b.append(ord('['))
+
+        i = 0
+        while i < len(byte_job_specs):
+            spec = byte_job_specs[i]
+            if i > 0:
+                b.append(ord(','))
+            b.extend(spec)
+            i += 1
+
+        b.append(ord(']'))
+
+        await self._client._post(
+            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            data=aiohttp.BytesPayload(
+                b, content_type='application/json', encoding='utf-8'))
 
     async def submit(self):
         if self._submitted:
@@ -439,8 +447,25 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], self.attributes)
 
-        await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, specs)
-                               for specs in grouped(job_array_size, self._job_specs)],
+        byte_job_specs = [json.dumps(job_spec).encode('utf-8') for job_spec in self._job_specs]
+
+        groups = []
+        group = []
+        group_size = 0
+        for spec in byte_job_specs:
+            n = len(spec)
+            if group_size + n < 1000000:
+                group.append(spec)
+                group_size += n
+            else:
+                groups.append(group)
+                group = [spec]
+                group_size = n
+        if group:
+            groups.append(group)
+
+        await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, group)
+                               for group in groups],
                              parallelism=2)
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
