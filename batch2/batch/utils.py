@@ -44,7 +44,7 @@ def worker_memory_per_core_bytes(worker_type):
     else:
         assert worker_type == 'highcpu', worker_type
         m = 0.9
-    return int(0.9 * m * 1000**3)  # GCE memory/core are in GB not GiB
+    return int(m * 1000**3)  # GCE memory/core are in GB not GiB
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):

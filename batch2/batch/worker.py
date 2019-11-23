@@ -168,7 +168,7 @@ class Container:
         status = {
             'state': cstate['Status'],
             'started_at': cstate['StartedAt'],
-            'finished_at': cstate['FinishedAt'],
+            'finished_at': cstate['FinishedAt']
         }
         cerror = cstate['Error']
         if cerror:
@@ -284,7 +284,7 @@ class Container:
     #     finished_at: str, (date)
     #     out_of_memory: boolean, (optional)
     #     error: str, (one of error, exit_code will be present)
-    #     exit_code: int,
+    #     exit_code: int
     #   }
     # }
     async def status(self, state=None):
@@ -439,7 +439,7 @@ class Job:
 
     @property
     def id(self):
-        return self.batch_id, self.job_id
+        return (self.batch_id, self.job_id)
 
     async def run(self, worker):
         try:

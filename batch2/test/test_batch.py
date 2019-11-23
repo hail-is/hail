@@ -85,20 +85,20 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {'cpu': '1', 'memory': '28Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests'):
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
             builder.submit()
 
         builder = self.client.create_batch()
         resources = {'cpu': '0', 'memory': '1Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests'):
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
             builder.submit()
 
     def test_out_of_memory(self):
         builder = self.client.create_batch()
         resources = {'cpu': '0.1', 'memory': '10M'}
         j = builder.create_job('python:3.6-slim-stretch',
-                               ['python', '-c', 'x = "a" * 400 * 1000**2; print(x)'],
+                               ['python', '-c', 'x = "a" * 400 * 1000**2'],
                                resources=resources)
         builder.submit()
         status = j.wait()
