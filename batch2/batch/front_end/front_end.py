@@ -290,16 +290,17 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 if req_cores_mcpu == 0:
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are not allowed: '
-                        f'cpu must be greater than 0')
+                        reason=f'bad resource request for job {id}: '
+                        f'cpu cannot be 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, WORKER_TYPE)
 
                 if cores_mcpu > WORKER_CORES * 1000:
+                    total_memory_available = round(worker_memory_per_core_gb(WORKER_TYPE) * WORKER_CORES, 2)
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
-                        f'maximum: cpu={WORKER_CORES}, memory={worker_memory_per_core_gb(WORKER_TYPE)}GB')
+                        f'maximum: cpu={WORKER_CORES}, memory={total_memory_available}GB')
 
                 secrets = spec.get('secrets')
                 if not secrets:

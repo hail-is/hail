@@ -168,16 +168,14 @@ class Container:
         status = {
             'state': cstate['Status'],
             'started_at': cstate['StartedAt'],
-            'finished_at': cstate['FinishedAt']
+            'finished_at': cstate['FinishedAt'],
+            'out_of_memory': cstate['OOMKilled']
         }
         cerror = cstate['Error']
         if cerror:
             status['error'] = cerror
         else:
             status['exit_code'] = cstate['ExitCode']
-
-        if cstate['OOMKilled']:
-            status['out_of_memory'] = True
 
         return status
 
@@ -282,7 +280,7 @@ class Container:
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
-    #     out_of_memory: boolean, (optional)
+    #     out_of_memory: boolean
     #     error: str, (one of error, exit_code will be present)
     #     exit_code: int
     #   }
