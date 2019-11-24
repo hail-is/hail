@@ -171,6 +171,16 @@ spec:
            value: "0.1"
          - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
            value: "375M"
+         - name: WORKER_TYPE
+           value: "standard"
+         - name: WORKER_CORES
+           value: "1"
+         - name: WORKER_DISK_SIZE_GB
+           value: "10"
+         - name: POOL_SIZE
+           value: "2"
+         - name: MAX_INSTANCES
+           value: "3"
 {% endif %}
         ports:
          - containerPort: 5000

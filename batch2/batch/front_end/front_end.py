@@ -26,11 +26,12 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..utils import parse_cpu_in_mcpu, LoggingTimer
+from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
+    worker_memory_per_core_gb, LoggingTimer
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE
+from ..batch_configuration import BATCH_PODS_NAMESPACE, WORKER_CORES, WORKER_TYPE
 
 from . import schemas
 
@@ -41,7 +42,6 @@ log = logging.getLogger('batch.front_end')
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
-REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
@@ -274,6 +274,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 always_run = spec.pop('always_run', False)
                 attributes = spec.get('attributes')
 
+                id = (batch_id, job_id)
+
                 resources = spec.get('resources')
                 if not resources:
                     resources = {}
@@ -283,7 +285,22 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-                cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+
+                if req_cores_mcpu == 0:
+                    raise web.HTTPBadRequest(
+                        reason=f'bad resource request for job {id}: '
+                        f'cpu cannot be 0')
+
+                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, WORKER_TYPE)
+
+                if cores_mcpu > WORKER_CORES * 1000:
+                    total_memory_available = worker_memory_per_core_gb(WORKER_TYPE) * WORKER_CORES
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
+                        f'maximum: cpu={WORKER_CORES}, memory={total_memory_available}G')
 
                 secrets = spec.get('secrets')
                 if not secrets:

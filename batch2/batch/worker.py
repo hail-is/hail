@@ -23,7 +23,8 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import parse_cpu_in_mcpu, parse_image_tag
+from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
+    adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import WeightedSemaphore
 from .log_store import LogStore
 
@@ -42,12 +43,14 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 BUCKET_NAME = os.environ['BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
+WORKER_TYPE = os.environ['WORKER_TYPE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'WORKER_TYPE {WORKER_TYPE}')
 log.info(f'BUCKET_NAME {BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
@@ -117,7 +120,11 @@ class Container:
             image += ':latest'
         self.image = image
 
-        self.cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+        req_cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+        req_memory_in_bytes = parse_memory_in_bytes(spec['memory'])
+
+        self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
+        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
         self.container = None
         self.state = 'pending'
@@ -136,7 +143,8 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100}
+                           'CpuQuota': self.cpu_in_mcpu * 100,
+                           'Memory': self.memory_in_bytes}
         }
 
         env = self.spec.get('env')
@@ -160,13 +168,15 @@ class Container:
         status = {
             'state': cstate['Status'],
             'started_at': cstate['StartedAt'],
-            'finished_at': cstate['FinishedAt']
+            'finished_at': cstate['FinishedAt'],
+            'out_of_memory': cstate['OOMKilled']
         }
         cerror = cstate['Error']
         if cerror:
             status['error'] = cerror
         else:
             status['exit_code'] = cstate['ExitCode']
+
         return status
 
     async def run(self, worker):
@@ -270,6 +280,7 @@ class Container:
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
+    #     out_of_memory: boolean
     #     error: str, (one of error, exit_code will be present)
     #     exit_code: int
     #   }
@@ -336,6 +347,7 @@ def copy_container(job, name, files, volume_mounts):
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
         'cpu': '500m' if files else '100m',
+        'memory': '0.5Gi',
         'volume_mounts': volume_mounts
     }
     return Container(job, name, copy_spec)
@@ -408,6 +420,7 @@ class Job:
             'name': 'main',
             'env': env,
             'cpu': job_spec['resources']['cpu'],
+            'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
         containers['main'] = Container(self, 'main', main_spec)
@@ -629,7 +642,7 @@ class Worker:
             await self.activate()
 
             idle_duration = time.time() - self.last_updated
-            while (self.jobs or idle_duration < MAX_IDLE_TIME_SECS):
+            while self.jobs or idle_duration < MAX_IDLE_TIME_SECS:
                 log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
                 idle_duration = time.time() - self.last_updated

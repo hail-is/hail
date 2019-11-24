@@ -34,15 +34,6 @@ class InstancePool:
         self.k8s = app['k8s_client']
         self.machine_name_prefix = machine_name_prefix
 
-        if WORKER_TYPE == 'standard':
-            m = 3.75
-        elif WORKER_TYPE == 'highmem':
-            m = 6.5
-        else:
-            assert WORKER_TYPE == 'highcpu', WORKER_TYPE
-            m = 0.9
-        self.worker_memory = 0.9 * m
-
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
 
@@ -203,6 +194,7 @@ PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/
 
 BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
+WORKER_TYPE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_type")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
@@ -222,6 +214,7 @@ docker run \
     -e BUCKET_NAME=$BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
+    -e WORKER_TYPE=$WORKER_TYPE \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
@@ -262,6 +255,9 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
                 }, {
                     'key': 'instance_id',
                     'value': self.log_store.instance_id
+                }, {
+                    'key': 'worker_type',
+                    'value': WORKER_TYPE
                 }]
             },
             'tags': {

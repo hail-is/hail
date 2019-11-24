@@ -62,12 +62,32 @@ class Job:
         return docker_container_status.get('error')
 
     @staticmethod
-    def _get_container_status_exit_code(container_status):
-        dcontainer_status = container_status.get('container_status')
-        if not dcontainer_status:
+    def _get_out_of_memory(job_status, task):
+        status = job_status.get('status')
+        if not status:
             return None
 
-        return dcontainer_status.get('exit_code')
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status['out_of_memory']
+
+    @staticmethod
+    def _get_container_status_exit_code(container_status):
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status.get('exit_code')
 
     @staticmethod
     def _get_exit_code(job_status, task):
