@@ -47,6 +47,7 @@ class EntryIterator:
             timestamp = None
             try:
                 entry = await anext(self.entries)
+                log.info(entry.timestamp)
                 timestamp = entry.timestamp.timestamp()
                 # might miss events with duplicate times
                 # solution is to track resourceId
