@@ -81,10 +81,8 @@ CREATE TABLE IF NOT EXISTS `ready_cores` (
 INSERT INTO ready_cores (ready_cores_mcpu) VALUES (0);
 
 CREATE TABLE IF NOT EXISTS `gevents` (
-  mark DOUBLE NOT NULL
+  mark VARCHAR(40)
 ) ENGINE = InnoDB;
-
-INSERT INTO gevents (mark) VALUES (UNIX_TIMESTAMP(NOW(3)));
 
 CREATE TABLE IF NOT EXISTS `job_parents` (
   `batch_id` BIGINT NOT NULL,
@@ -383,7 +381,7 @@ BEGIN
       UPDATE batches SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
       UPDATE batches SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
-    END IF;    
+    END IF;
 
     IF cur_job_instance_name IS NOT NULL THEN
       UPDATE instances

@@ -25,7 +25,11 @@ class EntryIterator:
 
     async def async_init(self):
         row = await self.db.execute_and_fetchone('SELECT * FROM gevents;')
-        self.mark = row['mark']
+        if row['mark']:
+            self.mark = row['mark']
+        else:
+            now = datetime.datetime.utcnow().isoformat() + 'Z'
+            await self._update_mark(now)
 
     async def _update_mark(self, timestamp):
         await self.db.execute_update(
@@ -113,7 +117,7 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
 
     # logging
     async def list_entries(self, timestamp):
-        filter = self.filter + f' AND timestamp >= "{datetime.datetime.fromtimestamp(timestamp).isoformat()}"'
+        filter = self.filter + f' AND timestamp >= "{timestamp}"'
         entries = self.logging_client.list_entries(filter_=filter)
         return PagedIterator(self, entries.pages)
 
