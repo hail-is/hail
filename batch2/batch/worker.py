@@ -427,6 +427,8 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
+        run_start_time = time.time()
+
         try:
             log.info(f'{self}: initializing')
             self.state = 'initializing'
@@ -474,8 +476,11 @@ class Job:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
+            run_end_time = time.time()
+            run_duration = run_end_time - run_start_time
+
             log.info(f'{self}: marking complete')
-            await worker.post_job_complete(await self.status())
+            asyncio.ensure_future(worker.post_job_complete(self, run_duration))
 
             log.info(f'{self}: cleaning up')
             try:
@@ -538,13 +543,6 @@ class Worker:
             await job.run(self)
         except Exception:
             log.exception(f'while running {job}, ignoring')
-        finally:
-            self.last_updated = time.time()
-
-            log.info(f'{job} complete, removing from jobs')
-
-            if job.id in self.jobs:
-                del self.jobs[job.id]
 
     async def create_job_1(self, request):
         body = await request.json()
@@ -657,11 +655,12 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def post_job_complete(self, job_status):
+    async def post_job_complete_1(self, job, run_duration):
         body = {
-            'status': job_status
+            'status': await job.status()
         }
 
+        start_time = time.time()
         delay = 0.1
         while True:
             try:
@@ -676,11 +675,31 @@ class Worker:
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
                     raise
-                log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
+                log.exception(f'failed to mark {job} complete, retrying')
+
+            # unlist job after 3m or half the run duration
+            now = time.time()
+            elapsed = now - start_time
+            if (job.id in self.jobs and
+                    elapsed > 180.0 and
+                    elapsed > run_duration / 2):
+                log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
+                del self.jobs[job.id]
+                self.last_updated = time.time()
+
             # exponentially back off, up to (expected) max of 30s
-            t = delay * random.random()
+            t = delay * random.uniform(0.7, 1.3)
             await asyncio.sleep(t)
-            delay = min(delay * 2, 60.0)
+            delay = min(delay * 2, 30.0)
+
+    async def post_job_complete(self, job, run_duration):
+        try:
+            await self.post_job_complete_1(job, run_duration)
+        finally:
+            log.info(f'{job} marked complete, removing from jobs')
+            if job.id in self.jobs:
+                del self.jobs[job.id]
+                self.last_updated = time.time()
 
     async def activate(self):
         async with aiohttp.ClientSession(
