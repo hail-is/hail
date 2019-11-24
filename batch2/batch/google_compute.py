@@ -113,7 +113,7 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
 
     # logging
     async def list_entries(self, timestamp):
-        filter = self.filter + f' AND timestamp >= {datetime.datetime.fromtimestamp(timestamp).isoformat()}'
+        filter = self.filter + f' AND timestamp >= "{datetime.datetime.fromtimestamp(timestamp).isoformat()}"'
         entries = self.logging_client.list_entries(filter_=filter)
         return PagedIterator(self, entries.pages)
 
