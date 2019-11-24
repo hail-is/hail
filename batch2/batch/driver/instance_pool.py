@@ -80,6 +80,9 @@ class InstancePool:
             'pool_size': self.pool_size
         }
 
+    # FIXME can't adjust worker type, cores because we check if jobs
+    # can be scheduled in the front-end before inserting into the
+    # database
     async def configure(
             self,
             # worker_type, worker_cores,

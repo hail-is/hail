@@ -332,6 +332,10 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 
     post = await request.post()
 
+    # FIXME can't adjust worker type, cores because we check if jobs
+    # can be scheduled in the front-end before inserting into the
+    # database
+
     # valid_worker_types = ('highcpu', 'standard', 'highmem')
     # worker_type = validate(
     #     'Worker type',
