@@ -48,8 +48,6 @@ class EntryIterator:
             try:
                 entry = await anext(self.entries)
                 timestamp = entry.timestamp.isoformat() + 'Z'
-                # might miss events with duplicate times
-                # solution is to track resourceId
                 return entry
             except StopAsyncIteration:
                 self.entries = None
