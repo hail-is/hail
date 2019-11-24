@@ -146,6 +146,7 @@ def test_callback(client):
             'complete': True,
             'closed': True,
             'attributes': {'foo': 'bar'},
+            'cost': '$0.0000'
         }), callback_body
     finally:
         if server:
