@@ -81,16 +81,21 @@ class InstancePool:
         }
 
     async def configure(
-            self, worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size):
+            self,
+            # worker_type, worker_cores,
+            worker_disk_size_gb, max_instances, pool_size):
         await self.db.just_execute(
+            # worker_type = %s, worker_cores = %s
             '''
 UPDATE globals
-SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
+SET worker_disk_size_gb = %s,
     max_instances = %s, pool_size = %s;
 ''',
-            (worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size))
-        self.worker_type = worker_type
-        self.worker_cores = worker_cores
+            (
+                # worker_type, worker_cores,
+                worker_disk_size_gb, max_instances, pool_size))
+        # self.worker_type = worker_type
+        # self.worker_cores = worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
         self.max_instances = max_instances
         self.pool_size = pool_size
@@ -288,7 +293,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
                     'value': self.log_store.instance_id
                 }, {
                     'key': 'worker_type',
-                    'value': WORKER_TYPE
+                    'value': self.worker_type
                 }]
             },
             'tags': {

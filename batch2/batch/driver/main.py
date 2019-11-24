@@ -332,19 +332,19 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 
     post = await request.post()
 
-    valid_worker_types = ('highcpu', 'standard', 'highmem')
-    worker_type = validate(
-        'Worker type',
-        post['worker_type'],
-        lambda v: v in valid_worker_types,
-        f'one of {", ".join(valid_worker_types)}')
+    # valid_worker_types = ('highcpu', 'standard', 'highmem')
+    # worker_type = validate(
+    #     'Worker type',
+    #     post['worker_type'],
+    #     lambda v: v in valid_worker_types,
+    #     f'one of {", ".join(valid_worker_types)}')
 
-    valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    worker_cores = validate_int(
-        'Worker cores',
-        post['worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+    # valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+    # worker_cores = validate_int(
+    #     'Worker cores',
+    #     post['worker_cores'],
+    #     lambda v: v in valid_worker_cores,
+    #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
     worker_disk_size_gb = validate_int(
         'Worker disk size',
@@ -364,7 +364,9 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         lambda v: v > 0,
         'a positive integer')
 
-    await inst_pool.configure(worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size)
+    await inst_pool.configure(
+        # worker_type, worker_cores,
+        worker_disk_size_gb, max_instances, pool_size)
 
     set_message(session,
                 'Updated batch configuration.',

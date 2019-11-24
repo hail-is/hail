@@ -31,7 +31,7 @@ from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_m
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE, WORKER_CORES, WORKER_TYPE
+from ..batch_configuration import BATCH_PODS_NAMESPACE
 
 from . import schemas
 
@@ -228,6 +228,9 @@ async def create_jobs(request, userdata):
     app = request.app
     db = app['db']
 
+    worker_type = app['worker_type']
+    worker_cores = app['worker_cores']
+
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
@@ -293,14 +296,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
-                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, WORKER_TYPE)
+                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
 
-                if cores_mcpu > WORKER_CORES * 1000:
-                    total_memory_available = worker_memory_per_core_gb(WORKER_TYPE) * WORKER_CORES
+                if cores_mcpu > worker_cores * 1000:
+                    total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
-                        f'maximum: cpu={WORKER_CORES}, memory={total_memory_available}G')
+                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -682,7 +685,11 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.execute_and_fetchone(
-        'SELECT instance_id, internal_token FROM globals;')
+        'SELECT worker_type, worker_cores, instance_id, internal_token FROM globals;')
+
+    app['worker_type'] = row['worker_type']
+    app['worker_cores'] = row['worker_cores']
+
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
