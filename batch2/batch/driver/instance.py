@@ -110,7 +110,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             '''
 UPDATE attempts
 SET start_time = %s, end_time = %s
-INNER JOIN jobs ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE instance = %s;
 ''',
             (timestamp, timestamp, self.name))
