@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS `gevents` (
   mark VARCHAR(40)
 ) ENGINE = InnoDB;
 
+INSERT INTO gevents (mark) VALUES (NULL);
+
 CREATE TABLE IF NOT EXISTS `job_parents` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
