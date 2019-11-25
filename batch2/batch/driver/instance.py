@@ -105,15 +105,15 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self._state = 'deleted'
         self.instance_pool.adjust_for_add_instance(self)
 
-    async def mark_jobs_ended(self, timestamp):
+    async def mark_jobs_ended(self, timestamp, reason):
         await self.db.execute_update(
             '''
 UPDATE attempts
 INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-SET start_time = %s, end_time = %s
+SET end_time = %s, reason = %s
 WHERE instance = %s;
 ''',
-            (None, timestamp, self.name))
+            (timestamp, reason, self.name))
 
     @property
     def free_cores_mcpu(self):

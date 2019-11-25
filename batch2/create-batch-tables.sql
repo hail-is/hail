@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `start_time` DOUBLE,
   `end_time` DOUBLE,
+  `reason` VARCHAR(40)
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
@@ -123,6 +124,7 @@ BEGIN
 
   IF OLD.end_time IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
     SET NEW.end_time = OLD.end_time;
+    SET NEW.reason = OLD.reason;
   END IF;
 END $$
 
@@ -352,7 +354,8 @@ CREATE PROCEDURE mark_job_complete(
   IN new_state VARCHAR(40),
   IN new_status VARCHAR(65535),
   IN new_start_time DOUBLE,
-  IN new_end_time DOUBLE
+  IN new_end_time DOUBLE,
+  IN new_reason VARCHAR(40)
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -418,7 +421,7 @@ BEGIN
 
     IF in_attempt_id IS NOT NULL THEN
       UPDATE attempts
-      SET start_time = new_start_time, end_time = new_end_time
+      SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
       WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
     END IF;
 

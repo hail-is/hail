@@ -72,7 +72,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
 
 
 async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time):
+                            start_time, end_time, reason):
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
     inst_pool = app['inst_pool']
@@ -83,10 +83,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     rv = await check_call_procedure(
         db,
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s);',
+        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s);',
         (batch_id, job_id, attempt_id, new_state,
          json.dumps(status) if status is not None else None,
-         start_time, end_time))
+         start_time, end_time, reason))
 
     log.info(f'mark_job_complete returned {rv} for job {id}')
 
@@ -327,7 +327,8 @@ async def schedule_job(app, record, instance):
             'error': traceback.format_exc(),
             'container_statuses': {k: {} for k in tasks}
         }
-        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status, None, None)
+        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status,
+                                None, None, 'error')
         return
 
     log.info(f'schedule job {id} on {instance}: made job config')

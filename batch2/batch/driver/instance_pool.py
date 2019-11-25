@@ -288,15 +288,15 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
             raise
 
     async def handle_preempt_event(self, instance, timestamp):
-        await instance.mark_jobs_ended(timestamp)
+        await instance.mark_jobs_ended(timestamp, 'preempted')
         await self.call_delete_instance(instance)
 
     async def handle_delete_done_event(self, instance, timestamp):
-        await instance.mark_jobs_ended(timestamp)
+        await instance.mark_jobs_ended(timestamp, 'deleted')
         await self.remove_instance(instance)
 
     async def handle_call_delete_event(self, instance, timestamp):
-        await instance.mark_jobs_ended(timestamp)
+        await instance.mark_jobs_ended(timestamp, 'deleted')
         await instance.mark_deleted()
 
     async def handle_event(self, event):

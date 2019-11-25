@@ -76,7 +76,7 @@ LIMIT 50;
             if record['cancel']:
                 log.info(f'cancelling job {id}')
                 await mark_job_complete(self.app, batch_id, job_id, None,
-                                        'Cancelled', None, None, None)
+                                        'Cancelled', None, None, None, 'cancelled')
                 should_wait = False
                 continue
 
