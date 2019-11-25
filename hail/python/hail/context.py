@@ -280,6 +280,12 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 
 def version():
+    """Get the installed hail version.
+
+    Returns
+    -------
+    str
+    """
     if hail.__version__ is None:
         # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
         hail.__version__ = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
