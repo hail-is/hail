@@ -342,9 +342,9 @@ class TableIRSuite extends HailSuite {
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
     val joined = collect(
       TableJoin(
-        TableLiteral(left, ctx),
+        TableLiteral(partitionedLeft, ctx),
         TableRename(
-          TableLiteral(right, ctx),
+          TableLiteral(partitionedRight, ctx),
           Array("A", "B", "C")
             .filter(partitionedRight.typ.rowType.hasField)
             .map(a => a -> (a + "_"))
