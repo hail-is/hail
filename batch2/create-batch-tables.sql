@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `n_cancelled` INT NOT NULL DEFAULT 0,
   `time_created` DOUBLE NOT NULL,
   `time_completed` DOUBLE,
-  `cost` BIGINT NOT NULL DEFAULT 0,
+  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
+  `cost` DOUBLE NOT NULL DEFAULT 0
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
@@ -51,7 +52,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
-  `cost` BIGINT NOT NULL DEFAULT 0,
+  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
+  `cost` DOUBLE NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_name`) REFERENCES instances(name)
@@ -132,8 +134,11 @@ CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
   DECLARE cores_mcpu INT;
-  DECLARE time_diff FLOAT;
-  DECLARE new_cost BIGINT;
+  DECLARE time_diff DOUBLE;
+  DECLARE cost_per_core_sec DOUBLE;
+  DECLARE new_msec_mcpu BIGINT;
+
+  SET cost_per_core_sec = 0.01 / 3600;
 
   SELECT cores_mcpu INTO cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
@@ -141,14 +146,22 @@ BEGIN
   SET time_diff = COALESCE(NEW.end_time - NEW.start_time, 0) -
                   COALESCE(OLD.end_time - OLD.start_time, 0);
 
-  SET new_cost = (time_diff * 1000) * cores_mcpu;
+  SET new_msec_mcpu = (time_diff * 1000) * cores_mcpu;
 
   UPDATE batches
-  SET cost = batches.cost + new_cost
+  SET msec_mcpu = batches.msec_mcpu + new_msec_mcpu
+  WHERE id = NEW.batch_id;
+
+  UPDATE batches
+  SET cost = batches.msec_mcpu * cost_per_core_sec * 0.001 * 0.001
   WHERE id = NEW.batch_id;
 
   UPDATE jobs
-  SET cost = jobs.cost + new_cost
+  SET msec_mcpu = jobs.msec_mcpu + new_msec_mcpu
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+
+  UPDATE jobs
+  SET cost = jobs.msec_mcpu * cost_per_core_sec * 0.001 * 0.001
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 END $$
 
