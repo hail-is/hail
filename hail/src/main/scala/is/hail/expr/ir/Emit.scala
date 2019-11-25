@@ -1503,14 +1503,7 @@ private class Emit(
             workAddress,
             LWORK
           ),
-          Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS)),
-
-          Code._println("Initial data length"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", ndPType.data.pType.loadLength(dataAddress)),
-          Code._println("Answer data length"),
-          Code.getStatic[java.lang.System, java.io.PrintStream]("out").invoke[Int, Unit](
-            "println", ndPType.data.pType.loadLength(columnMajorCopyAddress))
+          Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS))
 
           //Code.invokeStatic[Memory, Long, Unit]("free", LWORK.toLong)
         )
@@ -1552,8 +1545,8 @@ private class Emit(
           if (mode == "r") {
             // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner.
             val rPType = x.pType.asInstanceOf[PNDArray]
-            val rShapeBuilder = rPType.makeShapeBuilder(Array(M, N))
-            val rStridesBuilder = rPType.makeDefaultStridesBuilder(Array(M, N), mb)
+            val rShapeBuilder = rPType.makeShapeBuilder(Array(K, N))
+            val rStridesBuilder = rPType.makeDefaultStridesBuilder(Array(K, N), mb)
 
             val currRow = mb.newField[Int]
             val currCol = mb.newField[Int]

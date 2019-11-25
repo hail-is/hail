@@ -558,4 +558,6 @@ def test_ndarray_qr():
     np_tall_rect = np.arange(12).reshape((4, 3))
     tall_rect = hl._nd.arange(12).reshape((4, 3))
 
+    # TODO Figure out this one
     #assert_raw_equivalence(tall_rect, np_tall_rect)
+    assert_r_equivalence(tall_rect, np_tall_rect)
