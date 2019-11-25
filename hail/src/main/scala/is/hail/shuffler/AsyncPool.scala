@@ -2,7 +2,7 @@ package is.hail.shuffler
 
 import is.hail.HailContext
 import is.hail.utils._
-import java.util.concurrent.{ Executors, Future }
+import java.util.concurrent.{ Callable, Executors, Future }
 import org.apache.spark.TaskContext
 
 object ShuffleAsyncPool {

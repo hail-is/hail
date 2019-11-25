@@ -1208,6 +1208,7 @@ def test_segfault():
     joined = joined.filter(hl.is_missing(joined.idx))
     assert joined.collect() == []
 
+
 def test_maybe_flexindex_table_by_expr_direct_match():
     t1 = hl.utils.range_table(1)
     t2 = hl.utils.range_table(1)
@@ -1347,6 +1348,7 @@ def test_join_distinct_preserves_count():
     assert n_defined_2 == 0
     assert keys_2 == left_pos
 
+
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
     t = t.annotate(n = hl._nd.arange(t.idx))
@@ -1354,6 +1356,7 @@ def test_write_table_containing_ndarray():
     t.write(f)
     t2 = hl.read_table(f)
     assert t._same(t2)
+
 
 def test_issue_7317():
     t = hl.utils.range_table(1_000_000, n_partitions=100)

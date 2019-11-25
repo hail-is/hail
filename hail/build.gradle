@@ -18,6 +18,7 @@ plugins {
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.transformers.AppendingTransformer
 
 repositories {
     mavenCentral()
@@ -176,6 +177,11 @@ dependencies {
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
 
     bundled 'com.google.cloud:google-cloud-storage:1.96.0'
+
+    bundled "com.typesafe.akka:akka-http_" + scalaMajorVersion + ":10.1.9"
+    bundled "com.typesafe.akka:akka-stream_" + scalaMajorVersion + ":2.5.23"
+    bundled group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.12.1'
+    bundled group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.12.1'
 }
 
 task(checkSettings) doLast {
@@ -254,6 +260,10 @@ shadowJar {
     classifier = 'spark'
     from project.sourceSets.main.output
     configurations = [project.configurations.hailJar]
+    transform(AppendingTransformer) {
+        resource = 'reference.conf'
+    }
+    with jar
 }
 
 task shadowTestJar(type: ShadowJar) {

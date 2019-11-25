@@ -1,5 +1,4 @@
 package is.hail.shuffler
-
 import com.google.api.gax.retrying.RetrySettings
 import com.google.auth.oauth2.{ AccessToken, GoogleCredentials }
 import is.hail.HailContext
@@ -30,9 +29,13 @@ import scala.collection.mutable.{ ArrayBuffer }
 import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 import com.google.cloud.storage._
+import org.json4s._
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 
 object ShuffleClient {
+  private implicit val f = new DefaultFormats() {}
+
   private[this] def typeToParsableUTF8Bytes(t: PType): Array[Byte] =
     ByteUtils.stringToBytes(t.parsableString())
 
@@ -88,6 +91,12 @@ object ShuffleClient {
     val sc = hc.sc
     val fs = hc.sFS
 
+    val buffer = BufferClient.create(executeContext)
+
+    val bufferId = buffer.id
+    val bufferWorkers = buffer.getWorkers
+    val BUFSIZE = 10 * 1024 * 1024
+
     val addRdd = rvd.crdd.cmapPartitions { (ctx, it) =>
       val context = TaskContext.get
       val partitionId = context.partitionId()
@@ -95,30 +104,64 @@ object ShuffleClient {
       val rvb = new RegionValueBuilder(ctx.region)
       val shufflerPartition = shuffler.startPartition(partitionId, taskAttemptId)
       val kBae = new ByteArrayEncoder(kEnc)
-      val vBae = new ByteArrayEncoder(vEnc)
       val path = s"${storageUrl}/${partitionId}-${taskAttemptId}"
-      fs.writeFileNoCompression(path) { out =>
-        using(vEnc(out)) { enc =>
-          it.foreach { rv =>
-            rvb.start(keyPType)
-            // unsafe version of selectRegionValue, for speed reasons
-            rvb.startStruct()
-            rvb.addFields(rowPType, rv.region, rv.offset, keyFieldIndices)
-            rvb.endStruct()
-            val sortKeyOff = rvb.end()
-            val sortKeyBytes = kBae.regionValueToBytes(rv.region, sortKeyOff)
-            val rowBytes = new Array[Byte](28)
-            var off = 0
-            off = ByteUtils.writeInt(rowBytes, off, partitionId)
-            off = ByteUtils.writeLong(rowBytes, off, taskAttemptId)
-            val start = out.getPos
-            off = ByteUtils.writeLong(rowBytes, off, start)
-            enc.writeRegionValue(rv.region, rv.offset)
-            enc.flush()
-            off = ByteUtils.writeLong(rowBytes, off, out.getPos - start)
-            ctx.region.clear()
-            shufflerPartition.add(sortKeyBytes, rowBytes)
+      val buffer = new BufferClient(
+        bufferWorkers(context.partitionId() % bufferWorkers.length),
+        bufferId)
+
+      val os = new ByteArrayOutputStream(BUFSIZE)
+      val blocks = new ArrayBuilder[(Int, Int)]()
+      val keys = new ArrayBuilder[Array[Byte]]()
+
+      using(vEnc(os)) { enc =>
+        it.foreach { rv =>
+          val pos = os.size()
+          enc.writeRegionValue(rv.region, rv.offset)
+          enc.flush()
+          blocks += ((pos, os.size() - pos))
+          rvb.start(keyPType)
+          rvb.startStruct()
+          rvb.addFields(rowPType, rv.region, rv.offset, keyFieldIndices)
+          rvb.endStruct()
+          val sortKeyOff = rvb.end()
+          keys += kBae.regionValueToBytes(rv.region, sortKeyOff)
+          ctx.region.clear()
+          if (os.size() > BUFSIZE) {
+            assert(os.size() < 50 * 1024 * 1024)
+            val ks = keys.result()
+            val bs = blocks.result()
+            val (s, fileId, pos, n) = buffer.write(httpos => httpos.write(os.toByteArray()))
+            var i = 0
+            while (i < ks.length) {
+              val key = ks(i)
+              val (off, n) = bs(i)
+              val baos = new ByteArrayOutputStream()
+              Serialization.write(Array(s, fileId, pos + off, n), baos)
+              shufflerPartition.add(key, baos.toByteArray())
+              i += 1
+            }
+            blocks.clear()
+            keys.clear()
+            os.reset()
           }
+        }
+      }
+      if (os.size() > 0) {
+        assert(os.size() < 50 * 1024 * 1024)
+        val ks = keys.result()
+        val bs = blocks.result()
+        val (s, fileId, pos, n) = buffer.write(httpos => httpos.write(os.toByteArray()))
+        var i = 0
+        while (i < ks.length) {
+          val key = ks(i)
+          val (off, n) = bs(i)
+          val baos = new ByteArrayOutputStream()
+          Serialization.write(Array(s, fileId, pos + off, n), baos)
+          shufflerPartition.add(key, baos.toByteArray())
+          i += 1
+          blocks.clear()
+          keys.clear()
+          os.reset()
         }
       }
       shufflerPartition.finishPartition()
@@ -126,44 +169,58 @@ object ShuffleClient {
     }.clearingRun
     sc.runJob(addRdd, (it: Iterator[Unit]) => it.foreach(_ => ()), (_, _: Unit) => ())
     val keyBytes = shuffler.end_input()
-    // val readParallelism = hc.flags.get("shuffle_read_parallelism").toInt
+    val readParallelism = hc.flags.get("shuffle_read_parallelism").toInt
     val shuffledCRDD = ContextRDD.weaken[RVDContext](sc.parallelize((0 until parts), parts)).cflatMap { (ctx, _) =>
-      val accessToken = GoogleCredentials.getApplicationDefault
-        // https://cloud.google.com/storage/docs/authentication
-        .createScoped("https://www.googleapis.com/auth/devstorage.read_write")
-        .refreshAccessToken
-        .getTokenValue
-      val authorizationHeader = s"Bearer ${accessToken}"
+      // val accessToken = GoogleCredentials.getApplicationDefault
+      //   // https://cloud.google.com/storage/docs/authentication
+      //   .createScoped("https://www.googleapis.com/auth/devstorage.read_write")
+      //   .refreshAccessToken
+      //   .getTokenValue
+      // val authorizationHeader = s"Bearer ${accessToken}"
       // val asyncPool = new AsyncPool(readParallelism)
-      val futureBytes = shuffler.get(TaskContext.get.partitionId).map { bytes =>
-        val bais = new ByteArrayInputStream(bytes)
-        val sourcePartitionId = ByteUtils.readInt(bais)
-        val sourceAttemptId = ByteUtils.readLong(bais)
-        val position = ByteUtils.readLong(bais)
-        val length = ByteUtils.readLong(bais)
-        val path = s"${shufflePath}/${sourcePartitionId}-${sourceAttemptId}"
-        ShuffleAsyncPool.pool.get.future { () =>
-          HTTPClient.get(
-            s"https://${bucketName}.storage.googleapis.com/${path}",
-            Map(
-              "Authorization" -> authorizationHeader,
-              "Range" -> s"bytes=$position-${position+length}"
-            ), { is =>
-              val a = new Array[Byte](length)
-              is.readRepeatedly(a)
-              a
-            })
-        }
-      }.toArray
+      // val futureBytes = shuffler.get(TaskContext.get.partitionId).map { bytes =>
+      //   val bais = new ByteArrayInputStream(bytes)
+      //   val JArray(List(JString(s), JInt(fileId), JInt(pos), JInt(n))) = JsonMethods.parse(bais)
+      //   val bufferKey = (s, fileId.toInt, pos.toInt, n.toInt)
+      //   asyncPool.future { () =>
+      //     buffer.read(bufferKey, { in =>
+      //       using(new ByteArrayOutputStream()) { baos =>
+      //         drainInputStreamToOutputStream(in, baos)
+      //         baos.toByteArray()
+      //       }
+      //     })
+      //   }
+      // }
 
-      val bais = new RestartableByteArrayInputStream()
-      val dec = vDec(bais)
+      // val bais = new RestartableByteArrayInputStream()
+      // val dec = vDec(bais)
       val rv = RegionValue()
-      futureBytes.iterator.map { fut =>
-        rv.setRegion(ctx.region)
-        bais.restart(fut.get)
-        rv.setOffset(dec.readRegionValue(ctx.region))
-        rv
+      val bufferKeys = shuffler.get(TaskContext.get.partitionId).map { bytes =>
+        val bais = new ByteArrayInputStream(bytes)
+        val JArray(List(JString(s), JInt(fileId), JInt(pos), JInt(n))) = JsonMethods.parse(bais)
+        (s, fileId.toInt, pos.toInt, n.toInt)
+      }
+
+      val keyGroups = new ArrayBuilder[Array[BufferClient.Key]]()
+      var i = 0
+      while (i < bufferKeys.length) {
+        var s = 0
+        val group = new ArrayBuilder[BufferClient.Key]()
+        assert(bufferKeys(i)._4 < BUFSIZE)
+        while (i < bufferKeys.length && s < BUFSIZE) {
+          s += bufferKeys(i)._4
+          group += bufferKeys(i)
+          i += 1
+        }
+        keyGroups += group.result()
+      }
+
+      keyGroups.result().iterator.flatMap { keys =>
+        buffer.readMany(keys, { in =>
+          rv.setRegion(ctx.region)
+          rv.setOffset(vDec(in).readRegionValue(ctx.region))
+          rv
+        })
       }
     }
     val decodedKeys = Region.scoped { r =>
@@ -278,6 +335,7 @@ class ShuffleClient private (
   private[this] val outPartitions: Int,
   private[this] val bufferSpec: BufferSpec
 ) extends Serializable {
+  import ShuffleClient._
   def startPartition(
     partitionId: Int,
     attemptId: Long

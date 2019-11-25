@@ -6,6 +6,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import akka.stream.ActorMaterializerSettings
 import akka.util.ByteString
 import is.hail.HailContext
 import is.hail.annotations._
@@ -23,6 +24,7 @@ import org.apache.log4j.LogManager
 import scala.collection.mutable
 import scala.io.StdIn
 import scala.collection.JavaConverters._
+import com.typesafe.config.ConfigFactory
 
 object WebServer {
   private[this] val log = LogManager.getLogger("Shuffler")
@@ -170,6 +172,9 @@ object WebServer {
       }
     )
 
-    val bindingFuture = Http().bindAndHandle(route, "localhost", 5000)
+    val host = "0.0.0.0"
+    val port = 4999
+    log.info(s"serving at ${host}:${port}")
+    val bindingFuture = Http().bindAndHandle(route, host, port)
   }
 }

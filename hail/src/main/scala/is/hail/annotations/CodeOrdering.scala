@@ -398,7 +398,7 @@ abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
   def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
 
   // reverses the sense of the non-null comparison only
-  def reverse: CodeOrderingCompareConsistentWithOthers = new CodeOrderingCompareConsistentWithOthers () {
+  def reverse: CodeOrdering = new CodeOrderingCompareConsistentWithOthers () {
     override def reverse: CodeOrdering = CodeOrdering.this
     override type T = CodeOrdering.this.T
     override type P = CodeOrdering.this.P

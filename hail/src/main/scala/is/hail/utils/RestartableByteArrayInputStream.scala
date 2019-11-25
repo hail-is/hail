@@ -58,4 +58,11 @@ class RestartableByteArrayInputStream extends InputStream {
     this.off = start
     this.end = end
   }
+  def focusSlice(left: Int, right: Int): Unit = {
+    assert(left >= 0)
+    assert(left <= right)
+    assert(right <= buf.length)
+    off = left
+    end = right
+  }
 }

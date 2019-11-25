@@ -364,3 +364,10 @@ clean: clean-env clean-docs native-lib-clean
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)
+
+.PHONY: dkh
+dkh: wheel
+	docker build build/deploy/dist -f Dockerfile -t gcr.io/hail-vdc/dkh
+	docker push gcr.io/hail-vdc/dkh
+	k apply -f dkh.yaml -n dk-test
+	k exec -it dkh -n dk-test ipython

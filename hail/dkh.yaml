@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dkh
+spec:
+  containers:
+    - name: dkh
+      image: gcr.io/hail-vdc/dkh
+      command: ["/bin/sh", "-c", "sleep 100000"]
+      imagePullPolicy: Always
+      resources:
+        requests:
+          cpu: "7000m"
+          memory: "16G"
+  tolerations:
+    - key: "preemptible"
+      value: "true"
