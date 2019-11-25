@@ -551,7 +551,7 @@ class Job:
         status['container_statuses'] = cstatuses
 
         main_timings = cstatuses['main']['timing']
-        main_duration = main_timings['starting'] + main_timings['running']
+        main_duration = main_timings['starting']['duration'] + main_timings['running']['duration']
 
         status['start_time'] = self.start_time
         status['end_time'] = self.start_time + main_duration
