@@ -17,7 +17,7 @@ async def test_deploy():
         deploy_state = None
         while deploy_state is None:
             resp = await utils.request_retry_transient_errors(
-                session, 'POST', f'{ci_deploy_status_url}')
+                session, 'GET', f'{ci_deploy_status_url}')
             deploy_statuses = resp.json()
             assert len(deploy_statuses) == 1, deploy_statuses
             deploy_status = deploy_statuses[0]
