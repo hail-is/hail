@@ -1253,4 +1253,10 @@ steps:
      - default_ns
      - deploy_dbuf
      - dbuf_test_image
-
+ - kind: buildImage
+   name: shuffler_image
+   dockerFile: shuffler/Dockerfile
+   contextPath: shuffler
+   publishAs: shuffler
+   dependsOn:
+    - service_base_image
