@@ -16,7 +16,7 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVD
-import is.hail.table.{Ascending, Descending, SortField, Table}
+import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite}
@@ -2234,10 +2234,10 @@ class IRSuite extends HailSuite {
   @Test def testTableAggregate() {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    val table = Table.range(hc, 3, Some(2))
+    val table = TableRange(3, 2)
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
-    assertEvalsTo(TableAggregate(table.tir, MakeStruct(Seq("foo" -> count))), Row(3L))
+    assertEvalsTo(TableAggregate(table, MakeStruct(Seq("foo" -> count))), Row(3L))
   }
 
   @Test def testMatrixAggregate() {

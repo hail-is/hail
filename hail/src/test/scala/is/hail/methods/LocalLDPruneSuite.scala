@@ -1,21 +1,18 @@
 package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
-import is.hail.{HailSuite, TestUtils}
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.ir.{Interpret, MatrixColsTable, MatrixRowsTable, MatrixValue, TableCount, TableValue}
+import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct, PType}
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TString, TStruct}
-import is.hail.variant._
 import is.hail.utils._
-import is.hail.testUtils._
-import org.apache.spark.sql.catalyst.expressions.GenericRow
-import org.testng.annotations.Test
-import is.hail.table.Table
+import is.hail.variant._
+import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.rdd.RDD
+import org.testng.annotations.Test
 
 case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {
   def unpack(): Array[Int] = {

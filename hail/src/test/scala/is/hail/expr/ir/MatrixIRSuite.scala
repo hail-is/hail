@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.TestUtils._
+import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
-import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
@@ -151,7 +151,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   // these two items are helper for UnlocalizedEntries testing,
-  def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): Table = {
+  def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): TableIR = {
     val rowRdd = sc.parallelize(rdata)
     val rowSig = TStruct(
       "row_idx" -> TInt32(),
@@ -161,8 +161,10 @@ class MatrixIRSuite extends HailSuite {
     val keyNames = FastIndexedSeq("row_idx")
 
     val colSig = TStruct("col_idx" -> TInt32(), "tag" -> TString())
-
-    Table(hc, rowRdd, rowSig, keyNames, TStruct(("__cols", TArray(colSig))), Row(cdata.toFastIndexedSeq))
+    val globalType = TStruct(("__cols", TArray(colSig)))
+    var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
+    tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastIndexedSeq), globalType))
+    TableLiteral(tv, ctx)
   }
 
   @Test def testCastTableToMatrix() {
@@ -177,7 +179,7 @@ class MatrixIRSuite extends HailSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
     // cols are same
     val mtCols = Interpret(MatrixColsTable(mir), ctx).rdd.collect()
     assert(mtCols sameElements cdata)
@@ -206,7 +208,7 @@ class MatrixIRSuite extends HailSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("length mismatch between entry array and column array") {
@@ -215,7 +217,7 @@ class MatrixIRSuite extends HailSuite {
 
     // The entry field must be an array
     interceptFatal("") {
-      CastTableToMatrix(rowTab.tir, "animal", "__cols", Array("col_idx"))
+      CastTableToMatrix(rowTab, "animal", "__cols", Array("col_idx"))
     }
 
     val rdata2 = Array(
@@ -224,7 +226,7 @@ class MatrixIRSuite extends HailSuite {
       Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
-    val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
+    val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", Array("col_idx"))
 
     interceptSpark("missing") { Interpret(mir2, ctx, optimize = true).rvd.count() }
   }
