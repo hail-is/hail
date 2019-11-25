@@ -335,7 +335,7 @@ class Tests(unittest.TestCase):
 
         prefix2 = new_local_temp_dir()
         custom_names = ["nameA", "inner/nameB.tsv"]
-        hl.experimental.export_block_matrices(bms, f'{prefix2}/files', compression="bgz", custom_filenames=custom_names)
+        hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
         for i in range(len(bms)):
             a = arrs[i]
             a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
