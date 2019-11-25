@@ -84,7 +84,7 @@ async def test_deploy():
                 session, 'POST', f'{ci_url}/api/v1alpha/deploy_status')
             deploy_statuses = resp.json()
             assert len(deploy_statuses) == 1, deploy_statuses
-            deploy_status = deploy_statuses
+            deploy_status = deploy_statuses[0]
             deploy_state = deploy_status['deploy_state']
             await asyncio.sleep(5)
         assert deploy_state == 'success', deploy_state

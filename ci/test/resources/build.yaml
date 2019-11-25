@@ -68,4 +68,3 @@ steps:
     - hello_image
     - check_hello
     - hello_database
-    - run_inline_image
