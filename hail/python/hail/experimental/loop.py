@@ -1,12 +1,13 @@
 import builtins
 from typing import Callable
 
-from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all
+import hail as hl
+import hail.ir as ir
+from hail.table import ExprContainer
+from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all, expr_bool
 from hail.expr.types import hail_type
-from hail.ir.ir import Loop, Recur
 from hail.typecheck import anytype, typecheck
 from hail.utils.java import Env
-
 
 # FIXME, infer loop type?
 @typecheck(f=anytype, typ=hail_type, exprs=expr_any)
@@ -39,16 +40,24 @@ def loop(f: Callable, typ, *exprs):
     """
 
     def contains_recursive_call(non_recursive):
-        return len(non_recursive.search(lambda i: isinstance(i, Recur))) == 0
+        if isinstance(non_recursive, ir.Recur):
+            return True
+        if isinstance(non_recursive, ir.TailLoop):
+            return False
+        return all([contains_recursive_call(c) for c in non_recursive.children])
 
     def check_tail_recursive(loop_ir):
         if isinstance(loop_ir, ir.If):
+            if contains_recursive_call(loop_ir.cond):
+                raise TypeError("branch condition can't contain recursive call!")
             check_tail_recursive(loop_ir.cnsq)
             check_tail_recursive(loop_ir.altr)
         elif isinstance(loop_ir, ir.Let):
             if contains_recursive_call(loop_ir.value):
-                raise FatalError("bound value used in other expression can't contain recursive call!")
+                raise TypeError("bound value used in other expression can't contain recursive call!")
             check_tail_recursive(loop_ir.body)
+        elif not isinstance(loop_ir, ir.Recur) and contains_recursive_call(loop_ir):
+            raise TypeError("found recursive expression outside of tail position!")
 
     @typecheck(recur_exprs=expr_any)
     def make_loop(*recur_exprs):
@@ -65,7 +74,7 @@ def loop(f: Callable, typ, *exprs):
             raise TypeError(err)
         irs = [expr._ir for expr in recur_exprs]
         indices, aggregations = unify_all(*recur_exprs)
-        return construct_expr(Recur(irs, typ), typ, indices, aggregations)
+        return construct_expr(ir.Recur(irs, typ), typ, indices, aggregations)
 
     uid_irs = []
     loop_vars = []
@@ -75,9 +84,9 @@ def loop(f: Callable, typ, *exprs):
         loop_vars.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uid_irs.append((uid, expr._ir))
 
-    lambda_res = to_expr(f(make_loop, *loop_vars))
-    indices, aggregations = unify_all(*exprs, lambda_res)
-    ir = Loop(uid_irs, lambda_res._ir)
-    if ir.typ != typ:
-        raise TypeError(f"requested type {typ} does not match inferred type {ir.typ}")
-    return construct_expr(ir, lambda_res.dtype, indices, aggregations)
+    loop_f = to_expr(f(make_loop, *loop_vars))
+    check_tail_recursive(loop_f._ir)
+    indices, aggregations = unify_all(*exprs, loop_f)
+    if loop_f.dtype != typ:
+        raise TypeError(f"requested type {typ} does not match inferred type {loop_f.typ}")
+    return construct_expr(ir.Loop(uid_irs, loop_f._ir), loop_f.dtype, indices, aggregations)
