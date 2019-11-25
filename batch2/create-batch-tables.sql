@@ -317,7 +317,8 @@ END $$
 CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
-  IN expected_instance_name VARCHAR(100)
+  IN expected_instance_name VARCHAR(100),
+  IN in_end_time DOUBLE
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -334,6 +335,7 @@ BEGIN
     UPDATE jobs SET state = 'Ready', instance_name = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
+    UPDATE attempts SET end_time = in_end_time WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc;
   ELSE

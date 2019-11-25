@@ -24,7 +24,7 @@ class EntryIterator:
         self.entries = None
 
     async def async_init(self):
-        row = await self.db.execute_and_fetchone('SELECT * FROM gevents;')
+        row = await self.db.execute_and_fetchone('SELECT * FROM `gevents_mark`;')
         if row['mark']:
             self.mark = row['mark']
         else:
@@ -33,7 +33,7 @@ class EntryIterator:
 
     async def _update_mark(self, timestamp):
         await self.db.execute_update(
-            'UPDATE gevents SET mark = %s;',
+            'UPDATE `gevents_mark` SET mark = %s;',
             (timestamp,))
         self.mark = timestamp
 

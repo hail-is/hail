@@ -1,4 +1,5 @@
 import json
+import time
 import logging
 import asyncio
 import aiohttp
@@ -111,20 +112,20 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
     await notify_batch_job_complete(db, batch_id)
 
 
-async def add_attempt_timing(app, batch_id, job_id, attempt_id, start_time, end_time):
+async def mark_job_started(app, batch_id, job_id, attempt_id, start_time):
     db = app['db']
 
     id = (batch_id, job_id)
 
-    log.info(f'added attempt timing for job {id}')
+    log.info(f'mark job {id} started')
 
     await db.execute_update(
         '''
 UPDATE attempts
-SET start_time = %s, end_time = %s
+SET start_time = %s
 WHERE batch_id = %s AND job_id = %s AND attempt_id = %s;
 ''',
-        (start_time, end_time, batch_id, job_id, attempt_id))
+        (start_time, batch_id, job_id, attempt_id))
 
 
 def job_record_to_dict(record, running_status=None):
@@ -174,10 +175,11 @@ async def unschedule_job(app, record):
         log.warning(f'unschedule job {id}: unknown instance {instance_name}')
         return
 
+    end_time = time.time()
     await check_call_procedure(
         db,
-        'CALL unschedule_job(%s, %s, %s);',
-        (batch_id, job_id, instance_name))
+        'CALL unschedule_job(%s, %s, %s, %s);',
+        (batch_id, job_id, instance_name, end_time))
 
     log.info(f'unschedule job {id}: updated database')
 
