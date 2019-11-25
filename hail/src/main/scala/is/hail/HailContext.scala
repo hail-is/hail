@@ -637,21 +637,31 @@ class HailContext private(
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
-  def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
+  private[this] def fileAndLineCounts(
+    regex: String,
+    files: Seq[String],
+    maxLines: Int
+  ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
     sc.textFilesLines(sFS.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.asInstanceOf[Context].file)
-      .foreach { case (file, lines) =>
-        info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
-        lines.map(_.value).foreach { line =>
-          val (screen, logged) = line.truncatable().strings
-          log.info("\t" + logged)
-          println(s"\t$screen")
-        }
-      }
   }
+
+  def grepPrint(regex: String, files: Seq[String], maxLines: Int) {
+    fileAndLineCounts(regex, files, maxLines).foreach { case (file, lines) =>
+      info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
+      lines.map(_.value).foreach { line =>
+        val (screen, logged) = line.truncatable().strings
+        log.info("\t" + logged)
+        println(s"\t$screen")
+      }
+    }
+  }
+
+  def grepReturn(regex: String, files: Seq[String], maxLines: Int): Array[(String, Array[String])] =
+    fileAndLineCounts(regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sFS.getTemporaryFile(tmpDir, nChar, prefix, suffix)
