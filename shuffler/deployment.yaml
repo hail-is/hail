@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shuffler
+spec:
+  serviceName: shuffler
+  selector:
+    matchLabels:
+      app: shuffler
+  replicas: 4
+  volumeClaimTemplates:
+    - metadata:
+        name: shuffler
+      spec:
+        storageClassName: ssd
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+  template:
+    metadata:
+      name: shuffler
+      labels:
+        app: shuffler
+    spec:
+      volumes:
+       - name: deploy-config
+         secret:
+           optional: false
+           secretName: deploy-config
+      containers:
+        - name: shuffler
+          image: {{ shuffler_image.image }}
+          resources:
+            requests:
+              memory: "3750Mi"
+              cpu: "1"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HAIL_DEPLOY_CONFIG_FILE
+              value: /deploy-config/deploy-config.json
+          volumeMounts:
+            - name: shuffler
+              mountPath: "/tmp"
+            - name: deploy-config
+              mountPath: /deploy-config
+              readOnly: true
+          imagePullPolicy: Always
+          ports:
+           - name: port
+             hostPort: 80
+             containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shuffler
+spec:
+  clusterIP: "None"
+  ports:
+   - port: 80
+     targetPort: 80
+  selector:
+    app: shuffler
