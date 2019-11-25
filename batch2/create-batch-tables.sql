@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
-  `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `time_completed` TIMESTAMP,
+  `time_created` DOUBLE NOT NULL,
+  `time_completed` DOUBLE,
   `cost` DOUBLE NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
@@ -254,7 +254,7 @@ BEGIN
 
     IF actual_n_jobs = expected_n_jobs THEN
       UPDATE batches SET closed = 1 WHERE id = in_batch_id;
-      UPDATE batches SET time_completed = CURRENT_TIMESTAMP
+      UPDATE batches SET time_completed = UNIX_TIMESTAMP(NOW(3))
         WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       UPDATE ready_cores
 	SET ready_cores_mcpu = ready_cores_mcpu +
@@ -376,7 +376,7 @@ BEGIN
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
-    UPDATE batches SET time_completed = CURRENT_TIMESTAMP
+    UPDATE batches SET time_completed = UNIX_TIMESTAMP(NOW(3))
       WHERE id = in_batch_id AND n_completed = batches.n_jobs;
 
     IF new_state = 'Cancelled' THEN
