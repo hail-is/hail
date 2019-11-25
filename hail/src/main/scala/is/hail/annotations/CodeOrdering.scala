@@ -11,9 +11,18 @@ import is.hail.utils._
 
 object CodeOrdering {
 
-  sealed trait Op { type ReturnType }
-  final case object compare extends Op { type ReturnType = Int }
-  sealed trait BooleanOp extends Op { type ReturnType = Boolean }
+  sealed trait Op {
+    type ReturnType
+    def rtti: TypeInfo[ReturnType]
+  }
+  final case object compare extends Op {
+    type ReturnType = Int
+    val rtti = typeInfo[Int]
+  }
+  sealed trait BooleanOp extends Op {
+    type ReturnType = Boolean
+    val rtti = typeInfo[Boolean]
+  }
   final case object equiv extends BooleanOp
   final case object lt extends BooleanOp
   final case object lteq extends BooleanOp
