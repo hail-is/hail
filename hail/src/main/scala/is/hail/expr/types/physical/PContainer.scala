@@ -19,7 +19,7 @@ object PContainer {
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     Region.storeInt(aoff, length)
 
-  def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
+  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
 }
 
 abstract class PContainer extends PIterable {
