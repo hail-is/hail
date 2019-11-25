@@ -278,9 +278,7 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val bcFS = HailContext.bcFS
-
-    info(f"customFilenames is None? ${customFilenames.isEmpty}")
-
+    
     val nameFunction = customFilenames match {
       case None => i: Int => StringUtils.leftPad(i.toString, d, '0')
       case Some(filenames) => filenames.apply(_)
