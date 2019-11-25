@@ -412,13 +412,14 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars python-version-info
+     make jars python-version-info wheel
      (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
+     mv build/deploy/dist/hail-*-py3-none-any.whl build/deploy/dist/hail-py3-none-any.whl
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
@@ -434,6 +435,8 @@ steps:
        to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
+     - from: build/deploy/dist/hail-py3-none-any.whl
+       to: /hail.whl
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
      - from: /io/repo/hail/resources.tar.gz
@@ -1300,3 +1303,25 @@ steps:
    dependsOn:
     - default_ns
     - shuffler_image
+ - kind: buildImage
+   name: shuffler_test_image
+   dockerFile: shuffler/test/Dockerfile
+   contextPath: shuffler/test
+   publishAs: shuffler_test
+   inputs:
+     - from: /hail.whl
+       to: /hail.whl
+   dependsOn:
+     - build_hail
+     - hail_run_image
+ - kind: runImage
+   name: shuffler_test
+   image:
+     valueFrom: shuffler_test_image.image
+   resources:
+     cpu: "2"
+   script: |
+     export SHUFFLE_SERVICE_URL=http://shuffler
+     python3 -m pytest test_shuffler.py
+   dependsOn:
+    - shuffler_test_image

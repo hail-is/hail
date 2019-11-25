@@ -172,7 +172,7 @@ object WebServer {
     )
 
     val host = "0.0.0.0"
-    val port = 4999
+    val port = 80
     log.info(s"serving at ${host}:${port}")
     val bindingFuture = Http().bindAndHandle(route, host, port)
   }

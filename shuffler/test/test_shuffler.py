@@ -1,9 +1,13 @@
+import os
 import hail as hl
+
+
+shuffle_service_url = os.environ['SHUFFLE_SERVICE_URL']
 
 
 def test_reverse_range_table():
     optimizer_iterations = hl._get_flags('optimizer_iterations')['optimizer_iterations']
-    hl._set_flags(shuffle_service_url='http://localhost:5000',
+    hl._set_flags(shuffle_service_url=shuffle_service_url,
                   optimizer_iterations="0")
     t = hl.utils.range_table(30, n_partitions=8)
     t = t.order_by(-t.idx)
@@ -17,7 +21,7 @@ def test_reverse_range_table():
 
 def test_range_table_as_strings():
     optimizer_iterations = hl._get_flags('optimizer_iterations')['optimizer_iterations']
-    hl._set_flags(shuffle_service_url='http://localhost:5000',
+    hl._set_flags(shuffle_service_url=shuffle_service_url,
                   optimizer_iterations="0")
     t = hl.utils.range_table(30, n_partitions=8)
     t = t.annotate(x=hl.str(t.idx))
@@ -32,7 +36,7 @@ def test_range_table_as_strings():
 
 def test_range_table_with_garbage():
     optimizer_iterations = hl._get_flags('optimizer_iterations')['optimizer_iterations']
-    hl._set_flags(shuffle_service_url='http://localhost:5000',
+    hl._set_flags(shuffle_service_url=shuffle_service_url,
                   optimizer_iterations="0")
     t = hl.utils.range_table(30, n_partitions=8)
     t = t.annotate(
@@ -55,7 +59,7 @@ def test_range_table_with_garbage():
 
 def test_large_table():
     optimizer_iterations = hl._get_flags('optimizer_iterations')['optimizer_iterations']
-    hl._set_flags(shuffle_service_url='http://localhost:5000',
+    hl._set_flags(shuffle_service_url=shuffle_service_url,
                   optimizer_iterations="0")
     t = hl.utils.range_table(1_000_000, n_partitions=100)
     t = t.order_by(-t.idx)
@@ -69,7 +73,7 @@ def test_large_table():
 
 def test_large_table_key_by():
     optimizer_iterations = hl._get_flags('optimizer_iterations')['optimizer_iterations']
-    hl._set_flags(shuffle_service_url='http://localhost:5000',
+    hl._set_flags(shuffle_service_url=shuffle_service_url,
                   optimizer_iterations="0")
     t = hl.utils.range_table(1_000_000, n_partitions=100)
     t = t.key_by(rev_idx=-t.idx)
@@ -83,7 +87,7 @@ def test_large_table_key_by():
 
 def test_large_table_key_by_workaround():
     optimizer_iterations = hl._get_flags('optimizer_iterations')['optimizer_iterations']
-    hl._set_flags(shuffle_service_url='http://localhost:5000',
+    hl._set_flags(shuffle_service_url=shuffle_service_url,
                   optimizer_iterations="0")
     t = hl.utils.range_table(1_000_000, n_partitions=100)
     t = t.key_by(rev_idx=-t.idx)
