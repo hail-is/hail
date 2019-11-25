@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.shuffler.ShuffleClient
-import is.hail.table.Ascending
+import is.hail.expr.ir.Ascending
 import java.util
 
 import is.hail.HailContext

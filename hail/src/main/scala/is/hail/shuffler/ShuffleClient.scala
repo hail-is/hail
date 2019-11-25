@@ -9,7 +9,7 @@ import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.rvd.{ RVD, RVDContext, RVDPartitioner, RVDType }
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{ Ascending, SortOrder }
+import is.hail.expr.ir.{ Ascending, SortOrder }
 import is.hail.utils._
 import is.hail.utils.HTTPClient
 import java.io.{ BufferedReader, ByteArrayInputStream, ByteArrayOutputStream, InputStreamReader }

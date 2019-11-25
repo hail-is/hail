@@ -1254,9 +1254,40 @@ steps:
      - deploy_dbuf
      - dbuf_test_image
  - kind: buildImage
+   name: shuffler_build_image
+   dockerFile: shuffler/Dockerfile.build
+   contextPath: shuffler
+   publishAs: shuffler
+   dependsOn:
+    - hail_build_image
+ - kind: runImage
+   name: shuffler_build
+   image:
+     valueFrom: shuffler_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd shuffler
+     sbt assembly
+   outputs:
+     - from: /io/repo/shuffler/target/scala-2.11/shuffler-assembly-0.1.jar
+       to: /shuffler-assembly-0.1.jar
+   dependsOn:
+     - shuffler_build_image
+ - kind: buildImage
    name: shuffler_image
    dockerFile: shuffler/Dockerfile
    contextPath: shuffler
    publishAs: shuffler
+   inputs:
+     - from: /shuffler-assembly-0.1.jar
+       to: /shuffler-assembly-0.1.jar
    dependsOn:
-    - service_base_image
+     - hail_run_image

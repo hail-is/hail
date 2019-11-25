@@ -27,10 +27,11 @@ object Compile {
     nSpecialArgs: Int,
     optimize: Boolean
   ): (PType, (Int, Region) => F) =
-    apply[F, R](print, args, argTypeInfo, GenericTypeInfo[R], body, nSpecialArgs, optimize)
+    apply[F, R](ctx, print, args, argTypeInfo, GenericTypeInfo[R], body, nSpecialArgs, optimize)
 
 
   def apply[F >: Null : TypeInfo, R : ClassTag](
+    ctx: ExecuteContext,
     print: Option[PrintWriter],
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
