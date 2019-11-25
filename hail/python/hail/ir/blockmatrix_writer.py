@@ -129,7 +129,7 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                   'header': self.header,
                   'addIndex': self.add_index,
                   'compression': self.compression,
-                  'custom_filenames': self.custom_filenames}
+                  'customFilenames': self.custom_filenames}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
