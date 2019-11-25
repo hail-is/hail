@@ -23,7 +23,7 @@ object LapackTest {
     println("Trying to call LAPACK")
 
     println(LAPACKLibrary.getInstance())
-//    println(BLASLibrary.instance)
+    //    println(BLASLibrary.instance)
 
     val major = new IntByReference(0)
     val minor = new IntByReference(0)
@@ -32,66 +32,133 @@ object LapackTest {
     val version = s"${major.getValue}.${minor.getValue}.${patch.getValue}"
     println(version)
 
-    val aMemH = HailMemory.malloc(8 * 16) //16 8 byte doubles
-    val bMemH = HailMemory.malloc(8 * 16)
-    val cMemH = HailMemory.malloc(8 * 16)
 
-    // Byte 0, M, Byte 4: N, Byte 8: K
-    val scratchMemH = HailMemory.malloc(100)
+    val M = 4
+    val N = 3
+    val K = Math.min(M, N)
+    val LDA = M
+    val LWORK = 100
+    val A = HailMemory.malloc(8 * M * N)
+    val WORK = HailMemory.malloc(LWORK * 8)
+    val TAU = HailMemory.malloc(K * 8)
 
-    (0 until 16).foreach{idx =>
-      val adjusted = idx.toLong * 8
-      HailMemory.storeDouble(aMemH + adjusted, 1.0)
-      if (idx % 4 == 0) {
-        HailMemory.storeDouble(bMemH + adjusted, 1.0)
+    println(s"M = $M")
+    println(s"N = $N")
+    println(s"K = $K")
+    println(s"LDA = $LDA")
+    println(s"LWORK = $LWORK")
+
+
+    def printA(): Unit = {
+      println("A")
+      (0 until (M * N)).foreach { idx =>
+        val adjusted = idx * 8
+        print(HailMemory.loadDouble(A + adjusted))
+        if ((idx + 1) % M == 0) println() else print(" ")
       }
-      else {
-        HailMemory.storeDouble(bMemH + adjusted, 0.0)
+    }
+
+    def printWork(): Unit = {
+      println("WORK")
+      (0 until LWORK).foreach { idx =>
+        val adjusted = idx * 8
+        print(HailMemory.loadDouble(WORK + adjusted))
+        print(" ")
       }
-      HailMemory.storeDouble(cMemH + adjusted, 0.0)
     }
 
-    println("A")
-    (0 until 16).foreach { idx =>
-      print(HailMemory.loadDouble(aMemH + idx * 8))
-      print(" ")
+    def printTau() = {
+      println("TAU")
+      (0 until K).foreach { idx =>
+        val adjusted = idx * 8
+        print(HailMemory.loadDouble(TAU + adjusted))
+        print(" ")
+        println()
+      }
     }
-    println()
-    println("B")
-    (0 until 16).foreach { idx =>
-      print(HailMemory.loadDouble(bMemH + idx * 8))
-      print(" ")
+
+    // Fill A with numbers 0 to M * N
+    (0 until M).foreach { mIdx =>
+      (0 until N).foreach { nIdx =>
+        val adjusted = (mIdx + (nIdx * M)) * 8
+        HailMemory.storeDouble(A + adjusted, mIdx * N + nIdx)
+      }
     }
-    println()
-    println(HailMemory.loadDouble(bMemH))
-    println(HailMemory.loadDouble(cMemH))
-    println("DGEMM")
 
-    val TRANSA = new IntByReference('n'.toInt)
-    val TRANSB = new IntByReference('n'.toInt)
-    val M = new IntByReference(4)
-    val MAddress = scratchMemH
-    HailMemory.storeInt(MAddress, 4)
-    val N = new IntByReference(4)
-    val NAddress = scratchMemH + 4
-    HailMemory.storeInt(NAddress, 4)
-    val K = new IntByReference(4)
-    val KAddress = scratchMemH + 8
-    HailMemory.storeInt(KAddress, 4)
-    val LDA = new IntByReference(4)
-    val LDB = new IntByReference(4)
-    val LDC = new IntByReference(4)
+    printA()
 
-    BLASLibrary.instance.dgemm(TRANSA, TRANSB,
-      MAddress, NAddress, K, new DoubleByReference(1.0), bMemH,
-      LDA, aMemH, LDB, new DoubleByReference(0.0),
-      cMemH, LDC)
+    val info = LAPACKLibrary.dgeqrf(M, N, A, LDA, TAU, WORK, LWORK)
 
-    println("C")
-    (0 until 16).foreach { idx =>
-      print(HailMemory.loadDouble(cMemH + idx * 8))
-      print(" ")
-    }
+    printA()
+
+    printTau()
+
+    printWork()
+
+
+
+    System.exit(info)
+  }
+
+//    val aMemH = HailMemory.malloc(8 * 16) //16 8 byte doubles
+//    val bMemH = HailMemory.malloc(8 * 16)
+//    val cMemH = HailMemory.malloc(8 * 16)
+//
+//    // Byte 0, M, Byte 4: N, Byte 8: K
+//    val scratchMemH = HailMemory.malloc(100)
+//
+//    (0 until 16).foreach{idx =>
+//      val adjusted = idx.toLong * 8
+//      HailMemory.storeDouble(aMemH + adjusted, 1.0)
+//      if (idx % 4 == 0) {
+//        HailMemory.storeDouble(bMemH + adjusted, 1.0)
+//      }
+//      else {
+//        HailMemory.storeDouble(bMemH + adjusted, 0.0)
+//      }
+//      HailMemory.storeDouble(cMemH + adjusted, 0.0)
+//    }
+//
+//    println("A")
+//    (0 until 16).foreach { idx =>
+//      print(HailMemory.loadDouble(aMemH + idx * 8))
+//      print(" ")
+//    }
+//    println()
+//    println("B")
+//    (0 until 16).foreach { idx =>
+//      print(HailMemory.loadDouble(bMemH + idx * 8))
+//      print(" ")
+//    }
+//    println()
+//    println(HailMemory.loadDouble(bMemH))
+//    println(HailMemory.loadDouble(cMemH))
+//    println("DGEMM")
+//
+//    val TRANSA = new IntByReference('n'.toInt)
+//    val TRANSB = new IntByReference('n'.toInt)
+//    val M = new IntByReference(4)
+//    val MAddress = scratchMemH
+//    HailMemory.storeInt(MAddress, 4)
+//    val N = new IntByReference(4)
+//    val NAddress = scratchMemH + 4
+//    HailMemory.storeInt(NAddress, 4)
+//    val K = new IntByReference(4)
+//    val KAddress = scratchMemH + 8
+//    HailMemory.storeInt(KAddress, 4)
+//    val LDA = new IntByReference(4)
+//    val LDB = new IntByReference(4)
+//    val LDC = new IntByReference(4)
+//
+//    BLASLibrary.instance.dgemm(TRANSA, TRANSB,
+//      MAddress, NAddress, K, new DoubleByReference(1.0), bMemH,
+//      LDA, aMemH, LDB, new DoubleByReference(0.0),
+//      cMemH, LDC)
+//
+//    println("C")
+//    (0 until 16).foreach { idx =>
+//      print(HailMemory.loadDouble(cMemH + idx * 8))
+//      print(" ")
 //
 //    println(aMem.getDouble(0L))
 //    println(cMem.getDouble(0L))
@@ -112,6 +179,4 @@ object LapackTest {
 //      * b, getRightShapeAtIdx(0).toI, 0, c, getLeftShapeAtIdx(0).toI),
 //      */
 
-    System.exit(0)
-  }
 }

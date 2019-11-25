@@ -1457,7 +1457,7 @@ private class Emit(
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
         val LDA = M
-        val LWORK = 100000
+        val LWORK = 100
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
@@ -1473,13 +1473,35 @@ private class Emit(
         val answerCopyAddress = mb.newField[Long]
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
+        val i = mb.newField[Long]
+        val workStr = mb.newField[String]
+
+        val printWork = Code(
+          workStr := const(""),
+          i := 0L,
+          Code.whileLoop(i < LWORK.toLong,
+            workStr := workStr.concat(Region.loadDouble(workAddress + i * 8L).toS.concat(" ")),
+            i := i + 1L
+          ),
+          Code._println(workStr)
+        )
+
+        val printA = Code(
+          workStr := const(""),
+          i := 0L,
+          Code.whileLoop(i < (M * N).toL,
+            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
+            i := i + 1L
+          ),
+          Code._println(workStr)
+        )
+
         val infoResult = mb.newLocal[Int]
+
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 
-          Code._println(const("M = ").concat(M.toS)),
-          Code._println(const("N = ").concat(N.toS)),
           Code._println(const("aNumElements = ").concat(aNumElements.toS)),
 
           // Make some space for the column major form (which means copying the input)
@@ -1492,7 +1514,15 @@ private class Emit(
           tauPType.stagedInitialize(tauAddress, K.toI),
 
           // Make some space for work
-          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong),
+          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong * 8),
+
+
+          Code._println(const("M = ").concat(M.toS)),
+          Code._println(const("N = ").concat(N.toS)),
+          Code._println(const("K = ").concat(K.toS)),
+          Code._println(const("LDA = ").concat(LDA.toS)),
+          Code._println(const("LWORK = ").concat(LWORK.toString)),
+          //printA,
 
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
@@ -1503,7 +1533,8 @@ private class Emit(
             workAddress,
             LWORK
           ),
-          Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS))
+          Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS)),
+
 
           //Code.invokeStatic[Memory, Long, Unit]("free", LWORK.toLong)
         )

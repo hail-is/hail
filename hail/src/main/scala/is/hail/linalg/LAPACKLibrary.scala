@@ -57,6 +57,18 @@ object LAPACKLibrary {
     infoInt.getValue()
   }
 
+  // Return info
+  def dorgqr(M: Int, N: Int, K: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {
+    val mInt = new IntByReference(M)
+    val nInt = new IntByReference(N)
+    val kInt = new IntByReference(K)
+    val LDAInt = new IntByReference(LDA)
+    val LWORKInt = new IntByReference(LWORK)
+    val infoInt = new IntByReference(1)
+    libraryInstance.dorgqr(mInt, nInt, ???, A, LDAInt, TAU, WORK, LWORKInt, infoInt)
+    infoInt.getValue()
+  }
+
   private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
     val major = new IntByReference()
     val minor = new IntByReference()
@@ -72,7 +84,8 @@ object LAPACKLibrary {
 trait LAPACKLibrary extends Library {
   def dsyevd(JOBZ: Char, UPLO: Char, N: Int, A: Pointer, LDA: Int, W: Pointer, WORK: Pointer, LWORK: Int, IWORK: Pointer, LIWORK: Int, INFO: Int)
   def dlapy2(X: DoubleByReference, Y: DoubleByReference): Double
-  def dgeqrf(M: Long, N: Long, A: Long, LDA: Long, TAU: Long, WORK: Long, LWORK: Long, INFO: Long)
+  //def dgeqrf(M: Long, N: Long, A: Long, LDA: Long, TAU: Long, WORK: Long, LWORK: Long, INFO: Long)
   def dgeqrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
+  def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, Info: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
 }
