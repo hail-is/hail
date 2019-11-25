@@ -51,7 +51,7 @@ abstract class PContainer extends PIterable {
   final def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
     storeLength(aoff, length)
 
-  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
+  def nMissingBytes(len: Code[Int]): Code[Int] = PContainer.nMissingBytes(len)
 
   def _elementsOffset(length: Int): Long =
     if (elementType.required)
@@ -258,19 +258,19 @@ abstract class PContainer extends PIterable {
           loop(aoff + 4L))
       }
     }
-//
-//  def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
-//    val i = mb.newLocal[Int]
-//    val n = mb.newLocal[Int]
-//    Code(
-//      n := loadLength(aoff),
-//      i := 0,
-//      Code.whileLoop(i < n,
-//        isElementDefined(aoff, i).mux(
-//          body(loadElement(region, aoff, n, i)),
-//          Code._empty
-//        )))
-//  }
+
+  def forEach(mb: MethodBuilder, region: Code[Region], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
+    val i = mb.newLocal[Int]
+    val n = mb.newLocal[Int]
+    Code(
+      n := loadLength(aoff),
+      i := 0,
+      Code.whileLoop(i < n,
+        isElementDefined(aoff, i).mux(
+          body(loadElement(region, aoff, n, i)),
+          Code._empty
+        )))
+  }
 
   override def unsafeOrdering(): UnsafeOrdering =
     unsafeOrdering(this)
