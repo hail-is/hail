@@ -1292,3 +1292,11 @@ steps:
    dependsOn:
      - hail_run_image
      - shuffler_build
+ - kind: deploy
+   name: deploy_shuffler
+   namespace:
+     valueFrom: default_ns.name
+   config: shuffler/deployment.yaml
+   dependsOn:
+    - default_ns
+    - shuffler_image
