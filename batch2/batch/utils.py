@@ -10,7 +10,7 @@ log = logging.getLogger('utils')
 
 
 def format_currency(value):
-    return "${:,.4f}".format(value)
+    return f'{value:.4f}'
 
 
 def parse_cpu_in_mcpu(cpu_string):

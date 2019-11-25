@@ -3,6 +3,7 @@ import time
 import logging
 import asyncio
 import aiohttp
+import secrets
 import base64
 import traceback
 from hailtop.utils import sleep_and_backoff, is_transient_error
@@ -39,7 +40,7 @@ def batch_record_to_dict(record):
     if attributes:
         d['attributes'] = attributes
 
-    if record['closed']:
+    if record['cost']:
         d['cost'] = format_currency(record['cost'])
 
     return d
@@ -111,12 +112,12 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
     await notify_batch_job_complete(db, batch_id)
 
 
-async def add_job_timing(app, batch_id, job_id, attempt_id, start_time, end_time):
+async def add_attempt_timing(app, batch_id, job_id, attempt_id, start_time, end_time):
     db = app['db']
 
     id = (batch_id, job_id)
 
-    log.info(f'marking job {id} cancelled')
+    log.info(f'added attempt timing for job {id}')
 
     await db.execute_update(
         '''
@@ -149,7 +150,7 @@ def job_record_to_dict(record, running_status=None):
     if status:
         result['status'] = status
 
-    if record['state'] not in ('Pending', 'Ready'):
+    if record['cost']:
         result['cost'] = format_currency(record['cost'])
 
     return result
@@ -308,7 +309,7 @@ async def schedule_job(app, record, instance):
 
     batch_id = record['batch_id']
     job_id = record['job_id']
-    attempt_id = record['n_attempts'] + 1
+    attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
     id = (batch_id, job_id)
 
     try:
@@ -325,8 +326,7 @@ async def schedule_job(app, record, instance):
             'error': traceback.format_exc(),
             'container_statuses': {k: {} for k in tasks}
         }
-        now = time.time()
-        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status, now, now)
+        await mark_job_complete(app, batch_id, job_id, attempt_id, 'Error', status, None, None)
         return
 
     log.info(f'schedule job {id} on {instance}: made job config')

@@ -35,9 +35,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `time_completed` TIMESTAMP,
   `cost` DOUBLE NOT NULL DEFAULT 0,
-  `running_cost` DOUBLE NOT NULL DEFAULT 0,
-  `mark` DOUBLE,
-  `cost_per_hour` DOUBLE NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
@@ -55,7 +52,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `cost` DOUBLE NOT NULL DEFAULT 0,
-  `n_attempts` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_name`) REFERENCES instances(name)
@@ -66,7 +62,7 @@ CREATE INDEX `jobs_instance_name` ON `jobs` (`instance_name`);
 CREATE TABLE IF NOT EXISTS `attempts` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
-  `attempt_id` INT NOT NULL,
+  `attempt_id` VARCHAR(40) NOT NULL,
   `start_time` DOUBLE,
   `end_time` DOUBLE,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
@@ -80,11 +76,11 @@ CREATE TABLE IF NOT EXISTS `ready_cores` (
 
 INSERT INTO ready_cores (ready_cores_mcpu) VALUES (0);
 
-CREATE TABLE IF NOT EXISTS `gevents` (
+CREATE TABLE IF NOT EXISTS `gevents_mark` (
   mark VARCHAR(40)
 ) ENGINE = InnoDB;
 
-INSERT INTO gevents (mark) VALUES (NULL);
+INSERT INTO `gevents_mark` (mark) VALUES (NULL);
 
 CREATE TABLE IF NOT EXISTS `job_parents` (
   `batch_id` BIGINT NOT NULL,
@@ -121,12 +117,12 @@ DELIMITER $$
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
 BEGIN
-  IF OLD.end_time IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
-    SET NEW.end_time = OLD.end_time;
-  END IF;
-
   IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time > OLD.start_time) THEN
     SET NEW.start_time = OLD.start_time;
+  END IF;
+
+  IF OLD.end_time IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
+    SET NEW.end_time = OLD.end_time;
   END IF;
 END $$
 
@@ -279,7 +275,7 @@ END $$
 CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
-  IN in_attempt_id INT,
+  IN in_attempt_id VARCHAR(40),
   IN in_instance_name VARCHAR(100)
 )
 BEGIN
@@ -301,7 +297,7 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
-    UPDATE jobs SET state = 'Running', instance_name = in_instance_name, n_attempts = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE jobs SET state = 'Running', instance_name = in_instance_name WHERE batch_id = in_batch_id AND job_id = in_job_id;
     INSERT INTO attempts (batch_id, job_id, attempt_id) VALUES (in_batch_id, in_job_id, in_attempt_id);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
@@ -350,7 +346,7 @@ END $$
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
-  IN in_attempt_id INT,
+  IN in_attempt_id VARCHAR(40),
   IN new_state VARCHAR(40),
   IN new_status VARCHAR(65535),
   IN new_start_time DOUBLE,

@@ -530,11 +530,11 @@ class Job:
     async def mark_started(self, worker, start_time):
         assert not self.start_time and not self.end_time
         self.start_time = start_time
-        asyncio.ensure_future(worker.post_job_timing(self))
+        asyncio.ensure_future(worker.post_attempt_timing(self))
 
     async def mark_cancelled(self, worker, end_time):
         self.mark_ended(end_time)
-        asyncio.ensure_future(worker.post_job_timing(self))
+        asyncio.ensure_future(worker.post_attempt_timing(self))
 
     def mark_ended(self, end_time):
         assert self.start_time and not self.end_time
@@ -750,7 +750,7 @@ class Worker:
                 del self.jobs[job.id]
                 self.last_updated = time.time()
 
-    async def post_job_timing(self, job):
+    async def post_attempt_timing(self, job):
         body = {
             'status': await job.status()
         }
@@ -761,7 +761,7 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     await session.post(
-                        deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_timing'),
+                        deploy_config.url('batch2-driver', '/api/v1alpha/instances/attempt_timing'),
                         json=body, headers=self.headers)
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise

@@ -15,7 +15,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..batch import mark_job_complete, add_job_timing
+from ..batch import mark_job_complete, add_attempt_timing
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE
@@ -266,7 +266,7 @@ async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
 
-async def job_timing_1(request, instance):
+async def attempt_timing_1(request, instance):
     body = await request.json()
     status = body['status']
 
@@ -276,17 +276,17 @@ async def job_timing_1(request, instance):
     start_time = status['start_time']
     end_time = status.get('end_time')
 
-    await add_job_timing(request.app, batch_id, job_id, attempt_id, start_time, end_time)
+    await add_attempt_timing(request.app, batch_id, job_id, attempt_id, start_time, end_time)
 
     await instance.mark_healthy()
 
     return web.Response()
 
 
-@routes.post('/api/v1alpha/instances/job_timing')
+@routes.post('/api/v1alpha/instances/attempt_timing')
 @active_instances_only
-async def job_timing(request, instance):
-    return await asyncio.shield(job_timing_1(request, instance))
+async def attempt_timing(request, instance):
+    return await asyncio.shield(attempt_timing_1(request, instance))
 
 
 @routes.get('/')
