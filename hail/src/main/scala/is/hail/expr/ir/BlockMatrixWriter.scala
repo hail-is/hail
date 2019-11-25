@@ -63,8 +63,9 @@ case class BlockMatrixTextMultiWriter(
   delimiter: String,
   header: Option[String],
   addIndex: Boolean,
-  compression: Option[String]) extends BlockMatrixMultiWriter {
+  compression: Option[String],
+  customFilenames: Option[Array[String]]) extends BlockMatrixMultiWriter {
 
   def apply(bms: IndexedSeq[BlockMatrix]): Unit =
-    BlockMatrix.exportBlockMatrices(bms, prefix, overwrite, delimiter, header, addIndex, compression)
+    BlockMatrix.exportBlockMatrices(bms, prefix, overwrite, delimiter, header, addIndex, compression, customFilenames)
 }
