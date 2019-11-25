@@ -12,7 +12,7 @@ from .globals import complete_states, tasks
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import format_currency
+from .utils import format_cost
 
 log = logging.getLogger('batch')
 
@@ -41,7 +41,7 @@ def batch_record_to_dict(record):
         d['attributes'] = attributes
 
     if record['cost']:
-        d['cost'] = format_currency(record['cost'])
+        d['cost'] = format_cost(record['cost'])
 
     return d
 
@@ -151,7 +151,7 @@ def job_record_to_dict(record, running_status=None):
         result['status'] = status
 
     if record['cost']:
-        result['cost'] = format_currency(record['cost'])
+        result['cost'] = format_cost(record['cost'])
 
     return result
 
