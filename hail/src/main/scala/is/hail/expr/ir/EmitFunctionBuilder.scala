@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.backend.BroadcastValue
-import is.hail.table.{ Ascending, SortOrder }
 import java.io._
 
 import is.hail.HailContext

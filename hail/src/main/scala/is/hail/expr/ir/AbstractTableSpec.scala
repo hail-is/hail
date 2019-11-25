@@ -1,7 +1,6 @@
-package is.hail.table
+package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.rvd._
 

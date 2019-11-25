@@ -16,7 +16,6 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVD
-import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite}

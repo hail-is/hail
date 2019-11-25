@@ -2,10 +2,9 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{TTuple, TupleField}
-import is.hail.table.SortOrder
 import is.hail.utils._
 
 case class PTupleField(index: Int, typ: PType)
