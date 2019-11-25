@@ -111,7 +111,7 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
 
 class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
     @typecheck_method(prefix=str, overwrite=bool, delimiter=str, header=nullable(str), add_index=bool,
-                      compression=nullable(enumeration('gz', 'bgz')))
+                      compression=nullable(enumeration('gz', 'bgz')), custom_filenames=nullable(sequenceof(str)))
     def __init__(self, prefix, overwrite, delimiter, header, add_index, compression, custom_filenames):
         self.prefix = prefix
         self.overwrite = overwrite
@@ -119,7 +119,7 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
         self.header = header
         self.add_index = add_index
         self.compression = compression
-        self.custom_filenames
+        self.custom_filenames = custom_filenames
 
     def render(self):
         writer = {'name': 'BlockMatrixTextMultiWriter',

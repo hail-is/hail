@@ -29,7 +29,7 @@ def block_matrices_tofiles(bms: List[BlockMatrix], prefix: str, overwrite: bool 
            header=nullable(str),
            add_index=bool,
            compression=nullable(enumeration('gz', 'bgz')),
-           custom_file_names = nullable(sequenceof[str]))
+           custom_file_names=nullable(sequenceof[str]))
 def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False,
                           delimiter: str = '\t', header: Optional[str] = None,  add_index: bool = False,
                           compression: Optional[str] = None, custom_filenames=None):
