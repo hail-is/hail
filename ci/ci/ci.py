@@ -268,13 +268,12 @@ async def deploy_status(request, userdata):
     del request
     del userdata
     wb_configs = [{
-        'index': i,
         'branch': wb.branch.short_str(),
         'sha': wb.sha,
         'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str()
-    } for i, wb in enumerate(watched_branches)]
+    } for wb in watched_branches]
     return web.json_response(wb_configs)
 
 
