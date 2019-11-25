@@ -1239,7 +1239,7 @@ steps:
      sleep 5
      python3 scale_test.py dbuf-0.dbuf 10 1 40000 10000
    resources:
-     memory: "1G"
+     memory: "5G"
      cpu: "1"
    secrets:
     - name: gce-deploy-config
