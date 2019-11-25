@@ -178,8 +178,8 @@ async def unschedule_job(app, record):
     end_time = time.time()
     await check_call_procedure(
         db,
-        'CALL unschedule_job(%s, %s, %s, %s);',
-        (batch_id, job_id, instance_name, end_time))
+        'CALL unschedule_job(%s, %s, %s, %s, %s);',
+        (batch_id, job_id, instance_name, end_time, 'cancelled'))
 
     log.info(f'unschedule job {id}: updated database')
 
