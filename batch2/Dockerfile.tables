@@ -2,4 +2,4 @@ FROM {{ service_base_image.image }}
 
 COPY create-batch-tables.sql .
 COPY delete-batch-tables.sql .
-COPY insert-batch-tokens.py .
+COPY insert-batch-globals.py .

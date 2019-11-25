@@ -162,7 +162,16 @@ class Container:
         return ContainerStepManager(self, name, state)
 
     async def get_container_status(self):
-        c = await docker_call_retry(self.container.show)
+        if not self.container:
+            return None
+
+        try:
+            c = await docker_call_retry(self.container.show)
+        except DockerError as e:
+            if e.status == 404:
+                return None
+            raise
+
         log.info(f'{self} container info {c}')
         cstate = c['State']
         status = {

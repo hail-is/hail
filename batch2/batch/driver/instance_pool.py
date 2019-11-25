@@ -7,20 +7,11 @@ import aiohttp
 import googleapiclient.errors
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT, ZONE, WORKER_TYPE, WORKER_CORES, WORKER_DISK_SIZE_GB, \
-    POOL_SIZE, MAX_INSTANCES
+    PROJECT, ZONE
 
 from .instance import Instance
 
 log = logging.getLogger('instance_pool')
-
-WORKER_CORES_MCPU = WORKER_CORES * 1000
-
-log.info(f'WORKER_CORES {WORKER_CORES}')
-log.info(f'WORKER_TYPE {WORKER_TYPE}')
-log.info(f'WORKER_DISK_SIZE_GB {WORKER_DISK_SIZE_GB}')
-log.info(f'POOL_SIZE {POOL_SIZE}')
-log.info(f'MAX_INSTANCES {MAX_INSTANCES}')
 
 
 class InstancePool:
@@ -33,6 +24,13 @@ class InstancePool:
         self.gservices = app['gservices']
         self.k8s = app['k8s_client']
         self.machine_name_prefix = machine_name_prefix
+
+        # set in async_init
+        self.worker_type = None
+        self.worker_cores = None
+        self.worker_disk_size_gb = None
+        self.max_instances = None
+        self.pool_size = None
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
@@ -55,6 +53,15 @@ class InstancePool:
     async def async_init(self):
         log.info('initializing instance pool')
 
+        row = await self.db.execute_and_fetchone(
+            'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size FROM globals;')
+
+        self.worker_type = row['worker_type']
+        self.worker_cores = row['worker_cores']
+        self.worker_disk_size_gb = row['worker_disk_size_gb']
+        self.max_instances = row['max_instances']
+        self.pool_size = row['pool_size']
+
         async for record in self.db.execute_and_fetchall(
                 'SELECT * FROM instances;'):
             instance = Instance.from_record(self.app, record)
@@ -63,6 +70,38 @@ class InstancePool:
         asyncio.ensure_future(self.event_loop())
         asyncio.ensure_future(self.control_loop())
         asyncio.ensure_future(self.instance_monitoring_loop())
+
+    def config(self):
+        return {
+            'worker_type': self.worker_type,
+            'worker_cores': self.worker_cores,
+            'worker_disk_size_gb': self.worker_disk_size_gb,
+            'max_instances': self.max_instances,
+            'pool_size': self.pool_size
+        }
+
+    # FIXME can't adjust worker type, cores because we check if jobs
+    # can be scheduled in the front-end before inserting into the
+    # database
+    async def configure(
+            self,
+            # worker_type, worker_cores,
+            worker_disk_size_gb, max_instances, pool_size):
+        await self.db.just_execute(
+            # worker_type = %s, worker_cores = %s
+            '''
+UPDATE globals
+SET worker_disk_size_gb = %s,
+    max_instances = %s, pool_size = %s;
+''',
+            (
+                # worker_type, worker_cores,
+                worker_disk_size_gb, max_instances, pool_size))
+        # self.worker_type = worker_type
+        # self.worker_cores = worker_cores
+        self.worker_disk_size_gb = worker_disk_size_gb
+        self.max_instances = max_instances
+        self.pool_size = pool_size
 
     @property
     def n_instances(self):
@@ -117,14 +156,14 @@ class InstancePool:
                 break
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, WORKER_CORES_MCPU)
+        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
 
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{WORKER_TYPE}-{WORKER_CORES}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
             'labels': {
                 'role': 'batch2-agent',
                 'namespace': DEFAULT_NAMESPACE
@@ -136,7 +175,7 @@ class InstancePool:
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch2-worker-6',
                     'diskType': f'projects/{PROJECT}/zones/{ZONE}/diskTypes/pd-ssd',
-                    'diskSizeGb': WORKER_DISK_SIZE_GB
+                    'diskSizeGb': str(self.worker_disk_size_gb)
                 }
             }],
 
@@ -257,7 +296,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
                     'value': self.log_store.instance_id
                 }, {
                     'key': 'worker_type',
-                    'value': WORKER_TYPE
+                    'value': self.worker_type
                 }]
             },
             'tags': {
@@ -369,10 +408,12 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
 
                 if ready_cores_mcpu > 0:
                     n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-                    instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + WORKER_CORES_MCPU - 1) // WORKER_CORES_MCPU
+                    instances_needed = (
+                        (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) //
+                        (self.worker_cores * 1000))
                     instances_needed = min(instances_needed,
-                                           POOL_SIZE - n_live_instances,
-                                           MAX_INSTANCES - self.n_instances,
+                                           self.pool_size - n_live_instances,
+                                           self.max_instances - self.n_instances,
                                            # 20 queries/s; our GCE long-run quota
                                            300)
                     if instances_needed > 0:
