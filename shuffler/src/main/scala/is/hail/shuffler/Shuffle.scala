@@ -8,7 +8,6 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.asm4s._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.table.SortOrder
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream }
 import java.nio.ByteBuffer
 import java.util.function.{ BiConsumer, Consumer, Supplier }
@@ -76,7 +75,8 @@ class Shuffle (
       val dec = new ByteArrayDecoder(codec.buildDecoder)
       val r = region.get
       val off = dec.regionValueFromBytes(r, boundsBytes)
-      val (_, makeIntervalContains) = Compile[IntervalContainsFunction, Boolean](
+      val (_, makeIntervalContains) = ExecuteContext.scoped(ctx => Compile[IntervalContainsFunction, Boolean](
+        ctx,
         None,
         Seq(("interval", intervalType, classTag[Long]),
           ("key", wireKeyType, classTag[Long])),
@@ -95,7 +95,7 @@ class Shuffle (
           TBoolean(true)),
         nSpecialArgs = 1,
         // if optimize = true we need a hail context
-        optimize = false)
+        optimize = false))
       val intervalContains = makeIntervalContains(0, region.get)
       val len = boundsType.loadLength(r, off)
       val partitionContainsKey = (r: Region, i: Int, kOff: Long) =>

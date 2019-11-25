@@ -10,11 +10,10 @@ import akka.stream.ActorMaterializerSettings
 import akka.util.ByteString
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir.{IRParser, SortOrder}
 import is.hail.expr.types.physical._
 import is.hail.io.{ByteArrayDecoder, BufferSpec}
 import is.hail.utils._
-import is.hail.table.SortOrder
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream }
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
