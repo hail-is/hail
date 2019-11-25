@@ -30,9 +30,9 @@ object ExtractAggregators {
       sa.load())
   }
 
-  private def newAggregator(fb: EmitFunctionBuilder[_], ir: ApplyAggOp): Code[RegionValueAggregator] = ir match {
+  private def newAggregator(ctx: ExecuteContext, fb: EmitFunctionBuilder[_], ir: ApplyAggOp): Code[RegionValueAggregator] = ir match {
     case x@ApplyAggOp(constructorArgs, _, _, aggSig) =>
-      var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
+      var codeConstructorArgs = constructorArgs.map(Emit.toCode(ctx, _, fb, 1))
 
       aggSig match {
         case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall))) =>
@@ -56,26 +56,27 @@ object ExtractAggregators {
         .asInstanceOf[Code[RegionValueAggregator]]
   }
 
-  private def unstagedNewAggregator(ir: ApplyAggOp): RegionValueAggregator = {
+  private def unstagedNewAggregator(ctx: ExecuteContext, ir: ApplyAggOp): RegionValueAggregator = {
     val fb = EmitFunctionBuilder[Region, RegionValueAggregator]("new_aggregator")
-    fb.emit(newAggregator(fb, ir))
+    fb.emit(newAggregator(ctx, fb, ir))
     Region.scoped(r => fb.resultWithIndex()(0, r)(r))
   }
 
-  def apply(ir: IR, resultName: String = "AGGR"): ExtractedAggregators = {
-    val (postAgg, rt, init, seq, rvas) = apply(ir, resultName, unstagedNewAggregator, KeyedRegionValueAggregator, aggregators.ArrayElementsAggregator)
+  def apply(ctx: ExecuteContext, ir: IR, resultName: String = "AGGR"): ExtractedAggregators = {
+    val (postAgg, rt, init, seq, rvas) = apply(ctx, ir, resultName, unstagedNewAggregator(ctx, _), KeyedRegionValueAggregator, aggregators.ArrayElementsAggregator)
     ExtractedAggregators(postAgg, rt, init, seq, rvas)
   }
 
-  def staged(fb: EmitFunctionBuilder[_], ir: IR, resultName: String = "AGGR"): StagedExtractedAggregators = {
-    val (postAgg, rt, init, seq, rvas) = apply[Code[RegionValueAggregator]](ir, resultName,
-      op => newAggregator(fb, op),
+  def staged(ctx: ExecuteContext, fb: EmitFunctionBuilder[_], ir: IR, resultName: String = "AGGR"): StagedExtractedAggregators = {
+    val (postAgg, rt, init, seq, rvas) = apply[Code[RegionValueAggregator]](ctx, ir, resultName,
+      op => newAggregator(ctx, fb, op),
       (a, t) => Code.newInstance[KeyedRegionValueAggregator, Array[RegionValueAggregator], Type](newArray(fb, a), fb.getType(t)),
       a => Code.newInstance[ArrayElementsAggregator, Array[RegionValueAggregator]](newArray(fb, a)))
     StagedExtractedAggregators(postAgg, rt, init, seq, newArray(fb, rvas))
   }
 
-  def apply[RVAgg : ClassTag](ir: IR,
+  def apply[RVAgg : ClassTag](ctx: ExecuteContext,
+    ir: IR,
     resultName: String,
     newAggregator: ApplyAggOp => RVAgg,
     keyedAggregator: (Array[RVAgg], Type) => RVAgg,

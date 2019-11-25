@@ -41,7 +41,7 @@ object Compile {
 
     var ir = body
     if (optimize)
-      ir = Optimize(ir, noisy = true, context = "Compile")
+      ir = Optimize(ir, noisy = true, context = "Compile", ctx)
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
@@ -51,7 +51,7 @@ object Compile {
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
-    Emit(ir, fb, nSpecialArgs)
+    Emit(ctx, ir, fb, nSpecialArgs)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -237,7 +237,7 @@ object CompileWithAggregators2 {
 
     var ir = body
     if (optimize)
-      ir = Optimize(ir, noisy = true, context = "Compile")
+      ir = Optimize(ir, noisy = true, context = "Compile", ctx)
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
@@ -247,7 +247,7 @@ object CompileWithAggregators2 {
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
-    Emit(ir, fb, nSpecialArgs, Some(aggSigs))
+    Emit(ctx, ir, fb, nSpecialArgs, Some(aggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -353,7 +353,7 @@ object CompileWithAggregators {
   ): (Array[RegionValueAggregator], (IR, Compiler[FAggInit]), (IR, Compiler[FAggSeq]), PType, IR) = {
     assert((initScopeArgs ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
 
-    val ExtractedAggregators(postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body, aggResultName)
+    val ExtractedAggregators(postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(ctx, body, aggResultName)
     val compileInitOp = (initOp: IR) => Compile[FAggInit, Unit](ctx, None, initScopeArgs, initOp, 2, optimize = true)
     val compileSeqOp = (seqOp: IR) => Compile[FAggSeq, Unit](ctx, None, aggScopeArgs, seqOp, 2, optimize = true)
 

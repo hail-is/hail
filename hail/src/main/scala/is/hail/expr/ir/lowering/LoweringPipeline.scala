@@ -13,13 +13,13 @@ case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
     var x = ir
 
     if (optimize)
-      x = Optimize(x, noisy = true, context = "Lowerer, initial IR", ctx = Some(ctx))
+      x = Optimize(x, noisy = true, context = "Lowerer, initial IR", ctx)
 
     lowerings.foreach { l =>
       try {
         x = l.apply(ctx, x)
         if (optimize)
-          x = Optimize(x, noisy = true, context = s"${l.context}, post Lowering", ctx = Some(ctx))
+          x = Optimize(x, noisy = true, context = s"${l.context}, post Lowering", ctx)
       } catch {
         case e: Throwable =>
           throw new RuntimeException(s"error while applying lowering '${ l.context }'", e)

@@ -23,7 +23,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
 
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
 
-  private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(typ.loadField(region, off, 1), eltIdx)
+  private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(region, typ.loadField(region, off, 1), eltIdx)
 
   val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, typ.loadField(region, off, 0))
   val container: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, statesOffset(idx), regionOffset(idx))
@@ -126,7 +126,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   def copyFromAddress(src: Code[Long]): Code[Unit] = {
     val srcOff = fb.newField[Long]
     val initOffset = typ.loadField(srcOff, 0)
-    val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
+    val eltOffset = arrayType.loadElement(region, typ.loadField(srcOff, 1), idx)
 
     Code(
       srcOff := src,
