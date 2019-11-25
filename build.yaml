@@ -879,6 +879,7 @@ steps:
    image:
      valueFrom: test_ci_image.image
    script: |
+     set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
@@ -889,6 +890,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /user-tokens
     - name: hail-ci-0-1-service-account-key
       namespace:
         valueFrom: batch_pods_ns.name
