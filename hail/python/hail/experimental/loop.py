@@ -89,4 +89,4 @@ def loop(f: Callable, typ, *exprs):
     indices, aggregations = unify_all(*exprs, loop_f)
     if loop_f.dtype != typ:
         raise TypeError(f"requested type {typ} does not match inferred type {loop_f.typ}")
-    return construct_expr(ir.Loop(uid_irs, loop_f._ir), loop_f.dtype, indices, aggregations)
+    return construct_expr(ir.TailLoop(uid_irs, loop_f._ir), loop_f.dtype, indices, aggregations)
