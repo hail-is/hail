@@ -413,6 +413,7 @@ steps:
      {{ code.checkout_script }}
      cd hail
      make jars python-version-info wheel
+     ./gradlew jar
      (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
@@ -423,6 +424,8 @@ steps:
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
+     - from: /io/repo/hail/build/libs/hail.jar
+       to: /hail-no-spark.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
@@ -1277,13 +1280,18 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     mv /io/hail-no-spark.jar /io/repo/hail/hail/build/libs/hail.jar
      cd shuffler
      sbt assembly
    outputs:
      - from: /io/repo/shuffler/target/scala-2.11/shuffler-assembly-0.1.jar
        to: /shuffler-assembly-0.1.jar
+   inputs:
+     - from: /hail-no-spark.jar
+       to: /io/hail-no-spark.jar
    dependsOn:
      - shuffler_build_image
+     - build_hail
  - kind: buildImage
    name: shuffler_image
    dockerFile: shuffler/Dockerfile
@@ -1291,7 +1299,7 @@ steps:
    publishAs: shuffler
    inputs:
      - from: /shuffler-assembly-0.1.jar
-       to: /shuffler-assembly-0.1.jar
+       to: /io/shuffler-assembly-0.1.jar
    dependsOn:
      - hail_run_image
      - shuffler_build
