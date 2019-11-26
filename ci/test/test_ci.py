@@ -27,4 +27,5 @@ async def test_deploy():
             deploy_state = deploy_status['deploy_state']
             await asyncio.sleep(5)
             tries -= 1
+        assert tries > 0
         assert deploy_state == 'success', deploy_state
