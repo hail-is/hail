@@ -1300,7 +1300,7 @@ steps:
    publishAs: shuffler
    inputs:
      - from: /shuffler-assembly-0.1.jar
-       to: /io/shuffler-assembly-0.1.jar
+       to: /shuffler-assembly-0.1.jar
    dependsOn:
      - hail_run_image
      - shuffler_build
@@ -1315,7 +1315,7 @@ steps:
  - kind: buildImage
    name: shuffler_test_image
    dockerFile: shuffler/test/Dockerfile
-   contextPath: .
+   contextPath: shuffler/test
    publishAs: shuffler_test
    inputs:
      - from: /wheel-container.tar
