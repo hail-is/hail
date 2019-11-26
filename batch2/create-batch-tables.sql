@@ -340,10 +340,7 @@ BEGIN
     UPDATE jobs SET state = 'Ready', instance_name = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
-    UPDATE attempts
-      INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-      SET end_time = new_end_time, reason = new_reason
-      WHERE attempts.batch_id = in_batch_id AND attempts.job_id = in_job_id AND instance = expected_instance_name;
+    UPDATE attempts SET end_time = new_end_time, reason = new_reason WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc;
   ELSE
