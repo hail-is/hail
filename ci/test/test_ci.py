@@ -16,16 +16,18 @@ async def test_deploy():
     async with aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
-        deploy_state = None
-        tries = 100
-        while deploy_state is None and tries > 0:
-            resp = await utils.request_retry_transient_errors(
-                session, 'GET', f'{ci_deploy_status_url}', headers=headers)
-            deploy_statuses = resp.json()
-            assert len(deploy_statuses) == 1, deploy_statuses
-            deploy_status = deploy_statuses[0]
-            deploy_state = deploy_status['deploy_state']
-            await asyncio.sleep(5)
-            tries -= 1
-        assert tries > 0
+
+        async def wait_forever():
+            deploy_state = None
+            while deploy_state is None:
+                resp = await utils.request_retry_transient_errors(
+                    session, 'GET', f'{ci_deploy_status_url}', headers=headers)
+                deploy_statuses = resp.json()
+                assert len(deploy_statuses) == 1, deploy_statuses
+                deploy_status = deploy_statuses[0]
+                deploy_state = deploy_status['deploy_state']
+                await asyncio.sleep(5)
+            return deploy_state
+
+        deploy_state = await asyncio.wait_for(wait_forever(), timeout=10 * 60)
         assert deploy_state == 'success', deploy_state
