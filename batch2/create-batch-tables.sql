@@ -134,7 +134,7 @@ BEGIN
   DECLARE cores_mcpu INT;
   DECLARE time_diff DOUBLE;
   DECLARE cost_per_core_sec DOUBLE;
-  DECLARE new_msec_mcpu BIGINT;
+  DECLARE msec_mcpu_diff BIGINT;
 
   SELECT cores_mcpu INTO cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
