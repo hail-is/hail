@@ -435,7 +435,7 @@ steps:
        to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
-     - from: build/deploy/dist/hail-py3-none-any.whl
+     - from: /io/repo/hail/build/deploy/dist/hail-py3-none-any.whl
        to: /hail.whl
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
