@@ -280,17 +280,17 @@ object BlockMatrix {
     val bcFS = HailContext.bcFS
     
     val nameFunction = customFilenames match {
-      case None => i: Int => StringUtils.leftPad(i.toString, d, '0')
+      case None => i: Int => StringUtils.leftPad(i.toString, d, '0') + ".tsv"
       case Some(filenames) => filenames.apply(_)
     }
 
-    val extension = compression.map(x => "." + x).getOrElse("")
+    val compressionExtension = compression.map(x => "." + x).getOrElse("")
 
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
-        val path = prefix + "/" + nameFunction(i) + ".tsv" + extension
+        val path = prefix + "/" + nameFunction(i) + compressionExtension
 
         using(
           new PrintWriter(

@@ -334,9 +334,9 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.array_equal(a, a2))
 
         prefix2 = new_local_temp_dir()
-        custom_names = ["nameA", "inner/nameB"]
+        custom_names = ["nameA", "inner/nameB.tsv"]
         hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
         for i in range(len(bms)):
             a = arrs[i]
-            a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}.tsv')
+            a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
             self.assertTrue(np.array_equal(a, a2))
