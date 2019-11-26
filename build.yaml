@@ -1280,6 +1280,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     mkdir -p hail/build/libs
      mv /io/hail-no-spark.jar /io/repo/hail/build/libs/hail.jar
      cd shuffler
      sbt assembly
