@@ -2,15 +2,13 @@ package is.hail.methods
 
 import java.util
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{ExecuteContext, Interpret, MatrixValue, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt32Required, PInt64Required, PStruct, PType}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDType}
-import is.hail.table.Table
+import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant._
 

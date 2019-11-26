@@ -4,16 +4,9 @@ import is.hail.HailContext
 import is.hail.utils._
 
 object Optimize {
-  def apply[T <: BaseIR](ir0: T, noisy: Boolean, context: String, ctx: Option[ExecuteContext] = None): T = {
+  def apply[T <: BaseIR](ir0: T, noisy: Boolean, context: String, ctx: ExecuteContext): T = {
     if (noisy)
       log.info(s"optimize $context: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
-
-    def maybeTime[U](x: => U): U = {
-      ctx match {
-        case Some(ctx) => ctx.timer.time("Optimize")(x)
-        case None => x
-      }
-    }
 
     var ir = ir0
     var last: BaseIR = null
@@ -21,15 +14,10 @@ object Optimize {
     val maxIter = HailContext.get.optimizerIterations
 
     def runOpt(f: BaseIR => BaseIR, iter: Int, optContext: String): Unit = {
-      ctx match {
-        case None =>
-          ir = f(ir).asInstanceOf[T]
-        case Some(ctx) =>
-          ir = ctx.timer.time(optContext)(f(ir).asInstanceOf[T])
-      }
+      ir = ctx.timer.time(optContext)(f(ir).asInstanceOf[T])
     }
 
-    maybeTime({
+    ctx.timer.time("Optimize") {
       while (iter < maxIter && ir != last) {
         last = ir
         runOpt(FoldConstants(_), iter, "FoldConstants")
@@ -41,7 +29,7 @@ object Optimize {
 
         iter += 1
       }
-    })
+    }
 
     if (ir.typ != ir0.typ)
       throw new RuntimeException(s"optimization changed type!" +

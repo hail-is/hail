@@ -11,7 +11,6 @@ import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD, _}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.commons.lang3.StringUtils

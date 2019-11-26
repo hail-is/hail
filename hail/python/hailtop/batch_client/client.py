@@ -13,6 +13,10 @@ class Job:
         return aioclient.Job._get_error(job_status, task)
 
     @staticmethod
+    def _get_out_of_memory(job_status, task):
+        return aioclient.Job._get_out_of_memory(job_status, task)
+
+    @staticmethod
     def _get_exit_code(job_status, task):
         return aioclient.Job._get_exit_code(job_status, task)
 

@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 27
+HAIL_PATCH_VERSION := 28
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
@@ -156,8 +156,8 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	cp build/libs/hail-all-spark.jar build/deploy/hail/
 	cd build/deploy; $(HAIL_PYTHON3) setup.py sdist bdist_wheel
 
-# if the DEPLOY_PROD flag is not set, then deploy init scripts into a dev-username location
-ifndef DEPLOY_PROD
+# if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
+ifndef DEPLOY_REMOTE
 DEV_CLARIFIER := $(shell whoami)-dev/
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 UPLOAD_RETENTION =
@@ -209,7 +209,7 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 6)
+cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
@@ -225,8 +225,8 @@ DEPLOYED_VERSION = $(shell \
    | sed 's/).*//')
 .PHONY: check-pypi
 check-pypi:
-	if [ -z "$$DEPLOY_PROD" ]; then \
-	  echo "ERROR: DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
+	if [ -z "$$DEPLOY_REMOTE" ]; then \
+	  echo "ERROR: DEPLOY_REMOTE must be set to deploy to PyPI"; exit 1; fi
 	if [ "$(DEPLOYED_VERSION)" = "$(HAIL_PIP_VERSION)" ]; then \
 	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
@@ -247,7 +247,7 @@ GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
 .PHONY: tag
 tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
-	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
+	git push $(DEPLOY_REMOTE) $(HAIL_PIP_VERSION)
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
 	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
 

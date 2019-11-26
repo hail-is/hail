@@ -71,6 +71,12 @@ spec:
             readOnly: true
          ports:
           - containerPort: 5000
+         readinessProbe:
+           httpGet:
+             path: /healthcheck
+             port: 5000
+           initialDelaySeconds: 5
+           periodSeconds: 5
       volumes:
        - name: deploy-config
          secret:

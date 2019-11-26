@@ -1,14 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
-import is.hail.expr.types._
-import is.hail.rvd.RVD
-import is.hail.TestUtils._
 import is.hail.expr.types.virtual.{TArray, TInt32, TInt64}
-import is.hail.table.Table
 import is.hail.utils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
 
@@ -137,7 +134,7 @@ class RandomFunctionsSuite extends HailSuite {
           "counter" -> counter)))
 
     val expected = Interpret(tir, ctx).rvd.toRows.collect()
-    val actual = new Table(hc, tir).rdd.collect()
+    val actual = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(tir), "rows"), false)
 
     assert(expected.sameElements(actual))
   }

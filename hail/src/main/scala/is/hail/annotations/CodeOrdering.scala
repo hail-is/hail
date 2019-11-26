@@ -2,11 +2,11 @@ package is.hail.annotations
 
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{Ascending, EmitMethodBuilder, SortOrder}
 import is.hail.expr.types._
 import is.hail.asm4s.coerce
 import is.hail.expr.types.physical._
-import is.hail.table.{ Ascending, Descending, SortOrder }
+import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 
 object CodeOrdering {

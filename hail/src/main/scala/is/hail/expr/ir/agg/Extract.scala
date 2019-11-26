@@ -183,7 +183,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     SerializeAggs(i * nAggs, i2, spec, aggs)
 
   def eltOp(ctx: ExecuteContext, optimize: Boolean = true): IR = if (optimize)
-    Optimize(seqPerElt, true, "eltOp", Some(ctx)).asInstanceOf[IR]
+    Optimize(seqPerElt, true, "eltOp", ctx)
   else
     seqPerElt
 

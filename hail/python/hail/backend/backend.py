@@ -141,7 +141,7 @@ class SparkBackend(Backend):
         return tblockmatrix._from_java(jir.typ())
 
     def from_spark(self, df, key):
-        return Table._from_java(Env.hail().table.Table.pyFromDF(df._jdf, key))
+        return Table._from_java(Env.jutils().pyFromDF(df._jdf, key))
 
     def to_spark(self, t, flatten):
         t = t.expand_types()

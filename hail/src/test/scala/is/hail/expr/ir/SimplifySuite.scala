@@ -4,7 +4,6 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.expr.types.virtual._
-import is.hail.table.{Ascending, SortField}
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
