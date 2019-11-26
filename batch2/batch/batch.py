@@ -12,7 +12,7 @@ from .globals import complete_states, tasks
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import format_cost
+from .utils import cost_from_msec_mcpu
 
 log = logging.getLogger('batch')
 
@@ -40,8 +40,9 @@ def batch_record_to_dict(record):
     if attributes:
         d['attributes'] = attributes
 
-    if record['cost']:
-        d['cost'] = format_cost(record['cost'])
+    if record['msec_mcpu']:
+        cost = cost_from_msec_mcpu(record['msec_mcpu'])
+        d['cost'] = f'${cost:.4f}'
 
     return d
 
@@ -81,12 +82,14 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     log.info(f'marking job {id} complete new_state {new_state}')
 
+    now = time.time()
+
     rv = await check_call_procedure(
         db,
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s);',
+        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
         (batch_id, job_id, attempt_id, new_state,
          json.dumps(status) if status is not None else None,
-         start_time, end_time, reason))
+         start_time, end_time, reason, now))
 
     log.info(f'mark_job_complete returned {rv} for job {id}')
 
@@ -150,8 +153,9 @@ def job_record_to_dict(record, running_status=None):
     if status:
         result['status'] = status
 
-    if record['cost']:
-        result['cost'] = format_cost(record['cost'])
+    if record['msec_mcpu']:
+        cost = cost_from_msec_mcpu(record['msec_mcpu'])
+        result['cost'] = f'${cost:.4f}'
 
     return result
 

@@ -210,10 +210,9 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with self.step('runtime', state=None):
-                async with worker.cpu_sem(self.cpu_in_mcpu):
+            async with worker.cpu_sem(self.cpu_in_mcpu):
+                async with self.step('runtime', state=None):
                     if self.name == 'main':
-                        self.job.start_time = time.time()
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
@@ -377,9 +376,6 @@ class Job:
 
         self.state = 'pending'
         self.error = None
-
-        self.start_time = None
-        self.end_time = None
 
         pvc_size = job_spec.get('pvc_size')
         input_files = job_spec.get('input_files')
@@ -551,10 +547,12 @@ class Job:
         status['container_statuses'] = cstatuses
 
         main_timings = cstatuses['main']['timing']
-        main_duration = main_timings['starting']['duration'] + main_timings['running']['duration']
-
-        status['start_time'] = self.start_time
-        status['end_time'] = self.start_time + main_duration
+        if 'runtime' in main_timings:
+            status['start_time'] = main_timings['runtime'].get('start_time')
+            status['end_time'] = main_timings['runtime'].get('finish_time')
+        else:
+            status['start_time'] = None
+            status['end_time'] = None
 
         return status
 

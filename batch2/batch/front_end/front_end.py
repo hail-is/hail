@@ -482,8 +482,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     try:
+        now = time.time()
         await check_call_procedure(
-            db, 'CALL close_batch(%s);', (batch_id))
+            db, 'CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:

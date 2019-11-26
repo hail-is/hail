@@ -9,8 +9,9 @@ from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 log = logging.getLogger('utils')
 
 
-def format_cost(value):
-    return f'${value:.4f}'
+def cost_from_msec_mcpu(msec_mcpu):
+    cost_per_core_sec = 0.013 / 3600
+    return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
 
 
 def parse_cpu_in_mcpu(cpu_string):

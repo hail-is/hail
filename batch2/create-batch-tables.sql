@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_created` DOUBLE NOT NULL,
   `time_completed` DOUBLE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
-  `cost` DOUBLE NOT NULL DEFAULT 0
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
@@ -53,7 +52,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
-  `cost` DOUBLE NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_name`) REFERENCES instances(name)
@@ -120,7 +118,7 @@ DELIMITER $$
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
 BEGIN
-  IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time > OLD.start_time) THEN
+  IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time < OLD.start_time) THEN
     SET NEW.start_time = OLD.start_time;
   END IF;
 
@@ -138,8 +136,6 @@ BEGIN
   DECLARE cost_per_core_sec DOUBLE;
   DECLARE new_msec_mcpu BIGINT;
 
-  SET cost_per_core_sec = 0.013 / 3600;
-
   SELECT cores_mcpu INTO cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
@@ -152,16 +148,8 @@ BEGIN
   SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
   WHERE id = NEW.batch_id;
 
-  UPDATE batches
-  SET cost = batches.msec_mcpu * cost_per_core_sec * 0.001 * 0.001
-  WHERE id = NEW.batch_id;
-
   UPDATE jobs
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
-
-  UPDATE jobs
-  SET cost = jobs.msec_mcpu * cost_per_core_sec * 0.001 * 0.001
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 END $$
 
@@ -246,7 +234,8 @@ BEGIN
 END $$
 
 CREATE PROCEDURE close_batch(
-  IN in_batch_id BIGINT
+  IN in_batch_id BIGINT,
+  IN in_timestamp DOUBLE
 )
 BEGIN
   DECLARE cur_batch_closed BOOLEAN;
@@ -267,7 +256,7 @@ BEGIN
 
     IF actual_n_jobs = expected_n_jobs THEN
       UPDATE batches SET closed = 1 WHERE id = in_batch_id;
-      UPDATE batches SET time_completed = UNIX_TIMESTAMP(NOW(3))
+      UPDATE batches SET time_completed = in_timestamp
         WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       UPDATE ready_cores
 	SET ready_cores_mcpu = ready_cores_mcpu +
@@ -369,7 +358,8 @@ CREATE PROCEDURE mark_job_complete(
   IN new_status VARCHAR(65535),
   IN new_start_time DOUBLE,
   IN new_end_time DOUBLE,
-  IN new_reason VARCHAR(40)
+  IN new_reason VARCHAR(40),
+  IN new_timestamp DOUBLE
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -389,7 +379,7 @@ BEGIN
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
-    UPDATE batches SET time_completed = UNIX_TIMESTAMP(NOW(3))
+    UPDATE batches SET time_completed = new_timestamp
       WHERE id = in_batch_id AND n_completed = batches.n_jobs;
 
     IF new_state = 'Cancelled' THEN
