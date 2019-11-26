@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `start_time` DOUBLE,
   `end_time` DOUBLE,
-  `reason` VARCHAR(40)
+  `reason` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
