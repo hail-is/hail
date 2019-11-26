@@ -214,7 +214,7 @@ class Container:
                 async with worker.cpu_sem(self.cpu_in_mcpu):
                     if self.name == 'main':
                         self.job.start_time = time.time()
-                        asyncio.ensure_future(worker.post_attempt_timing(self.job))
+                        asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
                         await docker_call_retry(self.container.start)
