@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
+  `attempt_id` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_name`) REFERENCES instances(name)
@@ -301,7 +302,7 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
-    UPDATE jobs SET state = 'Running', instance_name = in_instance_name WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE jobs SET state = 'Running', instance_name = in_instance_name, attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     INSERT INTO attempts (batch_id, job_id, attempt_id) VALUES (in_batch_id, in_job_id, in_attempt_id);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
@@ -329,18 +330,21 @@ BEGIN
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_job_instance_name VARCHAR(100);
   DECLARE cur_cores_mcpu INT;
+  DECLARE cur_attempt_id VARCHAR(40);
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, instance_name
-  INTO cur_job_state, cur_cores_mcpu, cur_job_instance_name
+  SELECT state, cores_mcpu, instance_name, attempt_id
+  INTO cur_job_state, cur_cores_mcpu, cur_job_instance_name, cur_attempt_id
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   IF cur_job_state = 'Running' AND cur_job_instance_name = expected_instance_name THEN
-    UPDATE jobs SET state = 'Ready', instance_name = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE jobs SET state = 'Ready', instance_name = NULL, attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
-    UPDATE attempts SET end_time = new_end_time, reason = new_reason WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE attempts
+      SET end_time = new_end_time, reason = new_reason
+      WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
     COMMIT;
     SELECT 0 as rc;
   ELSE
@@ -375,7 +379,7 @@ BEGIN
 
   IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs
-    SET state = new_state, status = new_status, instance_name = NULL
+    SET state = new_state, status = new_status, instance_name = NULL, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
