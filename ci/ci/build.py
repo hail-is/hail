@@ -262,13 +262,12 @@ class BuildImageStep(Step):
         rendered_dockerfile = 'Dockerfile'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token}'
+            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token};\n'
             unrendered_dockerfile = f'Dockerfile.{self.token}'
         else:
             assert isinstance(self.dockerfile, str)
             render_dockerfile = ''
             unrendered_dockerfile = f'repo/{self.dockerfile}'
-        render_dockerfile += ';\n'
         render_dockerfile += (f'python3 jinja2_render.py {shq(json.dumps(config))} '
                               f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}')
 
