@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     for benchmark in all_benchmarks:
         for replicate in range(N_REPLICATES):
-            t = p.new_task(name=f'{benchmark}_{replicate}')
+            t = p.new_task(name=f'{benchmark.name}_{replicate}')
             t.command('mkdir -p benchmark-resources')
             for resource_group in benchmark.groups:
                 resource_task = resource_tasks[resource_group]
