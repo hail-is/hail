@@ -635,7 +635,7 @@ class Worker:
         if job is None:
             raise web.HTTPNotFound()
 
-        job.delete()
+        asyncio.ensure_future(job.delete())
 
         return web.Response()
 

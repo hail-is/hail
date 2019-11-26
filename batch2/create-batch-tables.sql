@@ -138,7 +138,7 @@ BEGIN
   DECLARE cost_per_core_sec DOUBLE;
   DECLARE new_msec_mcpu BIGINT;
 
-  SET cost_per_core_sec = 0.01 / 3600;
+  SET cost_per_core_sec = 0.013 / 3600;
 
   SELECT cores_mcpu INTO cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
@@ -146,10 +146,10 @@ BEGIN
   SET time_diff = COALESCE(NEW.end_time - NEW.start_time, 0) -
                   COALESCE(OLD.end_time - OLD.start_time, 0);
 
-  SET new_msec_mcpu = (time_diff * 1000) * cores_mcpu;
+  SET msec_mcpu_diff = (time_diff * 1000) * cores_mcpu;
 
   UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + new_msec_mcpu
+  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
   WHERE id = NEW.batch_id;
 
   UPDATE batches
@@ -157,7 +157,7 @@ BEGIN
   WHERE id = NEW.batch_id;
 
   UPDATE jobs
-  SET msec_mcpu = jobs.msec_mcpu + new_msec_mcpu
+  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
   UPDATE jobs
