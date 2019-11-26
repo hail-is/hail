@@ -201,7 +201,8 @@ BEGIN
 
     UPDATE jobs
     SET state = 'Ready',
-        instance_name = NULL
+        instance_name = NULL,
+	attempt_id = NULL
     WHERE instance_name = in_instance_name;
 
     UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE name = in_instance_name;
