@@ -47,7 +47,7 @@ class EntryIterator:
             timestamp = None
             try:
                 entry = await anext(self.entries)
-                timestamp = datetime.datetime.utcfromtimestamp(entry.timestamp.timestamp()).isoformat() + 'Z'
+                timestamp = entry.timestamp.isoformat()
                 return entry
             except StopAsyncIteration:
                 self.entries = None
