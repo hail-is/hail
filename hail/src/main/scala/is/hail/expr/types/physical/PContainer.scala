@@ -65,20 +65,17 @@ abstract class PContainer extends PIterable {
     else
       UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
 
-  var elementsOffsetTable: Array[Long] = _
+  private lazy val lengthOffsetTable = 10
+  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
 
   def elementsOffset(length: Int): Long = {
-    if (elementsOffsetTable == null)
-      elementsOffsetTable = Array.tabulate[Long](10)(i => _elementsOffset(i))
-
-    if (length < 10)
+    if (length < lengthOffsetTable)
       elementsOffsetTable(length)
     else
       _elementsOffset(length)
   }
 
   def elementsOffset(length: Code[Int]): Code[Long] = {
-    // FIXME: incorporate table, maybe?
     _elementsOffset(length)
   }
 
