@@ -32,6 +32,7 @@ class EntryIterator:
             await self._update_mark(now)
 
     async def _update_mark(self, timestamp):
+        timestamp = datetime.datetime.utcfromtimestamp(timestamp).isoformat() + 'Z'
         await self.db.execute_update(
             'UPDATE `gevents_mark` SET mark = %s;',
             (timestamp,))
@@ -47,7 +48,7 @@ class EntryIterator:
             timestamp = None
             try:
                 entry = await anext(self.entries)
-                timestamp = entry.timestamp.timestamp().isoformat() + 'Z'
+                timestamp = entry.timestamp.timestamp()
                 return entry
             except StopAsyncIteration:
                 self.entries = None
