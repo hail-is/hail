@@ -1337,5 +1337,6 @@ steps:
         valueFrom: default_ns.name
       mountPath: /home/hail/.hail
    dependsOn:
+    - default_ns
     - shuffler_test_image
     - deploy_shuffler
