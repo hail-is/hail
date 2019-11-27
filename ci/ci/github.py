@@ -8,7 +8,7 @@ import aiohttp
 import gidgethub
 from hailtop.utils import check_shell, check_shell_output
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
-from .environment import SELF_HOSTNAME
+form .environment import CALLBACK_URL
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
@@ -322,7 +322,7 @@ mkdir -p {shq(repo_dir)}
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
+                callback=CALLBACK_URL)
             config.build(batch, self, scope='test')
             batch = await batch.submit()
             self.batch = batch
@@ -719,7 +719,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
+                callback=CALLBACK_URL)
             config.build(deploy_batch, self, scope='deploy')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch

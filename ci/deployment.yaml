@@ -48,8 +48,6 @@ spec:
              value: "{{ global.ip }}"
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"
-           - name: HAIL_SELF_HOSTNAME
-             value: ci
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
            - name: HAIL_BATCH_PODS_NAMESPACE
