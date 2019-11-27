@@ -704,7 +704,7 @@ class Worker:
         }
 
         start_time = time_msecs()
-        delay = 0.1
+        delay_secs = 0.1
         while True:
             try:
                 async with aiohttp.ClientSession(
@@ -724,15 +724,15 @@ class Worker:
             now = time_msecs()
             elapsed = now - start_time
             if (job.id in self.jobs and
-                    elapsed > 180.0 and
+                    elapsed > 180 * 1000 and
                     elapsed > run_duration / 2):
                 log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
 
             # exponentially back off, up to (expected) max of 30s
-            t = delay * random.uniform(0.7, 1.3)
-            await asyncio.sleep(t)
+            await asyncio.sleep(
+                delay_secs * random.uniform(0.7, 1.3))
             delay = min(delay * 2, 30.0)
 
     async def post_job_complete(self, job, run_duration):
