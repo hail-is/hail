@@ -12,7 +12,7 @@ steps:
  - kind: runImage
    name: clone
    image:
-     valueFrom: git_bash_image.name
+     valueFrom: git_bash_image.image
    script: |
      cd /io
      {{ code.checkout_script }}
