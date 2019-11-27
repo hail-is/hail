@@ -1330,7 +1330,6 @@ steps:
    resources:
      cpu: "2"
    script: |
-     export SHUFFLE_SERVICE_URL=http://shuffler
      python3 -m pytest test_shuffler.py
    dependsOn:
     - shuffler_test_image

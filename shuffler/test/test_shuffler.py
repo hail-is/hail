@@ -1,8 +1,8 @@
-import os
 import hail as hl
 
+from hailtop.config import get_deploy_config
 
-shuffle_service_url = os.environ['SHUFFLE_SERVICE_URL']
+shuffle_service_url = get_deploy_config().base_url('shuffler')
 
 
 def test_reverse_range_table():
