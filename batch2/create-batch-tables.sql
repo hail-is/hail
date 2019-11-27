@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
 CREATE INDEX `jobs_instance_name` ON `jobs` (`instance_name`);
