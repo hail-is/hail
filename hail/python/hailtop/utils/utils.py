@@ -146,7 +146,7 @@ def is_transient_error(e):
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/streams.py", line 592, in read
     #     await self._waiter
     # aiohttp.client_exceptions.ServerDisconnectedError: None
-    # 
+    #
     # during aiohttp request
     # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
     if isinstance(e, aiohttp.ClientResponseError):
