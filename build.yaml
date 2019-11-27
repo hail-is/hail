@@ -403,7 +403,7 @@ steps:
      valueFrom: hail_build_image.image
    resources:
      memory: "7.5G"
-     cpu: "8"
+     cpu: "4"
    script: |
      set -ex
      cd /io
