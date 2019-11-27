@@ -8,7 +8,7 @@ import aiohttp
 import gidgethub
 from hailtop.utils import check_shell, check_shell_output
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
-form .environment import CALLBACK_URL
+from .environment import CALLBACK_URL
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
