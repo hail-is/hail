@@ -456,7 +456,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
 
         if (gce_state in ('STAGING', 'RUNNING') and
                 instance.state == 'pending' and
-                time_msecs() - instance.time_created > 5 * 60):
+                time_msecs() - instance.time_created > 5 * 60 * 1000):
             # FIXME shouldn't count time in PROVISIONING
             log.info(f'{instance} did not activate within 5m, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
@@ -476,8 +476,8 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
                     # 0 is the smallest (oldest)
                     instance = self.instances_by_last_updated[0]
                     since_last_updated = time_msecs() - instance.last_updated
-                    if since_last_updated > 60:
-                        log.info(f'checking on {instance}, last updated {since_last_updated}s ago')
+                    if since_last_updated > 60 * 1000:
+                        log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
                         await self.check_on_instance(instance)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
