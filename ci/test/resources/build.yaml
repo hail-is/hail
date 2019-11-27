@@ -4,34 +4,60 @@ steps:
    namespaceName: default
    public: true
  - kind: buildImage
-   name: inline_image
+   name: git_image
    dockerFile:
      inline: |
        FROM ubuntu:18.04
        RUN apt-get update && apt-get install -y git
    contextPath: .
  - kind: runImage
-   name: run_inline_image
+   name: create_git_repo
    image:
-     valueFrom: inline_image.image
-   script: |
-     git init
-   dependsOn:
-     - inline_image
- - kind: runImage
-   name: copy_files
-   image:
-     valueFrom: inline_image.image
+     valueFrom:
+       git_image.image
    script: |
      cd /io
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
+     mkdir foo
+     cd foo
+     git init
+
+     cat >Dockerfile <<EOF
+     FROM ubuntu:18.04
+     COPY uncompressed-file .
+     EOF
+
+     git add Dockerfile
+     git commit -m "first commit"
+
+     cd ..
+     tar -xczf foo.tgz foo
+
+     cat >uncompressed-file <<EOF
+     this is an uncompressed file
+     EOF
    outputs:
-    - from: /io/repo
-      to: /
+     - from: /io/foo.tgz
+       to: /foo.tgz
+     - from: /io/uncompressed-file
+       to: /uncompressed-file
    dependsOn:
-    - inline_image
+     - git_image
+ - kind: buildImage
+   name: verify_decompress_works
+   dockerFile: /foo/Dockerfile
+   contextPath: /
+   inputs:
+     - from: /foo.tgz
+       to: /foo.tgz
+       decompress: True
+     - from: /uncompressed-file
+       to: /uncompressed-file
+   image:
+     valueFrom:
+       git_image.image
+   dependsOn:
+     - git_image
+     - create_git_repo
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base

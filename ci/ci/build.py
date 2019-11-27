@@ -252,6 +252,7 @@ class BuildImageStep(Step):
         else:
             input_files = None
 
+
         config = self.input_config(code, scope)
 
         if self.context_path:
@@ -294,10 +295,14 @@ docker push {self.base_image}:latest
         if self.inputs:
             for i in self.inputs:
                 # to is relative to docker context
-                copy_inputs = copy_inputs + f'''
+                copy_and_decompress_inputs = copy_inputs + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
 cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 '''
+            copy_and_decompress_inputs += '\n' + '\n'.join([
+                f'tar -xvzf /io/{shq(os.path.basename(i["to"]))}'
+                for i in self.inputs
+                if i.get('decompress')])
 
         script = f'''
 set -ex
@@ -308,7 +313,7 @@ mkdir repo
 (cd repo; {code.checkout_script()})
 {render_dockerfile}
 {init_context}
-{copy_inputs}
+{copy_and_decompress_inputs}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
