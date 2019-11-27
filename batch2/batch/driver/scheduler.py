@@ -41,7 +41,7 @@ class Scheduler:
     async def cancel_1(self):
         records = self.db.execute_and_fetchall(
             '''
-SELECT job_id, batch_id, cores_mcpu, instance_name
+SELECT jobs.job_id, jobs.batch_id, cores_mcpu, instance_name
 FROM jobs
 INNER JOIN batches ON batches.id = jobs.batch_id
 INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
