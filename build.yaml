@@ -14,7 +14,8 @@ steps:
    image:
      valueFrom: git_bash_image.image
    script: |
-     cd /io
+     mkdir /io/repo
+     cd /io/repo
      {{ code.checkout_script }}
    outputs:
     - from: /io/repo
