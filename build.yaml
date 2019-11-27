@@ -1,13 +1,25 @@
 steps:
+ - kind: buildImage
+   name: git_bash_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && \
+           apt-get install -y git && \
+           rm -rf /var/lib/apt/lists/*
+   contextPath: .
+   publishAs: git-bash
  - kind: runImage
    name: clone
-   image: alpine/git:1.0.7
+   image: {{ git_bash_image.name }}
    script: |
      cd /io
      {{ code.checkout_script }}
    outputs:
     - from: /io/repo
       to: /repo
+   dependsOn:
+     - git_bash_image
  - kind: createNamespace
    name: default_ns
    namespaceName: default
@@ -482,11 +494,7 @@ steps:
      cpu: "2"
    script: |
      set -ex
-     cd /io
-     rm -rf repo
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
+     cd /io/repo
      cd hail
      make jars python-version-info
      (cd python && zip -r hail.zip hail hailtop)
@@ -495,6 +503,9 @@ steps:
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
+   inputs:
+     - from: /repo
+       to: /io/repo
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
@@ -929,8 +940,7 @@ steps:
 
      # checkout hail code
      mkdir -p /repo/hail
-     cd /repo/hail
-     {{ code.checkout_script }}
+     mv /io/repo/ /repo/hail/
 
      # checkout new ci repo
      cd /repo/
@@ -957,9 +967,13 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
+   inputs:
+    - from: /repo
+      to: /io/repo
    dependsOn:
     - batch_pods_ns
     - base_image
+    - clone
  - kind: deploy
    name: deploy_ci
    namespace:
