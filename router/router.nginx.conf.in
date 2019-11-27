@@ -131,13 +131,13 @@ server {
     }
 
     location @error {
-    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
+      return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
         proxy_pass http://notebook;
 
-	# don't set Host, notebook dispatches off domain
+        # don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -169,7 +169,7 @@ server {
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-	proxy_set_header Host $updated_host;
+        proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -185,13 +185,13 @@ server {
     }
 
     location @error {
-    	return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
+      return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
     }
 
     location / {
         proxy_pass http://workshop;
 
-	# don't set Host, notebook dispatches off domain
+        # don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -216,11 +216,11 @@ server {
     location /rg_browser {
         proxy_pass http://ukbb-rg-browser.ukbb-rg;
 
-	proxy_http_version 1.1;
-	proxy_set_header Upgrade $http_upgrade;
-	proxy_set_header Connection $connection_upgrade;
-	proxy_read_timeout 20d;
-	proxy_buffering off;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection $connection_upgrade;
+  proxy_read_timeout 20d;
+  proxy_buffering off;
     }
 
     location / {
@@ -239,6 +239,8 @@ server {
 
         proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $updated_host;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     }
 
     listen 80;
@@ -270,6 +272,22 @@ server {
 
         proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name shuffler.*;
+
+    location / {
+        proxy_pass http://shuffler/;
+
+        proxy_set_header Host $updated_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $updated_host;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     }
 
     listen 80;
