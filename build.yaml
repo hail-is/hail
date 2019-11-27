@@ -11,7 +11,8 @@ steps:
    publishAs: git-bash
  - kind: runImage
    name: clone
-   image: {{ git_bash_image.name }}
+   image:
+     valueFrom: git_bash_image.name
    script: |
      cd /io
      {{ code.checkout_script }}
