@@ -340,9 +340,13 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, instance_name, attempt_id
-  INTO cur_job_state, cur_cores_mcpu, cur_job_instance_name, cur_attempt_id
+  SELECT state, cores_mcpu, attempt_id
+  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
+
+  SELECT instance_name
+  INTO cur_job_instance_name
+  FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
 
   IF cur_job_state = 'Running' AND cur_job_instance_name = expected_instance_name THEN
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
