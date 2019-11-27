@@ -146,6 +146,9 @@ def is_transient_error(e):
     #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/streams.py", line 592, in read
     #     await self._waiter
     # aiohttp.client_exceptions.ServerDisconnectedError: None
+    # 
+    # during aiohttp request
+    # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout
@@ -165,7 +168,8 @@ def is_transient_error(e):
     elif isinstance(e, OSError):
         if (e.errno == errno.ETIMEDOUT or
                 e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH):
+                e.errno == errno.EHOSTUNREACH or
+                e.errno == errno.ECONNRESET):
             return True
     return False
 
