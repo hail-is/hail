@@ -111,9 +111,6 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             for j in status['jobs']:
                 j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
                 j['exit_code'] = Job.exit_code(j)
-                attrs = j['attributes']
-                if 'link' in attrs:
-                    attrs['link'] = attrs['link'].split(',')
             page_context['batch'] = status
             # [4:] strips off gs:/
             page_context['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
