@@ -1173,9 +1173,6 @@ steps:
       name: blog
       for: alive
       resource_type: statefulset
-      endpoint: /
-      headers:
-        X-Forwarded-Proto: https
    dependsOn:
     - default_ns
     - deploy_router
