@@ -3,6 +3,7 @@ import hail as hl
 from hailtop.config import get_deploy_config
 
 shuffle_service_url = get_deploy_config().base_url('shuffler')
+print(f'using shuffle service url {shuffle_service_url}')
 
 
 def test_reverse_range_table():
