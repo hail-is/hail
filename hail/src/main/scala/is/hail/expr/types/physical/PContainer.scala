@@ -19,6 +19,8 @@ object PContainer {
     Region.storeInt(aoff, length)
 
   def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
+
+  def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
 }
 
 abstract class PContainer extends PIterable {
@@ -50,20 +52,21 @@ abstract class PContainer extends PIterable {
   final def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
     storeLength(aoff, length)
 
-
   def nMissingBytes(len: Code[Int]): Code[Long] = PContainer.nMissingBytes(len)
 
-  def _elementsOffset(length: Int): Long =
-    if (elementType.required)
-      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
-    else
-      UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
+  private val lengthHeaderBytes = 4L
 
-  def _elementsOffset(length: Code[Int]): Code[Long] =
+  private def _elementsOffset(length: Int): Long =
     if (elementType.required)
-      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PContainer.nMissingBytes(length), elementType.alignment)
+
+  private def _elementsOffset(length: Code[Int]): Code[Long] =
+    if (elementType.required)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+    else
+      UnsafeUtils.roundUpAlignment(PContainer.nMissingBytes(length) + lengthHeaderBytes, elementType.alignment)
 
   private lazy val lengthOffsetTable = 10
   private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
@@ -90,7 +93,7 @@ abstract class PContainer extends PIterable {
     !isElementDefined(aoff, i)
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
-    elementType.required || !Region.loadBit(aoff + 4, i)
+    elementType.required || !Region.loadBit(aoff + lengthHeaderBytes, i)
 
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean = isElementDefined(aoff, i)
 
@@ -104,29 +107,29 @@ abstract class PContainer extends PIterable {
     if (elementType.required)
       true
     else
-      !Region.loadBit(aoff + 4L, i.toL)
+      !Region.loadBit(aoff + lengthHeaderBytes, i.toL)
 
   def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     isElementDefined(aoff, i)
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    Region.setBit(aoff + 4, i)
+    Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    Region.setBit(aoff + 4L, i.toL)
+    Region.setBit(aoff + lengthHeaderBytes, i.toL)
 
   def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
     setElementMissing(aoff, i)
 
   def setElementPresent(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    Region.clearBit(aoff + 4, i)
+    Region.clearBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    Region.clearBit(aoff + 4L, i.toL)
+    Region.clearBit(aoff + lengthHeaderBytes, i.toL)
 
   def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
     setElementPresent(aoff, i)
@@ -182,8 +185,7 @@ abstract class PContainer extends PIterable {
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
-    val nMissingBytes = (length + 7) / 8
-    Region.setMemory(aoff + 4, nMissingBytes, value)
+    Region.setMemory(aoff + lengthHeaderBytes, PContainer.nMissingBytes(length), value)
   }
 
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {
@@ -212,7 +214,7 @@ abstract class PContainer extends PIterable {
     else
       Code(
         Region.storeInt(aoff, length),
-        Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
+        Region.setMemory(aoff + const(lengthHeaderBytes), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =
