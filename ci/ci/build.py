@@ -248,10 +248,15 @@ class BuildImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}'))
+                assert 'extract' not in i or i.get('directory') == 'archive'
+                if i.get('directory') != 'archive':
+                    destination = f'/io/{os.path.basename(i["to"])}'
+                else:
+                    destination = f'/io/{os.path.basename(i["from"])}'
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}',
+                                    destination))
         else:
             input_files = None
-
 
         config = self.input_config(code, scope)
 
@@ -295,14 +300,23 @@ docker push {self.base_image}:latest
         if self.inputs:
             for i in self.inputs:
                 # to is relative to docker context
-                copy_and_decompress_inputs = copy_inputs + f'''
+                directory = i.get('directory')
+                if directory is None or directory == 'recursive':
+                    copy_inputs += f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
 cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 '''
-            copy_and_decompress_inputs += '\n' + '\n'.join([
-                f'tar -xvzf /io/{shq(os.path.basename(i["to"]))}'
-                for i in self.inputs
-                if i.get('decompress')])
+                else:
+                    target = shq(f'{context}{i["to"]}')
+                    archive = f'/io/{shq(os.path.basename(i["from"]))}'
+                    if 'extract' not in i:
+                        copy_inputs += f'''
+mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
+tar -xzf {archive} -C {target}
+'''
+                    else:
+                        patterns = ' '.join(shq(f) for f in i.get('extract'))
+                        copy_inputs += f'tar -xvf {archive} -C {target} {patterns}'
 
         script = f'''
 set -ex
@@ -311,9 +325,9 @@ date
 rm -rf repo
 mkdir repo
 (cd repo; {code.checkout_script()})
-{render_dockerfile}
 {init_context}
-{copy_and_decompress_inputs}
+{copy_inputs}
+{render_dockerfile}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
@@ -427,19 +441,37 @@ class RunImageStep(Step):
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
+        copy_inputs = ''
+        input_files = None
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
-        else:
-            input_files = None
+                assert 'extract' not in i or i.get('directory') == 'archive'
+                if i.get('directory') != 'archive':
+                    batch_copy_destination = i["to"]
+                else:
+                    batch_copy_destination = f'/io/{self.token}/i["from"]'
+                    actual_destination = shq(f'{i["to"]}')
+                    if 'extract' not in i:
+                        copy_inputs += f'tar -xzf {batch_copy_destination} -C {actual_destination}'
+                    else:
+                        patterns = ' '.join(shq(f) for f in i.get('extract'))
+                        copy_inputs += f'tar -xzf {batch_copy_destination} -C {actual_destination} {patterns}'
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}',
+                                    batch_copy_destination))
 
+        copy_outputs = ''
+        output_files = None
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
-        else:
-            output_files = None
+                if i.get('directory') != 'archive':
+                    batch_copy_source = o["from"]
+                else:
+                    batch_copy_source = f'/io/{self.token}/o["to"]'
+                    copy_outputs += f'tar -czf {batch_copy_source} {o["from"]}'
+                output_files.append((batch_copy_source,
+                                     f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
 
         secrets = []
         if self.secrets:

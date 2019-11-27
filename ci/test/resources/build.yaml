@@ -16,40 +16,59 @@ steps:
      valueFrom:
        git_image.image
    script: |
+     set -ex
+
      cd /io
      mkdir foo
      cd foo
+     git config --global user.email "you@example.com"
+     git config --global user.name "Your Name"
      git init
 
      cat >Dockerfile <<EOF
      FROM ubuntu:18.04
      COPY uncompressed-file .
+     COPY archived-foo/foo/data data1
+     COPY recursive-foo/foo/data data2
+     RUN diff data1 data2
+     EOF
+
+     cat >data <<EOF
+     some data
      EOF
 
      git add Dockerfile
      git commit -m "first commit"
 
      cd ..
-     tar -xczf foo.tgz foo
 
      cat >uncompressed-file <<EOF
      this is an uncompressed file
      EOF
    outputs:
-     - from: /io/foo.tgz
+     - from: /io/foo
        to: /foo.tgz
+       directory: archive
+     - from: /io/foo
+       to: /foo
+       directory: recursive
      - from: /io/uncompressed-file
        to: /uncompressed-file
    dependsOn:
      - git_image
  - kind: buildImage
-   name: verify_decompress_works
-   dockerFile: /foo/Dockerfile
-   contextPath: /
+   name: verify_copy_inputs_for_build_image_works
+   dockerFile: /recursive-foo/Dockerfile
+   contextPath: .
    inputs:
      - from: /foo.tgz
-       to: /foo.tgz
-       decompress: True
+       to: /archived-foo
+       directory: archive
+       extract:
+         - foo/data
+     - from: /foo
+       to: /recursive-foo
+       directory: recursive
      - from: /uncompressed-file
        to: /uncompressed-file
    image:
@@ -58,6 +77,24 @@ steps:
    dependsOn:
      - git_image
      - create_git_repo
+ - kind: runImage
+   name: verify_copy_inputs_for_run_image_works
+   image: ubuntu:18.04
+   script: |
+     cd io
+     diff archived-foo/data recursive-foo/data
+     cat uncompressed-file
+   inputs:
+     - from: /foo.tgz
+       to: /io/archived-foo
+       directory: archive
+       extract:
+         - foo/data
+     - from: /foo
+       to: /io/recursive-foo
+       directory: recursive
+     - from: /uncompressed-file
+       to: /io/uncompressed-file
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
