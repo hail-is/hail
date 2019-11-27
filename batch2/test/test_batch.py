@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
             job_status = job['status']
 
             # tests run at 0.1cpu
-            job_msec_mcpu2 = int(0.1 * 1000 * 1000 * (job_status['end_time'] - job_status['start_time']))
+            job_msec_mcpu2 = int(0.1 * 1000 * 1000 * (job_status['end_time'] - job_status['start_time'] + 0.5))
             assert job['msec_mcpu'] == job_msec_mcpu2, batch
 
             batch_msec_mcpu2 += job_msec_mcpu2
