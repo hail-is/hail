@@ -1243,11 +1243,8 @@ steps:
    name: dbuf_test
    image:
      valueFrom: dbuf_test_image.image
-   # we sleep 5 to give dbuf time to come up while CI's wait for stateful sets
-   # is broken
    script: |
      set -ex
-     sleep 5
      python3 scale_test.py dbuf-0.dbuf 10 1 40000 10000
    resources:
      memory: "16G"
