@@ -279,15 +279,14 @@ server {
 }
 
 server {
-    server_name shuffler.*;
+    server_name ~^(?<sub_domain>.*)\.shuffler\..*$;
 
     location / {
-        proxy_pass http://shuffler/;
+        resolver kube-dns.kube-system.svc.cluster.local;
+        proxy_pass http://$sub_domain.shuffler.@namespace@.svc.cluster.local:$server_port;
 
         proxy_set_header Host $updated_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $updated_host;
-        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     }
 
     listen 80;
