@@ -50,15 +50,27 @@ class Test(unittest.TestCase):
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
-        # tests run at 0.1cpu
-        msec_mcpu2 = int(0.1 * 1000 * 1000 * (status['end_time'] - status['start_time']))
-        assert status['msec_mcpu'] == msec_mcpu2
+    def test_msec_mcpu(self):
+        builder = self.client.create_batch()
+        # two jobs so the batch msec_mcpu computation is non-trivial
+        builder.create_job('ubuntu:18.04', ['echo', 'foo'])
+        builder.create_job('ubuntu:18.04', ['echo', 'bar'])
+        b = builder.submit()
 
-        # 1 job, so batch and job resource usage should agree
-        bstatus = b.status()
-        assert bstatus['msec_mcpu'] == msec_mcpu2
+        batch = b.wait()
+        assert batch['state'] == 'success', batch
 
-        self.assertTrue(j.is_complete())
+        batch_msec_mcpu2 = 0
+        for job in batch['jobs']:
+            job_status = job['status']
+
+            # tests run at 0.1cpu
+            job_msec_mcpu2 = int(0.1 * 1000 * 1000 * (job_status['end_time'] - job_status['start_time']))
+            assert job['msec_mcpu'] == job_msec_mcpu2, batch
+
+            batch_msec_mcpu2 += job_msec_mcpu2
+
+        assert batch['msec_mcpu'] == batch_msec_mcpu2, batch
 
     def test_attributes(self):
         a = {
