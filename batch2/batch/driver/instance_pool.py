@@ -294,7 +294,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
         await self.remove_instance(instance, 'deleted', timestamp)
 
     async def handle_call_delete_event(self, instance, timestamp):
-        await instance.mark_deleted('called_delete', timestamp)
+        await instance.mark_deleted('deleted', timestamp)
 
     async def handle_event(self, event):
         if not event.payload:
