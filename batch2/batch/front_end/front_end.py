@@ -148,8 +148,10 @@ SELECT jobs.state, jobs.spec, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id  
 LEFT JOIN instances
-  ON jobs.instance_name = instances.name
+  ON attempts.instance_name = instances.name
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))
@@ -621,8 +623,10 @@ SELECT jobs.*, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
-  ON jobs.instance_name = instances.name
+  ON attempts.instance_name = instances.name
 WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
 ''',
                                            (user, batch_id, job_id))

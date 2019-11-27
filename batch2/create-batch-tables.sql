@@ -47,7 +47,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `spec` VARCHAR(65535) NOT NULL,
   `always_run` BOOLEAN NOT NULL,
   `cores_mcpu` INT NOT NULL,
-  `instance_name` VARCHAR(100),
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -55,7 +54,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `attempt_id` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
-  FOREIGN KEY (`instance_name`) REFERENCES instances(name)
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
 CREATE INDEX `jobs_instance_name` ON `jobs` (`instance_name`);
@@ -64,12 +62,14 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `attempt_id` VARCHAR(40) NOT NULL,
+  `instance_name` VARCHAR(100),  
   `start_time` DOUBLE,
   `end_time` DOUBLE,
   `reason` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
+  FOREIGN KEY (`instance_name`) REFERENCES instances(name)  
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `ready_cores` (
@@ -194,15 +194,20 @@ BEGIN
     UPDATE ready_cores
     SET ready_cores_mcpu = ready_cores_mcpu +
       COALESCE(
-        (SELECT SUM(cores_mcpu)
-         FROM jobs
+        (SELECT SUM(jobs.cores_mcpu)
+         FROM attempts
+	 INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
          WHERE instance_name = in_instance_name),
 	0);
 
     UPDATE jobs
+    INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
     SET state = 'Ready',
-        instance_name = NULL,
 	attempt_id = NULL
+    WHERE instance_name = in_instance_name;
+
+    UPDATE attempts
+    SET instance_name = NULL
     WHERE instance_name = in_instance_name;
 
     UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE name = in_instance_name;
@@ -303,8 +308,8 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
-    UPDATE jobs SET state = 'Running', instance_name = in_instance_name, attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
-    INSERT INTO attempts (batch_id, job_id, attempt_id) VALUES (in_batch_id, in_job_id, in_attempt_id);
+    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
     COMMIT;
@@ -340,12 +345,12 @@ BEGIN
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
   IF cur_job_state = 'Running' AND cur_job_instance_name = expected_instance_name THEN
-    UPDATE jobs SET state = 'Ready', instance_name = NULL, attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
     UPDATE attempts
-      SET end_time = new_end_time, reason = new_reason
+      SET end_time = new_end_time, reason = new_reason, instance_name = NULL
       WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
+    UPDATE jobs SET state = 'Ready', attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;      
     COMMIT;
     SELECT 0 as rc;
   ELSE
@@ -378,9 +383,9 @@ BEGIN
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
+  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN    
     UPDATE jobs
-    SET state = new_state, status = new_status, instance_name = NULL, attempt_id = NULL
+    SET state = new_state, status = new_status, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
@@ -430,7 +435,7 @@ BEGIN
 
     IF in_attempt_id IS NOT NULL THEN
       UPDATE attempts
-      SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
+      SET start_time = new_start_time, end_time = new_end_time, reason = new_reason, instance_name = NULL
       WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
     END IF;
 
