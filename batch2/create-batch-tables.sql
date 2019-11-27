@@ -203,7 +203,7 @@ BEGIN
     UPDATE jobs
     INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
     SET state = 'Ready',
-	attempt_id = NULL
+	jobs.attempt_id = NULL
     WHERE instance_name = in_instance_name;
 
     UPDATE attempts
