@@ -1,5 +1,4 @@
 import os
-import datetime
 import concurrent
 import logging
 import json
@@ -7,14 +6,13 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import humanize
 import cerberus
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import time_msecs, request_retry_transient_errors
+from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
@@ -560,7 +558,7 @@ async def ui_batch(request, userdata):
     jobs = await _get_batch_jobs(app, batch_id, user)
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
-        job['duration'] = humanize.naturaldelta(datetime.timedelta(milliseconds=Job.total_duration_msecs(job)))
+        job['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(job))
     batch['jobs'] = jobs
     page_context = {
         'batch': batch
