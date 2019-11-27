@@ -140,13 +140,15 @@ def test_callback(client):
                 break
         callback_body = callback_body[0]
 
+        # verify msec_mcpu, cost present
+        callback_body.pop('cost')
+        callback_body.pop('msec_mcpu')
         assert (callback_body == {
             'id': b.id,
             'state': 'success',
             'complete': True,
             'closed': True,
-            'attributes': {'foo': 'bar'},
-            'cost': '$0.0000'
+            'attributes': {'foo': 'bar'}
         }), callback_body
     finally:
         if server:
