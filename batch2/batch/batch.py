@@ -1,12 +1,11 @@
 import json
-import time
 import logging
 import asyncio
 import aiohttp
 import secrets
 import base64
 import traceback
-from hailtop.utils import sleep_and_backoff, is_transient_error
+from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .database import check_call_procedure
@@ -84,7 +83,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     log.info(f'marking job {id} complete new_state {new_state}')
 
-    now = time.time()
+    now = time_msecs()
 
     rv = await check_call_procedure(
         db,
@@ -183,7 +182,7 @@ async def unschedule_job(app, record):
         log.warning(f'unschedule job {id}: unknown instance {instance_name}')
         return
 
-    end_time = time.time()
+    end_time = time_msecs()
     await check_call_procedure(
         db,
         'CALL unschedule_job(%s, %s, %s, %s, %s);',

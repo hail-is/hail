@@ -2,7 +2,6 @@ import os
 import sys
 import json
 from shlex import quote as shq
-import time
 import logging
 import asyncio
 import random
@@ -16,7 +15,7 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import time_msecs, request_retry_transient_errors
 
 # import uvloop
 
@@ -33,7 +32,7 @@ from .log_store import LogStore
 configure_logging()
 log = logging.getLogger('batch2-worker')
 
-MAX_IDLE_TIME_SECS = 5 * 60
+MAX_IDLE_TIME_MSECS = 5 * 60 * 1000
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
@@ -97,11 +96,11 @@ class ContainerStepManager:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
         self.timing = {}
-        self.timing['start_time'] = time.time()
+        self.timing['start_time'] = time_msecs()
         self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time.time()
+        finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
         start_time = self.timing['start_time']
         self.timing['duration'] = finish_time - start_time
@@ -456,7 +455,7 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
-        run_start_time = time.time()
+        run_start_time = time_msecs()
 
         try:
             log.info(f'{self}: initializing')
@@ -505,7 +504,7 @@ class Job:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            run_end_time = time.time()
+            run_end_time = time_msecs()
             run_duration = run_end_time - run_start_time
 
             log.info(f'{self}: marking complete')
@@ -534,9 +533,9 @@ class Job:
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
     #   error: str, (optional)
-    #   container_statuses: [Container.status]
-    #   start_time: float
-    #   end_time: float
+    #   container_statuses: [Container.status],
+    #   start_time: int,
+    #   end_time: int
     # }
     async def status(self):
         status = {
@@ -573,7 +572,7 @@ class Worker:
     def __init__(self):
         self.cores_mcpu = CORES * 1000
         self.free_cores_mcpu = self.cores_mcpu
-        self.last_updated = time.time()
+        self.last_updated = time_msecs()
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
@@ -672,11 +671,11 @@ class Worker:
 
             await self.activate()
 
-            idle_duration = time.time() - self.last_updated
-            while self.jobs or idle_duration < MAX_IDLE_TIME_SECS:
+            idle_duration = time_msecs() - self.last_updated
+            while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
                 log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
-                idle_duration = time.time() - self.last_updated
+                idle_duration = time_msecs() - self.last_updated
 
             log.info(f'idle {idle_duration} seconds, exiting')
 
@@ -704,7 +703,7 @@ class Worker:
             'status': await job.status()
         }
 
-        start_time = time.time()
+        start_time = time_msecs()
         delay = 0.1
         while True:
             try:
@@ -722,14 +721,14 @@ class Worker:
                 log.exception(f'failed to mark {job} complete, retrying')
 
             # unlist job after 3m or half the run duration
-            now = time.time()
+            now = time_msecs()
             elapsed = now - start_time
             if (job.id in self.jobs and
                     elapsed > 180.0 and
                     elapsed > run_duration / 2):
                 log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
                 del self.jobs[job.id]
-                self.last_updated = time.time()
+                self.last_updated = time_msecs()
 
             # exponentially back off, up to (expected) max of 30s
             t = delay * random.uniform(0.7, 1.3)
@@ -743,7 +742,7 @@ class Worker:
             log.info(f'{job} marked complete, removing from jobs')
             if job.id in self.jobs:
                 del self.jobs[job.id]
-                self.last_updated = time.time()
+                self.last_updated = time_msecs()
 
     async def post_job_started(self, job):
         body = {

@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
-  `time_created` DOUBLE NOT NULL,
+  `time_created` BIGINT NOT NULL,
   `failed_request_count` INT NOT NULL DEFAULT 0,
-  `last_updated` DOUBLE NOT NULL,
+  `last_updated` BIGINT NOT NULL,
   `ip_address` VARCHAR(100),
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
-  `time_created` DOUBLE NOT NULL,
-  `time_completed` DOUBLE,
+  `time_created` BIGINT NOT NULL,
+  `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `job_id` INT NOT NULL,
   `attempt_id` VARCHAR(40) NOT NULL,
   `instance_name` VARCHAR(100),  
-  `start_time` DOUBLE,
-  `end_time` DOUBLE,
+  `start_time` BIGINT,
+  `end_time` BIGINT,
   `reason` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
@@ -137,16 +137,16 @@ CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
   DECLARE job_cores_mcpu INT;
-  DECLARE time_diff DOUBLE;
+  DECLARE time_diff BIGINT;
   DECLARE msec_mcpu_diff BIGINT;
 
   SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
-  SET time_diff = (COALESCE(NEW.end_time - NEW.start_time, 0) -
-                   COALESCE(OLD.end_time - OLD.start_time, 0));
+  SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
+                   GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  SET msec_mcpu_diff = FLOOR(time_diff * 1000 * job_cores_mcpu + 0.5);
+  SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
 
   UPDATE batches
   SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
@@ -186,7 +186,7 @@ END $$
 CREATE PROCEDURE deactivate_instance(
   IN in_instance_name VARCHAR(100),
   IN in_reason VARCHAR(40),
-  IN in_timestamp DOUBLE
+  IN in_timestamp BIGINT
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -212,7 +212,7 @@ BEGIN
     UPDATE jobs
     INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
     SET state = 'Ready',
-	jobs.attempt_id = NULL
+        jobs.attempt_id = NULL
     WHERE instance_name = in_instance_name;
 
     UPDATE attempts
@@ -251,7 +251,7 @@ END $$
 
 CREATE PROCEDURE close_batch(
   IN in_batch_id BIGINT,
-  IN in_timestamp DOUBLE
+  IN in_timestamp BIGINT
 )
 BEGIN
   DECLARE cur_batch_closed BOOLEAN;
@@ -275,11 +275,11 @@ BEGIN
       UPDATE batches SET time_completed = in_timestamp
         WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       UPDATE ready_cores
-	SET ready_cores_mcpu = ready_cores_mcpu +
-	  COALESCE(
-	    (SELECT SUM(cores_mcpu) FROM jobs
-	     WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
-	    0);
+        SET ready_cores_mcpu = ready_cores_mcpu +
+          COALESCE(
+            (SELECT SUM(cores_mcpu) FROM jobs
+             WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
+            0);
       COMMIT;
       SELECT 0 as rc;
     ELSE
@@ -338,7 +338,7 @@ CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
   IN expected_instance_name VARCHAR(100),
-  IN new_end_time DOUBLE,
+  IN new_end_time BIGINT,
   IN new_reason VARCHAR(40)
 )
 BEGIN
@@ -379,10 +379,10 @@ CREATE PROCEDURE mark_job_complete(
   IN in_attempt_id VARCHAR(40),
   IN new_state VARCHAR(40),
   IN new_status VARCHAR(65535),
-  IN new_start_time DOUBLE,
-  IN new_end_time DOUBLE,
+  IN new_start_time BIGINT,
+  IN new_end_time BIGINT,
   IN new_reason VARCHAR(40),
-  IN new_timestamp DOUBLE
+  IN new_timestamp BIGINT
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -430,20 +430,20 @@ BEGIN
     UPDATE ready_cores
       SET ready_cores_mcpu = ready_cores_mcpu +
         COALESCE(
-	  (SELECT SUM(jobs.cores_mcpu) FROM jobs
-	   INNER JOIN `job_parents`
-	     ON jobs.batch_id = `job_parents`.batch_id AND
-		jobs.job_id = `job_parents`.job_id
-	   WHERE jobs.batch_id = in_batch_id AND
-		 `job_parents`.batch_id = in_batch_id AND
-		 `job_parents`.parent_id = in_job_id AND
-		 jobs.n_pending_parents = 1),
+          (SELECT SUM(jobs.cores_mcpu) FROM jobs
+           INNER JOIN `job_parents`
+             ON jobs.batch_id = `job_parents`.batch_id AND
+                jobs.job_id = `job_parents`.job_id
+           WHERE jobs.batch_id = in_batch_id AND
+                 `job_parents`.batch_id = in_batch_id AND
+                 `job_parents`.parent_id = in_job_id AND
+                 jobs.n_pending_parents = 1),
           0);
 
     UPDATE jobs
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
-	   jobs.job_id = `job_parents`.job_id
+           jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)

@@ -143,7 +143,7 @@ class Job:
         return 0
 
     @staticmethod
-    def total_duration(job_status):
+    def total_duration_msecs(job_status):
         status = job_status.get('status')
         if not status:
             return None

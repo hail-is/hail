@@ -14,7 +14,7 @@ from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import time_msecs, request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
@@ -383,7 +383,7 @@ async def create_batch(request, userdata):
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
-            now = time.time()
+            now = time_msecs()
             await cursor.execute(
                 '''
 INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
@@ -487,7 +487,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     try:
-        now = time.time()
+        now = time_msecs()
         await check_call_procedure(
             db, 'CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
@@ -560,7 +560,7 @@ async def ui_batch(request, userdata):
     jobs = await _get_batch_jobs(app, batch_id, user)
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
-        job['duration'] = humanize.naturaldelta(Job.total_duration(job))
+        job['duration'] = humanize.naturaldelta(datetime.timedelta(milliseconds=Job.total_duration_msecs(job)))
     batch['jobs'] = jobs
     page_context = {
         'batch': batch

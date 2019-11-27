@@ -113,7 +113,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
             for j in status['jobs']:
-                j['duration'] = humanize.naturaldelta(Job.total_duration(j))
+                j['duration'] = humanize.naturaldelta(datetime.timedelta(milliseconds=Job.total_duration_mscs(j)))
                 j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
@@ -157,7 +157,7 @@ async def get_batch(request, userdata):
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
     for j in status['jobs']:
-        j['duration'] = humanize.naturaldelta(Job.total_duration(j))
+        j['duration'] = humanize.naturaldelta(datetime.timedelta(milliseconds=Job.total_duration_msecs(j)))
         j['exit_code'] = Job.exit_code(j)
     page_context = {
         'batch': status
