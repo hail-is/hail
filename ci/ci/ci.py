@@ -13,6 +13,7 @@ import uvloop
 import humanize
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.batch_client.aioclient import BatchClient, Job
+from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
     check_csrf_token
@@ -20,7 +21,6 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
     set_message
 
 from .constants import BUCKET
-from .environment import deploy_config
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -29,6 +29,8 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r')
 log = logging.getLogger('ci')
 
 uvloop.install()
+
+deploy_config = get_deploy_config()
 
 watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)

@@ -6,15 +6,17 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
+from hailtop.config import get_deploy_config
 from hailtop.utils import check_shell, check_shell_output
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
-from .environment import CALLBACK_URL
 from .build import BuildConfiguration, Code
+
 
 repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
+CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
 
 class Repo:
     def __init__(self, owner, name):
