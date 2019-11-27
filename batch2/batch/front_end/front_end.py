@@ -1,10 +1,10 @@
 import os
+import datetime
 import concurrent
 import logging
 import json
 import asyncio
 import aiohttp
-import time
 from aiohttp import web
 import aiohttp_session
 import humanize
@@ -149,7 +149,7 @@ FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
 LEFT JOIN attempts
-  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id  
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;

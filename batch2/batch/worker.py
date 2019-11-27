@@ -733,7 +733,7 @@ class Worker:
             # exponentially back off, up to (expected) max of 30s
             await asyncio.sleep(
                 delay_secs * random.uniform(0.7, 1.3))
-            delay = min(delay * 2, 30.0)
+            delay_secs = min(delay_secs * 2, 30.0)
 
     async def post_job_complete(self, job, run_duration):
         try:

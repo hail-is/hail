@@ -1,10 +1,10 @@
-import time
 import secrets
 import asyncio
 import logging
 import sortedcontainers
 import aiohttp
 import googleapiclient.errors
+from hailtop.utils import time_msecs
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT, ZONE
