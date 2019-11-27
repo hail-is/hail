@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
-CREATE INDEX `jobs_instance_name` ON `jobs` (`instance_name`);
 
 CREATE TABLE IF NOT EXISTS `attempts` (
   `batch_id` BIGINT NOT NULL,
@@ -71,6 +70,7 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_name`) REFERENCES instances(name)  
 ) ENGINE = InnoDB;
+CREATE INDEX `attempts_instance_name` ON `attempts` (`instance_name`);
 
 CREATE TABLE IF NOT EXISTS `ready_cores` (
   ready_cores_mcpu INT NOT NULL
