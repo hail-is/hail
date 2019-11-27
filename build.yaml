@@ -1311,6 +1311,11 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: shuffler/deployment.yaml
+   wait:
+    - kind: Service
+      name: shuffler
+      for: alive
+      resource_type: statefulset
    dependsOn:
     - default_ns
     - shuffler_image
