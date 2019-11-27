@@ -4,6 +4,7 @@ import logging
 import json
 import asyncio
 import aiohttp
+import time
 from aiohttp import web
 import aiohttp_session
 import humanize
@@ -147,9 +148,11 @@ SELECT jobs.state, jobs.spec, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id  
 LEFT JOIN instances
-  ON jobs.instance_name = instances.name
-WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+  ON attempts.instance_name = instances.name
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                            (user, batch_id, job_id))
     if not record:
@@ -380,13 +383,15 @@ async def create_batch(request, userdata):
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
+            now = time.time()
             await cursor.execute(
                 '''
-INSERT INTO batches (userdata, user, attributes, callback, n_jobs)
-VALUES (%s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
+VALUES (%s, %s, %s, %s, %s, %s);
 ''',
                 (json.dumps(userdata), user, json.dumps(attributes),
-                 batch_spec.get('callback'), batch_spec['n_jobs']))
+                 batch_spec.get('callback'), batch_spec['n_jobs'],
+                 now))
             id = cursor.lastrowid
 
         if attributes:
@@ -482,8 +487,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     try:
+        now = time.time()
         await check_call_procedure(
-            db, 'CALL close_batch(%s);', (batch_id))
+            db, 'CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -620,9 +626,11 @@ SELECT jobs.*, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
-  ON jobs.instance_name = instances.name
-WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+  ON attempts.instance_name = instances.name
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                            (user, batch_id, job_id))
     if not record:

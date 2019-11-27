@@ -219,8 +219,11 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with self.step('runtime', state=None):
-                async with worker.cpu_sem(self.cpu_in_mcpu):
+            async with worker.cpu_sem(self.cpu_in_mcpu):
+                async with self.step('runtime', state=None):
+                    if self.name == 'main':
+                        asyncio.ensure_future(worker.post_job_started(self.job))
+
                     async with self.step('starting'):
                         await docker_call_retry(self.container.start)
 
@@ -445,6 +448,10 @@ class Job:
         return self.job_spec['job_id']
 
     @property
+    def attempt_id(self):
+        return self.job_spec['attempt_id']
+
+    @property
     def id(self):
         return (self.batch_id, self.job_id)
 
@@ -523,24 +530,39 @@ class Job:
     #   name: str,
     #   batch_id: int,
     #   job_id: int,
+    #   attempt_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
     #   error: str, (optional)
     #   container_statuses: [Container.status]
+    #   start_time: float
+    #   end_time: float
     # }
     async def status(self):
         status = {
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
+            'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
             'state': self.state
         }
         if self.error:
             status['error'] = self.error
-        status['container_statuses'] = {
+
+        cstatuses = {
             name: await c.status() for name, c in self.containers.items()
         }
+        status['container_statuses'] = cstatuses
+
+        main_timings = cstatuses['main']['timing']
+        if 'runtime' in main_timings:
+            status['start_time'] = main_timings['runtime'].get('start_time')
+            status['end_time'] = main_timings['runtime'].get('finish_time')
+        else:
+            status['start_time'] = None
+            status['end_time'] = None
+
         return status
 
     def __str__(self):
@@ -722,6 +744,18 @@ class Worker:
             if job.id in self.jobs:
                 del self.jobs[job.id]
                 self.last_updated = time.time()
+
+    async def post_job_started(self, job):
+        body = {
+            'status': await job.status()
+        }
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            await request_retry_transient_errors(
+                session, 'POST',
+                deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_started'),
+                json=body, headers=self.headers)
 
     async def activate(self):
         async with aiohttp.ClientSession(

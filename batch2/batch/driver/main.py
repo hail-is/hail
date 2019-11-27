@@ -18,7 +18,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..batch import mark_job_complete
+from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE
@@ -200,22 +200,6 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     return web.Response()
 
 
-async def db_cleanup_event_loop(db, log_store):
-    while True:
-        try:
-            async for record in db.execute_and_fetchall('''
-SELECT id FROM batches
-WHERE deleted AND (NOT closed OR n_jobs = n_completed);
-'''):
-                batch_id = record['id']
-                await log_store.delete_batch_logs(batch_id)
-                await db.just_execute('DELETE FROM batches WHERE id = %s;',
-                                      (batch_id,))
-        except Exception:
-            log.exception(f'in db cleanup loop')
-        await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
-
-
 async def activate_instance_1(request, instance):
     body = await request.json()
     ip_address = body['ip_address']
@@ -240,7 +224,7 @@ async def activate_instance(request, instance):
 
 async def deactivate_instance_1(instance):
     log.info(f'deactivating {instance}')
-    await instance.deactivate()
+    await instance.deactivate('deactivated')
     await instance.mark_healthy()
     return web.Response()
 
@@ -257,6 +241,7 @@ async def job_complete_1(request, instance):
 
     batch_id = status['batch_id']
     job_id = status['job_id']
+    attempt_id = status['attempt_id']
 
     status_state = status['state']
     if status_state == 'succeeded':
@@ -267,7 +252,11 @@ async def job_complete_1(request, instance):
         assert status_state == 'failed', status_state
         new_state = 'Failed'
 
-    await mark_job_complete(request.app, batch_id, job_id, new_state, status)
+    start_time = status['start_time']
+    end_time = status['end_time']
+
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
+                            start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 
@@ -278,6 +267,28 @@ async def job_complete_1(request, instance):
 @active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
+
+
+async def job_started_1(request, instance):
+    body = await request.json()
+    status = body['status']
+
+    batch_id = status['batch_id']
+    job_id = status['job_id']
+    attempt_id = status['attempt_id']
+    start_time = status['start_time']
+
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/instances/job_started')
+@active_instances_only
+async def job_started(request, instance):
+    return await asyncio.shield(job_started_1(request, instance))
 
 
 @routes.get('/')
@@ -428,8 +439,6 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
-
-    asyncio.ensure_future(db_cleanup_event_loop(db, log_store))
 
 
 async def on_cleanup(app):

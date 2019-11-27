@@ -119,8 +119,8 @@ SET worker_disk_size_gb = %s,
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
 
-    async def remove_instance(self, instance):
-        await instance.deactivate()
+    async def remove_instance(self, instance, reason, timestamp=None):
+        await instance.deactivate(reason, timestamp)
 
         await self.db.just_execute(
             'DELETE FROM instances WHERE name = %s;', (instance.name,))
@@ -311,35 +311,36 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
         log.info(f'created machine {machine_name} for {instance} '
                  f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
 
-    async def call_delete_instance(self, instance, force=False):
+    async def call_delete_instance(self, instance, reason, timestamp=None, force=False):
         if instance.state == 'deleted' and not force:
             return
         if instance.state not in ('inactive', 'deleted'):
-            await instance.deactivate()
+            await instance.deactivate(reason, timestamp)
 
         try:
             await self.gservices.delete_instance(instance.name)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 log.info(f'{instance} already delete done')
-                await self.remove_instance(instance)
+                await self.remove_instance(instance, reason, timestamp)
                 return
             raise
 
-    async def handle_preempt_event(self, instance):
-        await self.call_delete_instance(instance)
+    async def handle_preempt_event(self, instance, timestamp):
+        await self.call_delete_instance(instance, 'preempted', timestamp=timestamp)
 
-    async def handle_delete_done_event(self, instance):
-        await self.remove_instance(instance)
+    async def handle_delete_done_event(self, instance, timestamp):
+        await self.remove_instance(instance, 'deleted', timestamp)
 
-    async def handle_call_delete_event(self, instance):
-        await instance.mark_deleted()
+    async def handle_call_delete_event(self, instance, timestamp):
+        await instance.mark_deleted('deleted', timestamp)
 
     async def handle_event(self, event):
         if not event.payload:
             log.warning(f'event has no payload')
             return
 
+        timestamp = event.timestamp.timestamp()
         payload = event.payload
         version = payload['version']
         if version != '1.2':
@@ -369,14 +370,14 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
 
         if event_subtype == 'compute.instances.preempted':
             log.info(f'event handler: handle preempt {instance}')
-            await self.handle_preempt_event(instance)
+            await self.handle_preempt_event(instance, timestamp)
         elif event_subtype == 'compute.instances.delete':
             if event_type == 'GCE_OPERATION_DONE':
                 log.info(f'event handler: delete {instance} done')
-                await self.handle_delete_done_event(instance)
+                await self.handle_delete_done_event(instance, timestamp)
             elif event_type == 'GCE_API_CALL':
                 log.info(f'event handler: handle call delete {instance}')
-                await self.handle_call_delete_event(instance)
+                await self.handle_call_delete_event(instance, timestamp)
             else:
                 log.warning(f'unknown event type {event_type}')
         else:
@@ -386,7 +387,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
         log.info(f'starting event loop')
         while True:
             try:
-                async for event in await self.gservices.stream_entries():
+                async for event in await self.gservices.stream_entries(self.db):
                     await self.handle_event(event)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -442,7 +443,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
             spec = await self.gservices.get_instance(instance.name)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
-                await self.remove_instance(instance)
+                await self.remove_instance(instance, 'does_not_exist')
                 return
 
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
@@ -451,18 +452,18 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch2/logs/$I
 
         if gce_state in ('STOPPING', 'TERMINATED'):
             log.info(f'{instance} live but stopping or terminated, deactivating')
-            await instance.deactivate()
+            await instance.deactivate('terminated')
 
         if (gce_state in ('STAGING', 'RUNNING') and
                 instance.state == 'pending' and
                 time.time() - instance.time_created > 5 * 60):
             # FIXME shouldn't count time in PROVISIONING
             log.info(f'{instance} did not activate within 5m, deleting')
-            await self.call_delete_instance(instance)
+            await self.call_delete_instance(instance, 'activation_timeout')
 
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')
-            await self.call_delete_instance(instance)
+            await self.call_delete_instance(instance, 'inactive')
 
         await instance.update_timestamp()
 
