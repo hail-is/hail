@@ -221,7 +221,7 @@ async def activate_instance(request, instance):
 
 async def deactivate_instance_1(instance):
     log.info(f'deactivating {instance}')
-    await instance.deactivate()
+    await instance.deactivate('deactivated')
     await instance.mark_healthy()
     return web.Response()
 

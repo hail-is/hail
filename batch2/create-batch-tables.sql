@@ -181,7 +181,9 @@ BEGIN
 END $$
 
 CREATE PROCEDURE deactivate_instance(
-  IN in_instance_name VARCHAR(100)
+  IN in_instance_name VARCHAR(100),
+  IN in_reason VARCHAR(40),
+  IN in_timestamp DOUBLE
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -189,6 +191,10 @@ BEGIN
   START TRANSACTION;
 
   SELECT state INTO cur_state FROM instances WHERE name = in_instance_name;
+
+  UPDATE attempts
+  SET end_time = in_timestamp, reason = in_reason
+  WHERE instance_name = in_instance_name;
 
   IF cur_state = 'pending' or cur_state = 'active' THEN
     UPDATE ready_cores
