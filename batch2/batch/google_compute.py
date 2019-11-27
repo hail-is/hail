@@ -43,6 +43,7 @@ class EntryIterator:
     async def __anext__(self):
         while True:
             if not self.entries:
+                await asyncio.sleep(5)
                 self.entries = await self.gservices.list_entries(self.mark)
             timestamp = None
             try:

@@ -536,7 +536,7 @@ class Job:
             'job_id': self.job_spec['job_id'],
             'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
-            'state': self.state,
+            'state': self.state
         }
         if self.error:
             status['error'] = self.error

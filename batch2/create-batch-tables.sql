@@ -196,9 +196,9 @@ BEGIN
       COALESCE(
         (SELECT SUM(jobs.cores_mcpu)
          FROM attempts
-	 INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+         INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
          WHERE instance_name = in_instance_name),
-	0);
+        0);
 
     UPDATE jobs
     INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
