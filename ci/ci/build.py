@@ -259,8 +259,17 @@ class BuildImageStep(Step):
             context = 'context'
             init_context = 'mkdir context'
 
-        dockerfile = 'Dockerfile'
-        render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
+        rendered_dockerfile = 'Dockerfile'
+        if isinstance(self.dockerfile, dict):
+            assert ['inline'] == list(self.dockerfile.keys())
+            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token};\n'
+            unrendered_dockerfile = f'Dockerfile.{self.token}'
+        else:
+            assert isinstance(self.dockerfile, str)
+            render_dockerfile = ''
+            unrendered_dockerfile = f'repo/{self.dockerfile}'
+        render_dockerfile += (f'python3 jinja2_render.py {shq(json.dumps(config))} '
+                              f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}')
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
@@ -299,7 +308,7 @@ mkdir repo
 {init_context}
 {copy_inputs}
 
-FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(dockerfile)})
+FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
@@ -308,7 +317,7 @@ gcloud -q auth configure-docker
 docker pull $FROM_IMAGE
 {pull_published_latest}
 docker build --memory="1.5g" --cpu-period=100000 --cpu-quota=100000 -t {shq(self.image)} \
-  -f {dockerfile} \
+  -f {rendered_dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
 {push_image}

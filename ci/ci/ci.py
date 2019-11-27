@@ -262,6 +262,21 @@ async def batch_callback_handler(request):
                     await wb.notify_batch_changed(app)
 
 
+@routes.get('/api/v1alpha/deploy_status')
+@rest_authenticated_developers_only
+async def deploy_status(request, userdata):
+    del request
+    del userdata
+    wb_configs = [{
+        'branch': wb.branch.short_str(),
+        'sha': wb.sha,
+        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+        'deploy_state': wb.deploy_state,
+        'repo': wb.branch.repo.short_str()
+    } for wb in watched_branches]
+    return web.json_response(wb_configs)
+
+
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
