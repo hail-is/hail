@@ -137,7 +137,7 @@ CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
   DECLARE job_cores_mcpu INT;
-  DECLARE time_diff BIGINT;
+  DECLARE msec_diff BIGINT;
   DECLARE msec_mcpu_diff BIGINT;
 
   SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
