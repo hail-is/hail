@@ -17,9 +17,11 @@ steps:
      mkdir /io/repo
      cd /io/repo
      {{ code.checkout_script }}
+     cd ..
+     tar -cvzf repo.tgz repo
    outputs:
-    - from: /io/repo
-      to: /repo
+    - from: /io/repo.tgz
+      to: /repo.tgz
    dependsOn:
      - git_bash_image
  - kind: createNamespace
@@ -87,11 +89,11 @@ steps:
  - kind: buildImage
    name: base_image
    dockerFile: /io/repo/docker/Dockerfile.base
-   contextPath: /io/repo
+   contextPath: /io/
    publishAs: base
    inputs:
-    - from: /repo
-      to: /io/repo
+    - from: /repo.tgz
+      to: /io/repo.tgz
    dependsOn:
      - clone
  - kind: buildImage
