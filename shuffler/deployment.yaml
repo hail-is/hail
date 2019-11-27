@@ -7,7 +7,7 @@ spec:
   selector:
     matchLabels:
       app: shuffler
-  replicas: 4
+  replicas: 1
   volumeClaimTemplates:
     - metadata:
         name: shuffler
