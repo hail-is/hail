@@ -136,18 +136,17 @@ END $$
 CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
-  DECLARE cores_mcpu INT;
+  DECLARE job_cores_mcpu INT;
   DECLARE time_diff DOUBLE;
-  DECLARE cost_per_core_sec DOUBLE;
   DECLARE msec_mcpu_diff BIGINT;
 
-  SELECT cores_mcpu INTO cores_mcpu FROM jobs
+  SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
-  SET time_diff = COALESCE(NEW.end_time - NEW.start_time, 0) -
-                  COALESCE(OLD.end_time - OLD.start_time, 0);
+  SET time_diff = (COALESCE(NEW.end_time - NEW.start_time, 0) -
+                   COALESCE(OLD.end_time - OLD.start_time, 0));
 
-  SET msec_mcpu_diff = (time_diff * 1000) * cores_mcpu;
+  SET msec_mcpu_diff = FLOOR(time_diff * 1000 * job_cores_mcpu + 0.5);
 
   UPDATE batches
   SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff

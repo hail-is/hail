@@ -50,6 +50,14 @@ class Test(unittest.TestCase):
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
+        # tests run at 0.1cpu
+        msec_mcpu2 = int(0.1 * 1000 * 1000 * (status['end_time'] - status['start_time']))
+        assert status['msec_mcpu'] == msec_mcpu2
+
+        # 1 job, so batch and job resource usage should agree
+        bstatus = b.status()
+        assert bstatus['msec_mcpu'] == msec_mcpu2
+
         self.assertTrue(j.is_complete())
 
     def test_attributes(self):

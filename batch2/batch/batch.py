@@ -40,7 +40,10 @@ def batch_record_to_dict(record):
     if attributes:
         d['attributes'] = attributes
 
-    cost = cost_from_msec_mcpu(record['msec_mcpu'])
+    msec_mcpu = record['msec_mcpu']
+    d['msec_mcpu'] = msec_mcpu
+
+    cost = cost_from_msec_mcpu(msec_mcpu)
     d['cost'] = f'${cost:.4f}'
 
     return d
@@ -152,7 +155,10 @@ def job_record_to_dict(record, running_status=None):
     if status:
         result['status'] = status
 
-    cost = cost_from_msec_mcpu(record['msec_mcpu'])
+    msec_mcpu = record['msec_mcpu']
+    result['msec_mcpu'] = msec_mcpu
+
+    cost = cost_from_msec_mcpu(msec_mcpu)
     result['cost'] = f'${cost:.4f}'
 
     return result
