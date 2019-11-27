@@ -8,8 +8,7 @@ import aiohttp
 import gidgethub
 from hailtop.config import get_deploy_config
 from hailtop.utils import check_shell, check_shell_output
-from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, BUCKET
-from .environment import CI_UTILS_IMAGE
+from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .build import BuildConfiguration, Code
 
 
