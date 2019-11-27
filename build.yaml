@@ -1331,6 +1331,11 @@ steps:
      cpu: "2"
    script: |
      python3 -m pytest test_shuffler.py
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /home/hail/.hail
    dependsOn:
     - shuffler_test_image
     - deploy_shuffler
