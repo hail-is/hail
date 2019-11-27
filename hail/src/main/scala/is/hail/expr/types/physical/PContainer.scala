@@ -66,7 +66,7 @@ abstract class PContainer extends PIterable {
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PContainer.nMissingBytes(length), elementType.alignment)
+      UnsafeUtils.roundUpAlignment(PContainer.nMissingBytes(length) + lengthHeaderBytes, elementType.alignment)
 
   private lazy val lengthOffsetTable = 10
   private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
