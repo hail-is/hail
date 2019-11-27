@@ -54,7 +54,7 @@ abstract class PContainer extends PIterable {
 
   def nMissingBytes(len: Code[Int]): Code[Long] = PContainer.nMissingBytes(len)
 
-  private val lengthHeaderBytes = 4L
+  val lengthHeaderBytes: Long = 4
 
   private def _elementsOffset(length: Int): Long =
     if (elementType.required)
