@@ -8,6 +8,7 @@
       <div>artifacts:
 	<a  target="_blank" href="https://console.cloud.google.com/storage/browser{{ artifacts }}">gs:/{{ artifacts }}</a><i class="material-icons text-icon">open_in_new</i>
       </div>
+      <div>cost: {{ batch['cost'] }}</div>
       {% for name, value in batch['attributes'].items() %}
       <div>{{ name }}: {{ value }}</div>
       {% endfor %}
