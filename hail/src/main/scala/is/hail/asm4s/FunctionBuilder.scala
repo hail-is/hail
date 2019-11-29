@@ -57,7 +57,7 @@ object FunctionBuilder {
 }
 
 class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
-
+  println("Running methodbuilder")
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
   val mname = {
@@ -113,6 +113,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
   val l = new mutable.ArrayBuffer[AbstractInsnNode]()
 
   def emit(c: Code[_]) {
+    println("Running FunctionBuilder.emit")
     c.emit(l)
   }
 
@@ -130,6 +131,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
   }
 
   def invoke[T](args: Code[_]*): Code[T] = {
+    println("CAlling FunctionBulider.invoke")
     var c: Code[_] = getArg[java.lang.Object](0)
     args.foreach { a => c = Code(c, a) }
     Code(c, new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false))
@@ -191,7 +193,7 @@ class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
 
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
   val packageName: String = "is/hail/codegen/generated", namePrefix: String = null)(implicit val interfaceTi: TypeInfo[F]) {
-
+  println("running FunctionBuilder constructor")
   import FunctionBuilder._
 
   val cn = new ClassNode()
@@ -222,6 +224,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
   private[this] lazy val _apply_method: MethodBuilder = {
+    println("Running FunctionBuilder._apply_method")
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
@@ -304,6 +307,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+    println("Running classAsBytes")
     init.instructions.add(new InsnNode(RETURN))
     apply_method.close()
     methods.toArray.foreach { m => m.close() }
@@ -378,19 +382,22 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     new (() => F) with java.io.Serializable {
       @transient
       @volatile private var theClass: Class[_] = null
-
+      println("CALLED Result new apply")
       def apply(): F = {
+        println("CALLED result inner apply")
         try {
           if (theClass == null) {
             this.synchronized {
               if (theClass == null) {
-                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
+                childClasses.foreach { case (fn, b) => {println("CALLING loadClass"); loadClass(fn, b) }}
                 theClass = loadClass(n, bytes)
               }
             }
           }
 
-          theClass.newInstance().asInstanceOf[F]
+          val f = theClass.newInstance().asInstanceOf[F]
+          println("past theClass.newInstance()")
+          f
         } catch {
           //  only triggers on classloader
           case e@(_: Exception | _: LinkageError) => {

@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder}
 import is.hail.table.SortOrder
 import is.hail.utils._
 
@@ -71,6 +71,29 @@ abstract class PBaseStruct extends PType {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
     sb.result()
+  }
+
+  def upcastStruct(fb: EmitFunctionBuilder[_], region: Code[Region], typeSrc: PBaseStruct, value: Code[Long], shallow: Boolean): Code[Unit] = {
+    coerce[Unit](Code(typeSrc.fields.map { f =>
+      if (f.typ.isPrimitive)
+        Code._empty
+      else {
+        val fix = f.typ.fundamentalType match {
+          case t@(_: PBinary | _: PArray) =>
+            val off = fb.newField[Long]
+            Code(
+              off := typeSrc.fieldOffset(value, f.index)
+              // TODO: FIX
+              //              Region.storeAddress(off, upcast(fb, region, t, typeDest.typ.fundamentalType, coerce[Long](Region.loadIRIntermediate(t)(off))))
+            )
+          case t: PBaseStruct =>
+            val off = fb.newField[Long]
+            Code(off := t.fieldOffset(value, f.index),
+              this.upcastStruct(fb, region, t, off, shallow))
+        }
+        typeSrc.isFieldDefined(region, value, f.index).mux(fix, Code._empty)
+      }
+    }: _*))
   }
 
   def identBase: String
@@ -241,7 +264,7 @@ abstract class PBaseStruct extends PType {
   def loadField(region: Region, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     types(fieldIdx).fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _: PArray | _: PBinary => Region.loadLong(off)
       case _ => off
     }
   }

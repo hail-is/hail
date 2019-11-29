@@ -180,6 +180,7 @@ package object asm4s {
   }
 
   def loadClass(className: String, b: Array[Byte]): Class[_] = {
+    println("Running class loader")
     HailClassLoader.loadOrDefineClass(className, b)
   }
 

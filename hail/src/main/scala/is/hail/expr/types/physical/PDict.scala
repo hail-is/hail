@@ -9,7 +9,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
-final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false) extends PContainer {
+final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false, isReference: Boolean = false) extends PContainer {
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
   val elementType: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)

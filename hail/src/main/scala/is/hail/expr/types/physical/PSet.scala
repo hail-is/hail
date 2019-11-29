@@ -8,7 +8,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
-final case class PSet(elementType: PType, override val required: Boolean = false) extends PContainer {
+final case class PSet(elementType: PType, override val required: Boolean = false, isReference: Boolean = false) extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)

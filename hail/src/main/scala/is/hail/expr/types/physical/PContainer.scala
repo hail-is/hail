@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.physical.PType.storeShallow
 import is.hail.utils._
 
 object PContainer {
@@ -19,6 +20,8 @@ object PContainer {
     Region.storeInt(aoff, length)
 
   def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
+
+  def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
 }
 
 abstract class PContainer extends PIterable {
@@ -32,14 +35,14 @@ abstract class PContainer extends PIterable {
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(aoff)
 
+  final def loadLength(aoff: Long): Int =
+    PContainer.loadLength(aoff)
+
   final def loadLength(aoff: Code[Long]): Code[Int] =
     PContainer.loadLength(aoff)
 
   final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     loadLength(aoff)
-
-  final def storeLength(region: Region, aoff: Long, length: Int): Unit =
-    PContainer.storeLength(aoff, length)
 
   final def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     PContainer.storeLength(aoff, length)
@@ -47,50 +50,72 @@ abstract class PContainer extends PIterable {
   final def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
     storeLength(aoff, length)
 
-
-  def nMissingBytes(len: Code[Int]): Code[Long] = PContainer.nMissingBytes(len)
-
-  def _elementsOffset(length: Int): Long =
-    if (elementType.required)
-      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+  def nMissingBytes(len: Code[Int]): Code[Long] = {
+    if(elementType.required)
+      0L
     else
-      UnsafeUtils.roundUpAlignment(((length + 7) >>> 3) + 4, elementType.alignment)
+      PContainer.nMissingBytes(len)
+  }
 
-  def _elementsOffset(length: Code[Int]): Code[Long] =
-    if (elementType.required)
-      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+  def nMissingBytes(len: Int): Long = {
+    if(elementType.required)
+      0L
     else
-      UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
+      PContainer.nMissingBytes(len)
+  }
 
-  var elementsOffsetTable: Array[Long] = _
+  def lengthHeaderBytes: Long = 4
+
+//  println(s"Alignment: $alignment, modulo: ${lengthHeaderBytes % alignment}")
+//  assert(lengthHeaderBytes % alignment == 0)
+  println(s"Element alignemnt is ${elementType.alignment}")
+
+  def afterLengthHeaderAddress(aoff: Code[Long]) = {
+    aoff + const(lengthHeaderBytes)
+  }
+
+  private def _headerSizeInBytes(length: Int): Long =
+    lengthHeaderBytes + nMissingBytes(length)
+
+  private def _headerSizeInBytes(length: Code[Int]): Code[Long] =
+    nMissingBytes(length) + lengthHeaderBytes
+
+  private lazy val lengthOffsetTable = 10
+  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _headerSizeInBytes(i))
 
   def elementsOffset(length: Int): Long = {
-    if (elementsOffsetTable == null)
-      elementsOffsetTable = Array.tabulate[Long](10)(i => _elementsOffset(i))
-
-    if (length < 10)
+    if (length < lengthOffsetTable)
       elementsOffsetTable(length)
     else
-      _elementsOffset(length)
+      _headerSizeInBytes(length)
   }
 
   def elementsOffset(length: Code[Int]): Code[Long] = {
-    // FIXME: incorporate table, maybe?
-    _elementsOffset(length)
+    _headerSizeInBytes(length)
   }
 
   def contentsByteSize(length: Int): Long =
-    elementsOffset(length) + length * elementByteSize
+    elementsOffset(length) + totalDataByteSize(length)
 
   def contentsByteSize(length: Code[Int]): Code[Long] = {
-    elementsOffset(length) + length.toL * elementByteSize
+    elementsOffset(length) + totalDataByteSize(length)
+  }
+
+  def totalDataByteSize(length: Code[Int]): Code[Long] = {
+    length.toL * elementByteSize
+  }
+
+  def totalDataByteSize(length: Int): Long = {
+    length * elementByteSize
   }
 
   def isElementMissing(region: Region, aoff: Long, i: Int): Boolean =
-    !isElementDefined(region, aoff, i)
+    !isElementDefined(aoff, i)
 
-  def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
-    elementType.required || !Region.loadBit(aoff + 4, i)
+  def isElementDefined(aoff: Long, i: Int): Boolean =
+    elementType.required || !Region.loadBit(aoff + lengthHeaderBytes, i)
+
+  def isElementDefined(region: Region, aoff: Long, i: Int): Boolean = isElementDefined(aoff, i)
 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
@@ -102,32 +127,38 @@ abstract class PContainer extends PIterable {
     if (elementType.required)
       true
     else
-      !Region.loadBit(aoff + 4L, i.toL)
+      !Region.loadBit(aoff + lengthHeaderBytes, i.toL)
 
   def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     isElementDefined(aoff, i)
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    Region.setBit(aoff + 4, i)
+    Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    Region.setBit(aoff + 4L, i.toL)
+    Region.setBit(aoff + lengthHeaderBytes, i.toL)
 
   def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
     setElementMissing(aoff, i)
 
   def setElementPresent(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
-    Region.clearBit(aoff + 4, i)
+    Region.clearBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    Region.clearBit(aoff + 4L, i.toL)
+    Region.clearBit(aoff + lengthHeaderBytes, i.toL)
 
   def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
     setElementPresent(aoff, i)
+
+  def firstElementAddress(aoff: Long, length: Int): Long =
+    aoff + elementsOffset(length)
+
+  def firstElementAddress(aoff: Code[Long], length: Code[Int]): Code[Long] =
+    aoff + elementsOffset(length)
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
@@ -141,13 +172,13 @@ abstract class PContainer extends PIterable {
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
 
-  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = {
-    val off = elementOffset(aoff, length, i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
-  }
+  def nextElementAddress(currentOffset: Long) =
+    currentOffset + elementByteSize
+
+  def nextElementAddress(currentOffset: Code[Long]) =
+    currentOffset + elementByteSize
+
+  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = getElementAddress(aoff, length, i)
 
   def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
@@ -157,10 +188,15 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def loadElement(region: Region, aoff: Long, i: Int): Long =
-    loadElement(region, aoff, Region.loadInt(aoff), i)
+  def getElementAddress(aoff: Long, length: Int, i: Int): Long = {
+    val off = elementOffset(aoff, length, i)
+    elementType.fundamentalType match {
+      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _ => off
+    }
+  }
 
-  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = {
+  def getElementAddress(aoff: Code[Long], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, Region.loadInt(aoff), i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -168,8 +204,18 @@ abstract class PContainer extends PIterable {
     }
   }
 
+  def loadElement(region: Region, aoff: Long, i: Int): Long = getElementAddress(aoff, Region.loadInt(aoff), i)
+
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    loadElement(aoff, i)
+    getElementAddress(aoff, i)
+
+  def read(region: Region, aoff: Long, i: Int) {
+    UnsafeRow.read(elementType, region, loadElement(region, aoff, i))
+  }
+
+  def read(region: Region, aoff: Long) {
+    UnsafeRow.read(this, region, aoff)
+  }
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))
@@ -178,38 +224,37 @@ abstract class PContainer extends PIterable {
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
-  private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
-    val nMissingBytes = (length + 7) / 8
-    Region.setMemory(aoff + 4, nMissingBytes, value)
+  private def writeMissingness(aoff: Long, length: Int, value: Byte) {
+    Region.setMemory(afterLengthHeaderAddress(aoff), nMissingBytes(length), value)
   }
 
-  def setAllMissingBits(region: Region, aoff: Long, length: Int) {
+  private def setAllMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff, length, -1)
+    writeMissingness(aoff, length, -1)
   }
 
-  def clearMissingBits(region: Region, aoff: Long, length: Int) {
+  private def clearMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff, length, 0)
+    writeMissingness(aoff, length, 0)
   }
 
   def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
-    Region.storeInt(aoff, length)
+    PContainer.storeLength(aoff, length)
     if (setMissing)
-      setAllMissingBits(region, aoff, length)
+      setAllMissingBits(aoff, length)
     else
-      clearMissingBits(region, aoff, length)
+      clearMissingBits(aoff, length)
   }
 
   def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
     if (elementType.required)
-      Region.storeInt(aoff, length)
+      PContainer.storeLength(aoff, length)
     else
       Code(
-        Region.storeInt(aoff, length),
-        Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
+        PContainer.storeLength(aoff, length),
+        Region.setMemory(afterLengthHeaderAddress(aoff), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =
@@ -278,6 +323,75 @@ abstract class PContainer extends PIterable {
         Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
         newOffset
       )
+    }
+  }
+
+  def copyDataOfDifferentType(fb: FunctionBuilder[_], region: Code[Region], sourceType: PContainer, sourceValue: Code[Long], forceShallow: Boolean = false): Code[Long] = {
+    val startOffset: ClassFieldRef[Long] = fb.newField[Long]
+    val arraySize = fb.newField[Long]
+    val elementLength = fb.newField[Int]
+    val currentElementAddress = fb.newField[Long]
+    val currentIdx= fb.newField[Int]
+
+    var c = Code(
+      elementLength := sourceType.loadLength(sourceValue),
+      // TODO: do the right thing for PBaseStruct, PBinary
+      arraySize := sourceType.contentsByteSize(elementLength),
+      startOffset := region.allocate(this.contentsAlignment, arraySize)
+    )
+
+    if (this == sourceType) {
+      Code(
+        c,
+        Region.copyFrom(sourceValue, startOffset, arraySize),
+        startOffset
+      )
+    } else {
+      // TODO: add cases for PBaseStruct, PBinary
+      c = Code(c, PContainer.storeLength(startOffset, elementLength))
+      c = Code(c, this.stagedInitialize(startOffset, elementLength))
+      c = Code(c, currentElementAddress := this.firstElementAddress(startOffset, elementLength))
+      c = Code(c, currentIdx.store(0))
+
+      if (this.elementType == sourceType.elementType) {
+        Code(
+          c,
+          Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceValue), currentElementAddress, sourceType.nMissingBytes(elementLength) + sourceType.totalDataByteSize(elementLength)),
+          startOffset
+        )
+      } else {
+        Code(c,
+          currentIdx.store(0),
+          Code.whileLoop(currentIdx < elementLength,
+            // similarly, switch for different types
+            if (sourceType.elementType.isPrimitive) {
+              storeShallow(
+                sourceType.getElementAddress(sourceValue, currentIdx),
+                sourceType.elementType.fundamentalType,
+                currentElementAddress
+              )
+            } else {
+//              if(sourceType.elementType.required) {
+                Region.storeAddress(
+                  currentElementAddress,
+                  this.elementType.asInstanceOf[PContainer].copyDataOfDifferentType(
+                    fb,
+                    region,
+                    sourceType.elementType.asInstanceOf[PContainer],
+                    sourceType.getElementAddress(sourceValue, currentIdx),
+                    forceShallow
+                  )
+                )
+//              }
+
+            },
+            // leaky abstraction
+            currentElementAddress := this.nextElementAddress(currentElementAddress),
+            currentIdx := currentIdx + const(1)
+          ),
+          startOffset
+        )
+      }
     }
   }
 

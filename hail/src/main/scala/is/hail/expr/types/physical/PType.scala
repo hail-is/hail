@@ -1,12 +1,14 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.{EmitMethodBuilder, IRParser}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, IRParser}
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{BaseType, Requiredness}
+import is.hail.expr.types.{BaseType, Requiredness, physical}
 import is.hail.expr.types.encoded.EType
-import is.hail.table.{ Ascending, Descending, SortOrder }
+import is.hail.table.{Ascending, Descending, SortOrder}
+import is.hail.utils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -153,6 +155,24 @@ object PType {
       case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case PVoid => PVoid
     }
+  }
+
+  def storeShallow(value: Code[Long], sourceType: PType, destOffset: Code[Long]): Code[Unit] = sourceType.fundamentalType match {
+    case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(value))
+    case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(value))
+    case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(value))
+    case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(value))
+    case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(value))
+    case _: PBaseStruct => Region.copyFrom(value, destOffset, sourceType.byteSize)
+    case _: PArray => {
+      println("Running PArray storeShallow")
+      Code(
+        Code._println("Storing address"),
+        Region.storeAddress(destOffset, value)
+      )
+    }
+    case _: PBinary => Region.storeAddress(destOffset, value)
+    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 }
 

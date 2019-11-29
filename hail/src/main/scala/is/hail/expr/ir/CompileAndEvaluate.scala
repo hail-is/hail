@@ -75,6 +75,7 @@ object CompileAndEvaluate {
       envVar, envPType,
       MakeTuple.ordered(FastSeq(ir))), "compile")
 
+    println("COMPILED")
     val value = timer.time(
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)

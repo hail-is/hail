@@ -299,6 +299,7 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
         val b = Region.loadBytes(PBinary.bytesOffset(boff), length)
         v.visitBinary(b)
       case t: PContainer =>
+        println("I'M IN THE PCONTAINER WORLD")
         val aoff = off
         val pt = t
         val length = pt.loadLength(this, aoff)

@@ -29,10 +29,15 @@ class UnsafeIndexedSeq(
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
+    println(s"(Is it definedd? $i")
     if (t.isElementDefined(region, aoff, i)) {
+      println(s"It's defined: $i")
       UnsafeRow.read(t.elementType, region, t.loadElement(region, aoff, length, i))
-    } else
+    } else {
+      println(s"(Not defined $i")
       null
+    }
+
   }
 
   override def toString: String = s"[${this.mkString(",")}]"
