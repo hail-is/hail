@@ -39,7 +39,6 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       offsetWithinBlock += n
       o
     } else {
-      println("NOT WITHIN blcok threshold")
       if (n <= blockThreshold) {
         allocateNewBlock()
         offsetWithinBlock = n

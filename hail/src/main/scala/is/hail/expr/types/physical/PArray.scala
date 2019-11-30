@@ -12,10 +12,6 @@ import scala.reflect.{ClassTag, _}
 final case class PArray(elementType: PType, override val required: Boolean = false, isReference: Boolean = false) extends PContainer with PStreamable {
   lazy val virtualType: TArray = TArray(elementType.virtualType, required)
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
     elementType.pyString(sb)

@@ -26,11 +26,11 @@ object PContainer {
 
 abstract class PContainer extends PIterable {
 
-  def elementByteSize: Long
+  def elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   override def byteSize: Long = 8
 
-  def contentsAlignment: Long
+  def contentsAlignment: Long = UnsafeUtils.nativeWordSize
 
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(aoff)
@@ -51,14 +51,14 @@ abstract class PContainer extends PIterable {
     storeLength(aoff, length)
 
   def nMissingBytes(len: Code[Int]): Code[Long] = {
-    if(elementType.required)
-      0L
+    if (elementType.required)
+      const(0L)
     else
       PContainer.nMissingBytes(len)
   }
 
   def nMissingBytes(len: Int): Long = {
-    if(elementType.required)
+    if (elementType.required)
       0L
     else
       PContainer.nMissingBytes(len)
@@ -66,46 +66,46 @@ abstract class PContainer extends PIterable {
 
   def lengthHeaderBytes: Long = 4
 
-//  println(s"Alignment: $alignment, modulo: ${lengthHeaderBytes % alignment}")
-//  assert(lengthHeaderBytes % alignment == 0)
-  println(s"Element alignemnt is ${elementType.alignment}")
-
   def afterLengthHeaderAddress(aoff: Code[Long]) = {
     aoff + const(lengthHeaderBytes)
   }
 
-  private def _headerSizeInBytes(length: Int): Long =
-    lengthHeaderBytes + nMissingBytes(length)
+  private def _headerOffset(length: Int): Long =
+    if (elementType.required)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, UnsafeUtils.nativeWordSize)
+    else
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PContainer.nMissingBytes(length), UnsafeUtils.nativeWordSize)
 
-  private def _headerSizeInBytes(length: Code[Int]): Code[Long] =
-    nMissingBytes(length) + lengthHeaderBytes
+  private def _headerOffset(length: Code[Int]): Code[Long] =
+    if (elementType.required)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, UnsafeUtils.nativeWordSize)
+    else
+      UnsafeUtils.roundUpAlignment(PContainer.nMissingBytes(length) + lengthHeaderBytes, UnsafeUtils.nativeWordSize)
 
   private lazy val lengthOffsetTable = 10
-  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _headerSizeInBytes(i))
+  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _headerOffset(i))
 
   def elementsOffset(length: Int): Long = {
     if (length < lengthOffsetTable)
       elementsOffsetTable(length)
     else
-      _headerSizeInBytes(length)
+      _headerOffset(length)
   }
 
-  def elementsOffset(length: Code[Int]): Code[Long] = {
-    _headerSizeInBytes(length)
-  }
+  def elementsOffset(length: Code[Int]): Code[Long] =
+    _headerOffset(length)
 
   def contentsByteSize(length: Int): Long =
-    elementsOffset(length) + totalDataByteSize(length)
+    elementsOffset(length) + dataByteSize(length)
 
-  def contentsByteSize(length: Code[Int]): Code[Long] = {
-    elementsOffset(length) + totalDataByteSize(length)
-  }
+  def contentsByteSize(length: Code[Int]): Code[Long] =
+    elementsOffset(length) + dataByteSize(length)
 
-  def totalDataByteSize(length: Code[Int]): Code[Long] = {
+  def dataByteSize(length: Code[Int]): Code[Long] = {
     length.toL * elementByteSize
   }
 
-  def totalDataByteSize(length: Int): Long = {
+  def dataByteSize(length: Int): Long = {
     length * elementByteSize
   }
 
@@ -204,33 +204,32 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def loadElement(region: Region, aoff: Long, i: Int): Long = getElementAddress(aoff, Region.loadInt(aoff), i)
+  def loadElement(region: Region, aoff: Long, i: Int): Long =
+    getElementAddress(aoff, Region.loadInt(aoff), i)
 
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     getElementAddress(aoff, i)
 
-  def read(region: Region, aoff: Long, i: Int) {
+  def read(region: Region, aoff: Long, i: Int): Any =
     UnsafeRow.read(elementType, region, loadElement(region, aoff, i))
-  }
 
-  def read(region: Region, aoff: Long) {
+  def read(region: Region, aoff: Long): Any =
     UnsafeRow.read(this, region, aoff)
-  }
 
-  def allocate(region: Region, length: Int): Long = {
+  def allocate(region: Region, length: Int): Long =
     region.allocate(contentsAlignment, contentsByteSize(length))
-  }
 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(aoff: Long, length: Int, value: Byte) {
-    Region.setMemory(afterLengthHeaderAddress(aoff), nMissingBytes(length), value)
+    Region.setMemory(aoff + lengthHeaderBytes, PContainer.nMissingBytes(length), value)
   }
 
   private def setAllMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
+
     writeMissingness(aoff, length, -1)
   }
 
@@ -254,7 +253,7 @@ abstract class PContainer extends PIterable {
     else
       Code(
         PContainer.storeLength(aoff, length),
-        Region.setMemory(afterLengthHeaderAddress(aoff), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
+        Region.setMemory(aoff + const(lengthHeaderBytes), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
   }
 
   override def unsafeOrdering(): UnsafeOrdering =
@@ -356,7 +355,7 @@ abstract class PContainer extends PIterable {
       if (this.elementType == sourceType.elementType) {
         Code(
           c,
-          Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceValue), currentElementAddress, sourceType.nMissingBytes(elementLength) + sourceType.totalDataByteSize(elementLength)),
+          Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceValue), currentElementAddress, sourceType.dataByteSize(elementLength)),
           startOffset
         )
       } else {

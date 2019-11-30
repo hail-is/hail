@@ -790,7 +790,7 @@ class StagedRegionValueSuite extends HailSuite {
 //    val sourceType = PArray(PArray(PInt64(true)))
 //    val destType = PArray(PArray(PInt64()))
 //    val sourceValue = FastIndexedSeq(FastIndexedSeq(1L,2L,3L,4L))
-
+    println(s"Alignment is ${UnsafeUtils.nativeWordSize}")
     val sourceType = PArray(PArray(PArray(PInt64(true)), true), true)
     val destType = PArray(PArray(PArray(PInt64(true)), true), true)
     val sourceValue = FastIndexedSeq(FastIndexedSeq(FastIndexedSeq(1L,2L,0L,3L,4L)), FastIndexedSeq(FastIndexedSeq(20L,21L,31L,41L)), FastIndexedSeq(FastIndexedSeq(0L,7L,9L,2L)))
@@ -814,64 +814,52 @@ class StagedRegionValueSuite extends HailSuite {
     assert(copy == sourceValue)
   }
 
-  @Test def testDeepArrayUpcastElement() {
-    val sourceType = PArray(PArray(PInt32(true)))
-    val destType = PArray(PArray(PInt32()))
+  @Test def testDeepArrayUpcastFlatElementNotRequired() {
+    val sourceType = PArray(PArray(PArray(PInt64(true), true), true), true)
+    val destType = PArray(PArray(PArray(PInt64(false))))
+    val sourceValue = FastIndexedSeq(FastIndexedSeq(FastIndexedSeq(1L,2L,0L,3L,4L)), FastIndexedSeq(FastIndexedSeq(20L,21L,31L,41L)), FastIndexedSeq(FastIndexedSeq(0L,7L,9L,2L)))
 
-    val sourceValue = FastIndexedSeq(FastIndexedSeq(1,2,3), FastIndexedSeq(4,5,6))
-
-    val rvb = new RegionValueBuilder()
-    val srcRegion = rvb.region
+    val region = Region()
+    val srcRegion = Region()
 
     val src = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
-    println(s"SOURCE!: $src")
 
+    val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
+    val codeRegion = fb.getArg[Region](1).load()
+    val value = fb.getArg[Long](2)
 
-//    val something = destType.stagedInitialized
-//    val sb = new StagedArrayBuilder2(sd)
-//    val efb = EmitFunctionBuilder[Region, Long, Long]("fb")
-//
-//    val i = efb.newField[Int]("i")
-//    val
-//    val fn = Code(
-//      i := 0,
-//      Code.whileLoop(i < )
-//
-//    )
-//    println(s"A! $sourceValue")
-//    assert(sourceType.virtualType.typeCheck(sourceValue))
-//
-//    val copy = Region.scoped { region =>
-//      val copyOff = Region.scoped { srcRegion =>
-//        val src = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
-//
-//        val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
-//        fb.emit(
-//          StagedRegionValueBuilder.upcastFromOffset(
-//            EmitRegion.default(fb.apply_method),
-//            sourceType,
-//            destType,
-//            fb.getArg[Long](2).load()))
-//        val copyF = fb.re
-    //    //        // actually without sultWithIndex()(0, region)
-//        val newOff = copyF(region, src)
-//
-//        // This isn't needed for this test to work
-//        //clear old stuffcthis  will pass always, even if the code didn't generate the right arra
-////        val len = srcRegion.allocate(0) - src
-////        Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
-//        newOff
-//      }
-//      // SafeIndexedSeq makes another copy
-//      // UnsafeIndexedSeq works, but it gives back a [1,2,3],[4,5,6]
-//      // while SafeIndexedSeq gives back WrappedArray(WrappedArray(1,2,3), WrappedArray(4,5,6))
-//      new UnsafeIndexedSeq(destType, region, copyOff)
-//      //        SafeIndexedSeq(t, region, copyOff)
-//    }
-//
-//    println(s"COPY IS $copy")
-//
-//    assert(copy == sourceValue)
+    fb.emit(destType.copyDataOfDifferentType(fb, codeRegion, sourceType, value))
+
+    val f = fb.result()()
+    val copyOff = f(region,src)
+
+    val copy = SafeIndexedSeq(destType, region, copyOff)
+
+    assert(copy == sourceValue)
+  }
+
+  @Test def testSimpleArrayCopy() {
+    val sourceType = PArray(PInt64(true),true)
+    val destType = PArray(PInt64())
+    val sourceValue = FastIndexedSeq(1L,2L,0L,3L,4L)
+
+    val region = Region()
+    val srcRegion = Region()
+
+    val src = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+
+    val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
+    val codeRegion = fb.getArg[Region](1).load()
+    val value = fb.getArg[Long](2)
+
+    fb.emit(destType.copyDataOfDifferentType(fb, codeRegion, sourceType, value))
+
+    val f = fb.result()()
+    val copyOff = f(region,src)
+
+    val copy = SafeIndexedSeq(destType, region, copyOff)
+
+    assert(copy == sourceValue)
   }
 
   @Test def testDeepCopy() {

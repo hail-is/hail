@@ -14,10 +14,6 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
 
   val elementType: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
   override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"

@@ -11,10 +11,6 @@ import scala.reflect.{ClassTag, _}
 final case class PSet(elementType: PType, override val required: Boolean = false, isReference: Boolean = false) extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
   override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
   def _asIdent = s"set_of_${elementType.asIdent}"
