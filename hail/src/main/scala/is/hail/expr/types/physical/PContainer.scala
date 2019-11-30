@@ -265,7 +265,6 @@ abstract class PContainer extends PIterable {
       return Code._empty
     }
 
-    //  convert from non-required to required
     val i = mb.newLocal[Long]
     Code(
       i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)),
@@ -291,9 +290,9 @@ abstract class PContainer extends PIterable {
   }
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
-    assert(sourceType.elementType.isPrimitive)
+    assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-    if (sourceType.elementType == this.elementType) {
+    if (sourceType.elementType.required == this.elementType.required) {
       return sourceOffset
     }
 
