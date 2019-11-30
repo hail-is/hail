@@ -277,12 +277,13 @@ abstract class PContainer extends PIterable {
       } else {
         //  convert from non-required to required
         val i = mb.newField[Long]
+
         Code(
           i := 0L,
           Code.whileLoop(i < PContainer.nMissingBytes(len),
             Region
               .loadByte(oldOffset + lengthHeaderBytes + i)
-              .cne(const(0))
+              .cne(const(0.toByte))
               .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
             i := i + 1L
           )
