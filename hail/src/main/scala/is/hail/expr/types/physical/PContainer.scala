@@ -260,52 +260,50 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], oldOffset: Code[Long], otherPT: PContainer, msg: String): Code[Long] = {
-    assert(otherPT.elementType.isPrimitive)
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
+    assert(sourceType.elementType.isPrimitive)
 
-    if (otherPT.elementType.required == elementType.required) {
-      return oldOffset
+    if (sourceType.elementType == this.elementType) {
+      return sourceOffset
     }
 
     val newOffset = mb.newField[Long]
-    val len = otherPT.loadLength(oldOffset)
-
+    val len = sourceType.loadLength(sourceOffset)
     Code(
-      if (otherPT.elementType.required) {
+      if (sourceType.elementType.required) {
         // convert from required to non-required
         Code._empty
       } else {
         //  convert from non-required to required
-        val i = mb.newField[Long]
-
+        val i = mb.newLocal[Long]
         Code(
-          i := PContainer.nMissingBytes(len) - 1L,
+          i := PContainer.nMissingBytes(len),
           Code.whileLoop(i > 0L,
             (i >= 8L).mux(
               Code(
-                Code._println(s"i >= 8L: ${i}"),
                 i := i - 8L,
                 Region
-                .loadLong(oldOffset + lengthHeaderBytes + i)
+                .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
                 .cne(const(0.toByte))
-                .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing."))
+                .orEmpty(Code._fatal(msg))
               ),
-              Code(x 
-                Code._println(s"i < 8L: ${i}"),
+              Code(
                 i := i - 1L,
                 Region
-                  .loadByte(oldOffset + lengthHeaderBytes + i)
+                  .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i)
                   .cne(const(0.toByte))
-                  .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing."))
+                  .orEmpty(Code._fatal(msg))
               )
             )
           )
         )
       },
-      newOffset := allocate(r, len),
-      stagedInitialize(newOffset, len),
-      Region.copyFrom(otherPT.firstElementOffset(oldOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
-      newOffset
+      Code(
+        newOffset := allocate(r, len),
+        stagedInitialize(newOffset, len),
+        Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+        newOffset
+      )
     )
   }
 
