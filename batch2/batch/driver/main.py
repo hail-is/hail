@@ -5,17 +5,20 @@ from functools import wraps
 import concurrent
 import asyncio
 from aiohttp import web
+import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-from gear import Database, setup_aiohttp_session, web_authenticated_developers_only
+from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
+    check_csrf_token
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
+    set_message
 
 # import uvloop
 
-from ..batch import mark_job_complete
+from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE
@@ -197,22 +200,6 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     return web.Response()
 
 
-async def db_cleanup_event_loop(db, log_store):
-    while True:
-        try:
-            async for record in db.execute_and_fetchall('''
-SELECT id FROM batches
-WHERE deleted AND (NOT closed OR n_jobs = n_completed);
-'''):
-                batch_id = record['id']
-                await log_store.delete_batch_logs(batch_id)
-                await db.just_execute('DELETE FROM batches WHERE id = %s;',
-                                      (batch_id,))
-        except Exception:
-            log.exception(f'in db cleanup loop')
-        await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
-
-
 async def activate_instance_1(request, instance):
     body = await request.json()
     ip_address = body['ip_address']
@@ -237,7 +224,7 @@ async def activate_instance(request, instance):
 
 async def deactivate_instance_1(instance):
     log.info(f'deactivating {instance}')
-    await instance.deactivate()
+    await instance.deactivate('deactivated')
     await instance.mark_healthy()
     return web.Response()
 
@@ -254,6 +241,7 @@ async def job_complete_1(request, instance):
 
     batch_id = status['batch_id']
     job_id = status['job_id']
+    attempt_id = status['attempt_id']
 
     status_state = status['state']
     if status_state == 'succeeded':
@@ -264,7 +252,11 @@ async def job_complete_1(request, instance):
         assert status_state == 'failed', status_state
         new_state = 'Failed'
 
-    await mark_job_complete(request.app, batch_id, job_id, new_state, status)
+    start_time = status['start_time']
+    end_time = status['end_time']
+
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
+                            start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 
@@ -275,6 +267,28 @@ async def job_complete_1(request, instance):
 @active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
+
+
+async def job_started_1(request, instance):
+    body = await request.json()
+    status = body['status']
+
+    batch_id = status['batch_id']
+    job_id = status['job_id']
+    attempt_id = status['attempt_id']
+    start_time = status['start_time']
+
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/instances/job_started')
+@active_instances_only
+async def job_started(request, instance):
+    return await asyncio.shield(job_started_1(request, instance))
 
 
 @routes.get('/')
@@ -290,6 +304,7 @@ async def get_index(request, userdata):
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
+        'config': instance_pool.config(),
         'instance_id': app['instance_id'],
         'n_instances_by_state': instance_pool.n_instances_by_state,
         'instances': instance_pool.name_instance.values(),
@@ -297,6 +312,82 @@ async def get_index(request, userdata):
         'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
     }
     return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
+
+
+@routes.post('/config-update')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def config_update(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    inst_pool = app['inst_pool']
+
+    session = await aiohttp_session.get_session(request)
+
+    def validate(name, value, predicate, description):
+        if not predicate(value):
+            set_message(session,
+                        f'{name} invalid: {value}.  Must be {description}.',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+        return value
+
+    def validate_int(name, value, predicate, description):
+        try:
+            i = int(value)
+        except ValueError:
+            set_message(session,
+                        f'{name} invalid: {value}.  Must be an integer.',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+        return validate(name, i, predicate, description)
+
+    post = await request.post()
+
+    # FIXME can't adjust worker type, cores because we check if jobs
+    # can be scheduled in the front-end before inserting into the
+    # database
+
+    # valid_worker_types = ('highcpu', 'standard', 'highmem')
+    # worker_type = validate(
+    #     'Worker type',
+    #     post['worker_type'],
+    #     lambda v: v in valid_worker_types,
+    #     f'one of {", ".join(valid_worker_types)}')
+
+    # valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+    # worker_cores = validate_int(
+    #     'Worker cores',
+    #     post['worker_cores'],
+    #     lambda v: v in valid_worker_cores,
+    #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+
+    worker_disk_size_gb = validate_int(
+        'Worker disk size',
+        post['worker_disk_size_gb'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    max_instances = validate_int(
+        'Max instances',
+        post['max_instances'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    pool_size = validate_int(
+        'Worker pool size',
+        post['pool_size'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    await inst_pool.configure(
+        # worker_type, worker_cores,
+        worker_disk_size_gb, max_instances, pool_size)
+
+    set_message(session,
+                'Updated batch configuration.',
+                'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
 
 
 async def on_startup(app):
@@ -318,16 +409,12 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'instance_id')
-    instance_id = row['token']
+        'SELECT instance_id, internal_token FROM globals;')
+    instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'internal')
-    app['internal_token'] = row['token']
+    app['internal_token'] = row['internal_token']
 
     machine_name_prefix = f'batch2-worker-{DEFAULT_NAMESPACE}-'
 
@@ -352,8 +439,6 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
-
-    asyncio.ensure_future(db_cleanup_event_loop(db, log_store))
 
 
 async def on_cleanup(app):

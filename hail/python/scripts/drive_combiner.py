@@ -18,7 +18,7 @@ def chunks(seq, size):
 def h(paths, sample_names, tmp_path, json, header, out_path, i, first):
     """inner part of stage one, including transformation from a gvcf into the combiner's format"""
     vcfs = [comb.transform_one(vcf)
-            for vcf in hl.import_vcfs(paths, json, array_elements_required=False,
+            for vcf in hl.import_gvcfs(paths, json, array_elements_required=False,
                                       _external_header=header,
                                       _external_sample_ids=sample_names)]
     combined = [comb.combine_gvcfs(mts) for mts in chunks(vcfs, MAX_COMBINE_NUMBER)]

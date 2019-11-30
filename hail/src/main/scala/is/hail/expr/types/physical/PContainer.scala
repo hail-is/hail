@@ -161,13 +161,19 @@ abstract class PContainer extends PIterable {
     aoff + elementsOffset(length)
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
-    aoff + elementsOffset(length) + i * elementByteSize
+    firstElementOffset(aoff, length) + i * elementByteSize
 
   def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-    aoff + elementsOffset(length) + i.toL * const(elementByteSize)
+    firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
+
+  def firstElementOffset(aoff: Long, length: Int): Long =
+    aoff + elementsOffset(length)
+
+  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+    aoff + elementsOffset(length)
 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
@@ -178,9 +184,12 @@ abstract class PContainer extends PIterable {
   def nextElementAddress(currentOffset: Code[Long]) =
     currentOffset + elementByteSize
 
-  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = getElementAddress(aoff, length, i)
+  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = loadElementAddress(aoff, length, i)
 
-  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+    loadElementAddress(aoff, length, i)
+
+  def loadElementAddress(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -188,16 +197,8 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def getElementAddress(aoff: Long, length: Int, i: Int): Long = {
+  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
-  }
-
-  def getElementAddress(aoff: Code[Long], i: Code[Int]): Code[Long] = {
-    val off = elementOffset(aoff, Region.loadInt(aoff), i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
@@ -205,10 +206,10 @@ abstract class PContainer extends PIterable {
   }
 
   def loadElement(region: Region, aoff: Long, i: Int): Long =
-    getElementAddress(aoff, Region.loadInt(aoff), i)
+    loadElementAddress(aoff, Region.loadInt(aoff), i)
 
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    getElementAddress(aoff, i)
+    loadElementAddress(aoff, PContainer.loadLength(aoff), i)
 
   def read(region: Region, aoff: Long, i: Int): Any =
     UnsafeRow.read(elementType, region, loadElement(region, aoff, i))
@@ -293,49 +294,64 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], value: Code[Long], otherPT: PType, msg: String): Code[Long] = {
-    val otherPTA = otherPT.asInstanceOf[PArray]
-    assert(otherPTA.elementType.isPrimitive)
-    val oldOffset = value
-    val len = otherPTA.loadLength(oldOffset)
-    if (otherPTA.elementType.required == elementType.required) {
-      value
-    } else {
-      val newOffset = mb.newField[Long]
-      Code(
-        newOffset := allocate(r, len),
-        stagedInitialize(newOffset, len),
-        if (otherPTA.elementType.required) {
-          // convert from required to non-required
-          Code._empty
-        } else {
-          //  convert from non-required to required
-          val i = mb.newField[Int]
-          Code(
-            i := 0,
-            Code.whileLoop(i < len,
-              otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
-              i := i + 1
-            )
-          )
-        },
-        Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
-        newOffset
-      )
+  def ensureNoMissingValues(mb: EmitMethodBuilder, sourceOffset: Code[Long], sourceType: PContainer, onFail: Code[_]): Code[Unit] = {
+    if(sourceType.elementType.required) {
+      return Code._empty
     }
+
+    val i = mb.newLocal[Long]
+    Code(
+      i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)),
+      Code.whileLoop(i > 0L,
+        (i >= 8L).mux(
+          Code(
+            i := i - 8L,
+            Region
+              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
+              .cne(const(0.toByte))
+              .orEmpty(onFail)
+          ),
+          Code(
+            i := i - 1L,
+            Region
+              .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i)
+              .cne(const(0.toByte))
+              .orEmpty(onFail)
+          )
+        )
+      )
+    )
+  }
+
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
+    assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
+
+    if (sourceType.elementType.required == this.elementType.required) {
+      return sourceOffset
+    }
+
+    val newOffset = mb.newField[Long]
+    val len = sourceType.loadLength(sourceOffset)
+    Code(
+      ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)),
+      newOffset := allocate(r, len),
+      stagedInitialize(newOffset, len),
+      Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+      newOffset
+    )
   }
 
   def copyDataOfDifferentType(fb: FunctionBuilder[_], region: Code[Region], sourceType: PContainer, sourceValue: Code[Long], forceShallow: Boolean = false): Code[Long] = {
     val startOffset: ClassFieldRef[Long] = fb.newField[Long]
     val arraySize = fb.newField[Long]
-    val elementLength = fb.newField[Int]
+    val numberOfElements = fb.newField[Int]
     val currentElementAddress = fb.newField[Long]
     val currentIdx= fb.newField[Int]
 
     var c = Code(
-      elementLength := sourceType.loadLength(sourceValue),
+      numberOfElements := sourceType.loadLength(sourceValue),
       // TODO: do the right thing for PBaseStruct, PBinary
-      arraySize := sourceType.contentsByteSize(elementLength),
+      arraySize := sourceType.contentsByteSize(numberOfElements),
       startOffset := region.allocate(this.contentsAlignment, arraySize)
     )
 
@@ -347,9 +363,9 @@ abstract class PContainer extends PIterable {
       )
     } else {
       // TODO: add cases for PBaseStruct, PBinary
-      c = Code(c, PContainer.storeLength(startOffset, elementLength))
-      c = Code(c, this.stagedInitialize(startOffset, elementLength))
-      c = Code(c, currentElementAddress := this.firstElementAddress(startOffset, elementLength))
+      c = Code(c, PContainer.storeLength(startOffset, numberOfElements))
+      c = Code(c, this.stagedInitialize(startOffset, numberOfElements))
+      c = Code(c, currentElementAddress := this.firstElementAddress(startOffset, numberOfElements))
       c = Code(c, currentIdx.store(0))
 
       if (this.elementType == sourceType.elementType) {
@@ -361,11 +377,11 @@ abstract class PContainer extends PIterable {
       } else {
         Code(c,
           currentIdx.store(0),
-          Code.whileLoop(currentIdx < elementLength,
+          Code.whileLoop(currentIdx < numberOfElements,
             // similarly, switch for different types
             if (sourceType.elementType.isPrimitive) {
               storeShallow(
-                sourceType.getElementAddress(sourceValue, currentIdx),
+                sourceType.loadElementAddress(sourceValue, numberOfElements, currentIdx),
                 sourceType.elementType.fundamentalType,
                 currentElementAddress
               )
@@ -377,7 +393,7 @@ abstract class PContainer extends PIterable {
                     fb,
                     region,
                     sourceType.elementType.asInstanceOf[PContainer],
-                    sourceType.getElementAddress(sourceValue, currentIdx),
+                    sourceType.loadElementAddress(sourceValue, numberOfElements, currentIdx),
                     forceShallow
                   )
                 )

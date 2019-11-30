@@ -53,10 +53,21 @@ server {
 }
 
 server {
-    server_name batch.*;
+    server_name scheduler.*;
 
     location / {
-        proxy_pass http://batch/;
+        proxy_pass http://scheduler/;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name hello.*;
+
+    location / {
+        proxy_pass http://hello/;
     }
 
     listen 80;
@@ -65,6 +76,7 @@ server {
 
 server {
     server_name batch2.*;
+    client_max_body_size 8m;
 
     location / {
         proxy_pass http://batch2/;
@@ -235,6 +247,7 @@ server {
 
 server {
     server_name blog.*;
+    client_max_body_size 8m;
 
     location / {
         proxy_pass http://blog/;
@@ -246,6 +259,5 @@ server {
 
     listen 80;
     listen [::]:80;
-	client_max_body_size 8M;
 }
 

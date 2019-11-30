@@ -8,7 +8,7 @@ import yaml
 import jinja2
 from .utils import flatten, generate_token
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE, \
+from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
     DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL
 
 log = logging.getLogger('ci')
@@ -147,6 +147,7 @@ class Step(abc.ABC):
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
+            'zone': GCP_ZONE,
             'domain': DOMAIN,
             'ip': IP,
             'k8s_server_url': KUBERNETES_SERVER_URL
@@ -258,8 +259,17 @@ class BuildImageStep(Step):
             context = 'context'
             init_context = 'mkdir context'
 
-        dockerfile = 'Dockerfile'
-        render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
+        rendered_dockerfile = 'Dockerfile'
+        if isinstance(self.dockerfile, dict):
+            assert ['inline'] == list(self.dockerfile.keys())
+            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token};\n'
+            unrendered_dockerfile = f'Dockerfile.{self.token}'
+        else:
+            assert isinstance(self.dockerfile, str)
+            render_dockerfile = ''
+            unrendered_dockerfile = f'repo/{self.dockerfile}'
+        render_dockerfile += (f'python3 jinja2_render.py {shq(json.dumps(config))} '
+                              f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}')
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
@@ -298,7 +308,7 @@ mkdir repo
 {init_context}
 {copy_inputs}
 
-FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(dockerfile)})
+FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
@@ -307,7 +317,7 @@ gcloud -q auth configure-docker
 docker pull $FROM_IMAGE
 {pull_published_latest}
 docker build --memory="1.5g" --cpu-period=100000 --cpu-quota=100000 -t {shq(self.image)} \
-  -f {dockerfile} \
+  -f {rendered_dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
 {push_image}
@@ -370,7 +380,13 @@ class RunImageStep(Step):
         self.inputs = inputs
         self.outputs = outputs
         self.resources = resources
-        self.service_account = service_account
+        if service_account:
+            self.service_account = {
+                'name': service_account['name'],
+                'namespace': get_namespace(service_account['namespace'], self.input_config(params.code, params.scope))
+            }
+        else:
+            self.service_account = None
         self.secrets = secrets
         self.always_run = always_run
         self.job = None
@@ -421,10 +437,7 @@ class RunImageStep(Step):
         secrets = []
         if self.secrets:
             for secret in self.secrets:
-                if 'namespace' in secret:
-                    namespace = get_namespace(secret['namespace'], self.input_config(code, scope))
-                else:
-                    namespace = BATCH_PODS_NAMESPACE
+                namespace = get_namespace(secret['namespace'], self.input_config(code, scope))
                 name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
                 secrets.append({
@@ -441,7 +454,7 @@ class RunImageStep(Step):
             input_files=input_files,
             output_files=output_files,
             secrets=secrets,
-            service_account_name=self.service_account,
+            service_account=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run)
 
@@ -464,7 +477,7 @@ class CreateNamespaceStep(Step):
         self.secrets = secrets
         self.job = None
 
-        if DEFAULT_NAMESPACE != 'default':
+        if is_test_deployment:
             self._name = DEFAULT_NAMESPACE
             return
 
@@ -606,7 +619,10 @@ date
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     # FIXME configuration
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
@@ -626,7 +642,10 @@ true
         self.job = batch.create_job(CI_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=parents,
                                     always_run=True)
 
@@ -697,11 +716,7 @@ set -e
 '''
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
-                    port = w.get('port', 80)
                     resource_type = w.get('resource_type', 'deployment').lower()
-                    endpoint = w.get('endpoint', '/healthcheck')
-                    headers = w.get('headers', dict())
-                    header_arg = ' '.join([f"--header '{flag}' '{value}'" for flag, value in headers.items()])
                     timeout = w.get('timeout', 60)
                     if resource_type == 'statefulset':
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
@@ -712,8 +727,7 @@ set -e
                     script += f'''
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
-  {wait_cmd} && \
-  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name} --endpoint {endpoint} {header_arg}
+  {wait_cmd}
 EC=$?
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
 set -e
@@ -746,7 +760,10 @@ date
                                     command=['bash', '-c', script],
                                     attributes=attrs,
                                     # FIXME configuration
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
@@ -767,7 +784,10 @@ date
                                         command=['bash', '-c', script],
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
-                                        service_account_name='ci-agent',
+                                        service_account={
+                                            'namespace': BATCH_PODS_NAMESPACE,
+                                            'name': 'ci-agent'
+                                        },
                                         parents=parents,
                                         always_run=True)
 
@@ -779,6 +799,9 @@ class CreateDatabaseStep(Step):
         self.database_name = database_name
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
+
+        if is_test_deployment:
+            self.namespace = DEFAULT_NAMESPACE
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if params.scope == 'deploy':
@@ -916,7 +939,10 @@ echo done.
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     secrets=self.secrets,
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
@@ -941,6 +967,9 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=self.secrets,
-                                    service_account_name='ci-agent',
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
                                     parents=parents,
                                     always_run=True)

@@ -530,6 +530,22 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    def test_union_cols_outer(self):
+        r, c = 10, 10
+        mt = hl.utils.range_matrix_table(2*r, c)
+        mt = mt.annotate_entries(entry=hl.tuple([mt.row_idx, mt.col_idx]))
+        mt2 = hl.utils.range_matrix_table(2*r, c)
+        mt2 = mt2.key_rows_by(row_idx=mt2.row_idx + r)
+        mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
+        mt2 = mt2.annotate_entries(entry=hl.tuple([mt2.row_idx, mt2.col_idx]))
+        expected = hl.utils.range_matrix_table(3*r, 2*c)
+        missing = hl.null(hl.ttuple(hl.tint, hl.tint))
+        expected = expected.annotate_entries(entry=hl.cond(
+            expected.col_idx < c,
+            hl.cond(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
+            hl.cond(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
+        assert mt.union_cols(mt2, row_join_type='outer')._same(expected)
+
     def test_union_rows_different_col_schema(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt2 = hl.utils.range_matrix_table(10, 10)
@@ -1404,7 +1420,6 @@ class Tests(unittest.TestCase):
                               grouped=hl.agg.group_by(mt.e1 % 5, hl.agg.sum(mt.e1) + common_ref))
         mt.cols()._force_count()
 
-    @pytest.mark.skip("does not pass due to CSE bug")
     def test_annotate_rows_scan_lowering(self):
         mt = hl.utils.range_matrix_table(10, 10, 2)
         mt = mt.annotate_rows(r1=[mt.row_idx, mt.row_idx * 2])
@@ -1470,3 +1485,37 @@ class Tests(unittest.TestCase):
         mt2 = hl.read_matrix_table(tmp)
         assert mt2.n_partitions() == len(parts)
         assert hl.filter_intervals(mt, parts)._same(mt2)
+
+    def test_overwrite(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        f = new_temp_file(suffix='mt')
+        mt.write(f)
+
+        with pytest.raises(hl.utils.FatalError, match= "file already exists"):
+            mt.write(f)
+
+        mt.write(f, overwrite=True)
+
+    def test_invalid_metadata(self):
+        with pytest.raises(hl.utils.FatalError, match='metadata does not contain file version'):
+            hl.read_matrix_table(resource('0.1-1fd5cc7.vds'))
+
+    def test_legacy_files_with_required_globals(self):
+        hl.read_table(resource('required_globals.ht'))._force_count()
+        hl.read_matrix_table(resource('required_globals.mt'))._force_count_rows()
+
+    def test_matrix_native_write_range(self):
+        mt = hl.utils.range_matrix_table(11, 3, n_partitions=3)
+        f = new_temp_file()
+        mt.write(f)
+        assert hl.read_matrix_table(f)._same(mt)
+
+    def test_matrix_multi_write_range(self):
+        mts = [
+            hl.utils.range_matrix_table(11, 27, n_partitions=10),
+            hl.utils.range_matrix_table(11, 3, n_partitions=10)
+        ]
+        f = new_temp_file()
+        hl.experimental.write_matrix_tables(mts, f)
+        assert hl.read_matrix_table(f + '0.mt')._same(mts[0])
+        assert hl.read_matrix_table(f + '1.mt')._same(mts[1])

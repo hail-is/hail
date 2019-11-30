@@ -879,7 +879,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-    type_and_data = json.loads(Env.hail().table.Table.importFamJSON(path, quant_pheno, delimiter, missing))
+    type_and_data = json.loads(Env.jutils().importFamJSON(path, quant_pheno, delimiter, missing))
     typ = hl.dtype(type_and_data['type'])
     return hl.Table.parallelize(
         hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
@@ -887,41 +887,53 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 
 @typecheck(regex=str,
            path=oneof(str, sequenceof(str)),
-           max_count=int)
-def grep(regex, path, max_count=100):
+           max_count=int,
+           show=bool)
+def grep(regex, path, max_count=100, *, show=True):
     r"""Searches given paths for all lines containing regex matches.
 
-        Examples
-        --------
+    Examples
+    --------
 
-        Print all lines containing the string ``hello`` in *file.txt*:
+    Print all lines containing the string ``hello`` in *file.txt*:
 
-        >>> hl.grep('hello','data/file.txt')
+    >>> hl.grep('hello','data/file.txt')
 
-        Print all lines containing digits in *file1.txt* and *file2.txt*:
+    Print all lines containing digits in *file1.txt* and *file2.txt*:
 
-        >>> hl.grep('\d', ['data/file1.txt','data/file2.txt'])
+    >>> hl.grep('\d', ['data/file1.txt','data/file2.txt'])
 
-        Notes
-        -----
-        :func:`.grep` mimics the basic functionality of Unix ``grep`` in
-        parallel, printing results to the screen. This command is provided as a
-        convenience to those in the statistical genetics community who often
-        search enormous text files like VCFs. Hail uses `Java regular expression
-        patterns
-        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
-        The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
+    Notes
+    -----
+    :func:`.grep` mimics the basic functionality of Unix ``grep`` in
+    parallel, printing results to the screen. This command is provided as a
+    convenience to those in the statistical genetics community who often
+    search enormous text files like VCFs. Hail uses `Java regular expression
+    patterns
+    <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+    The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
-        Parameters
-        ----------
-        regex : :obj:`str`
-            The regular expression to match.
-        path : :obj:`str` or :obj:`list` of :obj:`str`
-            The files to search.
-        max_count : :obj:`int`
-            The maximum number of matches to return
-        """
-    Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
+    Parameters
+    ----------
+    regex : :obj:`str`
+        The regular expression to match.
+    path : :obj:`str` or :obj:`list` of :obj:`str`
+        The files to search.
+    max_count : :obj:`int`
+        The maximum number of matches to return
+    show : :obj:`bool`
+        When `True`, show the values on stdout. When `False`, return a
+        dictionary mapping file names to lines.
+
+    Returns
+    ---
+    :obj:`dict` of :obj:`str` to :obj:`list` of :obj:`str`
+    """
+    if show:
+        Env.hc()._jhc.grepPrint(regex, jindexed_seq_args(path), max_count)
+    else:
+        jarr = Env.hc()._jhc.grepReturn(regex, jindexed_seq_args(path), max_count)
+        return {x._1(): list(x._2()) for x in jarr}
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -2120,20 +2132,20 @@ def import_vcf(path,
            find_replace=nullable(sized_tupleof(str, str)),
            _external_sample_ids=nullable(sequenceof(sequenceof(str))),
            _external_header=nullable(str))
-def import_vcfs(path,
-                partitions,
-                force=False,
-                force_bgz=False,
-                call_fields=['PGT'],
-                entry_float_type=tfloat64,
-                reference_genome='default',
-                contig_recoding=None,
-                array_elements_required=True,
-                skip_invalid_loci=False,
-                filter=None,
-                find_replace=None,
-                _external_sample_ids=None,
-                _external_header=None) -> List[MatrixTable]:
+def import_gvcfs(path,
+                 partitions,
+                 force=False,
+                 force_bgz=False,
+                 call_fields=['PGT'],
+                 entry_float_type=tfloat64,
+                 reference_genome='default',
+                 contig_recoding=None,
+                 array_elements_required=True,
+                 skip_invalid_loci=False,
+                 filter=None,
+                 find_replace=None,
+                 _external_sample_ids=None,
+                 _external_header=None) -> List[MatrixTable]:
     """(Experimental) Import multiple vcfs as multiple :class:`.MatrixTable`.
 
     .. include:: ../_templates/experimental.rst
@@ -2153,8 +2165,8 @@ def import_vcfs(path,
     The ``includes_start`` and ``includes_end`` keys must be ``True``. The
     ``contig`` fields must be the same.
 
-    One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
-    :func:`.import_vcfs` only keys the resulting matrix tables by ``locus``
+    One difference between :func:`.import_gvcfs` and :func:`.import_vcf` is that
+    :func:`.import_gvcfs` only keys the resulting matrix tables by ``locus``
     rather than ``locus, alleles``.
     """
 
@@ -2191,6 +2203,37 @@ def import_vcfs(path,
                                   hl.tmatrix._from_json(vector_ref['type']))
 
     return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
+
+
+def import_vcfs(path,
+                partitions,
+                force=False,
+                force_bgz=False,
+                call_fields=['PGT'],
+                entry_float_type=tfloat64,
+                reference_genome='default',
+                contig_recoding=None,
+                array_elements_required=True,
+                skip_invalid_loci=False,
+                filter=None,
+                find_replace=None,
+                _external_sample_ids=None,
+                _external_header=None) -> List[MatrixTable]:
+    """This function is deprecated, use :func:`.import_gvcfs` instead"""
+    return import_gvcfs(path,
+                        partitions,
+                        force,
+                        force_bgz,
+                        call_fields,
+                        entry_float_type,
+                        reference_genome,
+                        contig_recoding,
+                        array_elements_required,
+                        skip_invalid_loci,
+                        filter,
+                        find_replace,
+                        _external_sample_ids,
+                        _external_header)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

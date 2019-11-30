@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 
 import argparse
 import datetime
@@ -50,11 +51,12 @@ def main(args_):
 
     args = parser.parse_args(args_)
 
+    data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
     if args.dry_run:
         from .utils import init_logging
         init_logging()
     else:
-        initialize(args)
+        initialize(args, data_dir)
 
     run_data = {'cores': args.cores,
                 'version': hl.__version__,
@@ -66,7 +68,7 @@ def main(args_):
     def handler(stats):
         records.append(stats)
 
-    config = RunConfig(args.n_iter, handler, not args.quiet, args.timeout, args.dry_run)
+    config = RunConfig(args.n_iter, handler, not args.quiet, args.timeout, args.dry_run, data_dir)
     if args.tests:
         run_list(args.tests.split(','), config)
     if args.pattern:

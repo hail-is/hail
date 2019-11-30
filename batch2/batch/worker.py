@@ -23,7 +23,8 @@ from hailtop.utils import request_retry_transient_errors
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import parse_cpu_in_mcpu, parse_image_tag
+from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
+    adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import WeightedSemaphore
 from .log_store import LogStore
 
@@ -42,12 +43,14 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 BUCKET_NAME = os.environ['BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
+WORKER_TYPE = os.environ['WORKER_TYPE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'WORKER_TYPE {WORKER_TYPE}')
 log.info(f'BUCKET_NAME {BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
@@ -81,12 +84,11 @@ class JobDeletedError(Exception):
 
 
 class ContainerStepManager:
-    def __init__(self, container, state=None, name=None):
+    def __init__(self, container, name, state):
         self.container = container
         self.state = state
-        self.name = name or state
-        self.time = None
-        self.start_time = None
+        self.name = name
+        self.timing = None
 
     async def __aenter__(self):
         if self.container.job.deleted:
@@ -94,12 +96,15 @@ class ContainerStepManager:
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
-        self.start_time = time.time()
+        self.timing = {}
+        self.timing['start_time'] = time.time()
+        self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time.time()
-        if self.name:
-            self.container.timing[self.name] = finish_time - self.start_time
+        self.timing['finish_time'] = finish_time
+        start_time = self.timing['start_time']
+        self.timing['duration'] = finish_time - start_time
 
 
 class Container:
@@ -115,7 +120,11 @@ class Container:
             image += ':latest'
         self.image = image
 
-        self.cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+        req_cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
+        req_memory_in_bytes = parse_memory_in_bytes(spec['memory'])
+
+        self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
+        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
         self.container = None
         self.state = 'pending'
@@ -134,7 +143,8 @@ class Container:
             'Cmd': self.spec['command'],
             'Image': self.image,
             'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100}
+                           'CpuQuota': self.cpu_in_mcpu * 100,
+                           'Memory': self.memory_in_bytes}
         }
 
         env = self.spec.get('env')
@@ -147,23 +157,35 @@ class Container:
 
         return config
 
-    def step(self, state=None, name=None):
-        return ContainerStepManager(self, state, name)
+    def step(self, name, **kwargs):
+        state = kwargs.get('state', name)
+        return ContainerStepManager(self, name, state)
 
     async def get_container_status(self):
-        c = await docker_call_retry(self.container.show)
+        if not self.container:
+            return None
+
+        try:
+            c = await docker_call_retry(self.container.show)
+        except DockerError as e:
+            if e.status == 404:
+                return None
+            raise
+
         log.info(f'{self} container info {c}')
         cstate = c['State']
         status = {
             'state': cstate['Status'],
             'started_at': cstate['StartedAt'],
-            'finished_at': cstate['FinishedAt']
+            'finished_at': cstate['FinishedAt'],
+            'out_of_memory': cstate['OOMKilled']
         }
         cerror = cstate['Error']
         if cerror:
             status['error'] = cerror
         else:
             status['exit_code'] = cstate['ExitCode']
+
         return status
 
     async def run(self, worker):
@@ -197,8 +219,11 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with self.step(None, 'runtime'):
-                async with worker.cpu_sem(self.cpu_in_mcpu):
+            async with worker.cpu_sem(self.cpu_in_mcpu):
+                async with self.step('runtime', state=None):
+                    if self.name == 'main':
+                        asyncio.ensure_future(worker.post_job_started(self.job))
+
                     async with self.step('starting'):
                         await docker_call_retry(self.container.start)
 
@@ -267,6 +292,7 @@ class Container:
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
+    #     out_of_memory: boolean
     #     error: str, (one of error, exit_code will be present)
     #     exit_code: int
     #   }
@@ -308,8 +334,7 @@ def copy_command(src, dst):
 
 
 def copy(files):
-    if files is None:
-        return 'true'
+    assert files
 
     copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
     return f'''
@@ -334,6 +359,7 @@ def copy_container(job, name, files, volume_mounts):
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
         'cpu': '500m' if files else '100m',
+        'memory': '0.5Gi',
         'volume_mounts': volume_mounts
     }
     return Container(job, name, copy_spec)
@@ -341,7 +367,10 @@ def copy_container(job, name, files, volume_mounts):
 
 class Job:
     def secret_host_path(self, secret):
-        return f'{self.scratch}/{secret["name"]}'
+        return f'{self.scratch}/secrets/{secret["name"]}'
+
+    def io_host_path(self):
+        return f'{self.scratch}/io'
 
     def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
@@ -369,7 +398,7 @@ class Job:
 
         if pvc_size or input_files or output_files:
             self.mount_io = True
-            volume_mount = 'io:/io'
+            volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
         else:
@@ -392,10 +421,9 @@ class Job:
         # create containers
         containers = {}
 
-        # FIXME
-        # if input_files:
-        containers['setup'] = copy_container(
-            self, 'setup', input_files, copy_volume_mounts)
+        if input_files:
+            containers['input'] = copy_container(
+                self, 'input', input_files, copy_volume_mounts)
 
         # main container
         main_spec = {
@@ -404,14 +432,14 @@ class Job:
             'name': 'main',
             'env': env,
             'cpu': job_spec['resources']['cpu'],
+            'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
         containers['main'] = Container(self, 'main', main_spec)
 
-        # FIXME
-        # if output_files:
-        containers['cleanup'] = copy_container(
-            self, 'cleanup', output_files, copy_volume_mounts)
+        if output_files:
+            containers['output'] = copy_container(
+                self, 'output', output_files, copy_volume_mounts)
 
         self.containers = containers
 
@@ -420,17 +448,22 @@ class Job:
         return self.job_spec['job_id']
 
     @property
+    def attempt_id(self):
+        return self.job_spec['attempt_id']
+
+    @property
     def id(self):
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
-        io = None
+        run_start_time = time.time()
+
         try:
             log.info(f'{self}: initializing')
             self.state = 'initializing'
 
             if self.mount_io:
-                io = await docker_call_retry(docker.volumes.create, {'Name': 'io'})
+                os.makedirs(self.io_host_path())
 
             if self.secrets:
                 for secret in self.secrets:
@@ -438,14 +471,13 @@ class Job:
 
             self.state = 'running'
 
-            log.info(f'{self}: running setup')
+            input = self.containers.get('input')
+            if input:
+                log.info(f'{self}: running input')
+                await input.run(worker)
+                log.info(f'{self} input: {input.state}')
 
-            setup = self.containers['setup']
-            await setup.run(worker)
-
-            log.info(f'{self} setup: {setup.state}')
-
-            if setup.state == 'succeeded':
+            if not input or input.state == 'succeeded':
                 log.info(f'{self}: running main')
 
                 main = self.containers['main']
@@ -453,36 +485,35 @@ class Job:
 
                 log.info(f'{self} main: {main.state}')
 
-                log.info(f'{self}: running cleanup')
-
-                cleanup = self.containers['cleanup']
-                await cleanup.run(worker)
-
-                log.info(f'{self} cleanup: {cleanup.state}')
+                output = self.containers.get('output')
+                if output:
+                    log.info(f'{self}: running output')
+                    await output.run(worker)
+                    log.info(f'{self} output: {output.state}')
 
                 if main.state != 'succeeded':
                     self.state = main.state
+                elif output:
+                    self.state = output.state
                 else:
-                    if cleanup:
-                        self.state = cleanup.state
-                    else:
-                        self.state = 'succeeded'
+                    self.state = 'succeeded'
             else:
-                self.state = setup.state
+                self.state = input.state
         except Exception:
             log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
+            run_end_time = time.time()
+            run_duration = run_end_time - run_start_time
+
             log.info(f'{self}: marking complete')
-            await worker.post_job_complete(await self.status())
+            asyncio.ensure_future(worker.post_job_complete(self, run_duration))
 
             log.info(f'{self}: cleaning up')
             try:
                 shutil.rmtree(self.scratch, ignore_errors=True)
-                if io:
-                    await docker_call_retry(io.delete)
             except Exception:
                 log.exception('while deleting volumes')
 
@@ -499,24 +530,39 @@ class Job:
     #   name: str,
     #   batch_id: int,
     #   job_id: int,
+    #   attempt_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
     #   error: str, (optional)
     #   container_statuses: [Container.status]
+    #   start_time: float
+    #   end_time: float
     # }
     async def status(self):
         status = {
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
+            'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
             'state': self.state
         }
         if self.error:
             status['error'] = self.error
-        status['container_statuses'] = {
+
+        cstatuses = {
             name: await c.status() for name, c in self.containers.items()
         }
+        status['container_statuses'] = cstatuses
+
+        main_timings = cstatuses['main']['timing']
+        if 'runtime' in main_timings:
+            status['start_time'] = main_timings['runtime'].get('start_time')
+            status['end_time'] = main_timings['runtime'].get('finish_time')
+        else:
+            status['start_time'] = None
+            status['end_time'] = None
+
         return status
 
     def __str__(self):
@@ -541,13 +587,6 @@ class Worker:
             await job.run(self)
         except Exception:
             log.exception(f'while running {job}, ignoring')
-        finally:
-            self.last_updated = time.time()
-
-            log.info(f'{job} complete, removing from jobs')
-
-            if job.id in self.jobs:
-                del self.jobs[job.id]
 
     async def create_job_1(self, request):
         body = await request.json()
@@ -634,7 +673,7 @@ class Worker:
             await self.activate()
 
             idle_duration = time.time() - self.last_updated
-            while (self.jobs or idle_duration < MAX_IDLE_TIME_SECS):
+            while self.jobs or idle_duration < MAX_IDLE_TIME_SECS:
                 log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
                 idle_duration = time.time() - self.last_updated
@@ -660,11 +699,12 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def post_job_complete(self, job_status):
+    async def post_job_complete_1(self, job, run_duration):
         body = {
-            'status': job_status
+            'status': await job.status()
         }
 
+        start_time = time.time()
         delay = 0.1
         while True:
             try:
@@ -679,11 +719,43 @@ class Worker:
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
                     raise
-                log.exception(f'failed to mark job ({job_status["batch_id"]}, {job_status["job_id"]}) complete, retrying')
+                log.exception(f'failed to mark {job} complete, retrying')
+
+            # unlist job after 3m or half the run duration
+            now = time.time()
+            elapsed = now - start_time
+            if (job.id in self.jobs and
+                    elapsed > 180.0 and
+                    elapsed > run_duration / 2):
+                log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
+                del self.jobs[job.id]
+                self.last_updated = time.time()
+
             # exponentially back off, up to (expected) max of 30s
-            t = delay * random.random()
+            t = delay * random.uniform(0.7, 1.3)
             await asyncio.sleep(t)
-            delay = min(delay * 2, 60.0)
+            delay = min(delay * 2, 30.0)
+
+    async def post_job_complete(self, job, run_duration):
+        try:
+            await self.post_job_complete_1(job, run_duration)
+        finally:
+            log.info(f'{job} marked complete, removing from jobs')
+            if job.id in self.jobs:
+                del self.jobs[job.id]
+                self.last_updated = time.time()
+
+    async def post_job_started(self, job):
+        body = {
+            'status': await job.status()
+        }
+
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            await request_retry_transient_errors(
+                session, 'POST',
+                deploy_config.url('batch2-driver', '/api/v1alpha/instances/job_started'),
+                json=body, headers=self.headers)
 
     async def activate(self):
         async with aiohttp.ClientSession(

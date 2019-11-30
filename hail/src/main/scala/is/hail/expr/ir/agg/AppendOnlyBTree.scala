@@ -155,25 +155,30 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
 
   private val getF: EmitMethodBuilder = {
     val get = fb.newMethod("btree_get", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(key.compType)), typeInfo[Long])
-    val node = get.getArg[Long](1).load()
+    val node = get.getArg[Long](1)
     val km = get.getArg[Boolean](2).load()
     val kv = get.getArg(3)(typeToTypeInfo(key.compType)).load()
 
     val cmp = get.newLocal[Int]
-    def eltEqual(i: Int) = hasKey(node, i) && cmp.ceq(0)
+    val keyV = get.newLocal[Long]
+
     def insertOrGetAt(i: Int) = isLeaf(node).mux(
-        insert.invoke[Long](node, i, km, kv, 0L),
-      get.invoke(loadChild(node, i - 1), km, kv))
+      Code(keyV := insert.invoke[Long](node, i, km, kv, 0L), cmp := 0),
+      node := loadChild(node, i - 1))
 
     get.emit(Code(
-      cmp := 0,
-      Array.range(0, maxElements).foldRight(insertOrGetAt(maxElements)) { (i, cont) =>
-        val storeCmp = cmp := key.compWithKey(loadKey(node, i), km -> kv)
-        (!hasKey(node, i) || Code(storeCmp, cmp >= 0)).mux(
-          eltEqual(i).mux(loadKey(node, i),
-            insertOrGetAt(i)),
-          cont)
-      }))
+      cmp := -1,
+      keyV := 0L,
+      Code.whileLoop(cmp.cne(0),
+        Array.range(0, maxElements).foldRight(insertOrGetAt(maxElements)) { (i, cont) =>
+          val storeKeyAndComp = Code(
+            keyV := loadKey(node, i),
+            cmp := key.compWithKey(keyV, km -> kv))
+          (hasKey(node, i) && Code(storeKeyAndComp, cmp <= 0)).mux(
+            (cmp < 0).orEmpty(cont),
+            insertOrGetAt(i))
+        }),
+      keyV))
     get
   }
 

@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.table.Ascending
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -536,7 +535,7 @@ object PruneDeadFields {
       case MatrixFilterEntries(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType, irDep), memo)
-      case MatrixUnionCols(left, right) =>
+      case MatrixUnionCols(left, right, joinType) =>
         val leftRequestedType = requestedType.copy(
           rowKey = left.typ.rowKey,
           rowType = unify(left.typ.rowType, requestedType.rowType, selectKey(left.typ.rowType, left.typ.rowKey))

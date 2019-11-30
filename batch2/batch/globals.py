@@ -1,4 +1,4 @@
-states = {'Pending', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
+states = {'Pending', 'Ready', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
 
 complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
 
@@ -12,4 +12,4 @@ valid_state_transitions = {
     'Success': set(),
 }
 
-tasks = ('setup', 'main', 'cleanup')
+tasks = ('input', 'main', 'output')

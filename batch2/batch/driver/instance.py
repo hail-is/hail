@@ -73,14 +73,17 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 
         return rv['token']
 
-    async def deactivate(self):
+    async def deactivate(self, reason, timestamp=None):
         if self._state in ('inactive', 'deleted'):
             return
 
+        if not timestamp:
+            timestamp = time.time()
+
         await check_call_procedure(
             self.db,
-            'CALL deactivate_instance(%s);',
-            (self.name,))
+            'CALL deactivate_instance(%s, %s, %s);',
+            (self.name, reason, timestamp))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'inactive'
@@ -90,11 +93,11 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         # there might be jobs to reschedule
         self.scheduler_state_changed.set()
 
-    async def mark_deleted(self):
+    async def mark_deleted(self, reason, timestamp):
         if self._state == 'deleted':
             return
         if self._state != 'inactive':
-            await self.deactivate()
+            await self.deactivate(reason, timestamp)
 
         await check_call_procedure(
             self.db,

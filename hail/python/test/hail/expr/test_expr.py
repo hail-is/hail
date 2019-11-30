@@ -369,9 +369,6 @@ class Tests(unittest.TestCase):
         array_agg_count = t.aggregate(hl.agg.array_agg(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
         self.assertEqual(array_agg_count, [10 for i in range(10)])
 
-
-
-
     def test_approx_cdf(self):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)
@@ -889,6 +886,23 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.bin_freq, [7, 5, 6, 6, 7])
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
+
+    def test_aggregator_cse(self):
+        ht = hl.utils.range_table(10)
+        x = hl.agg.count()
+        self.assertEqual(ht.aggregate((x, hl.agg.filter(ht.idx % 2 == 0, x))), (10, 5))
+
+        mt = hl.utils.range_matrix_table(10, 10)
+        x = hl.int64(5)
+        rows = mt.annotate_rows(agg=hl.agg.sum(x+x), scan=hl.scan.sum(x+x), val=x+x).rows()
+        expected = hl.utils.range_table(10)
+        expected = expected.key_by(row_idx=expected.idx)
+        expected = expected.select(
+            agg=hl.int64(100),
+            scan=hl.int64(expected.row_idx*10),
+            val=hl.int64(10))
+        self.assertTrue(rows._same(expected))
+
 
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)

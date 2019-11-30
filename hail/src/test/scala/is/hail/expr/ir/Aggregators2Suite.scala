@@ -32,7 +32,7 @@ class Aggregators2Suite extends HailSuite {
     val argRef = Ref(genUID(), argT.virtualType)
     val spec = BufferSpec.defaultUncompressed
 
-    val (_, combAndDuplicate) = CompileWithAggregators2[Unit](
+    val (_, combAndDuplicate) = CompileWithAggregators2[Unit](ctx,
       Array.fill(nPartitions)(aggSig),
       Begin(
         Array.tabulate(nPartitions)(i => DeserializeAggs(i, i, spec, Array(aggSig))) ++
@@ -40,7 +40,7 @@ class Aggregators2Suite extends HailSuite {
           SerializeAggs(0, 0, spec, Array(aggSig)) :+
           DeserializeAggs(1, 0, spec, Array(aggSig))))
 
-    val (rt: PTuple, resF) = CompileWithAggregators2[Long](
+    val (rt: PTuple, resF) = CompileWithAggregators2[Long](ctx,
       Array.fill(nPartitions)(aggSig),
       ResultOp2(0, Array(aggSig, aggSig)))
     assert(rt.types(0) == rt.types(1))
@@ -53,7 +53,7 @@ class Aggregators2Suite extends HailSuite {
       val argOff = ScalaToRegionValue(region, argT, argVs)
 
       def withArgs(foo: IR) = {
-        CompileWithAggregators2[Long, Unit](
+        CompileWithAggregators2[Long, Unit](ctx,
           Array(aggSig),
           argRef.name, argRef.pType,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
@@ -62,14 +62,14 @@ class Aggregators2Suite extends HailSuite {
       }
 
       val serialize = SerializeAggs(0, 0, spec, Array(aggSig))
-      val (_, writeF) = CompileWithAggregators2[Unit](
+      val (_, writeF) = CompileWithAggregators2[Unit](ctx,
         Array(aggSig),
         serialize)
 
       val initF = withArgs(initOp)
 
       expectedInit.foreach { v =>
-        val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[Long](
+        val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[Long](ctx,
           Array(aggSig), ResultOp2(0, Array(aggSig)))
 
         val init = initF(0, region)

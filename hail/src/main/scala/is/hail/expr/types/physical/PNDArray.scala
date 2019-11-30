@@ -14,25 +14,32 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   assert(elementType.required, "elementType must be required")
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
-  override def _toPretty = s"NDArray[$elementType,$nDims]"
+
+  override def _toPretty = throw new NotImplementedError("Only _pretty should be called.")
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    sb.append("NDArray[")
+    elementType.pretty(sb, indent, compact)
+    sb.append(s",$nDims]")
+  }
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
-  val flags = new StaticallyKnownField(PInt32Required, (r, off) => Region.loadInt(representation.loadField(r, off, "flags")))
-  val offset = new StaticallyKnownField(
+  @transient lazy val flags = new StaticallyKnownField(PInt32Required, (r, off) => Region.loadInt(representation.loadField(r, off, "flags")))
+  @transient lazy val offset = new StaticallyKnownField(
     PInt32Required,
     (r, off) => Region.loadInt(representation.loadField(r, off, "offset"))
   )
-  val shape = new StaticallyKnownField(
+  @transient lazy val shape = new StaticallyKnownField(
     PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
     (r, off) => representation.loadField(r, off, "shape")
   )
-  val strides = new StaticallyKnownField(
+  @transient lazy val strides = new StaticallyKnownField(
     PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
     (r, off) => representation.loadField(r, off, "strides")
   )
 
-  val data = new StaticallyKnownField(
+  @transient lazy val data = new StaticallyKnownField(
     PArray(elementType, required = true),
     (r, off) => representation.loadField(r, off, "data")
   )

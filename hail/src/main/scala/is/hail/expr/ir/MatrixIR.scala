@@ -18,7 +18,6 @@ import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.AbstractTableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -30,7 +29,7 @@ import org.json4s.jackson.JsonMethods
 import scala.collection.mutable
 
 object MatrixIR {
-  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
+  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
     val reader = MatrixNativeReader(path)
     MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
   }
@@ -426,23 +425,29 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
-case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
+case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) extends MatrixIR {
+  require(joinType == "inner" || joinType == "outer")
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionCols = {
     assert(newChildren.length == 2)
-    MatrixUnionCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[MatrixIR])
+    MatrixUnionCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[MatrixIR], joinType)
   }
 
-  val typ: MatrixType = left.typ
+  val typ: MatrixType = if (joinType == "inner")
+    left.typ
+  else
+    left.typ.copy(
+      colType = TStruct(left.typ.colType.fields.map(f => f.copy(typ = -f.typ))),
+      entryType = TStruct(left.typ.entryType.fields.map(f => f.copy(typ = -f.typ))))
 
   override def columnCount: Option[Int] =
     left.columnCount.flatMap(leftCount => right.columnCount.map(rightCount => leftCount + rightCount))
 
   lazy val rowCountUpperBound: Option[Long] = (left.rowCountUpperBound, right.rowCountUpperBound) match {
-    case (Some(l), Some(r)) => Some(l.min(r))
-    case (Some(l), None) => Some(l)
-    case (None, Some(r)) => Some(r)
+    case (Some(l), Some(r)) => if (joinType == "inner") Some(l.min(r)) else Some(l + r)
+    case (Some(l), None) => if (joinType == "inner") Some(l) else None
+    case (None, Some(r)) => if (joinType == "inner") Some(r) else None
     case (None, None) => None
   }
 }

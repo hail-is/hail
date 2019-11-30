@@ -2,15 +2,13 @@ package is.hail.methods
 
 import java.util
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{ExecuteContext, Interpret, MatrixValue, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt32Required, PInt64Required, PStruct, PType}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDType}
-import is.hail.table.Table
+import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant._
 
@@ -276,15 +274,12 @@ object LocalLDPrune {
     })
   }
 
-  def apply(mt: MatrixTable,
+  def apply(ctx: ExecuteContext,
+    mt: MatrixValue,
     callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
-  ): Table = {
+  ): TableValue = {
     val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
-
-    ExecuteContext.scoped { ctx =>
-      new Table(HailContext.get,
-        TableLiteral(pruner.execute(ctx, Interpret(mt.lit, ctx, optimize = false).toMatrixValue(mt.colKey)), ctx))
-    }
+    pruner.execute(ctx, mt)
   }
 }
 

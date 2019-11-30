@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, LoweringPipeline}
 import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
@@ -22,31 +23,29 @@ abstract class Backend {
 
   def parallelizeAndComputeWithIndex[T: ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U]
 
-  def lower(ir: IR, timer: Option[ExecutionTimer], optimize: Boolean = true): IR =
-      LowerTableIR(ir, timer, optimize)
+  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) = {
+    ExecuteContext.scoped { ctx =>
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, Timings) = {
-    val timer = new ExecutionTimer("Backend.execute")
-    val ir = lower(ir0, Some(timer), optimize)
+      val ir = LoweringPipeline.tableLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
 
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
+      if (!Compilable(ir))
+        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
-    val res = Region.scoped { region =>
-      ir.typ match {
+      val res = ir.typ match {
         case TVoid =>
-          val (_, f) = timer.time(Compile[Unit](ir, print), "JVM compile")
-          timer.time(f(0, region)(region), "Runtime")
-        case _ =>
-          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple.ordered(FastSeq(ir)), print), "JVM compile")
-          timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
-      }
-    }
+          val (_, f) = ctx.timer.time("Compile")(Compile[Unit](ctx, ir, print))
+          ctx.timer.time("Run")(f(0, ctx.r)(ctx.r))
 
-    (res, timer.timings)
+        case _ =>
+          val (pt: PTuple, f) = ctx.timer.time("Compile")(Compile[Long](ctx, MakeTuple.ordered(FastSeq(ir)), print))
+          ctx.timer.time("Run")(SafeRow(pt, ctx.r, f(0, ctx.r)(ctx.r)).get(0))
+      }
+
+      (res, ctx.timer)
+    }
   }
 
-  def execute(ir: IR, optimize: Boolean): (Any, Timings) = {
+  def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) = {
     TypeCheck(ir)
     try {
       if (HailContext.get.flags.get("lower") == null)
@@ -54,7 +53,7 @@ abstract class Backend {
       jvmLowerAndExecute(ir, optimize)
     } catch {
       case _: LowererUnsupportedOperation =>
-        ExecuteContext.scoped(ctx => CompileAndEvaluate(ctx, ir, optimize = optimize))
+        ExecuteContext.scoped(ctx => (CompileAndEvaluate(ctx, ir, optimize = optimize), ctx.timer))
     }
   }
 
@@ -62,9 +61,10 @@ abstract class Backend {
     val t = ir.typ
     val (value, timings) = execute(ir, optimize = true)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+    timings.finish()
     timings.logInfo()
 
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
+    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")

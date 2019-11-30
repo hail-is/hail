@@ -13,6 +13,7 @@
           <th>ID</th>
           <th>Name</th>
           <th>State</th>
+          <th>Cost</th>
         </tr>
       </thead>
       <tbody>
@@ -25,6 +26,11 @@
             {% endif %}
           </td>
           <td>{{ batch['state'] }}</td>
+          <td>
+            {% if 'cost' in batch and batch['cost'] is not none %}
+            {{ batch['cost'] }}
+            {% endif %}
+          </td>
           {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
             <td>
               <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">

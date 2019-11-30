@@ -153,14 +153,14 @@ object InferPType {
           InferPType(i, env)
           i.pType2
         })
-        a.implementation.returnPType(pTypes)
+        a.implementation.returnPType(pTypes, a.returnType)
       }
       case a@ApplySpecial(_, args, _) => {
         val pTypes = args.map( i => {
           InferPType(i, env)
           i.pType2
         })
-        a.implementation.returnPType(pTypes)
+        a.implementation.returnPType(pTypes, a.returnType)
       }
       case _: Uniroot => PFloat64()
       case ArrayRef(a, i) => {

@@ -1,11 +1,13 @@
 package is.hail.expr.types.encoded
+import java.util
+import java.util.Map.Entry
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, IRParser, PunctuationToken, TokenIterator, typeToTypeInfo}
-import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 import org.json4s.CustomSerializer
@@ -157,46 +159,84 @@ trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
 trait EncoderAsmFunction { def apply(off: Long, out: OutputBuffer): Unit }
 
 object EType {
+
+  val cacheCapacity = 256
+  protected val encoderCache = new util.LinkedHashMap[(EType, PType), () => EncoderAsmFunction](cacheCapacity, 0.75f, true) {
+    override def removeEldestEntry(eldest: Entry[(EType, PType), () => EncoderAsmFunction]): Boolean = size() > cacheCapacity
+  }
+  protected var encoderCacheHits: Long = 0L
+  protected var encoderCacheMisses: Long = 0L
+
   // The 'entry point' for building an encoder from an EType and a PType
   def buildEncoder(et: EType, pt: PType): () => EncoderAsmFunction = {
-    val fb = new EmitFunctionBuilder[EncoderAsmFunction](
-      Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
-      NotGenericTypeInfo[Unit],
-      namePrefix = "etypeEncode")
-    val mb = fb.apply_method
-    val f = et.buildEncoder(pt, mb)
+    val k = (et, pt)
+    if (encoderCache.containsKey(k)) {
+      encoderCacheHits += 1
+      log.info(s"encoder cache hit")
+      encoderCache.get(k)
+    } else {
+      encoderCacheMisses += 1
+      log.info(s"encoder cache miss ($encoderCacheHits hits, $encoderCacheMisses misses, " +
+        s"${ formatDouble(encoderCacheHits.toDouble / (encoderCacheHits + encoderCacheMisses), 3) })")
+      val fb = new EmitFunctionBuilder[EncoderAsmFunction](
+        Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
+        NotGenericTypeInfo[Unit],
+        namePrefix = "etypeEncode")
+      val mb = fb.apply_method
+      val f = et.buildEncoder(pt, mb)
 
-    val addr: Code[Long] = mb.getArg[Long](1)
-    val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](2)
-    val v = Region.getIRIntermediate(pt)(addr)
+      val addr: Code[Long] = mb.getArg[Long](1)
+      val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](2)
+      val v = Region.getIRIntermediate(pt)(addr)
 
-    mb.emit(f(v, out))
-    fb.result()
+      mb.emit(f(v, out))
+      val func = fb.result()
+      encoderCache.put(k, func)
+      func
+    }
   }
 
+  protected val decoderCache = new util.LinkedHashMap[(EType, Type), (PType, () => DecoderAsmFunction)](cacheCapacity, 0.75f, true) {
+    override def removeEldestEntry(eldest: Entry[(EType, Type), (PType, () => DecoderAsmFunction)]): Boolean = size() > cacheCapacity
+  }
+  protected var decoderCacheHits: Long = 0L
+  protected var decoderCacheMisses: Long = 0L
+
   def buildDecoder(et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
-    val fb = new EmitFunctionBuilder[DecoderAsmFunction](
-      Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
-      NotGenericTypeInfo[Long],
-      namePrefix = "etypeDecode")
-    val mb = fb.apply_method
-    val pt = et.decodedPType(t)
-    val f = et.buildDecoder(pt, mb)
-
-    val region: Code[Region] = mb.getArg[Region](1)
-    val in: Code[InputBuffer] = mb.getArg[InputBuffer](2)
-
-    if (pt.isPrimitive) {
-      val srvb = new StagedRegionValueBuilder(mb, pt)
-      mb.emit(Code(
-        srvb.start(),
-        srvb.addIRIntermediate(pt)(f(region, in)),
-        srvb.end()))
+    val k = (et, t)
+    if (decoderCache.containsKey(k)) {
+      decoderCacheHits += 1
+      log.info(s"decoder cache hit")
+      decoderCache.get(k)
     } else {
-      mb.emit(f(region, in))
-    }
+      decoderCacheMisses += 1
+      log.info(s"decoder cache miss ($decoderCacheHits hits, $decoderCacheMisses misses, " +
+        s"${ formatDouble(decoderCacheHits.toDouble / (decoderCacheHits + decoderCacheMisses), 3) }")
+      val fb = new EmitFunctionBuilder[DecoderAsmFunction](
+        Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
+        NotGenericTypeInfo[Long],
+        namePrefix = "etypeDecode")
+      val mb = fb.apply_method
+      val pt = et.decodedPType(t)
+      val f = et.buildDecoder(pt, mb)
 
-    (pt, fb.result())
+      val region: Code[Region] = mb.getArg[Region](1)
+      val in: Code[InputBuffer] = mb.getArg[InputBuffer](2)
+
+      if (pt.isPrimitive) {
+        val srvb = new StagedRegionValueBuilder(mb, pt)
+        mb.emit(Code(
+          srvb.start(),
+          srvb.addIRIntermediate(pt)(f(region, in)),
+          srvb.end()))
+      } else {
+        mb.emit(f(region, in))
+      }
+
+      val r = (pt, fb.result())
+      decoderCache.put(k, r)
+      r
+    }
   }
 
   def defaultFromPType(pt: PType): EType = defaultFromPType(pt, pt.required)

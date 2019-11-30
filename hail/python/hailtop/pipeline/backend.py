@@ -187,14 +187,14 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self, _service='batch'):
-        self._batch_client = BatchClient(_service=_service)
+    def __init__(self):
+        self._batch_client = BatchClient()
 
     def close(self):
         self._batch_client.close()
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
-        start = time.time()
+        build_dag_start = time.time()
 
         bucket = self._batch_client.bucket
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
@@ -321,15 +321,16 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
-        print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
-        start = time.time()
+        if verbose:
+            print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
+
+        submit_batch_start = time.time()
         batch = batch.submit()
-        print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - start, 3)} seconds:')
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
@@ -339,7 +340,8 @@ class BatchBackend(Backend):
             print('Pipeline completed successfully!')
             return
 
-        failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
+        failed_jobs = [(j, Job.exit_code(j)) for j in status['jobs']]
+        failed_jobs = [((j['batch_id'], j['job_id']), Job._get_exit_codes(j)) for j, ec in failed_jobs if ec != 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:

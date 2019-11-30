@@ -94,12 +94,11 @@ class HailContext(object):
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
         optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
-        version = read_version_info()
-        hail.__version__ = version
+        py_version = version()
 
         if log is None:
             log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
-                                            suffix=f'-{version}.log')
+                                            suffix=f'-{py_version}.log')
         self._log = log
 
         # we always pass 'quiet' to the JVM because stderr output needs
@@ -135,10 +134,10 @@ class HailContext(object):
 
         jar_version = self._jhc.version()
 
-        if jar_version != version:
+        if jar_version != py_version:
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
                                f"  JAR:    {jar_version}\n"
-                               f"  Python: {version}")
+                               f"  Python: {py_version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -154,9 +153,9 @@ class HailContext(object):
                 '     __  __     <>__\n'
                 '    / /_/ /__  __/ /\n'
                 '   / __  / _ `/ / /\n'
-                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(version))
+                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(py_version))
 
-            if version.startswith('devel'):
+            if py_version.startswith('devel'):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
                                  '  during the beta period. We recommend pulling\n'
                                  '  the latest changes weekly.\n')
@@ -280,9 +279,22 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
                 _optimizer_iterations,_backend)
 
 
+def version():
+    """Get the installed hail version.
+
+    Returns
+    -------
+    str
+    """
+    if hail.__version__ is None:
+        # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+        hail.__version__ = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
+    return hail.__version__
+
+
 def _hail_cite_url():
-    version = read_version_info()
-    [tag, sha_prefix] = version.split("-")
+    v = version()
+    [tag, sha_prefix] = v.split("-")
     if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
         # pip installed
         return f"https://github.com/hail-is/hail/releases/tag/{tag}"
@@ -307,7 +319,7 @@ def citation(*, bibtex=False):
             f"  title = {{Hail}}," \
             f"  howpublished = {{\\url{{{_hail_cite_url()}}}}}" \
             f"}}"
-    return f"Hail Team. Hail {hail.__version__}. {_hail_cite_url()}."
+    return f"Hail Team. Hail {version()}. {_hail_cite_url()}."
 
 
 def cite_hail():
@@ -391,10 +403,6 @@ def set_global_seed(seed):
     Env.set_seed(seed)
 
 
-def read_version_info() -> str:
-    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
-    return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
-
 
 def _set_flags(**flags):
     available = set(Env.hc()._jhc.flags().available())
@@ -420,5 +428,5 @@ def debug_info():
     return {
         'spark_conf': spark_context()._conf.getAll(),
         'hail_jar_path': hail_jar_path,
-        'version': hail.__version__
+        'version': version()
     }

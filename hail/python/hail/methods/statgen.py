@@ -2249,9 +2249,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
                                                                       split.a_index).unphased_diploid_gt_index() == i
                                                 ).map(lambda j: split.PL[j]))))))
         if 'GQ' in entry_fields:
-            pl_gq_struct = hl.rbind(pl, lambda pl: hl.struct(PL=pl, GQ=hl.gq_from_pl(pl)))
-            update_entries_expression['PL'] = pl_gq_struct['PL']
-            update_entries_expression['GQ'] = pl_gq_struct['GQ']
+            update_entries_expression['PL'] = pl
+            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
         else:
             update_entries_expression['PL'] = pl
     else:

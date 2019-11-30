@@ -51,3 +51,4 @@ Top-Level Functions
 .. autofunction:: hail.get_reference
 .. autofunction:: hail.set_global_seed
 .. autofunction:: hail.citation
+.. autofunction:: hail.version

@@ -60,7 +60,6 @@ def base_context(session, userdata, service):
         'notebook_base_url': deploy_config.external_url('notebook', ''),
         'workshop_base_url': deploy_config.external_url('workshop', ''),
         'auth_base_url': deploy_config.external_url('auth', ''),
-        'batch_base_url': deploy_config.external_url('batch', ''),
         'batch2_base_url': deploy_config.external_url('batch2', ''),
         'batch2_driver_base_url': deploy_config.external_url('batch2-driver', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),

@@ -205,10 +205,9 @@ def _check_agg_bindings(expr, bindings):
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
+@typecheck(expr=expr_numeric, k=int)
 def approx_cdf(expr, k=100):
     """Produce a summary of the distribution of values.
-
-    .. include: _templates/experimental.rst
 
     Notes
     -----
@@ -249,14 +248,21 @@ def approx_cdf(expr, k=100):
     :class:`.StructExpression`
         Struct containing `values` and `ranks` arrays.
     """
-    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64), _compaction_counts=tarray(tint32)), constructor_args=[k])
+    res = _agg_func('ApproxCDF', [hl.float64(expr)],
+                    tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
+                    constructor_args=[k])
+    conv = {
+        tint32: lambda x: x.map(hl.int),
+        tint64: lambda x: x.map(hl.int64),
+        tfloat32: lambda x: x.map(hl.float32),
+        tfloat64: identity
+    }
+    return hl.struct(values=conv[expr.dtype](res.values), ranks=res.ranks, _compaction_counts=res._compaction_counts)
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)
 def approx_quantiles(expr, qs, k=100) -> Expression:
     """Compute an array of approximate quantiles.
-
-    .. include: _templates/experimental.rst
 
     Examples
     --------
@@ -297,8 +303,6 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
 @typecheck(expr=expr_numeric, k=int)
 def approx_median(expr, k=100) -> Expression:
     """Compute the approximate median. This function is a shorthand for `approx_quantiles(expr, .5, k)`
-
-    .. include: _templates/experimental.rst
 
     Examples
     --------
@@ -1290,8 +1294,6 @@ def hist(expr, start, end, bins) -> StructExpression:
 def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     """Downsample (x, y) coordinate datapoints.
 
-    .. include: _templates/experimental.rst
-
     Parameters
     ----------
     x : :class:`.NumericExpression`
@@ -1627,8 +1629,6 @@ def corr(x, y) -> Float64Expression:
            agg_expr=agg_expr(expr_any))
 def group_by(group, agg_expr) -> DictExpression:
     """Compute aggregation statistics stratified by one or more groups.
-
-    .. include:: _templates/experimental.rst
 
     Examples
     --------

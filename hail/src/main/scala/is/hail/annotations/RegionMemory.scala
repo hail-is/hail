@@ -5,6 +5,7 @@ import is.hail.utils._
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private val usedBlocks = new ArrayBuilder[Long](4)
   private val bigChunks = new ArrayBuilder[Long](4)
+  private val jObjects = new ArrayBuilder[AnyRef](0)
 
   private var totalChunkMemory = 0L
   private var currentBlock: Long = 0L
@@ -17,6 +18,16 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private val references = new ArrayBuilder[RegionMemory](4)
   private var referenceCount: Long = _
+
+  def storeJavaObject(obj: AnyRef): Int = {
+    val idx = jObjects.size
+    jObjects += obj
+    idx
+  }
+
+  def lookupJavaObject(idx: Int): AnyRef = {
+    jObjects(idx)
+  }
 
   def allocateNewBlock(): Unit = {
     if (currentBlock != 0)
@@ -88,6 +99,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.clear()
   }
 
+  private def freeObjects(): Unit = jObjects.clearAndSetMem(null)
+
   private def freeFullBlocks(): Unit = freeFullBlocks(pool.freeBlocks(blockSize))
 
   private def freeFullBlocks(ab: ArrayBuilder[Long]): Unit = {
@@ -101,6 +114,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       assert(references.size == 0)
       assert(usedBlocks.size == 0)
       assert(bigChunks.size == 0)
+      assert(jObjects.size == 0)
     } else {
       val freeBlocksOfSize = pool.freeBlocks(blockSize)
       if (currentBlock != 0)
@@ -108,6 +122,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
       freeFullBlocks(freeBlocksOfSize)
       freeChunks()
+      freeObjects()
       releaseReferences()
 
       offsetWithinBlock = 0
@@ -132,6 +147,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
     freeFullBlocks()
     freeChunks()
+    freeObjects()
     releaseReferences()
 
     offsetWithinBlock = 0L

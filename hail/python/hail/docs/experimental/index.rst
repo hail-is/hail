@@ -84,3 +84,4 @@ Functions
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
+.. autofunction:: full_outer_join_mt

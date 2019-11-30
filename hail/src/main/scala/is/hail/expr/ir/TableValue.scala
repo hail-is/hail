@@ -9,9 +9,8 @@ import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
 import is.hail.utils._
-import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
@@ -150,7 +149,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   }
 
   def rename(globalMap: Map[String, String], rowMap: Map[String, String]): TableValue = {
-    TableValue(typ, globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
+    TableValue(typ.copy(
+      rowType = typ.rowType.rename(rowMap),
+      globalType = typ.globalType.rename(globalMap),
+      key = typ.key.map(k => rowMap.getOrElse(k, k))),
+      globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
   }
 
   def toMatrixValue(colKey: IndexedSeq[String],

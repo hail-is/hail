@@ -3,9 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types.virtual.{TArray, TInterval}
-import is.hail.table.Ascending
 import is.hail.utils._
-import is.hail.variant.RelationalSpec
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -308,6 +306,10 @@ object Pretty {
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " "
+            case BlockMatrixMap(_, name, _) =>
+              prettyIdentifier(name)
+            case BlockMatrixMap2(_, _, lName, rName, _) =>
+              prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixColsHead(_, n) => n.toString
             case MatrixRowsTail(_, n) => n.toString

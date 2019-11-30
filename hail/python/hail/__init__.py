@@ -27,7 +27,8 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 
 from .context import init, stop, spark_context, default_reference, \
     get_reference, set_global_seed, _set_flags, _get_flags, \
-    current_backend, debug_info, citation, cite_hail, cite_hail_bibtex
+    current_backend, debug_info, citation, cite_hail, cite_hail_bibtex, \
+    version
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -88,7 +89,8 @@ __all__ = [
     'debug_info',
     'citation',
     'cite_hail',
-    'cite_hail_bibtex'
+    'cite_hail_bibtex',
+    'version'
 ]
 
 __all__.extend(genetics.__all__)

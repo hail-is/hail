@@ -11,7 +11,7 @@ object InterpretNonCompilable {
 
     def interpretAndCoerce(value: IR): IR = {
       val preTime = System.nanoTime()
-      log.info(s"interpreting non compilable node: $value")
+      log.info(s"interpreting non compilable node: ${ value.getClass.getSimpleName }")
 
       val v = Interpret.alreadyLowered(ctx, value)
       log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")

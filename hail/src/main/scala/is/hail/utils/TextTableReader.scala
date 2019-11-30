@@ -8,16 +8,13 @@ import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 import scala.util.matching.Regex
-import is.hail.io.fs.FS
 
 case class TextTableReaderOptions(
   files: Array[String],
@@ -317,27 +314,6 @@ object TextTableReader {
 
     val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
     TextTableReaderMetadata(globbedFiles, header, t)
-  }
-
-  def read(hc: HailContext)(files: Array[String],
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    nPartitions: Int = hc.sc.defaultMinPartitions,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false,
-    forceGZ: Boolean = false,
-    filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
-    val options = TextTableReaderOptions(
-      files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
-      Set(missing), noHeader, impute, Some(nPartitions),
-      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace, forceGZ)
-    val tr = TextTableReader(options)
-    new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
   }
 }
 

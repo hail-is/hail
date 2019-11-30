@@ -93,4 +93,13 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     ab.size_ = size_
     ab
   }
+
+  def clearAndSetMem(obj: T): Unit = {
+    clear()
+    var i = 0
+    while (i < b.length) {
+      b(i) = obj
+      i += 1
+    }
+  }
 }

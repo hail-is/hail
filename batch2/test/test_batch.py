@@ -1,7 +1,7 @@
 import random
 import math
 import collections
-from hailtop.batch_client.client import BatchClient
+from hailtop.batch_client.client import BatchClient, Job
 import json
 import os
 import base64
@@ -34,7 +34,7 @@ def poll_until(p, max_polls=None):
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.client = BatchClient(_service='batch2')
+        self.client = BatchClient()
 
     def tearDown(self):
         self.client.close()
@@ -46,7 +46,7 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
-        self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
+        self.assertEqual(j._get_exit_code(status, 'main'), 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
@@ -68,8 +68,8 @@ class Test(unittest.TestCase):
         j = builder.create_job('dsafaaadsf', ['echo', 'test'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code'] == {'setup': 0, 'main': None, 'cleanup': 0}, status
-        assert status['message']['main'] is not None
+        assert j._get_exit_codes(status) == {'main': None}, status
+        assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
 
     def test_bad_command(self):
@@ -77,9 +77,32 @@ class Test(unittest.TestCase):
         j = builder.create_job('ubuntu:18.04', ['sleep 5'])
         builder.submit()
         status = j.wait()
-        assert status['exit_code'] == {'setup': 0, 'main': None, 'cleanup': 0}, status
-        assert status['message']['main'] is not None
+        assert j._get_exit_codes(status) == {'main': None}, status
+        assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
+
+    def test_invalid_resource_requests(self):
+        builder = self.client.create_batch()
+        resources = {'cpu': '1', 'memory': '28Gi'}
+        builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
+            builder.submit()
+
+        builder = self.client.create_batch()
+        resources = {'cpu': '0', 'memory': '1Gi'}
+        builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'bad resource request.*cpu cannot be 0'):
+            builder.submit()
+
+    def test_out_of_memory(self):
+        builder = self.client.create_batch()
+        resources = {'cpu': '0.1', 'memory': '10M'}
+        j = builder.create_job('python:3.6-slim-stretch',
+                               ['python', '-c', 'x = "a" * 400 * 1000**2'],
+                               resources=resources)
+        builder.submit()
+        status = j.wait()
+        assert j._get_out_of_memory(status, 'main')
 
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()
@@ -154,7 +177,7 @@ class Test(unittest.TestCase):
         j = b.create_job('ubuntu:18.04', ['false'])
         b.submit()
         status = j.wait()
-        self.assertEqual(status['exit_code']['main'], 1)
+        self.assertEqual(j._get_exit_code(status, 'main'), 1)
 
     def test_running_job_log_and_status(self):
         b = self.client.create_batch()
@@ -259,7 +282,7 @@ class Test(unittest.TestCase):
         assert n_cancelled <= 1, bstatus
         assert n_cancelled + n_complete == 3, bstatus
 
-        n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
+        n_failed = sum([Job._get_exit_code(j, 'main') > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
         assert n_failed == 1, bstatus
 
     def test_batch_status(self):
@@ -300,7 +323,7 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Failed')
-        self.assertEqual(status['exit_code']['main'], 127)
+        self.assertEqual(j._get_exit_code(status, 'main'), 127)
 
         self.assertEqual(j.log()['main'], 'test\n')
 
@@ -319,7 +342,8 @@ class Test(unittest.TestCase):
             # redirect to auth/login
             (requests.get, '/batches', 302),
             (requests.get, '/batches/0', 302),
-            (requests.get, '/batches/0/jobs/0/log', 302)]
+            (requests.post, '/batches/0/cancel', 401),
+            (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
             full_url = deploy_config.url('batch2', url)
             r = f(full_url, allow_redirects=False)
@@ -327,7 +351,7 @@ class Test(unittest.TestCase):
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-        bc = BatchClient(_token=token, _service='batch2')
+        bc = BatchClient(_token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('ubuntu:18.04', ['false'])
@@ -348,8 +372,13 @@ class Test(unittest.TestCase):
 
     def test_service_account(self):
         b = self.client.create_batch()
-        j = b.create_job(os.environ['CI_UTILS_IMAGE'], ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
-                         service_account_name='ci-agent')
+        j = b.create_job(
+            os.environ['CI_UTILS_IMAGE'],
+            ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
+            service_account={
+                'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
+                'name': 'ci-agent'
+            })
         b.submit()
         status = j.wait()
-        assert status['exit_code']['main'] == 0, status
+        assert j._get_exit_code(status, 'main') == 0, status

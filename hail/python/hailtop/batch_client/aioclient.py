@@ -1,6 +1,7 @@
 import math
 import random
 import logging
+import json
 import functools
 import asyncio
 import aiohttp
@@ -8,13 +9,11 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import bounded_gather, grouped, request_retry_transient_errors
+from hailtop.utils import bounded_gather, request_retry_transient_errors
 
-from .globals import complete_states
+from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
-
-job_array_size = 1000
 
 
 def filter_params(complete, success, attributes):
@@ -37,12 +36,101 @@ def filter_params(complete, success, attributes):
 
 class Job:
     @staticmethod
-    def exit_code(job_status):
-        if 'exit_code' not in job_status or job_status['exit_code'] is None:
+    def _get_error(job_status, task):
+        status = job_status.get('status')
+        if not status:
             return None
 
-        exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes[task] for task in ['setup', 'main', 'cleanup'] if task in exit_codes]
+        # don't return status error
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        error = container_status.get('error')
+        if error:
+            return error
+
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status.get('error')
+
+    @staticmethod
+    def _get_out_of_memory(job_status, task):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status['out_of_memory']
+
+    @staticmethod
+    def _get_container_status_exit_code(container_status):
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status.get('exit_code')
+
+    @staticmethod
+    def _get_exit_code(job_status, task):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        return Job._get_container_status_exit_code(container_status)
+
+    @staticmethod
+    def _get_exit_codes(job_status):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        return {
+            task: Job._get_container_status_exit_code(container_status)
+            for task, container_status in container_statuses.items()
+        }
+
+    @staticmethod
+    def exit_code(job_status):
+        exit_codes = Job._get_exit_codes(job_status)
+        if exit_codes is None:
+            return None
+
+        exit_codes = [
+            exit_codes[task]
+            for task in tasks
+            if task in exit_codes
+        ]
 
         i = 0
         while i < len(exit_codes):
@@ -56,18 +144,36 @@ class Job:
 
     @staticmethod
     def total_duration(job_status):
-        if 'duration' not in job_status or job_status['duration'] is None:
+        status = job_status.get('status')
+        if not status:
             return None
 
-        durations = job_status['duration']
-
-        setup_duration = durations.get('setup', 0)
-        main_duration = durations.get('main', 0)
-        cleanup_duration = durations.get('cleanup', 0)
-        if setup_duration is None or main_duration is None or cleanup_duration is None:
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
             return None
 
-        return setup_duration + max(main_duration, cleanup_duration)
+        def _get_duration(container_status):
+            if not container_status:
+                return None
+
+            timing = container_status.get('timing')
+            if not timing:
+                return None
+
+            runtime = timing.get('runtime')
+            if not runtime:
+                return None
+
+            return runtime.get('duration')
+
+        durations = [
+            _get_duration(container_status)
+            for task, container_status in container_statuses.items()
+        ]
+
+        if any(d is None for d in durations):
+            return None
+        return sum(durations)
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
@@ -120,9 +226,6 @@ class Job:
     async def log(self):
         return await self._job.log()
 
-    async def pod_status(self):
-        return await self._job.pod_status()
-
 
 class UnsubmittedJob:
     def _submit(self, batch):
@@ -166,9 +269,6 @@ class UnsubmittedJob:
 
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
-
-    async def pod_status(self):
-        raise ValueError("cannot get the pod status of an unsubmitted job")
 
 
 class SubmittedJob:
@@ -215,10 +315,6 @@ class SubmittedJob:
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
         return await resp.json()
 
-    async def pod_status(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
-        return await resp.json()
-
 
 class Batch:
     def __init__(self, client, id, attributes):
@@ -230,12 +326,13 @@ class Batch:
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
     async def status(self, include_jobs=True):
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
+        batch = await resp.json()
         if include_jobs:
-            params = {'include_jobs': '1'}
-        else:
-            params = None
-        resp = await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
-        return await resp.json()
+            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs')
+            jobs = await resp.json()
+            batch['jobs'] = jobs
+        return batch
 
     async def wait(self):
         i = 0
@@ -265,7 +362,7 @@ class BatchBuilder:
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    resources=None, secrets=None,
-                   service_account_name=None, attributes=None, parents=None,
+                   service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
@@ -315,8 +412,8 @@ class BatchBuilder:
             job_spec['resources'] = resources
         if secrets:
             job_spec['secrets'] = secrets
-        if service_account_name:
-            job_spec['service_account_name'] = service_account_name
+        if service_account:
+            job_spec['service_account'] = service_account
 
         if attributes:
             job_spec['attributes'] = attributes
@@ -333,8 +430,26 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_job(self, batch_id, job_specs):
-        await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json=job_specs)
+    async def _submit_jobs(self, batch_id, byte_job_specs):
+        assert len(byte_job_specs) > 0
+
+        b = bytearray()
+        b.append(ord('['))
+
+        i = 0
+        while i < len(byte_job_specs):
+            spec = byte_job_specs[i]
+            if i > 0:
+                b.append(ord(','))
+            b.extend(spec)
+            i += 1
+
+        b.append(ord(']'))
+
+        await self._client._post(
+            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            data=aiohttp.BytesPayload(
+                b, content_type='application/json', encoding='utf-8'))
 
     async def submit(self):
         if self._submitted:
@@ -352,8 +467,25 @@ class BatchBuilder:
         log.info(f'created batch {b["id"]}')
         batch = Batch(self._client, b['id'], self.attributes)
 
-        await bounded_gather(*[functools.partial(self._submit_job, batch.id, specs)
-                               for specs in grouped(job_array_size, self._job_specs)],
+        byte_job_specs = [json.dumps(job_spec).encode('utf-8') for job_spec in self._job_specs]
+
+        groups = []
+        group = []
+        group_size = 0
+        for spec in byte_job_specs:
+            n = len(spec)
+            if group_size + n < 1000000 and len(group) < 1000:
+                group.append(spec)
+                group_size += n
+            else:
+                groups.append(group)
+                group = [spec]
+                group_size = n
+        if group:
+            groups.append(group)
+
+        await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, group)
+                               for group in groups],
                              parallelism=2)
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
@@ -372,12 +504,11 @@ class BatchBuilder:
 @asyncinit
 class BatchClient:
     async def __init__(self, deploy_config=None, session=None, headers=None,
-                       _token=None, _service='batch'):
-        assert _service in ('batch', 'batch2')
+                       _token=None):
         if not deploy_config:
             deploy_config = get_deploy_config()
 
-        self.url = deploy_config.base_url(_service)
+        self.url = deploy_config.base_url('batch2')
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
@@ -393,7 +524,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, _service))
+            h.update(service_auth_headers(deploy_config, 'batch2'))
         self._headers = h
 
     async def _get(self, path, params=None):
@@ -401,10 +532,10 @@ class BatchClient:
             self._session, 'GET',
             self.url + path, params=params, headers=self._headers)
 
-    async def _post(self, path, json=None):
+    async def _post(self, path, data=None, json=None):
         return await request_retry_transient_errors(
             self._session, 'POST',
-            self.url + path, json=json, headers=self._headers)
+            self.url + path, data=data, json=json, headers=self._headers)
 
     async def _patch(self, path):
         return await request_retry_transient_errors(

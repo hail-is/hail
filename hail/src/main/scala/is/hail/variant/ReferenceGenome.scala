@@ -18,7 +18,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
-import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.expr.ir.{EmitFunctionBuilder, RelationalSpec}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver

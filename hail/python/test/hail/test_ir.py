@@ -289,9 +289,9 @@ class BlockMatrixIRTests(unittest.TestCase):
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
-        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')))
-        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryPrimOp('-', ir.Ref('element')))
-        sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
+        add_two_bms = ir.BlockMatrixMap2(read, read, 'l', 'r', ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')))
+        negate_bm = ir.BlockMatrixMap(read, 'element', ir.ApplyUnaryPrimOp('-', ir.Ref('element')))
+        sqrt_bm = ir.BlockMatrixMap(read, 'element', hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)
         col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1)
@@ -303,7 +303,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         matmul = ir.BlockMatrixDot(broadcast_scalar, transpose)
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
-        squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
+        squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, 'l', 'r', pow_ir)
         slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
 
         return [
@@ -404,18 +404,36 @@ class CSETests(unittest.TestCase):
         )
         assert expected == CSERenderer()(cond)
 
+    def test_shadowing(self):
+        x = ir.GetField(ir.Ref('row'), 'idx')
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        inner = ir.Let('row', sum, sum)
+        outer = ir.Let('row', ir.I32(5), inner)
+        expected = (
+            '(Let row (I32 5)'
+            ' (Let __cse_1 (GetField idx (Ref row))'
+            ' (Let row (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            ' (Let __cse_2 (GetField idx (Ref row))'
+            ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))))))')
+        assert expected == CSERenderer()(outer)
+
     def test_agg_cse(self):
         x = ir.GetField(ir.Ref('row'), 'idx')
         inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
         agg = ir.ApplyAggOp('AggOp', [], [], [inner_sum])
         outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
-        table_agg = ir.TableAggregate(ir.TableRange(5, 1), outer_sum)
+        filter = ir.AggFilter(ir.TrueIR(), outer_sum, False)
+        table_agg = ir.TableAggregate(ir.TableRange(5, 1), ir.MakeTuple([outer_sum, filter]))
         expected = (
             '(TableAggregate (TableRange 5 1)'
                 ' (AggLet __cse_1 False (GetField idx (Ref row))'
-                ' (Let __cse_2 (ApplyAggOp AggOp () None'
-                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
-                ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2)))))')
+                ' (AggLet __cse_3 False (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+                ' (Let __cse_2 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                ' (MakeTuple (0 1)'
+                    ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))'
+                    ' (AggFilter False (True)'
+                        ' (Let __cse_4 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))')
         assert expected == CSERenderer()(table_agg)
 
     def test_init_op(self):
@@ -435,3 +453,14 @@ class CSETests(unittest.TestCase):
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
         assert expected == CSERenderer()(top)
+
+    def test_agg_let(self):
+        agg = ir.ApplyAggOp('AggOp', [], [], [ir.Ref('foo')])
+        sum = ir.ApplyBinaryPrimOp('+', agg, agg)
+        agglet = ir.AggLet('foo', ir.I32(2), sum, False)
+        expected = (
+            '(AggLet foo False (I32 2)'
+            ' (Let __cse_1 (ApplyAggOp AggOp () None ((Ref foo)))'
+            ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
+        )
+        assert expected == CSERenderer()(agglet)

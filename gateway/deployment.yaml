@@ -27,6 +27,15 @@ spec:
                     values:
                     - gateway
               topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: preemptible
+                operator: In
+                values:
+                - "true"
       tolerations:
        - key: preemptible
          value: "true"

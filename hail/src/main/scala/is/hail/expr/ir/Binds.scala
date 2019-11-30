@@ -50,8 +50,8 @@ object Bindings {
     case MatrixMapGlobals(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregateColsByKey(child, _, _) => if (i == 1) child.typ.rowEnv.m else if (i == 2) child.typ.globalEnv.m else empty
     case MatrixAggregateRowsByKey(child, _, _) => if (i == 1) child.typ.colEnv.m else if (i == 2) child.typ.globalEnv.m else empty
-    case BlockMatrixMap(_, _) => if (i == 1) Array("element" -> TFloat64()) else empty
-    case BlockMatrixMap2(_, _, _) => if (i == 2) Array("l" -> TFloat64(), "r" -> TFloat64()) else empty
+    case BlockMatrixMap(_, eltName, _) => if (i == 1) Array(eltName -> TFloat64()) else empty
+    case BlockMatrixMap2(_, _, lName, rName, _) => if (i == 2) Array(lName -> TFloat64(), rName -> TFloat64()) else empty
     case _ => empty
   }
 }

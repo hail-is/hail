@@ -33,4 +33,8 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def invalidate(): Code[Unit] = region.invoke[Unit]("invalidate")
 
   def getNewRegion(blockSize: Code[Int]): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
+
+  def storeJavaObject(obj: Code[AnyRef]): Code[Int] = region.invoke[AnyRef, Int]("storeJavaObject", obj)
+
+  def lookupJavaObject(idx: Code[Int]): Code[AnyRef] = region.invoke[Int, AnyRef]("lookupJavaObject", idx)
 }

@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.table.Ascending
 import is.hail.utils._
 
 object Simplify {
@@ -442,7 +441,7 @@ object Simplify {
             uid3,
             GetField(Ref(uid3, sorted.typ.asInstanceOf[TArray].elementType), "value"))),
           ("global", GetField(Ref(uid, x.typ), "global")))))
-    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+    case ArrayLen(GetField(TableCollect(child), "rows")) => Cast(TableCount(child), TInt32())
     case GetField(TableCollect(child), "global") => TableGetGlobals(child)
 
     case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
@@ -512,6 +511,8 @@ object Simplify {
       canBeLifted(query)
     } => query
 
+    case BlockMatrixToValueApply(ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _), functions.GetElement(Seq(i, j))) =>
+      if (child.typ.isInstanceOf[TArray]) ArrayRef(child, I32((i * ncols + j).toInt)) else child
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
@@ -738,20 +739,22 @@ object Simplify {
         Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
 
-    case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
-      val ord = k.typ.keyType.ordering.intervalEndpointOrdering
-      val maybeFlip: IR => IR = if (keep) identity else !_
-      val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
-        TBoolean(),
-        Literal(TArray(TInterval(k.typ.keyType)), Interval.union(intervals.toArray, ord).toFastIndexedSeq),
-        MakeStruct(k.typ.keyType.fieldNames.map { keyField =>
-          (keyField, GetField(Ref("row", child.typ.rowType), keyField))
-        })))
-      TableKeyBy(TableFilter(child, pred), keys, isSorted)
+      // FIXME: Can try to serialize intervals shorter than the key
+      // case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
+      //   val ord = k.typ.keyType.ordering.intervalEndpointOrdering
+      //   val maybeFlip: IR => IR = if (keep) identity else !_
+      //   val pred = maybeFlip(invoke("sortedNonOverlappingIntervalsContain",
+      //     TBoolean(),
+      //     Literal(TArray(TInterval(k.typ.keyType)), Interval.union(intervals.toArray, ord).toFastIndexedSeq),
+      //     MakeStruct(k.typ.keyType.fieldNames.map { keyField =>
+      //       (keyField, GetField(Ref("row", child.typ.rowType), keyField))
+      //     })))
+      //   TableKeyBy(TableFilter(child, pred), keys, isSorted)
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
       && tr.spec.indexed(tr.path)
-      && tr.options.forall(_.filterIntervals) =>
+      && tr.options.forall(_.filterIntervals)
+      && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
@@ -766,7 +769,8 @@ object Simplify {
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true) if canRepartition
       && tr.specLeft.indexed(tr.pathLeft)
-      && tr.options.forall(_.filterIntervals) =>
+      && tr.options.forall(_.filterIntervals)
+      && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
@@ -881,8 +885,14 @@ object Simplify {
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
     case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
-    case BlockMatrixSlice(BlockMatrixMap(child, f), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), f)
-    case BlockMatrixSlice(BlockMatrixMap2(l, r, f), slices) =>
-      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), f)
+    case BlockMatrixSlice(BlockMatrixMap(child, n, f), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), n, f)
+    case BlockMatrixSlice(BlockMatrixMap2(l, r, ln, rn, f), slices) =>
+      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), ln, rn, f)
+    case BlockMatrixMap2(BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), right, leftName, rightName, f) =>
+      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
+      BlockMatrixMap(right, rightName, Subst(f, BindingEnv.eval(leftName -> getElement)))
+    case BlockMatrixMap2(left, BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), leftName, rightName, f) =>
+      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
+      BlockMatrixMap(left, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)))
   }
 }

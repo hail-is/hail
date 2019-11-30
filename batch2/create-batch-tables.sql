@@ -1,7 +1,11 @@
-CREATE TABLE IF NOT EXISTS `tokens` (
-  `name` VARCHAR(100) NOT NULL,
-  `token` VARCHAR(100) NOT NULL,
-  PRIMARY KEY (`name`)
+CREATE TABLE IF NOT EXISTS `globals` (
+  `instance_id` VARCHAR(100) NOT NULL,
+  `internal_token` VARCHAR(100) NOT NULL,
+  `worker_cores` BIGINT NOT NULL,
+  `worker_type` VARCHAR(100) NOT NULL,
+  `worker_disk_size_gb` BIGINT NOT NULL,
+  `max_instances` BIGINT NOT NULL,
+  `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `instances` (
@@ -32,7 +36,9 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
-  `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `time_created` DOUBLE NOT NULL,
+  `time_completed` DOUBLE,
+  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
@@ -45,22 +51,42 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `spec` VARCHAR(65535) NOT NULL,
   `always_run` BOOLEAN NOT NULL,
   `cores_mcpu` INT NOT NULL,
-  `instance_name` VARCHAR(100),
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
+  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
+  `attempt_id` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
-  FOREIGN KEY (`instance_name`) REFERENCES instances(name)
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_state` ON `jobs` (`state`);
-CREATE INDEX `jobs_instance_name` ON `jobs` (`instance_name`);
+
+CREATE TABLE IF NOT EXISTS `attempts` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `attempt_id` VARCHAR(40) NOT NULL,
+  `instance_name` VARCHAR(100),  
+  `start_time` DOUBLE,
+  `end_time` DOUBLE,
+  `reason` VARCHAR(40),
+  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
+  FOREIGN KEY (`instance_name`) REFERENCES instances(name)  
+) ENGINE = InnoDB;
+CREATE INDEX `attempts_instance_name` ON `attempts` (`instance_name`);
 
 CREATE TABLE IF NOT EXISTS `ready_cores` (
   ready_cores_mcpu INT NOT NULL
 ) ENGINE = InnoDB;
 
 INSERT INTO ready_cores (ready_cores_mcpu) VALUES (0);
+
+CREATE TABLE IF NOT EXISTS `gevents_mark` (
+  mark VARCHAR(40)
+) ENGINE = InnoDB;
+
+INSERT INTO `gevents_mark` (mark) VALUES (NULL);
 
 CREATE TABLE IF NOT EXISTS `job_parents` (
   `batch_id` BIGINT NOT NULL,
@@ -94,6 +120,44 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 
 DELIMITER $$
 
+CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
+FOR EACH ROW
+BEGIN
+  IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time < OLD.start_time) THEN
+    SET NEW.start_time = OLD.start_time;
+  END IF;
+
+  IF OLD.end_time IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
+    SET NEW.end_time = OLD.end_time;
+    SET NEW.reason = OLD.reason;
+  END IF;
+END $$
+
+CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
+FOR EACH ROW
+BEGIN
+  DECLARE cores_mcpu INT;
+  DECLARE time_diff DOUBLE;
+  DECLARE cost_per_core_sec DOUBLE;
+  DECLARE msec_mcpu_diff BIGINT;
+
+  SELECT cores_mcpu INTO cores_mcpu FROM jobs
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+
+  SET time_diff = COALESCE(NEW.end_time - NEW.start_time, 0) -
+                  COALESCE(OLD.end_time - OLD.start_time, 0);
+
+  SET msec_mcpu_diff = (time_diff * 1000) * cores_mcpu;
+
+  UPDATE batches
+  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
+  WHERE id = NEW.batch_id;
+
+  UPDATE jobs
+  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+END $$
+
 CREATE PROCEDURE activate_instance(
   IN in_instance_name VARCHAR(100),
   IN in_ip_address VARCHAR(100)
@@ -121,7 +185,9 @@ BEGIN
 END $$
 
 CREATE PROCEDURE deactivate_instance(
-  IN in_instance_name VARCHAR(100)
+  IN in_instance_name VARCHAR(100),
+  IN in_reason VARCHAR(40),
+  IN in_timestamp DOUBLE
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -130,16 +196,28 @@ BEGIN
 
   SELECT state INTO cur_state FROM instances WHERE name = in_instance_name;
 
+  UPDATE attempts
+  SET end_time = in_timestamp, reason = in_reason
+  WHERE instance_name = in_instance_name;
+
   IF cur_state = 'pending' or cur_state = 'active' THEN
     UPDATE ready_cores
-    SET ready_cores_mcpu = ready_cores_mcpu + (
-      SELECT SUM(cores_mcpu)
-      FROM jobs
-      WHERE instance_name = in_instance_name);
+    SET ready_cores_mcpu = ready_cores_mcpu +
+      COALESCE(
+        (SELECT SUM(jobs.cores_mcpu)
+         FROM attempts
+         INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+         WHERE instance_name = in_instance_name),
+        0);
 
     UPDATE jobs
+    INNER JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
     SET state = 'Ready',
-        instance_name = NULL
+	jobs.attempt_id = NULL
+    WHERE instance_name = in_instance_name;
+
+    UPDATE attempts
+    SET instance_name = NULL
     WHERE instance_name = in_instance_name;
 
     UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE name = in_instance_name;
@@ -173,7 +251,8 @@ BEGIN
 END $$
 
 CREATE PROCEDURE close_batch(
-  IN in_batch_id BIGINT
+  IN in_batch_id BIGINT,
+  IN in_timestamp DOUBLE
 )
 BEGIN
   DECLARE cur_batch_closed BOOLEAN;
@@ -194,10 +273,14 @@ BEGIN
 
     IF actual_n_jobs = expected_n_jobs THEN
       UPDATE batches SET closed = 1 WHERE id = in_batch_id;
+      UPDATE batches SET time_completed = in_timestamp
+        WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       UPDATE ready_cores
-	SET ready_cores_mcpu = ready_cores_mcpu + (
-	  SELECT SUM(cores_mcpu) FROM jobs
-	  WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id);
+	SET ready_cores_mcpu = ready_cores_mcpu +
+	  COALESCE(
+	    (SELECT SUM(cores_mcpu) FROM jobs
+	     WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
+	    0);
       COMMIT;
       SELECT 0 as rc;
     ELSE
@@ -213,6 +296,7 @@ END $$
 CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
+  IN in_attempt_id VARCHAR(40),
   IN in_instance_name VARCHAR(100)
 )
 BEGIN
@@ -234,7 +318,8 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
-    UPDATE jobs SET state = 'Running', instance_name = in_instance_name WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
     COMMIT;
@@ -253,23 +338,33 @@ END $$
 CREATE PROCEDURE unschedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
-  IN expected_instance_name VARCHAR(100)
+  IN expected_instance_name VARCHAR(100),
+  IN new_end_time DOUBLE,
+  IN new_reason VARCHAR(40)
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_job_instance_name VARCHAR(100);
   DECLARE cur_cores_mcpu INT;
+  DECLARE cur_attempt_id VARCHAR(40);
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, instance_name
-  INTO cur_job_state, cur_cores_mcpu, cur_job_instance_name
+  SELECT state, cores_mcpu, attempt_id
+  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
   FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
+  SELECT instance_name
+  INTO cur_job_instance_name
+  FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
+
   IF cur_job_state = 'Running' AND cur_job_instance_name = expected_instance_name THEN
-    UPDATE jobs SET state = 'Ready', instance_name = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
+    UPDATE attempts
+      SET end_time = new_end_time, reason = new_reason, instance_name = NULL
+      WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
+    UPDATE jobs SET state = 'Ready', attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;      
     COMMIT;
     SELECT 0 as rc;
   ELSE
@@ -282,8 +377,13 @@ END $$
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
+  IN in_attempt_id VARCHAR(40),
   IN new_state VARCHAR(40),
-  IN new_status VARCHAR(65535)
+  IN new_status VARCHAR(65535),
+  IN new_start_time DOUBLE,
+  IN new_end_time DOUBLE,
+  IN new_reason VARCHAR(40),
+  IN new_timestamp DOUBLE
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -292,17 +392,25 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, instance_name
-  INTO cur_job_state, cur_cores_mcpu, cur_job_instance_name
+  SELECT state, cores_mcpu
+  INTO cur_job_state, cur_cores_mcpu
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
+  SELECT instance_name
+  INTO cur_job_instance_name
+  FROM attempts
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+
+  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN    
     UPDATE jobs
-    SET state = new_state, status = new_status, instance_name = NULL
+    SET state = new_state, status = new_status, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
+    UPDATE batches SET time_completed = new_timestamp
+      WHERE id = in_batch_id AND n_completed = batches.n_jobs;
+
     IF new_state = 'Cancelled' THEN
       UPDATE batches SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
     ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
@@ -321,15 +429,17 @@ BEGIN
       UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     END IF;
     UPDATE ready_cores
-      SET ready_cores_mcpu = ready_cores_mcpu + (
-        SELECT SUM(jobs.cores_mcpu) FROM jobs
-	INNER JOIN `job_parents`
-	  ON jobs.batch_id = `job_parents`.batch_id AND
-	     jobs.job_id = `job_parents`.job_id
-	WHERE jobs.batch_id = in_batch_id AND
-	      `job_parents`.batch_id = in_batch_id AND
-	      `job_parents`.parent_id = in_job_id AND
-	      jobs.n_pending_parents = 1);
+      SET ready_cores_mcpu = ready_cores_mcpu +
+        COALESCE(
+	  (SELECT SUM(jobs.cores_mcpu) FROM jobs
+	   INNER JOIN `job_parents`
+	     ON jobs.batch_id = `job_parents`.batch_id AND
+		jobs.job_id = `job_parents`.job_id
+	   WHERE jobs.batch_id = in_batch_id AND
+		 `job_parents`.batch_id = in_batch_id AND
+		 `job_parents`.parent_id = in_job_id AND
+		 jobs.n_pending_parents = 1),
+          0);
 
     UPDATE jobs
       INNER JOIN `job_parents`
@@ -341,6 +451,12 @@ BEGIN
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;
+
+    IF in_attempt_id IS NOT NULL THEN
+      UPDATE attempts
+      SET start_time = new_start_time, end_time = new_end_time, reason = new_reason, instance_name = NULL
+      WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+    END IF;
 
     COMMIT;
     SELECT 0 as rc,

@@ -51,15 +51,21 @@ async def wait_for_pod_complete(v1, namespace, name):
 
 
 # this needs to agree with hailtop.config
-def internal_base_url(namespace, service, port):
+def internal_base_url(location, namespace, service):
+    if location == 'gce':
+        if namespace == 'default':
+            return f'http://{service}.hail'
+        return f'http://internal.hail/{namespace}/{service}'
+
+    assert location == 'k8s'
     if namespace == 'default':
-        return f'http://{service}.default:{port}'
-    return f'http://{service}.{namespace}:{port}/{namespace}/{service}'
+        return f'http://{service}.default'
+    return f'http://{service}.{namespace}/{namespace}/{service}'
 
 
-async def wait_for_service_alive(namespace, name, port, endpoint, headers):
+async def wait_for_service_alive(namespace, name, location, endpoint, headers):
     print('info: in wait_for_service_alive', file=sys.stderr)
-    base_url = internal_base_url(namespace, name, port)
+    base_url = internal_base_url(location, namespace, name)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
@@ -89,24 +95,21 @@ async def main():
 
     service_parser = subparsers.add_parser('Service')
     service_parser.add_argument('name', type=str)
-    service_parser.add_argument('--port', '-p', type=int, default=80)
+    service_parser.add_argument('--location', type=str, default='gce')
     service_parser.add_argument('--endpoint', '-e', type=str, default='/healthcheck')
     service_parser.add_argument('--header', action='append', type=str, nargs=2)
 
     args = parser.parse_args()
 
     if args.kind == 'Pod':
-        if 'USE_KUBE_CONFIG' in os.environ:
-            await config.load_kube_config()
-        else:
-            config.load_incluster_config()
+        await config.load_kube_config()
         v1 = client.CoreV1Api()
 
         t = wait_for_pod_complete(v1, args.namespace, args.name)
     else:
         assert args.kind == 'Service'
         headers = None if args.header is None else {flag: val for flag, val in args.header}
-        t = wait_for_service_alive(args.namespace, args.name, args.port, args.endpoint, headers)
+        t = wait_for_service_alive(args.namespace, args.name, args.location, args.endpoint, headers)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
 

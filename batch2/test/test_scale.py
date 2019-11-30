@@ -31,5 +31,5 @@ def test_scale(client):
 
     assert batch_status_job_counter(status, 'Success') == n_jobs, status
 
-    exit_codes = [{'setup': 0, 'main': 0, 'cleanup': 0} for _ in range(n_jobs)]
+    exit_codes = [{'input': 0, 'main': 0, 'output': 0} for _ in range(n_jobs)]
     assert batch_status_exit_codes(status) == exit_codes, status

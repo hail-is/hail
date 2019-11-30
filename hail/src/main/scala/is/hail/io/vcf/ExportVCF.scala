@@ -3,12 +3,12 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, Interpret, LowerMatrixIR, MatrixValue}
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
+import is.hail.variant.{Call, RegionValueVariant}
 
 import scala.io.Source
 
@@ -215,19 +215,6 @@ object ExportVCF {
 
   def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
     getAttributes(k1, attributes).flatMap(_.get(k2))
-
-  def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
-    getAttributes(k1, k2, attributes).flatMap(_.get(k3))
-
-  def apply(mt: MatrixTable, path: String, append: Option[String] = None,
-    exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExecuteContext.scoped { ctx =>
-
-      ExportVCF(Interpret(mt.lit, ctx, optimize = false)
-        .toMatrixValue(mt.colKey),
-        path, append, exportType, metadata)
-    }
-  }
 
   def apply(mv: MatrixValue, path: String, append: Option[String],
     exportType: Int, metadata: Option[VCFMetadata]) {

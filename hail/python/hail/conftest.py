@@ -141,7 +141,7 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['tup'] = hl.literal(("a", 1, [1, 2, 3]))
     doctest_namespace['s'] = hl.literal('The quick brown fox')
     doctest_namespace['interval2'] = hl.Interval(3, 6)
-    doctest_namespace['nd'] = hl._ndarray([[1, 2], [3, 4]])
+    doctest_namespace['nd'] = hl._nd.array([[1, 2], [3, 4]])
 
     # Overview
     doctest_namespace['ht'] = hl.import_table("data/kt_example1.tsv", impute=True)

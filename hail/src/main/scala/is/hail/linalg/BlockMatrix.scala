@@ -201,6 +201,10 @@ object BlockMatrix {
     }
   }
 
+  def negationOp: BDM[Double] => BDM[Double] = -_
+
+  def reverseScalarDiv(r: BDM[Double], l: Double): BDM[Double] = l /:/ r
+
   object ops {
 
     implicit class Shim(l: M) {
@@ -261,7 +265,8 @@ object BlockMatrix {
     delimiter: String,
     header: Option[String],
     addIndex: Boolean,
-    compression: Option[String]): Unit = {
+    compression: Option[String],
+    customFilenames: Option[Array[String]]): Unit = {
     val fs = HailContext.sFS
 
     if (overwrite)
@@ -273,14 +278,19 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val bcFS = HailContext.bcFS
+    
+    val nameFunction = customFilenames match {
+      case None => i: Int => StringUtils.leftPad(i.toString, d, '0') + ".tsv"
+      case Some(filenames) => filenames.apply(_)
+    }
 
-    val extension = compression.map(x => "." + x).getOrElse("")
+    val compressionExtension = compression.map(x => "." + x).getOrElse("")
 
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
-        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv" + extension
+        val path = prefix + "/" + nameFunction(i) + compressionExtension
 
         using(
           new PrintWriter(
@@ -474,7 +484,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
-    val (Row(starts, stops), _) = ExecuteContext.scoped { ctx => CompileAndEvaluate[Row](ctx, startsAndStops) }
+    val Row(starts, stops) = ExecuteContext.scoped { ctx => CompileAndEvaluate[Row](ctx, startsAndStops) }
 
     filterRowIntervals(
       starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
