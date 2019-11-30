@@ -280,7 +280,10 @@ abstract class PContainer extends PIterable {
         Code(
           i := 0L,
           Code.whileLoop(i < PContainer.nMissingBytes(len),
-            Region.loadByte(oldOffset + i).cne(const(0)).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
+            Region
+              .loadByte(oldOffset + lengthHeaderBytes + i)
+              .cne(const(0))
+              .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
             i := i + 1L
           )
         )
