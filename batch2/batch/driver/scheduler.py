@@ -44,12 +44,14 @@ ORDER BY running_cores_mcpu ASC;
 
         free_cores_mcpu_per_user = free_cores_mcpu / n_users
         donated_cores_mcpu = 0
+        n_users_left = n_users
         for record in sorted(records, key=lambda x: x['ready_cores_mcpu']):
             cores_mcpu = max(0, min(record['ready_cores_mcpu'] - allocated_cores[record['user']],
-                                    free_cores_mcpu_per_user + donated_cores_mcpu))
+                                    free_cores_mcpu_per_user + donated_cores_mcpu / n_users_left))
 
             allocated_cores[record['user']] += cores_mcpu
             donated_cores_mcpu += free_cores_mcpu_per_user - cores_mcpu
+            n_users_left -= 1
 
         return {user: int(cores + 0.5) for user, cores in allocated_cores.items()}
 
