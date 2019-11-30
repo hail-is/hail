@@ -26,27 +26,32 @@ class Scheduler:
         total_cores_mcpu = len(self.inst_pool.healthy_instances_by_free_cores) * self.inst_pool.worker_cores * 1000
         allocated_cores = {}
 
-        records = self.db.execute_and_fetchall(
+        records = list(self.db.execute_and_fetchall(
             '''
 SELECT user, ready_cores_mcpu, running_cores_mcpu
 FROM user_resources
-WHERE ready_cores_mcpu > 0
-ORDER BY ready_cores_mcpu ASC;
-''')
+WHERE ready_cores_mcpu > 0 OR running_cores_mcpu > 0
+ORDER BY running_cores_mcpu ASC;
+'''))
 
         n_users = len(records)
-        n_unallocated_users = n_users
-        async for record in records:
-            max_cores_mcpu = (total_cores_mcpu / n_users) - record['running_cores_mcpu'] + \
-                             free_cores_mcpu / n_unallocated_users
-            cores_mcpu = max(0, min(record['ready_cores_mcpu'], max_cores_mcpu))
-            cores_mcpu = int(cores_mcpu + 0.5)
-
-            allocated_cores[record['user']] = cores_mcpu
+        for record in records:
+            cores_mcpu = max(0, min(record['ready_cores_mcpu'],
+                                    free_cores_mcpu,
+                                    (total_cores_mcpu / n_users) - record['running_cores_mcpu']))
             free_cores_mcpu -= cores_mcpu
-            n_unallocated_users -= 1
+            allocated_cores[record['user']] = cores_mcpu
 
-        return allocated_cores
+        free_cores_mcpu_per_user = free_cores_mcpu / n_users
+        donated_cores_mcpu = 0
+        for record in sorted(records, key=lambda x: x['ready_cores_mcpu']):
+            cores_mcpu = max(0, min(record['ready_cores_mcpu'] - allocated_cores[record['user']],
+                                    free_cores_mcpu_per_user + donated_cores_mcpu))
+
+            allocated_cores[record['user']] += cores_mcpu
+            donated_cores_mcpu += free_cores_mcpu_per_user - cores_mcpu
+
+        return {user: int(cores + 0.5) for user, cores in allocated_cores.items()}
 
     async def bump_loop(self):
         while True:
