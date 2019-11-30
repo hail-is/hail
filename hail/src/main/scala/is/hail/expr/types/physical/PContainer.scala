@@ -197,6 +197,10 @@ abstract class PContainer extends PIterable {
     }
   }
 
+
+  def loadElementAddress(aoff: Code[Long], i: Code[Int]): Code[Long] =
+    loadElementAddress(aoff, PContainer.loadLength(aoff), i)
+
   def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
@@ -371,7 +375,7 @@ abstract class PContainer extends PIterable {
       if (this.elementType == sourceType.elementType) {
         Code(
           c,
-          Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceValue), currentElementAddress, sourceType.dataByteSize(elementLength)),
+          Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceValue), currentElementAddress, sourceType.dataByteSize(numberOfElements)),
           startOffset
         )
       } else {
