@@ -279,13 +279,26 @@ abstract class PContainer extends PIterable {
         val i = mb.newField[Long]
 
         Code(
-          i := 0L,
-          Code.whileLoop(i < PContainer.nMissingBytes(len),
-            Region
-              .loadByte(oldOffset + lengthHeaderBytes + i)
-              .cne(const(0.toByte))
-              .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
-            i := i + 1L
+          i := PContainer.nMissingBytes(len) - 1L,
+          Code.whileLoop(i > 0L,
+            (i >= 8L).mux(
+              Code(
+                Code._println(s"i >= 8L: ${i}"),
+                i := i - 8L,
+                Region
+                .loadLong(oldOffset + lengthHeaderBytes + i)
+                .cne(const(0.toByte))
+                .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing."))
+              ),
+              Code(x 
+                Code._println(s"i < 8L: ${i}"),
+                i := i - 1L,
+                Region
+                  .loadByte(oldOffset + lengthHeaderBytes + i)
+                  .cne(const(0.toByte))
+                  .orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing."))
+              )
+            )
           )
         )
       },
