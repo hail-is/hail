@@ -46,7 +46,7 @@ spec:
       serviceAccountName: router-resolver
       priorityClassName: infrastructure
       nodeSelector:
-        preemptible: true
+        preemptible: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

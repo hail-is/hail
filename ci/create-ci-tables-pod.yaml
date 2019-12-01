@@ -4,7 +4,7 @@ metadata:
   name: create-ci-tables
 spec:
   nodeSelector:
-    preemptible: true
+    preemptible: "true"
   containers:
   - name: create-ci-tables
     image: "{{ base_image.image }}"

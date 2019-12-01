@@ -24,7 +24,7 @@ spec:
       priorityClassName: production
 {% endif %}
       nodeSelector:
-        preemptible: true
+        preemptible: "true"
       containers:
       - name: batch-driver
         image: {{ batch_image.image }}
@@ -117,7 +117,7 @@ spec:
       priorityClassName: production
 {% endif %}
       nodeSelector:
-        preemptible: true
+        preemptible: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

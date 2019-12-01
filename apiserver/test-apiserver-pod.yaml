@@ -4,7 +4,7 @@ metadata:
   name: test-apiserver
 spec:
   nodeSelector:
-    preemptible: true
+    preemptible: "true"
   containers:
   - name: test-apiserver
     image: "{{ test_apiserver_image.image }}"

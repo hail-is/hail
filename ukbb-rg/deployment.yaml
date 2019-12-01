@@ -30,7 +30,7 @@ spec:
         app: ukbb-rg-static
     spec:
       nodeSelector:
-        preemptible: false
+        preemptible: "false"
       containers:
        - name: ukbb-rg-static
          image: gcr.io/hail-vdc/ukbb-rg-static
@@ -76,7 +76,7 @@ spec:
         app: ukbb-rg-browser
     spec:
       nodeSelector:
-        preemptible: false
+        preemptible: "false"
       containers:
        - name: ukbb-rg-browser
          image: gcr.io/hail-vdc/ukbb-rg-browser

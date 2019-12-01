@@ -4,7 +4,7 @@ metadata:
   name: create-batch-tables
 spec:
   nodeSelector:
-    preemptible: true
+    preemptible: "true"
   containers:
   - name: create-batch-tables
     image: "{{ batch_tables_image.image }}"

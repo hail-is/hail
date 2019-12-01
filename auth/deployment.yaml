@@ -129,7 +129,7 @@ spec:
       priorityClassName: production
 {% endif %}
       nodeSelector:
-        preemptible: true
+        preemptible: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

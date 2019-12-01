@@ -20,7 +20,7 @@ spec:
       priorityClassName: production
 {% endif %}
       nodeSelector:
-        preemptible: false
+        preemptible: "false"
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"

@@ -18,7 +18,7 @@ spec:
     spec:
       priorityClassName: infrastructure
       nodeSelector:
-        preemptible: true
+        preemptible: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

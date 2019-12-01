@@ -19,7 +19,7 @@ spec:
       priorityClassName: production
 {% endif %}
       nodeSelector:
-        preemptible: false
+        preemptible: "false"
       containers:
       - name: blog
         image: ghost:3.0-alpine
