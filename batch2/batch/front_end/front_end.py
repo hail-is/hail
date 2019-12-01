@@ -546,7 +546,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     return web.Response()
 
 
-async def _query_batch_jobs(request, batch_id, user, q):
+async def _query_batch_jobs(request, batch_id, q):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
@@ -562,10 +562,11 @@ async def _query_batch_jobs(request, batch_id, user, q):
 
     db = request.app['db']
 
+    # batch has already been validated
     where_conditions = [
-        '(user = %s)', '(id = %s)', '(NOT deleted)'
+        '(batch_id = %s)'
     ]
-    where_args = [user, batch_id]
+    where_args = [batch_id]
 
     terms = q.split()
     for t in terms:
@@ -637,7 +638,7 @@ async def ui_batch(request, userdata):
     batch = await _get_batch(app, batch_id, user)
 
     q = request.query.get('q', '')
-    jobs = await _query_batch_jobs(request, batch_id, user, q)
+    jobs = await _query_batch_jobs(request, batch_id, q)
 
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
