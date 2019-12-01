@@ -217,6 +217,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: true
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -227,18 +229,6 @@ spec:
                     values:
                     - router
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 50
-            preference:
-              matchExpressions:
-              - key: preemptible
-                operator: In
-                values:
-                - "true"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router
          image: {{ router_image.image }}

@@ -19,6 +19,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: false
       containers:
         - name: ci
           image: "{{ ci_image.image }}"

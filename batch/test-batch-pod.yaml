@@ -3,6 +3,8 @@ kind: Pod
 metadata:
   name: test-batch
 spec:
+  nodeSelector:
+    preemptible: true
   containers:
   - name: test-batch
     image: "{{ test_batch_image.image }}"
