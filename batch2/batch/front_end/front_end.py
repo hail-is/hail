@@ -545,7 +545,7 @@ VALUES (%s, %s, %s, %s, %s, %s);
 ''',
                 (json.dumps(userdata), user, billing_project, json.dumps(attributes),
                  batch_spec.get('callback'), batch_spec['n_jobs'],
-                 new))
+                 now))
             id = cursor.lastrowid
 
         if attributes:
