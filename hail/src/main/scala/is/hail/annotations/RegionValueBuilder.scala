@@ -210,8 +210,10 @@ class RegionValueBuilder(var region: Region) {
           fatal(s"cannot set missing field for required type ${ t.types(i) }")
         t.setFieldMissing(region, offsetstk.top, i)
       case t: PArray =>
-        if (t.elementType.required)
+        if (t.elementType.required) {
           fatal(s"cannot set missing field for required type ${ t.elementType }")
+        }
+
         t.setElementMissing(region, offsetstk.top, i)
     }
     advance()

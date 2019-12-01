@@ -63,27 +63,49 @@ class PContainerTest extends HailSuite {
     testIt(sourceType, destType, nullInByte(9, 9, 7), true)
   }
 
-  @Test def testDeepArrayUpcastFlatElement() {
-    val sourceType = PArray(PArray(PArray(PInt64(true)), true), true)
-    val destType = PArray(PArray(PArray(PInt64(true)), true), true)
-    val sourceValue = FastIndexedSeq(FastIndexedSeq(FastIndexedSeq(1L,2L,0L,3L,4L)), FastIndexedSeq(FastIndexedSeq(20L,21L,31L,41L)), FastIndexedSeq(FastIndexedSeq(0L,7L,9L,2L)))
+  @Test def testArrayCopy() {
+    def testArrayCopy(sourceType: PArray, destType: PArray, sourceValue: IndexedSeq[Any], expectedException: Boolean) {
+      val region = Region()
+      val srcRegion = Region()
 
-    val region = Region()
-    val srcRegion = Region()
+      val srcOffset = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
 
-    val src = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+      val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
+      val codeRegion = fb.getArg[Region](1).load()
+      val value = fb.getArg[Long](2)
 
-    val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
-    val codeRegion = fb.getArg[Region](1).load()
-    val value = fb.getArg[Long](2)
+      try {
+        fb.emit(destType.copyFromType(fb, codeRegion, sourceType, value))
 
-    fb.emit(destType.copyDataOfDifferentType(fb, codeRegion, sourceType, value))
+        val f = fb.result()()
+        val copyOff = f(region, srcOffset)
+        val copy = SafeIndexedSeq(destType, region, copyOff)
+        assert(copy == sourceValue)
+        log.debug(s"Copied value: ${copy}")
+      } catch {
+        case e: Throwable => {
+          if(expectedException) {
+            log.debug(s"Found expected exception: ${e.getMessage}")
+          } else {
+            throw new Error(e)
+          }
+        }
+      }
+    }
 
-    val f = fb.result()()
-    val copyOff = f(region,src)
+    testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
+    // Such tests, where array is null are not currently possible due to ArrayStack.top semantics (ScalaToRegionValue)
+    // testArrayCopy(PArray(PInt32()), PArray(PInt32()), null, false)
+    testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
+    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
+    testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
+    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
 
-    val copy = SafeIndexedSeq(destType, region, copyOff)
-
-    assert(copy == sourceValue)
+    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(true))),
+      FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true)
+    testArrayCopy(PArray(PArray(PInt64(true), true)), PArray(PArray(PInt64(false))),
+      FastIndexedSeq(FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
   }
 }

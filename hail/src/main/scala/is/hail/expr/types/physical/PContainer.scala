@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder}
 import is.hail.expr.types.physical.PType.storeShallow
 import is.hail.utils._
 
@@ -197,7 +197,6 @@ abstract class PContainer extends PIterable {
     }
   }
 
-
   def loadElementAddress(aoff: Code[Long], i: Code[Int]): Code[Long] =
     loadElementAddress(aoff, PContainer.loadLength(aoff), i)
 
@@ -305,7 +304,7 @@ abstract class PContainer extends PIterable {
 
     val i = mb.newLocal[Long]
     Code(
-      i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)),
+      i := sourceType.nMissingBytes(sourceType.loadLength(sourceOffset)),
       Code.whileLoop(i > 0L,
         (i >= 8L).mux(
           Code(
@@ -345,73 +344,77 @@ abstract class PContainer extends PIterable {
     )
   }
 
-  def copyDataOfDifferentType(fb: FunctionBuilder[_], region: Code[Region], sourceType: PContainer, sourceValue: Code[Long], forceShallow: Boolean = false): Code[Long] = {
-    val startOffset: ClassFieldRef[Long] = fb.newField[Long]
+  // TODO: non-shallow copy
+  // TODO: handle PBaseStruct, PBinary
+  def copyFromType(fb: EmitFunctionBuilder[_], region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = {
+    assert(this.isOfType(sourcePType))
+
+    if (this == sourcePType) {
+
+      return sourceOffset
+    }
+
+    val sourceType = sourcePType.asInstanceOf[PContainer]
+    val destOffset: ClassFieldRef[Long] = fb.newField[Long]
     val arraySize = fb.newField[Long]
     val numberOfElements = fb.newField[Int]
     val currentElementAddress = fb.newField[Long]
     val currentIdx= fb.newField[Int]
-
     var c = Code(
-      numberOfElements := sourceType.loadLength(sourceValue),
-      // TODO: do the right thing for PBaseStruct, PBinary
+      numberOfElements := sourceType.loadLength(sourceOffset),
       arraySize := sourceType.contentsByteSize(numberOfElements),
-      startOffset := region.allocate(this.contentsAlignment, arraySize)
+      destOffset := region.allocate(this.contentsAlignment, arraySize)
     )
 
-    if (this == sourceType) {
-      Code(
+    c = Code(c, PContainer.storeLength(destOffset, numberOfElements))
+    c = Code(c, stagedInitialize(destOffset, numberOfElements))
+    c = Code(c, currentElementAddress := this.firstElementAddress(destOffset, numberOfElements))
+
+    if (this.elementType == sourceType.elementType) {
+      return Code(
         c,
-        Region.copyFrom(sourceValue, startOffset, arraySize),
-        startOffset
+        Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceOffset), currentElementAddress, sourceType.dataByteSize(numberOfElements)),
+        destOffset
+      )
+    }
+
+    var loopBody = if (sourceType.elementType.isPrimitive) {
+      storeShallow(
+        sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
+        sourceType.elementType.fundamentalType,
+        currentElementAddress
       )
     } else {
-      // TODO: add cases for PBaseStruct, PBinary
-      c = Code(c, PContainer.storeLength(startOffset, numberOfElements))
-      c = Code(c, this.stagedInitialize(startOffset, numberOfElements))
-      c = Code(c, currentElementAddress := this.firstElementAddress(startOffset, numberOfElements))
-      c = Code(c, currentIdx.store(0))
-
-      if (this.elementType == sourceType.elementType) {
-        Code(
-          c,
-          Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceValue), currentElementAddress, sourceType.dataByteSize(numberOfElements)),
-          startOffset
+      Region.storeAddress(
+        currentElementAddress,
+        this.elementType.asInstanceOf[PContainer].copyFromType(
+          fb,
+          region,
+          sourceType.elementType.asInstanceOf[PContainer],
+          sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
+          forceShallow
         )
-      } else {
-        Code(c,
-          currentIdx.store(0),
-          Code.whileLoop(currentIdx < numberOfElements,
-            // similarly, switch for different types
-            if (sourceType.elementType.isPrimitive) {
-              storeShallow(
-                sourceType.loadElementAddress(sourceValue, numberOfElements, currentIdx),
-                sourceType.elementType.fundamentalType,
-                currentElementAddress
-              )
-            } else {
-//              if(sourceType.elementType.required) {
-                Region.storeAddress(
-                  currentElementAddress,
-                  this.elementType.asInstanceOf[PContainer].copyDataOfDifferentType(
-                    fb,
-                    region,
-                    sourceType.elementType.asInstanceOf[PContainer],
-                    sourceType.loadElementAddress(sourceValue, numberOfElements, currentIdx),
-                    forceShallow
-                  )
-                )
-//              }
-
-            },
-            // leaky abstraction
-            currentElementAddress := this.nextElementAddress(currentElementAddress),
-            currentIdx := currentIdx + const(1)
-          ),
-          startOffset
-        )
-      }
+      )
     }
+
+    if(!this.elementType.required) {
+      loopBody = sourceType.isElementMissing(sourceOffset, currentIdx).mux(this.setElementMissing(destOffset, currentIdx), loopBody)
+    } else {
+      c = Code(c, sourceType.ensureNoMissingValues(fb.apply_method, sourceOffset, sourceType, Code._fatal(
+        "Found missing values. Cannot copy to type whose elements are required."
+      )))
+    }
+
+    Code(
+      c,
+      currentIdx.store(0),
+      Code.whileLoop(currentIdx < numberOfElements,
+        loopBody,
+        currentElementAddress := this.nextElementAddress(currentElementAddress),
+        currentIdx := currentIdx + const(1)
+      ),
+      destOffset
+    )
   }
 
   override def containsPointers: Boolean = true
