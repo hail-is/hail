@@ -583,8 +583,8 @@ async def _query_batch_jobs(request, batch_id, q):
             k, v = t.split('=', 1)
             condition = '''
 (EXISTS (SELECT * FROM `job_attributes`
-         WHERE `job_attributes`.batch_id = job.batch_id AND
-           `job_attributes`.job_id = job.job_id AND
+         WHERE `job_attributes`.batch_id = jobs.batch_id AND
+           `job_attributes`.job_id = jobs.job_id AND
            `batch_attributes`.`key` = %s AND
            `batch_attributes`.`value` = %s))
 '''
@@ -593,8 +593,8 @@ async def _query_batch_jobs(request, batch_id, q):
             k = t[4:]
             condition = '''
 (EXISTS (SELECT * FROM `job_attributes`
-         WHERE `job_attributes`.batch_id = job.batch_id AND
-           `job_attributes`.job_id = job.job_id AND
+         WHERE `job_attributes`.batch_id = jobs.batch_id AND
+           `job_attributes`.job_id = jobs.job_id AND
            `batch_attributes`.`key` = %s))
 '''
             args = [k]
@@ -606,7 +606,7 @@ async def _query_batch_jobs(request, batch_id, q):
             args = values
         else:
             session = await aiohttp_session.get_session(request)
-            set_message(session, 'Invalid search term: {t}.', 'error')
+            set_message(session, f'Invalid search term: {t}.', 'error')
             raise web.HTTPFound(deploy_config.external_url('batch2', f'/batches/{batch_id}'))
 
         if negate:
