@@ -786,33 +786,7 @@ class StagedRegionValueSuite extends HailSuite {
 //    )
 //    fb.result()()
   }
-  @Test def testDeepArrayUpcastFlatElement() {
-//    val sourceType = PArray(PArray(PInt64(true)))
-//    val destType = PArray(PArray(PInt64()))
-//    val sourceValue = FastIndexedSeq(FastIndexedSeq(1L,2L,3L,4L))
-    println(s"Alignment is ${UnsafeUtils.nativeWordSize}")
-    val sourceType = PArray(PArray(PArray(PInt64(true)), true), true)
-    val destType = PArray(PArray(PArray(PInt64(true)), true), true)
-    val sourceValue = FastIndexedSeq(FastIndexedSeq(FastIndexedSeq(1L,2L,0L,3L,4L)), FastIndexedSeq(FastIndexedSeq(20L,21L,31L,41L)), FastIndexedSeq(FastIndexedSeq(0L,7L,9L,2L)))
 
-    val region = Region()
-    val srcRegion = Region()
-
-    val src = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
-
-    val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
-    val codeRegion = fb.getArg[Region](1).load()
-    val value = fb.getArg[Long](2)
-
-    fb.emit(destType.copyDataOfDifferentType(fb, codeRegion, sourceType, value))
-
-    val f = fb.result()()
-    val copyOff = f(region,src)
-
-    val copy = SafeIndexedSeq(destType, region, copyOff)
-
-    assert(copy == sourceValue)
-  }
 
   @Test def testDeepArrayUpcastFlatElementNotRequired() {
     val sourceType = PArray(PArray(PArray(PInt64(true), true), true), true)
