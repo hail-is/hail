@@ -613,7 +613,7 @@ async def _query_batch_jobs(request, batch_id, q):
             condition = f'(NOT {condition})'
 
         where_conditions.append(condition)
-        where_args.extend(*args)
+        where_args.extend(args)
 
     sql = f'''
 SELECT * FROM jobs
@@ -622,9 +622,11 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    log.info(f'sql {sql}')
+    log.info(f'sql {sql} args {sql_args}')
 
-    return [job async for job in db.execute_and_fetchall(sql, sql_args)]
+    return [job_record_to_dict(job)
+            async for job
+            in db.execute_and_fetchall(sql, sql_args)]
 
 
 @routes.get('/batches/{batch_id}')
