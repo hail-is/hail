@@ -541,7 +541,7 @@ WHERE billing_project = %s AND user = %s
             await cursor.execute(
                 '''
 INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created)
-VALUES (%s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                 (json.dumps(userdata), user, billing_project, json.dumps(attributes),
                  batch_spec.get('callback'), batch_spec['n_jobs'],
