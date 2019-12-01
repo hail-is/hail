@@ -5,6 +5,9 @@ metadata:
 spec:
   nodeSelector:
     preemptible: "true"
+  tolerations:
+   - key: preemptible
+     value: "true"
   containers:
   - name: create-notebook-tables
     image: "{{ create_notebook_tables_image.image }}"

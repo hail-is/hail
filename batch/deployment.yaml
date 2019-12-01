@@ -25,6 +25,9 @@ spec:
 {% endif %}
       nodeSelector:
         preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
       - name: batch-driver
         image: {{ batch_image.image }}
@@ -118,6 +121,9 @@ spec:
 {% endif %}
       nodeSelector:
         preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

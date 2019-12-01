@@ -5,6 +5,9 @@ metadata:
 spec:
   nodeSelector:
     preemptible: "true"
+  tolerations:
+   - key: preemptible
+     value: "true"
   containers:
   - name: delete-batch-tables
     image: "{{ batch_tables_image.image }}"

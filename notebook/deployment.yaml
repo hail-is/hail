@@ -48,6 +48,9 @@ spec:
 {% endif %}
       nodeSelector:
         preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
