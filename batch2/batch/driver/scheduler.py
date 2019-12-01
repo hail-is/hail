@@ -38,11 +38,12 @@ class Scheduler:
             except Exception:
                 log.exception(f'in {name}')
 
+                end_time = time_msecs()
+                ran_for_secs = (end_time - start_time) * 1000
+
                 t = delay_secs * random.uniform(0.7, 1.3)
                 await asyncio.sleep(t)
 
-                end_time = time_msecs()
-                ran_for_secs = (end_time - start_time) * 1000
                 delay_secs = max(
                     min(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
                     30.0)
