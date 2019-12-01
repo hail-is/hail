@@ -611,7 +611,7 @@ async def _query_batch_jobs(app, batch_id, user, q):
         where_conditions.append(condition)
         where_args.extend(*args)
 
-    sql = '''
+    sql = f'''
 SELECT * FROM jobs
 WHERE {' AND '.join(where_conditions)}
 LIMIT 50;
