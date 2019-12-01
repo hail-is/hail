@@ -164,9 +164,7 @@ object PType {
     case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(value))
     case _: PBaseStruct => Region.copyFrom(value, destOffset, sourceType.byteSize)
     case _: PArray => {
-      println("Running PArray storeShallow")
       Code(
-        Code._println("Storing address"),
         Region.storeAddress(destOffset, value)
       )
     }

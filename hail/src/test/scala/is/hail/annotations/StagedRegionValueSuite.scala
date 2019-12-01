@@ -1,16 +1,14 @@
 package is.hail.annotations
 
-import is.hail.HailSuite
-import is.hail.asm4s.{Code, FunctionBuilder, _}
-import is.hail.check.{Gen, Prop}
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion}
-import org.testng.annotations.Test
-import is.hail.asm4s.Code._
-import is.hail.asm4s.FunctionBuilder.functionBuilder
+import is.hail.SparkSuite
+import is.hail.asm4s._
+import is.hail.expr.types._
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual._
 import is.hail.utils._
-class StagedRegionValueSuite extends HailSuite {
+import org.testng.annotations.Test
+
+class StagedRegionValueSuite extends SparkSuite {
 
   val showRVInfo = true
 
@@ -40,11 +38,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    val bytes = input.getBytes()
-    val boff = PBinary.allocate(region2, bytes.length)
-    Region.storeInt(boff, bytes.length)
-    Region.storeBytes(PBinary.bytesOffset(boff), bytes)
-    rv2.setOffset(boff)
+    rv2.setOffset(region2.appendString(input))
 
     if (showRVInfo) {
       printRegion(region2, "string")
@@ -82,8 +76,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.allocate(4, 4))
-    Region.storeInt(rv2.offset, input)
+    rv2.setOffset(region2.appendInt(input))
 
     if (showRVInfo) {
       printRegion(region2, "int")
@@ -91,7 +84,7 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rv.offset) == Region.loadInt(rv2.offset))
+    assert(rv.region.loadInt(rv.offset) == rv2.region.loadInt(rv2.offset))
   }
 
   @Test
@@ -121,7 +114,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt.virtualType, FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -130,13 +123,13 @@ class StagedRegionValueSuite extends HailSuite {
 
     assert(rt.loadLength(rv.region, rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
-      Region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
+    assert(rv.region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
+      rv2.region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
   }
 
   @Test
   def testStruct() {
-    val rt = PStruct("a" -> PString(), "b" -> PInt32())
+    val rt = TStruct("a" -> TString(), "b" -> TInt32()).physicalType
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -162,7 +155,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, Annotation("hello", input)))
+    rv2.setOffset(ScalaToRegionValue(region2, TStruct("a" -> TString(), "b" -> TInt32()), Annotation("hello", input)))
 
     if (showRVInfo) {
       printRegion(region2, "struct")
@@ -172,13 +165,13 @@ class StagedRegionValueSuite extends HailSuite {
     assert(rv.pretty(rt) == rv2.pretty(rt))
     assert(PString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
       PString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(Region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
-      Region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
+    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
+      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
   }
 
   @Test
   def testArrayOfStruct() {
-    val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
+    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -204,6 +197,7 @@ class StagedRegionValueSuite extends HailSuite {
         srvb.end()
       )
     )
+
 
     val region = Region()
     val rv = RegionValue(region)
@@ -240,7 +234,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testMissingRandomAccessArray() {
-    val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
+    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
     val intVal = 20
     val strVal = "a string with a partner of 20"
     val region = Region()
@@ -281,7 +275,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testSetFieldPresent() {
-    val rt = PStruct("a" -> PInt32(), "b" -> PString(), "c" -> PFloat64())
+    val rt = TStruct("a" -> TInt32(), "b" -> TString(), "c" -> TFloat64()).physicalType
     val intVal = 30
     val floatVal = 39.273d
     val r = Region()
@@ -311,15 +305,15 @@ class StagedRegionValueSuite extends HailSuite {
     rv2.setOffset(rvb2.end())
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
-      Region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(Region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
-      Region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
+    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
+      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(rv.region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
+      rv2.region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
   }
 
   @Test
   def testStructWithArray() {
-    val rt = PStruct("a" -> PString(), "b" -> PArray(PInt32()))
+    val rt = TStruct("a" -> TString(), "b" -> TArray(TInt32())).physicalType
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val codeInput = fb.getArg[String](2)
@@ -342,7 +336,7 @@ class StagedRegionValueSuite extends HailSuite {
         srvb.start(),
         srvb.addString(codeInput),
         srvb.advance(),
-        srvb.addArray(rt.types(1).asInstanceOf[PArray], array),
+        srvb.addArray(PArray(PInt32()), array),
         srvb.end()
       )
     )
@@ -384,7 +378,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testMissingArray() {
-    val rt = PArray(PInt32())
+    val rt = TArray(TInt32()).physicalType
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val codeInput = fb.getArg[Int](2)
@@ -412,7 +406,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input, null)))
+    rv2.setOffset(ScalaToRegionValue(region2, TArray(TInt32()), FastIndexedSeq(input, null)))
 
     if (showRVInfo) {
       printRegion(region2, "missing array")
@@ -430,7 +424,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testAddPrimitive() {
-    val t = PStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
+    val t = TStruct("a" -> TInt32(), "b" -> TBoolean(), "c" -> TFloat64()).physicalType
     val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Double, Long]
     val srvb = new StagedRegionValueBuilder(fb, t)
 
@@ -451,382 +445,12 @@ class StagedRegionValueSuite extends HailSuite {
     val f = fb.result()()
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
-      (Region.loadInt(t.loadField(region, off, 0)),
-        Region.loadBoolean(t.loadField(region, off, 1)),
-        Region.loadDouble(t.loadField(region, off, 2)))
+      (region.loadInt(t.loadField(region, off, 0)),
+        region.loadBoolean(t.loadField(region, off, 1)),
+        region.loadDouble(t.loadField(region, off, 2)))
     }
 
-    assert(run(3, true, 42.0) == ((3, true, 42.0)))
-    assert(run(42, false, -1.0) == ((42, false, -1.0)))
-  }
-
-  //GOAL: For an array either copy the array (deep copy), or just copy the pointer to the array if type is same
-  //If types are the same, the value is just copied by pointer (addAddress)
-  //If the types are different, the value needs to be copied not by pointer.
-  // However in the array case, I think this just means we need a missing bit header and a pointer to the values
-  // (the memory address of the values)
-  // How to do this?
-  // Well, if 1D array, we just grab the pointer, or grab the pointer and add a header
-  // If we have an n-d array, we do this recursively
-  // THen we also want a parameter of 'shallow', to allow people to perform an actual element-by-element copy
-  @Test
-  def testStructWithArray2() {
-    val rt = PArray(PInt32(), false, true)
-    val requiredRt = PArray(PInt32())
-
-    val array = FastIndexedSeq(0,1,2)
-
-    val region = Region()
-    val rv = RegionValue(region)
-
-    val regionValueOffsetContainingArray = ScalaToRegionValue(region, rt, array)
-
-    println(s"regionValueOffsetContainingArray: $regionValueOffsetContainingArray")
-
-    // we're passing 2 args; the region, and the address of the type that we pass to the region
-    // return is long
-    val fb = EmitFunctionBuilder[Region, Long, Long]("foo")
-    val addressOfArray = fb.getArg[Long](2)
-    println(s"ADDRESS OF ARRAY $addressOfArray")
-    val srvb = new StagedRegionValueBuilder(fb, PInt64())
-
-    println(s"Immediately after initialized srvb offset is ${srvb.currentOffset}")
-
-    val condition = Code(
-
-    )
-    //generates the function
-    fb.emit(Code(
-      srvb.start(),
-      // Works, as long as the type on srvb is PInt64()
-      // Will not work otherwise
-      // This should go in our pointer arrays method to generate code for storing a pointer
-      srvb.addIRIntermediate(rt)(addressOfArray),
-      srvb.end()
-    ))
-
-    val f = fb.result()()
-    val region2 = Region();
-    val rv2 = RegionValue(region2)
-    val returnAddress = f(region2 , regionValueOffsetContainingArray)
-
-    val region3 = Region();
-    println(UnsafeRow.read(rt, region3, regionValueOffsetContainingArray))
-
-//    println(s"Value read using the return address")
-//    println(UnsafeRow.read(rt, region3, returnAddress))
-
-    println(s"Value")
-    println(rt.read(region2, returnAddress))
-    println(s"Length ${rt.loadLength(returnAddress)}")
-/*
-    val rv3 = RegionValue(region4)
-    val rvb = new RegionValueBuilder(region4)
-
-    rvb.start(rt)
-    rvb.startArray(3)
-    for (i <- 1 to 3) {
-      rvb.addInt(i)
-    }
-    rvb.endArray()
-
-    rv3.setOffset(rvb.end())
-
-    if (showRVInfo) {
-      printRegion(region4, "struct with array")
-      println(rv3.pretty(rt))
-    }*/
-//    println(s"Value 2323read using324the returned l32ong 222")
-
-//        println(rv2.pretty(rt))
-
-//        println("Value inserted into region")
-//        rv.setOffset(regionValueOffsetContainingArray)
-//        println(rv.pretty(rt))
-
-
-
-
-
-
-
-        // this region is only for global values
-//        Region.scoped { region =>
-//          val rvb = new RegionValueBuilder(region)
-//          val rv = RegionValue(region)
-//          val f = fb.result()
-//          val memoryAddressOfInsertedValue = f().apply(region, expected)
-//
-//          rv.setOffset(memoryAddressOfInsertedValue)
-
-    //      rv.setOffset(memoryAddressOfInsertedValue)
-    //      println("BEFORE")
-    //      printRegion(region, "struct with array 1")
-    //      println(rv.pretty(rt))
-    //      println("AFTER")
-    //      if (showRVInfo) {
-    //        printRegion(region, "struct with array 1")
-    //        println(rv.pretty(rt))
-    //      }
-    //
-    //
-    //      // start takes the physical type that is the "root" of the value i need
-    //      rvb.start(rt)
-    //      // this actually adds the data
-    //      rvb.addAnnotation(rt.virtualType, expected)
-    //      val addr = rvb.end()
-    //      println(s"addr=$addr")
-    //      // prepares the class that fb.emit stages to be executed
-    //      //gives me an instance of the callable class
-    //      rvb.startArray(2)
-    //      for (i <- 0 to 2) {
-    //        rvb.addInt(expected(i))
-    //      }
-    //      rvb.endArray()
-    //
-    //      val f = fb.result()()(r, r)
-    //      // rvb.end() returns offset to the whole value
-    //      val returnAddress = f(r, addr)
-    //
-    //      assert(UnsafeRow.read(rt, r, returnAddress) == expected)
-//        }
-  }
-  @Test
-  def testStructWithArray2a() {
-    val rt = PArray(PInt32())
-    val requiredRt = PArray(PInt32(), true)
-    val pointerType = PInt64(true)
-
-    val array = FastIndexedSeq(0, 1, 2)
-
-    val region = Region()
-
-    val regionValueOffsetContainingArray = ScalaToRegionValue(region, rt, array)
-
-    println(s"regionValueOffsetContainingArray: $regionValueOffsetContainingArray")
-
-    // we're passing 2 args; the region, and the address of the type that we pass to the region
-    // return is long
-    val fb = EmitFunctionBuilder[Region, Long, Long]("foo")
-
-//    val rc = new EmitRegion(fb)
-    val regionCode: Code[Region] = fb.getArg[Region](1)
-    val addressOfArray = fb.getArg[Long](2)
-    println(s"ADDRESS OF ARRAY $addressOfArray")
-    val offset = fb.newField[Long]("array_offset")
-    val length = fb.newField[Long]("length")
-
-    def thing(region: Code[Region]) {
-      //generates the function
-      fb.emit(
-        rt.fundamentalType match {
-          case t: PArray => Code
-            (
-              length := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(addressOfArray.load())))
-              //      offset := regionCode.asInstanceOf[Code[Region]].allocate(rt.contentsAlignment, rt.contentsByteSize(rt.loadLength(regionValueOffsetContainingArray)))
-
-              //      Code(Region.copyFrom(regionValueOffsetContainingArray, offset, length))
-              //      offset := region.allocate(pointerType.alignment, pointerType.byteSize),
-              //      Region.storeAddress(offset, addressOfArray)
-              )
-        })
-    }
-
-    println("Before result")
-    val f = fb.result()()
-    println("Past fb.result()()")
-    val region2 = Region();
-
-    val returnAddress = f(region, regionValueOffsetContainingArray)
-    println("PAST retrunAddredss")
-    println(s"RETURN ADDRESS $returnAddress")
-
-    val theOriginalAddress = Region.loadLong(returnAddress)
-    println(s"The value inserted at the returnAddress: $theOriginalAddress")
-
-    val addr2 = Region.loadAddress(regionValueOffsetContainingArray)
-    println(s"THE LONG VALUE WE INSERTED INTO THE ORIG regionValueOffsetContainingArray: $addr2")
-    // Proof that the region doesn't have its own memory offsets.
-    // The return address is into raw memory
-    val region3 = Region();
-    println(s"Value read in uninitialized region")
-    println(UnsafeRow.read(rt, region3, regionValueOffsetContainingArray))
-
-    //    println(s"Value read using the return address")
-    //    println(UnsafeRow.read(rt, region3, returnAddress))
-
-    println(s"Value read ddd the returned l32ong 222")
-    println(UnsafeRow.read(rt, region3, theOriginalAddress))
-    println("Trying to pretty print")
-
-    val region4 = Region()
-    val rv3 = RegionValue(region4)
-    rv3.setOffset(theOriginalAddress)
-    println(rv3.pretty(rt))
-  }
-
-  def testStructWithArray3() {
-    val rt = PArray(PInt32())
-    val requiredRt = PArray(PInt32(), true)
-
-    val array = FastIndexedSeq(0, 1, 2)
-
-    val region = Region()
-    val rv = RegionValue(region)
-
-    val regionValueOffsetContainingArray = ScalaToRegionValue(region, rt, array)
-
-    println(s"regionValueOffsetContainingArray: $regionValueOffsetContainingArray")
-
-    // we're passing 2 args; the region, and the address of the type that we pass to the region
-    // return is long
-    val fb = EmitFunctionBuilder[Region, Long, Long]("foo")
-    val addressOfArray = fb.getArg[Long](2)
-    println(s"ADDRESS OF ARRAY $addressOfArray")
-    val srvb = new StagedRegionValueBuilder(fb, rt)
-    val length = fb.newField[Long]("array_length")
-    println(s"Immediately after initialized srvb offset is ${ srvb.currentOffset }")
-  }
-
-//  @Test def testShallowArrayCopy() {
-//    val t = PArray(PArray(PInt32()))
-//    val a = FastIndexedSeq(FastIndexedSeq(1,2,3), FastIndexedSeq(4,5,6))
-//
-//    println(s"A! $a")
-//    assert(t.virtualType.typeCheck(a))
-//
-//      val copy = Region.scoped { region =>
-//        val copyOff = Region.scoped { srcRegion =>
-//          val src = ScalaToRegionValue(srcRegion, t, a)
-//
-//          val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
-//          fb.emit(
-//            t.upcastFromOffset(
-//              EmitRegion.default(fb.apply_method),
-//              t,
-//              fb.getArg[Long](2).load()))
-//          val copyF = fb.resultWithIndex()(0, region)
-//          val newOff = copyF(region, src)
-//
-//          // This isn't needed for this test to work
-//          //clear old stuff
-//          // actually without this  will pass always, even if the code didn't generate the right array
-////          val len = srcRegion.allocate(0) - src
-////          Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
-//          newOff
-//        }
-//        // SafeIndexedSeq makes another copy
-//        // UnsafeIndexedSeq works, but it gives back a [1,2,3],[4,5,6]
-//        // while SafeIndexedSeq gives back WrappedArray(WrappedArray(1,2,3), WrappedArray(4,5,6))
-////        new UnsafeIndexedSeq(t, region, copyOff)
-//        SafeIndexedSeq(t, region, copyOff)
-//      }
-//
-//    println(s"COPY IS $copy")
-//
-//    assert(copy == a)
-//  }
-
-//  @Test def testDeepArrayCopy() {
-//    val sourceType = PArray(PArray(PInt32(true)))
-//    val sourceValue = FastIndexedSeq(FastIndexedSeq(1,2,3), FastIndexedSeq(4,5,6))
-//
-//    val destType = PArray(PArray(PInt32()))
-//
-//
-//    println(s"A! $sourceValue")
-//    assert(sourceType.virtualType.typeCheck(sourceValue))
-//
-//    val copy = Region.scoped { region =>
-//      val copyOff = Region.scoped { srcRegion =>
-//        val src = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
-//
-//        val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
-//        fb.emit(
-//          sourceType.upcastFromOffset(
-//            EmitRegion.default(fb.apply_method),
-//            destType,
-//            fb.getArg[Long](2).load(),false))
-//        val copyF = fb.resultWithIndex()(0, region)
-//        val newOff = copyF(region, src)
-//
-//        // This isn't needed for this test to work
-//        //clear old stuff
-//        // actually without this  will pass always, even if the code didn't generate the right arra
-//        val len = srcRegion.allocate(0) - src
-//        Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
-//        newOff
-//      }
-//      // SafeIndexedSeq makes another copy
-//      // UnsafeIndexedSeq works, but it gives back a [1,2,3],[4,5,6]
-//      // while SafeIndexedSeq gives back WrappedArray(WrappedArray(1,2,3), WrappedArray(4,5,6))
-//      new UnsafeIndexedSeq(destType, region, copyOff)
-//      //        SafeIndexedSeq(t, region, copyOff)
-//    }
-//
-//    println(s"COPY IS $copy")
-//
-//    assert(copy == sourceValue)
-//  }
-
-  def test(): AsmFunction0[Int] = {
-    val fb = functionBuilder[Int]
-    val l = fb.newLocal[Int]
-    fb.emit(Code(l:=1, _return(l)))
-    val f = fb.result()()
-
-    f
-//    val fb = EmitFunctionBuilder[Long]("blah")
-//    val test = fb.newField[String]("field")
-//    fb.emit(
-//      Code(
-//        test := "HELLO WORLD",
-//        Code._println(test)
-//      )
-//    )
-//    fb.result()()
-  }
-
-
-  @Test def testDeepCopy() {
-    val g = Type.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
-      .filter { case (t, a) => a != null }
-      .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
-    println(g)
-    val p = Prop.forAll(g) ( v => {
-      println(s"G :$g")
-      // v is an instance of Gen class
-      v match {
-        case (t, a) =>
-          println(s"A! $a, ${a.getClass().toString()}")
-          assert(t.virtualType.typeCheck(a))
-          val copy = Region.scoped { region =>
-            val copyOff = Region.scoped { srcRegion =>
-              val src = ScalaToRegionValue(srcRegion, t, a)
-
-              val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
-              fb.emit(
-                StagedRegionValueBuilder.deepCopyFromOffset(
-                  EmitRegion.default(fb.apply_method),
-                  t,
-                  fb.getArg[Long](2).load()))
-              val copyF = fb.resultWithIndex()(0, region)
-              val newOff = copyF(region, src)
-
-
-              //clear old stuff
-              val len = srcRegion.allocate(0) - src
-              Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
-              newOff
-            }
-            SafeRow(t, region, copyOff)
-          }
-
-          println(s"COPY IS $copy")
-          copy == a
-      }
-    })
-    p.check()
+    assert(run(3, true, 42.0) == (3, true, 42.0))
+    assert(run(42, false, -1.0) == (42, false, -1.0))
   }
 }

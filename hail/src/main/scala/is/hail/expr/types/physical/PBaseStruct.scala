@@ -243,7 +243,7 @@ abstract class PBaseStruct extends PType {
   def loadField(offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     types(fieldIdx).fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadLong(off)
+      case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
   }
