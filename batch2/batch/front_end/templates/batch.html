@@ -64,7 +64,7 @@
       {% if last_job_id is not none %}
       <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
 	<input type="hidden" name="q" value="{{ q }}" />
-	<input tpye="hidden" name="last_job_id" value="{{ last_job_id }}" />
+	<input type="hidden" name="last_job_id" value="{{ last_job_id }}" />
 	<button>
 	  Next page
 	</button>
