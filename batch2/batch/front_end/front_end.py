@@ -546,7 +546,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     return web.Response()
 
 
-async def _query_batch_jobs(request, batch_id, q):
+async def _query_batch_jobs(request, batch_id):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
@@ -568,6 +568,13 @@ async def _query_batch_jobs(request, batch_id, q):
     ]
     where_args = [batch_id]
 
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+        where_conditions.append('(jobs.job_id > %s)')
+        where_args.append(last_job_id)
+
+    q = request.query.get('q', '')
     terms = q.split()
     for t in terms:
         if not t:
@@ -607,7 +614,7 @@ async def _query_batch_jobs(request, batch_id, q):
         else:
             session = await aiohttp_session.get_session(request)
             set_message(session, f'Invalid search term: {t}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch2', f'/batches/{batch_id}'))
+            return ([], None)
 
         if negate:
             condition = f'(NOT {condition})'
@@ -624,9 +631,16 @@ LIMIT 50;
 
     log.info(f'sql {sql} args {sql_args}')
 
-    return [job_record_to_dict(job)
+    jobs = [job_record_to_dict(job)
             async for job
             in db.execute_and_fetchall(sql, sql_args)]
+
+    if len(jobs) == 50:
+        last_job_id = jobs[-1]['job_id']
+    else:
+        last_job_id = None
+
+    return (jobs, last_job_id)
 
 
 @routes.get('/batches/{batch_id}')
@@ -639,16 +653,16 @@ async def ui_batch(request, userdata):
 
     batch = await _get_batch(app, batch_id, user)
 
-    q = request.query.get('q', '')
-    jobs = await _query_batch_jobs(request, batch_id, q)
-
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
         job['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(job))
     batch['jobs'] = jobs
+
     page_context = {
         'batch': batch,
-        'q': q
+        'q': request.query.get('q'),
+        'last_job_id': last_job_id
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 
