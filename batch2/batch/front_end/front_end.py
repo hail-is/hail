@@ -546,7 +546,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     return web.Response()
 
 
-async def _query_batch_jobs(app, batch_id, user, q):
+async def _query_batch_jobs(request, batch_id, user, q):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
@@ -559,6 +559,8 @@ async def _query_batch_jobs(app, batch_id, user, q):
         'success': ['success'],
         'done': ['Cancelled', 'Error', 'Failed', 'Success']
     }
+
+    db = request.app['db']
 
     where_conditions = [
         '(user = %s)', '(id = %s)', '(NOT deleted)'
@@ -585,7 +587,7 @@ async def _query_batch_jobs(app, batch_id, user, q):
            `batch_attributes`.`key` = %s AND
            `batch_attributes`.`value` = %s))
 '''
-            args = [key, value]
+            args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
@@ -594,7 +596,7 @@ async def _query_batch_jobs(app, batch_id, user, q):
            `job_attributes`.job_id = job.job_id AND
            `batch_attributes`.`key` = %s))
 '''
-            args = [key]
+            args = [k]
         elif t in state_query_values:
             values = state_query_values[t]
             condition = ' OR '.join([
@@ -602,8 +604,9 @@ async def _query_batch_jobs(app, batch_id, user, q):
             condition = f'({condition})'
             args = values
         else:
+            session = await aiohttp_session.get_session(request)
             set_message(session, 'Invalid search term: {t}.', 'error')
-            raise HTTPFound(deploy_config.external_url('batch2', f'/batches/{batch_id}'))
+            raise web.HTTPFound(deploy_config.external_url('batch2', f'/batches/{batch_id}'))
 
         if negate:
             condition = f'(NOT {condition})'
@@ -622,6 +625,7 @@ LIMIT 50;
 
     return [job async for job in db.execute_and_fetchall(sql, sql_args)]
 
+
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @web_authenticated_users_only()
@@ -633,7 +637,7 @@ async def ui_batch(request, userdata):
     batch = await _get_batch(app, batch_id, user)
 
     q = request.query.get('q', '')
-    jobs = await _query_batch_jobs(app, batch_id, user, q)
+    jobs = await _query_batch_jobs(request, batch_id, user, q)
 
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
