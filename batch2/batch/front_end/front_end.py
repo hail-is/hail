@@ -585,8 +585,8 @@ async def _query_batch_jobs(request, batch_id, q):
 (EXISTS (SELECT * FROM `job_attributes`
          WHERE `job_attributes`.batch_id = jobs.batch_id AND
            `job_attributes`.job_id = jobs.job_id AND
-           `batch_attributes`.`key` = %s AND
-           `batch_attributes`.`value` = %s))
+           `job_attributes`.`key` = %s AND
+           `job_attributes`.`value` = %s))
 '''
             args = [k, v]
         elif t.startswith('has:'):
@@ -595,7 +595,7 @@ async def _query_batch_jobs(request, batch_id, q):
 (EXISTS (SELECT * FROM `job_attributes`
          WHERE `job_attributes`.batch_id = jobs.batch_id AND
            `job_attributes`.job_id = jobs.job_id AND
-           `batch_attributes`.`key` = %s))
+           `job_attributes`.`key` = %s))
 '''
             args = [k]
         elif t in state_query_values:
