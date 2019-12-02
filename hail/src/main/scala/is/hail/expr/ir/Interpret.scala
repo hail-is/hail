@@ -707,8 +707,13 @@ object Interpret {
           rvb.endTuple()
           val offset = rvb.end()
 
-          val resultOffset = f(region, offset, false)
-          SafeRow(rt.asInstanceOf[PTuple], region, resultOffset).get(0)
+          try {
+            val resultOffset = f(region, offset, false)
+            SafeRow(rt.asInstanceOf[PTuple], region, resultOffset).get(0)
+          } catch {
+            case e: Exception =>
+              fatal(s"error while calling ${ ir.implementation.name }", e)
+          }
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>
         val f = { x: Double => interpret(fn, env.bind(functionid, x), args, aggArgs).asInstanceOf[Double] }
