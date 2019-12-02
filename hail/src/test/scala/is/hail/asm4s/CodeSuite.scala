@@ -1,4 +1,4 @@
-package is.hail.annotations
+package is.hail.asm4s
 
 import is.hail.HailSuite
 
