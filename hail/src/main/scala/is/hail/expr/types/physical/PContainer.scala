@@ -28,9 +28,9 @@ abstract class PContainer extends PIterable {
 
   def elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  override def byteSize: Long = 8
+  def contentsAlignment: Long = elementType.alignment.max(4)
 
-  def contentsAlignment: Long = UnsafeUtils.nativeWordSize
+  override def byteSize: Long = 8
 
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(aoff)
@@ -72,15 +72,15 @@ abstract class PContainer extends PIterable {
 
   private def _headerOffset(length: Int): Long =
     if (elementType.required)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, UnsafeUtils.nativeWordSize)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PContainer.nMissingBytes(length), UnsafeUtils.nativeWordSize)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PContainer.nMissingBytes(length), elementType.alignment)
 
   private def _headerOffset(length: Code[Int]): Code[Long] =
     if (elementType.required)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, UnsafeUtils.nativeWordSize)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(PContainer.nMissingBytes(length) + lengthHeaderBytes, UnsafeUtils.nativeWordSize)
+      UnsafeUtils.roundUpAlignment(PContainer.nMissingBytes(length) + lengthHeaderBytes, elementType.alignment)
 
   private lazy val lengthOffsetTable = 10
   private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _headerOffset(i))

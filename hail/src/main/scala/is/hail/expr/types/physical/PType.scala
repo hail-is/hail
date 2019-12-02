@@ -163,11 +163,7 @@ object PType {
     case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(value))
     case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(value))
     case _: PBaseStruct => Region.copyFrom(value, destOffset, sourceType.byteSize)
-    case _: PArray => {
-      Code(
-        Region.storeAddress(destOffset, value)
-      )
-    }
+    case _: PArray => Region.storeAddress(destOffset, value)
     case _: PBinary => Region.storeAddress(destOffset, value)
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }

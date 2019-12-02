@@ -25,7 +25,7 @@ object EmitFunctionBuilder {
   def apply[R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction0[R]] =
     new EmitFunctionBuilder[AsmFunction0[R]](Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R], namePrefix = prefix)
 
-  def apply[A: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction1[A, R]]
+  def apply[A: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
     new EmitFunctionBuilder[AsmFunction1[A, R]](Array(GenericTypeInfo[A]), GenericTypeInfo[R], namePrefix = prefix)
 
   def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
