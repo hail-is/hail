@@ -1,6 +1,8 @@
 import random
 import logging
 import asyncio
+import sortedcontainers
+
 from hailtop.utils import time_msecs
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
@@ -23,38 +25,56 @@ class Scheduler:
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.inst_pool.healthy_instances_by_free_cores])
-        total_cores_mcpu = len(self.inst_pool.healthy_instances_by_free_cores) * self.inst_pool.worker_cores * 1000
+
+        sorted_running_cores_mcpu = sortedcontainers.SortedSet(key=lambda x: x[1])
+        sorted_total_cores_mcpu = sortedcontainers.SortedSet(key=lambda x: x[1])
+
+        running_cores_mcpu = {}
         allocated_cores = {}
 
-        records = list(self.db.execute_and_fetchall(
+        records = self.db.execute_and_fetchall(
             '''
 SELECT user, ready_cores_mcpu, running_cores_mcpu
 FROM user_resources
-WHERE ready_cores_mcpu > 0 OR running_cores_mcpu > 0
-ORDER BY running_cores_mcpu ASC;
-'''))
+WHERE ready_cores_mcpu > 0;
+''')
 
-        n_users = len(records)
-        free_cores_mcpu_per_user_1 = free_cores_mcpu / n_users
-        for record in records:
-            cores_mcpu = max(0, min(record['ready_cores_mcpu'],
-                                    free_cores_mcpu_per_user_1,
-                                    (total_cores_mcpu / n_users) - record['running_cores_mcpu']))
-            free_cores_mcpu -= cores_mcpu
-            allocated_cores[record['user']] = cores_mcpu
+        async for record in records:
+            running_cores_mcpu[record['user']] = record['running_cores_mcpu']
+            sorted_running_cores_mcpu.add(
+                (record['user'], record['running_cores_mcpu']))
+            sorted_total_cores_mcpu.add(
+                (record['user'], record['running_cores_mcpu'] + record['ready_cores_mcpu']))
 
-        free_cores_mcpu_per_user_2 = free_cores_mcpu / n_users
-        donated_cores_mcpu_per_user = 0
-        n_users_left = n_users
-        for record in sorted(records, key=lambda x: x['ready_cores_mcpu'] - allocated_cores[record['user']]):
-            cores_mcpu = max(0, min(record['ready_cores_mcpu'] - allocated_cores[record['user']],
-                                    free_cores_mcpu_per_user_2 + donated_cores_mcpu_per_user))
+        target = 0
+        allocating_users = set()
+        while sorted_total_cores_mcpu:
+            lowest_running_user, lowest_running = sorted_running_cores_mcpu[0]
+            lowest_total_user, lowest_total = sorted_total_cores_mcpu[0]
 
-            allocated_cores[record['user']] += cores_mcpu
-            donated_cores_mcpu_per_user += (free_cores_mcpu_per_user_2 - cores_mcpu) / n_users_left
-            n_users_left -= 1
+            allocation = min(lowest_running, lowest_total)
 
-        return {user: int(cores + 0.5) for user, cores in allocated_cores.items()}
+            n_allocating_users = len(allocating_users)
+            cores_to_allocate = n_allocating_users * (allocation - target)
+
+            if cores_to_allocate > free_cores_mcpu:
+                target += free_cores_mcpu / n_allocating_users
+                break
+
+            target = allocation
+            free_cores_mcpu -= cores_to_allocate
+
+            if lowest_running >= lowest_total:
+                allocating_users.add(lowest_running_user)
+            else:
+                allocating_users.remove(lowest_total_user)
+                allocated_cores[lowest_total_user] = int(target - running_cores_mcpu[lowest_total_user] + 0.5)
+                sorted_total_cores_mcpu.remove((lowest_total_user, lowest_total))
+
+        for user in allocating_users:
+            allocated_cores[user] = int(target - running_cores_mcpu[user] + 0.5)
+
+        return allocated_cores
 
     async def bump_loop(self):
         while True:
