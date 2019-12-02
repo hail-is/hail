@@ -1522,7 +1522,6 @@ private class Emit(
           Code._println(const("K = ").concat(K.toS)),
           Code._println(const("LDA = ").concat(LDA.toS)),
           Code._println(const("LWORK = ").concat(LWORK.toString)),
-          //printA,
 
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
@@ -1535,8 +1534,7 @@ private class Emit(
           ),
           Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS)),
 
-
-          //Code.invokeStatic[Memory, Long, Unit]("free", LWORK.toLong)
+          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
         )
 
         if (mode == "raw") {
