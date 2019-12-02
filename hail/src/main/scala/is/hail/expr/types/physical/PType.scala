@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, IRParser, SortOrder}
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{BaseType, Requiredness, physical}
+import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._

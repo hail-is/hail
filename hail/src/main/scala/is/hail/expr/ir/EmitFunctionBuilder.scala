@@ -25,9 +25,8 @@ object EmitFunctionBuilder {
   def apply[R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction0[R]] =
     new EmitFunctionBuilder[AsmFunction0[R]](Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R], namePrefix = prefix)
 
-  def apply[A: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction1[A, R]] = {
+  def apply[A: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction1[A, R]]
     new EmitFunctionBuilder[AsmFunction1[A, R]](Array(GenericTypeInfo[A]), GenericTypeInfo[R], namePrefix = prefix)
-  }
 
   def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
     new EmitFunctionBuilder[AsmFunction2[A, B, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R], namePrefix = prefix)
@@ -473,7 +472,7 @@ class EmitFunctionBuilder[F >: Null](
   ): CodeOrdering.F[op.ReturnType] =
     getCodeOrdering(t, t, sortOrder, op, ignoreMissingness)
 
-  override val  apply_method: EmitMethodBuilder = {
+  override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
