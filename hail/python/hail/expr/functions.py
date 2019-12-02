@@ -1794,7 +1794,7 @@ def pnorm(x) -> Float64Expression:
 
     Notes
     -----
-    Returns the left-tail probability `p` = Prob(:math:Z < x) with :math:Z a standard normal random variable.
+    Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z` a standard normal random variable.
 
     Parameters
     ----------
@@ -1805,6 +1805,94 @@ def pnorm(x) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("pnorm", tfloat64, x)
+
+
+@typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pT(x, n, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative probability function of a `t-distribution <https://en.wikipedia.org/wiki/Student%27s_t-distribution>`__ with `n` degrees of freedom.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.pT(0, 10))
+    0.5
+
+    >>> hl.eval(hl.pT(1, 10))
+    0.82955343384897
+
+    >>> hl.eval(hl.pT(1, 10, lower_tail=False))
+    0.17044656615103004
+
+    >>> hl.eval(hl.pT(1, 10, log_p=True))
+    -0.186867754489647
+
+    Notes
+    -----
+    If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is
+    a t-distributed random variable with `n` degrees of freedom. If `lower_tail`
+    is false, returns Prob(:math:`X` > `x`).
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    n : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Degrees of freedom of the t-distribution.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("pT", tfloat64, x, n, lower_tail, log_p)
+
+
+@typecheck(x=expr_float64, df1=expr_float64, df2=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pF(x, df1, df2, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative probability function of a `F-distribution <https://en.wikipedia.org/wiki/F-distribution>`__ with parameters `df1` and `df2`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.pF(0, 3, 10))
+    0.0
+
+    >>> hl.eval(hl.pF(1, 3, 10))
+    0.5676627969783028
+
+    >>> hl.eval(hl.pF(1, 3, 10, lower_tail=False))
+    0.4323372030216972
+
+    >>> hl.eval(hl.pF(1, 3, 10, log_p=True))
+    -0.566227703842908
+
+    Notes
+    -----
+    If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is
+    a random variable with distribution :math:`F`(df1, df2). If `lower_tail`
+    is false, returns Prob(:math:`X` > `x`).
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    df1 : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Parameter of the F-distribution
+    df2 : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Parameter of the F-distribution
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("pF", tfloat64, x, df1, df2, lower_tail, log_p)
 
 
 @typecheck(x=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)

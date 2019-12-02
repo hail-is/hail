@@ -44,7 +44,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     val writeLen = out.writeInt(prefixLen)
     val writeMissingBytes =
       if (!pt.elementType.required) {
-        out.writeBytes(array + const(4), pt.nMissingBytes(prefixLen).toI)
+        out.writeBytes(array + const(4), pt.nMissingBytes(prefixLen))
       } else
         Code._empty[Unit]
 
@@ -96,7 +96,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
         assert(t.elementType.required) // XXX For now
         Code._empty
       } else
-        in.readBytes(region, array + const(4), t.nMissingBytes(len).toI),
+        in.readBytes(region, array + const(4), t.nMissingBytes(len)),
       i := 0,
       Code.whileLoop(
         i < len,
@@ -126,12 +126,12 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
             i := i + const(1))))
     } else {
       val mbytes = mb.newLocal[Long]("mbytes")
-      val nMissing = mb.newLocal[Long]("nMissing")
+      val nMissing = mb.newLocal[Int]("nMissing")
       Code(
         len := in.readInt(),
         nMissing := PContainer.nMissingBytes(len),
-        mbytes := r.allocate(const(1), nMissing),
-        in.readBytes(r, mbytes, nMissing.toI),
+        mbytes := r.allocate(const(1), nMissing.toL),
+        in.readBytes(r, mbytes, nMissing),
         i := 0,
         Code.whileLoop(i < len,
           Region.loadBit(mbytes, i.toL).mux(

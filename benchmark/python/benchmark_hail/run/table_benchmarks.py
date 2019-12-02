@@ -210,6 +210,13 @@ def table_aggregate_downsample_sparse():
     ht.aggregate(hl.agg.downsample(hl.rand_norm() ** 5, hl.rand_norm() ** 5))
 
 
+@benchmark(args=many_ints_table.handle('ht'))
+def table_aggregate_linreg(ht_path):
+    ht = hl.read_table(ht_path)
+    ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2, ht.i3, ht.i4]),
+        hl.range(75)))
+
+
 @benchmark(args=many_strings_table.handle('ht'))
 def table_take(ht_path):
     ht = hl.read_table(ht_path)
