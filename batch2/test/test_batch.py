@@ -50,7 +50,28 @@ class Test(unittest.TestCase):
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
-        self.assertTrue(j.is_complete())
+    def test_msec_mcpu(self):
+        builder = self.client.create_batch()
+        # two jobs so the batch msec_mcpu computation is non-trivial
+        builder.create_job('ubuntu:18.04', ['echo', 'foo'])
+        builder.create_job('ubuntu:18.04', ['echo', 'bar'])
+        b = builder.submit()
+
+        batch = b.wait()
+        assert batch['state'] == 'success', batch
+
+        batch_msec_mcpu2 = 0
+        for job in batch['jobs']:
+            job_status = job['status']
+
+            # tests run at 100mcpu
+            job_msec_mcpu2 = 100 * max(job_status['end_time'] - job_status['start_time'], 0)
+            # greater than in case there are multiple attempts
+            assert job['msec_mcpu'] >= job_msec_mcpu2, batch
+
+            batch_msec_mcpu2 += job_msec_mcpu2
+
+        assert batch['msec_mcpu'] == batch_msec_mcpu2, batch
 
     def test_attributes(self):
         a = {
@@ -80,6 +101,29 @@ class Test(unittest.TestCase):
         assert j._get_exit_codes(status) == {'main': None}, status
         assert j._get_error(status, 'main') is not None
         assert status['state'] == 'Error', status
+
+    def test_invalid_resource_requests(self):
+        builder = self.client.create_batch()
+        resources = {'cpu': '1', 'memory': '28Gi'}
+        builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
+            builder.submit()
+
+        builder = self.client.create_batch()
+        resources = {'cpu': '0', 'memory': '1Gi'}
+        builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+        with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'bad resource request.*cpu cannot be 0'):
+            builder.submit()
+
+    def test_out_of_memory(self):
+        builder = self.client.create_batch()
+        resources = {'cpu': '0.1', 'memory': '10M'}
+        j = builder.create_job('python:3.6-slim-stretch',
+                               ['python', '-c', 'x = "a" * 400 * 1000**2'],
+                               resources=resources)
+        builder.submit()
+        status = j.wait()
+        assert j._get_out_of_memory(status, 'main')
 
     def test_unsubmitted_state(self):
         builder = self.client.create_batch()

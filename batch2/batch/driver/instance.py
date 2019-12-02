@@ -1,14 +1,9 @@
-import time
 import datetime
 import secrets
 import humanize
+from hailtop.utils import time_msecs, time_msecs_str
 
 from ..database import check_call_procedure
-
-
-def fmt_timestamp(t):
-    return datetime.datetime.utcfromtimestamp(t).strftime(
-        '%Y-%m-%dT%H:%M:%SZ')
 
 
 class Instance:
@@ -25,7 +20,7 @@ class Instance:
         db = app['db']
 
         state = 'pending'
-        now = time.time()
+        now = time_msecs()
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
@@ -73,14 +68,17 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 
         return rv['token']
 
-    async def deactivate(self):
+    async def deactivate(self, reason, timestamp=None):
         if self._state in ('inactive', 'deleted'):
             return
 
+        if not timestamp:
+            timestamp = time_msecs()
+
         await check_call_procedure(
             self.db,
-            'CALL deactivate_instance(%s);',
-            (self.name,))
+            'CALL deactivate_instance(%s, %s, %s);',
+            (self.name, reason, timestamp))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'inactive'
@@ -90,11 +88,11 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         # there might be jobs to reschedule
         self.scheduler_state_changed.set()
 
-    async def mark_deleted(self):
+    async def mark_deleted(self, reason, timestamp):
         if self._state == 'deleted':
             return
         if self._state != 'inactive':
-            await self.deactivate()
+            await self.deactivate(reason, timestamp)
 
         await check_call_procedure(
             self.db,
@@ -119,7 +117,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         return self._failed_request_count
 
     async def mark_healthy(self):
-        now = time.time()
+        now = time_msecs()
         await self.db.execute_update(
             '''
 UPDATE instances
@@ -151,7 +149,7 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
         return self._last_updated
 
     async def update_timestamp(self):
-        now = time.time()
+        now = time_msecs()
         await self.db.execute_update(
             'UPDATE instances SET last_updated = %s WHERE name = %s;',
             (now, self.name))
@@ -161,12 +159,11 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
         self.instance_pool.adjust_for_add_instance(self)
 
     def time_created_str(self):
-        return datetime.datetime.utcfromtimestamp(self.time_created).strftime(
-            '%Y-%m-%dT%H:%M:%SZ')
+        return time_msecs_str(self.time_created)
 
     def last_updated_str(self):
         return humanize.naturaldelta(
-            datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(self.last_updated))
+            datetime.timedelta(milliseconds=(time_msecs() - self.last_updated)))
 
     def __str__(self):
         return f'instance {self.name}'

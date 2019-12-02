@@ -13,6 +13,10 @@ class Job:
         return aioclient.Job._get_error(job_status, task)
 
     @staticmethod
+    def _get_out_of_memory(job_status, task):
+        return aioclient.Job._get_out_of_memory(job_status, task)
+
+    @staticmethod
     def _get_exit_code(job_status, task):
         return aioclient.Job._get_exit_code(job_status, task)
 
@@ -25,8 +29,8 @@ class Job:
         return aioclient.Job.exit_code(job_status)
 
     @staticmethod
-    def total_duration(job_status):
-        return aioclient.Job.total_duration(job_status)
+    def total_duration_msecs(job_status):
+        return aioclient.Job.total_duration_msecs(job_status)
 
     @classmethod
     def from_async_job(cls, job):

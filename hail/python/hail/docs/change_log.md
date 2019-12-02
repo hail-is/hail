@@ -4,7 +4,7 @@
 
 ### With a version like 0.x, is Hail ready for use in publications?
 
-Yes. The semantic versioning standard uses 0.x (development) versions to 
+Yes. The [semantic versioning standard](https://semver.org) uses 0.x (development) versions to 
 refer to software that is either "buggy" or "partial". While we don't view
 Hail as particularly buggy (especially compared to one-off untested
 scripts pervasive in bioinformatics!), Hail 0.2 is a partial realization

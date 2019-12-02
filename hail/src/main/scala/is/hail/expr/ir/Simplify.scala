@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.table.Ascending
 import is.hail.utils._
 
 object Simplify {

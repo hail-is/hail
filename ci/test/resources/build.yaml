@@ -4,6 +4,22 @@ steps:
    namespaceName: default
    public: true
  - kind: buildImage
+   name: inline_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && apt-get install -y git
+   contextPath: .
+ - kind: runImage
+   name: run_inline_image
+   image:
+     valueFrom:
+       inline_image.image
+   script: |
+     git init
+   dependsOn:
+     - inline_image
+ - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
    contextPath: .

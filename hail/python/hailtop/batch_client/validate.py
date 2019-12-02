@@ -47,10 +47,10 @@ FILE_KEYS = {'from', 'to'}
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
 
-MEMORY_REGEXPAT = r'[+]?(?:[0-9]*[.])?[0-9]+(?:[KMGTP][i]?)?'
+MEMORY_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
 MEMORY_REGEX = re.compile(MEMORY_REGEXPAT)
 
-CPU_REGEXPAT = r'[+]?(?:[0-9]*[.])?[0-9]+[m]?'
+CPU_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX = re.compile(CPU_REGEXPAT)
 
 

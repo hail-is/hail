@@ -1743,3 +1743,17 @@ class ImportTableTests(unittest.TestCase):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
         assert ht._same(ht2)
+
+
+class GrepTests(unittest.TestCase):
+    def test_grep_show_false(self):
+        expected = {'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
+                    'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
+                    'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
+                                               'HG00121\t966.4\t4822',
+                                               'HG00120_B\t3919.8\t19589',
+                                               'HG00121_B\t966.4\t4822',
+                                               'HG00120_B_B\t3919.8\t19589',
+                                               'HG00121_B_B\t966.4\t4822']}
+
+        assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected

@@ -228,13 +228,23 @@ steps:
      fi
      # created ci
      # create test
-     # test-gsa-key already exists
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
+         # if test-tokens does not exist
          rm -f /user-tokens/tokens.json
          python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-tokens"}'
          kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
      fi
+     # created test-tokens
+     # create test-dev-tokens
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         # if test-dev-tokens does not exist
+         rm -f /user-tokens/tokens.json
+         python3 create-session.py '{"username":"testdev","user_id":"hail|testdev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-dev-tokens","developer":1}'
+         kubectl -n {{ batch_pods_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created test-dev-tokens
    scopes:
     - test
     - dev
@@ -879,6 +889,7 @@ steps:
    image:
      valueFrom: test_ci_image.image
    script: |
+     set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
@@ -889,6 +900,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
     - name: hail-ci-0-1-service-account-key
       namespace:
         valueFrom: batch_pods_ns.name
@@ -1158,9 +1173,6 @@ steps:
       name: blog
       for: alive
       resource_type: statefulset
-      endpoint: /
-      headers:
-        X-Forwarded-Proto: https
    dependsOn:
     - default_ns
     - deploy_router

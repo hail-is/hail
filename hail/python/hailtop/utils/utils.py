@@ -119,6 +119,7 @@ class AsyncWorkerPool:
 
 def is_transient_error(e):
     # observed exceptions:
+    #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host <host> ssl:None [Connect call failed ('<ip>', 80)]
     #
     # concurrent.futures._base.TimeoutError
@@ -136,6 +137,18 @@ def is_transient_error(e):
     #     data = self._sock.recv(self.max_size)
     # TimeoutError: [Errno 60] Operation timed out
     #
+    # Traceback (most recent call last):
+    #   ...
+    #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client.py", line 505, in _request
+    #     await resp.start(conn)
+    #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/client_reqrep.py", line 848, in start
+    #     message, payload = await self._protocol.read()  # type: ignore  # noqa
+    #   File "/usr/local/lib/python3.6/dist-packages/aiohttp/streams.py", line 592, in read
+    #     await self._waiter
+    # aiohttp.client_exceptions.ServerDisconnectedError: None
+    #
+    # during aiohttp request
+    # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout
@@ -148,12 +161,15 @@ def is_transient_error(e):
             return True
     elif isinstance(e, aiohttp.ServerTimeoutError):
         return True
+    elif isinstance(e, aiohttp.ServerDisconnectedError):
+        return True
     elif isinstance(e, asyncio.TimeoutError):
         return True
     elif isinstance(e, OSError):
         if (e.errno == errno.ETIMEDOUT or
                 e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH):
+                e.errno == errno.EHOSTUNREACH or
+                e.errno == errno.ECONNRESET):
             return True
     return False
 

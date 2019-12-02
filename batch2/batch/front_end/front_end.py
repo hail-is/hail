@@ -6,14 +6,13 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import humanize
 import cerberus
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
@@ -26,7 +25,8 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..utils import parse_cpu_in_mcpu, LoggingTimer
+from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
+    worker_memory_per_core_gb, LoggingTimer
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -41,7 +41,6 @@ log = logging.getLogger('batch.front_end')
 REQUEST_TIME = pc.Summary('batch2_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
-REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
@@ -147,9 +146,11 @@ SELECT jobs.state, jobs.spec, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
-  ON jobs.instance_name = instances.name
-WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+  ON attempts.instance_name = instances.name
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                            (user, batch_id, job_id))
     if not record:
@@ -228,6 +229,9 @@ async def create_jobs(request, userdata):
     app = request.app
     db = app['db']
 
+    worker_type = app['worker_type']
+    worker_cores = app['worker_cores']
+
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
@@ -274,6 +278,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 always_run = spec.pop('always_run', False)
                 attributes = spec.get('attributes')
 
+                id = (batch_id, job_id)
+
                 resources = spec.get('resources')
                 if not resources:
                     resources = {}
@@ -283,7 +289,22 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-                cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+
+                if req_cores_mcpu == 0:
+                    raise web.HTTPBadRequest(
+                        reason=f'bad resource request for job {id}: '
+                        f'cpu cannot be 0')
+
+                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
+
+                if cores_mcpu > worker_cores * 1000:
+                    total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
+                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -360,13 +381,15 @@ async def create_batch(request, userdata):
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
+            now = time_msecs()
             await cursor.execute(
                 '''
-INSERT INTO batches (userdata, user, attributes, callback, n_jobs)
-VALUES (%s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
+VALUES (%s, %s, %s, %s, %s, %s);
 ''',
                 (json.dumps(userdata), user, json.dumps(attributes),
-                 batch_spec.get('callback'), batch_spec['n_jobs']))
+                 batch_spec.get('callback'), batch_spec['n_jobs'],
+                 now))
             id = cursor.lastrowid
 
         if attributes:
@@ -462,8 +485,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     try:
+        now = time_msecs()
         await check_call_procedure(
-            db, 'CALL close_batch(%s);', (batch_id))
+            db, 'CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -534,7 +558,7 @@ async def ui_batch(request, userdata):
     jobs = await _get_batch_jobs(app, batch_id, user)
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
-        job['duration'] = humanize.naturaldelta(Job.total_duration(job))
+        job['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(job))
     batch['jobs'] = jobs
     page_context = {
         'batch': batch
@@ -600,9 +624,11 @@ SELECT jobs.*, ip_address
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
-  ON jobs.instance_name = instances.name
-WHERE user = %s AND batch_id = %s AND NOT deleted AND job_id = %s;
+  ON attempts.instance_name = instances.name
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                            (user, batch_id, job_id))
     if not record:
@@ -665,17 +691,17 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'instance_id')
-    instance_id = row['token']
+        'SELECT worker_type, worker_cores, instance_id, internal_token FROM globals;')
+
+    app['worker_type'] = row['worker_type']
+    app['worker_cores'] = row['worker_cores']
+
+    instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    row = await db.execute_and_fetchone(
-        'SELECT token FROM tokens WHERE name = %s;',
-        'internal')
     app['driver_headers'] = {
-        'Authorization': f'Bearer {row["token"]}'
+        'Authorization': f'Bearer {row["internal_token"]}'
     }
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(

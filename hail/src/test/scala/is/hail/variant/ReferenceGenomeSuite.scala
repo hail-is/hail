@@ -1,22 +1,14 @@
 package is.hail.variant
 
-import java.io.FileNotFoundException
-
 import is.hail.annotations.Region
-import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.virtual.{TLocus, TStruct}
+import is.hail.expr.types.virtual.TLocus
 import is.hail.io.reference.FASTAReader
-import is.hail.table.Table
-import is.hail.utils.{HailException, Interval, SerializableHadoopConfiguration}
-import is.hail.testUtils._
+import is.hail.utils.Interval
 import is.hail.{HailSuite, TestUtils}
-import org.apache.spark.SparkException
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-import org.apache.hadoop
 
 class ReferenceGenomeSuite extends HailSuite {
   @Test def testGRCh37() {

@@ -9,7 +9,6 @@ import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
