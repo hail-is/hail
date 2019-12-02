@@ -70,30 +70,30 @@ abstract class PContainer extends PIterable {
     aoff + const(lengthHeaderBytes)
   }
 
-  private def _headerOffset(length: Int): Long =
+  private def _elementsOffset(length: Int): Long =
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PContainer.nMissingBytes(length), elementType.alignment)
 
-  private def _headerOffset(length: Code[Int]): Code[Long] =
+  private def _elementsOffset(length: Code[Int]): Code[Long] =
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
       UnsafeUtils.roundUpAlignment(PContainer.nMissingBytes(length) + lengthHeaderBytes, elementType.alignment)
 
   private lazy val lengthOffsetTable = 10
-  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _headerOffset(i))
+  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
 
   def elementsOffset(length: Int): Long = {
     if (length < lengthOffsetTable)
       elementsOffsetTable(length)
     else
-      _headerOffset(length)
+      _elementsOffset(length)
   }
 
   def elementsOffset(length: Code[Int]): Code[Long] =
-    _headerOffset(length)
+    _elementsOffset(length)
 
   def contentsByteSize(length: Int): Long =
     elementsOffset(length) + dataByteSize(length)
@@ -209,16 +209,10 @@ abstract class PContainer extends PIterable {
   }
 
   def loadElement(region: Region, aoff: Long, i: Int): Long =
-    loadElementAddress(aoff, Region.loadInt(aoff), i)
+    loadElementAddress(aoff, PContainer.loadLength(aoff), i)
 
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     loadElementAddress(aoff, PContainer.loadLength(aoff), i)
-
-  def read(region: Region, aoff: Long, i: Int): Any =
-    UnsafeRow.read(elementType, region, loadElement(region, aoff, i))
-
-  def read(region: Region, aoff: Long): Any =
-    UnsafeRow.read(this, region, aoff)
 
   def allocate(region: Region, length: Int): Long =
     region.allocate(contentsAlignment, contentsByteSize(length))
