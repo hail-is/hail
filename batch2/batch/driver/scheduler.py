@@ -30,9 +30,9 @@ class Scheduler:
         user_total_cores_mcpu = {}
         user_allocated_cores = {}
 
-        sorted_running_cores_mcpu = sortedcontainers.SortedSet(
+        pending_users_by_running_cores = sortedcontainers.SortedSet(
             key=lambda user: user_running_cores_mcpu[user])
-        sorted_total_cores_mcpu = sortedcontainers.SortedSet(
+        allocating_users_by_total_cores = sortedcontainers.SortedSet(
             key=lambda user: user_total_cores_mcpu[user])
 
         records = self.db.execute_and_fetchall(
@@ -46,36 +46,39 @@ WHERE ready_cores_mcpu > 0;
             user = record['user']
             user_running_cores_mcpu[user] = record['running_cores_mcpu']
             user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']
-            sorted_running_cores_mcpu.add(user)
-            sorted_total_cores_mcpu.add(user)
+            pending_users_by_running_cores.add(user)
 
-        target = 0
-        allocating_users = set()
-        while sorted_total_cores_mcpu:
-            lowest_running_user, lowest_running = sorted_running_cores_mcpu.bisect_key_left(target)
-            lowest_total_user, lowest_total = sorted_total_cores_mcpu.bisect_key_left(target)
+        mark = 0
+        while pending_users_by_running_cores:
+            while True:
+                lowest_running_user = pending_users_by_running_cores[0]
+                lowest_total_user = allocating_users_by_total_cores[0]
+
+                lowest_running = user_running_cores_mcpu[lowest_running_user]
+                lowest_total = user_total_cores_mcpu[lowest_total_user]
+
+                if lowest_total == mark:
+                    allocating_users_by_total_cores.remove(lowest_total_user)
+                elif lowest_running == mark:
+                    pending_users_by_running_cores.remove(lowest_running_user)
+                    allocating_users_by_total_cores.add(lowest_running_user)
+                else:
+                    break
 
             allocation = min(lowest_running, lowest_total)
 
-            n_allocating_users = len(allocating_users)
-            cores_to_allocate = n_allocating_users * (allocation - target)
+            n_allocating_users = len(allocating_users_by_total_cores)
+            cores_to_allocate = n_allocating_users * (allocation - mark)
 
             if cores_to_allocate > free_cores_mcpu:
-                target += free_cores_mcpu / n_allocating_users
+                mark += free_cores_mcpu / n_allocating_users
                 break
 
-            target = allocation
+            mark = allocation
             free_cores_mcpu -= cores_to_allocate
 
-            if lowest_running >= lowest_total:
-                allocating_users.add(lowest_running_user)
-            else:
-                allocating_users.remove(lowest_total_user)
-                user_allocated_cores[lowest_total_user] = int(target - user_running_cores_mcpu[lowest_total_user] + 0.5)
-                sorted_total_cores_mcpu.remove(lowest_total_user)
-
-        for user in allocating_users:
-            user_allocated_cores[user] = int(target - user_running_cores_mcpu[user] + 0.5)
+        for user in allocating_users_by_total_cores:
+            user_allocated_cores[user] = int(mark - user_running_cores_mcpu[user] + 0.5)
 
         return user_allocated_cores
 
