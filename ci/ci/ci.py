@@ -4,14 +4,13 @@ import os
 import logging
 import asyncio
 import concurrent.futures
-import datetime
 import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiomysql
 import uvloop
-import humanize
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
+from hailtop.utils import humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
@@ -38,8 +37,6 @@ watched_branches = [
 ]
 
 routes = web.RouteTableDef()
-
-start_time = datetime.datetime.now()
 
 
 @routes.get('')
@@ -85,8 +82,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         wb_configs.append(wb_config)
 
     page_context = {
-        'watched_branches': wb_configs,
-        'age': humanize.naturaldelta(datetime.datetime.now() - start_time)
+        'watched_branches': wb_configs
     }
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
@@ -113,11 +109,8 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
             for j in status['jobs']:
-                j['duration'] = humanize.naturaldelta(Job.total_duration(j))
+                j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
                 j['exit_code'] = Job.exit_code(j)
-                attrs = j['attributes']
-                if 'link' in attrs:
-                    attrs['link'] = attrs['link'].split(',')
             page_context['batch'] = status
             # [4:] strips off gs:/
             page_context['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
@@ -157,7 +150,7 @@ async def get_batch(request, userdata):
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
     for j in status['jobs']:
-        j['duration'] = humanize.naturaldelta(Job.total_duration(j))
+        j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
         j['exit_code'] = Job.exit_code(j)
     page_context = {
         'batch': status

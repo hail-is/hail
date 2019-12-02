@@ -18,6 +18,7 @@ log = logging.getLogger('ci')
 
 CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
 
+
 class Repo:
     def __init__(self, owner, name):
         assert isinstance(owner, str)
