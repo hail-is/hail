@@ -546,6 +546,98 @@ WHERE user = %s AND id = %s AND NOT deleted;
     return web.Response()
 
 
+async def _query_batch_jobs(request, batch_id):
+    state_query_values = {
+        'pending': ['Pending'],
+        'ready': ['Ready'],
+        'running': ['Running'],
+        'live': ['Ready', 'Running'],
+        'cancelled': ['Cancelled'],
+        'error': ['Error'],
+        'failed': ['Failed'],
+        'bad': ['Error', 'Failed'],
+        'success': ['Success'],
+        'done': ['Cancelled', 'Error', 'Failed', 'Success']
+    }
+
+    db = request.app['db']
+
+    # batch has already been validated
+    where_conditions = [
+        '(batch_id = %s)'
+    ]
+    where_args = [batch_id]
+
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+        where_conditions.append('(jobs.job_id > %s)')
+        where_args.append(last_job_id)
+
+    q = request.query.get('q', '')
+    terms = q.split()
+    for t in terms:
+        if t[0] == '!':
+            negate = True
+            t = t[1:]
+        else:
+            negate = False
+
+        if '=' in t:
+            k, v = t.split('=', 1)
+            condition = '''
+(EXISTS (SELECT * FROM `job_attributes`
+         WHERE `job_attributes`.batch_id = jobs.batch_id AND
+           `job_attributes`.job_id = jobs.job_id AND
+           `job_attributes`.`key` = %s AND
+           `job_attributes`.`value` = %s))
+'''
+            args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+(EXISTS (SELECT * FROM `job_attributes`
+         WHERE `job_attributes`.batch_id = jobs.batch_id AND
+           `job_attributes`.job_id = jobs.job_id AND
+           `job_attributes`.`key` = %s))
+'''
+            args = [k]
+        elif t in state_query_values:
+            values = state_query_values[t]
+            condition = ' OR '.join([
+                '(jobs.state = %s)' for v in values])
+            condition = f'({condition})'
+            args = values
+        else:
+            session = await aiohttp_session.get_session(request)
+            set_message(session, f'Invalid search term: {t}.', 'error')
+            return ([], None)
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        where_conditions.append(condition)
+        where_args.extend(args)
+
+    sql = f'''
+SELECT * FROM jobs
+WHERE {' AND '.join(where_conditions)}
+LIMIT 50;
+'''
+    sql_args = where_args
+
+    jobs = [job_record_to_dict(job)
+            async for job
+            in db.execute_and_fetchall(sql, sql_args)]
+
+    if len(jobs) == 50:
+        last_job_id = jobs[-1]['job_id']
+    else:
+        last_job_id = None
+
+    return (jobs, last_job_id)
+
+
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @web_authenticated_users_only()
@@ -555,13 +647,17 @@ async def ui_batch(request, userdata):
     user = userdata['username']
 
     batch = await _get_batch(app, batch_id, user)
-    jobs = await _get_batch_jobs(app, batch_id, user)
+
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
         job['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(job))
     batch['jobs'] = jobs
+
     page_context = {
-        'batch': batch
+        'batch': batch,
+        'q': request.query.get('q'),
+        'last_job_id': last_job_id
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 
