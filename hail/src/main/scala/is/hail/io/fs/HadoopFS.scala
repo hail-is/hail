@@ -167,7 +167,10 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   def listStatus(filename: String): Array[FileStatus] = {
     val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.listStatus(hPath).map( status => new HadoopFileStatus(status) )
+    fs.globStatus(hPath)
+      .map(_.getPath)
+      .flatMap(fs.listStatus(_))
+      .map(new HadoopFileStatus(_))
   }
 
   def isDir(filename: String): Boolean = {
