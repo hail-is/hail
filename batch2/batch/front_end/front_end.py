@@ -556,7 +556,7 @@ async def _query_batch_jobs(request, batch_id):
         'error': ['Error'],
         'failed': ['Failed'],
         'bad': ['Error', 'Failed'],
-        'success': ['success'],
+        'success': ['Success'],
         'done': ['Cancelled', 'Error', 'Failed', 'Success']
     }
 
@@ -577,9 +577,6 @@ async def _query_batch_jobs(request, batch_id):
     q = request.query.get('q', '')
     terms = q.split()
     for t in terms:
-        if not t:
-            continue
-
         if t[0] == '!':
             negate = True
             t = t[1:]
@@ -628,8 +625,6 @@ WHERE {' AND '.join(where_conditions)}
 LIMIT 50;
 '''
     sql_args = where_args
-
-    log.info(f'sql {sql} args {sql_args}')
 
     jobs = [job_record_to_dict(job)
             async for job
