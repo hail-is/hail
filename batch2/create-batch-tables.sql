@@ -170,28 +170,33 @@ END $$
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
 BEGIN
+  DECLARE in_user VARCHAR(100);
+
+  SELECT user INTO in_user from batches
+  WHERE batch_id = NEW.batch_id;
+
   IF OLD.state = 'Ready' THEN
     UPDATE user_resources
       SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
-      WHERE user = NEW.user;
+      WHERE user = in_user;
   END IF;
 
   IF NEW.state = 'Ready' THEN
     UPDATE user_resources
       SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
-      WHERE user = NEW.user;
+      WHERE user = in_user;
   END IF;
 
   IF OLD.state = 'Running' THEN
     UPDATE user_resources
       SET n_running_jobs = n_running_jobs - 1, running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu
-      WHERE user = NEW.user;
+      WHERE user = in_user;
   END IF;
 
   IF NEW.state = 'Running' THEN
     UPDATE user_resources
       SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
-      WHERE user = NEW.user;
+      WHERE user = in_user;
   END IF;
 END $$
 
