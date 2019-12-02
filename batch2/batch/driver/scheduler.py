@@ -44,8 +44,8 @@ class Scheduler:
                 await asyncio.sleep(t)
 
                 ran_for_secs = (end_time - start_time) * 1000
-                delay_secs = max(
-                    min(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
+                delay_secs = min(
+                    max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
                     30.0)
             if should_wait:
                 await changed.wait()
