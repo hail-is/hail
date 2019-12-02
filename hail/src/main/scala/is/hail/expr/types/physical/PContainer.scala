@@ -161,19 +161,13 @@ abstract class PContainer extends PIterable {
     aoff + elementsOffset(length)
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
-    firstElementOffset(aoff, length) + i * elementByteSize
+    firstElementAddress(aoff, length) + i * elementByteSize
 
   def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-    firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
-
-  def firstElementOffset(aoff: Long, length: Int): Long =
-    aoff + elementsOffset(length)
-
-  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
-    aoff + elementsOffset(length)
+    firstElementAddress(aoff, length) + i.toL * const(elementByteSize)
 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
@@ -323,7 +317,7 @@ abstract class PContainer extends PIterable {
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-    if (sourceType.elementType.required == this.elementType.required) {
+    if (sourceType.elementType.required == elementType.required) {
       return sourceOffset
     }
 
@@ -333,7 +327,7 @@ abstract class PContainer extends PIterable {
       ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)),
       newOffset := allocate(r, len),
       stagedInitialize(newOffset, len),
-      Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+      Region.copyFrom(sourceType.firstElementAddress(sourceOffset, len), firstElementAddress(newOffset, len), len.toL * elementByteSize),
       newOffset
     )
   }
