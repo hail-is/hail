@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS `user_resources` (
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `n_running_jobs` INT NOT NULL DEFAULT 0,
   `ready_cores_mcpu` INT NOT NULL DEFAULT 0,
-  `running_cores_mcpu` INT NOT NULL DEFAULT 0
+  `running_cores_mcpu` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batches` (
