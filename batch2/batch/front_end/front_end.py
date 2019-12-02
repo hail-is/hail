@@ -166,6 +166,7 @@ async def get_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
+    db = request.app['db']
     record = await db.execute_and_fetchone(
         '''
 SELECT * FROM batches
