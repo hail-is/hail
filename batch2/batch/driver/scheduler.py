@@ -26,11 +26,14 @@ class Scheduler:
     async def compute_fair_share(self):
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.inst_pool.healthy_instances_by_free_cores])
 
-        sorted_running_cores_mcpu = sortedcontainers.SortedSet(key=lambda x: x[1])
-        sorted_total_cores_mcpu = sortedcontainers.SortedSet(key=lambda x: x[1])
+        user_running_cores_mcpu = {}
+        user_total_cores_mcpu = {}
+        user_allocated_cores = {}
 
-        running_cores_mcpu = {}
-        allocated_cores = {}
+        sorted_running_cores_mcpu = sortedcontainers.SortedSet(
+            key=lambda user: user_running_cores_mcpu[user])
+        sorted_total_cores_mcpu = sortedcontainers.SortedSet(
+            key=lambda user: user_total_cores_mcpu[user])
 
         records = self.db.execute_and_fetchall(
             '''
@@ -40,17 +43,17 @@ WHERE ready_cores_mcpu > 0;
 ''')
 
         async for record in records:
-            running_cores_mcpu[record['user']] = record['running_cores_mcpu']
-            sorted_running_cores_mcpu.add(
-                (record['user'], record['running_cores_mcpu']))
-            sorted_total_cores_mcpu.add(
-                (record['user'], record['running_cores_mcpu'] + record['ready_cores_mcpu']))
+            user = record['user']
+            user_running_cores_mcpu[user] = record['running_cores_mcpu']
+            user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']
+            sorted_running_cores_mcpu.add(user)
+            sorted_total_cores_mcpu.add(user)
 
         target = 0
         allocating_users = set()
         while sorted_total_cores_mcpu:
-            lowest_running_user, lowest_running = sorted_running_cores_mcpu[0]
-            lowest_total_user, lowest_total = sorted_total_cores_mcpu[0]
+            lowest_running_user, lowest_running = sorted_running_cores_mcpu.bisect_key_left(target)
+            lowest_total_user, lowest_total = sorted_total_cores_mcpu.bisect_key_left(target)
 
             allocation = min(lowest_running, lowest_total)
 
@@ -68,13 +71,13 @@ WHERE ready_cores_mcpu > 0;
                 allocating_users.add(lowest_running_user)
             else:
                 allocating_users.remove(lowest_total_user)
-                allocated_cores[lowest_total_user] = int(target - running_cores_mcpu[lowest_total_user] + 0.5)
-                sorted_total_cores_mcpu.remove((lowest_total_user, lowest_total))
+                user_allocated_cores[lowest_total_user] = int(target - user_running_cores_mcpu[lowest_total_user] + 0.5)
+                sorted_total_cores_mcpu.remove(lowest_total_user)
 
         for user in allocating_users:
-            allocated_cores[user] = int(target - running_cores_mcpu[user] + 0.5)
+            user_allocated_cores[user] = int(target - user_running_cores_mcpu[user] + 0.5)
 
-        return allocated_cores
+        return user_allocated_cores
 
     async def bump_loop(self):
         while True:
