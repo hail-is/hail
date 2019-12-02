@@ -121,7 +121,7 @@ WHERE ready_cores_mcpu > 0;
                 changed.clear()
 
     async def cancel_1(self):
-        user_records = self.db.execute_and_fetchall(
+        user_records = self.db.select_and_fetchall(
             '''
 SELECT user
 FROM user_resources
@@ -154,7 +154,7 @@ LIMIT 50;
         for user, allocated_cores_mcpu in fair_share.items():
             scheduled_cores_mcpu = 0
 
-            records = self.db.execute_and_fetchall(
+            records = self.db.select_and_fetchall(
                 '''
 SELECT job_id, batch_id, spec, cores_mcpu,
   ((jobs.cancelled OR batches.cancelled) AND NOT always_run) AS cancel,

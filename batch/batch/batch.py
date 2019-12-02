@@ -57,7 +57,7 @@ def batch_record_to_dict(record):
 
 
 async def notify_batch_job_complete(db, batch_id):
-    record = await db.execute_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT *
 FROM batches

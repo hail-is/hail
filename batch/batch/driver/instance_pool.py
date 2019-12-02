@@ -53,7 +53,7 @@ class InstancePool:
     async def async_init(self):
         log.info('initializing instance pool')
 
-        row = await self.db.execute_and_fetchone(
+        row = await self.db.select_and_fetchone(
             'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size FROM globals;')
 
         self.worker_type = row['worker_type']
@@ -62,7 +62,7 @@ class InstancePool:
         self.max_instances = row['max_instances']
         self.pool_size = row['pool_size']
 
-        async for record in self.db.execute_and_fetchall(
+        async for record in self.db.select_and_fetchall(
                 'SELECT * FROM instances;'):
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
@@ -399,7 +399,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
         log.info(f'starting control loop')
         while True:
             try:
-                ready_cores = await self.db.execute_and_fetchone(
+                ready_cores = await self.db.select_and_fetchone(
                     'SELECT * FROM ready_cores;')
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
