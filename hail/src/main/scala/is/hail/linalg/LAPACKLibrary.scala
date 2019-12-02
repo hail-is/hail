@@ -65,7 +65,7 @@ object LAPACKLibrary {
     val LDAInt = new IntByReference(LDA)
     val LWORKInt = new IntByReference(LWORK)
     val infoInt = new IntByReference(1)
-    libraryInstance.dorgqr(mInt, nInt, ???, A, LDAInt, TAU, WORK, LWORKInt, infoInt)
+    libraryInstance.dorgqr(mInt, nInt, kInt, A, LDAInt, TAU, WORK, LWORKInt, infoInt)
     infoInt.getValue()
   }
 
