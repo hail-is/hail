@@ -344,14 +344,12 @@ abstract class PContainer extends PIterable {
 
     val sourceType = sourcePType.asInstanceOf[PContainer]
     val destOffset: ClassFieldRef[Long] = fb.newField[Long]
-    val arraySize = fb.newField[Long]
     val numberOfElements = fb.newField[Int]
     val currentElementAddress = fb.newField[Long]
     val currentIdx= fb.newField[Int]
     var c = Code(
       numberOfElements := sourceType.loadLength(sourceOffset),
-      arraySize := sourceType.contentsByteSize(numberOfElements),
-      destOffset := region.allocate(this.contentsAlignment, arraySize)
+      destOffset := this.allocate(region, numberOfElements)
     )
 
     c = Code(c, PContainer.storeLength(destOffset, numberOfElements))
