@@ -134,14 +134,20 @@ abstract class PContainer extends PIterable {
   def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
     setElementPresent(aoff, i)
 
+  def firstElementOffset(aoff: Long, length: Int): Long =
+    aoff + elementsOffset(length)
+
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
-    aoff + elementsOffset(length) + i * elementByteSize
+    firstElementOffset(aoff, length) + i * elementByteSize
 
   def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-    aoff + elementsOffset(length) + i.toL * const(elementByteSize)
+    firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
+
+  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+    aoff + elementsOffset(length)
 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
@@ -254,36 +260,51 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], value: Code[Long], otherPT: PType, msg: String): Code[Long] = {
-    val otherPTA = otherPT.asInstanceOf[PArray]
-    assert(otherPTA.elementType.isPrimitive)
-    val oldOffset = value
-    val len = otherPTA.loadLength(oldOffset)
-    if (otherPTA.elementType.required == elementType.required) {
-      value
-    } else {
-      val newOffset = mb.newField[Long]
-      Code(
-        newOffset := allocate(r, len),
-        stagedInitialize(newOffset, len),
-        if (otherPTA.elementType.required) {
-          // convert from required to non-required
-          Code._empty
-        } else {
-          //  convert from non-required to required
-          val i = mb.newField[Int]
-          Code(
-            i := 0,
-            Code.whileLoop(i < len,
-              otherPTA.isElementMissing(oldOffset, i).orEmpty(Code._fatal(s"${msg}: convertFrom $otherPT failed: element missing.")),
-              i := i + 1
-            )
-          )
-        },
-        Region.copyFrom(otherPTA.elementOffset(oldOffset, len, 0), elementOffset(newOffset, len, 0), len.toL * elementByteSize),
-        newOffset
-      )
+  def ensureNoMissingValues(mb: EmitMethodBuilder, sourceOffset: Code[Long], sourceType: PContainer, onFail: Code[_]): Code[Unit] = {
+    if(sourceType.elementType.required) {
+      return Code._empty
     }
+
+    val i = mb.newLocal[Long]
+    Code(
+      i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)),
+      Code.whileLoop(i > 0L,
+        (i >= 8L).mux(
+          Code(
+            i := i - 8L,
+            Region
+              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
+              .cne(const(0.toByte))
+              .orEmpty(onFail)
+          ),
+          Code(
+            i := i - 1L,
+            Region
+              .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i)
+              .cne(const(0.toByte))
+              .orEmpty(onFail)
+          )
+        )
+      )
+    )
+  }
+
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
+    assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
+
+    if (sourceType.elementType.required == this.elementType.required) {
+      return sourceOffset
+    }
+
+    val newOffset = mb.newField[Long]
+    val len = sourceType.loadLength(sourceOffset)
+    Code(
+      ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)),
+      newOffset := allocate(r, len),
+      stagedInitialize(newOffset, len),
+      Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+      newOffset
+    )
   }
 
   override def containsPointers: Boolean = true
