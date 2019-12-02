@@ -61,7 +61,7 @@ trait Py4jUtils {
   def isDir(path: String, hc: HailContext): Boolean = hc.sFS.isDir(path)
 
   def ls(path: String, hc: HailContext): String = {
-    val statuses = hc.sFS.glob(path)
+    val statuses = hc.sFS.listStatus(path)
     JsonMethods.compact(JArray(statuses.map(fs => statusToJson(fs)).toList))
   }
 

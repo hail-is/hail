@@ -132,7 +132,7 @@ class Tests(unittest.TestCase):
 
         path3 = resource('ls_test/f*')
         ls3 = hl.hadoop_ls(path3)
-        assert len(ls3) == 2
+        assert len(ls3) == 2, ls3
 
     def test_linked_list(self):
         ll = LinkedList(int)
