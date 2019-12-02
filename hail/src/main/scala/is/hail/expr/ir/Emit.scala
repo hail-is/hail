@@ -1484,7 +1484,7 @@ private class Emit(
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], dataContainer.asInstanceOf[PArray], "NDArray cannot have missing data")
+        val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], coerce[PArray](dataContainer), "NDArray cannot have missing data")
         val shapeAddress = mb.newField[Long]
 
         val shapeTuple = new CodePTuple(shapePType, region, shapeAddress)
