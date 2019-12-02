@@ -154,7 +154,6 @@ abstract class PContainer extends PIterable {
   def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
     setElementPresent(aoff, i)
 
-<<<<<<< HEAD
   def firstElementAddress(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
 
@@ -163,26 +162,12 @@ abstract class PContainer extends PIterable {
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     firstElementAddress(aoff, length) + i * elementByteSize
-=======
-  def firstElementOffset(aoff: Long, length: Int): Long =
-    aoff + elementsOffset(length)
-
-  def elementOffset(aoff: Long, length: Int, i: Int): Long =
-    firstElementOffset(aoff, length) + i * elementByteSize
->>>>>>> bb68938df105fe5002203006d8c46ef9aebae0e0
 
   def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-<<<<<<< HEAD
     firstElementAddress(aoff, length) + i.toL * const(elementByteSize)
-=======
-    firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
-
-  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
-    aoff + elementsOffset(length)
->>>>>>> bb68938df105fe5002203006d8c46ef9aebae0e0
 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
@@ -307,19 +292,6 @@ abstract class PContainer extends PIterable {
 
     val i = mb.newLocal[Long]
     Code(
-<<<<<<< HEAD
-      i := sourceType.nMissingBytes(sourceType.loadLength(sourceOffset)),
-      Code.whileLoop(i > 0L,
-        (i >= 8L).mux(
-          Code(
-            i := i - 8L,
-            Region
-              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
-              .cne(const(0.toByte))
-              .orEmpty(onFail)
-          ),
-          Code(
-=======
       i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)),
       Code.whileLoop(i > 0L,
         (i >= 8L).mux(
@@ -331,7 +303,6 @@ abstract class PContainer extends PIterable {
               .orEmpty(onFail)
           ),
           Code(
->>>>>>> bb68938df105fe5002203006d8c46ef9aebae0e0
             i := i - 1L,
             Region
               .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i)
@@ -346,11 +317,7 @@ abstract class PContainer extends PIterable {
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-<<<<<<< HEAD
     if (sourceType.elementType.required == elementType.required) {
-=======
-    if (sourceType.elementType.required == this.elementType.required) {
->>>>>>> bb68938df105fe5002203006d8c46ef9aebae0e0
       return sourceOffset
     }
 
