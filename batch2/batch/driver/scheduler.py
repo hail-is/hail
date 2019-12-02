@@ -1,5 +1,7 @@
-import asyncio
+import random
 import logging
+import asyncio
+from hailtop.utils import time_msecs
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -26,14 +28,25 @@ class Scheduler:
             await asyncio.sleep(60)
 
     async def loop(self, name, changed, body):
+        delay_secs = 0.1
         changed.clear()
         while True:
             should_wait = False
             try:
+                start_time = time_msecs()
                 should_wait = await body()
             except Exception:
-                # FIXME back off?
+                end_time = time_msecs()
+
                 log.exception(f'in {name}')
+
+                t = delay_secs * random.uniform(0.7, 1.3)
+                await asyncio.sleep(t)
+
+                ran_for_secs = (end_time - start_time) * 1000
+                delay_secs = min(
+                    max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
+                    30.0)
             if should_wait:
                 await changed.wait()
                 changed.clear()
