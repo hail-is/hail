@@ -121,7 +121,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
     batches = batch_client.list_batches(
         f'test=1 pr={pr_number}')
-    batches = sorted(batches, key=lambda b: b.id, reverse=True)
+    batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
