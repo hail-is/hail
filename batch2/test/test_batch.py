@@ -164,7 +164,7 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b1.id, b2.id})
 
-        assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
+        assert_batch_ids({b1.id, b2.id}, f'tag={tag}')
 
         b2.wait()
 
