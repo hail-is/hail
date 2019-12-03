@@ -72,20 +72,14 @@ WHERE ready_cores_mcpu > 0;
                     allocate_cores(lowest_total_user, mark)
                     continue
 
-            if lowest_running is not None and lowest_total is not None:
-                allocation = min(lowest_running, lowest_total)
-            elif lowest_running is not None:
-                allocation = lowest_running
-            elif lowest_total is not None:
-                allocation = lowest_total
-            else:
-                break
+            allocation = min([c for c in [lowest_running, lowest_total] if c is not None])
 
             n_allocating_users = len(allocating_users_by_total_cores)
             cores_to_allocate = n_allocating_users * (allocation - mark)
 
             if cores_to_allocate > free_cores_mcpu:
-                mark += free_cores_mcpu / n_allocating_users
+                mark += int(free_cores_mcpu / n_allocating_users + 0.5)
+                free_cores_mcpu = 0
                 break
 
             mark = allocation
