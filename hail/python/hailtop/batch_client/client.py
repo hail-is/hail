@@ -16,7 +16,7 @@ def agen_to_blocking(agen):
         try:
             yield sync_anext(agen)
         except StopAsyncIteration:
-            pass
+            break
 
 
 class Job:
