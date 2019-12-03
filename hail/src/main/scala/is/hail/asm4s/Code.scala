@@ -173,6 +173,16 @@ object Code {
     }
   }
 
+  def forLoop(init: Code[Unit], cond: Code[Boolean], increment: Code[Unit], body: Code[Unit]): Code[Unit] = {
+    Code(
+      init,
+      Code.whileLoop(cond,
+        body,
+        increment
+      )
+    )
+  }
+
   def switch[T: TypeInfo](target: Code[Int], dflt: Code[T], cases: Seq[Code[T]]): Code[T] = {
     import is.hail.asm4s.joinpoint._
     JoinPoint.CallCC[Code[T]] { (jb, ret) =>

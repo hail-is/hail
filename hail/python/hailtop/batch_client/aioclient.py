@@ -328,10 +328,22 @@ class Batch:
     async def status(self, include_jobs=True):
         resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
         batch = await resp.json()
+
         if include_jobs:
-            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs')
-            jobs = await resp.json()
+            jobs = []
+            last_job_id = None
+            while True:
+                params = {}
+                if last_job_id is not None:
+                    params['last_job_id'] = last_job_id
+                resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
+                body = await resp.json()
+                jobs.extend(body['jobs'])
+                last_job_id = body.get('last_job_id')
+                if last_job_id is None:
+                    break
             batch['jobs'] = jobs
+
         return batch
 
     async def wait(self):
