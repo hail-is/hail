@@ -53,28 +53,24 @@ WHERE ready_cores_mcpu > 0;
 
         mark = 0
         while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
-            while True:
-                lowest_running = None
-                lowest_total = None
-                lowest_running_user = None
-                lowest_total_user = None
+            lowest_running = None
+            lowest_total = None
 
-                if pending_users_by_running_cores:
-                    lowest_running_user = pending_users_by_running_cores[0]
-                    lowest_running = user_running_cores_mcpu[lowest_running_user]
-
-                if allocating_users_by_total_cores:
-                    lowest_total_user = allocating_users_by_total_cores[0]
-                    lowest_total = user_total_cores_mcpu[lowest_total_user]
-
-                if lowest_total is not None and lowest_total == mark:
-                    allocating_users_by_total_cores.remove(lowest_total_user)
-                    allocate_cores(lowest_total_user, mark)
-                elif lowest_running is not None and lowest_running == mark:
+            if pending_users_by_running_cores:
+                lowest_running_user = pending_users_by_running_cores[0]
+                lowest_running = user_running_cores_mcpu[lowest_running_user]
+                if lowest_running == mark:
                     pending_users_by_running_cores.remove(lowest_running_user)
                     allocating_users_by_total_cores.add(lowest_running_user)
-                else:
-                    break
+                    continue
+
+            if allocating_users_by_total_cores:
+                lowest_total_user = allocating_users_by_total_cores[0]
+                lowest_total = user_total_cores_mcpu[lowest_total_user]
+                if lowest_total == mark:
+                    allocating_users_by_total_cores.remove(lowest_total_user)
+                    allocate_cores(lowest_total_user, mark)
+                    continue
 
             if lowest_running is not None and lowest_total is not None:
                 allocation = min(lowest_running, lowest_total)
