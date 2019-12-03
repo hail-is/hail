@@ -74,10 +74,10 @@ WHERE ready_cores_mcpu > 0;
                     log.info(f'lowest_total_user: {lowest_total_user}')
                     log.info(f'lowest_total: {lowest_total}')
 
-                if lowest_total and lowest_total == mark:
+                if lowest_total is not None and lowest_total == mark:
                     log.info(f'have lowest total and it equals the mark')
                     allocating_users_by_total_cores.remove(lowest_total_user)
-                elif lowest_running and lowest_running == mark:
+                elif lowest_running is not None and lowest_running == mark:
                     log.info(f'have lowest running and it equals the mark; add it to allocating users')
                     pending_users_by_running_cores.remove(lowest_running_user)
                     allocating_users_by_total_cores.add(lowest_running_user)
@@ -88,13 +88,13 @@ WHERE ready_cores_mcpu > 0;
             log.info(pending_users_by_running_cores)
             log.info(allocating_users_by_total_cores)
 
-            if lowest_running and lowest_total:
+            if lowest_running is not None and lowest_total is not None:
                 allocation = min(lowest_running, lowest_total)
                 log.info(f'allocation = {allocation}; min(running, totla)')
-            elif lowest_running:
+            elif lowest_running is not None:
                 allocation = lowest_running
                 log.info(f'allocation = {allocation}, lowest_running')
-            elif lowest_total:
+            elif lowest_total is not None:
                 allocation = lowest_total
                 log.info(f'allocation = {allocation}, lowest_total')
             else:
