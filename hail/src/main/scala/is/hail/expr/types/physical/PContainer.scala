@@ -324,7 +324,7 @@ abstract class PContainer extends PIterable {
       (mod >= const(0)).mux(
         Code(
           i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - const(1),
-          Code.whileLoop(mod >= 0,
+          Code.whileLoop(mod >= const(0),
             Code(
               sourceType
                 .isElementMissing(sourceOffset, i * const(8) + mod)
@@ -346,7 +346,7 @@ abstract class PContainer extends PIterable {
               .orEmpty(onFail)
           ),
           Code(
-            i := i - 1,
+            i := i - const(1),
             Region
               .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i.toL)
               .cne(const(0.toByte))
