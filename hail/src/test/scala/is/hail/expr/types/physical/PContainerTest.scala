@@ -152,7 +152,7 @@ class PContainerTest extends HailSuite {
     }
 
     def compare(sourceType: PArray, destType: PArray, data: IndexedSeq[Any], iterations: Int): Float = {
-      (0 to 50).map(_ => timeOne(sourceType: PArray, destType: PArray, data, linearConvertFrom))
+      (0 to 50).map(_ => timeOne(sourceType: PArray, destType: PArray, data, linearConvertFrom)) // jvm warmup
       val linearTime = (0 to iterations).map(_ => timeOne(sourceType: PArray, destType: PArray, data, linearConvertFrom)).sorted
       val (lMin1, lMax1, lMed1) = stats(linearTime)
 
