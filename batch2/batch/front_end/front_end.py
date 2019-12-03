@@ -290,7 +290,7 @@ async def _query_batches(request, user):
             k = t[4:]
             condition = '''
 (EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = batches.batch_id AND
+         WHERE `batch_attributes`.batch_id = batches.id AND
            `batch_attributes`.`key` = %s))
 '''
             args = [k]
@@ -723,7 +723,8 @@ async def ui_batches(request, userdata):
     user = userdata['username']
     batches, last_batch_id = await _query_batches(request, user)
     page_context = {
-        'batch_list': batches[::-1],
+        'batches': batches[::-1],
+        'q': request.query.get('q'),
         'last_batch_id': last_batch_id
     }
     return await render_template('batch2', request, userdata, 'batches.html', page_context)
