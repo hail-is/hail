@@ -84,8 +84,8 @@ object LapackTest {
         val adjusted = idx * 8
         print(HailMemory.loadDouble(TAU + adjusted))
         print(" ")
-        println()
       }
+      println()
     }
 
     // Fill A with numbers 0 to M * N
