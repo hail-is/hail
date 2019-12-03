@@ -200,5 +200,7 @@ def qr(nd, mode="reduced"):
         return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
     elif (mode == "r"):
         return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
+    elif (mode == "complete"):
+        return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
     else:
         return None

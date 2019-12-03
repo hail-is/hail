@@ -1469,44 +1469,40 @@ private class Emit(
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
-        val columnMajorCopyAddress = mb.newField[Long]
-        val answerCopyAddress = mb.newField[Long]
+        val dgeqrfAAddress = mb.newField[Long] // Should be column major
+        val rReturnAddress = mb.newField[Long]
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
-        val i = mb.newField[Long]
-        val workStr = mb.newField[String]
+//        val i = mb.newField[Long]
+//        val workStr = mb.newField[String]
 
-        val printWork = Code(
-          workStr := const(""),
-          i := 0L,
-          Code.whileLoop(i < LWORK.toLong,
-            workStr := workStr.concat(Region.loadDouble(workAddress + i * 8L).toS.concat(" ")),
-            i := i + 1L
-          ),
-          Code._println(workStr)
-        )
+//        val printA = Code(
+//          workStr := const(""),
+//          i := 0L,
+//          Code.whileLoop(i < (M * N).toL,
+//            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
+//            i := i + 1L
+//          ),
+//          Code._println(workStr)
+//        )
 
-        val printA = Code(
-          workStr := const(""),
-          i := 0L,
-          Code.whileLoop(i < (M * N).toL,
-            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
-            i := i + 1L
-          ),
-          Code._println(workStr)
-        )
+//        val diagnosticPrint = Code(
+//          Code._println(const("M = ").concat(M.toS)),
+//          Code._println(const("N = ").concat(N.toS)),
+//          Code._println(const("K = ").concat(K.toS)),
+//          Code._println(const("LDA = ").concat(LDA.toS)),
+//          Code._println(const("LWORK = ").concat(LWORK.toString)),
+//        )
 
         val infoResult = mb.newLocal[Int]
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 
-          Code._println(const("aNumElements = ").concat(aNumElements.toS)),
-
           // Make some space for the column major form (which means copying the input)
-          columnMajorCopyAddress := ndPType.data.pType.allocate(region, aNumElements.toI),
-          ndPType.data.pType.stagedInitialize(columnMajorCopyAddress, aNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(columnMajorCopyAddress, aNumElements.toI, 0), M, N, mb),
+          dgeqrfAAddress := ndPType.data.pType.allocate(region, aNumElements.toI),
+          ndPType.data.pType.stagedInitialize(dgeqrfAAddress, aNumElements.toI),
+          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0), M, N, mb),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
@@ -1515,17 +1511,10 @@ private class Emit(
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong * 8),
 
-
-          Code._println(const("M = ").concat(M.toS)),
-          Code._println(const("N = ").concat(N.toS)),
-          Code._println(const("K = ").concat(K.toS)),
-          Code._println(const("LDA = ").concat(LDA.toS)),
-          Code._println(const("LWORK = ").concat(LWORK.toString)),
-
           infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(columnMajorCopyAddress, aNumElements.toI, 0),
+            ndPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0),
             LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
             workAddress,
@@ -1550,7 +1539,7 @@ private class Emit(
           val tauShapeBuilder = tauPType.makeShapeBuilder(Array(K))
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, columnMajorCopyAddress, mb)
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, dgeqrfAAddress, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
@@ -1570,45 +1559,86 @@ private class Emit(
           EmitTriplet(ndt.setup, ndt.m, result)
         }
         else {
-          if (mode == "r") {
-            // In R mode, the upper right hand corner of A contains what I want. I should just zero out the bottom corner.
-            val rPType = x.pType.asInstanceOf[PNDArray]
-            val rShapeBuilder = rPType.makeShapeBuilder(Array(K, N))
-            val rStridesBuilder = rPType.makeDefaultStridesBuilder(Array(K, N), mb)
-
-            val currRow = mb.newField[Int]
-            val currCol = mb.newField[Int]
-            val zeroOutCorner = Code(
-              currRow := 0,
-              Code.whileLoop(currRow < M.toI,
-                currCol := 0,
-                Code.whileLoop(currCol < N.toI,
-                  (currRow > currCol).orEmpty(
-                    // TODO Not row / column major agnostic!
-                    Region.storeDouble(ndPType.data.pType.elementOffset(answerCopyAddress, aNumElements.toI,
-                      currRow * N.toI + currCol), 0.0)
-                  ),
-                  currCol := currCol + 1
+          val currRow = mb.newField[Int]
+          val currCol = mb.newField[Int]
+          val zeroOutCorner = Code(
+            currRow := 0,
+            Code.whileLoop(currRow < M.toI,
+              currCol := 0,
+              Code.whileLoop(currCol < N.toI,
+                (currRow > currCol).orEmpty(
+                  // TODO Not row / column major agnostic!
+                  Region.storeDouble(ndPType.data.pType.elementOffset(rReturnAddress, aNumElements.toI,
+                    currRow * N.toI + currCol), 0.0)
                 ),
-                currRow := currRow + 1
-              )
+                currCol := currCol + 1
+              ),
+              currRow := currRow + 1
             )
+          )
 
-            // Now I have the code to zero out a corner. I should run that code, then return only A.
+          val (rPType, rShapeArray) = if (mode == "r") {
+            (x.pType.asInstanceOf[PNDArray], Array(K, N))
+          } else {
+            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], Array(M, N))
+          }
+          val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
+          val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
+
+          val computeR = Code(
+            rReturnAddress := rPType.data.pType.allocate(region, aNumElements.toI),
+            rPType.data.pType.stagedInitialize(rReturnAddress, aNumElements.toI),
+            rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0),
+              rPType.data.pType.elementOffset(rReturnAddress, aNumElements.toI, 0), M, N, mb),
+            zeroOutCorner,
+            rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rReturnAddress, mb)
+          )
+
+          if (mode == "r") {
             val result = Code(
               alwaysNeeded,
-              answerCopyAddress := rPType.data.pType.allocate(region, aNumElements.toI),
-              rPType.data.pType.stagedInitialize(answerCopyAddress, aNumElements.toI),
-              rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(columnMajorCopyAddress, aNumElements.toI, 0),
-                rPType.data.pType.elementOffset(answerCopyAddress, aNumElements.toI, 0), M, N, mb),
-              zeroOutCorner,
-              rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, answerCopyAddress, mb)
+              computeR
             )
 
             EmitTriplet(ndt.setup, ndt.m, result)
           }
+          else if (mode == "complete") {
+            // In complete mode, I need a copy of A so that I can pass it along to dorgqr, while returning the current one as R.
+            val completePType = x.pType.asInstanceOf[PTuple]
+            val qPType = completePType.types(0).asInstanceOf[PNDArray]
+
+            val qShapeBuilder = qPType.makeShapeBuilder(Array(M, M))
+            val qStridesBuilder = qPType.makeShapeBuilder(Array(M, M))
+
+            val completeOutputSrvb = new StagedRegionValueBuilder(mb, completePType, region)
+
+            val rNDArrayAddress = mb.newField[Long]
+            val dorgqrAAddress = mb.newField[Long]
+
+            val ifComplete = Code(
+//              dorgqrAAddress := Code.invokeStatic[Memory, Long, Long]("malloc", (M * M) * 8L),
+//              // Now, copy the current A
+//              Code.invokeStatic[Memory, Long, Long, Long, Unit]("memcpy", dorgqrAAddress, dgeqrfAAddress, aNumElements * 8L),
+
+              completeOutputSrvb.start(),
+              completeOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
+              completeOutputSrvb.advance(),
+              completeOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
+              completeOutputSrvb.advance(),
+              completeOutputSrvb.end()
+            )
+
+            val result = Code(
+              alwaysNeeded,
+              rNDArrayAddress := computeR,
+              ifComplete
+            )
+
+            EmitTriplet(ndt.setup, ndt.m, result)
+          }
+          // Hoping to get reduced to just be subsetting complete from python
           else {
-            throw new IllegalArgumentException("Only support raw and R")
+            throw new IllegalArgumentException("Only support raw, complete and R")
           }
         }
 
