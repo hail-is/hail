@@ -43,15 +43,10 @@ WHERE ready_cores_mcpu > 0;
 ''')
 
         async for record in records:
-            log.info(record)
             user = record['user']
             user_running_cores_mcpu[user] = record['running_cores_mcpu']
             user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']
             pending_users_by_running_cores.add(user)
-
-        log.info(pending_users_by_running_cores)
-        log.info(user_running_cores_mcpu)
-        log.info(user_total_cores_mcpu)
 
         mark = 0
         while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
@@ -99,7 +94,6 @@ WHERE ready_cores_mcpu > 0;
         for user in allocating_users_by_total_cores:
             user_allocated_cores[user] = int(mark - user_running_cores_mcpu[user] + 0.5)
 
-        log.info(user_allocated_cores)
         return user_allocated_cores
 
     async def bump_loop(self):
