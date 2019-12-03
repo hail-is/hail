@@ -319,7 +319,7 @@ SELECT *, state = CASE
     WHEN NOT closed THEN 'open'
     WHEN n_failed > 0 THEN 'failure'
     WHEN n_cancelled > 0 THEN 'cancelled'
-    WHEN n_succeeded == n_jobs THEN 'success'
+    WHEN n_succeeded = n_jobs THEN 'success'
     ELSE 'running'
   END
 FROM batches
