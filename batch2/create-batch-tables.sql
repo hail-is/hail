@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `user_resources` (
   `running_cores_mcpu` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`user`)
 ) ENGINE = InnoDB;
+CREATE INDEX `user_resources_ready_cores_mcpu` ON `user_resources` (`user`);
 
 CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
