@@ -119,11 +119,8 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))
 
     batch_client = request.app['batch_client']
-    batches = await batch_client.list_batches(
-        attributes={
-            'test': '1',
-            'pr': pr_number
-        })
+    batches = batch_client.list_batches(
+        f'test=1 pr={pr_number}')
     batches = sorted(batches, key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.status() for b in batches]
 
@@ -134,7 +131,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
-    batches = await batch_client.list_batches()
+    batches = [b async for b in batch_client.list_batches()]
     statuses = [await b.status() for b in batches]
     page_context = {
         'batches': statuses
