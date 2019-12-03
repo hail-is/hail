@@ -525,8 +525,10 @@ def test_ndarray_qr():
         ndarray_h, ndarray_tau = hl.eval(hl._nd.qr(hl_ndarray, mode="raw"))
         np_ndarray_h, np_ndarray_tau = np.linalg.qr(np_ndarray, mode="raw")
 
-        assert np.allclose(ndarray_h, np_ndarray_h)
-        assert np.allclose(ndarray_tau, np_ndarray_tau)
+        rank = np.linalg.matrix_rank(np_ndarray)
+
+        assert np.allclose(ndarray_h[:, :rank], np_ndarray_h[:, :rank])
+        assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
 
     def assert_r_equivalence(hl_ndarray, np_ndarray):
         assert np.allclose(hl.eval(hl._nd.qr(hl_ndarray, mode="r")), np.linalg.qr(np_ndarray, mode="r"))
@@ -558,6 +560,13 @@ def test_ndarray_qr():
     np_tall_rect = np.arange(12).reshape((4, 3))
     tall_rect = hl._nd.arange(12).reshape((4, 3))
 
-    # TODO Figure out this one
-    #assert_raw_equivalence(tall_rect, np_tall_rect)
+    assert_raw_equivalence(tall_rect, np_tall_rect)
     assert_r_equivalence(tall_rect, np_tall_rect)
+
+    np_wiki_example = np.array([[12, -51, 4],
+                                [6, 167, -68],
+                                [-4, 24, -41]])
+    wiki_example = hl._nd.array(np_wiki_example)
+
+    assert_raw_equivalence(wiki_example, np_wiki_example)
+    assert_r_equivalence(wiki_example, np_wiki_example)
