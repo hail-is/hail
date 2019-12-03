@@ -516,6 +516,13 @@ async def create_batch(request, userdata):
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+INSERT IGNORE INTO user_resources (user) VALUES (%s);
+''',
+                (user,))
+
+        async with conn.cursor() as cursor:
             now = time_msecs()
             await cursor.execute(
                 '''
