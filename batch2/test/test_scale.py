@@ -6,7 +6,7 @@ from hailtop.batch_client.client import BatchClient
 
 @pytest.fixture
 def client():
-    client = BatchClient(_service='batch2')
+    client = BatchClient('test')
     yield client
     client.close()
 

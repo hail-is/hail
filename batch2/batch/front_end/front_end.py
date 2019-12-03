@@ -512,6 +512,8 @@ async def create_batch(request, userdata):
         raise web.HTTPBadRequest(reason=f'invalid request: {validator.errors}')
 
     user = userdata['username']
+    billing_project = batch_spec['billing_project']
+
     attributes = batch_spec.get('attributes')
     async with db.pool.acquire() as conn:
         await conn.begin()
@@ -526,10 +528,22 @@ INSERT IGNORE INTO user_resources (user) VALUES (%s);
             now = time_msecs()
             await cursor.execute(
                 '''
-INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
-VALUES (%s, %s, %s, %s, %s, %s);
+SELECT * FROM billing_project_users
+WHERE billing_project = %s AND user = %s
 ''',
-                (json.dumps(userdata), user, json.dumps(attributes),
+                (billing_project, user))
+            rows = await cursor.fetchall()
+            if len(rows) != 1:
+                assert len(rows) == 0
+                raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+''',
+                (json.dumps(userdata), user, billing_project, json.dumps(attributes),
                  batch_spec.get('callback'), batch_spec['n_jobs'],
                  now))
             id = cursor.lastrowid

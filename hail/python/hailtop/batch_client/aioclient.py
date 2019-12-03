@@ -450,7 +450,7 @@ class BatchBuilder:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        batch_spec = {'n_jobs': len(self._job_specs)}
+        batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': len(self._job_specs)}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self.callback:
@@ -497,8 +497,10 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, deploy_config=None, session=None, headers=None,
-                       _token=None):
+    async def __init__(self, billing_project, deploy_config=None, session=None,
+                       headers=None, _token=None):
+        self.billing_project = billing_project
+
         if not deploy_config:
             deploy_config = get_deploy_config()
 
