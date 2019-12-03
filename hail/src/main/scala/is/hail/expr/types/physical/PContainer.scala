@@ -317,13 +317,13 @@ abstract class PContainer extends PIterable {
       return Code._empty
     }
 
-    val i = mb.newLocal[Long]
+    val i = mb.newLocal[Int]
     val mod = mb.newLocal[Int]
     Code(
       mod := (sourceType.loadLength(sourceOffset) % 8) - 1,
       (mod >= 0).mux(
         Code(
-          i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - 1L,
+          i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - 1,
           Code.whileLoop(mod >= 0,
             Code(
               sourceType
@@ -336,19 +336,19 @@ abstract class PContainer extends PIterable {
         ),
         i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset))
       ),
-      Code.whileLoop(i > 0L,
-        (i >= 8L).mux(
+      Code.whileLoop(i > 0,
+        (i >= 8).mux(
           Code(
-            i := i - 8L,
+            i := i - 8,
             Region
-              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
+              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i.toL)
               .cne(const(0L))
               .orEmpty(onFail)
           ),
           Code(
-            i := i - 1L,
+            i := i - 1,
             Region
-              .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i)
+              .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i.toL)
               .cne(const(0.toByte))
               .orEmpty(onFail)
           )
