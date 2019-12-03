@@ -569,7 +569,7 @@ class BatchClient:
                 params['last_batch_id'] = last_batch_id
 
             resp = await self._get('/api/v1alpha/batches', params=params)
-            body = resp.json()
+            body = await resp.json()
 
             for batch in body['batches']:
                 yield Batch(self, batch['id'], attributes=batch.get('attributes'))
