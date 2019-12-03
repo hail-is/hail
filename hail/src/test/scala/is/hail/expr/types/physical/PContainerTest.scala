@@ -9,12 +9,6 @@ import org.codehaus.janino.util.Benchmark
 import org.testng.annotations.Test
 
 class PContainerTest extends HailSuite {
-  def timeNano(fun: => Any): Long = {
-    val start = System.nanoTime()
-    fun
-    System.nanoTime() - start
-  }
-
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements)(i => {
       if(i == missingElement - 1) {
