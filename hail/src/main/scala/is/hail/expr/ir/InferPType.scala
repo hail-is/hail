@@ -119,11 +119,11 @@ object InferPType {
 
         body.pType2
       }
-      case TailLoop(args, body) =>
+      case TailLoop(_, args, body) =>
         args.foreach { case (_, ir) => InferPType(ir, env) }
         InferPType(body, env.bind(args.map { case (n, ir) => n -> ir.pType2 }: _*))
         body.pType2
-      case Recur(args, typ) =>
+      case Recur(_, args, typ) =>
         // FIXME: This may be difficult to infer properly from a bottom-up pass.
         args.foreach { a => InferPType(a, env) }
         PType.canonical(typ)

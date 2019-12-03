@@ -200,7 +200,11 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case TailLoop(args, body) =>
+        case TailLoop(name, args, body) =>
+          sb += '\n'
+          prettyIdentifier(name)
+          sb += '\n'
+          pretty(body, depth + 2)
           sb += '\n'
           if (args.nonEmpty) {
             sb += '\n'
@@ -212,8 +216,6 @@ object Pretty {
               pretty(a, depth + 4)
               sb += ')'
             }(sb += '\n')
-            sb += '\n'
-            pretty(body, depth + 2)
           }
         case _ =>
           val header = ir match {
@@ -234,7 +236,7 @@ object Pretty {
                 )
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
-            case Recur(_, t) => t.parsableString()
+            case Recur(name, _, t) => prettyIdentifier(name) + " " + t.parsableString()
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)

@@ -314,10 +314,10 @@ private class Emit(
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
-  private[ir] def emit(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer], loopRefs: Option[Array[LoopRef]]): EmitTriplet = {
+  private[ir] def emit(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[Array[LoopRef]]]): EmitTriplet = {
 
-    def emit(ir: IR, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopRefs: Option[Array[LoopRef]] = loopRefs): EmitTriplet =
-      this.emit(ir, env, er, container, loopRefs)
+    def emit(ir: IR, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[Array[LoopRef]]] = loopEnv): EmitTriplet =
+      this.emit(ir, env, er, container, loopEnv)
 
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
@@ -1579,7 +1579,7 @@ private class Emit(
               ctxab.invoke[Array[Array[Byte]]]("result"),
               baos.invoke[Array[Byte]]("toByteArray")),
             decodeResult))
-      case x@TailLoop(args, body) =>
+      case x@TailLoop(name, args, body) =>
         val loopRefs = args.map { case (name, ir) =>
           val ti = typeToTypeInfo(ir.typ)
           ti -> LoopRef(mb.newField[Boolean], mb.newField()(ti), mb.newLocal[Boolean], mb.newLocal()(ti))
@@ -1596,9 +1596,10 @@ private class Emit(
 
         val argEnv = env
           .bind(args.zip(loopRefs).map { case ((name, _), (ti, ref)) => (name, (ti, ref.m.load(), ref.v.load())) } : _*)
-          .bind(TailLoop.bindingSym, (typeToTypeInfo(x.typ), const(false), label.goto))
+          .bind(name, (typeToTypeInfo(x.typ), const(false), label.goto))
 
-        val bodyT = emit(body, argEnv, loopRefs = Some(loopRefs.map(_._2).toArray))
+        val newLoopEnv = loopEnv.getOrElse(Env.empty)
+        val bodyT = emit(body, argEnv, loopEnv = newLoopEnv.bind(name, loopRefs.map(_._2).toArray))
         val bodyF = Code(
           bodyT.setup,
           m := bodyT.m,
@@ -1606,11 +1607,11 @@ private class Emit(
 
         EmitTriplet(Code(storeInitArgs, label, bodyF), m, v)
 
-      case Recur(args, _) =>
-        val (_, _, jump) = env.lookup(TailLoop.bindingSym)
-        val refs = loopRefs.get
+      case Recur(name, args, _) =>
+        val (_, _, jump) = env.lookup(name)
+        val refs = loopEnv.get.lookup(name)
         val storeTempArgs = Array.tabulate(refs.length) { i =>
-          val t = emit(args(i), env.delete(TailLoop.bindingSym), loopRefs = None)
+          val t = emit(args(i), env.delete(name), loopEnv = None)
           Code(t.setup, refs(i).tempM := t.m, refs(i).tempV.storeAny(refs(i).tempM.mux(defaultValue(args(i).typ), t.v)))
         }
         val moveArgs = refs.map( ref =>  Code(ref.m := ref.tempM, ref.v.storeAny(ref.tempV)) )

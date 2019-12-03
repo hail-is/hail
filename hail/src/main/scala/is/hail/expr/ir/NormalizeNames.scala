@@ -80,6 +80,16 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
               name
         }
         Ref(newName, typ)
+      case Recur(name, args, typ) =>
+        val newName = env.eval.lookupOption(name) match {
+          case Some(n) => n
+          case None =>
+            if (!allowFreeVariables)
+              throw new RuntimeException(s"found free variable in normalize: $name")
+            else
+              name
+        }
+        Recur(newName, args.map(v => normalize(v)), typ)
       case AggLet(name, value, body, isScan) =>
         val newName = gen()
         val (valueEnv, bodyEnv) = if (isScan)
@@ -87,10 +97,11 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg -> env.bindAgg(name, newName)
         AggLet(newName, normalize(value, valueEnv), normalize(body, bodyEnv), isScan)
-      case TailLoop(args, body) =>
+      case TailLoop(name, args, body) =>
+        val newFName = gen()
         val newNames = Array.tabulate(args.length)(i => gen())
         val (names, values) = args.unzip
-        TailLoop(newNames.zip(values.map(v => normalize(v))), normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames): _*))))
+        TailLoop(newFName, newNames.zip(values.map(v => normalize(v))), normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*))))
       case ArraySort(a, left, right, compare) =>
         val newLeft = gen()
         val newRight = gen()
