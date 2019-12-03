@@ -266,15 +266,31 @@ abstract class PContainer extends PIterable {
     }
 
     val i = mb.newLocal[Long]
+    val mod = mb.newLocal[Int]
     Code(
-      i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)),
+      mod := (sourceType.loadLength(sourceOffset) % 8) - 1,
+      (mod >= 0).mux(
+        Code(
+          i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - 1L,
+          Code.whileLoop(mod >= 0,
+            Code(
+              sourceType
+                .isElementMissing(sourceOffset, i.toI * 8 + mod)
+                .cne(false)
+                .orEmpty(onFail),
+              mod := mod - 1
+            )
+          )
+        ),
+        i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset))
+      ),
       Code.whileLoop(i > 0L,
         (i >= 8L).mux(
           Code(
             i := i - 8L,
             Region
               .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
-              .cne(const(0.toByte))
+              .cne(const(0L))
               .orEmpty(onFail)
           ),
           Code(
