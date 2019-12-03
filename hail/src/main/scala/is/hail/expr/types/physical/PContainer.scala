@@ -320,26 +320,26 @@ abstract class PContainer extends PIterable {
     val i = mb.newLocal[Int]
     val mod = mb.newLocal[Int]
     Code(
-      mod := (sourceType.loadLength(sourceOffset) % 8) - 1,
-      (mod >= 0).mux(
+      mod := (sourceType.loadLength(sourceOffset) % const(8)) - const(1),
+      (mod >= const(0)).mux(
         Code(
-          i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - 1,
+          i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - const(1),
           Code.whileLoop(mod >= 0,
             Code(
               sourceType
-                .isElementMissing(sourceOffset, i.toI * 8 + mod)
-                .cne(false)
+                .isElementMissing(sourceOffset, i * const(8) + mod)
+                .cne(const(false))
                 .orEmpty(onFail),
-              mod := mod - 1
+              mod := mod - const(1)
             )
           )
         ),
         i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset))
       ),
-      Code.whileLoop(i > 0,
-        (i >= 8).mux(
+      Code.whileLoop(i > const(0),
+        (i >= const(8)).mux(
           Code(
-            i := i - 8,
+            i := i - const(8),
             Region
               .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i.toL)
               .cne(const(0L))
@@ -364,14 +364,18 @@ abstract class PContainer extends PIterable {
       return sourceOffset
     }
 
-    val newOffset = mb.newField[Long]
-    val len = sourceType.loadLength(sourceOffset)
     Code(
-      ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)),
-      newOffset := allocate(r, len),
-      stagedInitialize(newOffset, len),
-      Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
-      newOffset
+      ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)), {
+        val newOffset = mb.newField[Long]
+        val len = sourceType.loadLength(sourceOffset)
+
+        Code(
+          newOffset := allocate(r, len),
+          stagedInitialize(newOffset, len),
+          Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+          sourceOffset
+        )
+      }
     )
   }
 
