@@ -56,12 +56,12 @@ WHERE ready_cores_mcpu > 0;
         mark = 0
         log.info(f'free cores mcpu = {free_cores_mcpu}')
         while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
-            lowest_running = None
-            lowest_total = None
-            lowest_running_user = None
-            lowest_total_user = None
-
             while True:
+                lowest_running = None
+                lowest_total = None
+                lowest_running_user = None
+                lowest_total_user = None
+
                 if pending_users_by_running_cores:
                     lowest_running_user = pending_users_by_running_cores[0]
                     lowest_running = user_running_cores_mcpu[lowest_running_user]
