@@ -151,7 +151,7 @@ class PContainerTest extends HailSuite {
       (data(0).asInstanceOf[Long], data(data.length - 1).asInstanceOf[Long], median)
     }
 
-    def compare(sourceType: PArray, destType: PArray, data: IndexedSeq[Any], iterations: Int): Long = {
+    def compare(sourceType: PArray, destType: PArray, data: IndexedSeq[Any], iterations: Int): Float = {
       (0 to 50).map(_ => timeOne(sourceType: PArray, destType: PArray, data, linearConvertFrom))
       val linearTime = (0 to iterations).map(_ => timeOne(sourceType: PArray, destType: PArray, data, linearConvertFrom)).sorted
       val (lMin1, lMax1, lMed1) = stats(linearTime)
@@ -182,28 +182,32 @@ class PContainerTest extends HailSuite {
       val lMax = (lMax1 + lMax2) / 2
       val lMed = (lMed1 + lMed2) / 2
 
-      log.debug(s"cMin: $cMin")
-      log.debug(s"cMax: $cMax")
-      log.debug(s"cMed: $cMed")
+      println(s"cMin: $cMin")
+      println(s"cMax: $cMax")
+      println(s"cMed: $cMed")
 
-      log.debug(s"lMin: $lMin")
-      log.debug(s"lMax: $lMax")
-      log.debug(s"lMed: $lMed")
+      println(s"lMin: $lMin")
+      println(s"lMax: $lMax")
+      println(s"lMed: $lMed")
 
-      lMed / cMed
+      lMed.toFloat / cMed.toFloat
     }
 
     var speedup = compare(sourceType, destType, nullInByte(200000, 200000), 100)
     println(s"Median speedup for last element Missing: $speedup")
     assert(speedup > 1)
 
+    speedup = compare(sourceType, destType, nullInByte(200000, 3000), 100)
+    println(s"Median speedup for element 3000 missing: $speedup")
+    assert(speedup > 0)
+
     speedup = compare(sourceType, destType, nullInByte(200000, 1), 100)
     println(s"Median speedup for first element missing: $speedup")
-    assert(speedup > 1)
+    assert(speedup > 0)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 0), 100)
     println(s"Median speedup for no element missing: $speedup")
-//    assert(speedup > 1)
+    assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 80000), 100)
     println(s"Median speedup for 80,000 element missing: $speedup")
