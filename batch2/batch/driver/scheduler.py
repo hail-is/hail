@@ -53,6 +53,9 @@ WHERE ready_cores_mcpu > 0;
         log.info(pending_users_by_running_cores)
         log.info(allocating_users_by_total_cores)
 
+        def allocate_cores(user, mark):
+            user_allocated_cores[user] = int(mark - user_running_cores_mcpu[user] + 0.5)
+
         mark = 0
         log.info(f'free cores mcpu = {free_cores_mcpu}')
         while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
@@ -77,6 +80,7 @@ WHERE ready_cores_mcpu > 0;
                 if lowest_total is not None and lowest_total == mark:
                     log.info(f'have lowest total and it equals the mark')
                     allocating_users_by_total_cores.remove(lowest_total_user)
+                    allocate_cores(lowest_total_user, mark)
                 elif lowest_running is not None and lowest_running == mark:
                     log.info(f'have lowest running and it equals the mark; add it to allocating users')
                     pending_users_by_running_cores.remove(lowest_running_user)
@@ -116,7 +120,7 @@ WHERE ready_cores_mcpu > 0;
             log.info(f'free cores = {free_cores_mcpu}')
 
         for user in allocating_users_by_total_cores:
-            user_allocated_cores[user] = int(mark - user_running_cores_mcpu[user] + 0.5)
+            allocate_cores(user, mark)
 
         log.info(f'allocated_cores: {user_allocated_cores}')
         return user_allocated_cores
