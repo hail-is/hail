@@ -265,7 +265,7 @@ async def _query_batches(request, user):
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-        where_conditions.append('(batches.id > %s)')
+        where_conditions.append('(id > %s)')
         where_args.append(last_batch_id)
 
     q = request.query.get('q', '')
@@ -281,7 +281,7 @@ async def _query_batches(request, user):
             k, v = t.split('=', 1)
             condition = '''
 (EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = batches.id AND
+         WHERE `batch_attributes`.batch_id = id AND
            `batch_attributes`.`key` = %s AND
            `batch_attributes`.`value` = %s))
 '''
@@ -290,7 +290,7 @@ async def _query_batches(request, user):
             k = t[4:]
             condition = '''
 (EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = batches.id AND
+         WHERE `batch_attributes`.batch_id = id AND
            `batch_attributes`.`key` = %s))
 '''
             args = [k]
@@ -300,7 +300,7 @@ async def _query_batches(request, user):
         elif t == 'closed':
             condition = '(closed)'
             args = []
-        elif t in ('running', 'success', 'cancelled', 'failure'):
+        elif t in ('open', 'running', 'success', 'cancelled', 'failure'):
             condition = '(state = %s)'
             args = [t]
         else:
@@ -315,14 +315,15 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, CASE
+SELECT * 
+FROM (SELECT *, CASE
     WHEN NOT closed THEN 'open'
     WHEN n_failed > 0 THEN 'failure'
     WHEN n_cancelled > 0 THEN 'cancelled'
     WHEN n_succeeded = n_jobs THEN 'success'
     ELSE 'running'
   END AS state
-FROM batches
+FROM batches) as t
 WHERE {' AND '.join(where_conditions)}
 LIMIT 50;
 '''
