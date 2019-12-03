@@ -315,13 +315,13 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, state = CASE
+SELECT *, CASE
     WHEN NOT closed THEN 'open'
     WHEN n_failed > 0 THEN 'failure'
     WHEN n_cancelled > 0 THEN 'cancelled'
     WHEN n_succeeded = n_jobs THEN 'success'
     ELSE 'running'
-  END
+  END AS state
 FROM batches
 WHERE {' AND '.join(where_conditions)}
 LIMIT 50;
