@@ -174,7 +174,7 @@ BEGIN
   DECLARE in_user VARCHAR(100);
 
   SELECT user INTO in_user from batches
-  WHERE batch_id = NEW.batch_id;
+  WHERE id = NEW.batch_id;
 
   IF NEW.state = 'Ready' THEN
     UPDATE user_resources
@@ -195,7 +195,7 @@ BEGIN
   DECLARE in_user VARCHAR(100);
 
   SELECT user INTO in_user from batches
-  WHERE batch_id = in_batch_id;
+  WHERE id = in_batch_id;
 
   IF OLD.state = 'Ready' THEN
     UPDATE user_resources
