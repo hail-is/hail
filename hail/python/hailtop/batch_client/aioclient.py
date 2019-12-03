@@ -339,7 +339,7 @@ class Batch:
                 resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
                 body = await resp.json()
                 jobs.extend(body['jobs'])
-                last_job_id = body['last_job_id']
+                last_job_id = body.get('last_job_id')
                 if last_job_id is None:
                     break
             batch['jobs'] = jobs
