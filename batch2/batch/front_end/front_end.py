@@ -143,6 +143,7 @@ async def _query_batch_jobs(request, batch_id):
     sql = f'''
 SELECT * FROM jobs
 WHERE {' AND '.join(where_conditions)}
+ORDER BY batch_id, job_id DESC
 LIMIT 50;
 '''
     sql_args = where_args
@@ -325,6 +326,7 @@ FROM (SELECT *, CASE
   END AS state
 FROM batches) as t
 WHERE {' AND '.join(where_conditions)}
+ORDER BY id DESC
 LIMIT 50;
 '''
     sql_args = where_args
@@ -724,7 +726,7 @@ async def ui_batches(request, userdata):
     user = userdata['username']
     batches, last_batch_id = await _query_batches(request, user)
     page_context = {
-        'batches': batches[::-1],
+        'batches': batches,
         'q': request.query.get('q'),
         'last_batch_id': last_batch_id
     }
