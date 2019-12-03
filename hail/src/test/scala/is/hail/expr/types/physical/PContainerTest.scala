@@ -5,6 +5,7 @@ import is.hail.annotations.{Region, SafeIndexedSeq, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder}
 import is.hail.utils._
+import org.codehaus.janino.util.Benchmark
 import org.testng.annotations.Test
 
 class PContainerTest extends HailSuite {
@@ -194,18 +195,30 @@ class PContainerTest extends HailSuite {
 
     var speedup = compare(sourceType, destType, nullInByte(200000, 200000), 100)
     println(s"Median speedup for last element Missing: $speedup")
-    log.debug(speedup > 1)
+    assert(speedup > 1)
+
+    speedup = compare(sourceType, destType, nullInByte(200000, 1), 100)
+    println(s"Median speedup for first element missing: $speedup")
+    assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 0), 100)
     println(s"Median speedup for no element missing: $speedup")
-    log.debug(speedup > 1)
+    assert(speedup > 1)
+
+    speedup = compare(sourceType, destType, nullInByte(200000, 80000), 100)
+    println(s"Median speedup for 80,000 element missing: $speedup")
+    assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 100000), 100)
     println(s"Median speedup for middle element missing: $speedup")
-    log.debug(speedup > 1)
+    assert(speedup > 1)
+
+    speedup = compare(sourceType, destType, nullInByte(200000, 120000), 100)
+    println(s"Median speedup for 120,000 missing: $speedup")
+    assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200003, 200000), 100)
     println(s"Median speedup for odd bits: $speedup")
-    log.debug(speedup > 1)
+    assert(speedup > 1)
   }
 }
