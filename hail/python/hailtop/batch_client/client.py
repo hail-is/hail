@@ -7,6 +7,18 @@ def async_to_blocking(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
+def sync_anext(ait):
+    return async_to_blocking(ait.__anext__())
+
+
+def agen_to_blocking(agen):
+    while True:
+        try:
+            yield sync_anext(agen)
+        except StopAsyncIteration:
+            break
+
+
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -163,13 +175,9 @@ class BatchClient:
     def bucket(self):
         return self._async_client.bucket
 
-    def _refresh_k8s_state(self):
-        async_to_blocking(self._async_client._refresh_k8s_state())
-
-    def list_batches(self, complete=None, success=None, attributes=None):
-        batches = async_to_blocking(
-            self._async_client.list_batches(complete=complete, success=success, attributes=attributes))
-        return [Batch.from_async_batch(b) for b in batches]
+    def list_batches(self, q=None):
+        for b in agen_to_blocking(self._async_client.list_batches(q)):
+            yield Batch.from_async_batch(b)
 
     def get_job(self, batch_id, job_id):
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))

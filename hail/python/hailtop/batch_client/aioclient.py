@@ -16,24 +16,6 @@ from .globals import tasks, complete_states
 log = logging.getLogger('batch_client.aioclient')
 
 
-def filter_params(complete, success, attributes):
-    params = None
-    if complete is not None:
-        if not params:
-            params = {}
-        params['complete'] = '1' if complete else '0'
-    if success is not None:
-        if not params:
-            params = {}
-        params['success'] = '1' if success else '0'
-    if attributes is not None:
-        if not params:
-            params = {}
-        for n, v in attributes.items():
-            params[f'a:{n}'] = v
-    return params
-
-
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -559,14 +541,23 @@ class BatchClient:
             self._session, 'DELETE',
             self.url + path, headers=self._headers)
 
-    async def list_batches(self, complete=None, success=None, attributes=None):
-        params = filter_params(complete, success, attributes)
-        batches_resp = await self._get('/api/v1alpha/batches', params=params)
-        batches = await batches_resp.json()
-        return [Batch(self,
-                      b['id'],
-                      attributes=b.get('attributes'))
-                for b in batches]
+    async def list_batches(self, q=None):
+        last_batch_id = None
+        while True:
+            params = {}
+            if q is not None:
+                params['q'] = q
+            if last_batch_id is not None:
+                params['last_batch_id'] = last_batch_id
+
+            resp = await self._get('/api/v1alpha/batches', params=params)
+            body = await resp.json()
+
+            for batch in body['batches']:
+                yield Batch(self, batch['id'], attributes=batch.get('attributes'))
+            last_batch_id = body.get('last_batch_id')
+            if last_batch_id is None:
+                break
 
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)

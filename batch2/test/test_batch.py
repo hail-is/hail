@@ -156,34 +156,34 @@ class Test(unittest.TestCase):
         b2.create_job('ubuntu:18.04', ['echo', 'test'])
         b2 = b2.submit()
 
-        def assert_batch_ids(expected, complete=None, success=None, attributes=None):
-            batches = self.client.list_batches(complete=complete, success=success, attributes=attributes)
+        def assert_batch_ids(expected, q=None):
+            batches = self.client.list_batches(q)
             # list_batches returns all batches for all prev run tests
             actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
 
         assert_batch_ids({b1.id, b2.id})
 
-        assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
+        assert_batch_ids({b1.id, b2.id}, f'tag={tag}')
 
         b2.wait()
 
-        assert_batch_ids({b1.id}, complete=False, attributes={'tag': tag})
-        assert_batch_ids({b2.id}, complete=True, attributes={'tag': tag})
+        assert_batch_ids({b1.id}, f'!complete tag={tag}')
+        assert_batch_ids({b2.id}, f'complete tag={tag}')
 
-        assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
-        assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
+        assert_batch_ids({b1.id}, f'!success tag={tag}')
+        assert_batch_ids({b2.id}, f'success tag={tag}')
 
         b1.cancel()
         b1.wait()
 
-        assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
-        assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
+        assert_batch_ids({b1.id}, f'!success tag={tag}')
+        assert_batch_ids({b2.id}, f'success tag={tag}')
 
-        assert_batch_ids(set(), complete=False, attributes={'tag': tag})
-        assert_batch_ids({b1.id, b2.id}, complete=True, attributes={'tag': tag})
+        assert_batch_ids(set(), f'!complete tag={tag}')
+        assert_batch_ids({b1.id, b2.id}, f'complete tag={tag}')
 
-        assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
+        assert_batch_ids({b2.id}, f'tag={tag} name=b2')
 
     def test_include_jobs(self):
         b1 = self.client.create_batch()
