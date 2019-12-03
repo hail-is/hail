@@ -43,6 +43,7 @@ WHERE ready_cores_mcpu > 0;
 ''')
 
         async for record in records:
+            log.info(record)
             user = record['user']
             user_running_cores_mcpu[user] = record['running_cores_mcpu']
             user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']

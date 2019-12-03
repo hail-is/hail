@@ -168,37 +168,64 @@ BEGIN
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 END $$
 
-CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
-FOR EACH ROW
+CREATE PROCEDURE update_user_resources(
+  IN in_batch_id BIGINT,
+  IN old_state VARCHAR(40),
+  IN new_state VARCHAR(40),
+  IN old_cores_mcpu BIGINT,
+  IN new_cores_mcpu BIGINT
+)
 BEGIN
   DECLARE in_user VARCHAR(100);
 
   SELECT user INTO in_user from batches
-  WHERE batch_id = NEW.batch_id;
+  WHERE batch_id = in_batch_id;
 
-  IF OLD.state = 'Ready' THEN
+  IF old_state = 'Ready' THEN
     UPDATE user_resources
-      SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
-      WHERE user = in_user;
+    SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - old_cores_mcpu
+    WHERE user = in_user;
   END IF;
 
-  IF NEW.state = 'Ready' THEN
+  IF new_state = 'Ready' THEN
     UPDATE user_resources
-      SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
-      WHERE user = in_user;
+    SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + new_cores_mcpu
+    WHERE user = in_user;
   END IF;
 
-  IF OLD.state = 'Running' THEN
+  IF old_state = 'Running' THEN
     UPDATE user_resources
-      SET n_running_jobs = n_running_jobs - 1, running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu
-      WHERE user = in_user;
+    SET n_running_jobs = n_running_jobs - 1, running_cores_mcpu = running_cores_mcpu - old_cores_mcpu
+    WHERE user = in_user;
   END IF;
 
-  IF NEW.state = 'Running' THEN
+  IF new_state = 'Running' THEN
     UPDATE user_resources
-      SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
-      WHERE user = in_user;
-  END IF;
+    SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + new_cores_mcpu
+    WHERE user = in_user;
+  END IF;  
+END $$
+
+CREATE TRIGGER jobs_after_insert AFTER INSERT ON jobs
+FOR EACH ROW
+BEGIN
+  CALL update_user_resources(
+    OLD.batch_id,
+    OLD.state,
+    NEW.state,
+    OLD.cores_mcpu,
+    NEW.cores_mcpu);
+END $$
+
+CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+  CALL update_user_resources(
+    OLD.batch_id,
+    OLD.state,
+    NEW.state,
+    OLD.cores_mcpu,
+    NEW.cores_mcpu);
 END $$
 
 CREATE PROCEDURE activate_instance(
