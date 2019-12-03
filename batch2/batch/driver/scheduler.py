@@ -49,23 +49,37 @@ WHERE ready_cores_mcpu > 0;
             pending_users_by_running_cores.add(user)
 
         mark = 0
-        while pending_users_by_running_cores:
+        while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
+            lowest_running = None
+            lowest_total = None
+            lowest_running_user = None
+            lowest_total_user = None
+
             while True:
-                lowest_running_user = pending_users_by_running_cores[0]
-                lowest_total_user = allocating_users_by_total_cores[0]
+                if pending_users_by_running_cores:
+                    lowest_running_user = pending_users_by_running_cores[0]
+                    lowest_running = user_running_cores_mcpu[lowest_running_user]
 
-                lowest_running = user_running_cores_mcpu[lowest_running_user]
-                lowest_total = user_total_cores_mcpu[lowest_total_user]
+                if allocating_users_by_total_cores:
+                    lowest_total_user = allocating_users_by_total_cores[0]
+                    lowest_total = user_total_cores_mcpu[lowest_total_user]
 
-                if lowest_total == mark:
+                if lowest_total and lowest_total == mark:
                     allocating_users_by_total_cores.remove(lowest_total_user)
-                elif lowest_running == mark:
+                elif lowest_running and lowest_running == mark:
                     pending_users_by_running_cores.remove(lowest_running_user)
                     allocating_users_by_total_cores.add(lowest_running_user)
                 else:
                     break
 
-            allocation = min(lowest_running, lowest_total)
+            if lowest_running:
+                allocation = min(lowest_running, lowest_total)
+            elif lowest_running:
+                allocation = lowest_running
+            elif lowest_total:
+                allocation = lowest_total
+            else:
+                break
 
             n_allocating_users = len(allocating_users_by_total_cores)
             cores_to_allocate = n_allocating_users * (allocation - mark)

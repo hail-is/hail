@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`user`) REFERENCES user_resources(user)
+  FOREIGN KEY (`user`) REFERENCES user_resources(user) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
