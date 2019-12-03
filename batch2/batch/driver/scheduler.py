@@ -54,6 +54,7 @@ WHERE ready_cores_mcpu > 0;
         log.info(allocating_users_by_total_cores)
 
         mark = 0
+        log.info(f'free cores mcpu = {free_cores_mcpu}')
         while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
             lowest_running = None
             lowest_total = None
@@ -64,37 +65,55 @@ WHERE ready_cores_mcpu > 0;
                 if pending_users_by_running_cores:
                     lowest_running_user = pending_users_by_running_cores[0]
                     lowest_running = user_running_cores_mcpu[lowest_running_user]
+                    log.info(f'lowest_running_user: {lowest_running_user}')
+                    log.info(f'lowest_running: {lowest_running}')
 
                 if allocating_users_by_total_cores:
                     lowest_total_user = allocating_users_by_total_cores[0]
                     lowest_total = user_total_cores_mcpu[lowest_total_user]
+                    log.info(f'lowest_total_user: {lowest_total_user}')
+                    log.info(f'lowest_total: {lowest_total}')
 
                 if lowest_total and lowest_total == mark:
+                    log.info(f'have lowest total and it equals the mark')
                     allocating_users_by_total_cores.remove(lowest_total_user)
                 elif lowest_running and lowest_running == mark:
+                    log.info(f'have lowest running and it equals the mark; add it to allocating users')
                     pending_users_by_running_cores.remove(lowest_running_user)
                     allocating_users_by_total_cores.add(lowest_running_user)
+                    log.info(allocating_users_by_total_cores)
                 else:
                     break
 
-            if lowest_running:
+            log.info(pending_users_by_running_cores)
+            log.info(allocating_users_by_total_cores)
+
+            if lowest_running and lowest_total:
                 allocation = min(lowest_running, lowest_total)
+                log.info(f'allocation = {allocation}; min(running, totla)')
             elif lowest_running:
                 allocation = lowest_running
+                log.info(f'allocation = {allocation}, lowest_running')
             elif lowest_total:
                 allocation = lowest_total
+                log.info(f'allocation = {allocation}, lowest_total')
             else:
+                log.info(f'not lowest running or lowest total. exiting')
                 break
 
             n_allocating_users = len(allocating_users_by_total_cores)
             cores_to_allocate = n_allocating_users * (allocation - mark)
+            log.info(f'cores to allocate: {cores_to_allocate}')
 
             if cores_to_allocate > free_cores_mcpu:
                 mark += free_cores_mcpu / n_allocating_users
+                log.info(f'mark = {mark}; ran out of free cores')
                 break
 
             mark = allocation
+            log.info(f'mark = {mark}; still have cores to allocate')
             free_cores_mcpu -= cores_to_allocate
+            log.info(f'free cores = {free_cores_mcpu}')
 
         for user in allocating_users_by_total_cores:
             user_allocated_cores[user] = int(mark - user_running_cores_mcpu[user] + 0.5)
