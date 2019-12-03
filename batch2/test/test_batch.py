@@ -50,7 +50,28 @@ class Test(unittest.TestCase):
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
-        self.assertTrue(j.is_complete())
+    def test_msec_mcpu(self):
+        builder = self.client.create_batch()
+        # two jobs so the batch msec_mcpu computation is non-trivial
+        builder.create_job('ubuntu:18.04', ['echo', 'foo'])
+        builder.create_job('ubuntu:18.04', ['echo', 'bar'])
+        b = builder.submit()
+
+        batch = b.wait()
+        assert batch['state'] == 'success', batch
+
+        batch_msec_mcpu2 = 0
+        for job in batch['jobs']:
+            job_status = job['status']
+
+            # tests run at 100mcpu
+            job_msec_mcpu2 = 100 * max(job_status['end_time'] - job_status['start_time'], 0)
+            # greater than in case there are multiple attempts
+            assert job['msec_mcpu'] >= job_msec_mcpu2, batch
+
+            batch_msec_mcpu2 += job_msec_mcpu2
+
+        assert batch['msec_mcpu'] == batch_msec_mcpu2, batch
 
     def test_attributes(self):
         a = {

@@ -130,6 +130,10 @@ class Tests(unittest.TestCase):
         self.assertTrue('owner' in ls2_dict['f_50'])
         self.assertTrue('modification_time' in ls2_dict['f_50'])
 
+        path3 = resource('ls_test/f*')
+        ls3 = hl.hadoop_ls(path3)
+        assert len(ls3) == 2, ls3
+
     def test_linked_list(self):
         ll = LinkedList(int)
         self.assertEqual(list(ll), [])

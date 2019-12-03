@@ -1,8 +1,8 @@
 import re
-import time
 import logging
 import math
 
+from hailtop.utils import time_msecs
 from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 
 
@@ -88,10 +88,10 @@ class LoggingTimerStep:
         self.start_time = None
 
     async def __aenter__(self):
-        self.start_time = time.time()
+        self.start_time = time_msecs()
 
     async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time.time()
+        finish_time = time_msecs()
         self.timer.timing[self.name] = finish_time - self.start_time
 
 
@@ -105,11 +105,11 @@ class LoggingTimer:
         return LoggingTimerStep(self, name)
 
     async def __aenter__(self):
-        self.start_time = time.time()
+        self.start_time = time_msecs()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time.time()
+        finish_time = time_msecs()
         self.timing['total'] = finish_time - self.start_time
 
         log.info(f'{self.description} timing {self.timing}')

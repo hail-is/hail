@@ -4,17 +4,15 @@ import logging
 import json
 import asyncio
 import aiohttp
-import time
 from aiohttp import web
 import aiohttp_session
-import humanize
 import cerberus
 import prometheus_client as pc
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
@@ -69,25 +67,96 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
-async def _get_batch_jobs(app, batch_id, user):
-    db = app['db']
+async def _query_batch_jobs(request, batch_id):
+    state_query_values = {
+        'pending': ['Pending'],
+        'ready': ['Ready'],
+        'running': ['Running'],
+        'live': ['Ready', 'Running'],
+        'cancelled': ['Cancelled'],
+        'error': ['Error'],
+        'failed': ['Failed'],
+        'bad': ['Error', 'Failed'],
+        'success': ['Success'],
+        'done': ['Cancelled', 'Error', 'Failed', 'Success']
+    }
 
-    record = await db.execute_and_fetchone(
-        '''
-SELECT id FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
-''', (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
+    db = request.app['db']
 
-    jobs = [
-        job_record_to_dict(record)
-        async for record
-        in db.execute_and_fetchall(
-            'SELECT * FROM jobs WHERE batch_id = %s',
-            (batch_id,))
+    # batch has already been validated
+    where_conditions = [
+        '(batch_id = %s)'
     ]
-    return sorted(jobs, key=lambda j: j['job_id'])
+    where_args = [batch_id]
+
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+        where_conditions.append('(jobs.job_id > %s)')
+        where_args.append(last_job_id)
+
+    q = request.query.get('q', '')
+    terms = q.split()
+    for t in terms:
+        if t[0] == '!':
+            negate = True
+            t = t[1:]
+        else:
+            negate = False
+
+        if '=' in t:
+            k, v = t.split('=', 1)
+            condition = '''
+(EXISTS (SELECT * FROM `job_attributes`
+         WHERE `job_attributes`.batch_id = jobs.batch_id AND
+           `job_attributes`.job_id = jobs.job_id AND
+           `job_attributes`.`key` = %s AND
+           `job_attributes`.`value` = %s))
+'''
+            args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+(EXISTS (SELECT * FROM `job_attributes`
+         WHERE `job_attributes`.batch_id = jobs.batch_id AND
+           `job_attributes`.job_id = jobs.job_id AND
+           `job_attributes`.`key` = %s))
+'''
+            args = [k]
+        elif t in state_query_values:
+            values = state_query_values[t]
+            condition = ' OR '.join([
+                '(jobs.state = %s)' for v in values])
+            condition = f'({condition})'
+            args = values
+        else:
+            session = await aiohttp_session.get_session(request)
+            set_message(session, f'Invalid search term: {t}.', 'error')
+            return ([], None)
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        where_conditions.append(condition)
+        where_args.extend(args)
+
+    sql = f'''
+SELECT * FROM jobs
+WHERE {' AND '.join(where_conditions)}
+LIMIT 50;
+'''
+    sql_args = where_args
+
+    jobs = [job_record_to_dict(job)
+            async for job
+            in db.execute_and_fetchall(sql, sql_args)]
+
+    if len(jobs) == 50:
+        last_job_id = jobs[-1]['job_id']
+    else:
+        last_job_id = None
+
+    return (jobs, last_job_id)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
@@ -96,7 +165,23 @@ WHERE user = %s AND id = %s AND NOT deleted;
 async def get_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    return web.json_response(await _get_batch_jobs(request.app, batch_id, user))
+
+    db = request.app['db']
+    record = await db.execute_and_fetchone(
+        '''
+SELECT * FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''', (user, batch_id))
+    if not record:
+        raise web.HTTPNotFound()
+
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    resp = {
+        'jobs': jobs
+    }
+    if last_job_id is not None:
+        resp['last_job_id'] = last_job_id
+    return web.json_response(resp)
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
@@ -149,7 +234,7 @@ FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
 LEFT JOIN attempts
-  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id  
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
@@ -383,7 +468,7 @@ async def create_batch(request, userdata):
     async with db.pool.acquire() as conn:
         await conn.begin()
         async with conn.cursor() as cursor:
-            now = time.time()
+            now = time_msecs()
             await cursor.execute(
                 '''
 INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
@@ -487,7 +572,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
 
     try:
-        now = time.time()
+        now = time_msecs()
         await check_call_procedure(
             db, 'CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
@@ -557,13 +642,17 @@ async def ui_batch(request, userdata):
     user = userdata['username']
 
     batch = await _get_batch(app, batch_id, user)
-    jobs = await _get_batch_jobs(app, batch_id, user)
+
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for job in jobs:
         job['exit_code'] = Job.exit_code(job)
-        job['duration'] = humanize.naturaldelta(Job.total_duration(job))
+        job['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(job))
     batch['jobs'] = jobs
+
     page_context = {
-        'batch': batch
+        'batch': batch,
+        'q': request.query.get('q'),
+        'last_job_id': last_job_id
     }
     return await render_template('batch2', request, userdata, 'batch.html', page_context)
 

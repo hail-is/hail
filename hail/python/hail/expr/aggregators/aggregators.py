@@ -4,7 +4,7 @@ from functools import wraps, update_wrapper
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
-from hail.expr.functions import rbind, float32, _quantile_from_cdf
+from hail.expr.functions import rbind, float32, _quantile_from_cdf, pT, pF
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
@@ -1199,7 +1199,7 @@ def call_stats(call, alleles) -> StructExpression:
     return _agg_func('CallStats', [call], t, [], init_op_args=[n_alleles])
 
 _bin_idx_f = None
-_result_from_agg_f = None
+_result_from_hist_agg_f = None
 
 @typecheck(expr=expr_float64, start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:
@@ -1245,7 +1245,7 @@ def hist(expr, start, end, bins) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
-    global _bin_idx_f, _result_from_agg_f
+    global _bin_idx_f, _result_from_hist_agg_f
     if _bin_idx_f is None:
         _bin_idx_f = hl.experimental.define_function(
             lambda s, e, nbins, binsize, v:
@@ -1282,12 +1282,12 @@ def hist(expr, start, end, bins) -> StructExpression:
                                          hl.float64(e - s) / nbins))
                 .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
 
-    if _result_from_agg_f is None:
-        _result_from_agg_f = hl.experimental.define_function(
+    if _result_from_hist_agg_f is None:
+        _result_from_hist_agg_f = hl.experimental.define_function(
             wrap_errors,
             hl.tfloat64, hl.tfloat64, hl.tint32, hl.tdict(hl.tint32, hl.tint64))
 
-    return _result_from_agg_f(start, end, bins, freq_dict)
+    return _result_from_hist_agg_f(start, end, bins, freq_dict)
 
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
@@ -1436,6 +1436,9 @@ def info_score(gp) -> StructExpression:
         )), _ctx=_agg_func.context)
 
 
+_result_from_linreg_agg_f = None
+
+
 @typecheck(y=expr_float64,
            x=oneof(expr_float64, sequenceof(expr_float64)),
            nested_dim=int,
@@ -1547,37 +1550,74 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
 
     hl.methods.statgen._warn_if_no_intercept('linreg', x)
 
-    if weight is None:
-        return _linreg(y, x, nested_dim)
-    else:
-        return _linreg(hl.sqrt(weight) * y,
-                       [hl.sqrt(weight) * xi for xi in x],
-                       nested_dim)
+    if weight is not None:
+        sqrt_weight = hl.sqrt(weight)
+        y = sqrt_weight * y
+        x = [sqrt_weight * xi for xi in x]
 
-
-def _linreg(y, x, nested_dim):
     k = len(x)
-    k0 = nested_dim
-    if k0 < 0 or k0 > k:
-        raise ValueError("linreg: `nested_dim` must be between 0 and the number "
-                         f"of covariates ({k}), inclusive")
-
-    t = hl.tstruct(beta=hl.tarray(hl.tfloat64),
-                   standard_error=hl.tarray(hl.tfloat64),
-                   t_stat=hl.tarray(hl.tfloat64),
-                   p_value=hl.tarray(hl.tfloat64),
-                   multiple_standard_error=hl.tfloat64,
-                   multiple_r_squared=hl.tfloat64,
-                   adjusted_r_squared=hl.tfloat64,
-                   f_stat=hl.tfloat64,
-                   multiple_p_value=hl.tfloat64,
-                   n=hl.tint64)
-
     x = hl.array(x)
-    k = hl.int32(k)
-    k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', [y, x], t, [k, k0])
+    res_type = hl.tstruct(xty=hl.tarray(hl.tfloat64),
+                          beta=hl.tarray(hl.tfloat64),
+                          diag_inv=hl.tarray(hl.tfloat64),
+                          beta0=hl.tarray(hl.tfloat64))
+
+    temp = _agg_func('LinearRegression', [y, x], res_type, [k, hl.int32(nested_dim)])
+
+    k0 = nested_dim
+    covs_defined = hl.all(lambda cov: hl.is_defined(cov), x)
+    tup = hl.agg.filter(covs_defined,
+                        hl.tuple([hl.agg.count_where(hl.is_defined(y)),
+                                 hl.agg.sum(y * y)]))
+    n = tup[0]
+    yty = tup[1]
+
+    def result_from_agg(linreg_res, n, k, k0, yty):
+        xty = linreg_res.xty
+        beta = linreg_res.beta
+        diag_inv = linreg_res.diag_inv
+        beta0 = linreg_res.beta0
+
+        def dot(a, b):
+            return hl.sum(a * b)
+
+        d = n - k
+        rss = yty - dot(xty, beta)
+        rse2 = rss / d  # residual standard error squared
+        se = (rse2 * diag_inv) ** 0.5
+        t = beta / se
+        p = t.map(lambda ti: 2 * hl.pT(-hl.abs(ti), d, True, False))
+        rse = hl.sqrt(rse2)
+
+        d0 = k - k0
+        xty0 = xty[:k0]
+        rss0 = yty - dot(xty0, beta0)
+        r2 = 1 - rss / rss0
+        r2adj = 1 - (1 - r2) * (n - k0) / d
+        f = (rss0 - rss) * d / (rss * d0)
+        p0 = hl.pF(f, d0, d, False, False)
+
+        return hl.struct(
+            beta=beta,
+            standard_error=se,
+            t_stat=t,
+            p_value=p,
+            multiple_standard_error=rse,
+            multiple_r_squared=r2,
+            adjusted_r_squared=r2adj,
+            f_stat=f,
+            multiple_p_value=p0,
+            n=n)
+
+    global _result_from_linreg_agg_f
+    if _result_from_linreg_agg_f is None:
+        _result_from_linreg_agg_f = hl.experimental.define_function(
+            result_from_agg,
+            res_type, hl.tint64, hl.tint32, hl.tint32, hl.tfloat64, _name="linregResFromAgg")
+
+    return _result_from_linreg_agg_f(temp, n, k, k0, yty)
+
 
 @typecheck(x=expr_float64, y=expr_float64)
 def corr(x, y) -> Float64Expression:
