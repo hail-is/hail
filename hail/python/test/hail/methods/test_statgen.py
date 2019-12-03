@@ -1413,6 +1413,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(pruned_table.count(), 1)
 
     @skip_unless_spark_backend()
+    def test_ld_prune_missing_entries(self):
+        mt = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2).add_col_index()
+        mt = mt.filter_entries(mt.col_idx > 1)
+        result = hl.ld_prune(mt.GT)
+        assert result.count() > 0
+
+    @skip_unless_spark_backend()
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
