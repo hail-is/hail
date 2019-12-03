@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
   `time_created` BIGINT NOT NULL,
+  `time_deactivated` BIGINT,
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
   `ip_address` VARCHAR(100),
@@ -145,6 +146,14 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
 
 DELIMITER $$
+
+CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
+FOR EACH ROW
+BEGIN
+  IF OLD.time_deactivated IS NOT NULL AND (NEW.time_deactivated IS NULL OR NEW.time_deactivated > OLD.time_deactivated) THEN
+    SET NEW.time_deactivated = OLD.time_deactivated;
+  END IF;
+END $$
 
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
@@ -274,6 +283,10 @@ BEGIN
   START TRANSACTION;
 
   SELECT state INTO cur_state FROM instances WHERE name = in_instance_name;
+
+  UPDATE instances
+  SET time_deactivated = in_timestamp
+  WHERE name = in_instance_name;
 
   UPDATE attempts
   SET end_time = in_timestamp, reason = in_reason

@@ -121,10 +121,6 @@ SET worker_disk_size_gb = %s,
 
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
-
-        await self.db.just_execute(
-            'DELETE FROM instances WHERE name = %s;', (instance.name,))
-
         self.adjust_for_remove_instance(instance)
         del self.name_instance[instance.name]
 
