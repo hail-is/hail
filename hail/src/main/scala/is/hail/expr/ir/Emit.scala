@@ -1498,7 +1498,6 @@ private class Emit(
 
         val infoResult = mb.newLocal[Int]
 
-
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 

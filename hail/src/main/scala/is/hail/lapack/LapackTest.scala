@@ -49,12 +49,21 @@ object LapackTest {
     println(s"LWORK = $LWORK")
 
 
+    // Note that this is going to expect a column major layout in memory
     def printA(): Unit = {
       println("A")
-      (0 until (M * N)).foreach { idx =>
-        val adjusted = idx * 8
-        print(HailMemory.loadDouble(A + adjusted))
-        if ((idx + 1) % M == 0) println() else print(" ")
+//      (0 until (M * N)).foreach { idx =>
+//        val adjusted = idx * 8
+//        print(HailMemory.loadDouble(A + adjusted))
+//        if ((idx + 1) % M == 0) println() else print(" ")
+//      }
+      (0 until M).foreach { mIdx =>
+        (0 until N).foreach { nIdx =>
+          val adjusted = (mIdx + (nIdx * M)) * 8
+          print(HailMemory.loadDouble(A + adjusted))
+          print(" ")
+        }
+        println()
       }
     }
 
