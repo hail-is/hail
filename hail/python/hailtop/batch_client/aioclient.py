@@ -559,14 +559,23 @@ class BatchClient:
             self._session, 'DELETE',
             self.url + path, headers=self._headers)
 
-    async def list_batches(self, complete=None, success=None, attributes=None):
-        params = filter_params(complete, success, attributes)
-        batches_resp = await self._get('/api/v1alpha/batches', params=params)
-        batches = await batches_resp.json()
-        return [Batch(self,
-                      b['id'],
-                      attributes=b.get('attributes'))
-                for b in batches]
+    async def list_batches(self, q=None):
+        last_batch_id = None
+        while True:
+            params = {}
+            if q is not None:
+                params['q'] = q
+            if last_batch_id is not None:
+                params['last_batch_id'] = last_batch_id
+
+            resp = await self._get('/api/v1alpha/batches', params=params)
+            body = resp.json()
+
+            for batch in body['batches']:
+                yield Batch(self, batch['id'], attributes=batch.get('attributes'))
+            last_batch_id = body['last_batch_id']
+            if last_batch_id is None:
+                break
 
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)

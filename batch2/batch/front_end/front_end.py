@@ -256,57 +256,102 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     return web.json_response(job_log)
 
 
-async def _get_batches(app, params, user):
-    db = app['db']
+async def _query_batches(request, user):
+    db = request.app['db']
 
     where_conditions = ['user = %s', 'NOT deleted']
     where_args = [user]
 
-    complete = params.get('complete')
-    if complete is not None:
-        complete_expr = '(closed AND n_completed = n_jobs)'
-        if complete == '1':
-            where_conditions.append(complete_expr)
-        else:
-            where_conditions.append(f'(NOT {complete_expr})')
-    success = params.get('success')
-    if success is not None:
-        success_expr = '(closed AND n_succeeded = n_jobs)'
-        if success == '1':
-            where_conditions.append(success_expr)
-        else:
-            where_conditions.append(f'(NOT {success_expr})')
+    last_batch_id = request.query.get('last_batch_id')
+    if last_batch_id is not None:
+        last_batch_id = int(last_batch_id)
+        where_conditions.append('(batches.id > %s)')
+        where_args.append(last_batch_id)
 
-    for k, v in params.items():
-        if k in ('complete', 'success'):  # params does not support deletion
-            continue
-        if not k.startswith('a:'):
-            raise web.HTTPBadRequest(reason=f'unknown query parameter {k}')
+    q = request.query.get('q', '')
+    terms = q.split()
+    for t in terms:
+        if t[0] == '!':
+            negate = True
+            t = t[1:]
+        else:
+            negate = False
 
-        where_conditions.append('''
+        if '=' in t:
+            k, v = t.split('=', 1)
+            condition = '''
 (EXISTS (SELECT * FROM `batch_attributes`
          WHERE `batch_attributes`.batch_id = batches.id AND
-           `batch_attributes`.`key` = %s AND `batch_attributes`.`value` = %s))
-''')
-        where_args.append(k[2:])
-        where_args.append(v)
+           `batch_attributes`.`key` = %s AND
+           `batch_attributes`.`value` = %s))
+'''
+            args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+(EXISTS (SELECT * FROM `batch_attributes`
+         WHERE `batch_attributes`.batch_id = batches.batch_id AND
+           `batch_attributes`.`key` = %s))
+'''
+            args = [k]
+        elif t == 'complete':
+            condition = '(closed AND n_jobs = n_completed)'
+            args = []
+        elif t == 'closed':
+            condition = '(closed)'
+            args = []
+        elif t in ('running', 'success', 'cancelled', 'failure'):
+            condition = '(state = %s)'
+            args = [t]
+        else:
+            session = await aiohttp_session.get_session(request)
+            set_message(session, f'Invalid search term: {t}.', 'error')
+            return ([], None)
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        where_conditions.append(condition)
+        where_args.extend(args)
 
     sql = f'''
-SELECT * FROM batches
-WHERE {" AND ".join(where_conditions)};
+SELECT *, state = CASE
+    WHEN NOT closed THEN 'open'
+    WHEN n_failed > 0 THEN 'failure'
+    WHEN n_cancelled > 0 THEN 'cancelled'
+    WHEN n_succeeded == n_jobs THEN 'success'
+    ELSE 'running'
+  END
+FROM batches
+WHERE {' AND '.join(where_conditions)}
+LIMIT 50;
 '''
+    sql_args = where_args
 
-    return [batch_record_to_dict(record)
-            async for record in db.execute_and_fetchall(sql, where_args)]
+    batches = [batch_record_to_dict(batch)
+               async for batch
+               in db.execute_and_fetchall(sql, sql_args)]
+
+    if len(batches) == 50:
+        last_batch_id = batches[-1]['id']
+    else:
+        last_batch_id = None
+
+    return (batches, last_batch_id)
 
 
 @routes.get('/api/v1alpha/batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
 @rest_authenticated_users_only
 async def get_batches(request, userdata):
-    params = request.query
     user = userdata['username']
-    return web.json_response(await _get_batches(request.app, params, user))
+    batches, last_batch_id = await _query_batches(request, user)
+    body = {
+        'batches': batches
+    }
+    if last_batch_id is not None:
+        body['last_batch_id'] = last_batch_id
+    return web.json_response(body)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
@@ -675,11 +720,11 @@ async def ui_cancel_batch(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
 @web_authenticated_users_only()
 async def ui_batches(request, userdata):
-    params = request.query
     user = userdata['username']
-    batches = await _get_batches(request.app, params, user)
+    batches, last_batch_id = await _query_batches(request, user)
     page_context = {
-        'batch_list': batches[::-1]
+        'batch_list': batches[::-1],
+        'last_batch_id': last_batch_id
     }
     return await render_template('batch2', request, userdata, 'batches.html', page_context)
 

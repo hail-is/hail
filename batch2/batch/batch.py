@@ -17,7 +17,9 @@ log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):
-    if record['n_failed'] > 0:
+    if not record['closed']:
+        state = 'open'
+    elif record['n_failed'] > 0:
         state = 'failure'
     elif record['n_cancelled'] > 0:
         state = 'cancelled'
