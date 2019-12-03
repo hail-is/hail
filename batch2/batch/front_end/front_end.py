@@ -92,7 +92,7 @@ async def _query_batch_jobs(request, batch_id):
     last_job_id = request.query.get('last_job_id')
     if last_job_id is not None:
         last_job_id = int(last_job_id)
-        where_conditions.append('(jobs.job_id > %s)')
+        where_conditions.append('(jobs.job_id < %s)')
         where_args.append(last_job_id)
 
     q = request.query.get('q', '')
@@ -266,7 +266,7 @@ async def _query_batches(request, user):
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-        where_conditions.append('(id > %s)')
+        where_conditions.append('(id < %s)')
         where_args.append(last_batch_id)
 
     q = request.query.get('q', '')
