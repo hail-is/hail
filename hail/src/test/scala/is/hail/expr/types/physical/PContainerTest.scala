@@ -45,6 +45,8 @@ class PContainerTest extends HailSuite {
     val sourceType = PArray(PInt64(false))
     val destType = PArray(PInt64(true))
 
+    testConvert(sourceType, destType, nullInByte(0, 0), false)
+
     // 1 byte
     testConvert(sourceType, destType, nullInByte(1, 0), false)
     testConvert(sourceType, destType, nullInByte(1, 1), true)

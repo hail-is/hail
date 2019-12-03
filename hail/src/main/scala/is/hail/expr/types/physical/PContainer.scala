@@ -328,7 +328,6 @@ abstract class PContainer extends PIterable {
             Code(
               sourceType
                 .isElementMissing(sourceOffset, i * const(8) + mod)
-                .cne(const(false))
                 .orEmpty(onFail),
               mod := mod - const(1)
             )
