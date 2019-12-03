@@ -40,7 +40,7 @@
     </thead>
     <tbody>
       {% for instance in instances %}
-      {% if instance.state != 'deleted' %}
+      {% if instance.state != 'removed' %}
       <tr>
         <td>{{ instance.name }}</td>
         <td>{{ instance.state }}</td>

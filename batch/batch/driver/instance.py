@@ -37,7 +37,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self.db = app['db']
         self.instance_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
-        # pending, active, inactive, deleted
+        # pending, active, inactive, deleted, removed
         self._state = state
         self.name = name
         self.cores_mcpu = cores_mcpu
