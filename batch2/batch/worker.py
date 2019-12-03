@@ -24,7 +24,7 @@ from gear import configure_logging
 
 from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
-from .semaphore import WeightedSemaphore
+from .semaphore import WeightedSemaphore, NullWeightedSemaphore
 from .log_store import LogStore
 
 # uvloop.install()
@@ -187,7 +187,7 @@ class Container:
 
         return status
 
-    async def run(self, worker):
+    async def run(self, worker, cpu_sem):
         try:
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
@@ -218,7 +218,7 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with worker.cpu_sem(self.cpu_in_mcpu):
+            async with cpu_sem(self.cpu_in_mcpu):
                 async with self.step('runtime', state=None):
                     if self.name == 'main':
                         asyncio.ensure_future(worker.post_job_started(self.job))
@@ -473,21 +473,21 @@ class Job:
             input = self.containers.get('input')
             if input:
                 log.info(f'{self}: running input')
-                await input.run(worker)
+                await input.run(worker, worker.cpu_null_sem)
                 log.info(f'{self} input: {input.state}')
 
             if not input or input.state == 'succeeded':
                 log.info(f'{self}: running main')
 
                 main = self.containers['main']
-                await main.run(worker)
+                await main.run(worker, worker.cpu_sem)
 
                 log.info(f'{self} main: {main.state}')
 
                 output = self.containers.get('output')
                 if output:
                     log.info(f'{self}: running output')
-                    await output.run(worker)
+                    await output.run(worker, worker.cpu_null_sem)
                     log.info(f'{self} output: {output.state}')
 
                 if main.state != 'succeeded':
@@ -574,6 +574,7 @@ class Worker:
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time_msecs()
         self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
+        self.cpu_null_sem = NullWeightedSemaphore()
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
 
