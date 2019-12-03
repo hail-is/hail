@@ -37,7 +37,7 @@ object LapackTest {
     val N = 3
     val K = Math.min(M, N)
     val LDA = M
-    val LWORK = 1000
+    val LWORK = 100
     val A = HailMemory.malloc(8 * M * N)
     val WORK = HailMemory.malloc(LWORK * 8)
     val TAU = HailMemory.malloc(K * 8)
@@ -52,19 +52,20 @@ object LapackTest {
     // Note that this is going to expect a column major layout in memory
     def printA(): Unit = {
       println("A")
-//      (0 until (M * N)).foreach { idx =>
-//        val adjusted = idx * 8
-//        print(HailMemory.loadDouble(A + adjusted))
-//        if ((idx + 1) % M == 0) println() else print(" ")
-//      }
-      (0 until M).foreach { mIdx =>
-        (0 until N).foreach { nIdx =>
-          val adjusted = (mIdx + (nIdx * M)) * 8
-          print(HailMemory.loadDouble(A + adjusted))
-          print(" ")
-        }
-        println()
+      (0 until (M * N)).foreach { idx =>
+        val adjusted = idx * 8
+        print(HailMemory.loadDouble(A + adjusted))
+        print(" ")
       }
+//      (0 until M).foreach { mIdx =>
+//        (0 until N).foreach { nIdx =>
+//          val adjusted = (mIdx + (nIdx * M)) * 8
+//          print(HailMemory.loadDouble(A + adjusted))
+//          print(" ")
+//        }
+//
+//      }
+      println()
     }
 
     def printWork(): Unit = {
