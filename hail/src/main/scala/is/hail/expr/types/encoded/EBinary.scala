@@ -34,7 +34,7 @@ class EBinary(override val required: Boolean) extends EType {
       len := in.readInt(),
       barray := PBinary.allocate(region, len),
       PBinary.storeLength(barray, len),
-      in.readBytes(region, barray + const(4), len),
+      in.readBytes(region, PBinary.bytesOffset(barray), len),
       barray.load())
   }
 
