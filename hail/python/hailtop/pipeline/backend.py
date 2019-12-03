@@ -334,8 +334,6 @@ class BatchBackend(Backend):
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
-        # FIXME
-        return
         status = batch.wait()
 
         if status['state'] == 'success':
