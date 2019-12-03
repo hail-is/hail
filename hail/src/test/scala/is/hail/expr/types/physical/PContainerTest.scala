@@ -202,27 +202,27 @@ class PContainerTest extends HailSuite {
     assert(speedup > 0)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 1), 100)
-    println(s"Median speedup for first element missing: $speedup")
+    println(s"Median speedup for element 1 missing: $speedup")
     assert(speedup > 0)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 0), 100)
-    println(s"Median speedup for no element missing: $speedup")
+    println(s"Median speedup for no elements missing: $speedup")
     assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 80000), 100)
-    println(s"Median speedup for 80,000 element missing: $speedup")
+    println(s"Median speedup for element 80,000 missing: $speedup")
     assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 100000), 100)
-    println(s"Median speedup for middle element missing: $speedup")
+    println(s"Median speedup for element 100,000 missing: $speedup")
     assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200000, 120000), 100)
-    println(s"Median speedup for 120,000 missing: $speedup")
+    println(s"Median speedup for element 120,000 missing: $speedup")
     assert(speedup > 1)
 
     speedup = compare(sourceType, destType, nullInByte(200003, 200000), 100)
-    println(s"Median speedup for odd bits: $speedup")
+    println(s"Median speedup for non-power 2 array, element 200,000 missing: $speedup")
     assert(speedup > 1)
   }
 }
