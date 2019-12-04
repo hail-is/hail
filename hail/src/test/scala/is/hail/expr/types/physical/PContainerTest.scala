@@ -76,6 +76,8 @@ class PContainerTest extends HailSuite {
     testConvert(sourceType, destType, nullInByte(67, 64), true)
 
     // 1 Long + 1 byte + remainder
+    testConvert(sourceType, destType, nullInByte(79, 0), false)
+    testConvert(sourceType, destType, nullInByte(79, 72), true)
     testConvert(sourceType, destType, nullInByte(79, 8), true)
   }
 }
