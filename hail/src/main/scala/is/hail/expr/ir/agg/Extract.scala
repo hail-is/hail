@@ -22,8 +22,39 @@ object TableMapIRNew {
     val extracted = Extract.apply(CompileWithAggregators.liftScan(newRow), scanRef)
     val nAggs = extracted.nAggs
 
-    if (extracted.aggs.isEmpty)
-      throw new UnsupportedExtraction("no scans to extract in TableMapRows")
+    if (extracted.aggs.isEmpty) {
+      val (rTyp, f) = ir.Compile[Long, Long, Long](
+        ctx,
+        "global", tv.globals.t,
+        "row", tv.rvd.rowPType,
+        extracted.postAggIR)
+
+      val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
+      val globalsBc =
+        if (rowIterationNeedsGlobals)
+          tv.globals.broadcast
+        else
+          null
+
+      val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+        val globalRegion = ctx.freshRegion
+        val globals = if (rowIterationNeedsGlobals)
+          globalsBc.value.readRegionValue(globalRegion)
+        else
+          0
+
+        val rv2 = RegionValue()
+        val newRow = f(i, globalRegion)
+        it.map { rv =>
+          rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false))
+          rv2
+        }
+      }
+
+      return tv.copy(
+        typ = typ.copy(rowType = newRow.typ.asInstanceOf[TStruct]),
+        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
+    }
 
     val scanInitNeedsGlobals = Mentions(extracted.init, "global")
     val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, "global")
@@ -433,10 +464,8 @@ object Extract {
               ArrayRef(rUID, Ref(indexName, TInt32())),
               transformed)))
 
-      case x: ArrayAgg =>
-        throw new UnsupportedExtraction("array agg")
-      case x: ArrayAggScan =>
-        throw new UnsupportedExtraction("array scan")
+      case x: ArrayAgg => x
+      case x: ArrayAggScan => x
       case _ => MapIR(extract)(ir)
     }
   }

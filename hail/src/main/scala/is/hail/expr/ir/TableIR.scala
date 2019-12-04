@@ -994,144 +994,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
-    if (HailContext.getFlag("newaggs") != null) {
-      try {
-        return agg.TableMapIRNew(ctx, tv, newRow)
-      } catch {
-        case e: agg.UnsupportedExtraction =>
-          log.info(s"couldn't lower TableMapRows: $e")
-      }
-    }
-
-    val gType = tv.globals.t
-
-    var scanInitNeedsGlobals = false
-    var scanSeqNeedsGlobals = false
-    var rowIterationNeedsGlobals = false
-
-    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
-      ctx,
-      "global", gType,
-      "global", gType,
-      "row", tv.rvd.rowPType,
-      CompileWithAggregators.liftScan(newRow), "SCANR", { (nAggs: Int, initOp: IR) =>
-        scanInitNeedsGlobals |= Mentions(initOp, "global")
-        initOp
-      }, { (nAggs: Int, seqOp: IR) =>
-        scanSeqNeedsGlobals |= Mentions(seqOp, "global")
-        seqOp
-      })
-
-    val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
-      ctx,
-      "global", tv.globals.t,
-      "row", tv.rvd.rowPType,
-      "SCANR", scanResultType,
-      postScanIR)
-    assert(rTyp.virtualType == typ.rowType)
-
-    rowIterationNeedsGlobals |= Mentions(postScanIR, "global")
-
-    val globalsBc =
-      if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
-        tv.globals.broadcast
-      else
-        null
-
-    if (scanAggs.nonEmpty) {
-      scanInitOps(0, ctx.r)(ctx.r, scanAggs, tv.globals.value.offset, false)
-
-      val scannedAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-        val partRegion = ctx.freshRegion
-        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(partRegion) else 0L
-
-        val scanSeqOpF = scanSeqOps(i, partRegion)
-        it.foreach { rv =>
-          scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
-          ctx.region.clear()
-        }
-        Iterator.single(scanAggs)
-      }, HailContext.get.flags.get("max_leader_scans").toInt).scanLeft(scanAggs) { (a1, a2) =>
-        (a1, a2).zipped.map { (agg1, agg2) =>
-          val newAgg = agg1.copy()
-          newAgg.combOp(agg2)
-          newAgg
-        }
-      }
-
-      val scanAggCount = tv.rvd.getNumPartitions
-      val partitionIndices = new Array[Long](scanAggCount)
-      val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
-      HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
-        scannedAggs.zipWithIndex.foreach { case (x, i) =>
-          if (i < scanAggCount) {
-            partitionIndices(i) = os.getPos
-            // https://github.com/hail-is/hail/pull/6345#issuecomment-503757307
-            val oos = new ObjectOutputStream(os)
-            oos.writeObject(x)
-            oos.flush()
-          }
-        }
-      }
-
-      val bcFS = HailContext.get.bcFS
-      val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
-        val partitionAggs = bcFS.value.readFileNoCompression(scanAggsPerPartitionFile) { is =>
-          is.seek(filePosition)
-          using(new ObjectInputStream(is))(
-            _.readObject().asInstanceOf[Array[RegionValueAggregator]])
-        }
-        val rvb = new RegionValueBuilder()
-        val globalRegion = ctx.freshRegion
-        val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion)
-        else
-          0
-
-        val rv2 = RegionValue()
-        val newRow = f(i, globalRegion)
-        val scanSeqOpF = scanSeqOps(i, globalRegion)
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(scanResultType)
-          rvb.startTuple()
-          var j = 0
-          while (j < partitionAggs.length) {
-            partitionAggs(j).result(rvb)
-            j += 1
-          }
-          rvb.endTuple()
-          val scanOffset = rvb.end()
-
-          rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false, scanOffset, false))
-          scanSeqOpF(rv.region, partitionAggs, globals, false, rv.offset, false)
-          rv2
-        }
-      }
-
-      tv.copy(
-        typ = typ,
-        rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
-    } else {
-      val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
-        val globalRegion = ctx.freshRegion
-        val globals = if (rowIterationNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion)
-        else
-          0
-
-        val rv2 = RegionValue()
-        val newRow = f(i, globalRegion)
-        it.map { rv =>
-          rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false, 0, false))
-          rv2
-        }
-      }
-
-      tv.copy(
-        typ = typ,
-        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
-    }
+    agg.TableMapIRNew(ctx, tv, newRow)
   }
 }
 
@@ -1370,159 +1233,48 @@ case class TableKeyByAndAggregate(
     )
 
     val globalsBc = prev.globals.broadcast
-    val localBufferSize = bufferSize
 
-    if (HailContext.getFlag("newaggs") != null) {
-      try {
-        val spec = BufferSpec.defaultUncompressed
-        val res = genUID()
-        val extracted = agg.Extract(expr, res)
+    val spec = BufferSpec.defaultUncompressed
+    val res = genUID()
+    val extracted = agg.Extract(expr, res)
 
-        val (_, makeInit) = ir.CompileWithAggregators2[Long, Unit](ctx,
-          extracted.aggs,
-          "global", prev.globals.t,
-          extracted.init)
-
-        val (_, makeSeq) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
-          extracted.aggs,
-          "global", prev.globals.t,
-          "row", prev.rvd.rowPType,
-          extracted.seqPerElt)
-
-        val (rTyp: PStruct, makeAnnotate) = ir.CompileWithAggregators2[Long, Long](ctx,
-          extracted.aggs,
-          "global", prev.globals.t,
-          Let(res, extracted.results, extracted.postAggIR))
-        assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
-
-        val serialize = extracted.serialize(ctx, spec)
-        val deserialize = extracted.deserialize(ctx, spec)
-        val combOp = extracted.combOpF(ctx, spec)
-
-        val initF = makeInit(0, ctx.r)
-        val globalsOffset = prev.globals.value.offset
-        val initAggs = Region.scoped { aggRegion =>
-          initF.newAggState(aggRegion)
-          initF(ctx.r, globalsOffset, false)
-          serialize(aggRegion, initF.getAggOffset())
-        }
-
-        val newRowType = localKeyPType ++ rTyp
-
-        val localBufferSize = bufferSize
-        val rdd = prev.rvd
-          .boundary
-          .mapPartitionsWithIndex { (i, ctx, it) =>
-            val partRegion = ctx.freshRegion
-            val globals = globalsBc.value.readRegionValue(partRegion)
-            val makeKey = {
-              val f = makeKeyF(i, partRegion)
-              rv: RegionValue => {
-                val keyOff = f(rv.region, rv.offset, false, globals, false)
-                SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
-              }
-            }
-            val makeAgg = { () =>
-              val aggRegion = ctx.freshRegion
-              RegionValue(aggRegion, deserialize(aggRegion, initAggs))
-            }
-
-            val seqOp = {
-              val f = makeSeq(i, partRegion)
-              (rv: RegionValue, agg: RegionValue) => {
-                f.setAggState(agg.region, agg.offset)
-                f(rv.region, globals, false, rv.offset, false)
-                agg.setOffset(f.getAggOffset())
-              }
-            }
-            val serializeAndCleanupAggs = { rv: RegionValue =>
-              val a = serialize(rv.region, rv.offset)
-              rv.region.close()
-              a
-            }
-
-            new BufferedAggregatorIterator[RegionValue, RegionValue, Array[Byte], Row](
-              it,
-              makeAgg,
-              makeKey,
-              seqOp,
-              serializeAndCleanupAggs,
-              localBufferSize)
-          }.aggregateByKey(initAggs, nPartitions.getOrElse(prev.rvd.getNumPartitions))(combOp, combOp)
-
-        val crdd = ContextRDD.weaken(rdd).cmapPartitionsWithIndex(
-          { (i, ctx, it) =>
-            val region = ctx.region
-
-            val rvb = new RegionValueBuilder()
-            val partRegion = ctx.freshRegion
-            val globals = globalsBc.value.readRegionValue(partRegion)
-            val annotate = makeAnnotate(i, partRegion)
-
-            val rv = RegionValue(region)
-            it.map { case (key, aggs) =>
-              rvb.set(region)
-              rvb.start(newRowType)
-              rvb.startStruct()
-              var i = 0
-              while (i < localKeyType.size) {
-                rvb.addAnnotation(localKeyType.types(i), key.get(i))
-                i += 1
-              }
-
-              val aggOff = deserialize(rv.region, aggs)
-              annotate.setAggState(rv.region, aggOff)
-              rvb.addAllFields(rTyp, region, annotate(region, globals, false))
-              rvb.endStruct()
-              rv.setOffset(rvb.end())
-              rv
-            }
-          })
-
-        return prev.copy(
-          typ = typ,
-          rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd, ctx))
-      } catch {
-        case e: agg.UnsupportedExtraction =>
-          log.info(s"couldn't lower TableKeyByAndAggregate: $e")
-      }
-    }
-
-    val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](ctx,
+    val (_, makeInit) = ir.CompileWithAggregators2[Long, Unit](ctx,
+      extracted.aggs,
       "global", prev.globals.t,
+      extracted.init)
+
+    val (_, makeSeq) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
+      extracted.aggs,
       "global", prev.globals.t,
       "row", prev.rvd.rowPType,
-      expr, "AGGR",
-      (nAggs, initializeIR) => initializeIR,
-      (nAggs, sequenceIR) => sequenceIR)
+      extracted.seqPerElt)
 
-    val (rTyp: PStruct, makeAnnotate) = ir.Compile[Long, Long, Long](ctx,
-      "AGGR", aggResultType,
+    val (rTyp: PStruct, makeAnnotate) = ir.CompileWithAggregators2[Long, Long](ctx,
+      extracted.aggs,
       "global", prev.globals.t,
-      postAggIR)
+      Let(res, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
-    val init = makeInit(0, ctx.r)
-    val globalsOffset = prev.globals.value.offset
-    init(ctx.r, rvAggs, globalsOffset, false)
+    val serialize = extracted.serialize(ctx, spec)
+    val deserialize = extracted.deserialize(ctx, spec)
+    val combOp = extracted.combOpF(ctx, spec)
 
-    val nAggs = rvAggs.length
-    val newRowType = localKeyPType ++ rTyp
-    val combOp = { (aggs1: Array[RegionValueAggregator], aggs2: Array[RegionValueAggregator]) =>
-      var i = 0
-      while (i < aggs2.length) {
-        aggs1(i).combOp(aggs2(i))
-        i += 1
-      }
-      aggs1
+    val initF = makeInit(0, ctx.r)
+    val globalsOffset = prev.globals.value.offset
+    val initAggs = Region.scoped { aggRegion =>
+      initF.newAggState(aggRegion)
+      initF(ctx.r, globalsOffset, false)
+      serialize(aggRegion, initF.getAggOffset())
     }
 
+    val newRowType = localKeyPType ++ rTyp
+
+    val localBufferSize = bufferSize
     val rdd = prev.rvd
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
         val partRegion = ctx.freshRegion
         val globals = globalsBc.value.readRegionValue(partRegion)
-
         val makeKey = {
           val f = makeKeyF(i, partRegion)
           rv: RegionValue => {
@@ -1530,20 +1282,33 @@ case class TableKeyByAndAggregate(
             SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
           }
         }
-        val sequence = {
+        val makeAgg = { () =>
+          val aggRegion = ctx.freshRegion
+          RegionValue(aggRegion, deserialize(aggRegion, initAggs))
+        }
+
+        val seqOp = {
           val f = makeSeq(i, partRegion)
-          (rv: RegionValue, rvAggs: Array[RegionValueAggregator]) => {
-            f(rv.region, rvAggs, globals, false, rv.offset, false)
+          (rv: RegionValue, agg: RegionValue) => {
+            f.setAggState(agg.region, agg.offset)
+            f(rv.region, globals, false, rv.offset, false)
+            agg.setOffset(f.getAggOffset())
           }
         }
-        new BufferedAggregatorIterator[RegionValue, Array[RegionValueAggregator], Array[RegionValueAggregator], Row](
+        val serializeAndCleanupAggs = { rv: RegionValue =>
+          val a = serialize(rv.region, rv.offset)
+          rv.region.close()
+          a
+        }
+
+        new BufferedAggregatorIterator[RegionValue, RegionValue, Array[Byte], Row](
           it,
-          () => rvAggs.map(_.copy()),
+          makeAgg,
           makeKey,
-          sequence,
-          aggs => aggs,
+          seqOp,
+          serializeAndCleanupAggs,
           localBufferSize)
-      }.aggregateByKey(rvAggs, nPartitions.getOrElse(prev.rvd.getNumPartitions))(combOp, combOp)
+      }.aggregateByKey(initAggs, nPartitions.getOrElse(prev.rvd.getNumPartitions))(combOp, combOp)
 
     val crdd = ContextRDD.weaken(rdd).cmapPartitionsWithIndex(
       { (i, ctx, it) =>
@@ -1556,18 +1321,7 @@ case class TableKeyByAndAggregate(
 
         val rv = RegionValue(region)
         it.map { case (key, aggs) =>
-
           rvb.set(region)
-          rvb.start(aggResultType)
-          rvb.startTuple()
-          var j = 0
-          while (j < nAggs) {
-            aggs(j).result(rvb)
-            j += 1
-          }
-          rvb.endTuple()
-          val aggResultOff = rvb.end()
-
           rvb.start(newRowType)
           rvb.startStruct()
           var i = 0
@@ -1576,12 +1330,9 @@ case class TableKeyByAndAggregate(
             i += 1
           }
 
-          val newValueOff = annotate(region,
-            aggResultOff, false,
-            globals, false)
-
-          rvb.addAllFields(rTyp, region, newValueOff)
-
+          val aggOff = deserialize(rv.region, aggs)
+          annotate.setAggState(rv.region, aggOff)
+          rvb.addAllFields(rTyp, region, annotate(region, globals, false))
           rvb.endStruct()
           rv.setOffset(rvb.end())
           rv
@@ -1616,128 +1367,33 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
 
-    if (HailContext.getFlag("newaggs") != null) {
-      try {
-        val res = genUID()
-        val extracted = agg.Extract(expr, res)
+    val res = genUID()
+    val extracted = agg.Extract(expr, res)
 
-        val (_, makeInit) = ir.CompileWithAggregators2[Long, Unit](ctx,
-          extracted.aggs,
-          "global", prev.globals.t,
-          extracted.init)
-
-        val (_, makeSeq) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
-          extracted.aggs,
-          "global", prev.globals.t,
-          "row", prev.rvd.rowPType,
-          extracted.seqPerElt)
-
-        val valueIR = Let(res, extracted.results, extracted.postAggIR)
-        val keyType = PType.canonical(prev.typ.keyType).asInstanceOf[PStruct]
-        val key = Ref(genUID(), keyType.virtualType)
-        val value = Ref(genUID(), valueIR.typ)
-        val (rowType: PStruct, makeRow) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
-          extracted.aggs,
-          "global", prev.globals.t,
-          key.name, keyType,
-          Let(value.name, valueIR,
-            InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
-        assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
-
-        val localChildRowType = prevRVD.rowPType
-        val keyIndices = prev.typ.keyFieldIdx
-        val keyOrd = prevRVD.typ.kRowOrd
-        val globalsBc = prev.globals.broadcast
-
-        val newRVDType = prevRVD.typ.copy(rowType = rowType)
-
-        val newRVD = prevRVD
-          .repartition(prevRVD.partitioner.strictify, ctx)
-          .boundary
-          .mapPartitionsWithIndex(newRVDType, { (i, ctx, it) =>
-            val partRegion = ctx.freshRegion
-
-            val globalsOff = globalsBc.value.readRegionValue(partRegion)
-
-            val initialize = makeInit(i, partRegion)
-            val sequence = makeSeq(i, partRegion)
-            val newRowF = makeRow(i, partRegion)
-
-            val aggRegion = ctx.freshRegion
-
-            new Iterator[RegionValue] {
-              var isEnd = false
-              var current: RegionValue = _
-              val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion)
-              val consumerRegion: Region = ctx.region
-              val newRV = RegionValue(consumerRegion)
-
-              def hasNext: Boolean = {
-                if (isEnd || (current == null && !it.hasNext)) {
-                  isEnd = true
-                  return false
-                }
-                if (current == null)
-                  current = it.next()
-                true
-              }
-
-              def next(): RegionValue = {
-                if (!hasNext)
-                  throw new java.util.NoSuchElementException()
-
-                rowKey.setSelect(localChildRowType, keyIndices, current)
-                val region = current.region
-
-                aggRegion.clear()
-                initialize.newAggState(aggRegion)
-                initialize(region, globalsOff, false)
-                sequence.setAggState(aggRegion, initialize.getAggOffset())
-
-                do {
-                  val region = current.region
-                  sequence(region,
-                    globalsOff, false,
-                    current.offset, false)
-                  current = null
-                } while (hasNext && keyOrd.equiv(rowKey.value, current))
-                newRowF.setAggState(aggRegion, sequence.getAggOffset())
-                newRV.setOffset(newRowF(consumerRegion, globalsOff, false, rowKey.offset, false))
-                newRV
-              }
-            }
-          })
-
-        return prev.copy(rvd = newRVD, typ = typ)
-
-      } catch {
-        case e: agg.UnsupportedExtraction =>
-          log.info(s"couldn't lower TableAggregate: $e")
-      }
-    }
-
-    val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](ctx,
+    val (_, makeInit) = ir.CompileWithAggregators2[Long, Unit](ctx,
+      extracted.aggs,
       "global", prev.globals.t,
+      extracted.init)
+
+    val (_, makeSeq) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
+      extracted.aggs,
       "global", prev.globals.t,
-      "row", prevRVD.rowPType,
-      expr, "AGGR",
-      (nAggs, initializeIR) => initializeIR,
-      (nAggs, sequenceIR) => sequenceIR)
+      "row", prev.rvd.rowPType,
+      extracted.seqPerElt)
 
-    val (rTyp: PStruct, makeAnnotate) = ir.Compile[Long, Long, Long](ctx,
-      "global", prev.globals.t,
-      "AGGR", aggResultType,
-      postAggIR)
-
-    val nAggs = rvAggs.length
-
-    assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
-
-    val localChildRowType = prevRVD.rowPType
+    val valueIR = Let(res, extracted.results, extracted.postAggIR)
     val keyType = PType.canonical(prev.typ.keyType).asInstanceOf[PStruct]
-    val rowType = keyType ++ rTyp
+    val key = Ref(genUID(), keyType.virtualType)
+    val value = Ref(genUID(), valueIR.typ)
+    val (rowType: PStruct, makeRow) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
+      extracted.aggs,
+      "global", prev.globals.t,
+      key.name, keyType,
+      Let(value.name, valueIR,
+        InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
     assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
 
+    val localChildRowType = prevRVD.rowPType
     val keyIndices = prev.typ.keyFieldIdx
     val keyOrd = prevRVD.typ.kRowOrd
     val globalsBc = prev.globals.broadcast
@@ -1748,14 +1404,15 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       .repartition(prevRVD.partitioner.strictify, ctx)
       .boundary
       .mapPartitionsWithIndex(newRVDType, { (i, ctx, it) =>
-        val rvb = new RegionValueBuilder()
         val partRegion = ctx.freshRegion
 
-        val partGlobalsOff = globalsBc.value.readRegionValue(partRegion)
+        val globalsOff = globalsBc.value.readRegionValue(partRegion)
 
         val initialize = makeInit(i, partRegion)
         val sequence = makeSeq(i, partRegion)
-        val annotate = makeAnnotate(i, partRegion)
+        val newRowF = makeRow(i, partRegion)
+
+        val aggRegion = ctx.freshRegion
 
         new Iterator[RegionValue] {
           var isEnd = false
@@ -1779,50 +1436,22 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
               throw new java.util.NoSuchElementException()
 
             rowKey.setSelect(localChildRowType, keyIndices, current)
-
-            rvAggs.foreach(_.clear())
-
             val region = current.region
 
-            initialize(region, rvAggs, partGlobalsOff, false)
+            aggRegion.clear()
+            initialize.newAggState(aggRegion)
+            initialize(region, globalsOff, false)
+            sequence.setAggState(aggRegion, initialize.getAggOffset())
 
             do {
               val region = current.region
-
-              sequence(region, rvAggs,
-                partGlobalsOff, false,
+              sequence(region,
+                globalsOff, false,
                 current.offset, false)
               current = null
             } while (hasNext && keyOrd.equiv(rowKey.value, current))
-
-            rvb.set(consumerRegion)
-
-            rvb.start(aggResultType)
-            rvb.startTuple()
-            var j = 0
-            while (j < nAggs) {
-              rvAggs(j).result(rvb)
-              j += 1
-            }
-            rvb.endTuple()
-            val aggResultOff = rvb.end()
-
-            rvb.start(rowType)
-            rvb.startStruct()
-            var i = 0
-            while (i < keyType.size) {
-              rvb.addField(keyType, rowKey.value, i)
-              i += 1
-            }
-
-            val newValueOff = annotate(consumerRegion,
-              partGlobalsOff, false,
-              aggResultOff, false)
-
-            rvb.addAllFields(rTyp, consumerRegion, newValueOff)
-
-            rvb.endStruct()
-            newRV.setOffset(rvb.end())
+            newRowF.setAggState(aggRegion, sequence.getAggOffset())
+            newRV.setOffset(newRowF(consumerRegion, globalsOff, false, rowKey.offset, false))
             newRV
           }
         }
@@ -1861,7 +1490,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
     val physicalKey = prev.rvd.typ.key
     if (TableOrderBy.isAlreadyOrdered(sortFields, physicalKey))
-      return prev
+      return prev.copy(typ = typ)
 
     val rowType = child.typ.rowType
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
