@@ -713,18 +713,6 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def downsample() {
-    runAggregator(Downsample(),
-      TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())),
-      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5500.0, 5500.0, FastIndexedSeq("5500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")),
-        Row(9200.0, 9200.0, FastIndexedSeq("9200")), Row(9400.0, 9400.0, FastIndexedSeq("9400")), Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
-      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")), Row(9400.0, 9400.0, FastIndexedSeq("9400")),
-        Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
-      FastIndexedSeq(10),
-      None,
-      seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
-  }
-
   @Test def downsampleWhenEmpty(): Unit = {
     runAggregator(Downsample(),
       TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())),
