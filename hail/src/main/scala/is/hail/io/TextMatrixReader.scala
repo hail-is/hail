@@ -44,7 +44,7 @@ object TextMatrixReader {
     hasHeader: Boolean
   ): HeaderInfo = {
     val maybeFirstTwoLines = fs.readFile(file) { s =>
-      Source.fromInputStream(s).getLines().take(2).toSeq }
+      Source.fromInputStream(s).getLines().take(2).toArray.toSeq }
 
     (hasHeader, maybeFirstTwoLines) match {
       case (true, Seq()) =>

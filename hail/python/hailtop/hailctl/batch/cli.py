@@ -90,7 +90,8 @@ def main(args):
 
     args, pass_through_args = parser().parse_known_args(args=args)
 
-    client = BatchClient()
+    # hailctl batch doesn't create batches
+    client = BatchClient(None)
 
     try:
         jmp[args.module].main(args, pass_through_args, client)

@@ -191,7 +191,7 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
                 pass
             else:
                 raise
-        delay = sleep_and_backoff(delay)
+        delay = await sleep_and_backoff(delay)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):

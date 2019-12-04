@@ -8,6 +8,19 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
+
+CREATE TABLE IF NOT EXISTS `billing_projects` (
+  `name` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`name`)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `billing_project_users` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`billing_project`, `user`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
   `state` VARCHAR(40) NOT NULL,
@@ -22,10 +35,21 @@ CREATE TABLE IF NOT EXISTS `instances` (
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `user_resources` (
+  `user` VARCHAR(100) NOT NULL,
+  `n_ready_jobs` INT NOT NULL DEFAULT 0,
+  `n_running_jobs` INT NOT NULL DEFAULT 0,
+  `ready_cores_mcpu` INT NOT NULL DEFAULT 0,
+  `running_cores_mcpu` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user`)
+) ENGINE = InnoDB;
+CREATE INDEX `user_resources_ready_cores_mcpu` ON `user_resources` (`user`);
+
 CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` VARCHAR(65535) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
+  `billing_project` VARCHAR(100) NOT NULL,
   `attributes` VARCHAR(65535),
   `callback` VARCHAR(65535),
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -39,7 +63,9 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`user`) REFERENCES user_resources(user) ON DELETE CASCADE,
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_user` ON `batches` (`user`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
@@ -155,6 +181,60 @@ BEGIN
   UPDATE jobs
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+END $$
+
+CREATE TRIGGER jobs_after_insert AFTER INSERT ON jobs
+FOR EACH ROW
+BEGIN
+  DECLARE in_user VARCHAR(100);
+
+  SELECT user INTO in_user from batches
+  WHERE id = NEW.batch_id;
+
+  IF NEW.state = 'Ready' THEN
+    UPDATE user_resources
+    SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
+    WHERE user = in_user;
+  END IF;
+
+  IF NEW.state = 'Running' THEN
+    UPDATE user_resources
+    SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
+    WHERE user = in_user;
+  END IF;  
+END $$
+
+CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+  DECLARE in_user VARCHAR(100);
+
+  SELECT user INTO in_user from batches
+  WHERE id = NEW.batch_id;
+
+  IF OLD.state = 'Ready' THEN
+    UPDATE user_resources
+    SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
+    WHERE user = in_user;
+  END IF;
+
+  IF NEW.state = 'Ready' THEN
+    UPDATE user_resources
+    SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
+    WHERE user = in_user;
+  END IF;
+
+  IF OLD.state = 'Running' THEN
+    UPDATE user_resources
+    SET n_running_jobs = n_running_jobs - 1, running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu
+    WHERE user = in_user;
+  END IF;
+
+  IF NEW.state = 'Running' THEN
+    UPDATE user_resources
+    SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
+    WHERE user = in_user;
+  END IF;  
 END $$
 
 CREATE PROCEDURE activate_instance(

@@ -16,6 +16,7 @@ spec:
        if [ "$JOBS" != "jobs" ]; then
          mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-batch-tables.sql
          python3 ./insert-batch-globals.py {{ scope }}
+         mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-billing-projects.sql
        fi
     volumeMounts:
       - mountPath: /sql-config
