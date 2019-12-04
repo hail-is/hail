@@ -578,7 +578,7 @@ BEGIN
     SELECT 0 as rc;
   ELSE
     ROLLBACK;
-    SELECT 1 as rc, 'lease is already held by another instance' as message;
+    SELECT 1 as rc, cur_token, cur_end_time, in_token, in_start_time, in_end_time, 'lease is already held by another instance' as message;
   END IF;
 END $$
 
