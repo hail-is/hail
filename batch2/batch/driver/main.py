@@ -9,7 +9,7 @@ import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
+from gear import setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
@@ -23,6 +23,7 @@ from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE
 from ..google_compute import GServices
+from ..database import LeasedDatabase
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
@@ -404,7 +405,7 @@ async def on_startup(app):
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
-    db = Database()
+    db = LeasedDatabase()
     await db.async_init()
     app['db'] = db
 

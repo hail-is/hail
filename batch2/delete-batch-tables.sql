@@ -5,6 +5,7 @@ DROP PROCEDURE IF EXISTS close_batch;
 DROP PROCEDURE IF EXISTS schedule_job;
 DROP PROCEDURE IF EXISTS unschedule_job;
 DROP PROCEDURE IF EXISTS mark_job_complete;
+DROP PROCEDURE IF EXISTS acquire_lease;
 
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
@@ -17,5 +18,6 @@ DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;
 DROP TABLE IF EXISTS `instances`;
 DROP TABLE IF EXISTS `tokens`;
+DROP TABLE IF EXISTS `leases`;
 DROP TABLE IF EXISTS `billing_project_users`;
 DROP TABLE IF EXISTS `billing_projects`;

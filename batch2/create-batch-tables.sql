@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `leases` (
+  `token` VARCHAR(40),
+  `end_time` BIGINT
+) ENGINE = InnoDB;
+
+INSERT INTO `leases` (token, end_time) VALUES (NULL, NULL);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
@@ -551,6 +557,28 @@ BEGIN
     ROLLBACK;
     SELECT 1 as rc, cur_job_state, 'job state not Ready, Running or complete' as message;
   END IF;
+END $$
+
+CREATE PROCEDURE acquire_lease(
+  IN in_token VARCHAR(40),
+  IN in_start_time BIGINT,
+  IN in_end_time BIGINT,
+)
+BEGIN
+  DECLARE cur_token VARCHAR(40);
+  DECLARE cur_end_time BIGINT;
+
+  START TRANSACTION;
+
+  SELECT token, end_time INTO cur_token, cur_end_time FROM leases;
+
+  IF cur_token IS NULL OR cur_token = in_token OR in_start_time > cur_end_time THEN
+    UPDATE leases SET token = in_token, end_time = in_end_time;
+    COMMIT;
+    SELECT 0 as rc;
+  ELSE
+    ROLLBACK;
+    SELECT 1 as rc, 'lease is already held by another instance' as message;
 END $$
 
 DELIMITER ;
