@@ -193,14 +193,12 @@ def ones(shape, dtype=hl.tfloat64):
 
 def qr(nd, mode="reduced"):
     if mode not in ["reduced", "r", "raw", "complete"]:
-        raise ValueError("Mode not recognized")
+        raise ValueError(f"Unrecognized mode '{mode}' for QR decomposition")
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArrayQR(float_nd._ir, mode)
     if (mode == "raw"):
         return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
     elif (mode == "r"):
         return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
-    elif (mode == "complete"):
+    elif (mode in ["complete", "reduced"]):
         return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
-    else:
-        return None

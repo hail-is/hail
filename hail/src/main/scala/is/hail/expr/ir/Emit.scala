@@ -1579,9 +1579,14 @@ private class Emit(
 
           val (rPType, rShapeArray) = if (mode == "r") {
             (x.pType.asInstanceOf[PNDArray], Array(K, N))
-          } else {
+          } else if (mode == "complete") {
             (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], Array(M, N))
+          } else if (mode == "reduced") {
+            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], Array(K, N))
+          } else {
+            throw new HailException(s"Unsupported QR mode $mode")
           }
+
           val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
           val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
 
@@ -1602,7 +1607,7 @@ private class Emit(
 
             EmitTriplet(ndt.setup, ndt.m, result)
           }
-          else if (mode == "complete") {
+          else if (mode == "complete" || mode =="reduced") {
             // In complete mode, I need a copy of A so that I can pass it along to dorgqr, while returning the current one as R.
             val completePType = x.pType.asInstanceOf[PTuple]
             val qPType = completePType.types(0).asInstanceOf[PNDArray]

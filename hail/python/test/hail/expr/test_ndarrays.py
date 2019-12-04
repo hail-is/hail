@@ -570,3 +570,8 @@ def test_ndarray_qr():
 
     assert_raw_equivalence(wiki_example, np_wiki_example)
     assert_r_equivalence(wiki_example, np_wiki_example)
+
+
+    with pytest.raises(ValueError) as exc:
+        hl._nd.qr(wiki_example, mode="invalid")
+    assert "Unrecognized mode" in str(exc)
