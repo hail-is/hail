@@ -1,8 +1,12 @@
 import asyncio
 import secrets
 
-import gear
+from gear import Database
 from hailtop.utils import time_msecs
+
+import logging
+
+log = logging.getLogger('database')
 
 
 class CallError(Exception):
@@ -20,7 +24,7 @@ async def check_call_procedure(db, sql, args=None):
 
 class LeasedDatabase:
     def __init__(self):
-        self.db = gear.Database()
+        self.db = Database()
         self.lease = asyncio.Event()
         self.token = secrets.token_urlsafe(16)
 
@@ -29,16 +33,22 @@ class LeasedDatabase:
             try:
                 self.lease.clear()
                 now = time_msecs()
+                log.info(f'acquiring lease token={self.token} now={now}')
                 await check_call_procedure(
                     self.db,
                     'CALL acquire_lease(%s, %s, %s);',
                     (self.token, now, now + 30 * 1000))
                 self.lease.set()
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except CallError:
+                log.exception('in acquiring lease')
             finally:
                 await asyncio.sleep(15)
 
     async def async_init(self, autocommit=True, maxsize=10):
         await self.db.async_init(autocommit=autocommit, maxsize=maxsize)
+        self.lease.clear()
         asyncio.ensure_future(self.acquire_lease())
 
     async def just_execute(self, sql, args=None):
