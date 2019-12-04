@@ -273,12 +273,6 @@ object TypeCheck {
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32()))
-      case x@InitOp(i, args, aggSig) =>
-        assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
-        assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(i, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.seqOpArgs)
-        assert(i.typ.isInstanceOf[TInt32])
       case x@InitOp2(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.initOpArgs)
       case x@SeqOp2(_, args, aggSig) =>
