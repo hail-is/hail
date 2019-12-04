@@ -464,8 +464,12 @@ object Extract {
               ArrayRef(rUID, Ref(indexName, TInt32())),
               transformed)))
 
-      case x: ArrayAgg => x
-      case x: ArrayAggScan => x
+      case x: ArrayAgg =>
+        assert(!ContainsScan(x))
+        x
+      case x: ArrayAggScan =>
+        assert(!ContainsAgg(x))
+        x
       case _ => MapIR(extract)(ir)
     }
   }

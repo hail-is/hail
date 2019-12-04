@@ -864,6 +864,7 @@ private class Emit(
           Code._empty)
 
       case ArrayAgg(a, name, query) =>
+        assert(!ContainsAggIntermediate(query))
         val tarray = coerce[TStreamable](a.typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean]()
@@ -2059,6 +2060,7 @@ private class Emit(
         ArrayIteratorTriplet(larray.calcLength, larray.length, ae)
 
       case ArrayAggScan(a, name, query) =>
+        assert(!ContainsAggIntermediate(query))
         val elt = coerce[TStreamable](a.typ).elementType
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmv = mb.newField[Boolean]()
