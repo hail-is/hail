@@ -366,8 +366,8 @@ def test_ndarray_save():
             hl._nd.array(expected).save(f.name)
             actual = np.load(f.name)
 
-            assert(expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}')
-            assert(np.array_equal(expected, actual))
+            assert expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}'
+            assert np.array_equal(expected, actual)
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
