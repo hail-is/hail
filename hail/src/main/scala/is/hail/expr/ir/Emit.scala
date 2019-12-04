@@ -1599,7 +1599,7 @@ private class Emit(
           .bind(name, (typeToTypeInfo(x.typ), const(false), label.goto))
 
         val newLoopEnv = loopEnv.getOrElse(Env.empty)
-        val bodyT = emit(body, argEnv, loopEnv = newLoopEnv.bind(name, loopRefs.map(_._2).toArray))
+        val bodyT = emit(body, argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRefs.map(_._2).toArray)))
         val bodyF = Code(
           bodyT.setup,
           m := bodyT.m,

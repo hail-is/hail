@@ -347,3 +347,17 @@ class Tests(unittest.TestCase):
             a = arrs[i]
             a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
             self.assertTrue(np.array_equal(a, a2))
+
+    def test_loop(self):
+        print("foo")
+        from math import factorial
+
+        def fact(f, x, accum):
+            return hl.cond(x > 0,
+                           f(x - 1, accum * x),
+                           accum)
+
+        def hail_factorial(n):
+            return hl.experimental.loop(fact, n, 1)
+
+        self.assertEquals(hl.eval(hail_factorial(20)), factorial(20))

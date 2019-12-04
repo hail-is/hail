@@ -22,8 +22,6 @@ def loop(f: Callable, typ, *exprs):
     Notes
     -----
     The first argument to the lambda is a marker for the recursive call.
-    Some infinite loop detection is done, and if an infinite loop is detected, `loop` will not
-    typecheck.
     Parameters
     ----------
     f : function ( (marker, *args) -> :class:`.Expression`
@@ -44,6 +42,8 @@ def loop(f: Callable, typ, *exprs):
             return True
         if isinstance(non_recursive, ir.TailLoop):
             return False
+        if len(non_recursive.children) == 0:
+            return False
         return all([contains_recursive_call(c) for c in non_recursive.children])
 
     def check_tail_recursive(loop_ir):
@@ -58,6 +58,8 @@ def loop(f: Callable, typ, *exprs):
             check_tail_recursive(loop_ir.body)
         elif not isinstance(loop_ir, ir.Recur) and contains_recursive_call(loop_ir):
             raise TypeError("found recursive expression outside of tail position!")
+
+    loop_name = Env.get_uid()
 
     @typecheck(recur_exprs=expr_any)
     def make_loop(*recur_exprs):
@@ -74,7 +76,7 @@ def loop(f: Callable, typ, *exprs):
             raise TypeError(err)
         irs = [expr._ir for expr in recur_exprs]
         indices, aggregations = unify_all(*recur_exprs)
-        return construct_expr(ir.Recur(irs, typ), typ, indices, aggregations)
+        return construct_expr(ir.Recur(loop_name, irs, typ), typ, indices, aggregations)
 
     uid_irs = []
     loop_vars = []
@@ -89,4 +91,4 @@ def loop(f: Callable, typ, *exprs):
     indices, aggregations = unify_all(*exprs, loop_f)
     if loop_f.dtype != typ:
         raise TypeError(f"requested type {typ} does not match inferred type {loop_f.typ}")
-    return construct_expr(ir.TailLoop(uid_irs, loop_f._ir), loop_f.dtype, indices, aggregations)
+    return construct_expr(ir.TailLoop(loop_name, loop_f._ir, uid_irs), loop_f.dtype, indices, aggregations)

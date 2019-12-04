@@ -626,9 +626,11 @@ object IRParser {
         AggLet(name, value, body, isScan)
       case "TailLoop" =>
         val name = identifier(it)
-        val body = ir_value_expr(env)(it)
-        val args = named_value_irs(env)(it)
-        TailLoop(name, args, body)
+        val paramNames = identifiers(it)
+        val params = paramNames.map { n => n -> ir_value_expr(env)(it) }
+        val bodyEnv = env.update(params.map { case (n, v) => n -> v.typ}.toMap)
+        val body = ir_value_expr(bodyEnv)(it)
+        TailLoop(name, params, body)
       case "Recur" =>
         val name = identifier(it)
         val typ = type_expr(env.typEnv)(it)
