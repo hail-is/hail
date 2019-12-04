@@ -7,9 +7,10 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
+import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.expr.types.MatrixType
-import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -197,30 +198,27 @@ object TestUtils {
       val argsPType = PType.canonical(argsType)
       agg match {
         case Some((aggElements, aggType)) =>
-          val aggVar = genUID()
-          val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
-            env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
-          }
+          val aggElementVar = genUID()
+          val aggArrayVar = genUID()
           val aggPType = PType.canonical(aggType)
-          val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](ctx,
-            argsVar, argsPType,
-            argsVar, argsPType,
-            aggVar, aggPType,
-            MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
-            (i, x) => x,
-            (i, x) => x)
+          val aggArrayPType = PArray(aggPType)
+
+          val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
+            env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
+          }
+          val aggIR = ArrayAgg(Ref(aggArrayVar, aggArrayPType.virtualType),
+            aggElementVar,
+            MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
           val (resultType2, f) = Compile[Long, Long, Long](ctx,
-            "AGGR", aggResultType,
             argsVar, argsPType,
-            postAggIR,
+            aggArrayVar, aggArrayPType,
+            aggIR,
             print = bytecodePrinter)
           assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
             val rvb = new RegionValueBuilder(region)
-
-            // copy args into region
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -231,51 +229,15 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            // aggregate
-            i = 0
-            rvAggs.foreach(_.clear())
-            initOps(0, region)(region, rvAggs, argsOff, false)
-            var seqOpF = seqOps(0, region)
-            while (i < (aggElements.length / 2)) {
-              // FIXME use second region for elements
-              rvb.start(aggPType)
-              rvb.addAnnotation(aggType, aggElements(i))
-              val aggElementOff = rvb.end()
-
-              seqOpF(region, rvAggs, argsOff, false, aggElementOff, false)
-
-              i += 1
+            rvb.start(aggArrayPType)
+            rvb.startArray(aggElements.length)
+            aggElements.foreach { r =>
+              rvb.addAnnotation(aggType, r)
             }
+            rvb.endArray()
+            val aggOff = rvb.end()
 
-            val rvAggs2 = rvAggs.map(_.newInstance())
-            rvAggs2.foreach(_.clear())
-            initOps(0, region)(region, rvAggs2, argsOff, false)
-            seqOpF = seqOps(1, region)
-            while (i < aggElements.length) {
-              // FIXME use second region for elements
-              rvb.start(aggPType)
-              rvb.addAnnotation(aggType, aggElements(i))
-              val aggElementOff = rvb.end()
-
-              seqOpF(region, rvAggs2, argsOff, false, aggElementOff, false)
-
-              i += 1
-            }
-
-            rvAggs.zip(rvAggs2).foreach { case (agg1, agg2) => agg1.combOp(agg2) }
-
-            // build aggregation result
-            rvb.start(aggResultType)
-            rvb.startTuple()
-            i = 0
-            while (i < rvAggs.length) {
-              rvAggs(i).result(rvb)
-              i += 1
-            }
-            rvb.endTuple()
-            val aggResultsOff = rvb.end()
-
-            val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
+            val resultOff = f(0, region)(region, argsOff, false, aggOff, false)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
           }
 
