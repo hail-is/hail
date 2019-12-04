@@ -23,7 +23,7 @@ class PContainerTest extends HailSuite {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
-    log.debug(s"Testing $data")
+    log.info(s"Testing $data")
 
     val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
     val codeRegion = fb.getArg[Region](1).load()
@@ -39,6 +39,89 @@ class PContainerTest extends HailSuite {
     } else {
       f(destRegion,src)
     }
+  }
+
+  def testByteMissing(sourceType: PArray, data: IndexedSeq[Any]) = {
+    val srcRegion = Region()
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+
+    log.info(s"Testing $data")
+
+    val res = Region.firstNonZeroByteOffset(src + sourceType.lengthHeaderBytes, sourceType.loadLength(src))
+    res
+  }
+
+  def testByteMissingStaged(sourceType: PArray, data: IndexedSeq[Any]) = {
+    val srcRegion = Region()
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+
+    log.info(s"Testing $data")
+
+    val fb = EmitFunctionBuilder[Long, Long]("not_empty")
+    val value = fb.getArg[Long](1)
+
+    fb.emit(Region.firstNonZeroByteOffset(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
+
+    val res = fb.result()()(src)
+    res
+  }
+
+  def testHasMissingValues(sourceType: PArray, data: IndexedSeq[Any]) = {
+    val srcRegion = Region()
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+
+    log.info(s"Testing $data")
+
+    val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
+    val value = fb.getArg[Long](1)
+
+    fb.emit(sourceType.hasMissingValues(value))
+
+    val res = fb.result()()(src)
+    res
+  }
+
+  @Test def checkFirstNonZeroByte() {
+    val sourceType = PArray(PInt64(false))
+
+    assert(testByteMissing(sourceType, nullInByte(0, 0)) == -1)
+
+    assert(testByteMissing(sourceType, nullInByte(1, 0)) == -1)
+    assert(testByteMissing(sourceType, nullInByte(1, 1)) == 0)
+
+    assert(testByteMissing(sourceType, nullInByte(8, 0)) == -1)
+    assert(testByteMissing(sourceType, nullInByte(8, 1)) == 0)
+    assert(testByteMissing(sourceType, nullInByte(8, 8)) == 0)
+
+    assert(testByteMissing(sourceType, nullInByte(31, 31)) == 0)
+    assert(testByteMissing(sourceType, nullInByte(32, 32)) == 0)
+    assert(testByteMissing(sourceType, nullInByte(33, 33)) == 1)
+    assert(testByteMissing(sourceType, nullInByte(32, 0)) == -1)
+  }
+
+  @Test def checkFirstNonZeroByteStaged() {
+    val sourceType = PArray(PInt64(false))
+
+    assert(testByteMissingStaged(sourceType, nullInByte(0, 0)) == -1)
+
+    assert(testByteMissingStaged(sourceType, nullInByte(1, 0)) == -1)
+    assert(testByteMissingStaged(sourceType, nullInByte(1, 1)) == 0)
+
+    assert(testByteMissingStaged(sourceType, nullInByte(8, 0)) == -1)
+    assert(testByteMissingStaged(sourceType, nullInByte(8, 1)) == 0)
+    assert(testByteMissingStaged(sourceType, nullInByte(8, 8)) == 0)
+
+    assert(testByteMissingStaged(sourceType, nullInByte(31, 31)) == 0)
+    assert(testByteMissingStaged(sourceType, nullInByte(32, 32)) == 0)
+    assert(testByteMissingStaged(sourceType, nullInByte(33, 33)) == 1)
+    assert(testByteMissingStaged(sourceType, nullInByte(32, 0)) == -1)
+  }
+
+  @Test def checkHasMissingValues() {
+    val sourceType = PArray(PInt64(false))
+
+    assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
+    assert(testHasMissingValues(sourceType, nullInByte(1, 1)) == true)
   }
 
   @Test def checkedConvertFromTest() {

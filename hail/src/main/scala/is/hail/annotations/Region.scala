@@ -156,6 +156,32 @@ object Region {
   def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte]): Code[Unit] =
     Code.invokeScalaObject[Long, Long, Byte, Unit](Region.getClass, "setMemory", offset, size, b)
 
+  def firstNonZeroByteOffset(address: Code[Long], nBits: Code[Long]): Code[Long] =
+    Code.invokeScalaObject[Long, Long, Long](Region.getClass, "firstNonZeroByteOffset", address, nBits)
+
+  def firstNonZeroByteOffset(address: Long, nBits: Long): Long = {
+    val m1 = nBits / 32L
+    var i = 0L
+
+    while(i < m1) {
+      if(Region.loadInt(address + i * 4) != 0) {
+        return i
+      }
+      i += 1
+    }
+
+    i = i * 32L
+    while(i < nBits) {
+      if(Region.loadBit(address, i)) {
+        return i / 32L
+      }
+
+      i += 1L
+    }
+
+    -1L
+  }
+
   def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: PBoolean => loadBoolean
     case _: PInt32 => loadInt

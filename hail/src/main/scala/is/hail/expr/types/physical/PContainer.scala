@@ -311,33 +311,13 @@ abstract class PContainer extends PIterable {
       }
     }
   }
-  def ensureNoMissingValues(mb: EmitMethodBuilder, sourceOffset: Code[Long], sourceType: PContainer, onFail: Code[_]): Code[Unit] = {
-    if(sourceType.elementType.required) {
+
+  def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] = {
+    if(elementType.required) {
       return Code._empty
     }
 
-    val missingHeaderOffset = sourceOffset + sourceType.lengthHeaderBytes
-    val n = PContainer.loadLength(sourceOffset).toL
-    val m1 = n / 32L
-    val i = mb.newLocal[Long]
-    Code(
-      i := 0L,
-      Code.whileLoop(
-        i < m1,
-        Code(
-          Region.loadInt(missingHeaderOffset + i * const(4L)).cne(const(0)).orEmpty(onFail),
-          i := i + const(1L)
-        )
-      ),
-      i := i * 32L,
-      Code.whileLoop(
-        i < n,
-        Code(
-          Region.loadBit(missingHeaderOffset, i).orEmpty(onFail),
-          i := i + const(1L)
-        )
-      )
-    )
+    Region.firstNonZeroByteOffset(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL).cne(const(-1L))
   }
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
@@ -348,7 +328,7 @@ abstract class PContainer extends PIterable {
     }
 
     Code(
-      ensureNoMissingValues(mb, sourceOffset, sourceType,Code._fatal(msg)), {
+      sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(msg)), {
         val newOffset = mb.newField[Long]
         val len = sourceType.loadLength(sourceOffset)
 
