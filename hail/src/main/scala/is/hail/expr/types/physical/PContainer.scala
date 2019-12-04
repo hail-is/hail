@@ -336,7 +336,7 @@ abstract class PContainer extends PIterable {
           newOffset := allocate(r, len),
           stagedInitialize(newOffset, len),
           Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
-          sourceOffset
+          newOffset
         )
       }
     )
