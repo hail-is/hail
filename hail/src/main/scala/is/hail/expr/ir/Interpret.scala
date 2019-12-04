@@ -712,7 +712,7 @@ object Interpret {
             SafeRow(rt.asInstanceOf[PTuple], region, resultOffset).get(0)
           } catch {
             case e: Exception =>
-              fatal(s"error while calling ${ ir.implementation.name }", e)
+              fatal(s"error while calling '${ ir.implementation.name }'", e)
           }
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>
