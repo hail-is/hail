@@ -489,6 +489,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         dictionary should be structured.
 
     """
+    require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')
     row_fields_used = {'rsid', 'info', 'filters', 'qual'}
 
