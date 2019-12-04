@@ -311,7 +311,6 @@ abstract class PContainer extends PIterable {
       }
     }
   }
-
   def ensureNoMissingValues(mb: EmitMethodBuilder, sourceOffset: Code[Long], sourceType: PContainer, onFail: Code[_]): Code[Unit] = {
     if(sourceType.elementType.required) {
       return Code._empty
@@ -319,7 +318,7 @@ abstract class PContainer extends PIterable {
 
     val missingHeaderOffset = sourceOffset + sourceType.lengthHeaderBytes
     val n = PContainer.loadLength(sourceOffset).toL
-    val m1 = (n.toI / 32).toL
+    val m1 = n / 32L
     val i = mb.newLocal[Long]
     Code(
       i := 0L,
