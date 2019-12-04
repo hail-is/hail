@@ -1647,13 +1647,15 @@ private class Emit(
 
             val infoDORGQRResult = mb.newField[Int]
 
+            val numColsToUse = if (mode == "reduced") K else N
+
             val computeCompleteOrReduced = Code(
               infoDORGQRResult := 1,
               diagnosticPrint,
               printA,
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
                 M.toI,
-                N.toI,
+                numColsToUse.toI,
                 K.toI,
                 ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),//AAddress,
                 LDA.toI,
@@ -1663,12 +1665,13 @@ private class Emit(
               ),
 
               Code._println(const("infoDORGQRResult = ").concat(infoDORGQRResult.toS)),
+              printA,
 
               qDataAddress := qPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced/complete mode this should be more/less space
               qPType.data.pType.stagedInitialize(qDataAddress, aNumElements.toI),
               Code._println("Copying into Q"),
               qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
-                qPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, 0), M, N, mb),
+                qPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, 0), M, numColsToUse, mb),
 
               crOutputSrvb.start(),
               crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),

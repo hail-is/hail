@@ -542,6 +542,7 @@ def test_ndarray_qr():
         #TODO Is rank trick only going to be relevant to columns?.
         assert np.allclose(q[:, :rank], nq[:, :rank])
         assert np.allclose(r, nr)
+        assert np.allclose(q @ r, np_ndarray)
 
     def assert_same_qr(hl_ndarray, np_ndarray):
         assert_raw_equivalence(hl_ndarray, np_ndarray)
@@ -573,9 +574,7 @@ def test_ndarray_qr():
     np_wide_rect = np.arange(12).reshape((3, 4))
     wide_rect = hl._nd.arange(12).reshape((3, 4))
 
-    assert_raw_equivalence(wide_rect, np_wide_rect)
-    assert_r_equivalence(wide_rect, np_wide_rect)
-    #assert_reduced_equivalence(wide_rect, np_wide_rect)
+    assert_same_qr(wide_rect, np_wide_rect)
 
     np_tall_rect = np.arange(12).reshape((4, 3))
     tall_rect = hl._nd.arange(12).reshape((4, 3))
