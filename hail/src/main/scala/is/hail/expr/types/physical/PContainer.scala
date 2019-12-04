@@ -317,40 +317,35 @@ abstract class PContainer extends PIterable {
       return Code._empty
     }
 
-    val i = mb.newLocal[Int]
-    val mod = mb.newLocal[Int]
+    val missingHeaderOffset = sourceOffset + sourceType.lengthHeaderBytes
+    val n = PContainer.loadLength(sourceOffset).toL
+    val m1 = (n.toI / 32).toL
+    val m2 = (n - (m1 * 32L)) / 8L
+    val i = mb.newLocal[Long]
+    val y = mb.newLocal[Long]
     Code(
-      mod := (sourceType.loadLength(sourceOffset) % const(8)) - const(1),
-      (mod >= const(0)).mux(
+      i := 0L,
+      Code.whileLoop(
+        i < m1,
         Code(
-          i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)) - const(1),
-          Code.whileLoop(mod >= const(0),
-            Code(
-              sourceType
-                .isElementMissing(sourceOffset, i * const(8) + mod)
-                .orEmpty(onFail),
-              mod := mod - const(1)
-            )
-          )
-        ),
-        i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset))
+          Region.loadInt(missingHeaderOffset + i * const(4L)).cne(const(0)).orEmpty(onFail),
+          i := i + const(1L)
+        )
       ),
-      Code.whileLoop(i > const(0),
-        (i >= const(8)).mux(
-          Code(
-            i := i - const(8),
-            Region
-              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i.toL)
-              .cne(const(0L))
-              .orEmpty(onFail)
-          ),
-          Code(
-            i := i - const(1),
-            Region
-              .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i.toL)
-              .cne(const(0.toByte))
-              .orEmpty(onFail)
-          )
+      y := i * 32L,
+      Code.whileLoop(
+        i < m2,
+        Code(
+          Region.loadByte(missingHeaderOffset + i).cne(const(0.toByte)).orEmpty(onFail),
+          i := i + const(1L),
+          y := y + const(8L)
+        )
+      ),
+      Code.whileLoop(
+        y < n,
+        Code(
+          sourceType.isElementMissing(sourceOffset, y.toI).orEmpty(onFail),
+          y := y + const(1L)
         )
       )
     )
