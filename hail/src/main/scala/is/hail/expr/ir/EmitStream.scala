@@ -298,7 +298,6 @@ object EmitStream {
     emitter: Emit,
     streamIR0: IR,
     env0: Emit.E,
-    rvas: Emit.RVAS,
     er: EmitRegion,
     container: Option[AggContainer]
   ): EmitStream = {
@@ -307,7 +306,7 @@ object EmitStream {
     def present(v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, v)
 
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
-      emitter.emit(ir, env, rvas, er, container)
+      emitter.emit(ir, env, er, container)
 
     def emitStream(streamIR: IR, env: Emit.E): Parameterized[Any, EmitTriplet] =
       streamIR match {
@@ -486,7 +485,7 @@ object EmitStream {
           val res = genUID()
           val extracted =
             try {
-              agg.Extract(CompileWithAggregators.liftScan(query), res)
+              agg.Extract(agg.Extract.liftScan(query), res)
             } catch {
               case e: agg.UnsupportedExtraction =>
                 fatal(s"BUG: lowered aggscan to a stream, but this agg is not supported: $e")
