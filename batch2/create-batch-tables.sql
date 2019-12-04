@@ -579,6 +579,7 @@ BEGIN
   ELSE
     ROLLBACK;
     SELECT 1 as rc, 'lease is already held by another instance' as message;
+  END IF;
 END $$
 
 DELIMITER ;
