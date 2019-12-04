@@ -1494,7 +1494,7 @@ private class Emit(
 //          Code._println(const("LWORK = ").concat(LWORK.toString)),
 //        )
 
-        val infoResult = mb.newLocal[Int]
+        val infoDGEQRFResult = mb.newLocal[Int]
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
@@ -1511,7 +1511,7 @@ private class Emit(
           // Make some space for work
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong * 8),
 
-          infoResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
+          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
             ndPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0),
@@ -1520,7 +1520,7 @@ private class Emit(
             workAddress,
             LWORK
           ),
-          Code._println(const("Info after LAPACK invocation: ").concat(infoResult.toS)),
+          Code._println(const("Info after LAPACK invocation: ").concat(infoDGEQRFResult.toS)),
 
           Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
         )
@@ -1615,10 +1615,24 @@ private class Emit(
             val rNDArrayAddress = mb.newField[Long]
             val dorgqrAAddress = mb.newField[Long]
 
+            val infoDORGQRResult = mb.newField[Int]
+
             val ifComplete = Code(
 //              dorgqrAAddress := Code.invokeStatic[Memory, Long, Long]("malloc", (M * M) * 8L),
 //              // Now, copy the current A
 //              Code.invokeStatic[Memory, Long, Long, Long, Unit]("memcpy", dorgqrAAddress, dgeqrfAAddress, aNumElements * 8L),
+
+              // dorgqr(M: Int, N: Int, K: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {
+//              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
+//                M,
+//                N,
+//                K,
+//                ???,
+//                LDA,
+//                ???,
+//                ???,
+//                ???
+//              ),
 
               completeOutputSrvb.start(),
               completeOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
