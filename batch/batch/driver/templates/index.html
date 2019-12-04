@@ -40,7 +40,6 @@
     </thead>
     <tbody>
       {% for instance in instances %}
-      {% if instance.state != 'removed' %}
       <tr>
         <td>{{ instance.name }}</td>
         <td>{{ instance.state }}</td>
@@ -49,7 +48,6 @@
         <td>{{ instance.time_created_str() }}</td>
         <td>{{ instance.last_updated_str() }} ago</td>
       </tr>
-      {% endif %}
       {% endfor %}
       </tbody>
     </table>

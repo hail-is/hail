@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
   `ip_address` VARCHAR(100),
+  `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 

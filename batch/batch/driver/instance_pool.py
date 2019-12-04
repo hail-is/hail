@@ -63,7 +63,7 @@ class InstancePool:
         self.pool_size = row['pool_size']
 
         async for record in self.db.execute_and_fetchall(
-                'SELECT * FROM instances;'):
+                'SELECT * FROM instances WHERE NOT deleted;'):
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 
@@ -123,8 +123,8 @@ SET worker_disk_size_gb = %s,
         await instance.deactivate(reason, timestamp)
 
         await self.db.just_execute(
-            'UPDATE instances SET state = %s WHERE name = %s;',
-            ('removed', instance.name,))
+            'UPDATE instances SET deleted = %s WHERE name = %s;',
+            (True, instance.name,))
 
         self.adjust_for_remove_instance(instance)
         del self.name_instance[instance.name]
