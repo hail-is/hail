@@ -61,7 +61,7 @@ class LeasedDatabase:
 
     async def execute_and_fetchall(self, sql, args=None):
         await self.lease.wait()
-        return await self.db.execute_and_fetchall(sql, args)
+        return self.db.execute_and_fetchall(sql, args)
 
     async def execute_insertone(self, sql, args=None):
         await self.lease.wait()
