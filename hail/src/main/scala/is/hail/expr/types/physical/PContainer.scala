@@ -320,9 +320,7 @@ abstract class PContainer extends PIterable {
     val missingHeaderOffset = sourceOffset + sourceType.lengthHeaderBytes
     val n = PContainer.loadLength(sourceOffset).toL
     val m1 = (n.toI / 32).toL
-    val m2 = (n - (m1 * 32L)) / 8L
     val i = mb.newLocal[Long]
-    val y = mb.newLocal[Long]
     Code(
       i := 0L,
       Code.whileLoop(
@@ -332,20 +330,12 @@ abstract class PContainer extends PIterable {
           i := i + const(1L)
         )
       ),
-      y := i * 32L,
+      i := i * 32L,
       Code.whileLoop(
-        i < m2,
+        i < n,
         Code(
-          Region.loadByte(missingHeaderOffset + i).cne(const(0.toByte)).orEmpty(onFail),
-          i := i + const(1L),
-          y := y + const(8L)
-        )
-      ),
-      Code.whileLoop(
-        y < n,
-        Code(
-          sourceType.isElementMissing(sourceOffset, y.toI).orEmpty(onFail),
-          y := y + const(1L)
+          Region.loadBit(missingHeaderOffset, i).orEmpty(onFail),
+          i := i + const(1L)
         )
       )
     )
@@ -359,7 +349,7 @@ abstract class PContainer extends PIterable {
     }
 
     Code(
-      ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)), {
+      ensureNoMissingValues(mb, sourceOffset, sourceType,Code._fatal(msg)), {
         val newOffset = mb.newField[Long]
         val len = sourceType.loadLength(sourceOffset)
 
