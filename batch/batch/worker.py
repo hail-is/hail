@@ -24,7 +24,7 @@ from gear import configure_logging
 
 from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
-from .semaphore import WeightedSemaphore, NullWeightedSemaphore
+from .semaphore import FIFOWeightedSemaphore, NullWeightedSemaphore
 from .log_store import LogStore
 
 # uvloop.install()
@@ -573,7 +573,7 @@ class Worker:
         self.cores_mcpu = CORES * 1000
         self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time_msecs()
-        self.cpu_sem = WeightedSemaphore(self.cores_mcpu)
+        self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.cpu_null_sem = NullWeightedSemaphore()
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
