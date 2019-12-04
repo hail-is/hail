@@ -202,7 +202,9 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     val rowMajorCoord = mb.newField[Long]
     val colMajorCoord = mb.newField[Long]
 
-    // Problem: This does not consider the length
+    val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
+
+    // Problem: This does not consider the length?
     val loopingCopy = Code(
       rowIndex := 0L,
       Code.whileLoop(rowIndex < nRows,
@@ -210,6 +212,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
         Code.whileLoop(colIndex < nCols,
           rowMajorCoord := nCols * rowIndex + colIndex,
           colMajorCoord := nRows * colIndex + rowIndex,
+          //Code._println(const("Copying ").concat(currentElement.toS).concat(const(" from colMajorCoord = ")).concat(colMajorCoord.toS).concat(const(" to rowMajorCoord = ").concat(rowMajorCoord.toS))),
           Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)),
           colIndex := colIndex + 1L
         ),

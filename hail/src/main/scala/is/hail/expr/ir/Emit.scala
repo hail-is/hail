@@ -1457,7 +1457,7 @@ private class Emit(
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
         val LDA = M
-        val LWORK = 100
+        val LWORK = 1000
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
@@ -1469,30 +1469,42 @@ private class Emit(
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
-        val dgeqrfAAddress = mb.newField[Long] // Should be column major
-        val rReturnAddress = mb.newField[Long]
+        val AAddress = mb.newField[Long] // Should be column major
+        val rDataAddress = mb.newField[Long]
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
-//        val i = mb.newField[Long]
-//        val workStr = mb.newField[String]
+        val i = mb.newField[Long]
+        val workStr = mb.newField[String]
 
-//        val printA = Code(
-//          workStr := const(""),
-//          i := 0L,
-//          Code.whileLoop(i < (M * N).toL,
-//            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
-//            i := i + 1L
-//          ),
-//          Code._println(workStr)
-//        )
+        val printA = Code(
+          workStr := const(""),
+          i := 0L,
+          Code.whileLoop(i < (M * N).toL,
+            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
+            i := i + 1L
+          ),
+          Code._println(const("A = ").concat(workStr)),
+          Code._println("")
+        )
 
-//        val diagnosticPrint = Code(
-//          Code._println(const("M = ").concat(M.toS)),
-//          Code._println(const("N = ").concat(N.toS)),
-//          Code._println(const("K = ").concat(K.toS)),
-//          Code._println(const("LDA = ").concat(LDA.toS)),
-//          Code._println(const("LWORK = ").concat(LWORK.toString)),
-//        )
+        val printTau = Code(
+          workStr := const(""),
+          i := 0L,
+          Code.whileLoop(i < K,
+            workStr := workStr.concat(Region.loadDouble(tauAddress + (i * 8L)).toS.concat(const(" "))),
+            i := i + 1L
+          ),
+          Code._println(const("TAU = ").concat(workStr)),
+          Code._println("")
+        )
+
+        val diagnosticPrint = Code(
+          Code._println(const("M = ").concat(M.toS)),
+          Code._println(const("N = ").concat(N.toS)),
+          Code._println(const("K = ").concat(K.toS)),
+          Code._println(const("LDA = ").concat(LDA.toS)),
+          Code._println(const("LWORK = ").concat(LWORK.toString))
+        )
 
         val infoDGEQRFResult = mb.newLocal[Int]
 
@@ -1500,9 +1512,9 @@ private class Emit(
           ndAddress := ndt.value[Long],
 
           // Make some space for the column major form (which means copying the input)
-          dgeqrfAAddress := ndPType.data.pType.allocate(region, aNumElements.toI),
-          ndPType.data.pType.stagedInitialize(dgeqrfAAddress, aNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0), M, N, mb),
+          AAddress := ndPType.data.pType.allocate(region, aNumElements.toI),
+          ndPType.data.pType.stagedInitialize(AAddress, aNumElements.toI),
+          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0), M, N, mb),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
@@ -1514,15 +1526,15 @@ private class Emit(
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0),
+            ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
             LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
             workAddress,
             LWORK
           ),
-          Code._println(const("Info after LAPACK invocation: ").concat(infoDGEQRFResult.toS)),
+          Code._println(const("infoDGEQRFResult = ").concat(infoDGEQRFResult.toS))
 
-          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
+          //Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
         )
 
         if (mode == "raw") {
@@ -1539,7 +1551,7 @@ private class Emit(
           val tauShapeBuilder = tauPType.makeShapeBuilder(Array(K))
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, dgeqrfAAddress, mb)
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, AAddress, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
@@ -1568,7 +1580,7 @@ private class Emit(
               Code.whileLoop(currCol < N.toI,
                 (currRow > currCol).orEmpty(
                   // TODO Not row / column major agnostic!
-                  Region.storeDouble(ndPType.data.pType.elementOffset(rReturnAddress, aNumElements.toI,
+                  Region.storeDouble(ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI,
                     currRow * N.toI + currCol), 0.0)
                 ),
                 currCol := currCol + 1
@@ -1591,12 +1603,12 @@ private class Emit(
           val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
 
           val computeR = Code(
-            rReturnAddress := rPType.data.pType.allocate(region, aNumElements.toI),
-            rPType.data.pType.stagedInitialize(rReturnAddress, aNumElements.toI),
-            rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(dgeqrfAAddress, aNumElements.toI, 0),
-              rPType.data.pType.elementOffset(rReturnAddress, aNumElements.toI, 0), M, N, mb),
+            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced mode this should be less space
+            rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
+            rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
+              rPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, 0), M, N, mb),
             zeroOutCorner,
-            rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rReturnAddress, mb)
+            rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
 
           if (mode == "r") {
@@ -1608,56 +1620,72 @@ private class Emit(
             EmitTriplet(ndt.setup, ndt.m, result)
           }
           else if (mode == "complete" || mode =="reduced") {
-            // In complete mode, I need a copy of A so that I can pass it along to dorgqr, while returning the current one as R.
-            val completePType = x.pType.asInstanceOf[PTuple]
-            val qPType = completePType.types(0).asInstanceOf[PNDArray]
+            // In complete and reduced mode, I compute R based on the current A, then pass A to `dorgqr` to compute Q
+            val crPType = x.pType.asInstanceOf[PTuple]
+            val qPType = crPType.types(0).asInstanceOf[PNDArray]
 
-            val qShapeBuilder = qPType.makeShapeBuilder(Array(M, M))
-            val qStridesBuilder = qPType.makeShapeBuilder(Array(M, M))
+            val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
 
-            val completeOutputSrvb = new StagedRegionValueBuilder(mb, completePType, region)
+            val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
+            val qStridesBuilder = qPType.makeDefaultStridesBuilder(qShapeArray, mb)
+
+            val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region)
 
             val rNDArrayAddress = mb.newField[Long]
-            val dorgqrAAddress = mb.newField[Long]
+            val qDataAddress = mb.newField[Long]
+
+            val printQ = Code(
+              workStr := const(""),
+              i := 0L,
+              Code.whileLoop(i < (M * N).toL,
+                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
+                i := i + 1L
+              ),
+              Code._println(const("Q = ").concat(workStr)),
+              Code._println("")
+            )
 
             val infoDORGQRResult = mb.newField[Int]
 
-            val ifComplete = Code(
-//              dorgqrAAddress := Code.invokeStatic[Memory, Long, Long]("malloc", (M * M) * 8L),
-//              // Now, copy the current A
-//              Code.invokeStatic[Memory, Long, Long, Long, Unit]("memcpy", dorgqrAAddress, dgeqrfAAddress, aNumElements * 8L),
+            val computeCompleteOrReduced = Code(
+              infoDORGQRResult := 1,
+              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
+                M.toI,
+                N.toI,
+                K.toI,
+                ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),//AAddress,
+                LDA.toI,
+                tauPType.elementOffset(tauAddress, K.toI, 0),
+                workAddress, // TODO Going to have to split out a different work address once I'm querying for it.
+                LWORK
+              ),
 
-              // dorgqr(M: Int, N: Int, K: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {
-//              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
-//                M,
-//                N,
-//                K,
-//                ???,
-//                LDA,
-//                ???,
-//                ???,
-//                ???
-//              ),
+              Code._println(const("infoDORGQRResult = ").concat(infoDORGQRResult.toS)),
 
-              completeOutputSrvb.start(),
-              completeOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
-              completeOutputSrvb.advance(),
-              completeOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
-              completeOutputSrvb.advance(),
-              completeOutputSrvb.end()
+              qDataAddress := qPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced/complete mode this should be more/less space
+              qPType.data.pType.stagedInitialize(qDataAddress, aNumElements.toI),
+              Code._println("Copying into Q"),
+              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
+                qPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, 0), M, N, mb),
+
+              crOutputSrvb.start(),
+              crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
+              crOutputSrvb.advance(),
+              crOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
+              crOutputSrvb.advance(),
+              crOutputSrvb.end()
             )
 
             val result = Code(
               alwaysNeeded,
               rNDArrayAddress := computeR,
-              ifComplete
+              computeCompleteOrReduced
             )
 
             EmitTriplet(ndt.setup, ndt.m, result)
           }
-          // Hoping to get reduced to just be subsetting complete from python
           else {
-            throw new IllegalArgumentException("Only support raw, complete and R")
+            throw new HailException(s"Unsupported QR mode $mode")
           }
         }
 
