@@ -164,7 +164,7 @@ object Region {
     var i = 0L
 
     while(i < m1) {
-      if(Region.loadInt(address + i * 4) != 0) {
+      if(loadInt(address + i * 4) != 0) {
         return i
       }
       i += 1
@@ -172,7 +172,7 @@ object Region {
 
     i = i * 32L
     while(i < nBits) {
-      if(Region.loadBit(address, i)) {
+      if(loadBit(address, i)) {
         return i / 32L
       }
 
