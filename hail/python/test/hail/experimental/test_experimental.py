@@ -349,15 +349,35 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.array_equal(a, a2))
 
     def test_loop(self):
-        print("foo")
-        from math import factorial
+        def triangle(n):
+            return hl.experimental.loop(
+                lambda f, x, c: hl.cond(x > 0, f(x - 1, c + x), c),
+                hl.tint32, n, 0)
 
-        def fact(f, x, accum):
-            return hl.cond(x > 0,
-                           f(x - 1, accum * x),
-                           accum)
+        assert_evals_to(triangle(20), sum(range(21)))
+        assert_evals_to(triangle(0), 0)
+        assert_evals_to(triangle(-1), 0)
 
-        def hail_factorial(n):
-            return hl.experimental.loop(fact, n, 1)
+        def fails_typecheck(regex, f):
+            with self.assertRaisesRegex(TypeError, regex):
+                hl.eval(hl.experimental.loop(f, hl.tint32, 1))
 
-        self.assertEquals(hl.eval(hail_factorial(20)), factorial(20))
+        fails_typecheck("outside of tail position",
+                        lambda f, x: x + f(x))
+        fails_typecheck("wrong number of arguments",
+                        lambda f, x: f(x, x + 1))
+        fails_typecheck("bound value",
+                        lambda f, x: hl.bind(lambda x: x, f(x)))
+        fails_typecheck("branch condition",
+                        lambda f, x: hl.cond(f(x) == 0, x, 1))
+        fails_typecheck("Type error",
+                        lambda f, x: hl.cond(x == 0, f("foo"), 1))
+
+    def test_nested_loops(self):
+        def triangle_loop(n, add_f):
+            recur = lambda f, x, c: hl.cond(x <= n, f(x + 1, add_f(x, c)), c)
+            return hl.experimental.loop(recur, hl.tint32, 0, 0)
+
+        assert_evals_to(triangle_loop(5, lambda x, c: c + x), 15)
+        assert_evals_to(triangle_loop(5, lambda x, c: c + triangle_loop(x, lambda x2, c2: c2 + x2)), 15 + 10 + 6 + 3 + 1)
+
