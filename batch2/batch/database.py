@@ -33,7 +33,6 @@ class LeasedDatabase:
             try:
                 self.lease.clear()
                 now = time_msecs()
-                log.info(f'acquiring lease token={self.token} now={now}')
                 await check_call_procedure(
                     self.db,
                     'CALL acquire_lease(%s, %s, %s);',
@@ -66,11 +65,11 @@ class LeasedDatabase:
 
     async def execute_insertone(self, sql, args=None):
         await self.lease.wait()
-        return self.db.execute_insertone(sql, args)
+        return await self.db.execute_insertone(sql, args)
 
     async def execute_update(self, sql, args=None):
         await self.lease.wait()
-        return self.db.execute_update(sql, args)
+        return await self.db.execute_update(sql, args)
 
     async def async_close(self):
         await self.db.async_close()
