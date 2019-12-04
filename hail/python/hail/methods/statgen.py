@@ -3391,6 +3391,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
             (mt[field].n_alt_alleles() - mt.info.mean) * mt.info.centered_length_rec,
             0.0),
         mean_impute=True,
+        center=True,
+        normalize=True,
         block_size=block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
