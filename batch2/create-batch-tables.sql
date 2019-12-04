@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `leases` (
   `end_time` BIGINT
 ) ENGINE = InnoDB;
 
-INSERT INTO `leases` (token, end_time) VALUES (NULL, NULL);
+INSERT INTO `leases` (`token`, `end_time`) VALUES (NULL, NULL);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
@@ -562,7 +562,7 @@ END $$
 CREATE PROCEDURE acquire_lease(
   IN in_token VARCHAR(40),
   IN in_start_time BIGINT,
-  IN in_end_time BIGINT,
+  IN in_end_time BIGINT
 )
 BEGIN
   DECLARE cur_token VARCHAR(40);
