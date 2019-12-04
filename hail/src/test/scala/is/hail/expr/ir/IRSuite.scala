@@ -1699,7 +1699,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayFold2() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val af = ArrayFold2(In(0, TArray(TInt32())),
       FastIndexedSeq(("x", I32(0)), ("y", NA(TInt32()))),
@@ -1743,7 +1743,7 @@ class IRSuite extends HailSuite {
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
   @Test def testNDArrayShape() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
     assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
@@ -2015,7 +2015,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayAgg() {
-    implicit val execStrats = ExecStrategy.javaOnly
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
     assertEvalsTo(
@@ -2027,7 +2027,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayAggContexts() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = Let(
       "x",
@@ -2057,7 +2057,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayAggScan() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall(), "y" -> TInt32())
 
