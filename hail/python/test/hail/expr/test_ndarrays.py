@@ -537,9 +537,10 @@ def test_ndarray_qr():
         q, r = hl.eval(hl._nd.qr(hl_ndarray, mode="reduced"))
         nq, nr = np.linalg.qr(np_ndarray, mode="reduced")
 
-        #TODO Should do the rank trick here too.
+        rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(q, nq)
+        #TODO Is rank trick only going to be relevant to columns?.
+        assert np.allclose(q[:, :rank], nq[:, :rank])
         assert np.allclose(r, nr)
 
     def assert_same_qr(hl_ndarray, np_ndarray):
@@ -567,8 +568,6 @@ def test_ndarray_qr():
                                 [-4, 24, -41]])
     wiki_example = hl._nd.array(np_wiki_example)
 
-    assert_raw_equivalence(wiki_example, np_wiki_example)
-    assert_r_equivalence(wiki_example, np_wiki_example)
     assert_same_qr(wiki_example, np_wiki_example)
 
     np_wide_rect = np.arange(12).reshape((3, 4))
@@ -576,13 +575,12 @@ def test_ndarray_qr():
 
     assert_raw_equivalence(wide_rect, np_wide_rect)
     assert_r_equivalence(wide_rect, np_wide_rect)
-    #assert_same_qr(wide_rect, np_wide_rect)
+    #assert_reduced_equivalence(wide_rect, np_wide_rect)
 
     np_tall_rect = np.arange(12).reshape((4, 3))
     tall_rect = hl._nd.arange(12).reshape((4, 3))
 
-    assert_raw_equivalence(tall_rect, np_tall_rect)
-    assert_r_equivalence(tall_rect, np_tall_rect)
+    assert_same_qr(tall_rect, np_tall_rect)
 
 
     with pytest.raises(ValueError) as exc:

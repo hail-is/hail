@@ -1649,6 +1649,8 @@ private class Emit(
 
             val computeCompleteOrReduced = Code(
               infoDORGQRResult := 1,
+              diagnosticPrint,
+              printA,
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
                 M.toI,
                 N.toI,
