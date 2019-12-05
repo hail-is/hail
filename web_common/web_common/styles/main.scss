@@ -156,9 +156,9 @@ a {
     left: 36px;
 }
 
-.batch2-caret:after {
-    /* 52 (measured width of Batch2) / 2 + 9 - 20 / 2 = 25px */
-    left: 25px;
+.batch-caret:after {
+    /* 42 (measured width of Batch) / 2 + 9 - 20 / 2 = 20px */
+    left: 20px;
 }
 
 .monitoring-caret:after {

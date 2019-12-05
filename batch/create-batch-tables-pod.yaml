@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: create-batch2-tables
+  name: create-batch-tables
 spec:
   containers:
-  - name: create-batch2-tables
-    image: "{{ batch2_tables_image.image }}"
+  - name: create-batch-tables
+    image: "{{ batch_tables_image.image }}"
     command:
      - /bin/bash
      - -c
@@ -25,5 +25,5 @@ spec:
   volumes:
     - name: sql-config
       secret:
-        secretName: "{{ batch2_database.admin_secret_name }}"
+        secretName: "{{ batch_database.admin_secret_name }}"
   restartPolicy: Never

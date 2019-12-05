@@ -75,11 +75,11 @@ server {
 }
 
 server {
-    server_name batch2.*;
+    server_name batch.*;
     client_max_body_size 8m;
 
     location / {
-        proxy_pass http://batch2/;
+        proxy_pass http://batch/;
     }
 
     listen 80;
@@ -87,10 +87,10 @@ server {
 }
 
 server {
-    server_name batch2-driver.*;
+    server_name batch-driver.*;
 
     location / {
-        proxy_pass http://batch2-driver/;
+        proxy_pass http://batch-driver/;
     }
 
     listen 80;

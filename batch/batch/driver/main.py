@@ -311,7 +311,7 @@ async def get_index(request, userdata):
         'ready_cores_mcpu': ready_cores_mcpu,
         'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
     }
-    return await render_template('batch2-driver', request, userdata, 'index.html', page_context)
+    return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
 @routes.post('/config-update')
@@ -328,7 +328,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
             set_message(session,
                         f'{name} invalid: {value}.  Must be {description}.',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
         return value
 
     def validate_int(name, value, predicate, description):
@@ -338,7 +338,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
             set_message(session,
                         f'{name} invalid: {value}.  Must be an integer.',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
         return validate(name, i, predicate, description)
 
     post = await request.post()
@@ -387,7 +387,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
                 'Updated batch configuration.',
                 'info')
 
-    return web.HTTPFound(deploy_config.external_url('batch2-driver', '/'))
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 async def on_startup(app):
@@ -416,7 +416,7 @@ async def on_startup(app):
 
     app['internal_token'] = row['internal_token']
 
-    machine_name_prefix = f'batch2-worker-{DEFAULT_NAMESPACE}-'
+    machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/batch-gsa-key/privateKeyData')
@@ -458,4 +458,4 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch2-driver'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)
