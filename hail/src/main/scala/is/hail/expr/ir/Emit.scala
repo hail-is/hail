@@ -1537,8 +1537,7 @@ private class Emit(
 
           Code._println(const("sizeQuery = ").concat(Region.loadDouble(sizeQueryAddress).toI.toS)),
 
-          // Make some space for work
-          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8),
+          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
@@ -1549,9 +1548,9 @@ private class Emit(
             workAddress,
             LWORK
           ),
-          Code._println(const("infoDGEQRFResult = ").concat(infoDGEQRFResult.toS))
+          Code._println(const("infoDGEQRFResult = ").concat(infoDGEQRFResult.toS)),
 
-          //Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
+          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
         )
 
         if (mode == "raw") {
@@ -1697,6 +1696,7 @@ private class Emit(
               ),
 
               Code._println(const("sizeQuery = ").concat(Region.loadDouble(sizeQueryAddress).toI.toS)),
+              workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
                 M.toI,
@@ -1705,12 +1705,13 @@ private class Emit(
                 ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
-                workAddress, // TODO Going to have to split out a different work address once I'm querying for it.
+                workAddress,
                 LWORK
               ),
 
               Code._println(const("infoDORGQRResult = ").concat(infoDORGQRResult.toS)),
               printA,
+              Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
 
               qDataAddress := qPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced/complete mode this should be more/less space
               qPType.data.pType.stagedInitialize(qDataAddress, aNumElements.toI),
