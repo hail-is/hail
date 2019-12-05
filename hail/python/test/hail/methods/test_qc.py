@@ -135,6 +135,11 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
+    def test_concordance_n_discordant(self):
+        dataset = get_dataset()
+        _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
+        assert cols_conc.aggregate(hl.agg.count_where(cols_conc.n_discordant != 0)) == 0
+
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),
