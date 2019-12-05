@@ -313,9 +313,8 @@ abstract class PContainer extends PIterable {
   }
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] = {
-    if(elementType.required) {
+    if (elementType.required)
       return const(false)
-    }
 
     Region.containsNonZeroBits(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL)
   }
@@ -323,9 +322,8 @@ abstract class PContainer extends PIterable {
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-    if (sourceType.elementType.required == this.elementType.required) {
+    if (sourceType.elementType.required == this.elementType.required)
       return sourceOffset
-    }
 
     Code(
       sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(msg)), {
