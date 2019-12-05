@@ -11,11 +11,10 @@ import org.testng.annotations.Test
 class PContainerTest extends HailSuite {
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements)(i => {
-      if(i == missingElement - 1) {
+      if (i == missingElement - 1)
         null
-      } else {
+      else
         i + 1L
-      }
     })
   }
 
@@ -33,12 +32,11 @@ class PContainerTest extends HailSuite {
 
     val f = fb.result()()
     val destRegion = Region()
-    if(expectFalse) {
+    if (expectFalse) {
       val thrown = intercept[Exception](f(destRegion,src))
       assert(thrown.getMessage == "ShouldHaveNoNull")
-    } else {
+    } else
       f(destRegion,src)
-    }
   }
 
   def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
