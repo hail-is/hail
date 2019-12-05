@@ -160,8 +160,9 @@ object Region {
     Code.invokeScalaObject[Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, nBits)
 
   def containsNonZeroBits(address: Long, nBits: Long): Boolean = {
-    var bitsRead: Long = 0
     assert((address & 0x3) == 0)
+
+    var bitsRead: Long = 0
 
     if ((address & 0x7) != 0 && nBits >= 32) {
       if (loadInt(address) != 0)
