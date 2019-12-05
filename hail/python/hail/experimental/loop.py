@@ -37,11 +37,11 @@ def loop(f: Callable, typ, *exprs):
         Result of the loop with `exprs` as initial loop values.
     """
 
+    loop_name = Env.get_uid()
+
     def contains_recursive_call(non_recursive):
-        if isinstance(non_recursive, ir.Recur):
+        if isinstance(non_recursive, ir.Recur) and non_recursive.name == loop_name:
             return True
-        if isinstance(non_recursive, ir.TailLoop):
-            return False
         return any([contains_recursive_call(c) for c in non_recursive.children])
 
     def check_tail_recursive(loop_ir):
@@ -57,8 +57,6 @@ def loop(f: Callable, typ, *exprs):
             check_tail_recursive(loop_ir.body)
         elif not isinstance(loop_ir, ir.Recur) and contains_recursive_call(loop_ir):
             raise TypeError("found recursive expression outside of tail position!")
-
-    loop_name = Env.get_uid()
 
     @typecheck(recur_exprs=expr_any)
     def make_loop(*recur_exprs):
