@@ -1184,6 +1184,7 @@ steps:
    script: |
      set -ex
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     set +e
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="value(name)" \
