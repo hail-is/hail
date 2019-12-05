@@ -1623,6 +1623,9 @@ class StructExpression(Mapping[str, Expression], Expression):
             Struct containing specified existing fields and computed fields.
         """
 
+        if len(fields) == 0:
+            return hl.struct(**named_exprs)
+
         name_set = set()
         for a in fields:
             if not a in self._fields:
