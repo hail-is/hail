@@ -1463,11 +1463,6 @@ private class Emit(
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
-        //Plan:
-        // First round,let's just give a lot of work space. Later we can figure out how to do better.
-        // Have to copy the data into the space where the answer should go, since QR just overrwrites its input
-        // Have to allocate a buffer of workspace.
-
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
@@ -1589,13 +1584,14 @@ private class Emit(
         else {
           val currRow = mb.newField[Int]
           val currCol = mb.newField[Int]
+
+          //This should be done in row major
           val zeroOutCorner = Code(
             currRow := 0,
             Code.whileLoop(currRow < M.toI,
               currCol := 0,
               Code.whileLoop(currCol < N.toI,
                 (currRow > currCol).orEmpty(
-                  // TODO Not row / column major agnostic!
                   Region.storeDouble(ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI,
                     currRow * N.toI + currCol), 0.0)
                 ),
@@ -1665,7 +1661,8 @@ private class Emit(
 
             val qCondition = const(mode == "complete") && (M > N)
             val numColsToUse = qCondition.mux(M, K)
-            //val aAddressDORGQR = qCondition.mux(???, ???)
+            val aAddressDORGQR = qCondition.mux(???,
+              aAddressDGEQRF)
 
             /**
               * #  generate q from a
