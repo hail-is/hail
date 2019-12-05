@@ -314,7 +314,7 @@ abstract class PContainer extends PIterable {
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] = {
     if(elementType.required) {
-      return false
+      return const(false)
     }
 
     Region.containsNonZeroBits(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL)
