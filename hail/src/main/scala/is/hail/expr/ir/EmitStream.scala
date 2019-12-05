@@ -507,9 +507,9 @@ object EmitStream {
           val (eltm, eltv) = eP.newFields(fb, "aggscan_elt")
           val (postm, postv) = aP.newFields(fb, "aggscan_new_elt")
           val bodyEnv = env.bind(name -> ((typeToTypeInfo(e), eltm, eltv)))
-          val init = emitter.emit(initIR, env, None, er, Some(newContainer))
-          val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, None, er, Some(newContainer))
-          val postt = emitter.emit(postAggIR, bodyEnv, None, er, Some(newContainer))
+          val init = emitter.emit(initIR, env, er, Some(newContainer))
+          val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, er, Some(newContainer))
+          val postt = emitter.emit(postAggIR, bodyEnv, er, Some(newContainer))
 
           emitStream(childIR, env)
             .contMap[EmitTriplet] { (eltt, k) => Code(
