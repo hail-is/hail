@@ -1,4 +1,5 @@
 import asyncio
+import collections
 
 
 class ANullContextManager:
@@ -29,24 +30,27 @@ class FIFOWeightedSemaphoreContextManager:
 class FIFOWeightedSemaphore:
     def __init__(self, value=1):
         self.value = value
-        self.queue = []
+        self.queue = collections.deque()
 
     async def acquire(self, weight):
+        if self.value >= weight:
+            self.value -= weight
+            return
+
         event = asyncio.Event()
-        self.queue.append(event)
-
-        while self.value < weight:
-            event.clear()
-            await event.wait()
-
-        self.queue.remove(event)
-        self.value -= weight
+        self.queue.append((event, weight))
+        event.clear()
+        await event.wait()
 
     def release(self, weight):
         self.value += weight
+
         if self.queue:
-            first = self.queue[0]
-            first.set()
+            head_event, head_weight = self.queue[0]
+            if self.value > head_weight:
+                head_event.set()
+                self.queue.popleft()
+                self.value -= head_weight
 
     def __call__(self, weight):
         return FIFOWeightedSemaphoreContextManager(self, weight)
