@@ -1,12 +1,12 @@
-import json
-import sys
-import os
-
 import argparse
 import datetime
+import json
+import os
+import sys
 
 import hail as hl
-from .utils import initialize, run_all, run_pattern, run_list, RunConfig
+
+from .utils import run_all, run_pattern, run_list, RunConfig, init_logging
 
 
 def main(args_):
@@ -51,24 +51,16 @@ def main(args_):
 
     args = parser.parse_args(args_)
 
-    data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
-    if args.dry_run:
-        from .utils import init_logging
-        init_logging()
-    else:
-        initialize(args, data_dir)
-
-    run_data = {'cores': args.cores,
-                'version': hl.__version__,
-                'timestamp': str(datetime.datetime.now()),
-                'system': sys.platform}
+    init_logging()
 
     records = []
 
     def handler(stats):
         records.append(stats)
 
-    config = RunConfig(args.n_iter, handler, not args.quiet, args.timeout, args.dry_run, data_dir)
+    data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
+    config = RunConfig(args.n_iter, handler, noisy=not args.quiet, timeout=args.timeout, dry_run=args.dry_run,
+                       data_dir=data_dir, cores=args.cores, verbose=args.verbose, log=args.log)
     if args.tests:
         run_list(args.tests.split(','), config)
     if args.pattern:
@@ -79,7 +71,10 @@ def main(args_):
     if args.dry_run:
         return
 
-    data = {'config': run_data,
+    data = {'config': {'cores': args.cores,
+                       'version': hl.__version__,
+                       'timestamp': str(datetime.datetime.now()),
+                       'system': sys.platform},
             'benchmarks': records}
     if args.output:
         with open(args.output, 'w') as out:
