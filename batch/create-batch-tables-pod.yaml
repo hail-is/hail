@@ -3,8 +3,6 @@ kind: Pod
 metadata:
   name: create-batch-tables
 spec:
-  nodeSelector:
-    preemptible: "true"
   tolerations:
    - key: preemptible
      value: "true"

@@ -6,8 +6,9 @@ metadata:
     app: letsencrypt
 spec:
   serviceAccountName: letsencrypt
-  nodeSelector:
-    preemptible: false
+  tolerations:
+   - key: preemptible
+     value: "false"
   containers:
   - name: letsencrypt
     image: gcr.io/@project@/letsencrypt

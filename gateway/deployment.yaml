@@ -17,8 +17,6 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       priorityClassName: infrastructure
-      nodeSelector:
-        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
