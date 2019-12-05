@@ -156,30 +156,54 @@ object Region {
   def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte]): Code[Unit] =
     Code.invokeScalaObject[Long, Long, Byte, Unit](Region.getClass, "setMemory", offset, size, b)
 
-  def firstNonZeroByteOffset(address: Code[Long], nBits: Code[Long]): Code[Long] =
-    Code.invokeScalaObject[Long, Long, Long](Region.getClass, "firstNonZeroByteOffset", address, nBits)
+  def containsNonZeroBits(address: Code[Long], nBits: Code[Long]): Code[Boolean] =
+    Code.invokeScalaObject[Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, nBits)
 
-  def firstNonZeroByteOffset(address: Long, nBits: Long): Long = {
-    val m1 = nBits / 32L
-    var i = 0L
+  def containsNonZeroBits(address: Long, nBits: Long): Boolean = {
+    var bitsRead: Long = 0
+    assert((address & 0x3) == 0)
 
-    while(i < m1) {
-      if(loadInt(address + i * 4) != 0) {
-        return i
-      }
-      i += 1
-    }
-
-    i = i * 32L
-    while(i < nBits) {
-      if(loadBit(address, i)) {
-        return i / 32L
+    if((address & 0x7) != 0 && nBits >= 32) {
+      if(loadInt(address) != 0) {
+        return true
       }
 
-      i += 1L
+      bitsRead += 32
     }
 
-    -1L
+      while(nBits - bitsRead >= 64) {
+        if(loadLong(address + bitsRead/8) != 0) {
+          return true
+        }
+
+        bitsRead += 64
+      }
+
+      while(nBits - bitsRead >= 32) {
+        if(loadInt(address + bitsRead/8) != 0) {
+          return true
+        }
+
+        bitsRead += 32
+      }
+
+      while(nBits - bitsRead >= 8) {
+        if(loadByte(address + bitsRead/8) != 0) {
+          return true
+        }
+
+        bitsRead += 8
+      }
+
+      while(bitsRead < nBits) {
+        if(loadBit(address, bitsRead)) {
+          return true
+        }
+
+        bitsRead += 1
+    }
+
+    false
   }
 
   def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {

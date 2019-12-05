@@ -41,26 +41,26 @@ class PContainerTest extends HailSuite {
     }
   }
 
-  def testByteMissing(sourceType: PArray, data: IndexedSeq[Any]) = {
+  def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
-    log.info(s"Testing $data")
+    println(s"Testing $data")
 
-    val res = Region.firstNonZeroByteOffset(src + sourceType.lengthHeaderBytes, sourceType.loadLength(src))
+    val res = Region.containsNonZeroBits(src + sourceType.lengthHeaderBytes, sourceType.loadLength(src))
     res
   }
 
-  def testByteMissingStaged(sourceType: PArray, data: IndexedSeq[Any]) = {
+  def testContainsNonZeroBitsStaged(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     log.info(s"Testing $data")
 
-    val fb = EmitFunctionBuilder[Long, Long]("not_empty")
+    val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
     val value = fb.getArg[Long](1)
 
-    fb.emit(Region.firstNonZeroByteOffset(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
+    fb.emit(Region.containsNonZeroBits(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
 
     val res = fb.result()()(src)
     res
@@ -70,7 +70,7 @@ class PContainerTest extends HailSuite {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
-    log.info(s"Testing $data")
+    log.info(s"\nTesting $data")
 
     val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
     val value = fb.getArg[Long](1)
@@ -84,37 +84,85 @@ class PContainerTest extends HailSuite {
   @Test def checkFirstNonZeroByte() {
     val sourceType = PArray(PInt64(false))
 
-    assert(testByteMissing(sourceType, nullInByte(0, 0)) == -1)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(0, 0)) == false)
 
-    assert(testByteMissing(sourceType, nullInByte(1, 0)) == -1)
-    assert(testByteMissing(sourceType, nullInByte(1, 1)) == 0)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(1, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(1, 1)) == true)
 
-    assert(testByteMissing(sourceType, nullInByte(8, 0)) == -1)
-    assert(testByteMissing(sourceType, nullInByte(8, 1)) == 0)
-    assert(testByteMissing(sourceType, nullInByte(8, 8)) == 0)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(8, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(8, 1)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(8, 8)) == true)
 
-    assert(testByteMissing(sourceType, nullInByte(31, 31)) == 0)
-    assert(testByteMissing(sourceType, nullInByte(32, 32)) == 0)
-    assert(testByteMissing(sourceType, nullInByte(33, 33)) == 1)
-    assert(testByteMissing(sourceType, nullInByte(32, 0)) == -1)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(32, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(31, 31)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(32, 32)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(33, 33)) == true)
+
+    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 1)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 32)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 33)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 64)) == true)
+
+    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 1)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 32)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 33)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 64)) == true)
+
+    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 1)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 32)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 33)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 64)) == true)
+
+    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 0)) == false)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 1)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 32)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 33)) == true)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 64)) == true)
   }
 
   @Test def checkFirstNonZeroByteStaged() {
     val sourceType = PArray(PInt64(false))
 
-    assert(testByteMissingStaged(sourceType, nullInByte(0, 0)) == -1)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(0, 0)) == false)
 
-    assert(testByteMissingStaged(sourceType, nullInByte(1, 0)) == -1)
-    assert(testByteMissingStaged(sourceType, nullInByte(1, 1)) == 0)
+    assert(testContainsNonZeroBits(sourceType, nullInByte(1, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(1, 1)) == true)
 
-    assert(testByteMissingStaged(sourceType, nullInByte(8, 0)) == -1)
-    assert(testByteMissingStaged(sourceType, nullInByte(8, 1)) == 0)
-    assert(testByteMissingStaged(sourceType, nullInByte(8, 8)) == 0)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 1)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 8)) == true)
 
-    assert(testByteMissingStaged(sourceType, nullInByte(31, 31)) == 0)
-    assert(testByteMissingStaged(sourceType, nullInByte(32, 32)) == 0)
-    assert(testByteMissingStaged(sourceType, nullInByte(33, 33)) == 1)
-    assert(testByteMissingStaged(sourceType, nullInByte(32, 0)) == -1)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(31, 31)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 32)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(33, 33)) == true)
+
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 1)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 32)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 33)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 64)) == true)
+
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 1)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 32)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 33)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 64)) == true)
+
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 1)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 32)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 33)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 64)) == true)
+
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 1)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 32)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 33)) == true)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
 
   @Test def checkHasMissingValues() {

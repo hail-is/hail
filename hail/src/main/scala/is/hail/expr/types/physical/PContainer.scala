@@ -317,7 +317,7 @@ abstract class PContainer extends PIterable {
       return false
     }
 
-    Region.firstNonZeroByteOffset(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL).cne(const(-1L))
+    Region.containsNonZeroBits(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL)
   }
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
