@@ -3,7 +3,6 @@ from typing import Callable
 
 import hail as hl
 import hail.ir as ir
-from hail.table import ExprContainer
 from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all, expr_bool
 from hail.expr.types import hail_type
 from hail.typecheck import anytype, typecheck
@@ -19,9 +18,11 @@ def loop(f: Callable, typ, *exprs):
     >>> x = hl.experimental.loop(lambda recur, acc, n: hl.cond(n > 10, acc, recur(acc + n, n + 1)), hl.tint32, 0, 0)
     >>> hl.eval(x)
     55
+
     Notes
     -----
     The first argument to the lambda is a marker for the recursive call.
+
     Parameters
     ----------
     f : function ( (marker, *args) -> :class:`.Expression`
