@@ -171,36 +171,36 @@ object Region {
       bitsRead += 32
     }
 
-      while(nBits - bitsRead >= 64) {
-        if(loadLong(address + bitsRead/8) != 0) {
-          return true
-        }
-
-        bitsRead += 64
+    while(nBits - bitsRead >= 64) {
+      if(loadLong(address + bitsRead/8) != 0) {
+        return true
       }
 
-      while(nBits - bitsRead >= 32) {
-        if(loadInt(address + bitsRead/8) != 0) {
-          return true
-        }
+      bitsRead += 64
+    }
 
-        bitsRead += 32
+    while(nBits - bitsRead >= 32) {
+      if(loadInt(address + bitsRead/8) != 0) {
+        return true
       }
 
-      while(nBits - bitsRead >= 8) {
-        if(loadByte(address + bitsRead/8) != 0) {
-          return true
-        }
+      bitsRead += 32
+    }
 
-        bitsRead += 8
+    while(nBits - bitsRead >= 8) {
+      if(loadByte(address + bitsRead/8) != 0) {
+        return true
       }
 
-      while(bitsRead < nBits) {
-        if(loadBit(address, bitsRead)) {
-          return true
-        }
+      bitsRead += 8
+    }
 
-        bitsRead += 1
+    while(bitsRead < nBits) {
+      if(loadBit(address, bitsRead)) {
+        return true
+      }
+
+      bitsRead += 1
     }
 
     false
