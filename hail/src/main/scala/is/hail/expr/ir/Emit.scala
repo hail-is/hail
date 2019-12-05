@@ -244,7 +244,7 @@ object EmitUtils {
 }
 
 private class Emit(
-  ctx: ExecuteContext,
+  val ctx: ExecuteContext,
   val mb: EmitMethodBuilder,
   val nSpecialArguments: Int) {
 

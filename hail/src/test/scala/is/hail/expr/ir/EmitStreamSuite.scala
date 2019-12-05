@@ -16,11 +16,14 @@ class EmitStreamSuite extends HailSuite {
 
   private def compileStream(streamIR: IR, inputPType: PType): Any => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]("eval_stream")
-    val stream = EmitStream(fb, streamIR)
+    val mb = fb.apply_method
+    val stream = ExecuteContext.scoped { ctx =>
+      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, None, EmitRegion.default(mb), None)
+    }
     val eltPType = stream.elementType
     fb.emit {
-      val ait = stream.toArrayIterator(fb.apply_method)
-      val arrayt = ait.toEmitTriplet(fb.apply_method, PArray(eltPType))
+      val ait = stream.toArrayIterator(mb)
+      val arrayt = ait.toEmitTriplet(mb, PArray(eltPType))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -42,7 +45,10 @@ class EmitStreamSuite extends HailSuite {
 
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
-    val stream = EmitStream(fb, streamIR)
+    val mb = fb.apply_method
+    val stream = ExecuteContext.scoped { ctx =>
+      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, None, EmitRegion.default(mb), None)
+    }
     fb.emit {
       JoinPoint.CallCC[Code[Int]] { (jb, ret) =>
         val str = stream.stream

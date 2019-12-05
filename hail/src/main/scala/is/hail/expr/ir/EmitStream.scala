@@ -495,11 +495,11 @@ object EmitStream {
           val (newContainer, aggSetup, aggCleanup) =
             AggContainer.fromFunctionBuilder(extracted.aggs, fb, "array_agg_scan")
           val initIR = Optimize(extracted.init, noisy = true,
-            context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+            context = "ArrayAggScan/StagedExtractAggregators/postAggIR", emitter.ctx)
           val seqPerEltIR = Optimize(extracted.seqPerElt, noisy = true,
-            context = Some("ArrayAggScan/StagedExtractAggregators/init"))
-          val postAggIR = Optimize(Let(res, extracted.results, extracted.postAggIR), noisy = true,
-            context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+            context = "ArrayAggScan/StagedExtractAggregators/init", emitter.ctx)
+          val postAggIR = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
+            context = "ArrayAggScan/StagedExtractAggregators/perElt", emitter.ctx)
 
           val e = coerce[PStreamable](childIR.pType).elementType
           val a = postAggIR.pType
@@ -532,10 +532,6 @@ object EmitStream {
       emitStream(streamIR0, env0),
       streamIR0.pType.asInstanceOf[PStreamable].elementType)
   }
-
-  def apply(fb: EmitFunctionBuilder[_], ir: IR): EmitStream =
-    apply(new Emit(fb.apply_method, 1), ir, Env.empty,
-      None, EmitRegion.default(fb.apply_method), None)
 }
 
 case class EmitStream(
