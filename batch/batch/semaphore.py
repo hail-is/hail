@@ -1,6 +1,4 @@
 import asyncio
-import sortedcontainers
-import time
 
 
 class ANullContextManager:
@@ -31,21 +29,17 @@ class FIFOWeightedSemaphoreContextManager:
 class FIFOWeightedSemaphore:
     def __init__(self, value=1):
         self.value = value
-        self.event_age = {}
-        self.queue = sortedcontainers.SortedSet(key=lambda event: self.event_age[event])
+        self.queue = []
 
     async def acquire(self, weight):
         event = asyncio.Event()
-        age = time.time()
-        self.event_age[event] = age
-        self.queue.add(event)
+        self.queue.append(event)
 
         while self.value < weight:
             event.clear()
             await event.wait()
 
         self.queue.remove(event)
-        del self.event_age[event]
         self.value -= weight
 
     def release(self, weight):
