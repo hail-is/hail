@@ -11,7 +11,7 @@ from .globals import complete_states, tasks
 from .database import check_call_procedure
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import cost_from_msec_mcpu
+from .utils import cost_from_resource_usage
 
 log = logging.getLogger('batch')
 
@@ -47,11 +47,12 @@ def batch_record_to_dict(record):
     if attributes:
         d['attributes'] = attributes
 
-    msec_mcpu = record['msec_mcpu']
-    d['msec_mcpu'] = msec_mcpu
+    resource_usage = json.loads(record['resource_usage'])
+    if resource_usage:
+        d['resource_usage'] = resource_usage
 
-    cost = cost_from_msec_mcpu(msec_mcpu)
-    d['cost'] = f'${cost:.4f}'
+        cost = cost_from_resource_usage(resource_usage)
+        d['cost'] = f'${cost:.4f}'
 
     return d
 
@@ -162,11 +163,12 @@ def job_record_to_dict(record, running_status=None):
     if status:
         result['status'] = status
 
-    msec_mcpu = record['msec_mcpu']
-    result['msec_mcpu'] = msec_mcpu
+    resource_usage = json.loads(record['resource_usage'])
+    if resource_usage:
+        result['resource_usage'] = resource_usage
 
-    cost = cost_from_msec_mcpu(msec_mcpu)
-    result['cost'] = f'${cost:.4f}'
+        cost = cost_from_resource_usage(resource_usage)
+        result['cost'] = f'${cost:.4f}'
 
     return result
 
@@ -327,6 +329,7 @@ async def schedule_job(app, record, instance):
     job_id = record['job_id']
     attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
     id = (batch_id, job_id)
+    resources = instance.get_resources(record['spec'])
 
     try:
         body = await job_config(app, record, attempt_id)
@@ -363,8 +366,9 @@ async def schedule_job(app, record, instance):
 
     await check_call_procedure(
         db,
-        'CALL schedule_job(%s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, instance.name))
+        'CALL schedule_job(%s, %s, %s, %s, %s);',
+        (batch_id, job_id, attempt_id, instance.name,
+         json.dumps(resources)))
 
     log.info(f'schedule job {id} on {instance}: updated database')
 

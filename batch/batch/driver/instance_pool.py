@@ -156,7 +156,9 @@ SET worker_disk_size_gb = %s,
                 break
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000)
+        resources = ['preemptible-n1-predefined-core',
+                     'preemptible-n1-predefined-ram']
+        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, resources)
         self.add_instance(instance)
 
         log.info(f'created {instance}')

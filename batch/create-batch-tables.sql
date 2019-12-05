@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `pool_size` BIGINT NOT NULL
 ) ENGINE = InnoDB;
 
-
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
@@ -32,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
   `ip_address` VARCHAR(100),
+  `resources` VARCHAR(65535),
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `n_cancelled` INT NOT NULL DEFAULT 0,
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
-  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
+  `resource_usage` JSON,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`user`) REFERENCES user_resources(user) ON DELETE CASCADE,
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
@@ -80,8 +80,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `status` VARCHAR(65535),
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
-  `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
+  `resource_usage` JSON,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `start_time` BIGINT,
   `end_time` BIGINT,
   `reason` VARCHAR(40),
+  `resources` JSON,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
@@ -146,6 +147,41 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 
 DELIMITER $$
 
+CREATE FUNCTION update_resource_usage(
+  IN resource_usage JSON,
+  IN resources JSON,
+  IN msec_diff BIGINT) RETURNS JSON
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  DECLARE keys JSON DEFAULT JSON_KEYS(resources);
+  DECLARE n_keys INT DEFAULT JSON_LENGTH(keys);
+  DECLARE result JSON DEFAULT resource_usage;
+
+  DECLARE kpath VARCHAR(40);
+  DECLARE usage BIGINT;
+  DECLARE quantity BIGINT;
+
+
+  loop: LOOP
+    IF i >= n_keys THEN
+      LEAVE loop;
+    END IF;
+
+    SET path = CONCAT('$.', JSON_EXTRACT(keys, CONCAT('$[', i, ']')));
+    SET quantity = JSON_EXTRACT(resources, path);
+    SET usage = COALESCE(JSON_EXTRACT(resource_usage, path), 0);
+
+    IF JSON_CONTAINS_PATH(result, 'one', path) THEN
+      SET result = JSON_REPLACE(result, path, usage + quantity * msec_diff);
+    ELSE
+      SET result = JSON_SET(result, path, usage + quantity * msec_diff);
+    END IF;
+
+    SET i = i + 1;
+  END LOOP loop;
+  RETURN result;
+END $$
+
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
 BEGIN
@@ -162,24 +198,17 @@ END $$
 CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
-  DECLARE job_cores_mcpu INT;
   DECLARE msec_diff BIGINT;
-  DECLARE msec_mcpu_diff BIGINT;
-
-  SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
-
   UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
+  SET resource_usage = update_resource_usage(resource_usage, NEW.resources, msec_diff)
   WHERE id = NEW.batch_id;
 
   UPDATE jobs
-  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
+  SET resource_usage = update_resource_usage(resource_usage, NEW.resources, msec_diff)
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 END $$
 
@@ -188,7 +217,7 @@ FOR EACH ROW
 BEGIN
   DECLARE in_user VARCHAR(100);
 
-  SELECT user INTO in_user from batches
+  SELECT user INTO in_user FROM batches
   WHERE id = NEW.batch_id;
 
   IF NEW.state = 'Ready' THEN
@@ -376,7 +405,8 @@ CREATE PROCEDURE schedule_job(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
   IN in_attempt_id VARCHAR(40),
-  IN in_instance_name VARCHAR(100)
+  IN in_instance_name VARCHAR(100),
+  IN in_resources JSON
 )
 BEGIN
   DECLARE cur_job_state VARCHAR(40);
@@ -398,7 +428,7 @@ BEGIN
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
-    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
+    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name, resources) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name, in_resources);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
     COMMIT;

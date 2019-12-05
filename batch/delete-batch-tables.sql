@@ -6,6 +6,8 @@ DROP PROCEDURE IF EXISTS schedule_job;
 DROP PROCEDURE IF EXISTS unschedule_job;
 DROP PROCEDURE IF EXISTS mark_job_complete;
 
+DROP FUNCTION IF EXISTS update_resource_usage;
+
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
 DROP TABLE IF EXISTS `job_attributes`;

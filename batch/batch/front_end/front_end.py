@@ -324,7 +324,7 @@ FROM (SELECT *, CASE
     WHEN n_succeeded = n_jobs THEN 'success'
     ELSE 'running'
   END AS state
-FROM batches) as t
+FROM batches) AS t
 WHERE {' AND '.join(where_conditions)}
 ORDER BY id DESC
 LIMIT 50;

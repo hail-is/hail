@@ -8,10 +8,19 @@ from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 
 log = logging.getLogger('utils')
 
+# https://cloud.google.com/compute/all-pricing
+product_to_cost_per_hour = {
+    'preemptible-n1-predefined-core': 0.006655 * 0.001,  # core / hour => mcore / hour
+    'preemptible-n1-predefined-ram': 0.000892 * 0.001,  # GB / hour => MB / hour
+    'ssd-pd': 0.048 / (30 * 24)  # GB / month => GB / hour
+}
 
-def cost_from_msec_mcpu(msec_mcpu):
-    cost_per_core_sec = 0.013 / 3600
-    return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
+
+def cost_from_resource_usage(resource_usage):
+    cost = 0.0
+    for product, usage_msec in resource_usage.items():
+        cost += usage_msec * product_to_cost_per_hour[product] / 3600 * 0.001
+    return cost
 
 
 def parse_cpu_in_mcpu(cpu_string):
