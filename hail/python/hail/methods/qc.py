@@ -445,7 +445,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     discordant_indices = set()
     for i in range(5):
         for j in range(5):
-            if i > 0 and j > 0 and i != j:
+            if i > 1 and j > 1 and i != j:
                 discordant_indices.add(i + 5 * j)
 
     def n_discordant(counter):
