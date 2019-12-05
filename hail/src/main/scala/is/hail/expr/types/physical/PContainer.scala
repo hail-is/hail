@@ -312,50 +312,31 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def ensureNoMissingValues(mb: EmitMethodBuilder, sourceOffset: Code[Long], sourceType: PContainer, onFail: Code[_]): Code[Unit] = {
-    if(sourceType.elementType.required) {
-      return Code._empty
-    }
+  def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] = {
+    if (elementType.required)
+      return const(false)
 
-    val i = mb.newLocal[Long]
-    Code(
-      i := PContainer.nMissingBytes(sourceType.loadLength(sourceOffset)).toL,
-      Code.whileLoop(i > 0L,
-        (i >= 8L).mux(
-          Code(
-            i := i - 8L,
-            Region
-              .loadLong(sourceOffset + sourceType.lengthHeaderBytes + i)
-              .cne(const(0.toByte))
-              .orEmpty(onFail)
-          ),
-          Code(
-            i := i - 1L,
-            Region
-              .loadByte(sourceOffset + sourceType.lengthHeaderBytes + i)
-              .cne(const(0.toByte))
-              .orEmpty(onFail)
-          )
-        )
-      )
-    )
+    Region.containsNonZeroBits(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL)
   }
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-    if (sourceType.elementType.required == this.elementType.required) {
+    if (sourceType.elementType.required == this.elementType.required)
       return sourceOffset
-    }
 
-    val newOffset = mb.newField[Long]
-    val len = sourceType.loadLength(sourceOffset)
     Code(
-      ensureNoMissingValues(mb, sourceOffset, sourceType, Code._fatal(msg)),
-      newOffset := allocate(r, len),
-      stagedInitialize(newOffset, len),
-      Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
-      newOffset
+      sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(msg)), {
+        val newOffset = mb.newField[Long]
+        val len = sourceType.loadLength(sourceOffset)
+
+        Code(
+          newOffset := allocate(r, len),
+          stagedInitialize(newOffset, len),
+          Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+          newOffset
+        )
+      }
     )
   }
 
