@@ -531,10 +531,10 @@ INSERT IGNORE INTO user_resources (user) VALUES (%s);
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, attributes, callback, n_jobs, time_created)
-VALUES (%s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-            (json.dumps(userdata), user, json.dumps(attributes),
+            (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
              now))
 
