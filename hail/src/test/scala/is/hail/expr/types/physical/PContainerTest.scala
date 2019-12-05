@@ -45,7 +45,7 @@ class PContainerTest extends HailSuite {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
-    println(s"Testing $data")
+    log.info(s"Testing $data")
 
     val res = Region.containsNonZeroBits(src + sourceType.lengthHeaderBytes, sourceType.loadLength(src))
     res
