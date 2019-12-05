@@ -127,41 +127,7 @@ class PContainerTest extends HailSuite {
     val sourceType = PArray(PInt64(false))
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(0, 0)) == false)
-
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(1, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(1, 1)) == true)
-
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 1)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 8)) == true)
-
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(31, 31)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 32)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(33, 33)) == true)
-
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 1)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 32)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 33)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(64, 64)) == true)
-
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 1)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 32)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 33)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(68, 64)) == true)
-
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 1)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 32)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 33)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(72, 64)) == true)
-
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 1)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 32)) == true)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 33)) == true)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
 
