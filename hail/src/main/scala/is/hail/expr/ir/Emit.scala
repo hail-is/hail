@@ -1453,11 +1453,13 @@ private class Emit(
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
         val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_)).toArray
 
+        val sizeQueryAddress = mb.newLocal[Long]
+
         val M = shapeArray(0)
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
         val LDA = M
-        val LWORK = 1000
+        val LWORK = Region.loadDouble(sizeQueryAddress).toI
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
@@ -1469,7 +1471,7 @@ private class Emit(
         val tauPType = PArray(PFloat64Required, true)
         val tauAddress = mb.newField[Long]
         val workAddress = mb.newField[Long]
-        val AAddress = mb.newField[Long] // Should be column major
+        val aAddressDGEQRF = mb.newField[Long] // Should be column major
         val rDataAddress = mb.newField[Long]
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
@@ -1480,23 +1482,23 @@ private class Emit(
           workStr := const(""),
           i := 0L,
           Code.whileLoop(i < (M * N).toL,
-            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
+            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, i.toI)).toS.concat(" ")),
             i := i + 1L
           ),
           Code._println(const("A = ").concat(workStr)),
           Code._println("")
         )
 
-        val printTau = Code(
-          workStr := const(""),
-          i := 0L,
-          Code.whileLoop(i < K,
-            workStr := workStr.concat(Region.loadDouble(tauAddress + (i * 8L)).toS.concat(const(" "))),
-            i := i + 1L
-          ),
-          Code._println(const("TAU = ").concat(workStr)),
-          Code._println("")
-        )
+//        val printTau = Code(
+//          workStr := const(""),
+//          i := 0L,
+//          Code.whileLoop(i < K,
+//            workStr := workStr.concat(Region.loadDouble(tauAddress + (i * 8L)).toS.concat(const(" "))),
+//            i := i + 1L
+//          ),
+//          Code._println(const("TAU = ").concat(workStr)),
+//          Code._println("")
+//        )
 
         val diagnosticPrint = Code(
           Code._println(const("M = ").concat(M.toS)),
@@ -1508,25 +1510,40 @@ private class Emit(
 
         val infoDGEQRFResult = mb.newLocal[Int]
 
+
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
 
           // Make some space for the column major form (which means copying the input)
-          AAddress := ndPType.data.pType.allocate(region, aNumElements.toI),
-          ndPType.data.pType.stagedInitialize(AAddress, aNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0), M, N, mb),
+          aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
+          ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
+          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0), M, N, mb),
 
           // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
 
-          // Make some space for work
-          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toLong * 8),
+          sizeQueryAddress := Code.invokeStatic[Memory, Long, Long]("malloc", 8L), //One Double
 
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
+            ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+            LDA.toI,
+            tauPType.elementOffset(tauAddress, K.toI, 0),
+            sizeQueryAddress,
+            -1
+          ),
+
+          Code._println(const("sizeQuery = ").concat(Region.loadDouble(sizeQueryAddress).toI.toS)),
+
+          // Make some space for work
+          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8),
+
+          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
+            M.toI,
+            N.toI,
+            ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
             LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
             workAddress,
@@ -1551,7 +1568,7 @@ private class Emit(
           val tauShapeBuilder = tauPType.makeShapeBuilder(Array(K))
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, AAddress, mb)
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val ifRaw = Code(
@@ -1603,9 +1620,9 @@ private class Emit(
           val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
 
           val computeR = Code(
-            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced mode this should be less space
+            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced mode this should be less space?
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
-            rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
+            rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
               rPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, 0), M, N, mb),
             zeroOutCorner,
             rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
@@ -1647,17 +1664,45 @@ private class Emit(
 
             val infoDORGQRResult = mb.newField[Int]
 
-            val numColsToUse = if (mode == "reduced") K else N
+            val qCondition = const(mode == "complete") && (M > N)
+            val numColsToUse = qCondition.mux(M, K)
+            //val aAddressDORGQR = qCondition.mux(???, ???)
+
+            /**
+              * #  generate q from a
+              * if mode == 'complete' and m > n:
+              *   mc = m
+              *   q = empty((m, m), t)
+              * else:
+              *   mc = mn
+              *   q = empty((n, m), t)
+              * q[:n] = a
+              */
 
             val computeCompleteOrReduced = Code(
               infoDORGQRResult := 1,
               diagnosticPrint,
               printA,
+
+              // Query optimal size for work array
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),//AAddress,
+                ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+                LDA.toI,
+                tauPType.elementOffset(tauAddress, K.toI, 0),
+                sizeQueryAddress,
+                -1
+              ),
+
+              Code._println(const("sizeQuery = ").concat(Region.loadDouble(sizeQueryAddress).toI.toS)),
+
+              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
+                M.toI,
+                numColsToUse.toI,
+                K.toI,
+                ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
                 workAddress, // TODO Going to have to split out a different work address once I'm querying for it.
@@ -1670,7 +1715,7 @@ private class Emit(
               qDataAddress := qPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced/complete mode this should be more/less space
               qPType.data.pType.stagedInitialize(qDataAddress, aNumElements.toI),
               Code._println("Copying into Q"),
-              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(AAddress, aNumElements.toI, 0),
+              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
                 qPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, 0), M, numColsToUse, mb),
 
               crOutputSrvb.start(),
