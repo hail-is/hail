@@ -1122,23 +1122,13 @@ object PruneDeadFields {
             BindingEnv(agg = Some(aEnv.eval))
           ) ++ knownLength.map(x => memoizeValueIR(x, x.typ, memo)))
         }
-      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, _) =>
-        val constructorEnv = unifyEnvsSeq(constructorArgs.map(c => memoizeValueIR(c, c.typ, memo)))
-        val initEnv = initOpArgs.map(args => unifyEnvsSeq(args.map(i => memoizeValueIR(i, i.typ, memo))))
-          .getOrElse(BindingEnv.empty)
+      case ApplyAggOp(initOpArgs, seqOpArgs, _) =>
+        val initEnv = unifyEnvsSeq(initOpArgs.map(i => memoizeValueIR(i, i.typ, memo)))
         val seqOpEnv = unifyEnvsSeq(seqOpArgs.map(arg => memoizeValueIR(arg, arg.typ, memo)))
-
-        assert(constructorEnv.allEmpty)
-
         BindingEnv(eval = initEnv.eval, agg = Some(seqOpEnv.eval))
-      case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, _) =>
-        val constructorEnv = unifyEnvsSeq(constructorArgs.map(c => memoizeValueIR(c, c.typ, memo)))
-        val initEnv = initOpArgs.map(args => unifyEnvsSeq(args.map(i => memoizeValueIR(i, i.typ, memo))))
-          .getOrElse(BindingEnv.empty)
+      case ApplyScanOp(initOpArgs, seqOpArgs, _) =>
+        val initEnv = unifyEnvsSeq(initOpArgs.map(i => memoizeValueIR(i, i.typ, memo)))
         val seqOpEnv = unifyEnvsSeq(seqOpArgs.map(arg => memoizeValueIR(arg, arg.typ, memo)))
-
-        assert(constructorEnv.allEmpty)
-
         BindingEnv(eval = initEnv.eval, scan = Some(seqOpEnv.eval))
       case ArrayAgg(a, name, query) =>
         val aType = a.typ.asInstanceOf[TStreamable]
@@ -1699,21 +1689,19 @@ object PruneDeadFields {
         val a2 = rebuildIR(a, env, memo)
         val query2 = rebuildIR(query, env.copy(scan = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
         ArrayAggScan(a2, name, query2)
-      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        val constructorArgs2 = constructorArgs.map(rebuildIR(_, BindingEnv.empty[Type], memo))
-        val initOpArgs2 = initOpArgs.map(_.map(rebuildIR(_, env, memo)))
+      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        val initOpArgs2 = initOpArgs.map(rebuildIR(_, env, memo))
         val seqOpArgs2 = seqOpArgs.map(rebuildIR(_, env.promoteAgg, memo))
-        ApplyAggOp(constructorArgs2, initOpArgs2, seqOpArgs2,
-          aggSig.copy(constructorArgs = constructorArgs2.map(_.typ),
-            initOpArgs = initOpArgs2.map(_.map(_.typ)),
+        ApplyAggOp(initOpArgs2, seqOpArgs2,
+          aggSig.copy(
+            initOpArgs = initOpArgs2.map(_.typ),
             seqOpArgs = seqOpArgs2.map(_.typ)))
-      case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        val constructorArgs2 = constructorArgs.map(rebuildIR(_, BindingEnv.empty[Type], memo))
-        val initOpArgs2 = initOpArgs.map(_.map(rebuildIR(_, env, memo)))
+      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        val initOpArgs2 = initOpArgs.map(rebuildIR(_, env, memo))
         val seqOpArgs2 = seqOpArgs.map(rebuildIR(_, env.promoteScan, memo))
-        ApplyScanOp(constructorArgs2, initOpArgs2, seqOpArgs2,
-          aggSig.copy(constructorArgs = constructorArgs2.map(_.typ),
-            initOpArgs = initOpArgs2.map(_.map(_.typ)),
+        ApplyScanOp(initOpArgs2, seqOpArgs2,
+          aggSig.copy(
+            initOpArgs = initOpArgs2.map(_.typ),
             seqOpArgs = seqOpArgs2.map(_.typ)))
       case _ =>
         ir.copy(ir.children.map {
