@@ -128,7 +128,7 @@ class PContainerTest extends HailSuite {
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(0, 0)) == false)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(1, 0)) == false)
+    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(1, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(1, 1)) == true)
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(8, 0)) == false)
