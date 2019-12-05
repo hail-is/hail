@@ -126,7 +126,6 @@ class PContainerTest extends HailSuite {
   @Test def checkFirstNonZeroByteStaged() {
     val sourceType = PArray(PInt64(false))
 
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(0, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
