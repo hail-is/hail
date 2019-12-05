@@ -42,11 +42,10 @@ def loop(f: Callable, typ, *exprs):
             return True
         if isinstance(non_recursive, ir.TailLoop):
             return False
-        if len(non_recursive.children) == 0:
-            return False
-        return all([contains_recursive_call(c) for c in non_recursive.children])
+        return any([contains_recursive_call(c) for c in non_recursive.children])
 
     def check_tail_recursive(loop_ir):
+        print(str(loop_ir))
         if isinstance(loop_ir, ir.If):
             if contains_recursive_call(loop_ir.cond):
                 raise TypeError("branch condition can't contain recursive call!")
