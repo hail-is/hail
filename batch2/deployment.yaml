@@ -94,6 +94,8 @@ spec:
          secret:
            optional: false
            secretName: batch2-tokens
+      strategy:
+        type: Recreate
 ---
 apiVersion: apps/v1
 kind: Deployment
