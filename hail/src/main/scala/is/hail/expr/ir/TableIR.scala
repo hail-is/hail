@@ -1059,7 +1059,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
       extracted.aggs,
       "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
-      "row", typ.rowType.physicalType,
+      "row", tv.rvd.rowPType,
       extracted.eltOp(ctx))
 
     val read = extracted.deserialize(ctx, spec)
@@ -1069,7 +1069,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
       extracted.aggs,
       "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
-      "row", typ.rowType.physicalType,
+      "row", tv.rvd.rowPType,
       Let(scanRef, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == newRow.typ)
 
@@ -1158,7 +1158,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
     }
     tv.copy(
-      typ = typ.copy(rowType = rTyp.virtualType.asInstanceOf[TStruct]),
+      typ = typ,
       rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
   }
 }
