@@ -1624,7 +1624,7 @@ class StructExpression(Mapping[str, Expression], Expression):
         """
 
         if len(fields) == 0:
-            return hl.struct(**named_exprs)
+            return hl.or_missing(hl.is_defined(self), hl.struct(**named_exprs))
 
         name_set = set()
         for a in fields:
