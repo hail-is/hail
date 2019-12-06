@@ -79,13 +79,14 @@ object StagedRegionValueBuilder {
           Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
       case t: PArray =>
         Code(
-          offset := t.copyFrom(region, value),
+          offset := t.copyFrom(fb, region, value),
           fixupArray(fb, region, t, offset))
       case t =>
         Code(
           offset := region.allocate(t.alignment, t.byteSize),
           deepCopy(fb, region, t, Region.getIRIntermediate(t)(value), offset))
     }
+
     Code(copy, offset)
   }
 
