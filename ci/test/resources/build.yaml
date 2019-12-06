@@ -19,6 +19,20 @@ steps:
      git init
    dependsOn:
      - inline_image
+ - kind: runImage
+   name: copy_files
+   image:
+     valueFrom: inline_image.image
+   script: |
+     cd /io
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+   outputs:
+    - from: /io/repo
+      to: /
+   dependsOn:
+    - inline_image
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -54,6 +68,22 @@ steps:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
+ - kind: createDatabase2
+   name: hello2_database
+   databaseName: hello2
+   migrations:
+    - name: create-tables
+      script: /io/sql/create-hello2-tables.sql
+    - name: insert
+      script: /io/sql/insert.py
+   inputs:
+    - from: /repo/ci/test/resources/sql
+      to: /io/
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+    - copy_files
  - kind: deploy
    name: deploy_hello
    namespace:
