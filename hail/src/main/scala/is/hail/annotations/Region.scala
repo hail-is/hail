@@ -160,45 +160,41 @@ object Region {
     Code.invokeScalaObject[Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, nBits)
 
   def containsNonZeroBits(address: Long, nBits: Long): Boolean = {
-    var bitsRead: Long = 0
     assert((address & 0x3) == 0)
 
-    if((address & 0x7) != 0 && nBits >= 32) {
-      if(loadInt(address) != 0) {
+    var bitsRead: Long = 0
+
+    if ((address & 0x7) != 0 && nBits >= 32) {
+      if (loadInt(address) != 0)
         return true
-      }
 
       bitsRead += 32
     }
 
-    while(nBits - bitsRead >= 64) {
-      if(loadLong(address + bitsRead/8) != 0) {
+    while (nBits - bitsRead >= 64) {
+      if (loadLong(address + bitsRead/8) != 0)
         return true
-      }
 
       bitsRead += 64
     }
 
-    while(nBits - bitsRead >= 32) {
-      if(loadInt(address + bitsRead/8) != 0) {
+    while (nBits - bitsRead >= 32) {
+      if (loadInt(address + bitsRead/8) != 0)
         return true
-      }
 
       bitsRead += 32
     }
 
-    while(nBits - bitsRead >= 8) {
-      if(loadByte(address + bitsRead/8) != 0) {
+    while (nBits - bitsRead >= 8) {
+      if (loadByte(address + bitsRead/8) != 0)
         return true
-      }
 
       bitsRead += 8
     }
 
-    while(bitsRead < nBits) {
-      if(loadBit(address, bitsRead)) {
+    while (bitsRead < nBits) {
+      if (loadBit(address, bitsRead))
         return true
-      }
 
       bitsRead += 1
     }

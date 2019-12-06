@@ -851,7 +851,6 @@ class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
       "lower" -> null,
-      "newaggs" -> "1",
       "max_leader_scans" -> "1000",
       "jvm_bytecode_dump" -> null
     )

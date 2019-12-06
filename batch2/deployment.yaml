@@ -10,6 +10,8 @@ spec:
     matchLabels:
       app: batch2-driver
   replicas: 1
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:

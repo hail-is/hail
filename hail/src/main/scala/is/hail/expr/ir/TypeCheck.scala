@@ -25,15 +25,24 @@ object TypeCheck {
     }
   }
 
-  private def check(tir: TableIR): Unit = tir.children
-    .iterator
-    .zipWithIndex
-    .foreach {
-      case (child: IR, i) => check(child, NewBindings(tir, i))
-      case (tir: TableIR, _) => check(tir)
-      case (mir: MatrixIR, _) => check(mir)
-      case (bmir: BlockMatrixIR, _) => check(bmir)
+  private def check(tir: TableIR): Unit = {
+    tir match {
+      case TableMapRows(child, newRow) =>
+        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
+        assert(child.typ.key.forall(newFieldSet.contains))
+      case _ =>
     }
+
+    tir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => check(child, NewBindings(tir, i))
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
+  }
 
 
   private def check(mir: MatrixIR): Unit = mir.children

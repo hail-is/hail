@@ -135,6 +135,83 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
+    def test_concordance_n_discordant(self):
+        dataset = get_dataset()
+        _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
+        assert cols_conc.aggregate(hl.agg.count_where(cols_conc.n_discordant != 0)) == 0
+
+        rows1 = [
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '1', 'GT': hl.Call([0, 0])}),
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '2', 'GT': hl.Call([0, 0])}),
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '3', 'GT': hl.Call([1, 1])}),
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '4', 'GT': hl.Call([1, 1])}),
+            hl.Struct(**{'locus': hl.Locus('1', 101), 'alleles': ['A', 'T'], 's': '1', 'GT': hl.Call([1, 1])}),
+        ]
+        rows2=[
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '1', 'GT': None}),
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '2', 'GT': hl.Call([0, 1])}),
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '3', 'GT': hl.Call([0, 1])}),
+            hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '4', 'GT': hl.Call([1, 1])}),
+        ]
+
+        def make_mt(rows):
+            ht = hl.Table.parallelize(rows, schema='struct{locus:locus<GRCh37>,alleles:array<str>,s:str,GT:call}')
+            return ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
+
+        global_conc_2, cols_conc_2, rows_conc_2 = hl.concordance(make_mt(rows1), make_mt(rows2))
+        assert cols_conc_2.collect() == [
+            hl.Struct(s='1',
+                      concordance=[[0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 1, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [1, 0, 0, 0, 0]],
+                      n_discordant=0),
+            hl.Struct(s='2',
+                      concordance=[[1, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 1, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0]],
+                      n_discordant=1),
+            hl.Struct(s='3',
+                      concordance=[[1, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 1, 0]],
+                      n_discordant=1),
+            hl.Struct(s='4',
+                      concordance=[[1, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 1]],
+                      n_discordant=0),
+        ]
+
+        assert global_conc_2 == [[3, 0, 0, 0, 0],
+                                 [0, 0, 0, 0, 0],
+                                 [0, 1, 0, 1, 0],
+                                 [0, 0, 0, 0, 0],
+                                 [1, 0, 0, 1, 1]]
+        assert rows_conc_2.collect() == [
+            hl.Struct(locus=hl.Locus('1', 100), alleles=['A', 'T'],
+                      concordance=[[0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 1, 0, 1, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 1, 1]],
+                      n_discordant=2),
+            hl.Struct(locus=hl.Locus('1', 101), alleles=['A', 'T'],
+                      concordance=[[3, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [1, 0, 0, 0, 0]],
+                      n_discordant=0),
+        ]
+
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),

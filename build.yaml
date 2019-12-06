@@ -1187,6 +1187,7 @@ steps:
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="value(name)" \
+         --project {{ global.project }} \
        | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }}
    secrets:
     - name: test-gsa-key

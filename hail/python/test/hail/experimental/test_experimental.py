@@ -293,6 +293,13 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    def test_mt_full_outer_join_self(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        jmt = hl.experimental.full_outer_join_mt(mt, mt)
+        assert jmt.filter_cols(hl.is_defined(jmt.left_col) & hl.is_defined(jmt.right_col)).count_cols() == mt.count_cols()
+        assert jmt.filter_rows(hl.is_defined(jmt.left_row) & hl.is_defined(jmt.right_row)).count_rows() == mt.count_rows()
+        assert jmt.filter_entries(hl.is_defined(jmt.left_entry) & hl.is_defined(jmt.right_entry)).entries().count() == mt.entries().count()
+
     def test_block_matrices_tofiles(self):
         data = [
             np.random.rand(11*12),

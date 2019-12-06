@@ -3,6 +3,7 @@ import sys
 
 from hailtop import pipeline as pl
 from benchmark_hail.run.utils import list_benchmarks
+from benchmark_hail.run.resources import all_resources
 
 if __name__ == '__main__':
     if len(sys.argv) != 6:
@@ -20,11 +21,14 @@ if __name__ == '__main__':
                     default_memory='7G',
                     default_cpu=2)
 
-    make_resources = p.new_task('create_resources').cpu(4)
-    make_resources.command('hail-bench create-resources --data-dir benchmark-resources')
-    make_resources.command("time tar -czf benchmark-resources.tar.gz benchmark-resources --exclude='*.crc'")
-    make_resources.command('ls -lh benchmark-resources.tar.gz')
-    make_resources.command(f'mv benchmark-resources.tar.gz {make_resources.ofile}')
+    resource_tasks = {}
+    for r in all_resources:
+        t = p.new_task(f'create_resource_{r.name()}').cpu(4)
+        t.command(f'hail-bench create-resources --data-dir benchmark-resources --group {r.name()}')
+        t.command(f"time tar -cf {r.name()}.tar benchmark-resources/{r.name()} --exclude='*.crc'")
+        t.command(f'ls -lh {r.name()}.tar')
+        t.command(f'mv {r.name()}.tar {t.ofile}')
+        resource_tasks[r] = t
 
     all_benchmarks = list_benchmarks()
     assert len(all_benchmarks) > 0
@@ -34,12 +38,15 @@ if __name__ == '__main__':
     print(f'generating {len(all_benchmarks)} * {N_REPLICATES} = '
           f'{len(all_benchmarks) * N_REPLICATES} individual benchmark tasks')
 
-    for name in all_benchmarks:
+    for benchmark in all_benchmarks:
         for replicate in range(N_REPLICATES):
-            t = p.new_task(name=f'{name}_{replicate}')
-            t.command(f'mv {make_resources.ofile} benchmark-resources.tar.gz')
-            t.command('time tar -xf benchmark-resources.tar.gz')
-            t.command(f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
+            t = p.new_task(name=f'{benchmark.name}_{replicate}')
+            t.command('mkdir -p benchmark-resources')
+            for resource_group in benchmark.groups:
+                resource_task = resource_tasks[resource_group]
+                t.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
+                t.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
+            t.command(f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {benchmark.name}')
             all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')

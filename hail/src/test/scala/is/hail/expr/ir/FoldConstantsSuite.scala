@@ -10,4 +10,9 @@ class FoldConstantsSuite extends TestNGSuite {
     val x = ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64())
     assert(FoldConstants(x) == x)
   }
+
+  @Test def testErrorCatching() {
+    val ir = invoke("toInt32", TInt32(), Str(""))
+    assert(FoldConstants(ir) == ir)
+  }
 }

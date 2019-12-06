@@ -442,10 +442,16 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     def concordance_array(counter):
         return hl.range(0, 5).map(lambda i: hl.range(0, 5).map(lambda j: counter.get(i + 5 * j, 0)))
 
+    discordant_indices = set()
+    for i in range(5):
+        for j in range(5):
+            if i > 1 and j > 1 and i != j:
+                discordant_indices.add(i + 5 * j)
+
     def n_discordant(counter):
         return hl.sum(
             hl.array(counter)
-                .filter(lambda tup: ~hl.literal({i ** 2 for i in range(5)}).contains(tup[0]))
+                .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
                 .map(lambda tup: tup[1]))
 
     glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
@@ -456,11 +462,11 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
         info(f"concordance: total concordance {on_diag/total_obs * 100:.2f}%")
 
     per_variant = joined.annotate_rows(concordance=aggr)
-    per_variant = per_variant.annotate_rows(concordance=concordance_array(per_variant.concordance),
-                                            n_discordant=n_discordant(per_variant.concordance))
+    per_variant = per_variant.select_rows(concordance=concordance_array(per_variant.concordance),
+                                          n_discordant=n_discordant(per_variant.concordance))
     per_sample = joined.annotate_cols(concordance=aggr)
-    per_sample = per_sample.annotate_cols(concordance=concordance_array(per_sample.concordance),
-                                          n_discordant=n_discordant(per_sample.concordance))
+    per_sample = per_sample.select_cols(concordance=concordance_array(per_sample.concordance),
+                                        n_discordant=n_discordant(per_sample.concordance))
 
     return glob, per_sample.cols(), per_variant.rows()
 
