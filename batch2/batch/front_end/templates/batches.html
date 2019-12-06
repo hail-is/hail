@@ -19,6 +19,11 @@
 	    <th>ID</th>
 	    <th>Name</th>
 	    <th>State</th>
+	    <th>Jobs</th>
+	    <th>Pending</th>
+	    <th>Succeeded</th>
+	    <th>Failed</th>
+	    <th>Cancelled</th>
 	    <th>Cost</th>
 	  </tr>
 	</thead>
@@ -32,6 +37,11 @@
 	      {% endif %}
 	    </td>
 	    <td>{{ batch['state'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_jobs'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_jobs'] - batch['n_completed'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_succeeded'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_failed'] }}</td>
+	    <td class="numeric-cell">{{ batch['n_cancelled'] }}</td>
 	    <td>
 	      {% if 'cost' in batch and batch['cost'] is not none %}
 	      {{ batch['cost'] }}

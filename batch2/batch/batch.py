@@ -32,9 +32,15 @@ def batch_record_to_dict(record):
 
     d = {
         'id': record['id'],
+        'billing_project': record['billing_project'],
         'state': state,
         'complete': complete,
-        'closed': record['closed']
+        'closed': record['closed'],
+        'n_jobs': record['n_jobs'],
+        'n_completed': record['n_completed'],
+        'n_succeeded': record['n_succeeded'],
+        'n_failed': record['n_failed'],
+        'n_cancelled': record['n_cancelled']
     }
 
     attributes = json.loads(record['attributes'])
