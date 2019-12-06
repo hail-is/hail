@@ -1,22 +1,15 @@
 import random
 import pytest
-
 from hailtop.batch_client.client import BatchClient
 
+from .utils import batch_status_job_counter, batch_status_exit_codes, \
+    legacy_batch_status
 
 @pytest.fixture
 def client():
     client = BatchClient('test')
     yield client
     client.close()
-
-
-def batch_status_job_counter(batch_status, job_state):
-    return len([j for j in batch_status['jobs'] if j['state'] == job_state])
-
-
-def batch_status_exit_codes(batch_status):
-    return [j['exit_code'] for j in batch_status['jobs']]
 
 
 def test_scale(client):
@@ -27,7 +20,8 @@ def test_scale(client):
         batch.create_job('alpine:3.8', command=['sleep', str(round(sleep_time))])
 
     batch = batch.submit()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
 
     assert batch_status_job_counter(status, 'Success') == n_jobs, status
 
