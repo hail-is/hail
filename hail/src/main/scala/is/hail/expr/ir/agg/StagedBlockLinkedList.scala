@@ -88,7 +88,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     Code(
       dstNode := r.allocate(nodeType.alignment, nodeType.byteSize),
       initNode(dstNode,
-        buf = r.allocate(bufferType.contentsAlignment, bufferType.contentsByteSize(cap)),
+        buf = bufferType.allocate(r, cap),
         count = 0),
       bufferType.stagedInitialize(buffer(dstNode), cap))
 

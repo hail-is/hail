@@ -79,8 +79,7 @@ object StagedRegionValueBuilder {
           Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
       case t: PArray =>
         Code(
-          offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(region, value))),
-          Region.copyFrom(value, offset, t.contentsByteSize(t.loadLength(region, value))),
+          offset := t.copyFrom(region, value),
           fixupArray(fb, region, t, offset))
       case t =>
         Code(
@@ -169,7 +168,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def start(length: Code[Int], init: Boolean = true): Code[Unit] = {
     val t = ftype.asInstanceOf[PArray]
-    var c = startOffset.store(region.allocate(t.contentsAlignment, t.contentsByteSize(length)))
+    var c = startOffset.store(t.allocate(region, length))
     if (pOffset != null) {
       c = Code(c, Region.storeAddress(pOffset, startOffset))
     }
