@@ -83,10 +83,10 @@ abstract class PContainer extends PIterable {
     _elementsOffset(length)
   }
 
-  def contentsByteSize(length: Int): Long =
+  private def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
 
-  def contentsByteSize(length: Code[Int]): Code[Long] = {
+  private def contentsByteSize(length: Code[Int]): Code[Long] = {
     elementsOffset(length) + length.toL * elementByteSize
   }
 
@@ -162,6 +162,21 @@ abstract class PContainer extends PIterable {
       case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
+  }
+
+  def copyFrom(region: Region, srcOff: Long): Long = {
+    val destOff = allocate(region, loadLength(srcOff))
+    Region.copyFrom(srcOff,  destOff, contentsByteSize(loadLength(srcOff)))
+    destOff
+  }
+
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
+    val destOff = mb.newField[Long]
+    Code(
+      destOff := allocate(region, loadLength(srcOff)),
+      Region.copyFrom(srcOff, destOff, contentsByteSize(loadLength(srcOff))),
+      destOff
+    )
   }
 
   def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = loadElement(aoff, length, i)

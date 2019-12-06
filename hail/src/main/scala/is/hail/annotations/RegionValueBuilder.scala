@@ -157,7 +157,7 @@ class RegionValueBuilder(var region: Region) {
 
   private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
     val t = currentType().asInstanceOf[PArray]
-    val aoff = region.allocate(t.contentsAlignment, t.contentsByteSize(length))
+    val aoff = t.allocate(region, length)
 
     if (typestk.nonEmpty) {
       val off = currentOffset()
@@ -319,9 +319,7 @@ class RegionValueBuilder(var region: Region) {
 
   def fixupArray(t: PArray, fromRegion: Region, fromAOff: Long): Long = {
     val length = t.loadLength(fromRegion, fromAOff)
-    val toAOff = t.allocate(region, length)
-
-    Region.copyFrom(fromAOff, toAOff, t.contentsByteSize(length))
+    val toAOff = t.copyFrom(region, fromAOff)
 
     if (region.ne(fromRegion) && requiresFixup(t.elementType)) {
       var i = 0
