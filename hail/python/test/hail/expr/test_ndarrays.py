@@ -597,6 +597,11 @@ def test_ndarray_qr():
 
     assert_same_qr(tall_rect, np_tall_rect)
 
+    np_single_element = np.array([1]).reshape((1, 1))
+    single_element = hl._nd.array([1]).reshape((1, 1))
+
+    assert_same_qr(single_element, np_single_element)
+
 
     with pytest.raises(ValueError) as exc:
         hl._nd.qr(wiki_example, mode="invalid")
