@@ -1175,7 +1175,7 @@ steps:
      set -ex
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gcloud -q compute instances list \
-         --filter 'tags.items=batch-agent AND labels.namespace={{ default_ns.name }}' \
+         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="value(name)" \
          --project {{ global.project }} \
        | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }}
