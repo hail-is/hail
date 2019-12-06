@@ -167,11 +167,13 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     (createShape, newIndices.map(_.load()))
   }
 
-  def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
+  def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
     val rowIndex = mb.newField[Long]
     val colIndex = mb.newField[Long]
     val rowMajorCoord = nCols * rowIndex + colIndex
     val colMajorCoord = nRows * colIndex + rowIndex
+    val rowMajorFirstElementAddress = this.data.pType.firstElementOffset(rowMajorAddress, (nRows * nCols).toI)
+    val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
     val currentElement = Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)
 
     Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
@@ -181,11 +183,13 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
+  def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
     val rowIndex = mb.newField[Long]
     val colIndex = mb.newField[Long]
     val rowMajorCoord = nCols * rowIndex + colIndex
     val colMajorCoord = nRows * colIndex + rowIndex
+    val colMajorFirstElementAddress = this.data.pType.firstElementOffset(colMajorAddress, (nRows * nCols).toI)
+    val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
     val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
 
     Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,

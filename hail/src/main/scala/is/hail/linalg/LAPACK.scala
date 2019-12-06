@@ -44,7 +44,6 @@ object LAPACK {
         }
     }
   }
-  def getInstance() = libraryInstance
 
   // Return info
   def dgeqrf(M: Int, N: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {

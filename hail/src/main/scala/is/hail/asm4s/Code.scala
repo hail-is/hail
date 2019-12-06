@@ -727,7 +727,6 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     Code(lhs, new InsnNode(ARRAYLENGTH))
 }
 
-
 object Invokeable {
   def apply[T](cls: Class[T], c: Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
     cls,

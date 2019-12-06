@@ -1489,7 +1489,7 @@ private class Emit(
           // Make some space for the column major form (which means copying the input)
           aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
           ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0), M, N, mb),
+          ndPType.copyRowMajorToColumnMajor(dataAddress, aAddressDGEQRF, M, N, mb),
 
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
@@ -1585,8 +1585,8 @@ private class Emit(
           val computeR = Code(
             rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced mode this should be less space?
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
-            rPType.copyColumnMajorToRowMajor(rPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
-              rPType.data.pType.firstElementOffset(rDataAddress, aNumElements.toI), M, N, mb),
+            rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
+              rDataAddress, M, N, mb),
             zeroOutCorner,
             rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
@@ -1689,8 +1689,7 @@ private class Emit(
               qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
               Code._println("Copying into Q"),
-              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(aAddressDORGQR, qNumElements.toI, 0),
-                qPType.data.pType.elementOffset(qDataAddress, qNumElements.toI, 0), M, numColsToUse, mb),
+              qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
               printQ,
 
               crOutputSrvb.start(),
