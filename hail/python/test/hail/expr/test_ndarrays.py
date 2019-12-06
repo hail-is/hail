@@ -559,6 +559,7 @@ def test_ndarray_qr():
         assert_raw_equivalence(hl_ndarray, np_ndarray)
         assert_r_equivalence(hl_ndarray, np_ndarray)
         assert_reduced_equivalence(hl_ndarray, np_ndarray)
+        assert_complete_equivalence(hl_ndarray, np_ndarray)
 
     np_identity4 = np.identity(4)
     identity4 = hl._nd.array(np_identity4)
@@ -590,13 +591,11 @@ def test_ndarray_qr():
     wide_rect = hl._nd.arange(12).reshape((3, 4))
 
     assert_same_qr(wide_rect, np_wide_rect)
-    #assert_complete_equivalence(wide_rect, np_wide_rect)
 
     np_tall_rect = np.arange(12).reshape((4, 3))
     tall_rect = hl._nd.arange(12).reshape((4, 3))
 
     assert_same_qr(tall_rect, np_tall_rect)
-    #assert_complete_equivalence(tall_rect, np_tall_rect)
 
 
     with pytest.raises(ValueError) as exc:

@@ -1646,16 +1646,7 @@ private class Emit(
             val rNDArrayAddress = mb.newField[Long]
             val qDataAddress = mb.newField[Long]
 
-            val printQ = Code(
-              workStr := const(""),
-              i := 0L,
-              Code.whileLoop(i < (M * N).toL,
-                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, i.toI)).toS.concat(" ")),
-                i := i + 1L
-              ),
-              Code._println(const("Q = ").concat(workStr)),
-              Code._println("")
-            )
+
 
             val infoDORGQRResult = mb.newField[Int]
 
@@ -1664,17 +1655,30 @@ private class Emit(
             val aAddressDORGQR = mb.newField[Long]
 
             val printDORGQRA = Code(
-              workStr := const(""),
+              workStr := const("["),
               i := 0L,
               Code.whileLoop(i < (M * numColsToUse).toL,
-                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, i.toI)).toS.concat(" ")),
+                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, i.toI)).toS.concat(", ")),
                 i := i + 1L
               ),
+              workStr := workStr.concat("]"),
               Code._println(const("DORGQRA = ").concat(workStr)),
               Code._println("")
             )
 
             val qNumElements = M * numColsToUse
+
+            val printQ = Code(
+              workStr := const("["),
+              i := 0L,
+              Code.whileLoop(i < (M * numColsToUse).toL,
+                workStr := workStr.concat(Region.loadDouble(qPType.data.pType.elementOffset(qDataAddress, qNumElements.toI, i.toI)).toS.concat(", ")),
+                i := i + 1L
+              ),
+              workStr := workStr.concat("]"),
+              Code._println(const("Q = ").concat(workStr)),
+              Code._println("")
+            )
 
             /**
               * #  generate q from a
@@ -1724,7 +1728,7 @@ private class Emit(
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPType.data.pType.elementOffset(aAddressDGEQRF, (M * numColsToUse).toI, 0),
+                ndPType.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
                 workAddress,
@@ -1735,11 +1739,12 @@ private class Emit(
               printDORGQRA,
               Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
 
-              qDataAddress := qPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced/complete mode this should be more/less space
+              qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
               Code._println("Copying into Q"),
-              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(aAddressDGEQRF, qNumElements.toI, 0),
+              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(aAddressDORGQR, qNumElements.toI, 0),
                 qPType.data.pType.elementOffset(qDataAddress, qNumElements.toI, 0), M, numColsToUse, mb),
+              printQ,
 
               crOutputSrvb.start(),
               crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
