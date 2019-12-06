@@ -6,7 +6,6 @@ import java.util
 
 import is.hail.annotations.Region
 import is.hail.expr.types.physical.PTuple
-import is.hail.linalg.LAPACKLibrary
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -728,12 +727,6 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     Code(lhs, new InsnNode(ARRAYLENGTH))
 }
 
-class CodeLapack(val cl: Code[LAPACKLibrary]) {
-  //LDA: Length of one row in row major order, or length of one column in column major order
-  def dgeqrf(M: Code[Long], N: Code[Long], A: Code[Long], LDA: Code[Long], TAU: Code[Long], WORK: Code[Long], LWORK: Code[Long], INFO: Code[Long]): Code[Unit] = {
-    cl.invoke[Long, Long, Long, Long, Long, Long, Long, Long, Unit]("dgeqrf", M, N, A, LDA, TAU, WORK, LWORK, INFO)
-  }
-}
 
 object Invokeable {
   def apply[T](cls: Class[T], c: Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
