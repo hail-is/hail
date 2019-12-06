@@ -147,12 +147,6 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def linearizeIndicesColumnMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
-    val index = mb.newField[Long]
-    val elementsInProcessedDimensions = mb.newField[Long]
-    ???
-  }
-
   def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
@@ -176,50 +170,29 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
   def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
     val rowIndex = mb.newField[Long]
     val colIndex = mb.newField[Long]
-    val rowMajorCoord = mb.newField[Long]
-    val colMajorCoord = mb.newField[Long]
+    val rowMajorCoord = nCols * rowIndex + colIndex
+    val colMajorCoord = nRows * colIndex + rowIndex
+    val currentElement = Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)
 
-    // Problem: This does not consider the length
-    val loopingCopy = Code(
-      rowIndex := 0L,
-      Code.whileLoop(rowIndex < nRows,
-        colIndex := 0L,
-        Code.whileLoop(colIndex < nCols,
-          rowMajorCoord := nCols * rowIndex + colIndex,
-          colMajorCoord := nRows * colIndex + rowIndex,
-          Region.storeDouble(targetFirstElementAddress + colMajorCoord * 8L, Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)),
-          colIndex := colIndex + 1L
-        ),
-        rowIndex := rowIndex + 1L
+    Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
+      Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
+        Region.storeDouble(targetFirstElementAddress + colMajorCoord * 8L, currentElement)
       )
     )
-    loopingCopy
   }
 
   def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
     val rowIndex = mb.newField[Long]
     val colIndex = mb.newField[Long]
-    val rowMajorCoord = mb.newField[Long]
-    val colMajorCoord = mb.newField[Long]
-
+    val rowMajorCoord = nCols * rowIndex + colIndex
+    val colMajorCoord = nRows * colIndex + rowIndex
     val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
 
-    // Problem: This does not consider the length?
-    val loopingCopy = Code(
-      rowIndex := 0L,
-      Code.whileLoop(rowIndex < nRows,
-        colIndex := 0L,
-        Code.whileLoop(colIndex < nCols,
-          rowMajorCoord := nCols * rowIndex + colIndex,
-          colMajorCoord := nRows * colIndex + rowIndex,
-          //Code._println(const("Copying ").concat(currentElement.toS).concat(const(" from colMajorCoord = ")).concat(colMajorCoord.toS).concat(const(" to rowMajorCoord = ").concat(rowMajorCoord.toS))),
-          Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)),
-          colIndex := colIndex + 1L
-        ),
-        rowIndex := rowIndex + 1L
+    Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
+      Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
+        Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, currentElement)
       )
     )
-    loopingCopy
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),

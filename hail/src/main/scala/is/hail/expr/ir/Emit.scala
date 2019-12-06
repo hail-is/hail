@@ -1442,12 +1442,8 @@ private class Emit(
 
       case x@NDArrayQR(nd, mode) =>
         val ndt = emit(nd)
-
         val ndAddress = mb.newField[Long]
-
         val ndPType = nd.pType.asInstanceOf[PNDArray]
-
-        assert(ndPType.elementType.isInstanceOf[PFloat64])
 
         val shapeAddress = ndPType.shape.load(region, ndAddress)
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
@@ -1458,7 +1454,7 @@ private class Emit(
         val M = shapeArray(0)
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
-        val LDA = M
+        val LDA = M // Possible stride tricks could change this in the future.
         val LWORK = Region.loadDouble(sizeQueryAddress).toI
 
         val dataAddress = ndPType.data.load(region, ndAddress)
@@ -1525,8 +1521,8 @@ private class Emit(
           Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
         )
 
-        if (mode == "raw") {
-          // Raw returns the column major form as is.
+        val result = if (mode == "raw") {
+          // Raw returns the column major form of A as is.
           val rawPType = x.pType.asInstanceOf[PTuple]
           val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
           val hPType = rawPType.types(0).asInstanceOf[PNDArray]
@@ -1542,7 +1538,7 @@ private class Emit(
           val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
-          val ifRaw = Code(
+          val computeRaw = Code(
             rawOutputSrvb.start(),
             rawOutputSrvb.addIRIntermediate(hPType)(h),
             rawOutputSrvb.advance(),
@@ -1551,32 +1547,26 @@ private class Emit(
             rawOutputSrvb.end()
           )
 
-          val result = Code(
+          Code(
             alwaysNeeded,
-            ifRaw
+            computeRaw
           )
-
-          EmitTriplet(ndt.setup, ndt.m, result)
         }
         else {
           val currRow = mb.newField[Int]
           val currCol = mb.newField[Int]
 
-          //This should be done in row major
-          val zeroOutCorner = Code(
-            currRow := 0,
-            Code.whileLoop(currRow < M.toI,
-              currCol := 0,
-              Code.whileLoop(currCol < N.toI,
+          //This block assumes rDataAddress is a row major ndarray.
+          val zeroOutCorner =
+            Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
+              Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
                 (currRow > currCol).orEmpty(
-                  Region.storeDouble(ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI,
-                    currRow * N.toI + currCol), 0.0)
-                ),
-                currCol := currCol + 1
-              ),
-              currRow := currRow + 1
+                  Region.storeDouble(
+                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currRow * N.toI + currCol),
+                    0.0)
+                )
+              )
             )
-          )
 
           val (rPType, rShapeArray) = if (mode == "r") {
             (x.pType.asInstanceOf[PNDArray], Array(K, N))
@@ -1594,22 +1584,20 @@ private class Emit(
           val computeR = Code(
             rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced mode this should be less space?
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
-            rPType.copyColumnMajorToRowMajor(rPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
-              rPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, 0), M, N, mb),
+            rPType.copyColumnMajorToRowMajor(rPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+              rPType.data.pType.firstElementOffset(rDataAddress, aNumElements.toI), M, N, mb),
             zeroOutCorner,
             rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
 
           if (mode == "r") {
-            val result = Code(
+            Code(
               alwaysNeeded,
               computeR
             )
-
-            EmitTriplet(ndt.setup, ndt.m, result)
           }
           else if (mode == "complete" || mode =="reduced") {
-            // In complete and reduced mode, I compute R based on the current A, then pass A to `dorgqr` to compute Q
+            // In complete and reduced mode, compute R based on the current A, then pass A to `dorgqr` to compute Q
             val crPType = x.pType.asInstanceOf[PTuple]
             val qPType = crPType.types(0).asInstanceOf[PNDArray]
 
@@ -1631,10 +1619,8 @@ private class Emit(
 
             val printDORGQRA = Code(
               workStr := const("["),
-              i := 0L,
-              Code.whileLoop(i < (M * numColsToUse).toL,
-                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, i.toI)).toS.concat(", ")),
-                i := i + 1L
+              Code.forLoop(i := 0L, i < (M * numColsToUse).toL, i := i + 1L,
+                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, i.toI)).toS.concat(", "))
               ),
               workStr := workStr.concat("]"),
               Code._println(const("DORGQRA = ").concat(workStr)),
@@ -1661,11 +1647,10 @@ private class Emit(
 
               qCondition.mux(
                 Code(
-                  Code._println("Taking difficult path"),
                   aAddressDORGQR := ndPType.data.pType.allocate(region, qNumElements.toI),
                   qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI),
-                  Region.copyFrom(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
-                    qPType.data.pType.elementOffset(aAddressDORGQR, qNumElements.toI, 0), aNumElements * 8L)
+                  Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+                    qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L)
                 ),
                 aAddressDORGQR := aAddressDGEQRF
               ),
@@ -1678,9 +1663,9 @@ private class Emit(
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, 0),
+                ndPType.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
                 LDA.toI,
-                tauPType.elementOffset(tauAddress, K.toI, 0),
+                tauPType.firstElementOffset(tauAddress, K.toI),
                 sizeQueryAddress,
                 -1
               ),
@@ -1717,18 +1702,17 @@ private class Emit(
               crOutputSrvb.end()
             )
 
-            val result = Code(
+            Code(
               alwaysNeeded,
               rNDArrayAddress := computeR,
               computeCompleteOrReduced
             )
-
-            EmitTriplet(ndt.setup, ndt.m, result)
           }
           else {
             throw new HailException(s"Unsupported QR mode $mode")
           }
         }
+        EmitTriplet(ndt.setup, ndt.m, result)
 
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
