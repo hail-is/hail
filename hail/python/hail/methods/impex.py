@@ -1537,7 +1537,7 @@ def import_matrix_table(paths,
         CTCTTCT kidney  2.5     0       0       0       1
         CTATATA brain   7.0     0       0       3       0
 
-    The field ``Height`` contains floating-point numbers and the field ``Age``
+    The field ``Days`` contains floating-point numbers and each of the ``GENE`` fields contain integers.
     contains integers.
 
     To import this matrix:
