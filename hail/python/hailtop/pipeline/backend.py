@@ -6,7 +6,7 @@ import time
 from shlex import quote as shq
 import webbrowser
 from hailtop.config import get_deploy_config
-from hailtop.batch_client.client import BatchClient, Job
+from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, TaskResourceFile
 
