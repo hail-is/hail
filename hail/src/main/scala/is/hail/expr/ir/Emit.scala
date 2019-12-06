@@ -1481,6 +1481,7 @@ private class Emit(
         )
 
         val infoDGEQRFResult = mb.newLocal[Int]
+        val infoDGEQRFErrorTest = (infoDGEQRFResult < 0).orEmpty(Code._fatal(const("LAPACK error DGEQRF. Error code = ").concat(infoDGEQRFResult.toS)))
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
@@ -1493,7 +1494,7 @@ private class Emit(
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
 
-          sizeQueryAddress := Code.invokeStatic[Memory, Long, Long]("malloc", 8L), //One Double
+          sizeQueryAddress := Code.invokeStatic[Memory, Long, Long]("malloc", 8L), //One Double TODO NEED TO FREE
 
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
             M.toI,
@@ -1504,6 +1505,7 @@ private class Emit(
             sizeQueryAddress,
             -1
           ),
+          infoDGEQRFErrorTest,
 
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
@@ -1516,9 +1518,8 @@ private class Emit(
             workAddress,
             LWORK
           ),
-          Code._println(const("infoDGEQRFResult = ").concat(infoDGEQRFResult.toS)),
-
-          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load())
+          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
+          infoDGEQRFErrorTest
         )
 
         val result = if (mode == "raw") {
@@ -1599,19 +1600,18 @@ private class Emit(
           else if (mode == "complete" || mode =="reduced") {
             // In complete and reduced mode, compute R based on the current A, then pass A to `dorgqr` to compute Q
             val crPType = x.pType.asInstanceOf[PTuple]
+            val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region)
+
             val qPType = crPType.types(0).asInstanceOf[PNDArray]
-
             val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
-
             val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
             val qStridesBuilder = qPType.makeDefaultStridesBuilder(qShapeArray, mb)
-
-            val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region)
 
             val rNDArrayAddress = mb.newField[Long]
             val qDataAddress = mb.newField[Long]
 
             val infoDORGQRResult = mb.newField[Int]
+            val infoDORQRErrorTest = (infoDORGQRResult < 0).orEmpty(Code._fatal(const("LAPACK error DORGQR. Error code = ").concat(infoDORGQRResult.toS)))
 
             val qCondition = const(mode == "complete") && (M > N)
             val numColsToUse = qCondition.mux(M, K)
@@ -1669,6 +1669,7 @@ private class Emit(
                 sizeQueryAddress,
                 -1
               ),
+              infoDORQRErrorTest,
 
               workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
@@ -1682,10 +1683,8 @@ private class Emit(
                 workAddress,
                 LWORK
               ),
-
-              Code._println(const("infoDORGQRResult = ").concat(infoDORGQRResult.toS)),
-              printDORGQRA,
               Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
+              infoDORQRErrorTest,
 
               qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
