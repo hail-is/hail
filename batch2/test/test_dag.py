@@ -145,9 +145,15 @@ def test_callback(client):
         callback_body.pop('msec_mcpu')
         assert (callback_body == {
             'id': b.id,
+            'billing_project': 'test',
             'state': 'success',
             'complete': True,
             'closed': True,
+            'n_jobs': 2,
+            'n_completed': 2,
+            'n_succeeded': 2,
+            'n_failed': 0,
+            'n_cancelled': 0,
             'attributes': {'foo': 'bar'}
         }), callback_body
     finally:
