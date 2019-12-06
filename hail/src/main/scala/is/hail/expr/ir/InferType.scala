@@ -34,8 +34,6 @@ object InferType {
       case _: StreamRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid
-      case _: InitOp => TVoid
-      case _: SeqOp => TVoid
       case _: InitOp2 => TVoid
       case _: SeqOp2 => TVoid
       case _: CombOp2 => TVoid

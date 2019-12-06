@@ -1699,7 +1699,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayFold2() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val af = ArrayFold2(In(0, TArray(TInt32())),
       FastIndexedSeq(("x", I32(0)), ("y", NA(TInt32()))),
@@ -1743,7 +1743,7 @@ class IRSuite extends HailSuite {
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
   @Test def testNDArrayShape() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
     assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
@@ -2015,7 +2015,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayAgg() {
-    implicit val execStrats = ExecStrategy.javaOnly
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
     assertEvalsTo(
@@ -2027,7 +2027,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayAggContexts() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = Let(
       "x",
@@ -2057,7 +2057,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayAggScan() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall(), "y" -> TInt32())
 
@@ -2389,9 +2389,6 @@ class IRSuite extends HailSuite {
       ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), None, FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
-      InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
-      SeqOp(I32(0), FastIndexedSeq(i), collectSig),
-      SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
       InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig2),
       SeqOp2(0, FastIndexedSeq(i), collectSig2),
       CombOp2(0, 1, collectSig2),
@@ -2696,11 +2693,11 @@ class IRSuite extends HailSuite {
       val args = FastIndexedSeq((i, TBoolean()))
 
       IRSuite.globalCounter = 0
-      Interpret[Any](ctx, x, env, args, None, optimize = false)
+      Interpret[Any](ctx, x, env, args, optimize = false)
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0
-      Interpret[Any](ctx, x, env, args, None)
+      Interpret[Any](ctx, x, env, args)
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0

@@ -73,7 +73,7 @@ class LocusFunctionsSuite extends HailSuite {
   }
 
   @Test def testMultipleReferenceGenomes() {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+    implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = MakeTuple.ordered(FastSeq(
       invoke("Locus", TLocus(ReferenceGenome.GRCh37), Str("1"), I32(1)),

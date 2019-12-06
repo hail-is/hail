@@ -317,9 +317,6 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
   def op: AggOp = aggSig.op
 }
 
-final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-
 final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
 final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
 final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR

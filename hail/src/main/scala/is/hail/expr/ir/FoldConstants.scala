@@ -13,9 +13,7 @@ object FoldConstants {
              _: ApplySeeded |
              _: ApplyAggOp |
              _: ApplyScanOp |
-             _: SeqOp |
              _: Begin |
-             _: InitOp |
              _: ArrayRange |
              _: MakeNDArray |
              _: NDArrayShape |

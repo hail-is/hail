@@ -882,16 +882,6 @@ object IRParser {
         val spec = BufferSpec.parse(string_literal(it))
         val aggSigs = agg_signatures(env.typEnv)(it)
         DeserializeAggs(i, i2, spec, aggSigs)
-      case "InitOp" =>
-        val aggSig = agg_signature(env.typEnv)(it)
-        val i = ir_value_expr(env)(it)
-        val args = ir_value_exprs(env)(it)
-        InitOp(i, args, aggSig)
-      case "SeqOp" =>
-        val aggSig = agg_signature(env.typEnv)(it)
-        val i = ir_value_expr(env)(it)
-        val args = ir_value_exprs(env)(it)
-        SeqOp(i, args, aggSig)
       case "Begin" =>
         val xs = ir_value_children(env)(it)
         Begin(xs)

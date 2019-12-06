@@ -16,7 +16,7 @@ import org.apache.spark.sql.Row
 
 class AggregatorsSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats = ExecStrategy.compileOnly
 
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
@@ -201,19 +201,15 @@ class AggregatorsSuite extends HailSuite {
     expected: Seq[T]
   ): Unit = {
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(eltType))
-    val aggregable = a.map(Row(_))
 
-    val tp = TableParallelize(MakeStruct(FastSeq(
-      ("rows", Literal(TArray(TStruct("foo" -> TArray(eltType))), a.map(Row(_)))),
-      ("global", MakeStruct(FastSeq())))))
+    val aggregable = a.map(Row(_))
+    val structType = TStruct("foo" -> TArray(eltType))
 
     assertEvalsTo(
-      TableAggregate(
-        tp,
-        AggArrayPerElement(GetField(Ref("row", tp.typ.rowType), "foo"), "elt", "_",
-          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", eltType)), aggSig), None, isScan = false)),
-      (aggregable, TStruct("a" -> TArray(eltType))),
-      expected)(ExecStrategy.interpretOnly)
+        AggArrayPerElement(Ref("foo", TArray(eltType)), "elt", "_",
+          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", eltType)), aggSig), None, isScan = false),
+      (aggregable, structType),
+      expected)
   }
 
   @Test

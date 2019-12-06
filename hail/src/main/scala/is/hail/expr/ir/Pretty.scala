@@ -139,20 +139,6 @@ object Pretty {
           }
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
-        case SeqOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
         case InitOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)

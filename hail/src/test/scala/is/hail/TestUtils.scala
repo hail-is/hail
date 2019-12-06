@@ -23,7 +23,8 @@ object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
   val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile = Value
 
-  val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val compileOnly: Set[ExecStrategy] = Set(JvmCompile)
+  val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
   val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
@@ -269,24 +270,20 @@ object TestUtils {
   }
 
   def assertEvalSame(x: IR) {
-    assertEvalSame(x, Env.empty, FastIndexedSeq(), None)
+    assertEvalSame(x, Env.empty, FastIndexedSeq())
   }
 
   def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]) {
-    assertEvalSame(x, Env.empty, args, None)
+    assertEvalSame(x, Env.empty, args)
   }
 
-  def assertEvalSame(x: IR, agg: (IndexedSeq[Row], TStruct)) {
-    assertEvalSame(x, Env.empty, FastIndexedSeq(), Some(agg))
-  }
-
-  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]) {
+  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]) {
     val t = x.typ
 
     val (i, i2, c) = ExecuteContext.scoped { ctx =>
-      val i = Interpret[Any](ctx, x, env, args, agg)
-      val i2 = Interpret[Any](ctx, x, env, args, agg, optimize = false)
-      val c = eval(x, env, args, agg)
+      val i = Interpret[Any](ctx, x, env, args)
+      val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
+      val c = eval(x, env, args, None)
       (i, i2, c)
     }
 
@@ -340,8 +337,12 @@ object TestUtils {
       filteredExecStrats.foreach { strat =>
         try {
           val res = strat match {
-            case ExecStrategy.Interpret => Interpret[Any](ctx, x, env, args, agg)
-            case ExecStrategy.InterpretUnoptimized => Interpret[Any](ctx, x, env, args, agg, optimize = false)
+            case ExecStrategy.Interpret =>
+              assert(agg.isEmpty)
+              Interpret[Any](ctx, x, env, args)
+            case ExecStrategy.InterpretUnoptimized =>
+              assert(agg.isEmpty)
+              Interpret[Any](ctx, x, env, args, optimize = false)
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
               eval(x, env, args, agg, bytecodePrinter =
@@ -365,14 +366,14 @@ object TestUtils {
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, regex: String) {
-    assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], None, regex)
+    assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
   }
 
-  def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
+  def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
     ExecuteContext.scoped { ctx =>
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg))
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg, optimize = false))
-      interceptException[E](regex)(eval(x, env, args, agg))
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
+      interceptException[E](regex)(eval(x, env, args, None))
     }
   }
 
@@ -381,19 +382,19 @@ object TestUtils {
   }
 
   def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String) {
-    assertThrows[HailException](x, Env.empty[(Any, Type)], args, None, regex)
+    assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
   }
 
-  def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
-    assertThrows[HailException](x, env, args, agg, regex)
+  def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
+    assertThrows[HailException](x, env, args, regex)
   }
 
-  def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
-    interceptException[E](regex)(eval(x, env, args, agg))
+  def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
+    interceptException[E](regex)(eval(x, env, args, None))
   }
 
   def assertCompiledThrows[E <: Throwable : Manifest](x: IR, regex: String) {
-    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], None, regex)
+    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
   }
 
   def assertCompiledFatal(x: IR, regex: String) {
