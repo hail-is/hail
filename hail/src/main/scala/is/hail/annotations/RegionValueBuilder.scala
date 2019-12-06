@@ -319,7 +319,7 @@ class RegionValueBuilder(var region: Region) {
 
   def fixupArray(t: PArray, fromRegion: Region, fromAOff: Long): Long = {
     val length = t.loadLength(fromRegion, fromAOff)
-    val toAOff = t.copyFrom(fromRegion, fromAOff)
+    val toAOff = t.copyFrom(region, fromAOff)
 
     if (region.ne(fromRegion) && requiresFixup(t.elementType)) {
       var i = 0
