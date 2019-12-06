@@ -602,7 +602,10 @@ def test_ndarray_qr():
 
     assert_same_qr(single_element, np_single_element)
 
-
     with pytest.raises(ValueError) as exc:
         hl._nd.qr(wiki_example, mode="invalid")
     assert "Unrecognized mode" in str(exc)
+
+    with pytest.raises(AssertionError) as exc:
+        hl._nd.qr(hl._nd.arange(6))
+    assert "requires 2 dimensional" in str(exc)

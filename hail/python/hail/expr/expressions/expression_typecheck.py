@@ -254,7 +254,7 @@ class ArrayCoercer(ExprCoercer):
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
-# NDArrayExpressions must be created explicity using `hl._ndarray`
+# NDArrayExpressions must be created explicity
 class NDArrayCoercer(ExprCoercer):
     def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(NDArrayCoercer, self).__init__()
