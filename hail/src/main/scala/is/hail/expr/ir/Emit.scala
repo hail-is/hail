@@ -1661,8 +1661,20 @@ private class Emit(
 
             val qCondition = const(mode == "complete") && (M > N)
             val numColsToUse = qCondition.mux(M, K)
-            val aAddressDORGQR = qCondition.mux(???,
-              aAddressDGEQRF)
+            val aAddressDORGQR = mb.newField[Long]
+
+            val printDORGQRA = Code(
+              workStr := const(""),
+              i := 0L,
+              Code.whileLoop(i < (M * numColsToUse).toL,
+                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, i.toI)).toS.concat(" ")),
+                i := i + 1L
+              ),
+              Code._println(const("DORGQRA = ").concat(workStr)),
+              Code._println("")
+            )
+
+            val qNumElements = M * numColsToUse
 
             /**
               * #  generate q from a
@@ -1677,15 +1689,28 @@ private class Emit(
 
             val computeCompleteOrReduced = Code(
               infoDORGQRResult := 1,
-              diagnosticPrint,
               printA,
+
+              qCondition.mux(
+                Code(
+                  Code._println("Taking difficult path"),
+                  aAddressDORGQR := ndPType.data.pType.allocate(region, qNumElements.toI),
+                  qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI),
+                  Region.copyFrom(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+                    qPType.data.pType.elementOffset(aAddressDORGQR, qNumElements.toI, 0), aNumElements * 8L)
+                ),
+                aAddressDORGQR := aAddressDGEQRF
+              ),
+
+              printA,
+              printDORGQRA,
 
               // Query optimal size for work array
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+                ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, 0),
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
                 sizeQueryAddress,
@@ -1699,7 +1724,7 @@ private class Emit(
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+                ndPType.data.pType.elementOffset(aAddressDGEQRF, (M * numColsToUse).toI, 0),
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
                 workAddress,
@@ -1707,14 +1732,14 @@ private class Emit(
               ),
 
               Code._println(const("infoDORGQRResult = ").concat(infoDORGQRResult.toS)),
-              printA,
+              printDORGQRA,
               Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
 
               qDataAddress := qPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced/complete mode this should be more/less space
-              qPType.data.pType.stagedInitialize(qDataAddress, aNumElements.toI),
+              qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
               Code._println("Copying into Q"),
-              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
-                qPType.data.pType.elementOffset(qDataAddress, aNumElements.toI, 0), M, numColsToUse, mb),
+              qPType.copyColumnMajorToRowMajor(ndPType.data.pType.elementOffset(aAddressDGEQRF, qNumElements.toI, 0),
+                qPType.data.pType.elementOffset(qDataAddress, qNumElements.toI, 0), M, numColsToUse, mb),
 
               crOutputSrvb.start(),
               crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),

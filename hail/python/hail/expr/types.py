@@ -648,6 +648,7 @@ class tndarray(HailType):
         return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
+        print(x)
         np_type = self.element_type.to_numpy()
         return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
 
