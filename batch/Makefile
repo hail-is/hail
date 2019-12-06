@@ -29,9 +29,9 @@ push: build
 	docker push $(BATCH_LATEST)
 	docker tag batch $(BATCH_IMAGE)
 	docker push $(BATCH_IMAGE)
-	docker tag batch $(BATCH_WORKER_LATEST)
+	docker tag batch-worker $(BATCH_WORKER_LATEST)
 	docker push $(BATCH_WORKER_LATEST)
-	docker tag batch $(BATCH_WORKER_IMAGE)
+	docker tag batch-worker $(BATCH_WORKER_IMAGE)
 	docker push $(BATCH_WORKER_IMAGE)
 
 deploy: push
