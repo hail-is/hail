@@ -194,7 +194,7 @@ class BatchBackend(Backend):
     def close(self):
         self._batch_client.close()
 
-    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit, wait=False, open=False):  # pylint: disable-msg=R0915
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit, wait=True, open=False):  # pylint: disable-msg=R0915
         build_dag_start = time.time()
 
         bucket = self._batch_client.bucket
@@ -335,7 +335,7 @@ class BatchBackend(Backend):
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
-        print('')
+            print('')
 
         deploy_config = get_deploy_config()
         url = deploy_config.url('batch2', f'/batches/{batch.id}')
@@ -344,6 +344,6 @@ class BatchBackend(Backend):
         if open:
             webbrowser.open(url)
         if wait:
-            print('Waiting for batch {batch.id}...')
+            print(f'Waiting for batch {batch.id}...')
             status = batch.wait()
             print(f'Batch {batch.id} complete: {status["state"]}')
