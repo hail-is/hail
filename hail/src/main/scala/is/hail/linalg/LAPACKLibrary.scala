@@ -23,7 +23,7 @@ object TryAll {
     }
 }
 
-object LAPACKLibrary {
+object LAPACK {
   lazy val libraryInstance = {
     val standard = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
 

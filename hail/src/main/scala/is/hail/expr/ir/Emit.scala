@@ -10,7 +10,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.linalg.LAPACKLibrary
+import is.hail.linalg.LAPACK
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1496,7 +1496,7 @@ private class Emit(
 
           sizeQueryAddress := Code.invokeStatic[Memory, Long, Long]("malloc", 8L), //One Double TODO NEED TO FREE
 
-          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
+          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
             ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
@@ -1509,7 +1509,7 @@ private class Emit(
 
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
-          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dgeqrf",
+          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
             ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
@@ -1659,7 +1659,7 @@ private class Emit(
               printDORGQRA,
 
               // Query optimal size for work array
-              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
+              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
@@ -1673,7 +1673,7 @@ private class Emit(
 
               workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
-              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
+              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,

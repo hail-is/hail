@@ -3,7 +3,7 @@ package is.hail.lapack
 import com.sun.jna.{Native, Library, Pointer, Memory}
 import com.sun.jna.ptr._
 import is.hail.annotations.{Memory => HailMemory}
-import is.hail.linalg.LAPACKLibrary
+import is.hail.linalg.LAPACK
 
 
 object BLASLibrary {
@@ -22,13 +22,13 @@ object LapackTest {
   final def main(args: Array[String]): Unit = {
     println("Trying to call LAPACK")
 
-    println(LAPACKLibrary.getInstance())
+    println(LAPACK.getInstance())
     //    println(BLASLibrary.instance)
 
     val major = new IntByReference(0)
     val minor = new IntByReference(0)
     val patch = new IntByReference(0)
-    LAPACKLibrary.getInstance().ilaver(major, minor, patch)
+    LAPACK.getInstance().ilaver(major, minor, patch)
     val version = s"${major.getValue}.${minor.getValue}.${patch.getValue}"
     println(version)
 
@@ -57,14 +57,6 @@ object LapackTest {
         print(HailMemory.loadDouble(A + adjusted))
         print(" ")
       }
-//      (0 until M).foreach { mIdx =>
-//        (0 until N).foreach { nIdx =>
-//          val adjusted = (mIdx + (nIdx * M)) * 8
-//          print(HailMemory.loadDouble(A + adjusted))
-//          print(" ")
-//        }
-//
-//      }
       println()
     }
 
@@ -98,7 +90,7 @@ object LapackTest {
 
     printA()
 
-    val info = LAPACKLibrary.dgeqrf(M, N, A, LDA, TAU, WORK, LWORK)
+    val info = LAPACK.dgeqrf(M, N, A, LDA, TAU, WORK, LWORK)
 
     printA()
 
@@ -106,7 +98,7 @@ object LapackTest {
 
     printWork()
 
-    val info2 = LAPACKLibrary.dorgqr(M, N, K, A, LDA, TAU, WORK, LWORK)
+    val info2 = LAPACK.dorgqr(M, N, K, A, LDA, TAU, WORK, LWORK)
 
 
     println("Info = " + info2)
