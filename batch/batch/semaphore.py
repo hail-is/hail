@@ -33,7 +33,7 @@ class FIFOWeightedSemaphore:
         self.queue = collections.deque()
 
     async def acquire(self, weight):
-        if self.value >= weight:
+        if not self.queue and self.value >= weight:
             self.value -= weight
             return
 
