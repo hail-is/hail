@@ -1466,20 +1466,6 @@ private class Emit(
         val rDataAddress = mb.newField[Long]
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
-        val i = mb.newField[Long]
-        val workStr = mb.newField[String]
-
-        val printA = Code(
-          workStr := const(""),
-          i := 0L,
-          Code.whileLoop(i < (M * N).toL,
-            workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, i.toI)).toS.concat(" ")),
-            i := i + 1L
-          ),
-          Code._println(const("A = ").concat(workStr)),
-          Code._println("")
-        )
-
         val infoDGEQRFResult = mb.newLocal[Int]
         val infoDGEQRFErrorTest = (infoDGEQRFResult < 0).orEmpty(Code._fatal(const("LAPACK error DGEQRF. Error code = ").concat(infoDGEQRFResult.toS)))
 
@@ -1617,34 +1603,10 @@ private class Emit(
             val numColsToUse = qCondition.mux(M, K)
             val aAddressDORGQR = mb.newField[Long]
 
-            val printDORGQRA = Code(
-              workStr := const("["),
-              Code.forLoop(i := 0L, i < (M * numColsToUse).toL, i := i + 1L,
-                workStr := workStr.concat(Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDORGQR, aNumElements.toI, i.toI)).toS.concat(", "))
-              ),
-              workStr := workStr.concat("]"),
-              Code._println(const("DORGQRA = ").concat(workStr)),
-              Code._println("")
-            )
-
             val qNumElements = M * numColsToUse
-
-            val printQ = Code(
-              workStr := const("["),
-              i := 0L,
-              Code.whileLoop(i < (M * numColsToUse).toL,
-                workStr := workStr.concat(Region.loadDouble(qPType.data.pType.elementOffset(qDataAddress, qNumElements.toI, i.toI)).toS.concat(", ")),
-                i := i + 1L
-              ),
-              workStr := workStr.concat("]"),
-              Code._println(const("Q = ").concat(workStr)),
-              Code._println("")
-            )
 
             val computeCompleteOrReduced = Code(
               infoDORGQRResult := 1,
-              printA,
-
               qCondition.mux(
                 Code(
                   aAddressDORGQR := ndPType.data.pType.allocate(region, qNumElements.toI),
@@ -1654,9 +1616,6 @@ private class Emit(
                 ),
                 aAddressDORGQR := aAddressDGEQRF
               ),
-
-              printA,
-              printDORGQRA,
 
               // Query optimal size for work array
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
@@ -1688,9 +1647,7 @@ private class Emit(
 
               qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
-              Code._println("Copying into Q"),
               qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
-              printQ,
 
               crOutputSrvb.start(),
               crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
