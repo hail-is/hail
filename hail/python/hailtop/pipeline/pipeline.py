@@ -342,7 +342,7 @@ class Pipeline:
 
         return [task for task in self._tasks if task.name is not None and re.match(pattern, task.name) is not None]
 
-    def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True):
+    def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True, **backend_kwargs):
         """
         Execute a pipeline.
 
@@ -391,7 +391,7 @@ class Pipeline:
                     raise PipelineException("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
-        self._backend._run(self, dry_run, verbose, delete_scratch_on_exit)
+        self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)
 
     def __str__(self):
         return self._uid

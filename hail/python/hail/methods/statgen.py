@@ -1884,6 +1884,14 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False):
     """Split multiallelic variants.
 
+    Warning
+    -------
+    In order to support a wide variety of data types, this function splits only
+    the variants on a :class:`.MatrixTable`, but **not the genotypes**. Use
+    :func:`.split_multi_hts` if possible, or split the genotypes yourself using
+    one of the entry modification methods: :meth:`.MatrixTable.annotate_entries`,
+    :meth:`.MatrixTable.select_entries`, :meth:`.MatrixTable.transmute_entries`.
+
     The resulting dataset will be keyed by the split locus and alleles.
 
     :func:`.split_multi` adds the following fields:
@@ -1923,14 +1931,6 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
     ...     DP=sm.DP,
     ...     PL=pl,
     ...     GQ=hl.gq_from_pl(pl)).drop('old_locus', 'old_alleles')
-
-    Warning
-    -------
-    In order to support a wide variety of data types, this function splits only
-    the variants on a :class:`.MatrixTable`, but **not the genotypes**. Use
-    :func:`.split_multi_hts` if possible, or split the genotypes yourself using
-    one of the entry modification methods: :meth:`.MatrixTable.annotate_entries`,
-    :meth:`.MatrixTable.select_entries`, :meth:`.MatrixTable.transmute_entries`.
 
     See Also
     --------
