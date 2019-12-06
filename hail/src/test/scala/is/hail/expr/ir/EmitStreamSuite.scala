@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, RegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
@@ -14,11 +14,17 @@ import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
 
-  private def compileStream(streamIR: IR, inputPType: PType): Any => IndexedSeq[Any] = {
+  private def compileStream(
+    streamIR: IR,
+    inputPType: PType,
+    makeEnv: (String, EmitFunctionBuilder[_] => Code[Iterator[RegionValue]])*
+  ): Any => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]("eval_stream")
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
+      val env: Emit.E = Env.fromSeq(makeEnv.map { case (n, mkC) =>
+        (n, (typeInfo[Iterator[RegionValue]], const(false), mkC(fb))) })
+      EmitStream(new Emit(ctx, mb, 1), streamIR, env, EmitRegion.default(mb), None)
     }
     val eltPType = stream.elementType
     fb.emit {
@@ -303,5 +309,33 @@ class EmitStreamSuite extends HailSuite {
       FastIndexedSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->
         IndexedSeq(null, 0L, 2L, 7L, 15L, 15L, 15L, 16L, 17L)
     )
+  }
+
+  @Test def testEmitFromIterator() {
+    val iter = Ref("iter", EmitStreamSuite.iterType)
+    val elt = Ref("elt", EmitStreamSuite.iterElemType)
+    val elt0 = GetFieldByIdx(elt, 0)
+    val ir = ArrayMap(ArrayFlatMap(ArrayFilter(iter, "elt", elt0 > 0), "_", iter), "elt", elt0)
+    val f = compileStream(ir, PStruct.empty(),
+      "iter" -> { fb: EmitFunctionBuilder[_] =>
+        Code.invokeScalaObject[Region, Iterator[RegionValue]](
+          EmitStreamSuite.getClass, "makeIter", fb.partitionRegion)
+      })
+    assert(f(Row()) == (1 until 5).flatMap(_ => 0 until 5))
+  }
+}
+
+object EmitStreamSuite {
+  val iterElemType = TTuple(TInt32Required)
+  val iterElemPType = iterElemType.physicalType
+  val iterType = TStream(iterElemType)
+
+  def makeIter(r: Region): Iterator[RegionValue] = {
+    val rv = RegionValue()
+    (0 until 5).iterator.map { x =>
+      rv.set(r, iterElemPType.allocate(r))
+      Region.storeInt(rv.offset, x)
+      rv
+    }
   }
 }
