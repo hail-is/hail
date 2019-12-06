@@ -22,7 +22,7 @@ object PContainer {
   def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
 }
 
-trait PContainer {
+abstract class PContainer extends PType {
   def elementType: PType
 
   def elementByteSize: Long
@@ -128,8 +128,6 @@ trait PContainer {
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
-
-  def copy(required: Boolean): PType
 
   def copyFromType(sourceType: PType, sourceValue: Long)
 }

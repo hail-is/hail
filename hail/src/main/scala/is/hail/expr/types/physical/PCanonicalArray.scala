@@ -9,7 +9,7 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TArray
 import is.hail.utils._
 
-object PCanonicalArray {
+object PCanonicalArray  {
   def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)
 
@@ -25,50 +25,21 @@ object PCanonicalArray {
   def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
 
   def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
+
+  def apply(elemenType: PType, required: Boolean) = new PCanonicalArray(elemenType, required)
 }
 
 class PCanonicalArray(elementType: PType, override val required: Boolean = false) extends PArray {
-  lazy val virtualType: TArray = TArray(elementType.virtualType, required)
-
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
+  override val byteSize: Long = 8
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
     elementType.pyString(sb)
     sb.append('>')
-  }
-  override val fundamentalType: PArray = {
-    if (elementType == elementType.fundamentalType)
-      this
-    else
-      this.copy(elementType = elementType.fundamentalType)
-  }
-
-  def _asIdent = s"array_of_${elementType.asIdent}"
-  def _toPretty = s"Array[$elementType]"
-
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Array[")
-    elementType.pretty(sb, indent, compact)
-    sb.append("]")
-  }
-
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
-    assert(this isOfType other)
-    CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
-  }
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("array<")
-    elementType.pyString(sb)
-    sb.append('>')
-  }
-  override val fundamentalType: PArray = {
-    if (elementType == elementType.fundamentalType)
-      this
-    else
-      this.copy(elementType = elementType.fundamentalType)
   }
 
   def _asIdent = s"array_of_${elementType.asIdent}"
@@ -85,11 +56,8 @@ class PCanonicalArray(elementType: PType, override val required: Boolean = false
     CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
   }
 
-    def elementByteSize: Long
 
-    override def byteSize: Long = 8
 
-    def contentsAlignment: Long
 
     final def loadLength(region: Region, aoff: Long): Int =
       PContainer.loadLength(aoff)
