@@ -1484,27 +1484,7 @@ private class Emit(
           Code._println("")
         )
 
-//        val printTau = Code(
-//          workStr := const(""),
-//          i := 0L,
-//          Code.whileLoop(i < K,
-//            workStr := workStr.concat(Region.loadDouble(tauAddress + (i * 8L)).toS.concat(const(" "))),
-//            i := i + 1L
-//          ),
-//          Code._println(const("TAU = ").concat(workStr)),
-//          Code._println("")
-//        )
-
-        val diagnosticPrint = Code(
-          Code._println(const("M = ").concat(M.toS)),
-          Code._println(const("N = ").concat(N.toS)),
-          Code._println(const("K = ").concat(K.toS)),
-          Code._println(const("LDA = ").concat(LDA.toS)),
-          Code._println(const("LWORK = ").concat(LWORK.toString))
-        )
-
         val infoDGEQRFResult = mb.newLocal[Int]
-
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
@@ -1514,7 +1494,6 @@ private class Emit(
           ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
           ndPType.copyRowMajorToColumnMajor(ndPType.data.pType.elementOffset(dataAddress, aNumElements.toI, 0), ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0), M, N, mb),
 
-          // Make some space for Tau
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
 
@@ -1529,8 +1508,6 @@ private class Emit(
             sizeQueryAddress,
             -1
           ),
-
-          Code._println(const("sizeQuery = ").concat(Region.loadDouble(sizeQueryAddress).toI.toS)),
 
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
@@ -1646,8 +1623,6 @@ private class Emit(
             val rNDArrayAddress = mb.newField[Long]
             val qDataAddress = mb.newField[Long]
 
-
-
             val infoDORGQRResult = mb.newField[Int]
 
             val qCondition = const(mode == "complete") && (M > N)
@@ -1680,17 +1655,6 @@ private class Emit(
               Code._println("")
             )
 
-            /**
-              * #  generate q from a
-              * if mode == 'complete' and m > n:
-              *   mc = m
-              *   q = empty((m, m), t)
-              * else:
-              *   mc = mn
-              *   q = empty((n, m), t)
-              * q[:n] = a
-              */
-
             val computeCompleteOrReduced = Code(
               infoDORGQRResult := 1,
               printA,
@@ -1721,7 +1685,6 @@ private class Emit(
                 -1
               ),
 
-              Code._println(const("sizeQuery = ").concat(Region.loadDouble(sizeQueryAddress).toI.toS)),
               workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
               infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACKLibrary.getClass, "dorgqr",
