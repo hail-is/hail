@@ -79,7 +79,7 @@ object StagedRegionValueBuilder {
           Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
       case t: PArray =>
         Code(
-          offset := t.copyFrom(fb, region, value),
+          offset := t.copyFrom(fb.apply_method, region, value),
           fixupArray(fb, region, t, offset))
       case t =>
         Code(

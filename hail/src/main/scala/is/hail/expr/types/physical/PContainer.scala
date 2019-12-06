@@ -170,8 +170,8 @@ abstract class PContainer extends PIterable {
     destOff
   }
 
-  def copyFrom(fb: FunctionBuilder[_], region: Code[Region], srcOff: Code[Long]): Code[Long] = {
-    val destOff = fb.newField[Long]
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
+    val destOff = mb.newField[Long]
     Code(
       destOff := allocate(region, loadLength(srcOff)),
       Region.copyFrom(srcOff, destOff, contentsByteSize(loadLength(srcOff))),
