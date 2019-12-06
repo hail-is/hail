@@ -8,9 +8,9 @@
     <tr>
         <th>Name</th>
         <th>Ready Jobs</th>
-        <th>Ready Cores (mCPU)</th>
+        <th>Ready Cores</th>
         <th>Running Jobs</th>
-        <th>Running Cores (mCPU)</th>
+        <th>Running Cores</th>
     </tr>
     </thead>
     <tbody>
@@ -18,9 +18,9 @@
     <tr>
         <td>{{ user['user'] }}</td>
         <td class="numeric-cell">{{ user['n_ready_jobs'] }}</td>
-        <td class="numeric-cell">{{ user['ready_cores_mcpu'] }}</td>
+        <td class="numeric-cell">{{ user['ready_cores_mcpu'] / 1000 }}</td>
         <td class="numeric-cell">{{ user['n_running_jobs'] }}</td>
-        <td class="numeric-cell">{{ user['running_cores_mcpu'] }}</td>
+        <td class="numeric-cell">{{ user['running_cores_mcpu'] / 1000 }}</td>
     </tr>
     {% endfor %}
     </tbody>
