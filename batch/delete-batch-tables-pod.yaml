@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: delete-batch2-tables
+  name: delete-batch-tables
 spec:
   containers:
-  - name: delete-batch2-tables
-    image: "{{ batch2_tables_image.image }}"
+  - name: delete-batch-tables
+    image: "{{ batch_tables_image.image }}"
     command:
      - /bin/bash
      - -c
@@ -15,9 +15,9 @@ spec:
     volumeMounts:
       - mountPath: /secrets/batch-admin
         readOnly: true
-        name: batch2-admin-secret
+        name: batch-admin-secret
   volumes:
-    - name: batch2-admin-secret
+    - name: batch-admin-secret
       secret:
-        secretName: "{{ batch2_database.admin_secret_name }}"
+        secretName: "{{ batch_database.admin_secret_name }}"
   restartPolicy: Never

@@ -338,7 +338,7 @@ class BatchBackend(Backend):
             print('')
 
         deploy_config = get_deploy_config()
-        url = deploy_config.url('batch2', f'/batches/{batch.id}')
+        url = deploy_config.url('batch', f'/batches/{batch.id}')
         print(f'Submitted batch {batch.id}, see {url}')
 
         if open:

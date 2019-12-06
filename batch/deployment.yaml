@@ -1,31 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: batch2-driver
+  name: batch-driver
   labels:
-    app: batch2-driver
+    app: batch-driver
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: batch2-driver
+      app: batch-driver
   replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: batch2-driver
+        app: batch-driver
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
-      serviceAccountName: batch2
+      serviceAccountName: batch
 {% if deploy %}
       priorityClassName: production
 {% endif %}
       containers:
-      - name: batch2-driver
-        image: {{ batch2_image.image }}
+      - name: batch-driver
+        image: {{ batch_image.image }}
         command:
          - python3
          - -m
@@ -40,7 +40,7 @@ spec:
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
          - name: BATCH_WORKER_IMAGE
-           value: "{{ batch2_worker_image.image }}"
+           value: "{{ batch_worker_image.image }}"
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
          - name: HAIL_BATCH_PODS_NAMESPACE
@@ -66,7 +66,7 @@ spec:
          - name: gsa-key
            mountPath: /batch-gsa-key
            readOnly: true
-         - name: batch2-tokens
+         - name: batch-tokens
            mountPath: /user-tokens
            readOnly: true
         readinessProbe:
@@ -87,32 +87,32 @@ spec:
        - name: sql-config
          secret:
            optional: false
-           secretName: "{{ batch2_database.user_secret_name }}"
+           secretName: "{{ batch_database.user_secret_name }}"
        - name: gsa-key
          secret:
            optional: false
-           secretName: batch2-gsa-key
-       - name: batch2-tokens
+           secretName: batch-gsa-key
+       - name: batch-tokens
          secret:
            optional: false
-           secretName: batch2-tokens
+           secretName: batch-tokens
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: batch2
+  name: batch
   labels:
-    app: batch2
+    app: batch
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: batch2
+      app: batch
   replicas: 3
   template:
     metadata:
       labels:
-        app: batch2
+        app: batch
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
@@ -139,8 +139,8 @@ spec:
                 values:
                 - "true"
       containers:
-      - name: batch2
-        image: {{ batch2_image.image }}
+      - name: batch
+        image: {{ batch_image.image }}
         command:
          - python3
          - -m
@@ -188,7 +188,7 @@ spec:
          - name: gsa-key
            mountPath: /batch-gsa-key
            readOnly: true
-         - name: batch2-tokens
+         - name: batch-tokens
            mountPath: /user-tokens
            readOnly: true
         readinessProbe:
@@ -209,15 +209,15 @@ spec:
        - name: sql-config
          secret:
            optional: false
-           secretName: "{{ batch2_database.user_secret_name }}"
+           secretName: "{{ batch_database.user_secret_name }}"
        - name: gsa-key
          secret:
            optional: false
-           secretName: batch2-gsa-key
-       - name: batch2-tokens
+           secretName: batch-gsa-key
+       - name: batch-tokens
          secret:
            optional: false
-           secretName: batch2-tokens
+           secretName: batch-tokens
       tolerations:
        - key: preemptible
          value: "true"
@@ -225,40 +225,40 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: batch2
+  name: batch
   labels:
-    app: batch2
+    app: batch
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: batch2
+    app: batch
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: batch2-driver
+  name: batch-driver
   labels:
-    app: batch2-driver
+    app: batch-driver
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: batch2-driver
+    app: batch-driver
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: batch2
+  name: batch
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: batch2
+    name: batch
   minReplicas: 3
   maxReplicas: 10
   metrics:
@@ -270,9 +270,9 @@ spec:
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
-  name: batch2
+  name: batch
 spec:
   minAvailable: 2
   selector:
     matchLabels:
-      app: batch2
+      app: batch
