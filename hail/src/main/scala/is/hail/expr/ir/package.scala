@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.annotations.RegionValue
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
@@ -34,6 +35,7 @@ package object ir {
     case _: TBinary => typeInfo[Long]
     case _: TArray => typeInfo[Long]
     case _: TBaseStruct => typeInfo[Long]
+    case _: TStream => classInfo[Iterator[RegionValue]]
     case TVoid => typeInfo[Unit]
     case _ => throw new RuntimeException(s"unsupported type found, $t")
   }
@@ -47,6 +49,7 @@ package object ir {
     case LongInfo => 0L
     case FloatInfo => 0.0f
     case DoubleInfo => 0.0
+    case _: ClassInfo[_] => Code._null
     case ti => throw new RuntimeException(s"unsupported type found: $t whose type info is $ti")
   }
 
