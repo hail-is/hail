@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block title %}PR {{ number }}{% endblock %}
 {% block content %}
-    <h1>PR {{ number }}</h1>
+    <h1>{{ pr.title }} <span class="gh-number">#{{ pr.number }}</a></h1>
     {% if batch is defined %}
     <div class="attributes">
       <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
