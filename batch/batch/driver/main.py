@@ -394,22 +394,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 @web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
-    db = app['db']
-
-    sql = '''
-SELECT * from user_resources
-ORDER BY ready_cores_mcpu
-LIMIT 50;
-'''
-
-    user_resources = [record async for record in db.execute_and_fetchall(sql)]
-
+    user_resources = await app['scheduler'].compute_fair_share()
     page_context = {
         'user_resources': user_resources
     }
-
-    log.info(user_resources)
-    return await render_template('batch2-driver', request, userdata,
+    return await render_template('batch-driver', request, userdata,
                                  'user_resources.html', page_context)
 
 

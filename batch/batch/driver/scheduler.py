@@ -28,7 +28,7 @@ class Scheduler:
 
         user_running_cores_mcpu = {}
         user_total_cores_mcpu = {}
-        user_allocated_cores = {}
+        result = {}
 
         pending_users_by_running_cores = sortedcontainers.SortedSet(
             key=lambda user: user_running_cores_mcpu[user])
@@ -37,9 +37,8 @@ class Scheduler:
 
         records = self.db.execute_and_fetchall(
             '''
-SELECT user, ready_cores_mcpu, running_cores_mcpu
-FROM user_resources
-WHERE ready_cores_mcpu > 0;
+SELECT user, n_ready_jobs, ready_cores_mcpu, n_running_jobs, running_cores_mcpu
+FROM user_resources;
 ''')
 
         async for record in records:
@@ -47,9 +46,10 @@ WHERE ready_cores_mcpu > 0;
             user_running_cores_mcpu[user] = record['running_cores_mcpu']
             user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']
             pending_users_by_running_cores.add(user)
+            result[user] = record
 
         def allocate_cores(user, mark):
-            user_allocated_cores[user] = int(mark - user_running_cores_mcpu[user] + 0.5)
+            result[user]['allocated_cores_mcpu'] = int(mark - user_running_cores_mcpu[user] + 0.5)
 
         mark = 0
         while free_cores_mcpu > 0 and (pending_users_by_running_cores or allocating_users_by_total_cores):
@@ -88,7 +88,7 @@ WHERE ready_cores_mcpu > 0;
         for user in allocating_users_by_total_cores:
             allocate_cores(user, mark)
 
-        return user_allocated_cores
+        return result
 
     async def bump_loop(self):
         while True:
@@ -147,11 +147,15 @@ LIMIT 50;
         return should_wait
 
     async def schedule_1(self):
-        fair_share = await self.compute_fair_share()
+        user_resources = await self.compute_fair_share()
 
         should_wait = True
 
-        for user, allocated_cores_mcpu in fair_share.items():
+        for user, resources in user_resources.items():
+            allocated_cores_mcpu = resources['allocated_cores_mcpu']
+            if allocated_cores_mcpu == 0:
+                continue
+
             scheduled_cores_mcpu = 0
 
             records = self.db.execute_and_fetchall(
