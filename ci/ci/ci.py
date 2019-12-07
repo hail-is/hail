@@ -103,7 +103,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
     page_context = {}
     page_context['repo'] = wb.branch.repo.short_str()
-    page_context['number'] = pr.number
+    page_context['pr'] = pr
     # FIXME
     if pr.batch:
         if hasattr(pr.batch, 'id'):
