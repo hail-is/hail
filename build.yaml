@@ -95,6 +95,8 @@ steps:
     - default_ns
  - kind: runImage
    name: create_database_server_config
+   image:
+     valueFrom: base_image.image
    script: |
      kubectl -n {{ default_ns.name }} get -o json --export secret {{ test_database_instance.admin_secret_name }} | jq '.metadata.name = "database-server-config"' | kubectl -n {{ default_ns.name }} apply -f -
    serviceAccount:
