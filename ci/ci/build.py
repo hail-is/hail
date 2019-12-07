@@ -829,7 +829,7 @@ class CreateDatabaseStep(Step):
         self.secrets = [{
             'namespace': database_server_config_namespace,
             'name': 'database-server-config',
-            'mount_path': '/secrets/db-config'
+            'mount_path': '/sql-config'
         }]
 
     def wrapped_job(self):
@@ -879,11 +879,11 @@ set -e
 echo date
 date
 
-HOST=$(cat /secrets/db-config/sql-config.json | jq -r '.host')
-INSTANCE=$(cat /secrets/db-config/sql-config.json | jq -r '.instance')
-PORT=$(cat /secrets/db-config/sql-config.json | jq -r '.port')
+HOST=$(cat /sql-config/sql-config.json | jq -r '.host')
+INSTANCE=$(cat /sql-config/sql-config.json | jq -r '.instance')
+PORT=$(cat /sql-config/sql-config.json | jq -r '.port')
 
-DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf -s)
+DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --defaults-extra-file=/sql-config/sql-config.cnf -s)
 if [ "$DBS" == "{self._name}" ]; then
     exit 0
 fi
@@ -891,7 +891,7 @@ fi
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
-cat | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf <<EOF
+cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
 CREATE DATABASE \\`{self._name}\\`;
 
 CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
@@ -902,7 +902,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON \\`{self._name}\\`.* TO '{self.
 EOF
 
 echo create database, admin and user...
-echo "$SQL_SCRIPT" | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf
+echo "$SQL_SCRIPT" | mysql --defaults-extra-file=/sql-config/sql-config.cnf
 
 echo create admin secret...
 cat > sql-config.json <<EOF
@@ -975,7 +975,7 @@ echo done.
 set -x
 date
 
-cat | mysql --defaults-extra-file=/secrets/db-config/sql-config.cnf <<EOF
+cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
 DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
