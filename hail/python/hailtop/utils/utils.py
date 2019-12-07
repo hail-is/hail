@@ -202,3 +202,7 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
             log.exception('request failed with transient exception: {method} {url}')
             raise web.HTTPServiceUnavailable()
         raise
+
+
+async def collect_agen(agen):
+    return [x async for x in agen]

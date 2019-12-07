@@ -316,7 +316,7 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
-SELECT * 
+SELECT *
 FROM (SELECT *, CASE
     WHEN NOT closed THEN 'open'
     WHEN n_failed > 0 THEN 'failure'
