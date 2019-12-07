@@ -854,8 +854,10 @@ class CreateDatabaseStep(Step):
 
     def build_cant_create_database(self, batch, code, scope):  # pylint: disable=unused-argument
         script = f'''
+kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.admin_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
 
+kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.user_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
 '''
 
@@ -923,6 +925,7 @@ user={self.admin_username}
 password="$ADMIN_PASSWORD"
 database={self._name}
 EOF
+kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.admin_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo create user secret...
@@ -944,6 +947,7 @@ user={self.user_username}
 password="$USER_PASSWORD"
 database={self._name}
 EOF
+kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.user_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo database = {shq(self._name)}
