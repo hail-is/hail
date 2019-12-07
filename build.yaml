@@ -102,7 +102,7 @@ steps:
      namespace:
        valueFrom: default_ns.name
    scopes:
-    - test_instance
+    - test
    dependsOn:
     - test_database_instance
  - kind: createDatabase
