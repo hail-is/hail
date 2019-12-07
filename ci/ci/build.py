@@ -805,12 +805,18 @@ class CreateDatabaseStep(Step):
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if self.cant_create_database:
             self._name = None
+            self.admin_username = None
+            self.user_username = None
         else:
             if params.scope == 'deploy':
                 self._name = database_name
+                self.admin_username = f'{self._name}-admin'
+                self.user_username = f'{self._name}-user'
             else:
                 assert params.scope == 'test'
                 self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
+                self.admin_username = generate_token()
+                self.user_username = generate_token()
 
         self.admin_secret_name = f'sql-{database_name}-{database_name}-admin-config'
         self.user_secret_name = f'sql-{database_name}-{database_name}-user-config'
