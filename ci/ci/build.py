@@ -800,25 +800,20 @@ class CreateDatabaseStep(Step):
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
 
-        if is_test_deployment:
-            self.namespace = DEFAULT_NAMESPACE
+        self.cant_create_database = is_test_deployment or params.scope == 'dev'
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
-        if params.scope == 'deploy':
-            self._name = database_name
-            self.admin_username = f'{self._name}-admin'
-            self.user_username = f'{self._name}-user'
-        elif params.scope == 'test':
-            self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
-            self.admin_username = generate_token()
-            self.user_username = generate_token()
-        elif params.scope == 'dev':
-            self._name = params.code.namespace
-            self.admin_username = f'{self._name}-admin'
-            self.user_username = f'{self._name}-user'
+        if self.cant_create_database:
+            self._name = None
+        else:
+            if params.scope == 'deploy':
+                self._name = database_name
+            else:
+                assert params.scope == 'test'
+                self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
 
-        self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
-        self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
+        self.admin_secret_name = f'sql-{database_name}-{database_name}-admin-config'
+        self.user_secret_name = f'sql-{database_name}-{database_name}-user-config'
 
         if params.scope == 'dev':
             database_server_config_namespace = params.code.namespace
@@ -847,14 +842,30 @@ class CreateDatabaseStep(Step):
         return {
             'token': self.token,
             'name': self._name,
-            'admin_username': self.admin_username,
             'admin_secret_name': self.admin_secret_name,
-            'user_username': self.user_username,
             'user_secret_name': self.user_secret_name
         }
 
+    def build_cant_create_database(self, batch, code, scope):  # pylint: disable=unused-argument
+        script = '''
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
+
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
+'''
+
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': self.name},
+                                    secrets=self.secrets,
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
+                                    parents=self.deps_parents())
+
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        if scope == 'dev':
+        if self.cant_create_database:
+            self.build_cant_create_database(batch, code, scope)
             return
 
         script = f'''
@@ -951,7 +962,7 @@ echo done.
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope in ['deploy', 'dev']:
+        if scope in ['deploy', 'dev'] or self.cant_create_database:
             return
 
         script = f'''
