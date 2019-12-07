@@ -847,7 +847,7 @@ class CreateDatabaseStep(Step):
         }
 
     def build_cant_create_database(self, batch, code, scope):  # pylint: disable=unused-argument
-        script = '''
+        script = f'''
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
 
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
