@@ -319,6 +319,14 @@ object InferPType {
         val rTyp = coerce[PNDArray](r.pType2)
         PNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
       }
+      case NDArrayQR(nd, mode) => {
+        InferPType(nd, env)
+        mode match {
+          case "r" => PNDArray(PFloat64Required, 2)
+          case "raw" => PTuple(PNDArray(PFloat64Required, 2), PNDArray(PFloat64Required, 1))
+          case "reduced" | "complete" => PTuple(PNDArray(PFloat64Required, 2), PNDArray(PFloat64Required, 2))
+        }
+      }
       case NDArrayWrite(_, _) => PVoid
       case MakeStruct(fields) => PStruct(true, fields.map {
         case (name, a) => {
