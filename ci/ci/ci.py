@@ -109,7 +109,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
             jobs = await collect_agen(pr.batch.jobs())
-            for j in status['jobs']:
+            for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
                 j['exit_code'] = Job.exit_code(j)
             page_context['batch'] = status
