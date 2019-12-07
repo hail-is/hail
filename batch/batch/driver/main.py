@@ -395,6 +395,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 async def get_user_resources(request, userdata):
     app = request.app
     user_resources = await app['scheduler'].compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'])
     page_context = {
         'user_resources': user_resources
     }
