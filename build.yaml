@@ -86,7 +86,7 @@ steps:
      - service_base_image
  - kind: createDatabase
    name: test_database_instance
-   databaseName: test_instance
+   databaseName: test-instance
    namespace:
      valueFrom: default_ns.name
    scopes:
