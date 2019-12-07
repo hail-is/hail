@@ -820,8 +820,13 @@ class CreateDatabaseStep(Step):
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
+        if params.scope == 'dev':
+            database_server_config_namespace = params.code.namespace
+        else:
+            database_server_config_namespace = DEFAULT_NAMESPACE
+
         self.secrets = [{
-            'namespace': BATCH_PODS_NAMESPACE,
+            'namespace': database_server_config_namespace,
             'name': 'database-server-config',
             'mount_path': '/secrets/db-config'
         }]

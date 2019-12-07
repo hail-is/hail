@@ -22,7 +22,6 @@ steps:
    namespaceName: batch-pods
    public: false
    secrets:
-    - database-server-config
     - gcr-push-service-account-key
     - test-gsa-key
     - hail-ci-0-1-service-account-key
