@@ -85,6 +85,27 @@ steps:
    dependsOn:
      - service_base_image
  - kind: createDatabase
+   name: test_database_instance
+   databaseName: test_instance
+   namespace:
+     valueFrom: default_ns.name
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+ - kind: runImage
+   name: create_database_server_config
+   script: |
+     kubectl -n {{ default_ns.name }} get -o json --export secret {{ test_database_instance.admin_secret_name }} | jq '.metadata.name = "database-server-config"' | kubectl -n {{ default_ns.name }} apply -f -
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   scopes:
+    - test_instance
+   dependsOn:
+    - test_database_instance
+ - kind: createDatabase
    name: users_database
    databaseName: users
    namespace:
@@ -863,6 +884,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - create_database_server_config
     - ci_image
     - ci_utils_image
     - create_accounts
