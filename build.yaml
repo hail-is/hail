@@ -106,6 +106,7 @@ steps:
    scopes:
     - test
    dependsOn:
+    - base_image
     - test_database_instance
  - kind: createDatabase
    name: users_database
