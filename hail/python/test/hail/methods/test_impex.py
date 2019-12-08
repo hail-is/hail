@@ -1532,7 +1532,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt2 = hl.import_matrix_table(comment,
                                      row_fields=row_fields,
                                      row_key=[],
-                                     comment='#')
+                                     comment=['#', '%'])
         assert mt1._same(mt2)
 
     def test_headers_not_identical(self):

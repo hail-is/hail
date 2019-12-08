@@ -1451,7 +1451,8 @@ def import_table(paths,
         If ``True``, Impute field types from the file.
     comment : :obj:`str` or :obj:`list` of :obj:`str`
         Skip lines beginning with the given string if the string is a single
-        character. Otherwise, skip lines that match the regex specified.
+        character. Otherwise, skip lines that match the regex specified. Multiple
+        comment characters or patterns should be passed as a list.
     delimiter : :obj:`str`
         Field delimiter regex.
     missing : :obj:`str` or :obj:`List[str]`
@@ -1669,12 +1670,13 @@ def import_matrix_table(paths,
         A single character string which separates values in the file.
     comment : :obj:`str` or :obj:`list` of :obj:`str`
         Skip lines beginning with the given string if the string is a single
-        character. Otherwise, skip lines that match the regex specified.
+        character. Otherwise, skip lines that match the regex specified. Multiple
+        comment characters or patterns should be passed as a list.
 
     Returns
     -------
     :class:`.MatrixTable`
-        MatrixTable constructed from imported data
+        MatrixTable constructed from imported data.
     """
     if sep is not None:
         if delimiter is not None:
