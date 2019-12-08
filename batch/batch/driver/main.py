@@ -208,7 +208,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address)
     await instance.mark_healthy()
 
-    with open('/batch-gsa-key/privateKeyData', 'r') as f:
+    with open('/batch-gsa-key/key.json', 'r') as f:
         key = json.loads(f.read())
     return web.json_response({
         'token': token,
@@ -434,7 +434,7 @@ async def on_startup(app):
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
+        '/gsa-key/key.json')
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
 

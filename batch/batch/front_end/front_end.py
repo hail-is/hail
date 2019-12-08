@@ -854,7 +854,7 @@ async def on_startup(app):
     }
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
+        '/gsa-key/key.json')
     app['log_store'] = LogStore(bucket_name, instance_id, pool, credentials=credentials)
 
 

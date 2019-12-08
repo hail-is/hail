@@ -192,7 +192,7 @@ class Container:
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
                     key = base64.b64decode(
-                        self.job.gsa_key['privateKeyData']).decode()
+                        self.job.gsa_key['key.json']).decode()
                     auth = {
                         'username': '_json_key',
                         'password': key
@@ -345,7 +345,7 @@ function retry() {{
         (sleep 5 && "$@")
 }}
 
-retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 
 {copies}
 '''

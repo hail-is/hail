@@ -5,7 +5,7 @@ AUTH_LATEST = gcr.io/$(PROJECT)/auth:latest
 AUTH_IMAGE = gcr.io/$(PROJECT)/auth:$(shell docker images -q --no-trunc auth:latest | sed -e 's,[^:]*:,,')
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear python3
+PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
 
 .PHONY: check
 check:
@@ -28,7 +28,7 @@ push: build
 
 .PHONY: deploy
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"auth_image":{"image":"$(AUTH_IMAGE)"},"users_database":{"user_secret_name":"sql-users-users-user-config"},"global":{"domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"auth_image":{"image":"$(AUTH_IMAGE)"},"auth_database":{"user_secret_name":"sql-auth-auth-user-config"},"global":{"domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 
 .PHONY:

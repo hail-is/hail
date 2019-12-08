@@ -14,8 +14,9 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
-async def create_database_pool(autocommit=True, maxsize=10):
-    config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
+async def create_database_pool(config_file=None, autocommit=True, maxsize=10):
+    if config_file is None:
+        config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
     with open(config_file, 'r') as f:
         sql_config = json.loads(f.read())
     return await aiomysql.create_pool(
@@ -129,8 +130,8 @@ class Database:
     def __init__(self):
         self.pool = None
 
-    async def async_init(self, maxsize=10):
-        self.pool = await create_database_pool(autocommit=False, maxsize=maxsize)
+    async def async_init(self, config_file=None, maxsize=10):
+        self.pool = await create_database_pool(config_File=config_file, autocommit=False, maxsize=maxsize)
 
     def start(self, read_only=False):
         return TransactionAsyncContextManager(self.pool, read_only)
