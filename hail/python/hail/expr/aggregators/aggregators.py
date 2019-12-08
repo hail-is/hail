@@ -1192,7 +1192,7 @@ def call_stats(call, alleles) -> StructExpression:
                 AN=tint32,
                 homozygote_count=tarray(tint32))
 
-    return _agg_func('CallStats', [call], t, [], init_op_args=[n_alleles])
+    return _agg_func('CallStats', [call], t, init_op_args=[n_alleles])
 
 _bin_idx_f = None
 _result_from_hist_agg_f = None
