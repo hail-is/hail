@@ -16,26 +16,32 @@ import org.apache.spark.rdd.RDD
 
 import scala.util.matching.Regex
 
+abstract class TextReaderOptions {
+  val comment: Array[String]
+  val hasHeader: Boolean
+
+  private lazy val commentStartsWith: Array[String] = comment.filter(_.length == 1)
+  private lazy val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
+
+  final def isComment(line: String): Boolean =
+    commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
+}
+
 case class TextTableReaderOptions(
   files: Array[String],
   typeMapStr: Map[String, String],
   comment: Array[String],
   separator: String,
   missing: Set[String],
-  noHeader: Boolean,
+  hasHeader: Boolean,
   impute: Boolean,
   nPartitionsOpt: Option[Int],
   quoteStr: String,
   skipBlankLines: Boolean,
   forceBGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  forceGZ: Boolean) {
+  forceGZ: Boolean) extends TextReaderOptions {
   @transient val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
-
-  private val commentStartsWith: Array[String] = comment.filter(_.length == 1)
-  private val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
-
-  def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
 
   val quote: java.lang.Character = if (quoteStr != null) quoteStr(0) else null
 
@@ -116,10 +122,6 @@ object TextTableReader {
     ab += sb.result()
 
     ab.result()
-  }
-
-  def isCommentLine(commentStartsWith: Array[String], commentRegexes: Array[Regex])(line: String): Boolean = {
-    commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
   }
 
   type Matcher = String => Boolean
@@ -342,7 +344,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
     val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
       .filter { line =>
         !options.isComment(line.value) &&
-          (options.noHeader || metadata.header != line.value) &&
+          (!options.hasHeader || metadata.header != line.value) &&
           !(options.skipBlankLines && line.value.isEmpty)
       }.cmapPartitions { (ctx, it) =>
       val region = ctx.region

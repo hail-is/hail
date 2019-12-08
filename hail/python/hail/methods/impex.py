@@ -1509,7 +1509,9 @@ def import_table(paths,
            no_header=bool,
            force_bgz=bool,
            sep=nullable(str),
-           delimiter=nullable(str))
+           delimiter=nullable(str),
+           comment=oneof(str, sequenceof(str)),
+           )
 def import_matrix_table(paths,
                         row_fields={},
                         row_key=[],
@@ -1519,7 +1521,8 @@ def import_matrix_table(paths,
                         no_header=False,
                         force_bgz=False,
                         sep=None,
-                        delimiter=None) -> MatrixTable:
+                        delimiter=None,
+                        comment=()) -> MatrixTable:
     """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1664,6 +1667,9 @@ def import_matrix_table(paths,
         instead.
     delimiter : :obj:`str`
         A single character string which separates values in the file.
+    comment : :obj:`str` or :obj:`list` of :obj:`str`
+        Skip lines beginning with the given string if the string is a single
+        character. Otherwise, skip lines that match the regex specified.
 
     Returns
     -------
@@ -1710,7 +1716,8 @@ def import_matrix_table(paths,
                               not no_header,
                               delimiter,
                               force_bgz,
-                              add_row_id)
+                              add_row_id,
+                              wrap_to_list(comment))
 
     mt = MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
     return mt
