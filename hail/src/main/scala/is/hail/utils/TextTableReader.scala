@@ -220,7 +220,7 @@ object TextTableReader {
   def readMetadata1(options: TextTableReaderOptions): TextTableReaderMetadata = {
     val hc = HailContext.get
 
-    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+    val TextTableReaderOptions(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val globbedFiles: Array[String] = {
       val fs = HailContext.get.sFS
@@ -253,7 +253,7 @@ object TextTableReader {
     }
 
     val splitHeader = splitLine(header, separator, quote)
-    val preColumns = if (noHeader) {
+    val preColumns = if (!hasHeader) {
       splitHeader
         .indices
         .map(i => s"f$i")
@@ -269,7 +269,7 @@ object TextTableReader {
     val rdd = hc.sc.textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
         !options.isComment(line.value) &&
-          (noHeader || line.value != header) &&
+          (!hasHeader || line.value != header) &&
           !(skipBlankLines && line.value.isEmpty)
       }
 
