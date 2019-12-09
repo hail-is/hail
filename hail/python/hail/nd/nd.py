@@ -29,8 +29,14 @@ def array(input_array):
     >>> hl.eval(hl._nd.array(hl.range(10, 20)))
     array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19], dtype=int32)
 
-    :param input_array: ArrayExpression or numpy ndarray or nested python lists
-    :return: A hail :class:`.NDArrayExpression`
+    Parameters
+    ----------
+    input_array : :class:`.ArrayExpression` or numpy ndarray or nested python lists
+
+    Returns
+    -------
+    :class:`.NDArrayExpression`
+        An ndarray based on the input array.
     """
     return _ndarray(input_array)
 
@@ -58,14 +64,19 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     If provided exactly one argument, the argument is interpreted as `stop` and
     `start` is set to zero. This matches the behavior of Python's ``range``.
 
-    :param start: int or :class:`.Expression` of type :py:data:`.tint32`
+    Parameters
+    ----------
+    start : int or :class:`.Expression` of type :py:data:`.tint32`
         Start of range.
-    :param stop: int or :class:`.Expression` of type :py:data:`.tint32`
+    stop : int or :class:`.Expression` of type :py:data:`.tint32`
         End of range.
-    :param step: int or :class:`.Expression` of type :py:data:`.tint32`
+    step : int or :class:`.Expression` of type :py:data:`.tint32`
         Step of range.
 
-    :return: A 1-dimensional :class:`.NDArrayNumericExpression` from `start` to `stop` by `step`.
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`
+        A 1-dimensional ndarray from `start` to `stop` by `step`.
     """
     return array(hl.range(start, stop, step))
 
@@ -77,23 +88,27 @@ def full(shape, value, dtype=None):
     Examples
     --------
 
-    Create a 5 by 7 NDArray of type `tfloat64` 9s.
+    Create a 5 by 7 NDArray of type :py:data:`.tfloat64` 9s.
 
     >>> hl._nd.full((5, 7), 9)
 
-    It is possible to specify a type other than `tfloat64` with the `dtype` argument.
+    It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
     >>> hl._nd.full((5, 7), 9, dtype=hl.tint32)
 
-    
-    :param shape: `tuple` or `TupleExpression`
+    Parameters
+    ----------
+    shape : `tuple` or :class:`.TupleExpression`
             Desired shape.
-    :param value: `Expression` or python value
+    value : :class:`.Expression` or python value
             Value to fill ndarray with.
-    :param dtype: `HailType`
+    dtype : :class:`.HailType`
             Desired hail type.
 
-    :return: A returned full thing
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`
+        An ndarray of the specified shape filled with the specified value.
     """
     if isinstance(shape, Int64Expression):
         shape_product = shape
@@ -109,30 +124,30 @@ def zeros(shape, dtype=hl.tfloat64):
        Examples
        --------
 
-       Create a 5 by 7 NDArray of type `tfloat64` zeros.
+       Create a 5 by 7 NDArray of type :py:data:`.tfloat64` zeros.
 
        >>> hl._nd.zeros((5, 7))
 
-       It is possible to specify a type other than `tfloat64` with the `dtype` argument.
+       It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
        >>> hl._nd.zeros((5, 7), dtype=hl.tfloat32)
 
 
        Parameters
        ----------
-       :param shape: `tuple` or `TupleExpression`
+       shape: `tuple` or :class:`.TupleExpression`
             Desired shape.
-       :param dtype : `HailType`
+       dtype : :class:`.HailType`
             Desired hail type.
 
-        See Also
-        --------
-        :func:`.full`
+       See Also
+       --------
+       :func:`.full`
 
        Returns
        -------
        :class:`.NDArrayNumericExpression`
-           NDArray of the specified size full of zeros.
+           ndarray of the specified size full of zeros.
        """
     return full(shape, 0, dtype)
 
@@ -144,20 +159,20 @@ def ones(shape, dtype=hl.tfloat64):
        Examples
        --------
 
-       Create a 5 by 7 NDArray of type `tfloat64` ones.
+       Create a 5 by 7 NDArray of type :py:data:`.tfloat64` ones.
 
        >>> hl._nd.ones((5, 7))
 
-       It is possible to specify a type other than `tfloat64` with the `dtype` argument.
+       It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
        >>> hl._nd.ones((5, 7), dtype=hl.tfloat32)
 
 
        Parameters
        ----------
-       :param shape: `tuple` or `TupleExpression`
+       shape : `tuple` or :class:`.TupleExpression`
             Desired shape.
-       :param dtype: `HailType`
+       dtype : :class:`.HailType`
             Desired hail type.
 
 
@@ -168,6 +183,6 @@ def ones(shape, dtype=hl.tfloat64):
        Returns
        -------
        :class:`.NDArrayNumericExpression`
-           NDArray of the specified size full of ones.
+           ndarray of the specified size full of ones.
        """
     return full(shape, 1, dtype)
