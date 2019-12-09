@@ -539,7 +539,6 @@ def test_ndarray_qr():
 
         rank = np.linalg.matrix_rank(np_ndarray)
 
-        #TODO Is rank trick only going to be relevant to columns?.
         assert np.allclose(q[:, :rank], nq[:, :rank])
         assert np.allclose(r, nr)
         assert np.allclose(q @ r, np_ndarray)
@@ -550,7 +549,6 @@ def test_ndarray_qr():
 
         rank = np.linalg.matrix_rank(np_ndarray)
 
-        #TODO Is rank trick only going to be relevant to columns?.
         assert np.allclose(q[:, :rank], nq[:, :rank])
         assert np.allclose(r, nr)
         assert np.allclose(q @ r, np_ndarray)
@@ -565,19 +563,16 @@ def test_ndarray_qr():
     identity4 = hl._nd.array(np_identity4)
 
     assert_same_qr(identity4, np_identity4)
-    assert_complete_equivalence(identity4, np_identity4)
 
     np_all3 = np.full((3, 3), 3)
     all3 = hl._nd.full((3, 3), 3)
 
     assert_same_qr(all3, np_all3)
-    assert_complete_equivalence(all3, np_all3)
 
     np_nine_square = np.arange(9).reshape((3, 3))
     nine_square = hl._nd.arange(9).reshape((3, 3))
 
     assert_same_qr(nine_square, np_nine_square)
-    assert_complete_equivalence(nine_square, np_nine_square)
 
     np_wiki_example = np.array([[12, -51, 4],
                                 [6, 167, -68],
@@ -585,7 +580,6 @@ def test_ndarray_qr():
     wiki_example = hl._nd.array(np_wiki_example)
 
     assert_same_qr(wiki_example, np_wiki_example)
-    assert_complete_equivalence(wiki_example, np_wiki_example)
 
     np_wide_rect = np.arange(12).reshape((3, 4))
     wide_rect = hl._nd.arange(12).reshape((3, 4))
