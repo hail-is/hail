@@ -1441,7 +1441,7 @@ class ApplyAggOp(BaseApplyAggOp):
         super().__init__(agg_op, init_op_args, seq_op_args)
 
     def renderable_uses_agg_context(self, i: int):
-        return i == 2
+        return i == 1
 
 
 class ApplyScanOp(BaseApplyAggOp):
@@ -1452,7 +1452,7 @@ class ApplyScanOp(BaseApplyAggOp):
         super().__init__(agg_op, init_op_args, seq_op_args)
 
     def renderable_uses_scan_context(self, i: int):
-        return i == 2
+        return i == 1
 
 
 class Begin(IR):
