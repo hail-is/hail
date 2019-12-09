@@ -339,7 +339,11 @@ object EmitStream {
           val EmitTriplet(_, m, v) = emitter.normalArgument(i, t)
           fromIterator[RegionValue]
             .map { (rv: Code[RegionValue]) =>
-              present(Region.loadIRIntermediate(eltPType)(rv.invoke[Long]("getOffset")))
+              val off = fb.newField[Long]("it_off")
+              present(Code(
+                off := rv.invoke[Long]("getOffset"),
+                off := StagedRegionValueBuilder.deepCopyFromOffset(er, eltPType, off),
+                Region.getIRIntermediate(eltPType)(off)))
             }
             .guardParam { (_, k) =>
               m.mux(k(None), k(Some(coerce[Iterator[RegionValue]](v))))
