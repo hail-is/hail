@@ -298,7 +298,6 @@ object EmitStream {
     emitter: Emit,
     streamIR0: IR,
     env0: Emit.E,
-    rvas: Emit.RVAS,
     er: EmitRegion,
     container: Option[AggContainer]
   ): EmitStream = {
@@ -307,7 +306,7 @@ object EmitStream {
     def present(v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, v)
 
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
-      emitter.emit(ir, env, rvas, er, container)
+      emitter.emit(ir, env, er, container)
 
     def emitStream(streamIR: IR, env: Emit.E): Parameterized[Any, EmitTriplet] =
       streamIR match {
@@ -486,7 +485,7 @@ object EmitStream {
           val res = genUID()
           val extracted =
             try {
-              agg.Extract(CompileWithAggregators.liftScan(query), res)
+              agg.Extract(agg.Extract.liftScan(query), res)
             } catch {
               case e: agg.UnsupportedExtraction =>
                 fatal(s"BUG: lowered aggscan to a stream, but this agg is not supported: $e")
@@ -508,9 +507,9 @@ object EmitStream {
           val (eltm, eltv) = eP.newFields(fb, "aggscan_elt")
           val (postm, postv) = aP.newFields(fb, "aggscan_new_elt")
           val bodyEnv = env.bind(name -> ((typeToTypeInfo(e), eltm, eltv)))
-          val init = emitter.emit(initIR, env, None, er, Some(newContainer))
-          val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, None, er, Some(newContainer))
-          val postt = emitter.emit(postAggIR, bodyEnv, None, er, Some(newContainer))
+          val init = emitter.emit(initIR, env, er, Some(newContainer))
+          val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, er, Some(newContainer))
+          val postt = emitter.emit(postAggIR, bodyEnv, er, Some(newContainer))
 
           emitStream(childIR, env)
             .contMap[EmitTriplet] { (eltt, k) => Code(

@@ -6,7 +6,6 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TArray
 import is.hail.utils._
 
 object PCanonicalArray  {
@@ -25,11 +24,9 @@ object PCanonicalArray  {
   def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
 
   def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
-
-  def apply(elemenType: PType, required: Boolean) = new PCanonicalArray(elemenType, required)
 }
 
-class PCanonicalArray(elementType: PType, override val required: Boolean = false) extends PArray {
+final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -56,9 +53,6 @@ class PCanonicalArray(elementType: PType, override val required: Boolean = false
     CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
   }
 
-
-
-
     final def loadLength(region: Region, aoff: Long): Int =
       PContainer.loadLength(aoff)
 
@@ -84,6 +78,13 @@ class PCanonicalArray(elementType: PType, override val required: Boolean = false
 
     def lengthHeaderBytes: Long = 4
 
+    private def contentsByteSize(length: Int): Long =
+      elementsOffset(length) + length * elementByteSize
+
+    private def contentsByteSize(length: Code[Int]): Code[Long] = {
+      elementsOffset(length) + length.toL * elementByteSize
+    }
+
     private def _elementsOffset(length: Int): Long =
       if (elementType.required)
         UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
@@ -108,13 +109,6 @@ class PCanonicalArray(elementType: PType, override val required: Boolean = false
 
     def elementsOffset(length: Code[Int]): Code[Long] = {
       _elementsOffset(length)
-    }
-
-    def contentsByteSize(length: Int): Long =
-      elementsOffset(length) + length * elementByteSize
-
-    def contentsByteSize(length: Code[Int]): Code[Long] = {
-      elementsOffset(length) + length.toL * elementByteSize
     }
 
     def isElementMissing(region: Region, aoff: Long, i: Int): Boolean =
@@ -308,7 +302,7 @@ class PCanonicalArray(elementType: PType, override val required: Boolean = false
     override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
       require(this.isOfType(rightType))
 
-      val right = rightType.asInstanceOf[PContainer]
+      val right = rightType.asInstanceOf[PCanonicalArray]
       val eltOrd = elementType.unsafeOrdering(
         right.elementType)
 
@@ -370,4 +364,21 @@ class PCanonicalArray(elementType: PType, override val required: Boolean = false
     }
 
     override def containsPointers: Boolean = true
+
+  def copyFrom(region: Region, srcOff: Long): Long = {
+    val destOff = allocate(region, loadLength(srcOff))
+    Region.copyFrom(srcOff,  destOff, contentsByteSize(loadLength(srcOff)))
+    destOff
+  }
+
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
+    val destOff = mb.newField[Long]
+    Code(
+      destOff := allocate(region, loadLength(srcOff)),
+      Region.copyFrom(srcOff, destOff, contentsByteSize(loadLength(srcOff))),
+      destOff
+    )
+  }
+
+  def copyFromType(sourceType: PType, sourceValue: Long): Unit= ???
 }

@@ -307,33 +307,30 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def status(self, include_jobs=True):
+    async def jobs(self):
+        last_job_id = None
+        while True:
+            params = {}
+            if last_job_id is not None:
+                params['last_job_id'] = last_job_id
+            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
+            body = await resp.json()
+            for job in body['jobs']:
+                yield job
+            last_job_id = body.get('last_job_id')
+            if last_job_id is None:
+                break
+
+    async def status(self):
         resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
-        batch = await resp.json()
-
-        if include_jobs:
-            jobs = []
-            last_job_id = None
-            while True:
-                params = {}
-                if last_job_id is not None:
-                    params['last_job_id'] = last_job_id
-                resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
-                body = await resp.json()
-                jobs.extend(body['jobs'])
-                last_job_id = body.get('last_job_id')
-                if last_job_id is None:
-                    break
-            batch['jobs'] = jobs
-
-        return batch
+        return await resp.json()
 
     async def wait(self):
         i = 0
         while True:
-            status = await self.status(include_jobs=False)
+            status = await self.status()
             if status['complete']:
-                return await self.status()
+                return status
             j = random.randrange(math.floor(1.1 ** i))
             await asyncio.sleep(0.100 * j)
             # max 44.5s
@@ -504,7 +501,7 @@ class BatchClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
 
-        self.url = deploy_config.base_url('batch2')
+        self.url = deploy_config.base_url('batch')
 
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
@@ -520,7 +517,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, 'batch2'))
+            h.update(service_auth_headers(deploy_config, 'batch'))
         self._headers = h
 
     async def _get(self, path, params=None):

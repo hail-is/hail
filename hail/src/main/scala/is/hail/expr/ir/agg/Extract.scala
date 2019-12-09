@@ -21,6 +21,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 
   def isCommutative: Boolean = {
     def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
+
     aggs.forall(aggCommutes)
   }
 
@@ -31,6 +32,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
       case Downsample() => true
       case _ => false
     })
+
     aggs.exists(containsBigAggregator)
   }
 
@@ -95,6 +97,11 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 }
 
 object Extract {
+  def liftScan(ir: IR): IR = ir match {
+    case ApplyScanOp(a, b, c, d) => ApplyAggOp(a, b, c, d)
+    case x => MapIR(liftScan)(x)
+  }
+
   def partitionDependentLets(lets: Array[AggLet], name: String): (Array[AggLet], Array[AggLet]) = {
     val depBindings = mutable.HashSet.empty[String]
     depBindings += name
@@ -115,7 +122,7 @@ object Extract {
 
   def addLets(ir: IR, lets: Array[AggLet]): IR = {
     assert(lets.areDistinct())
-    lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb)}
+    lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb) }
   }
 
   def compatible(sig1: AggSignature2, sig2: AggSignature2): Boolean = (sig1.op, sig2.op) match {

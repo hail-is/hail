@@ -1,11 +1,10 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, SafeIndexedSeq, ScalaToRegionValue}
+import is.hail.annotations.{Region, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitFunctionBuilder}
 import is.hail.utils._
-import org.codehaus.janino.util.Benchmark
 import org.testng.annotations.Test
 
 class PContainerTest extends HailSuite {

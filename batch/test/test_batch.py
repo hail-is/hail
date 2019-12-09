@@ -15,6 +15,7 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 
 from .serverthread import ServerThread
+from .utils import legacy_batch_status
 
 deploy_config = get_deploy_config()
 
@@ -61,7 +62,7 @@ class Test(unittest.TestCase):
         assert batch['state'] == 'success', batch
 
         batch_msec_mcpu2 = 0
-        for job in batch['jobs']:
+        for job in b.jobs():
             job_status = job['status']
 
             # tests run at 100mcpu
@@ -190,7 +191,7 @@ class Test(unittest.TestCase):
         for i in range(2):
             b1.create_job('ubuntu:18.04', ['true'])
         b1 = b1.submit()
-        s = b1.status(include_jobs=False)
+        s = b1.status()
         assert 'jobs' not in s
 
     def test_fail(self):
@@ -294,7 +295,8 @@ class Test(unittest.TestCase):
         j1.wait()
         j2.wait()
         b.cancel()
-        bstatus = b.wait()
+        b.wait()
+        bstatus = legacy_batch_status(b)
 
         assert len(bstatus['jobs']) == 3, bstatus
         state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
@@ -366,7 +368,7 @@ class Test(unittest.TestCase):
             (requests.post, '/batches/0/cancel', 401),
             (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
-            full_url = deploy_config.url('batch2', url)
+            full_url = deploy_config.url('batch', url)
             r = f(full_url, allow_redirects=False)
             assert r.status_code == expected, (full_url, r, expected)
 
@@ -395,7 +397,7 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job(
             os.environ['CI_UTILS_IMAGE'],
-            ['/bin/sh', '-c', 'kubectl get pods -l app=batch2-driver'],
+            ['/bin/sh', '-c', 'kubectl get pods -l app=batch-driver'],
             service_account={
                 'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
                 'name': 'ci-agent'

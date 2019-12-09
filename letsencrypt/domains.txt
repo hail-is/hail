@@ -4,8 +4,7 @@ notebook.@domain@
 scorecard.@domain@
 www.@domain@
 batch.@domain@
-batch2.@domain@
-batch2-driver.@domain@
+batch-driver.@domain@
 blog.@domain@
 internal.@domain@
 auth.@domain@

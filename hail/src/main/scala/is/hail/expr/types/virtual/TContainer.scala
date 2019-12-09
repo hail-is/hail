@@ -1,10 +1,10 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types.physical.PContainer
+import is.hail.expr.types.physical.{PContainer, PIterable}
 
 abstract class TContainer extends TIterable {
-  def physicalType: PContainer
+  def physicalType: PIterable // FIXME: this should be removed
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null

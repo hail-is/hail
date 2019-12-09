@@ -51,7 +51,7 @@ class RandomFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  val counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32())
+  def counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32())
   val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L, TInt32())
 
   def mapped2(n: Int, npart: Int) = TableMapRows(

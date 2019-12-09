@@ -8,6 +8,8 @@ from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
 from hailtop.auth import get_userinfo
 
+from .utils import batch_status_job_counter, batch_status_exit_codes, \
+    legacy_batch_status
 from .serverthread import ServerThread
 
 
@@ -18,20 +20,13 @@ def client():
     client.close()
 
 
-def batch_status_job_counter(batch_status, job_state):
-    return len([j for j in batch_status['jobs'] if j['state'] == job_state])
-
-
-def batch_status_exit_codes(batch_status):
-    return [Job._get_exit_codes(j) for j in batch_status['jobs']]
-
-
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
     tail = batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, status
     assert batch_status_exit_codes(status) == [
         {'main': 0}, {'main': 0}], status
@@ -57,7 +52,8 @@ def test_dag(client):
     right = batch.create_job('ubuntu:18.04', command=['echo', 'right'], parents=[head])
     tail = batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 4, status
     for node in [head, left, right, tail]:
         status = node.status()
@@ -78,7 +74,8 @@ def test_cancel_tail(client):
     left.wait()
     right.wait()
     batch.cancel()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 3, status
     for node in [head, left, right]:
         status = node.status()
@@ -100,7 +97,8 @@ def test_cancel_left_after_tail(client):
     head.wait()
     right.wait()
     batch.cancel()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, status
     for node in [head, right]:
         status = node.status()
@@ -221,7 +219,8 @@ def test_always_run_cancel(client):
     batch = batch.submit()
     right.wait()
     batch.cancel()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 3, status
     assert batch_status_job_counter(status, 'Cancelled') == 1, status
 
@@ -239,7 +238,8 @@ def test_always_run_error(client):
                             parents=[head],
                             always_run=True)
     batch = batch.submit()
-    status = batch.wait()
+    batch.wait()
+    status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Failed') == 1
     assert batch_status_job_counter(status, 'Success') == 1
 

@@ -18,7 +18,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]("eval_stream")
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, None, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
     val eltPType = stream.elementType
     fb.emit {
@@ -47,7 +47,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, None, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
     fb.emit {
       JoinPoint.CallCC[Code[Int]] { (jb, ret) =>

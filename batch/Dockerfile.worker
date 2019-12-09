@@ -18,7 +18,7 @@ COPY gear/gear /gear/gear/
 RUN python3 -m pip install --no-deps --no-cache-dir /gear \
   && rm -rf /gear
 
-COPY batch2/setup.py batch2/MANIFEST.in /batch/
-COPY batch2/batch /batch/batch/
+COPY batch/setup.py batch/MANIFEST.in /batch/
+COPY batch/batch /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch

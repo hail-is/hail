@@ -84,9 +84,6 @@ class Job:
     def status(self):
         return async_to_blocking(self._async_job.status())
 
-    def batch2_status(self):
-        return async_to_blocking(self._async_job.batch2_status())
-
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
@@ -115,8 +112,11 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
-    def status(self, include_jobs=True):
-        return async_to_blocking(self._async_batch.status(include_jobs=include_jobs))
+    def status(self):
+        return async_to_blocking(self._async_batch.status())
+
+    def jobs(self):
+        return agen_to_blocking(self._async_batch.jobs())
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())

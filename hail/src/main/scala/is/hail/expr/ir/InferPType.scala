@@ -111,8 +111,6 @@ object InferPType {
         PInt32(orderedCollection.pType2.required)
       }
       case _: ArrayFor => PVoid
-      case _: InitOp => PVoid
-      case _: SeqOp => PVoid
       case _: Begin => PVoid
       case Die(_, t) => PType.canonical(t, true)
       case Let(name, value, body) => {

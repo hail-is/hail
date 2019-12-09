@@ -22,9 +22,7 @@ object PContainer {
   def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
 }
 
-abstract class PContainer extends PType {
-  def elementType: PType
-
+abstract class PContainer extends PType with PIterable {
   def elementByteSize: Long
 
   def contentsAlignment: Long
@@ -51,10 +49,6 @@ abstract class PContainer extends PType {
 
   def elementsOffset(length: Code[Int]): Code[Long]
 
-  def contentsByteSize(length: Int): Long
-
-  def contentsByteSize(length: Code[Int]): Code[Long]
-
   def isElementMissing(region: Region, aoff: Long, i: Int): Boolean
 
   def isElementDefined(aoff: Long, i: Int): Boolean
@@ -73,7 +67,7 @@ abstract class PContainer extends PType {
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit]
 
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit
+  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit]
 
   def setElementPresent(region: Region, aoff: Long, i: Int): Unit
 
@@ -130,4 +124,8 @@ abstract class PContainer extends PType {
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
 
   def copyFromType(sourceType: PType, sourceValue: Long)
+
+  def copyFrom(region: Region, srcOff: Long): Long
+
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long]
 }
