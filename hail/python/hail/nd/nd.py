@@ -193,9 +193,22 @@ def ones(shape, dtype=hl.tfloat64):
 def qr(nd, mode="reduced"):
     """Performs a QR decomposition.
 
-    :param nd: A 2 dimensional ndarray.
+    :param nd: A 2 dimensional ndarray, shape(M, N)
     :param mode: One of "reduced", "complete", "r", or "raw"
-    :return:
+        If K = min(M, N), then
+        - `reduced`: returns q and r with dimensions (M, K), (K, N)
+        - `complete`: returns q and r with dimensions (M, M), (M, N)
+        - `r`: returns only r with dimensions (K, N)
+        - `raw`: returns h, tau with dimensions (N, M), (K,)
+
+    Returns
+    -------
+    - q: ndarray of float64
+        A matrix with orthonormal columns.
+    - r: ndarray of float64
+        The upper-triangular matrix R.
+    - (h, tau): ndarrays of float64
+        The array h contains the Householder reflectors that generate q along with r. The tau array contains scaling factors for the reflectors
     """
 
     assert nd.ndim == 2, "QR decomposition requires 2 dimensional ndarray"
