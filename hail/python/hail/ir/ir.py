@@ -1421,7 +1421,7 @@ class BaseApplyAggOp(IR):
             [a.typ for a in self.seq_op_args])
 
     def renderable_new_block(self, i: int) -> bool:
-        return i <= 1
+        return i == 0
 
     def renderable_idx_of_child(self, i: int) -> int:
         if i < len(self.init_op_args):
@@ -1441,7 +1441,7 @@ class ApplyAggOp(BaseApplyAggOp):
         super().__init__(agg_op, init_op_args, seq_op_args)
 
     def renderable_uses_agg_context(self, i: int):
-        return i == 1
+        return i == 2
 
 
 class ApplyScanOp(BaseApplyAggOp):
@@ -1452,7 +1452,7 @@ class ApplyScanOp(BaseApplyAggOp):
         super().__init__(agg_op, init_op_args, seq_op_args)
 
     def renderable_uses_scan_context(self, i: int):
-        return i == 1
+        return i == 2
 
 
 class Begin(IR):
