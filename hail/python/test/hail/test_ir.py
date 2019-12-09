@@ -428,11 +428,11 @@ class CSETests(unittest.TestCase):
             '(TableAggregate (TableRange 5 1)'
                 ' (AggLet __cse_1 False (GetField idx (Ref row))'
                 ' (AggLet __cse_3 False (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
-                ' (Let __cse_2 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                ' (Let __cse_2 (ApplyAggOp AggOp () ((Ref __cse_3)))'
                 ' (MakeTuple (0 1)'
                     ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))'
                     ' (AggFilter False (True)'
-                        ' (Let __cse_4 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                        ' (Let __cse_4 (ApplyAggOp AggOp () ((Ref __cse_3)))'
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))')
         assert expected == CSERenderer()(table_agg)
 
@@ -443,15 +443,13 @@ class CSETests(unittest.TestCase):
         top = ir.ApplyBinaryPrimOp('+', sum, agg)
         expected = (
             '(Let __cse_1 (I32 5)'
-            ' (AggLet __cse_4 False (I32 5)'
+            ' (AggLet __cse_3 False (I32 5)'
             ' (ApplyBinaryPrimOp `+`'
                 ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
                 ' (ApplyAggOp CallStats'
-                    ' ((Let __cse_3 (I32 5)'
-                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
-                    ' ((Let __cse_3 (I32 5)'
-                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
-                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
+                    ' ((Let __cse_2 (I32 5)'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))))'
+                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))')
         assert expected == CSERenderer()(top)
 
     def test_agg_let(self):
@@ -460,7 +458,7 @@ class CSETests(unittest.TestCase):
         agglet = ir.AggLet('foo', ir.I32(2), sum, False)
         expected = (
             '(AggLet foo False (I32 2)'
-            ' (Let __cse_1 (ApplyAggOp AggOp () None ((Ref foo)))'
+            ' (Let __cse_1 (ApplyAggOp AggOp () ((Ref foo)))'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
         )
         assert expected == CSERenderer()(agglet)
