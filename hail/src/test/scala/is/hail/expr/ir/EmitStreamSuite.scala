@@ -17,14 +17,12 @@ class EmitStreamSuite extends HailSuite {
   private def compileStream(
     streamIR: IR,
     inputPType: PType,
-    makeEnv: (String, EmitFunctionBuilder[_] => Code[Iterator[RegionValue]])*
+    makeEnv: EmitFunctionBuilder[_] => Emit.E = _ => Env.empty
   ): Any => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]("eval_stream")
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      val env: Emit.E = Env.fromSeq(makeEnv.map { case (n, mkC) =>
-        (n, (typeInfo[Iterator[RegionValue]], const(false), mkC(fb))) })
-      EmitStream(new Emit(ctx, mb, 1), streamIR, env, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb, 1), streamIR, makeEnv(fb), EmitRegion.default(mb), None)
     }
     val eltPType = stream.elementType
     fb.emit {
@@ -312,16 +310,30 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
+    def makeEnv(fb: EmitFunctionBuilder[_]): Emit.E =
+      Env(
+        "iter" ->
+          ((typeToTypeInfo(EmitStreamSuite.iterType),
+            const(false),
+            Code.invokeScalaObject[Region, Iterator[RegionValue]](
+              EmitStreamSuite.getClass, "makeIter", fb.partitionRegion))),
+        "iterNA" ->
+          ((typeToTypeInfo(EmitStreamSuite.iterType),
+            const(true),
+            Code._null)))
+
     val iter = Ref("iter", EmitStreamSuite.iterType)
+    val iterNA = Ref("iterNA", EmitStreamSuite.iterType)
     val elt = Ref("elt", EmitStreamSuite.iterElemType)
     val elt0 = GetFieldByIdx(elt, 0)
-    val ir = ArrayMap(ArrayFlatMap(ArrayFilter(iter, "elt", elt0 > 0), "_", iter), "elt", elt0)
-    val f = compileStream(ir, PStruct.empty(),
-      "iter" -> { fb: EmitFunctionBuilder[_] =>
-        Code.invokeScalaObject[Region, Iterator[RegionValue]](
-          EmitStreamSuite.getClass, "makeIter", fb.partitionRegion)
-      })
-    assert(f(Row()) == (1 until 5).flatMap(_ => 0 until 5))
+
+    val ir1 = ArrayMap(ArrayFlatMap(ArrayFilter(iter, "elt", elt0 > 0), "_", iter), "elt", elt0)
+    val f1 = compileStream(ir1, PStruct.empty(), makeEnv)
+    assert(f1(Row()) == (1 until 5).flatMap(_ => 0 until 5))
+
+    val ir2 = ArrayMap(iterNA, "elt", elt)
+    val f2 = compileStream(ir2, PStruct.empty(), makeEnv)
+    assert(f2(Row()) == null)
   }
 }
 
