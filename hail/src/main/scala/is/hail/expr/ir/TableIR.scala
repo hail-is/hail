@@ -994,17 +994,32 @@ case class TableMapPartitions(child: TableIR, name: String, body: IR) extends Ta
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val childPType = PStream(child.typ.rowType.physicalType, true)
+    val newRowPType = newRowType.physicalType
     val makeIterator = CompileIterator[Iterator[RegionValue]](
       ctx,
       childPType,
       Subst(body, BindingEnv(Env(name -> In(0, childPType))))
     )
+
+    val itF = { (idx: Int, consumerCtx: RVDContext, it: Iterator[RegionValue]) =>
+      val consumerRegion = consumerCtx.region
+      val producerRegion = consumerCtx.freshRegion
+      val rvb = new RegionValueBuilder()
+      val newRegionValue = RegionValue()
+      makeIterator(idx, producerRegion, it, false).map { rv =>
+        rvb.set(consumerRegion)
+        rvb.start(newRowPType)
+        rvb.addRegionValue(newRowPType, rv)
+        newRegionValue.set(rvb.region, rvb.end())
+        newRegionValue
+      }
+    }
+
     val tv = child.execute(ctx)
     tv.copy(
       typ = typ,
-      rvd = tv.rvd.mapPartitionsWithIndex(
-        RVDType(newRowType.physicalType, typ.key),
-        { (i, ctx, it) => makeIterator(i, ctx.r, it, false) }))
+      rvd = tv.rvd
+        .mapPartitionsWithIndex(RVDType(newRowPType, typ.key), itF))
   }
 }
 
