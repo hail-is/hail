@@ -1480,7 +1480,7 @@ private class Emit(
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
 
-          sizeQueryAddress := Code.invokeStatic[Memory, Long, Long]("malloc", 8L), //One Double TODO NEED TO FREE
+          sizeQueryAddress := ndPType.data.pType.allocate(region, 1), // One double, just to hold size query results
 
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
