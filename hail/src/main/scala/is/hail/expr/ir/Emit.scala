@@ -1569,7 +1569,9 @@ private class Emit(
           val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
 
           val computeR = Code(
-            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI), // TODO Maybe in reduced mode this should be less space?
+            // Note: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
+            // results in these elements being ignored. When everything is column major all the time should be easy to fix.
+            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI),
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
             rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
               rDataAddress, M, N, mb),
