@@ -22,5 +22,20 @@ abstract class PArray extends PContainer with PStreamable {
     }
   }
 
-  def copy(elementType: PType = this.elementType, required: Boolean) = new PCanonicalArray(elementType, required)
+  def copy(elementType: PType = this.elementType, required: Boolean): PArray
+
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("array<")
+    elementType.pyString(sb)
+    sb.append('>')
+  }
+
+  def _asIdent = s"array_of_${elementType.asIdent}"
+  def _toPretty = s"Array[$elementType]"
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    sb.append("Array[")
+    elementType.pretty(sb, indent, compact)
+    sb.append("]")
+  }
 }
