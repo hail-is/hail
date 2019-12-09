@@ -81,8 +81,6 @@ object LAPACK {
 }
 
 trait LAPACKLibrary extends Library {
-  def dsyevd(JOBZ: Char, UPLO: Char, N: Int, A: Pointer, LDA: Int, W: Pointer, WORK: Pointer, LWORK: Int, IWORK: Pointer, LIWORK: Int, INFO: Int)
-  def dlapy2(X: DoubleByReference, Y: DoubleByReference): Double
   def dgeqrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, Info: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
