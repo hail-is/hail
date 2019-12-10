@@ -788,6 +788,8 @@ steps:
       script: /io/sql/insert_globals.py
     - name: create-billing-projects
       script: /io/sql/create-billing-projects.sql
+    - name: migration1
+      script: /io/sql/migration-1.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
