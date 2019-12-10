@@ -6,7 +6,7 @@ import is.hail.expr.types.virtual.TDict
 
 final case class PDict(keyType: PType, valueType: PType, required: Boolean = false)
   extends PArrayBackedContainer(PCanonicalArray(PStruct(required = true, "key" -> keyType, "value" -> valueType), required)) {
-  val elementType = arrayRep.elementType
+  val elementType = arrayRep.elementType.asInstanceOf[PStruct]
 
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
