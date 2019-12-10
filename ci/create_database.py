@@ -32,7 +32,7 @@ database={config["db"]}
     print(f'creating secret {secret_name}')
     await check_shell(
         f'''
-kubectl -n {shq(namespace)} delete secret {shq(secret_name)}
+kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
 kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 ''')
 
@@ -113,7 +113,7 @@ async def migrate(database_name, db, i, migration):
 
     # version to migrate to
     # the 0th migration migrates from 1 to 2
-    version = i + 2
+    to_version = i + 2
 
     name = migration['name']
     script = migration['script']
@@ -126,7 +126,7 @@ async def migrate(database_name, db, i, migration):
         f'SELECT version FROM {database_name}_migration_version;')
     current_version = row['version']
 
-    if current_version + 1 == version:
+    if current_version + 1 == to_version:
         # migrate
         if script.endswith('.py'):
             await check_shell(f'python3 {script}')
@@ -143,13 +143,13 @@ SET version = %s;
 INSERT INTO {database_name}_migrations (version, name, script_sha1)
 VALUES (%s, %s, %s);
 ''',
-            (version, version, name, script_sha1))
+            (to_version, to_version, name, script_sha1))
     else:
-        assert current_version >= version
+        assert current_version >= to_version
 
         # verify checksum
         row = await db.execute_and_fetchone(
-            f'SELECT * FROM {database_name}_migrations WHERE version = %s;', (version,))
+            f'SELECT * FROM {database_name}_migrations WHERE version = %s;', (to_version,))
         assert row is not None
         assert name == row['name']
         assert script_sha1 == row['script_sha1']

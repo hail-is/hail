@@ -13,8 +13,7 @@ steps:
  - kind: runImage
    name: run_inline_image
    image:
-     valueFrom:
-       inline_image.image
+     valueFrom: inline_image.image
    script: |
      git init
    dependsOn:
@@ -84,6 +83,24 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
+ - kind: runImage
+   name: test_hello2_database
+   image:
+     valueFrom: service_base_image.image
+   script:
+     cat > test.py <<EOF
+     import asyncio
+     from gear import Database
+     async def async_main():
+       db = Database()
+       await db.async_init()
+       row = await db.execute_and_fetchone('SELECT version FROM hello2_migration_version;')
+       assert row['version'] == 2
+     asyncio.get_event_loop().run_until_complete(async_main())
+     EOF
+     python3 test.py
+   dependsOn:
+    - hello2_database
  - kind: deploy
    name: deploy_hello
    namespace:
