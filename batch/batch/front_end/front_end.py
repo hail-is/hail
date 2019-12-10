@@ -375,7 +375,7 @@ async def create_jobs(request, userdata):
         'username': user,
         'bucket_name': userdata['bucket_name'],
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
-        'jwt_secret_name': userdata['jwt_secret_name']
+        'tokens_secret_name': userdata['tokens_secret_name']
     }
 
     async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
