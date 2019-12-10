@@ -187,7 +187,7 @@ final case class PSet(elementType: PType, override val required: Boolean = false
   def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] =
     arrayRep.copyFrom(mb, region, srcOff)
 
-  override def unsafeOrdering: UnsafeOrdering = arrayRep.unsafeOrdering
+  override def unsafeOrdering: UnsafeOrdering = unsafeOrdering(this)
 
   override def unsafeOrdering(rightType: PType): UnsafeOrdering = arrayRep.unsafeOrdering(rightType)
 }
