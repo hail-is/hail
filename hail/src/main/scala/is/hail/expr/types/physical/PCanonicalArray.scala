@@ -290,9 +290,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     unsafeOrdering(this)
 
   override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(this.isOfType(rightType))
-
-    val right = rightType.asInstanceOf[PCanonicalArray]
+    val right = rightType.asInstanceOf[PContainer]
     val eltOrd = elementType.unsafeOrdering(
       right.elementType)
 

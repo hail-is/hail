@@ -200,4 +200,8 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
 
   def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] =
     arrayRep.copyFrom(mb, region, srcOff)
+
+  override def unsafeOrdering: UnsafeOrdering = arrayRep.unsafeOrdering
+
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = arrayRep.unsafeOrdering(rightType)
 }
