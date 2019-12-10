@@ -5,6 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
 
 abstract class PContainer extends PIterable {
+  override def containsPointers: Boolean = true
+
   def elementByteSize: Long
 
   def contentsAlignment: Long

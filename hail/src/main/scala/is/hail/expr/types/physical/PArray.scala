@@ -16,6 +16,4 @@ abstract class PArray extends PContainer with PStreamable {
     assert(this isOfType other)
     CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
   }
-
-  override def containsPointers: Boolean = true
 }
