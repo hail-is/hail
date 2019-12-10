@@ -4,24 +4,6 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
 
-object PContainer {
-  def loadLength(aoff: Long): Int =
-    Region.loadInt(aoff)
-
-  def loadLength(aoff: Code[Long]): Code[Int] =
-    Region.loadInt(aoff)
-
-  def storeLength(aoff: Long, length: Int): Unit =
-    Region.storeInt(aoff, length)
-
-  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
-    Region.storeInt(aoff, length)
-
-  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
-
-  def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
-}
-
 abstract class PContainer extends PIterable {
   def elementByteSize: Long
 
