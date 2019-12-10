@@ -1,0 +1,3 @@
+id	json_field
+1	{"foo": "bar", "x": 7}
+4	{"foo": "baz", "x": 100}

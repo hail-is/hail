@@ -2939,13 +2939,19 @@ class CallExpression(Expression):
         """
         return self._method("nNonRefAlleles", tint32)
 
-    @typecheck_method(alleles=expr_array(expr_str))
+    @typecheck_method(alleles=oneof(expr_array(expr_str), expr_int32))
     def one_hot_alleles(self, alleles):
         """Returns an array containing the summed one-hot encoding of the
         alleles.
 
         Examples
         --------
+        Compute one-hot encoding when number of total alleles is 2.
+
+        >>> hl.eval(call.one_hot_alleles(2))
+        [1, 1]
+
+        **DEPRECATED**: Compute one-hot encoding based on length of list of alleles.
 
         >>> hl.eval(call.one_hot_alleles(['A', 'T']))
         [1, 1]
@@ -2959,15 +2965,21 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        alleles: :class:`.ArrayStringExpression`
-            Variant alleles.
+        alleles: :class:`.Int32Expression` or :class:`.ArrayStringExpression`.
+            Number of total alleles, including the reference, or array of variant alleles.
 
         Returns
         -------
         :class:`.ArrayInt32Expression`
             An array of summed one-hot encodings of allele indices.
         """
-        return self._method("oneHotAlleles", tarray(tint32), hl.len(alleles))
+
+        if isinstance(alleles, Int32Expression):
+            n_alleles = alleles
+        else:
+            n_alleles = hl.len(alleles)
+
+        return self._method("oneHotAlleles", tarray(tint32), n_alleles)
 
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.

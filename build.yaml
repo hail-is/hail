@@ -22,7 +22,6 @@ steps:
    namespaceName: batch-pods
    public: false
    secrets:
-    - database-server-config
     - gcr-push-service-account-key
     - test-gsa-key
     - hail-ci-0-1-service-account-key
@@ -85,6 +84,31 @@ steps:
      python3 -m pylint --rcfile pylintrc web_common
    dependsOn:
      - service_base_image
+ - kind: createDatabase
+   name: test_database_instance
+   databaseName: test-instance
+   namespace:
+     valueFrom: default_ns.name
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+ - kind: runImage
+   name: create_database_server_config
+   image:
+     valueFrom: base_image.image
+   script: |
+     kubectl -n {{ default_ns.name }} get -o json --export secret {{ test_database_instance.admin_secret_name }} | jq '.metadata.name = "database-server-config"' | kubectl -n {{ default_ns.name }} apply -f -
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+    - base_image
+    - test_database_instance
  - kind: createDatabase
    name: users_database
    databaseName: users
@@ -864,6 +888,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - create_database_server_config
     - ci_image
     - ci_utils_image
     - create_accounts

@@ -1521,6 +1521,20 @@ class ImportMatrixTableTests(unittest.TestCase):
         self.assertEqual(mt.count_cols(), 0)
         self.assertTrue(t._same(mt.rows()))
 
+    @skip_unless_spark_backend()
+    def test_import_matrix_comment(self):
+        no_comment = doctest_resource('matrix1.tsv')
+        comment = doctest_resource('matrix1_comment.tsv')
+        row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32}
+        mt1 = hl.import_matrix_table(no_comment,
+                                     row_fields=row_fields,
+                                     row_key=[])
+        mt2 = hl.import_matrix_table(comment,
+                                     row_fields=row_fields,
+                                     row_key=[],
+                                     comment=['#', '%'])
+        assert mt1._same(mt2)
+
     def test_headers_not_identical(self):
         self.assertRaisesRegex(
             hl.utils.FatalError,
