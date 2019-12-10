@@ -87,7 +87,7 @@ steps:
    name: test_hello2_database
    image:
      valueFrom: service_base_image.image
-   script:
+   script: |
      cat > test.py <<EOF
      import asyncio
      from gear import Database
