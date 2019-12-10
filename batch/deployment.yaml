@@ -51,6 +51,12 @@ spec:
            value: "{{ global.zone }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
+         - name: HAIL_BATCH_BUCKET_NAME
+{% if deploy %}
+           value: hail-test-1c9nm
+{% else %}
+           value: hail-batch-3jmp5
+{% endif %}
         ports:
          - containerPort: 5000
         volumeMounts:
@@ -154,6 +160,12 @@ spec:
            value: "0.1"
          - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
            value: "375M"
+{% endif %}
+         - name: HAIL_BATCH_BUCKET_NAME
+{% if deploy %}
+           value: hail-test-1c9nm
+{% else %}
+           value: hail-batch-3jmp5
 {% endif %}
         ports:
          - containerPort: 5000

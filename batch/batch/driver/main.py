@@ -11,7 +11,6 @@ import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
@@ -21,7 +20,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
 
 from .instance_pool import InstancePool
@@ -406,12 +405,6 @@ async def get_user_resources(request, userdata):
 
 
 async def on_startup(app):
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -444,7 +437,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    log_store = LogStore(bucket_name, instance_id, pool, credentials=credentials)
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
