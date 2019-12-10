@@ -43,11 +43,6 @@ final case class PCanonicalArray(override val elementType: PType,override val re
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
-    assert(this isOfType other)
-    CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
-  }
-
   def loadLength(region: Region, aoff: Long): Int =
     PCanonicalArray.loadLength(aoff)
 

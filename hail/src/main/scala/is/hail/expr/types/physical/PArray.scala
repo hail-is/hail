@@ -1,12 +1,8 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{UnsafeUtils, _}
-import is.hail.asm4s._
-import is.hail.check.Gen
+import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TArray
-import is.hail.utils._
-import scala.reflect.{ClassTag, _}
 object PArray {
   def apply(elementType: PType, required: Boolean = false) = new PCanonicalArray(elementType, required)
 }
@@ -20,6 +16,11 @@ abstract class PArray extends PContainer with PStreamable {
 
   def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+    assert(this isOfType other)
+    CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
+  }
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
