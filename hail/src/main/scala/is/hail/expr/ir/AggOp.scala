@@ -2,11 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.expr.types.virtual._
 
-case class AggSignature2(
+case class AggSignature(
   op: AggOp,
   initOpArgs: Seq[Type],
   seqOpArgs: Seq[Type],
-  nested: Option[Seq[AggSignature2]]) {
+  nested: Option[Seq[AggSignature]]) {
   lazy val returnType: Type = agg.Extract.getType(this)
 }
 
