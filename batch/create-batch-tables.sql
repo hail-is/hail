@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `cores_mcpu` INT NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
   `time_created` BIGINT NOT NULL,
+  `time_activated` BIGINT,
   `time_deactivated` BIGINT,
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
@@ -250,7 +251,8 @@ END $$
 
 CREATE PROCEDURE activate_instance(
   IN in_instance_name VARCHAR(100),
-  IN in_ip_address VARCHAR(100)
+  IN in_ip_address VARCHAR(100),
+  IN in_activation_time BIGINT
 )
 BEGIN
   DECLARE cur_state VARCHAR(40);
@@ -265,7 +267,8 @@ BEGIN
     UPDATE instances
     SET state = 'active',
       activation_token = NULL,
-      ip_address = in_ip_address WHERE name = in_instance_name;
+      ip_address = in_ip_address,
+      time_activated = in_activation_time WHERE name = in_instance_name;
     COMMIT;
     SELECT 0 as rc, cur_token as token;
   ELSE

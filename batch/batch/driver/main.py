@@ -13,6 +13,7 @@ from gear import Database, setup_aiohttp_session, web_authenticated_developers_o
     check_csrf_token
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
+from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -205,7 +206,8 @@ async def activate_instance_1(request, instance):
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
-    token = await instance.activate(ip_address)
+    timestamp = time_msecs()
+    token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
     with open('/batch-gsa-key/privateKeyData', 'r') as f:
