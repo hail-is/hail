@@ -413,11 +413,11 @@ object ExportVCF {
 
         if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
           val filtersOffset = fullRowType.loadField(rv, filtersIdx)
-          val filtersLength = filtersPType.fundamentalType.loadLength(m, filtersOffset)
+          val filtersLength = filtersPType.loadLength(m, filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
           else
-            iterableVCF(sb, filtersPType.fundamentalType, m, filtersLength, filtersOffset, ';')
+            iterableVCF(sb, filtersPType, m, filtersLength, filtersOffset, ';')
         } else
           sb += '.'
 

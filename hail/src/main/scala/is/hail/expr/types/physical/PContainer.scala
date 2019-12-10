@@ -22,7 +22,7 @@ object PContainer {
   def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
 }
 
-abstract class PContainer extends PType with PIterable {
+abstract class PContainer extends PIterable {
   def elementByteSize: Long
 
   def contentsAlignment: Long
@@ -49,20 +49,20 @@ abstract class PContainer extends PType with PIterable {
 
   def elementsOffset(length: Code[Int]): Code[Long]
 
-  def isElementMissing(region: Region, aoff: Long, i: Int): Boolean
-
   def isElementDefined(aoff: Long, i: Int): Boolean
 
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean
-
-  def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean]
-
-  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean]
 
   def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean]
 
   def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean]
 
+  def isElementMissing(region: Region, aoff: Long, i: Int): Boolean
+
+  def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean]
+
+  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean]
+``
   def setElementMissing(region: Region, aoff: Long, i: Int)
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit]
@@ -77,15 +77,15 @@ abstract class PContainer extends PType with PIterable {
 
   def firstElementOffset(aoff: Long, length: Int): Long
 
-  def elementOffset(aoff: Long, length: Int, i: Int): Long
-
-  def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long
-
-  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
-
   def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long]
 
   def firstElementOffset(aoff: Code[Long]): Code[Long]
+
+  def elementOffset(aoff: Long, length: Int, i: Int): Long
+
+  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
+
+  def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long
 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long]
 
@@ -122,8 +122,6 @@ abstract class PContainer extends PType with PIterable {
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
-
-  def copyFromType(sourceType: PType, sourceValue: Long)
 
   def copyFrom(region: Region, srcOff: Long): Long
 

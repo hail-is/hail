@@ -73,11 +73,11 @@ object UnsafeRow {
       case t: PArray =>
         readArray(t, region, offset)
       case t: PSet =>
-        readArray(t.fundamentalType, region, offset).toSet
+        readArray(t, region, offset).toSet
       case t: PString => readString(region, offset, t)
       case t: PBinary => readBinary(region, offset, t)
       case td: PDict =>
-        val a = readArray(td.fundamentalType, region, offset)
+        val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: PBaseStruct => readBaseStruct(t, region, offset)
       case x: PLocus => readLocus(region, offset, x)

@@ -1,6 +1,6 @@
 package is.hail.expr.types.physical
 
-trait PIterable extends PType {
+abstract class PIterable extends PType {
   def elementType: PType
 
   def asPContainer: PContainer = this match {

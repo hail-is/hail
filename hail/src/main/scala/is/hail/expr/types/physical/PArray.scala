@@ -14,15 +14,12 @@ object PArray {
 abstract class PArray extends PContainer with PStreamable {
   lazy val virtualType: TArray = TArray(elementType.virtualType, required)
 
-  override lazy val fundamentalType: PArray = {
-    if(this.isInstanceOf[PCanonicalArray]) {
-      this
-    } else {
-      new PCanonicalArray(this.elementType, this.required)
-    }
-  }
+  def copy(required: Boolean): PArray
 
-  def copy(elementType: PType = this.elementType, required: Boolean): PArray
+  def copy(elementType: PType): PArray
+
+  def _asIdent = s"array_of_${elementType.asIdent}"
+  def _toPretty = s"Array[$elementType]"
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
@@ -30,12 +27,11 @@ abstract class PArray extends PContainer with PStreamable {
     sb.append('>')
   }
 
-  def _asIdent = s"array_of_${elementType.asIdent}"
-  def _toPretty = s"Array[$elementType]"
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Array[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
+
+  override def containsPointers: Boolean = true
 }

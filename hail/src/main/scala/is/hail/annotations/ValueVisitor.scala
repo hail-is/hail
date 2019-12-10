@@ -27,7 +27,7 @@ trait ValueVisitor {
 
   def leaveStruct(): Unit
 
-  def enterArray(t: PIterable, length: Int): Unit
+  def enterArray(t: PContainer, length: Int): Unit
 
   def leaveArray(): Unit
 
@@ -103,7 +103,7 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(')')
   }
 
-  def enterArray(t: PIterable, length: Int) {
+  def enterArray(t: PContainer, length: Int) {
     t match {
       case t: PSet =>
         sb.append("Set")
