@@ -39,13 +39,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     if (elementType == elementType.fundamentalType) {
       this
     } else {
-      PCanonicalArray(elementType = elementType.fundamentalType)
+      this.copy(elementType = elementType.fundamentalType)
     }
   }
 
-  def copy(required: Boolean) = PCanonicalArray(this.elementType, required)
-
-  def copy(elemenType: PType) = PCanonicalArray(elementType, this.required)
+  def copy(elementType: PType = this.elementType, required: Boolean = this.required): PCanonicalArray = PCanonicalArray(elementType, required)
 
   def loadLength(region: Region, aoff: Long): Int =
     PCanonicalArray.loadLength(aoff)

@@ -10,9 +10,7 @@ object PArray {
 abstract class PArray extends PContainer with PStreamable {
   lazy val virtualType: TArray = TArray(elementType.virtualType, required)
 
-  def copy(required: Boolean): PArray
-
-  def copy(elementType: PType): PArray
+  def copy(elementType: PType = this.elementType, required: Boolean = this.required): PArray
 
   def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
