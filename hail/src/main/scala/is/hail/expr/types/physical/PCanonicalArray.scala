@@ -90,7 +90,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, elementType.alignment)
 
   private lazy val lengthOffsetTable = 10
-  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))git 
+  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
 
   def elementsOffset(length: Int): Long = {
     if (length < lengthOffsetTable)
