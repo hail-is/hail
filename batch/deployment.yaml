@@ -66,9 +66,6 @@ spec:
          - name: gsa-key
            mountPath: /gsa-key
            readOnly: true
-         - name: batch-tokens
-           mountPath: /user-tokens
-           readOnly: true
         readinessProbe:
           httpGet:
             path: /healthcheck
@@ -88,9 +85,6 @@ spec:
        - name: gsa-key
          secret:
            secretName: batch-gsa-key
-       - name: batch-tokens
-         secret:
-           secretName: batch-tokens
 ---
 apiVersion: apps/v1
 kind: Deployment
