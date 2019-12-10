@@ -101,6 +101,7 @@ steps:
      python3 test.py
    dependsOn:
     - hello2_database
+    - service_base_image
  - kind: deploy
    name: deploy_hello
    namespace:
