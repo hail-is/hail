@@ -390,6 +390,21 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
+@routes.get('/user_resources')
+@web_authenticated_developers_only()
+async def get_user_resources(request, userdata):
+    app = request.app
+    user_resources = await app['scheduler'].compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
+                            reverse=True)
+    page_context = {
+        'user_resources': user_resources
+    }
+    return await render_template('batch-driver', request, userdata,
+                                 'user_resources.html', page_context)
+
+
 async def on_startup(app):
     userinfo = await async_get_userinfo()
     log.info(f'running as {userinfo["username"]}')
