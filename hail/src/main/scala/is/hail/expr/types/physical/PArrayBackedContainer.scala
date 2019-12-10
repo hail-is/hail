@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 
-abstract class PArrayBackedContainer(arrayRep: PArray) extends PContainer {
+abstract class PArrayBackedContainer(val arrayRep: PArray) extends PContainer {
   lazy val elementByteSize = arrayRep.elementByteSize
 
   lazy val contentsAlignment = arrayRep.contentsAlignment

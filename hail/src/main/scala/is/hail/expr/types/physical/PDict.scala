@@ -4,23 +4,13 @@ import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
 
-object PDict {
-  def apply(keyType: PType, valueType: PType, required: Boolean): PDict = PDict(new PDictStruct(keyType, valueType), required)
-  def apply(keyType: PType, valueType: PType): PDict = PDict(keyType, valueType, false)
-}
-
-class PDictStruct(val keyType: PType, val valueType: PType) {
-  val structRep: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
-}
-
-final case class PDict(dictType: PDictStruct, required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(dictType.structRep, required)) {
-  val elementType = dictType.structRep
-  val keyType = dictType.keyType
-  val valueType = dictType.valueType
+final case class PDict(keyType: PType, valueType: PType, required: Boolean = false)
+  extends PArrayBackedContainer(PCanonicalArray(PStruct(required = true, "key" -> keyType, "value" -> valueType), required)) {
+  val elementType = arrayRep.elementType
 
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
-  override val fundamentalType: PArray = PCanonicalArray(elementType.fundamentalType, required)
+  override val fundamentalType: PArray = PCanonicalArray(elementType, required)
 
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
   def _toPretty = s"Dict[$keyType, $valueType]"
