@@ -1568,7 +1568,7 @@ case class MatrixVCFReader(
       () => ()
     )((c, l, rvb) => ()
     )(lines,
-      fullRVDType.rowType,
+      fullRVDType.rowType.subsetTo(fullMatrixType.rowKeyStruct).asInstanceOf[PStruct],
       referenceGenome.map(_.broadcast),
       contigRecoding,
       arrayElementsRequired,
@@ -1576,10 +1576,6 @@ case class MatrixVCFReader(
     ctx)
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val localCallFields = callFields
-    val localFloatType = entryFloatType
-    val headerLinesBc = hc.backend.broadcast(headerLines1)
-
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
