@@ -2,16 +2,16 @@
 {% block title %}Batch User Resources{% endblock %}
 {% block content %}
 
-<h1>Users</h1>
+<h1>User Resources</h1>
 <table class="data-table" id="user_resources">
     <thead>
     <tr>
         <th>Name</th>
         <th>Ready Jobs</th>
-        <th>Running Jobs</th>
         <th>Ready Cores</th>
-        <th>Running Cores</th>
         <th>Allocated Cores</th>
+        <th>Running Jobs</th>
+        <th>Running Cores</th>
     </tr>
     </thead>
     <tbody>
@@ -19,10 +19,10 @@
     <tr>
         <td>{{ user['user'] }}</td>
         <td class="numeric-cell">{{ user['n_ready_jobs'] }}</td>
-        <td class="numeric-cell">{{ user['n_running_jobs'] }}</td>
         <td class="numeric-cell">{{ user['ready_cores_mcpu'] / 1000 }}</td>
-        <td class="numeric-cell">{{ user['running_cores_mcpu'] / 1000 }}</td>
         <td class="numeric-cell">{{ user['allocated_cores_mcpu'] / 1000 }}</td>
+        <td class="numeric-cell">{{ user['n_running_jobs'] }}</td>
+        <td class="numeric-cell">{{ user['running_cores_mcpu'] / 1000 }}</td>
     </tr>
     {% endfor %}
     </tbody>
