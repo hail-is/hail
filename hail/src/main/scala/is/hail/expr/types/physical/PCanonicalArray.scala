@@ -35,11 +35,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   override val byteSize: Long = 8
 
-  override lazy val fundamentalType: PArray = {
+  override val fundamentalType: PCanonicalArray = {
     if (elementType == elementType.fundamentalType) {
       this
     } else {
-      this.copy(this.elementType.fundamentalType)
+      PCanonicalArray(elementType = elementType.fundamentalType)
     }
   }
 
