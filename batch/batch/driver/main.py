@@ -12,8 +12,11 @@ from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
 from hailtop.config import get_deploy_config
+from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
+
+import cProfile, pstats, io
 
 # import uvloop
 
@@ -204,7 +207,8 @@ async def activate_instance_1(request, instance):
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
-    token = await instance.activate(ip_address)
+    timestamp = time_msecs()
+    token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
     with open('/gsa-key/key.json', 'r') as f:
@@ -254,8 +258,8 @@ async def job_complete_1(request, instance):
     start_time = status['start_time']
     end_time = status['end_time']
 
-    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time, 'completed')
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
+                            new_state, status, start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 
@@ -277,7 +281,7 @@ async def job_started_1(request, instance):
     attempt_id = status['attempt_id']
     start_time = status['start_time']
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
     await instance.mark_healthy()
 
@@ -404,6 +408,19 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
+async def profile_loop(app):
+    while True:
+        pr = cProfile.Profile()
+        pr.enable()
+        await asyncio.sleep(60)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        log.info(s.getvalue())
+
+
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -447,6 +464,8 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
+
+    # asyncio.ensure_future(profile_loop(app))
 
 
 async def on_cleanup(app):

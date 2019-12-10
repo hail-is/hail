@@ -15,10 +15,10 @@ async def main():
         max_instances = 10
         pool_size = 10
     else:
-        worker_cores = 1
+        worker_cores = 4
         worker_disk_size_gb = 10
         max_instances = 3
-        pool_size = 2
+        pool_size = 3
         
     db = Database()
     await db.async_init()
@@ -37,7 +37,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
         (instance_id, secrets.token_urlsafe(32),
          worker_cores, worker_type, worker_disk_size_gb, max_instances, pool_size))
-
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
