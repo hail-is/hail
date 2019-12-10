@@ -52,6 +52,8 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
 
   lazy val lengthHeaderBytes: Long = arrayRep.lengthHeaderBytes
 
+  override lazy val byteSize: Long = arrayRep.byteSize
+
   def loadLength(region: Region, aoff: Long): Int =
     arrayRep.loadLength(region, aoff)
 

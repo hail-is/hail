@@ -38,6 +38,8 @@ final case class PSet(elementType: PType, override val required: Boolean = false
 
   lazy val lengthHeaderBytes: Long = arrayRep.lengthHeaderBytes
 
+  override lazy val byteSize: Long = arrayRep.byteSize
+
   def loadLength(region: Region, aoff: Long): Int =
     arrayRep.loadLength(region, aoff)
 
