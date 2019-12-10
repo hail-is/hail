@@ -26,7 +26,7 @@ object PCanonicalArray  {
   def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
 }
 
-final case class PCanonicalArray(override val elementType: PType,override val required: Boolean = false) extends PArray(elementType, required) {
+final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -39,9 +39,13 @@ final case class PCanonicalArray(override val elementType: PType,override val re
     if (elementType == elementType.fundamentalType) {
       this
     } else {
-      this.copy(elementType = this.elementType.fundamentalType)
+      this.copy(this.elementType.fundamentalType)
     }
   }
+
+  def copy(required: Boolean) = PCanonicalArray(this.elementType, required)
+
+  def copy(elemenType: PType) = PCanonicalArray(elementType, this.required)
 
   def loadLength(region: Region, aoff: Long): Int =
     PCanonicalArray.loadLength(aoff)
@@ -86,7 +90,7 @@ final case class PCanonicalArray(override val elementType: PType,override val re
       UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, elementType.alignment)
 
   private lazy val lengthOffsetTable = 10
-  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
+  private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))git 
 
   def elementsOffset(length: Int): Long = {
     if (length < lengthOffsetTable)
@@ -329,7 +333,7 @@ final case class PCanonicalArray(override val elementType: PType,override val re
     Region.containsNonZeroBits(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL)
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PCanonicalArray, msg: String): Code[Long] = {
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
     if (sourceType.elementType.required == this.elementType.required) {
