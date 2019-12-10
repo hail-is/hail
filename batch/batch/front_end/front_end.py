@@ -581,6 +581,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 secrets = spec.get('secrets')
                 if not secrets:
                     secrets = []
+
+                for secret in secrets:
+                    if user != 'ci':
+                        raise web.HTTPBadRequest(reason=f'unauthorized secret {secret["name"]}')
+
                 spec['secrets'] = secrets
                 secrets.append({
                     'namespace': BATCH_PODS_NAMESPACE,
@@ -588,13 +593,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
-
-                for secret in secrets:
-                    if secret['name'] != userdata['gsa_key_secret_name'] and user != 'ci':
-                        raise web.HTTPBadRequest(reason=f'unauthorized secret {secret["name"]}')
+                secrets.append({
+                    'namespace': BATCH_PODS_NAMESPACE,
+                    'name': userdata['jwt_secret_name'],
+                    'mount_path': '/user-tokens',
+                    'mount_in_copy': False
+                })
 
                 sa = spec.get('service_account')
-                if sa and sa['name'] != ksa_name and user != 'ci':
+                if sa and (sa['name'] != ksa_name or sa['namespace'] != BATCH_PODS_NAMESPACE) and user != 'ci':
                     raise web.HTTPBadRequest(reason=f'unauthorized service account name {sa["name"]}')
 
                 env = spec.get('env')

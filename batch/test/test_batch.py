@@ -417,7 +417,7 @@ class Test(unittest.TestCase):
             ['/bin/sh', '-c', 'kubectl get pods -l app=batch-driver'],
             service_account={
                 'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
-                'name': 'ci-agent'
+                'name': 'test'
             })
         b.submit()
         status = j.wait()
