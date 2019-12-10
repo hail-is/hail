@@ -1,3 +1,4 @@
+import os
 import json
 import aiomysql
 import logging
@@ -6,13 +7,14 @@ log = logging.getLogger('gear.database')
 
 
 async def create_database_pool(autocommit=True, maxsize=10):
-    with open('/sql-config/sql-config.json', 'r') as f:
+    config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
+    with open(config_file, 'r') as f:
         sql_config = json.loads(f.read())
     return await aiomysql.create_pool(
         maxsize=maxsize,
         # connection args
         host=sql_config['host'], user=sql_config['user'], password=sql_config['password'],
-        db=sql_config['db'], port=sql_config['port'], charset='utf8',
+        db=sql_config.get('db'), port=sql_config['port'], charset='utf8',
         cursorclass=aiomysql.cursors.DictCursor, autocommit=autocommit)
 
 

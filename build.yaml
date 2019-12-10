@@ -410,7 +410,7 @@ steps:
    contextPath: ci
    publishAs: ci-utils
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: build_hail
    image:
