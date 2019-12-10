@@ -5,13 +5,18 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
 
 object PDict {
-  def apply(keyType: PType, valueType: PType, required: Boolean = false): PDict = PDict(PStruct(required = true, "key" -> keyType, "value" -> valueType), required)
-  def apply(keyType: PType, valueType: PType): PDict = PDict(PStruct(required = true, "key" -> keyType, "value" -> valueType))
+  def apply(keyType: PType, valueType: PType, required: Boolean): PDict = PDict(new PDictStruct(keyType, valueType), required)
+  def apply(keyType: PType, valueType: PType): PDict = PDict(keyType, valueType, false)
 }
 
-final case class PDict(elementType: PBaseStruct, required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(elementType, required)) {
-  val keyType = elementType.fieldType("key")
-  val valueType = elementType.fieldType("value")
+class PDictStruct(val keyType: PType, val valueType: PType) {
+  val structRep: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
+}
+
+final case class PDict(dictType: PDictStruct, required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(dictType.structRep, required)) {
+  val elementType = dictType.structRep
+  val keyType = dictType.keyType
+  val valueType = dictType.valueType
 
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 

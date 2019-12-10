@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TSet
 
-final case class PSet(elementType: PType, override val required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(elementType, required )) {
+final case class PSet(elementType: PType, required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(elementType, required )) {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
   override val fundamentalType: PArray = PCanonicalArray(elementType.fundamentalType, required)
