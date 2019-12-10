@@ -106,6 +106,7 @@ steps:
         valueFrom: default_ns.name
       mountPath: /sql-config
    dependsOn:
+    - default_ns
     - hello2_database
     - service_base_image
  - kind: deploy
