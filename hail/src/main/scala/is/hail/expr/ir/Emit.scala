@@ -1636,7 +1636,6 @@ private class Emit(
   private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet =
     Streamify(ir) match {
       case ToStream(x) =>
-        println(s"falling back: ${Pretty(x)}")
         emitOldArrayIterator(x, env, er, container)
       case x => EmitStream(this, x, env, er, container).toArrayIterator(mb)
     }
