@@ -3384,15 +3384,12 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
-    mt = mt.filter_rows(hl.is_defined(mt.info))
+    mt = mt.filter_rows(hl.is_defined(mt.info)).unfilter_entries()
 
     std_gt_bm = BlockMatrix.from_entry_expr(
         hl.or_else(
             (mt[field].n_alt_alleles() - mt.info.mean) * mt.info.centered_length_rec,
             0.0),
-        mean_impute=True,
-        center=True,
-        normalize=True,
         block_size=block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
