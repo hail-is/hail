@@ -28,6 +28,9 @@ abstract class PArrayBackedContainer(val arrayRep: PArray) extends PContainer {
   def storeLength(region: Region, aoff: Long, length: Int): Unit =
     arrayRep.storeLength(region, aoff, length)
 
+  def storeLength(aoff: Long, length: Int): Unit =
+    arrayRep.storeLength(aoff, length)
+
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     arrayRep.storeLength(aoff, length)
 
