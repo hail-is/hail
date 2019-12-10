@@ -8,12 +8,6 @@ import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
-class RVDTypeSerializer extends CustomSerializer[RVDType](format => ( {
-  case JString(s) => IRParser.parseRVDType(s)
-}, {
-  case rvdType: RVDType => JString(rvdType.toString)
-}))
-
 final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   extends Serializable {
 

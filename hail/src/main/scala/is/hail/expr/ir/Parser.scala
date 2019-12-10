@@ -1461,13 +1461,9 @@ object IRParser {
 
   def parseType(code: String, env: TypeParserEnvironment): Type = parse(code, type_expr(env))
 
-  def parsePType(code: String, env: TypeParserEnvironment): PType = parse(code, type_expr(env)).physicalType
-
   def parseStructType(code: String, env: TypeParserEnvironment): TStruct = coerce[TStruct](parse(code, type_expr(env)))
 
   def parseUnionType(code: String, env: TypeParserEnvironment): TUnion = coerce[TUnion](parse(code, type_expr(env)))
-
-  def parseRVDType(code: String, env: TypeParserEnvironment): RVDType = parse(code, rvd_type_expr(env))
 
   def parseTableType(code: String, env: TypeParserEnvironment): TableType = parse(code, table_type_expr(env))
 
@@ -1475,13 +1471,9 @@ object IRParser {
 
   def parseType(code: String): Type = parseType(code, TypeParserEnvironment.default)
 
-  def parsePType(code: String): PType = parsePType(code, TypeParserEnvironment.default)
-
   def parseStructType(code: String): TStruct = parseStructType(code, TypeParserEnvironment.default)
 
   def parseUnionType(code: String): TUnion = parseUnionType(code, TypeParserEnvironment.default)
-
-  def parseRVDType(code: String): RVDType = parseRVDType(code, TypeParserEnvironment.default)
 
   def parseTableType(code: String): TableType = parseTableType(code, TypeParserEnvironment.default)
 
