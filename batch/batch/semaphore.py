@@ -47,7 +47,7 @@ class FIFOWeightedSemaphore:
 
         if self.queue:
             head_event, head_weight = self.queue[0]
-            if self.value > head_weight:
+            if self.value >= head_weight:
                 head_event.set()
                 self.queue.popleft()
                 self.value -= head_weight
