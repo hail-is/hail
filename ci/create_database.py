@@ -23,6 +23,7 @@ async def write_user_config(namespace, database_name, user, config):
 
     with open(f'sql-config.cnf', 'w') as f:
         f.write(f'''
+[client]
 host={config["host"]}
 user={config["user"]}
 password="{config["password"]}"
