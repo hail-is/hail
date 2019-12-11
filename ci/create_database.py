@@ -164,6 +164,7 @@ async def async_main():
     await create_database(create_database_config)
 
     namespace = create_database_config['namespace']
+    scope = create_database_config['scope']
     database_name = create_database_config['database_name']
 
     admin_secret_name = f'sql-{database_name}-admin-config'
@@ -180,6 +181,7 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
         f.write(base64.b64decode(admin_secret['data']['sql-config.cnf']))
 
     os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
+    os.environ['HAIL_SCOPE'] = scope
 
     db = Database()
     await db.async_init()
