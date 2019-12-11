@@ -45,7 +45,7 @@ object ExportVCF {
           sb.append(x.formatted("%.5e"))
       case PString(_) =>
         sb.append(PString.loadString(m, offset))
-      case PCall(_) =>
+      case _: PCall =>
         val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
       case _ =>

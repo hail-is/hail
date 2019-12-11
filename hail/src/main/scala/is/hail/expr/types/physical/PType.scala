@@ -236,7 +236,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
         case PFloat32(_) => PFloat32(required)
         case PFloat64(_) => PFloat64(required)
         case PString(_) => PString(required)
-        case PCall(_) => PCall(required)
+        case t: PCall => t.copy(required)
         case t: PArray => t.copy(required = required)
         case t: PSet => t.copy(required = required)
         case t: PDict => t.copy(required = required)
@@ -256,7 +256,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
       case PFloat32(_) => t == PFloat32Optional || t == PFloat32Required
       case PFloat64(_) => t == PFloat64Optional || t == PFloat64Required
       case PString(_) => t == PStringOptional || t == PStringRequired
-      case PCall(_) => t == PCallOptional || t == PCallRequired
+      case _: PCall => t.isInstanceOf[PCall]
       case t2: PLocus => t.isInstanceOf[PLocus] && t.asInstanceOf[PLocus].rg == t2.rg
       case t2: PInterval => t.isInstanceOf[PInterval] && t.asInstanceOf[PInterval].pointType.isOfType(t2.pointType)
       case t2: PStruct =>
