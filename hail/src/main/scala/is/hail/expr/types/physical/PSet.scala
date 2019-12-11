@@ -8,13 +8,12 @@ object PSet {
   def apply(elementType: PType, required: Boolean = false) = PCanonicalSet(elementType, required)
 }
 
-abstract class PSet extends PContainer with PArrayBackedContainer {
+abstract class PSet extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
-  // TODO: Fix
-//  override val fundamentalType: PArray = PCanonicalArray(elementType.fundamentalType, required)
-
   def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet
+
+  override def fundamentalType: PArray = ???
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
