@@ -207,7 +207,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address)
     await instance.mark_healthy()
 
-    with open('/batch-gsa-key/key.json', 'r') as f:
+    with open('/gsa-key/key.json', 'r') as f:
         key = json.loads(f.read())
     return web.json_response({
         'token': token,
