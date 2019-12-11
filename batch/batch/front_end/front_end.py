@@ -821,7 +821,7 @@ async def ui_get_job(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_users_only()
 async def ui_get_billing_projects(request, userdata):
-    db = app['db']
+    db = request.app['db']
     billing_projects = {}
     async for record in db.execute_and_fetchone(
         'SELECT * FROM billing_project_users;'):
