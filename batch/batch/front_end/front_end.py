@@ -823,7 +823,7 @@ async def ui_get_job(request, userdata):
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
     billing_projects = {}
-    async for record in db.execute_and_fetchone(
+    async for record in db.execute_and_fetchall(
         'SELECT * FROM billing_project_users;'):
         billing_project = record['billing_project']
         user = record['user']
