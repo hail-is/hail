@@ -52,6 +52,7 @@ REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', ve
 REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 
 routes = web.RouteTableDef()
 
@@ -814,6 +815,25 @@ async def ui_get_job(request, userdata):
         'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
+
+
+@routes.get('/billing_projects')
+@prom_async_time(REQUEST_BILLING_PROJECTS_UI)
+@web_authenticated_users_only()
+async def ui_get_job(request, userdata):
+    db = app['db']
+    billing_projects = {}
+    async for record in db.execute_and_fetchone(
+        'SELECT * FROM billing_project_users;'):
+        billing_project = record['billing_project']
+        user = record['user']
+        if billing_project not in billing_projects:
+            billing_projects[billing_project] = []
+        billing_projects[billing_project].append(user)
+    page_context = {
+        'billing_projects': billing_projects
+    }
+    return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
 
 
 @routes.get('')
