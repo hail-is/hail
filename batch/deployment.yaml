@@ -53,9 +53,9 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
-           value: hail-test-1c9nm
-{% else %}
            value: hail-batch-3jmp5
+{% else %}
+           value: hail-test-1c9nm
 {% endif %}
         ports:
          - containerPort: 5000
@@ -163,9 +163,9 @@ spec:
 {% endif %}
          - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
-           value: hail-test-1c9nm
-{% else %}
            value: hail-batch-3jmp5
+{% else %}
+           value: hail-test-1c9nm
 {% endif %}
         ports:
          - containerPort: 5000
