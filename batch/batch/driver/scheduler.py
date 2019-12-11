@@ -46,6 +46,7 @@ FROM user_resources;
             user_running_cores_mcpu[user] = record['running_cores_mcpu']
             user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']
             pending_users_by_running_cores.add(user)
+            record['allocated_cores_mcpu'] = 0
             result[user] = record
 
         def allocate_cores(user, mark):
@@ -152,7 +153,7 @@ LIMIT 50;
         should_wait = True
 
         for user, resources in user_resources.items():
-            allocated_cores_mcpu = resources.get('allocated_cores_mcpu', 0)
+            allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
                 continue
 
