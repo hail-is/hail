@@ -55,7 +55,7 @@ async def create_database(create_database_config):
         return
 
     scope = create_database_config['scope']
-    _name = create_database_config['database_name']
+    _name = create_database_config['_name']
     admin_username = create_database_config['admin_username']
     user_username = create_database_config['user_username']
 
