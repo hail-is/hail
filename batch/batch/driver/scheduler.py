@@ -152,7 +152,7 @@ LIMIT 50;
         should_wait = True
 
         for user, resources in user_resources.items():
-            allocated_cores_mcpu = resources['allocated_cores_mcpu']
+            allocated_cores_mcpu = resources.get('allocated_cores_mcpu', 0)
             if allocated_cores_mcpu == 0:
                 continue
 
