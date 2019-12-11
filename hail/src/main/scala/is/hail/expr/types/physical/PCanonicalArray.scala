@@ -8,10 +8,6 @@ import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
-object PCanonicalArray  {
-  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
-}
-
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
@@ -70,9 +66,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     Region.storeInt(aoff, length)
 
-  def nMissingBytes(len: Code[Int]): Code[Int] = PCanonicalArray.nMissingBytes(len)
+  def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
 
-  def nMissingBytes(len: Int): Int = (len + 7) >>> 3
+  def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)
 
   private def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
