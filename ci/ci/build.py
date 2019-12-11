@@ -1026,6 +1026,8 @@ class CreateDatabase2Step(Step):
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if self.cant_create_database:
             self._name = None
+            self.admin_username = None
+            self.user_username = None
         elif params.scope == 'deploy':
             self._name = database_name
             self.admin_username = f'{database_name}-admin'
