@@ -1,5 +1,6 @@
 import os
 import sys
+import base64
 import string
 import json
 import secrets
@@ -166,16 +167,16 @@ async def async_main():
 
     admin_secret_name = f'sql-{database_name}-admin-config'
     out, _ = await check_shell_output(
-            f'''
+        f'''
 kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
 ''')
     admin_secret = json.loads(out)
 
     with open('/sql-config.json', 'wb') as f:
-        f.write(base64.b64decode(x['data']['sql-config.json']))
+        f.write(base64.b64decode(admin_secret['data']['sql-config.json']))
 
     with open('/sql-config.cnf', 'wb') as f:
-        f.write(base64.b64decode(x['data']['sql-config.cnf']))
+        f.write(base64.b64decode(admin_secret['data']['sql-config.cnf']))
 
     os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
 
