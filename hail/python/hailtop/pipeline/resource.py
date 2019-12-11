@@ -17,7 +17,7 @@ class Resource:
         pass
 
     def _declare(self, directory):
-        return f"{self._uid}={shq(self._get_path(directory))}"
+        return f"{self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
 
 
 class ResourceFile(Resource, str):
@@ -107,10 +107,10 @@ class ResourceFile(Resource, str):
         return self
 
     def __str__(self):
-        return self._uid
+        return self._uid  # pylint: disable=no-member
 
     def __repr__(self):
-        return self._uid
+        return self._uid  # pylint: disable=no-member
 
 
 class InputResourceFile(ResourceFile):

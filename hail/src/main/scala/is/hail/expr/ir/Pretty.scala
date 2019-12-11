@@ -3,9 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types.virtual.{TArray, TInterval}
-import is.hail.table.Ascending
 import is.hail.utils._
-import is.hail.variant.RelationalSpec
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -141,20 +139,6 @@ object Pretty {
           }
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
-        case SeqOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
         case InitOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
@@ -250,6 +234,7 @@ object Pretty {
             case ArrayFilter(_, name, _) => prettyIdentifier(name)
             case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
             case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case ArrayFold2(_, acc, valueName, _, _) => prettyIdentifiers(acc.map(_._1)) + " " + prettyIdentifier(valueName)
             case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
@@ -307,8 +292,14 @@ object Pretty {
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " "
+            case BlockMatrixMap(_, name, _) =>
+              prettyIdentifier(name)
+            case BlockMatrixMap2(_, _, lName, rName, _) =>
+              prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixColsHead(_, n) => n.toString
+            case MatrixRowsTail(_, n) => n.toString
+            case MatrixColsTail(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid, product) =>
               prettyStringLiteral(uid) + " " + prettyBooleanLiteral(product)
             case MatrixAnnotateColsTable(_, _, uid) =>
@@ -335,6 +326,7 @@ object Pretty {
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, strategy) => s"$n $strategy"
             case TableHead(_, n) => n.toString
+            case TableTail(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
             case TableIntervalJoin(_, _, root, product) =>

@@ -8,16 +8,24 @@ import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 import scala.util.matching.Regex
-import is.hail.io.fs.FS
+
+abstract class TextReaderOptions {
+  val comment: Array[String]
+  val hasHeader: Boolean
+
+  private lazy val commentStartsWith: Array[String] = comment.filter(_.length == 1)
+  private lazy val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
+
+  final def isComment(line: String): Boolean =
+    commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
+}
 
 case class TextTableReaderOptions(
   files: Array[String],
@@ -25,20 +33,15 @@ case class TextTableReaderOptions(
   comment: Array[String],
   separator: String,
   missing: Set[String],
-  noHeader: Boolean,
+  hasHeader: Boolean,
   impute: Boolean,
   nPartitionsOpt: Option[Int],
   quoteStr: String,
   skipBlankLines: Boolean,
   forceBGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  forceGZ: Boolean) {
+  forceGZ: Boolean) extends TextReaderOptions {
   @transient val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
-
-  private val commentStartsWith: Array[String] = comment.filter(_.length == 1)
-  private val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
-
-  def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
 
   val quote: java.lang.Character = if (quoteStr != null) quoteStr(0) else null
 
@@ -119,10 +122,6 @@ object TextTableReader {
     ab += sb.result()
 
     ab.result()
-  }
-
-  def isCommentLine(commentStartsWith: Array[String], commentRegexes: Array[Regex])(line: String): Boolean = {
-    commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
   }
 
   type Matcher = String => Boolean
@@ -221,7 +220,7 @@ object TextTableReader {
   def readMetadata1(options: TextTableReaderOptions): TextTableReaderMetadata = {
     val hc = HailContext.get
 
-    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+    val TextTableReaderOptions(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val globbedFiles: Array[String] = {
       val fs = HailContext.get.sFS
@@ -254,7 +253,7 @@ object TextTableReader {
     }
 
     val splitHeader = splitLine(header, separator, quote)
-    val preColumns = if (noHeader) {
+    val preColumns = if (!hasHeader) {
       splitHeader
         .indices
         .map(i => s"f$i")
@@ -270,7 +269,7 @@ object TextTableReader {
     val rdd = hc.sc.textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
         !options.isComment(line.value) &&
-          (noHeader || line.value != header) &&
+          (!hasHeader || line.value != header) &&
           !(skipBlankLines && line.value.isEmpty)
       }
 
@@ -318,27 +317,6 @@ object TextTableReader {
     val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
     TextTableReaderMetadata(globbedFiles, header, t)
   }
-
-  def read(hc: HailContext)(files: Array[String],
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    nPartitions: Int = hc.sc.defaultMinPartitions,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false,
-    forceGZ: Boolean = false,
-    filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
-    val options = TextTableReaderOptions(
-      files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
-      Set(missing), noHeader, impute, Some(nPartitions),
-      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace, forceGZ)
-    val tr = TextTableReader(options)
-    new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
-  }
 }
 
 case class TextTableReader(options: TextTableReaderOptions) extends TableReader {
@@ -366,7 +344,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
     val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
       .filter { line =>
         !options.isComment(line.value) &&
-          (options.noHeader || metadata.header != line.value) &&
+          (!options.hasHeader || metadata.header != line.value) &&
           !(options.skipBlankLines && line.value.isEmpty)
       }.cmapPartitions { (ctx, it) =>
       val region = ctx.region

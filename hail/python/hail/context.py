@@ -20,12 +20,18 @@ from hail.backend import Backend, ServiceBackend, SparkBackend, DistributedBacke
 
 class HailContext(object):
 
+
     def __init__(self, backend, jhc, default_reference, global_seed, log, quiet):
         self._backend = backend
 
         self._warn_cols_order = True
         self._warn_entries_order = True
 
+        py_version = version()
+
+        if log is None:
+            log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+                                            suffix=f'-{py_version}.log')
         self._log = log
         self._jhc = jhc
 
@@ -52,13 +58,12 @@ class HailContext(object):
         else:
             self._default_ref = ReferenceGenome.read(default_reference)
 
-        version = read_version_info()
         jar_version = self._jhc.version()
 
-        if jar_version != version:
+        if jar_version != py_version:
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
                                f"  JAR:    {jar_version}\n"
-                               f"  Python: {version}")
+                               f"  Python: {py_version}")
 
         if not quiet:
 
@@ -72,9 +77,9 @@ class HailContext(object):
                 '     __  __     <>__\n'
                 '    / /_/ /__  __/ /\n'
                 '   / __  / _ `/ / /\n'
-                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(version))
+                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(py_version))
 
-            if version.startswith('devel'):
+            if py_version.startswith('devel'):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
                                  '  during the beta period. We recommend pulling\n'
                                  '  the latest changes weekly.\n')
@@ -137,14 +142,30 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
                        default_reference="GRCh37", idempotent=False,
                        global_seed=6348563392232659379, optimizer_iterations=None):
     hail_jar_path = _find_hail_jar()
-
     conf = SparkConf()
-    if hail_jar_path:
-        conf.set('spark.jars', hail_jar_path)
-        conf.set('spark.driver.extraClassPath', hail_jar_path)
-        conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
 
-    SparkContext._ensure_initialized(conf=conf)
+    jars = [hail_jar_path]
+    if os.environ.get('HAIL_SPARK_MONITOR'):
+        import sparkmonitor
+        jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
+        conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
+
+
+    conf.set('spark.jars', ','.join(jars))
+    conf.set('spark.driver.extraClassPath', ','.join(jars))
+    conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+
+    if sc is None:
+        SparkContext._ensure_initialized(conf=conf)
+    else:
+        import warnings
+        warnings.warn(
+            'pip-installed Hail requires additional configuration options in Spark referring\n'
+            '  to the path to the Hail Python module directory HAIL_DIR,\n'
+            '  e.g. /path/to/python/site-packages/hail:\n'
+            '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
+            '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
+            '    spark.executor.extraClassPath=./hail-all-spark.jar')
 
     jvm = SparkContext._jvm
 
@@ -330,7 +351,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     else:
         apiserver_url = os.environ.get('HAIL_APISERVER_URL')
         if apiserver_url is not None:
-            service_backend = ServiceBackend(apiserver_url)
+            service_backend = ServiceBackend()
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
             # init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
@@ -349,9 +370,22 @@ def _find_hail_jar():
     else:
         return None
 
+def version():
+    """Get the installed hail version.
+
+    Returns
+    -------
+    str
+    """
+    if hail.__version__ is None:
+        # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+        hail.__version__ = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
+    return hail.__version__
+
+
 def _hail_cite_url():
-    version = read_version_info()
-    [tag, sha_prefix] = version.split("-")
+    v = version()
+    [tag, sha_prefix] = v.split("-")
     if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
         # pip installed
         return f"https://github.com/hail-is/hail/releases/tag/{tag}"
@@ -376,7 +410,7 @@ def citation(*, bibtex=False):
             f"  title = {{Hail}}," \
             f"  howpublished = {{\\url{{{_hail_cite_url()}}}}}" \
             f"}}"
-    return f"Hail Team. Hail {hail.__version__}. {_hail_cite_url()}."
+    return f"Hail Team. Hail {version()}. {_hail_cite_url()}."
 
 
 def cite_hail():
@@ -460,10 +494,6 @@ def set_global_seed(seed):
     Env.set_seed(seed)
 
 
-def read_version_info() -> str:
-    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
-    return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
-
 
 def _set_flags(**flags):
     available = set(Env.hc()._jhc.flags().available())
@@ -489,5 +519,5 @@ def debug_info():
     return {
         'spark_conf': spark_context()._conf.getAll(),
         'hail_jar_path': hail_jar_path,
-        'version': hail.__version__
+        'version': version()
     }

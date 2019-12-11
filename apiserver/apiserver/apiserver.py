@@ -5,13 +5,11 @@ import json
 import os
 import uvloop
 from aiohttp import web
-
-import jwt
 import hail as hl
 from hail.utils import FatalError
 from hail.utils.java import Env, info, scala_object
-from hailtop.gear import setup_aiohttp_session
-from hailtop.gear.auth import rest_authenticated_users_only
+from hailtop.auth import rest_authenticated_users_only
+from gear import setup_aiohttp_session
 
 uvloop.install()
 

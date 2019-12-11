@@ -19,3 +19,20 @@ abstract class BaseType {
 
   def pyString(sb: StringBuilder) = pretty(sb, 0, compact = true)
 }
+
+trait Requiredness {
+  def required: Boolean
+}
+
+object BaseStruct {
+  def getMissingness[Ty <: BaseType with Requiredness](types: Array[Ty], missingIdx: Array[Int]): Int = {
+    assert(missingIdx.length == types.length)
+    var i = 0
+    types.zipWithIndex.foreach { case (t, idx) =>
+      missingIdx(idx) = i
+      if (!t.required)
+        i += 1
+    }
+    i
+  }
+}

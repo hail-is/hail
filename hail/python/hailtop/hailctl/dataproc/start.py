@@ -144,6 +144,11 @@ def main(args, pass_through_args):
         packages.extend(re.split(split_regex, args.packages))
     conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
 
+    def disk_size(size):
+        if args.vep:
+            size = max(size, 200)
+        return str(size) + 'GB'
+
     # rewrite metadata to escape it
     conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
 
@@ -156,8 +161,8 @@ def main(args, pass_through_args):
     conf.flags['num-preemptible-workers'] = args.num_preemptible_workers
     conf.flags['num-worker-local-ssds'] = args.num_worker_local_ssds
     conf.flags['num-workers'] = args.num_workers
-    conf.flags['preemptible-worker-boot-disk-size'] = '{}GB'.format(args.preemptible_worker_boot_disk_size)
-    conf.flags['worker-boot-disk-size'] = args.worker_boot_disk_size
+    conf.flags['preemptible-worker-boot-disk-size'] = disk_size(args.preemptible_worker_boot_disk_size)
+    conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
     conf.flags['zone'] = args.zone
     conf.flags['initialization-action-timeout'] = args.init_timeout

@@ -2,11 +2,13 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, _}
-import is.hail.asm4s._
+import is.hail.asm4s.{coerce, _}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
-import is.hail.io.index.IndexReader
+import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
@@ -83,7 +85,7 @@ object BgenRDDPartitions extends Logging {
   }
 
   def apply(
-    sc: SparkContext,
+    rg: Option[ReferenceGenome],
     files: Seq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
@@ -119,6 +121,12 @@ object BgenRDDPartitions extends Logging {
 
     val nonEmptyFilesAfterFilter = sortedFiles.filter(_.nVariants > 0)
 
+    val indexReaderBuilder = {
+      val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
+      val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
+      val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
+      IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+    }
     if (nonEmptyFilesAfterFilter.isEmpty) {
       (Array.empty, Array.empty)
     } else {
@@ -127,7 +135,7 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        using(IndexReader(fs, file.indexPath)) { index =>
+        using(indexReaderBuilder(fs, file.indexPath, 8)) { index =>
           val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
@@ -169,44 +177,48 @@ object BgenRDDPartitions extends Logging {
 object CompileDecoder {
   def apply(
     settings: BgenSettings
-  ): () => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
-    val fb = new Function4Builder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
+  ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
+    val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]("bgen_rdd_decoder")
     val mb = fb.apply_method
+    val region = mb.getArg[Region](1).load()
     val cp = mb.getArg[BgenPartition](2).load()
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
     val csettings = mb.getArg[BgenSettings](4).load()
-    val srvb = new StagedRegionValueBuilder(mb, settings.rowPType)
-    val offset = mb.newLocal[Long]
-    val fileIdx = mb.newLocal[Int]
-    val varid = mb.newLocal[String]
-    val rsid = mb.newLocal[String]
-    val contig = mb.newLocal[String]
-    val contigRecoded = mb.newLocal[String]
-    val position = mb.newLocal[Int]
-    val nAlleles = mb.newLocal[Int]
-    val i = mb.newLocal[Int]
-    val dataSize = mb.newLocal[Int]
-    val invalidLocus = mb.newLocal[Boolean]
-    val data = mb.newLocal[Array[Byte]]
-    val uncompressedSize = mb.newLocal[Int]
-    val input = mb.newLocal[Array[Byte]]
-    val reader = mb.newLocal[ByteArrayReader]
-    val nRow = mb.newLocal[Int]
-    val nAlleles2 = mb.newLocal[Int]
-    val minPloidy = mb.newLocal[Int]
-    val maxPloidy = mb.newLocal[Int]
-    val longPloidy = mb.newLocal[Long]
-    val ploidy = mb.newLocal[Int]
-    val phase = mb.newLocal[Int]
-    val nBitsPerProb = mb.newLocal[Int]
-    val nExpectedBytesProbs = mb.newLocal[Int]
-    val c0 = mb.newLocal[Int]
-    val c1 = mb.newLocal[Int]
-    val c2 = mb.newLocal[Int]
-    val off = mb.newLocal[Int]
-    val d0 = mb.newLocal[Int]
-    val d1 = mb.newLocal[Int]
-    val d2 = mb.newLocal[Int]
+
+    val regionField = mb.newField[Region]("region")
+    val srvb = new StagedRegionValueBuilder(mb, settings.rowPType, regionField)
+
+    val offset = mb.newLocal[Long]("offset")
+    val fileIdx = mb.newLocal[Int]("fileIdx")
+    val varid = mb.newLocal[String]("varid")
+    val rsid = mb.newLocal[String]("rsid")
+    val contig = mb.newLocal[String]("contig")
+    val contigRecoded = mb.newLocal[String]("contigRecoded")
+    val position = mb.newLocal[Int]("position")
+    val nAlleles = mb.newLocal[Int]("nAlleles")
+    val i = mb.newLocal[Int]("i")
+    val dataSize = mb.newLocal[Int]("dataSize")
+    val invalidLocus = mb.newLocal[Boolean]("invalidLocus")
+    val data = mb.newLocal[Array[Byte]]("data")
+    val uncompressedSize = mb.newLocal[Int]("uncompressedSize")
+    val input = mb.newLocal[Array[Byte]]("input")
+    val reader = mb.newLocal[ByteArrayReader]("reader")
+    val nRow = mb.newLocal[Int]("nRow")
+    val nAlleles2 = mb.newLocal[Int]("nAlleles2")
+    val minPloidy = mb.newLocal[Int]("minPloidy")
+    val maxPloidy = mb.newLocal[Int]("maxPloidy")
+    val longPloidy = mb.newLocal[Long]("longPloidy")
+    val ploidy = mb.newLocal[Int]("ploidy")
+    val phase = mb.newLocal[Int]("phase")
+    val nBitsPerProb = mb.newLocal[Int]("nBitsPerProb")
+    val nExpectedBytesProbs = mb.newLocal[Int]("nExpectedBytesProbs")
+    val c0 = mb.newField[Int]("c0")
+    val c1 = mb.newField[Int]("c1")
+    val c2 = mb.newField[Int]("c2")
+    val off = mb.newLocal[Int]("off")
+    val d0 = mb.newLocal[Int]("d0")
+    val d1 = mb.newLocal[Int]("d1")
+    val d2 = mb.newLocal[Int]("d2")
     val c = Code(
       offset := cbfis.invoke[Long]("getPosition"),
       fileIdx := cp.invoke[Int]("index"),
@@ -254,6 +266,7 @@ object CompileDecoder {
           Code._empty // if locus is valid continue
         }
       ),
+      regionField := region,
       srvb.start(),
       if (settings.hasField("locus"))
         Code(
@@ -307,6 +320,152 @@ object CompileDecoder {
           val includeGT = t.hasField("GT")
           val includeGP = t.hasField("GP")
           val includeDosage = t.hasField("dosage")
+
+          val alreadyMemoized = mb.newField[Boolean]("alreadyMemoized")
+          val memoizedEntryData = mb.newField[Long]("memoizedEntryData")
+
+          val memoTyp = PArray(entryType.setRequired(true), required = true)
+          val memoizeAllValues: Code[Unit] = {
+            val memoMB = mb.fb.newMethod("memoizeEntries", Array[TypeInfo[_]](), UnitInfo)
+
+            val d0 = memoMB.newLocal[Int]("memoize_entries_d0")
+            val d1 = memoMB.newLocal[Int]("memoize_entries_d1")
+            val d2 = memoMB.newLocal[Int]("memoize_entries_d2")
+
+            val srvb = new StagedRegionValueBuilder(memoMB, memoTyp, fb.partitionRegion)
+
+            memoMB.emit(Code(
+              alreadyMemoized.mux(
+                Code._empty,
+                Code(
+                  srvb.start(1 << 16),
+                  d0 := 0,
+                  Code.whileLoop(d0 < 256,
+                    d1 := 0,
+                    Code.whileLoop(d1 < 256,
+                      d2 := const(255) - d0 - d1,
+                      srvb.addBaseStruct(entryType, { srvb =>
+                        val addGT: Code[Unit] = if (includeGT) {
+
+                          val addGtMB = mb.fb.newMethod("bgen_add_gt",
+                            Array[TypeInfo[_]](IntInfo, IntInfo, IntInfo),
+                            UnitInfo)
+                          val d0arg = addGtMB.getArg[Int](1)
+                          val d1arg = addGtMB.getArg[Int](2)
+                          val d2arg = addGtMB.getArg[Int](3)
+
+                          addGtMB.emit(
+                            Code(
+                              (d0arg > d1arg).mux(
+                                (d0arg > d2arg).mux(
+                                  srvb.addInt(c0),
+                                  (d2arg > d0arg).mux(
+                                    srvb.addInt(c2),
+                                    // d0 == d2
+                                    srvb.setMissing())),
+                                // d0 <= d1
+                                (d2arg > d1arg).mux(
+                                  srvb.addInt(c2),
+                                  // d2 <= d1
+                                  (d1arg.ceq(d0arg) || d1arg.ceq(d2arg)).mux(
+                                    srvb.setMissing(),
+                                    srvb.addInt(c1)))),
+                              if (includeGP || includeDosage) srvb.advance() else Code._empty))
+                          addGtMB.invoke(d0, d1, d2)
+                        } else Code._empty
+
+                        val addGP: Code[Unit] = if (includeGP) {
+                          val addGpMB = mb.fb.newMethod("bgen_add_gp",
+                            Array[TypeInfo[_]](IntInfo, IntInfo, IntInfo),
+                            UnitInfo)
+
+                          val d0arg = addGpMB.getArg[Int](1)
+                          val d1arg = addGpMB.getArg[Int](2)
+                          val d2arg = addGpMB.getArg[Int](3)
+
+                          val divisor = addGpMB.newLocal[Double]("divisor")
+
+                          addGpMB.emit(Code(
+                            srvb.addArray(entryType.field("GP").typ.asInstanceOf[PArray], { srvb =>
+                              Code(
+                                divisor := 255.0,
+                                srvb.start(3),
+                                srvb.addDouble(d0arg.toD / divisor),
+                                srvb.advance(),
+                                srvb.addDouble(d1arg.toD / divisor),
+                                srvb.advance(),
+                                srvb.addDouble(d2arg.toD / divisor))
+                            }),
+                            if (includeDosage) srvb.advance() else Code._empty))
+                          addGpMB.invoke(d0, d1, d2)
+                        } else Code._empty
+
+                        val addDosage: Code[Unit] = if (includeDosage) {
+                          val addDosageMB = mb.fb.newMethod("bgen_add_dosage",
+                            Array[TypeInfo[_]](IntInfo, IntInfo),
+                            UnitInfo)
+
+                          val d1arg = addDosageMB.getArg[Int](1)
+                          val d2arg = addDosageMB.getArg[Int](2)
+
+                          addDosageMB.emit(srvb.addDouble((d1arg + (d2arg << 1)).toD / 255.0))
+                          addDosageMB.invoke(d1, d2)
+                        } else Code._empty
+
+                        Code(srvb.start(), addGT, addGP, addDosage)
+                      }),
+                      srvb.advance(),
+                      d1 := d1 + 1
+                    ),
+                    d0 := d0 + 1
+                ),
+                memoizedEntryData := srvb.end(),
+                alreadyMemoized := true
+              )
+            )))
+            memoMB.invoke()
+          }
+
+          val lookupEntry: (Code[Int], Code[Int]) => Code[Long] = {
+            val lookupMB = mb.fb.newMethod("bgen_look_up_add_entry", Array[TypeInfo[_]](IntInfo, IntInfo), LongInfo)
+
+            val d0 = lookupMB.getArg[Int](1)
+            val d1 = lookupMB.getArg[Int](2)
+            lookupMB.emit(Code(
+              Code._empty,
+              memoTyp.elementOffset(memoizedEntryData, settings.nSamples, (d0 << 8) | d1)
+            ))
+            lookupMB.invoke(_, _)
+          }
+
+          val addEntries: Code[Array[Byte]] => Code[Unit] = {
+            val addEntriesMB = mb.fb.newMethod("bgen_add_entries", Array[TypeInfo[_]](typeInfo[Array[Byte]]), UnitInfo)
+            val data = addEntriesMB.getArg[Array[Byte]](1)
+            val i = addEntriesMB.newLocal[Int]("i")
+            val off = addEntriesMB.newLocal[Int]("off")
+            val d0 = addEntriesMB.newLocal[Int]("d0")
+            val d1 = addEntriesMB.newLocal[Int]("d1")
+            addEntriesMB.emit(Code(
+              srvb.addArray(entriesArrayType,
+                { srvb =>
+                  Code(
+                    srvb.start(settings.nSamples),
+                    i := 0,
+                    Code.whileLoop(i < settings.nSamples,
+                      (data(i + 8) & 0x80).cne(0).mux(
+                        srvb.setMissing(),
+                        Code(
+                          off := const(settings.nSamples + 10) + i * 2,
+                          d0 := data(off) & 0xff,
+                          d1 := data(off + 1) & 0xff,
+                          srvb.addIRIntermediate(entryType)(lookupEntry(d0, d1))
+                        )),
+                      srvb.advance(),
+                      i := i + 1))
+                })
+            ))
+            addEntriesMB.invoke(_)
+          }
 
           Code(
             cp.invoke[Boolean]("compressed").mux(
@@ -395,67 +554,13 @@ object CompileDecoder {
             c0 := Call2.fromUnphasedDiploidGtIndex(0),
             c1 := Call2.fromUnphasedDiploidGtIndex(1),
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            srvb.addArray(entriesArrayType,
-              { srvb =>
-                Code(
-                  srvb.start(settings.nSamples),
-                  i := 0,
-                  Code.whileLoop(i < settings.nSamples,
-                    (data(i + 8) & 0x80).cne(0).mux(
-                      srvb.setMissing(),
-                      srvb.addBaseStruct(entryType, { srvb =>
-                        Code(
-                          srvb.start(),
-                          off := const(settings.nSamples + 10) + i * 2,
-                          d0 := data(off) & 0xff,
-                          d1 := data(off + 1) & 0xff,
-                          d2 := const(255) - d0 - d1,
-                          if (includeGT) {
-                            Code(
-                              (d0 > d1).mux(
-                                (d0 > d2).mux(
-                                  srvb.addInt(c0),
-                                  (d2 > d0).mux(
-                                    srvb.addInt(c2),
-                                    // d0 == d2
-                                    srvb.setMissing())),
-                                // d0 <= d1
-                                (d2 > d1).mux(
-                                  srvb.addInt(c2),
-                                  // d2 <= d1
-                                  (d1.ceq(d0) || d1.ceq(d2)).mux(
-                                    srvb.setMissing(),
-                                    srvb.addInt(c1)))),
-                              srvb.advance())
-                          } else Code._empty,
-                          if (includeGP) {
-                            Code(
-                              srvb.addArray(entryType.field("GP").typ.asInstanceOf[PArray], { srvb =>
-                                Code(
-                                  srvb.start(3),
-                                  srvb.addDouble(d0.toD / 255.0),
-                                  srvb.advance(),
-                                  srvb.addDouble(d1.toD / 255.0),
-                                  srvb.advance(),
-                                  srvb.addDouble(d2.toD / 255.0),
-                                  srvb.advance())
-                              }),
-                              srvb.advance())
-                          } else Code._empty,
-                          if (includeDosage) {
-                            val dosage = (d1 + (d2 << 1)).toD / 255.0
-                            Code(
-                              srvb.addDouble(dosage),
-                              srvb.advance())
-                          } else Code._empty)
-                      })),
-                    srvb.advance(),
-                    i := i + 1))
-              }))
+            memoizeAllValues,
+            addEntries(data)
+            )
       },
       srvb.end())
 
     mb.emit(c)
-    fb.result()
+    fb.resultWithIndex()
   }
 }

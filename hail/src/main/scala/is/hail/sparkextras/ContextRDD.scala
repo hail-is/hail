@@ -1,6 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.utils._
+import is.hail.utils.PartitionCounts._
 import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.ExposedUtils
@@ -246,174 +247,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   ): ContextRDD[C, U] =
     cmapPartitionsWithIndex((i, _, part) => f(i, part), preservesPartitioning)
 
-  def fold(zero: T, combOp: (T, T) => T): T = aggregate[T](zero, (_, u, t) => combOp(u, t), combOp)
-
-  // FIXME: delete when region values are non-serializable
-  def aggregate[U: ClassTag](
-    zero: U,
-    seqOp: (C, U, T) => U,
-    combOp: (U, U) => U
-  ): U = aggregate[U, U](zero, seqOp, combOp, x => x, x => x)
-
-  def aggregate[U: ClassTag, V: ClassTag](
-    zero: U,
-    seqOp: (C, U, T) => U,
-    combOp: (U, U) => U,
-    serialize: U => V,
-    deserialize: V => U
-  ): U = {
-    val zeroValue = ExposedUtils.clone(zero, sparkContext)
-    val aggregatePartition = clean { (it: Iterator[C => Iterator[T]]) =>
-      using(mkc()) { c =>
-        serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp(c, _, _), combOp)) } }
-    val ac = new AssociativeCombiner(zero, combOp)
-    sparkContext.runJob(rdd, aggregatePartition, (i: Int, v: V) => ac.combine(i, deserialize(v)))
-    ac.result()
-  }
-
-  // FIXME: update with serializers when region values are non-serializable
-  def treeReduce(f: (T, T) => T, depth: Int = 2): T = {
-    val seqOp: (Option[T], T) => Option[T] = {
-      case (Some(l), r) => Some(f(l, r))
-      case (None, r) => Some(r)
-    }
-
-    val combOp: (Option[T], Option[T]) => Option[T] = {
-      case (Some(l), Some(r)) => Some(f(l, r))
-      case (l: Some[_], None) => l
-      case (None, r: Some[_]) => r
-      case (None, None) => None
-    }
-
-    treeAggregate(Option.empty, (c, u: Option[T], v) => seqOp(u, v), combOp, depth)
-      .getOrElse(throw new RuntimeException("nothing in the RDD!"))
-  }
-
-  // only used by Concordance
-  def treeAggregate[U: ClassTag](
-    zero: U,
-    seqOp: (C, U, T) => U,
-    combOp: (U, U) => U,
-    depth: Int
-  ): U = treeAggregate[U, U](zero, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
-
-  def treeAggregate[U: ClassTag, V: ClassTag](
-    zero: U,
-    seqOp: (C, U, T) => U,
-    combOp: (U, U) => U,
-    serialize: U => V,
-    deserialize: V => U,
-    depth: Int
-  ): U = {
-    require(depth > 0)
-    val zeroValue = serialize(zero)
-    val aggregatePartitionOfContextTs = clean { (it: Iterator[C => Iterator[T]]) =>
-      using(mkc()) { c =>
-        serialize(
-          it.flatMap(_ (c)).aggregate(deserialize(zeroValue))(seqOp(c, _, _), combOp))
-      }
-    }
-    val aggregatePartitionOfVs = clean { (it: Iterator[V]) =>
-      serialize(
-        it.map(deserialize).fold(deserialize(zeroValue))(combOp))
-    }
-
-    var reduced: RDD[V] =
-      rdd.mapPartitions(
-        aggregatePartitionOfContextTs.andThen(Iterator.single _))
-
-    val scale = math.max(
-      math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
-      2)
-    var i = 0
-    while (i < depth - 1 && reduced.getNumPartitions > scale) {
-      val nParts = reduced.getNumPartitions
-      val newNParts = nParts / scale
-      reduced = reduced.mapPartitionsWithIndex { (i, it) =>
-        it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
-      }
-        .partitionBy(new Partitioner {
-          override def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
-          override def numPartitions: Int = newNParts
-        })
-        .mapPartitions { it =>
-          val ac = new AssociativeCombiner(deserialize(zeroValue), combOp)
-          it.foreach { case (newPart, (oldPart, v)) =>
-            ac.combine(oldPart, deserialize(v))
-          }
-          Iterator.single(
-            serialize(ac.result()))
-        }
-      i += 1
-    }
-
-    val ac = new AssociativeCombiner(zero, combOp)
-    sparkContext.runJob(reduced, (it: Iterator[V]) => singletonElement(it), (i: Int, v: V) => ac.combine(i, deserialize(v)))
-    ac.result()
-  }
-
-  // only used by MatrixMapCols
-  def treeAggregateWithPartitionOp[PC, U: ClassTag](
-    zero: U,
-    makePC: (Int, C) => PC,
-    seqOp: (C, PC, U, T) => U,
-    combOp: (U, U) => U,
-    depth: Int
-  ): U = treeAggregateWithPartitionOp(zero, makePC, seqOp, combOp, (x: U) => x, (x: U) => x, depth)
-
-  def treeAggregateWithPartitionOp[PC, U: ClassTag, V: ClassTag](
-    zero: U,
-    makePC: (Int, C) => PC,
-    seqOp: (C, PC, U, T) => U,
-    combOp: (U, U) => U,
-    serialize: U => V,
-    deserialize: V => U,
-    depth: Int
-  ): U = {
-    require(depth > 0)
-    val zeroValue = serialize(zero)
-    val aggregatePartitionOfContextTs = clean { (i: Int, it: Iterator[C => Iterator[T]]) =>
-      using(mkc()) { c =>
-        val pc = makePC(i, c)
-        serialize(
-          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, pc, _, _), combOp)) } }
-
-    var reduced: RDD[V] =
-      rdd.mapPartitionsWithIndex((i, it) =>
-        Iterator.single(aggregatePartitionOfContextTs(i, it)))
-
-    val scale = math.max(
-      math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
-      2)
-    var i = 0
-    while (i < depth - 1 && reduced.getNumPartitions > scale) {
-      val nParts = reduced.getNumPartitions
-      val newNParts = nParts / scale
-      reduced = reduced.mapPartitionsWithIndex { (i, it) =>
-        it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
-      }
-        .partitionBy(new Partitioner {
-          override def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
-          override def numPartitions: Int = newNParts
-        })
-        .mapPartitions { it =>
-          val ac = new AssociativeCombiner(deserialize(zeroValue), combOp)
-          it.foreach { case (newPart, (oldPart, v)) =>
-            ac.combine(oldPart, deserialize(v))
-          }
-          Iterator.single(
-            serialize(ac.result()))
-        }
-      i += 1
-    }
-
-    val ac = new AssociativeCombiner(zero, combOp)
-    sparkContext.runJob(reduced, (it: Iterator[V]) => singletonElement(it), (i: Int, v: V) => ac.combine(i, deserialize(v)))
-    ac.result()
-  }
-
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
     cmapPartitions((c, it) => it.map(f(c, _)), true)
 
@@ -546,65 +379,53 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
     require(n >= 0)
 
-    val (idxLast, nLast) = partitionCounts match {
+    val (idxLast, nTake) = partitionCounts match {
       case Some(pcs) =>
-        val newPartitionCounts = getHeadPartitionCounts(pcs, n)
-        if (newPartitionCounts == pcs)
-          return this
-        else {
-          val lastIdx = newPartitionCounts.length - 1
-          lastIdx -> newPartitionCounts(lastIdx)
+        getPCSubsetOffset(n, pcs.iterator) match {
+          case Some(PCSubsetOffset(idx, nTake, _)) => idx -> nTake
+          case None => return this
         }
       case None =>
-        val sc = sparkContext
-        val nPartitions = getNumPartitions
-
-        var partScanned = 0
-        var nLeft = n
-        var idxLast = -1
-        var nLast = 0L
-        var numPartsToTry = 1L
-
-        while (nLeft > 0 && partScanned < nPartitions) {
-          val nSeen = n - nLeft
-
-          if (partScanned > 0) {
-            // If we didn't find any rows after the previous iteration, quadruple and retry.
-            // Otherwise, interpolate the number of partitions we need to try, but overestimate
-            // it by 50%. We also cap the estimation in the end.
-            if (nSeen == 0) {
-              numPartsToTry = partScanned * 4
-            } else {
-              // the left side of max is >=1 whenever partsScanned >= 2
-              numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
-              numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
-            }
-          }
-
-          val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
-          val counts = runJob(getIteratorSizeWithMaxN(nLeft), p)
-
-          p.zip(counts).foreach { case (idx, c) =>
-            if (nLeft > 0) {
-              idxLast = idx
-              nLast = if (c < nLeft) c else nLeft
-              nLeft -= nLast
-            }
-          }
-
-          partScanned += p.size
-        }
-
-        idxLast -> nLast
+        val PCSubsetOffset(idx, nTake, _) =
+          incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
+            runJob(getIteratorSize, _)
+          )
+        idx -> nTake
     }
 
     mapPartitionsWithIndex({ case (i, it) =>
       if (i == idxLast)
-        it.take(nLast.toInt)
+        it.take(nTake.toInt)
       else
         it
     }, preservesPartitioning = true)
       .subsetPartitions((0 to idxLast).toArray)
+  }
+
+  def tail(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
+    require(n >= 0)
+
+    val (idxFirst, nDrop) = partitionCounts match {
+      case Some(pcs) =>
+        getPCSubsetOffset(n, pcs.reverseIterator) match {
+          case Some(PCSubsetOffset(idx, _, nDrop)) => (pcs.length - idx - 1) -> nDrop
+          case None => return this
+        }
+      case None =>
+        val PCSubsetOffset(idx, _, nDrop) =
+          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
+            runJob(getIteratorSize, _)
+          )
+        idx -> nDrop
+    }
+
+    mapPartitionsWithIndex({ case (i, it) =>
+      if (i == idxFirst)
+        it.drop(nDrop.toInt)
+      else
+        it
+    }, preservesPartitioning = true)
+      .subsetPartitions(Array.range(idxFirst, getNumPartitions))
   }
 
   def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =

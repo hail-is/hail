@@ -216,10 +216,10 @@ class MathFunctionsSuite extends HailSuite {
   }
 
   @Test def modulusTest() {
-    assertFatal(invoke("%", TInt32(), I32(1), I32(0)), "modulo by zero")
-    assertFatal(invoke("%", TInt64(), I64(1), I64(0)), "modulo by zero")
-    assertFatal(invoke("%", TFloat32(), F32(1), F32(0)), "modulo by zero")
-    assertFatal(invoke("%", TFloat64(), F64(1), F64(0)), "modulo by zero")
+    assertFatal(invoke("%", TInt32(), I32(1), I32(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TInt64(), I64(1), I64(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TFloat32(), F32(1), F32(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TFloat64(), F64(1), F64(0)), "(modulo by zero)|(error while calling '%')")
   }
 
   @Test def testMinMax() {

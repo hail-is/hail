@@ -18,6 +18,13 @@ object Bindings {
     case ArrayFlatMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayFold2(a, accum, valueName, seq, result) =>
+      if (i <= accum.length)
+        empty
+      else if (i < 2 * accum.length + 1)
+        Array((valueName, -coerce[TStreamable](a.typ).elementType)) ++ accum.map { case (name, value) => (name, value.typ) }
+      else
+        accum.map { case (name, value) => (name, value.typ) }
     case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStreamable].elementType) else empty
     case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TStreamable](ll.typ).elementType, r -> -coerce[TStreamable](rr.typ).elementType) else empty
@@ -43,8 +50,8 @@ object Bindings {
     case MatrixMapGlobals(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregateColsByKey(child, _, _) => if (i == 1) child.typ.rowEnv.m else if (i == 2) child.typ.globalEnv.m else empty
     case MatrixAggregateRowsByKey(child, _, _) => if (i == 1) child.typ.colEnv.m else if (i == 2) child.typ.globalEnv.m else empty
-    case BlockMatrixMap(_, _) => if (i == 1) Array("element" -> TFloat64()) else empty
-    case BlockMatrixMap2(_, _, _) => if (i == 2) Array("l" -> TFloat64(), "r" -> TFloat64()) else empty
+    case BlockMatrixMap(_, eltName, _) => if (i == 1) Array(eltName -> TFloat64()) else empty
+    case BlockMatrixMap2(_, _, lName, rName, _) => if (i == 2) Array(lName -> TFloat64(), rName -> TFloat64()) else empty
     case _ => empty
   }
 }

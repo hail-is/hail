@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+  labels:
+    app: hello
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: hello
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: hello
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      containers:
+        - name: hello
+          image: "{{ hello_image.image }}"
+          resources:
+            requests:
+              memory: "0.5G"
+              cpu: "0.5"
+          ports:
+            - containerPort: 5000
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+           - mountPath: /deploy-config
+             name: deploy-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
+          env:
+           - name: HAIL_IP
+             value: "{{ global.ip }}"
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: SHA
+             value: "{{ code.sha }}"
+      volumes:
+       - name: deploy-config
+         secret:
+           optional: false
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+  labels:
+    app: hello
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: hello

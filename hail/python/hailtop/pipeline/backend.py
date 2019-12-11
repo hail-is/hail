@@ -2,12 +2,13 @@ import abc
 import os
 import subprocess as sp
 import uuid
+import time
 from shlex import quote as shq
-import aiohttp
-from hailtop.batch_client.client import BatchClient, Job
+import webbrowser
+from hailtop.config import get_deploy_config
+from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, TaskResourceFile
-from .utils import PipelineException
 
 
 class Backend:
@@ -187,23 +188,22 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self._batch_client = BatchClient(session)
+    def __init__(self, billing_project):
+        self._batch_client = BatchClient(billing_project)
 
     def close(self):
         self._batch_client.close()
 
-    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit, wait=True, open=False):  # pylint: disable-msg=R0915
+        build_dag_start = time.time()
+
         bucket = self._batch_client.bucket
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
 
         remote_tmpdir = f'gs://{bucket}/pipeline/{subdir_name}'
         local_tmpdir = f'/io/pipeline/{subdir_name}'
 
-        default_image = 'ubuntu'
+        default_image = 'ubuntu:latest'
 
         attributes = pipeline.attributes
         if pipeline.name is not None:
@@ -286,11 +286,11 @@ class BatchBackend(Backend):
                 attributes['name'] = task.name
             attributes.update(task.attributes)
 
-            resources = {'requests': {}}
+            resources = {}
             if task._cpu:
-                resources['requests']['cpu'] = task._cpu
+                resources['cpu'] = task._cpu
             if task._memory:
-                resources['requests']['memory'] = task._memory
+                resources['memory'] = task._memory
 
             j = batch.create_job(image=task._image if task._image else default_image,
                                  command=['/bin/bash', '-c', cmd],
@@ -311,7 +311,7 @@ class BatchBackend(Backend):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            rm_cmd = f'gsutil rm -r {remote_tmpdir}'
+            rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
             cmd = bash_flags + f'{activate_service_account} && {rm_cmd}'
             j = batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
@@ -322,33 +322,28 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
+        if verbose:
+            print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
+
+        submit_batch_start = time.time()
         batch = batch.submit()
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs:')
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
-        status = batch.wait()
+            print('')
 
-        if status['state'] == 'success':
-            print('Pipeline completed successfully!')
-            return
+        deploy_config = get_deploy_config()
+        url = deploy_config.url('batch', f'/batches/{batch.id}')
+        print(f'Submitted batch {batch.id}, see {url}')
 
-        failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
-
-        fail_msg = ''
-        for jid, ec in failed_jobs:
-            ec = Job.exit_code(ec)
-            job = self._batch_client.get_job(*jid)
-            log = job.log()
-            name = job.status()['attributes'].get('name', None)
-            fail_msg += (
-                f"Job {jid} failed with exit code {ec}:\n"
-                f"  Task name:\t{name}\n"
-                f"  Command:\t{jobs_to_command[jid]}\n"
-                f"  Log:\t{log}\n")
-
-        raise PipelineException(fail_msg)
+        if open:
+            webbrowser.open(url)
+        if wait:
+            print(f'Waiting for batch {batch.id}...')
+            status = batch.wait()
+            print(f'Batch {batch.id} complete: {status["state"]}')

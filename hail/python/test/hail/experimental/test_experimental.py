@@ -293,6 +293,13 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    def test_mt_full_outer_join_self(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        jmt = hl.experimental.full_outer_join_mt(mt, mt)
+        assert jmt.filter_cols(hl.is_defined(jmt.left_col) & hl.is_defined(jmt.right_col)).count_cols() == mt.count_cols()
+        assert jmt.filter_rows(hl.is_defined(jmt.left_row) & hl.is_defined(jmt.right_row)).count_rows() == mt.count_rows()
+        assert jmt.filter_entries(hl.is_defined(jmt.left_entry) & hl.is_defined(jmt.right_entry)).entries().count() == mt.entries().count()
+
     def test_block_matrices_tofiles(self):
         data = [
             np.random.rand(11*12),
@@ -331,4 +338,12 @@ class Tests(unittest.TestCase):
         for i in range(len(bms)):
             a = arrs[i]
             a2 = np.loadtxt(f'{prefix}/files/{i}.tsv')
+            self.assertTrue(np.array_equal(a, a2))
+
+        prefix2 = new_local_temp_dir()
+        custom_names = ["nameA", "inner/nameB.tsv"]
+        hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
+        for i in range(len(bms)):
+            a = arrs[i]
+            a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
             self.assertTrue(np.array_equal(a, a2))

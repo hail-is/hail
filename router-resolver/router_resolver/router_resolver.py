@@ -5,13 +5,15 @@ from aiohttp import web
 import aiohttp_session
 from kubernetes_asyncio import client, config
 import logging
-
-from hailtop.gear import configure_logging, setup_aiohttp_session, get_deploy_config
+from hailtop.config import get_deploy_config
+from gear import configure_logging, setup_aiohttp_session
 
 uvloop.install()
 
 configure_logging()
 log = logging.getLogger('router-resolver')
+
+deploy_config = get_deploy_config()
 
 app = web.Application()
 setup_aiohttp_session(app)
@@ -21,7 +23,6 @@ routes = web.RouteTableDef()
 
 @routes.get('/auth/{namespace}')
 async def auth(request):
-    deploy_config = get_deploy_config()
     app = request.app
     k8s_client = app['k8s_client']
     namespace = request.match_info['namespace']

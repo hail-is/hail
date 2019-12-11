@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64}
@@ -114,7 +114,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         length := aT.loadLength(r.region, aoff),
         array := Code.newArray[Double](length),
         Code.whileLoop(i < length,
-          array.load().update(i, r.region.loadDouble(aT.elementOffset(aoff, length, i))),
+          array.load().update(i, Region.loadDouble(aT.elementOffset(aoff, length, i))),
           i += 1),
         r.mb.newRNG(seed).invoke[Array[Double], Int]("rcat", array))
     }

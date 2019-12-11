@@ -151,7 +151,7 @@ object LocusFunctions extends RegistryFunctions {
     val locusClass = Locus.getClass
 
     registerCode("contig", tlocus("T"), TString(),
-      (x: PType) => x.asInstanceOf[PLocus].fundamentalType.asInstanceOf[PStruct].field("contig").typ) {
+      (x: PType) => -x.asInstanceOf[PLocus].representation.asInstanceOf[PStruct].field("contig").typ) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.contig(r.region, locus)
     }
@@ -221,14 +221,14 @@ object LocusFunctions extends RegistryFunctions {
         val lastCoord = r.mb.newLocal[Double]("coord")
 
         val getCoord = { i: Code[Int] =>
-          asm4s.coerce[Double](region.loadIRIntermediate(coordT.elementType)(coordT.elementOffset(coordsPerContig, len, i)))
+          asm4s.coerce[Double](Region.loadIRIntermediate(coordT.elementType)(coordT.elementOffset(coordsPerContig, len, i)))
         }
 
         def forAllContigs(c: Code[Unit]): Code[Unit] = {
           Code(iContig := 0,
             Code.whileLoop(iContig < ncontigs,
               coordsPerContig := asm4s.coerce[Long](
-                region.loadIRIntermediate(coordT)(
+                Region.loadIRIntermediate(coordT)(
                   groupedT.elementOffset(coords, ncontigs, iContig))),
               c,
               iContig += 1))

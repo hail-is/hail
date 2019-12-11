@@ -1,7 +1,6 @@
 package is.hail
 
-import java.io.{File, InputStream}
-import java.nio.charset.Charset
+import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
@@ -10,25 +9,22 @@ import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.ir.{BaseIR, ExecuteContext}
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.io.index._
 import is.hail.io.vcf._
-import is.hail.io.{CodecSpec, Decoder, CodecSpec2}
-import is.hail.rvd.{IndexSpec, RVDContext}
-import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
+import is.hail.io.{AbstractTypedCodecSpec, Decoder}
+import is.hail.rvd.{AbstractIndexSpec, RVDContext}
+import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
 import is.hail.utils.{log, _}
-import is.hail.variant.{MatrixTable, ReferenceGenome}
-import is.hail.io.fs.{FS, HadoopFS}
-import org.apache.commons.io.FileUtils
+import is.hail.variant.ReferenceGenome
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SparkSession}
@@ -41,7 +37,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 case class FilePartition(index: Int, file: String) extends Partition
-case class IndexedFilePartition(index: Int, file: String, bounds: Option[Interval]) extends Partition
 
 object HailContext {
   val tera: Long = 1024L * 1024L * 1024L * 1024L
@@ -618,21 +613,31 @@ class HailContext private(
 
   def bcFS: Broadcast[FS] = sc.broadcast(sFS)
 
-  def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
+  private[this] def fileAndLineCounts(
+    regex: String,
+    files: Seq[String],
+    maxLines: Int
+  ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
     sc.textFilesLines(sFS.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.asInstanceOf[Context].file)
-      .foreach { case (file, lines) =>
-        info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
-        lines.map(_.value).foreach { line =>
-          val (screen, logged) = line.truncatable().strings
-          log.info("\t" + logged)
-          println(s"\t$screen")
-        }
-      }
   }
+
+  def grepPrint(regex: String, files: Seq[String], maxLines: Int) {
+    fileAndLineCounts(regex, files, maxLines).foreach { case (file, lines) =>
+      info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
+      lines.map(_.value).foreach { line =>
+        val (screen, logged) = line.truncatable().strings
+        log.info("\t" + logged)
+        println(s"\t$screen")
+      }
+    }
+  }
+
+  def grepReturn(regex: String, files: Seq[String], maxLines: Int): Array[(String, Array[String])] =
+    fileAndLineCounts(regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sFS.getTemporaryFile(tmpDir, nChar, prefix, suffix)
@@ -650,56 +655,11 @@ class HailContext private(
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false) {
-    IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
+    ExecuteContext.scoped { ctx =>
+      IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci, ctx)
+    }
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
-
-  def importTable(input: String,
-    keyNames: Option[IndexedSeq[String]] = None,
-    nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false
-  ): Table = importTables(List(input), keyNames, nPartitions, types, comment,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
-
-  def importTables(inputs: Seq[String],
-    keyNames: Option[IndexedSeq[String]] = None,
-    nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false): Table = {
-    require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
-
-    val files = sFS.globAll(inputs)
-    if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
-
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
-      TextTableReader.read(this)(files, types, comment, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
-        skipBlankLines).keyBy(keyNames)
-    }
-  }
-
-  def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
-    MatrixTable.read(this, file, dropCols = dropCols, dropRows = dropRows)
-  }
-
-  def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
-    read(file, dropSamples, dropVariants)
 
   def readPartitions[T: ClassTag](
     path: String,
@@ -727,7 +687,7 @@ class HailContext private(
 
   def readIndexedPartitions(
     path: String,
-    indexSpec: IndexSpec,
+    indexSpec: AbstractIndexSpec,
     partFiles: Array[String],
     intervalBounds: Option[Array[Interval]] = None
   ): RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
@@ -739,33 +699,23 @@ class HailContext private(
       require(annotationType.asInstanceOf[TStruct].hasField(f))
       require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
     }
-    val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(indexSpec.leafCodec.encodedType)
-    val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(indexSpec.internalNodeCodec.encodedType)
+    val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(indexSpec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    new RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)](sc, Nil) {
-      def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions) { i =>
-          IndexedFilePartition(i, partFiles(i), intervalBounds.map(_(i)))
-        }
-
-      override def compute(
-          split: Partition, context: TaskContext
-      ): Iterator[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
-        val p = split.asInstanceOf[IndexedFilePartition]
-        val fs = localFS.value
-        val idxname = s"$path/$idxPath/${ p.file }.idx"
-        val filename = s"$path/parts/${ p.file }"
-        val idxr = mkIndexReader(fs, idxname, 8) // default cache capacity
-        val in = fs.unsafeReader(filename)
-        Iterator.single((in, idxr, p.bounds, context.taskMetrics().inputMetrics))
-      }
-    }
+    new IndexReadRDD(sc, partFiles, intervalBounds, (p, context) => {
+      val fs = localFS.value
+      val idxname = s"$path/$idxPath/${ p.file }.idx"
+      val filename = s"$path/parts/${ p.file }"
+      val idxr = mkIndexReader(fs, idxname, 8) // default cache capacity
+      val in = fs.unsafeReader(filename)
+      (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
+    })
   }
 
   def readRows(
     path: String,
-    enc: CodecSpec2,
+    enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     requestedType: TStruct
   ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
@@ -781,8 +731,8 @@ class HailContext private(
 
   def readIndexedRows(
     path: String,
-    indexSpec: IndexSpec,
-    enc: CodecSpec2,
+    indexSpec: AbstractIndexSpec,
+    enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     bounds: Array[Interval],
     requestedType: TStruct
@@ -798,12 +748,13 @@ class HailContext private(
   }
 
   def readRowsSplit(
+    ctx: ExecuteContext,
     pathRows: String,
     pathEntries: String,
-    indexSpecRows: Option[IndexSpec],
-    indexSpecEntries: Option[IndexSpec],
-    rowsEnc: CodecSpec2,
-    entriesEnc: CodecSpec2,
+    indexSpecRows: Option[AbstractIndexSpec],
+    indexSpecEntries: Option[AbstractIndexSpec],
+    rowsEnc: AbstractTypedCodecSpec,
+    entriesEnc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     bounds: Array[Interval],
     requestedTypeRows: TStruct,
@@ -819,7 +770,7 @@ class HailContext private(
       requestedTypeEntries.fieldNames.map(f =>
           f -> ir.GetField(ir.Ref("right", requestedTypeEntries), f)))
 
-    val (t: PStruct, makeInserter) = ir.Compile[Long, Long, Long](
+    val (t: PStruct, makeInserter) = ir.Compile[Long, Long, Long](ctx,
       "left", rowsType,
       "right", entriesType,
       inserterIR)
@@ -836,29 +787,19 @@ class HailContext private(
         require(annotationType.asInstanceOf[TStruct].hasField(f))
         require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
       }
-      IndexReaderBuilder(keyType, annotationType)
+      IndexReaderBuilder.fromSpec(indexSpec)
     }
 
-    val rdd = new RDD[(InputStream, InputStream, Option[IndexReader], Option[Interval], InputMetrics)](sc, Nil) {
-      def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions) { i =>
-          IndexedFilePartition(i, partFiles(i), indexSpecRows.map(_ => bounds(i)))
-        }
-
-      override def compute(
-        split: Partition, context: TaskContext
-      ): Iterator[(InputStream, InputStream, Option[IndexReader], Option[Interval], InputMetrics)] = {
-        val p = split.asInstanceOf[IndexedFilePartition]
-        val fs = localFS.value
-        val idxr = mkIndexReader.map { mk =>
-          val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
-          mk(fs, idxname, 8) // default cache capacity
-        }
-        val inRows = fs.unsafeReader(s"$pathRows/parts/${ p.file }")
-        val inEntries = fs.unsafeReader(s"$pathEntries/parts/${ p.file }")
-        Iterator.single((inRows, inEntries, idxr, p.bounds, context.taskMetrics().inputMetrics))
+    val rdd = new IndexReadRDD(sc, partFiles, indexSpecRows.map(_ => bounds), (p, context) => {
+      val fs = localFS.value
+      val idxr = mkIndexReader.map { mk =>
+        val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
+        mk(fs, idxname, 8) // default cache capacity
       }
-    }
+      val inRows = fs.unsafeReader(s"$pathRows/parts/${ p.file }")
+      val inEntries = fs.unsafeReader(s"$pathEntries/parts/${ p.file }")
+      (inRows, inEntries, idxr, p.bounds, context.taskMetrics().inputMetrics)
+    })
 
     val rowsOffsetField = indexSpecRows.flatMap(_.offsetField)
     val entriesOffsetField = indexSpecEntries.flatMap(_.offsetField)
@@ -886,8 +827,8 @@ class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
       "lower" -> null,
-      "newaggs" -> "1",
-      "max_leader_scans" -> "1000"
+      "max_leader_scans" -> "1000",
+      "jvm_bytecode_dump" -> null
     )
 
   val available: java.util.ArrayList[String] =

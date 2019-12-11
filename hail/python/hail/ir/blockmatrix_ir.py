@@ -5,6 +5,7 @@ from hail.ir import BlockMatrixIR, IR
 from hail.ir.blockmatrix_reader import BlockMatrixReader
 from hail.ir import BlockMatrixIR, IR, tarray, Renderer
 from hail.typecheck import typecheck_method, sequenceof, sized_tupleof, oneof
+from hail.utils.misc import escape_id
 
 from typing import List
 
@@ -28,37 +29,47 @@ class BlockMatrixRead(BlockMatrixIR):
 
 
 class BlockMatrixMap(BlockMatrixIR):
-    @typecheck_method(child=BlockMatrixIR, f=IR)
-    def __init__(self, child, f):
+    @typecheck_method(child=BlockMatrixIR, name=str, f=IR)
+    def __init__(self, child, name, f):
         super().__init__(child, f)
         self.child = child
+        self.name = name
         self.f = f
 
     def _compute_type(self):
         self._type = self.child.typ
 
+    def head_str(self):
+        return escape_id(self.name)
+
     def bindings(self, i: int, default_value=None):
         if i == 1:
             value = self.child.typ.element_type if default_value is None else default_value
-            return {'element': value}
+            return {self.name: value}
         else:
             return {}
 
     def binds(self, i):
-        return {'element'} if i == 1 else {}
+        return {self.name} if i == 1 else {}
 
 
 class BlockMatrixMap2(BlockMatrixIR):
-    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, f=IR)
-    def __init__(self, left, right, f):
+    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, left_name=str, right_name=str, f=IR)
+    def __init__(self, left, right, left_name, right_name, f):
         super().__init__(left, right, f)
         self.left = left
         self.right = right
+        self.left_name = left_name
+        self.right_name = right_name
         self.f = f
 
     def _compute_type(self):
         self.right.typ  # Force
         self._type = self.left.typ
+
+
+    def head_str(self):
+        return escape_id(self.left_name) + " " + escape_id(self.right_name)
 
     def bindings(self, i: int, default_value=None):
         if i == 2:
@@ -67,12 +78,12 @@ class BlockMatrixMap2(BlockMatrixIR):
                 r_value = self.right.typ.element_type
             else:
                 (l_value, r_value) = (default_value, default_value)
-            return {'l': l_value, 'r': r_value}
+            return {self.left_name: l_value, self.right_name: r_value}
         else:
             return {}
 
     def binds(self, i):
-        return {'l', 'r'} if i == 2 else {}
+        return {self.left_name, self.right_name} if i == 2 else {}
 
 
 class BlockMatrixDot(BlockMatrixIR):

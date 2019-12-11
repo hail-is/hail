@@ -282,7 +282,7 @@ case class MatrixPLINKReader(
         }
       }
 
-      RVD.coerce(requestedType.canonicalRVDType, rdd2, fastKeys)
+      RVD.coerce(requestedType.canonicalRVDType, rdd2, fastKeys, ctx)
     }
 
     if (skipInvalidLoci && referenceGenome.isDefined) {

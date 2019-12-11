@@ -148,9 +148,10 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                     new_exprs['PGT'] = hl.downcode(old_entry.LPGT, hl.or_else(local_a_index, hl.len(old_entry.LA)))
                     dropped_fields.append('LPGT')
                 if 'LAD' in fields:
+                    non_ref_ad = hl.or_else(old_entry.LAD[local_a_index], 0) # zeroed if not in LAD
                     new_exprs['AD'] = hl.or_missing(
                         hl.is_defined(old_entry.LAD),
-                        [old_entry.LAD[0], hl.or_else(old_entry.LAD[local_a_index], 0)]) # second entry zeroed for lack of non-ref AD
+                        [hl.sum(old_entry.LAD) - non_ref_ad, non_ref_ad])
                     dropped_fields.append('LAD')
                 if 'LPL' in fields:
                     new_exprs['PL'] = pl

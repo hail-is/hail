@@ -6,12 +6,12 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.expressions.expression_typecheck import *
-from hail.expr.types import *
+from hail.expr.types import from_numpy
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
-from hail.utils.misc import plural, np_type_to_hl_type
+from hail.utils.misc import plural
 
 import numpy as np
 
@@ -226,7 +226,9 @@ def cond(condition,
          consequent,
          alternate,
          missing_false: bool = False):
-    """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
+    """Deprecated in favor of :func:`.if_else`.
+
+    Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
     --------
@@ -237,6 +239,58 @@ def cond(condition,
 
     >>> a = hl.literal([1, 2, 3, 4])
     >>> hl.eval(hl.cond(hl.len(a) > 0, 2.0 * a, a / 2.0))
+    [2.0, 4.0, 6.0, 8.0]
+
+    Notes
+    -----
+
+    If `condition` evaluates to ``True``, returns `consequent`. If `condition`
+    evaluates to ``False``, returns `alternate`. If `predicate` is missing, returns
+    missing.
+
+    Note
+    ----
+    The type of `consequent` and `alternate` must be the same.
+
+    Parameters
+    ----------
+    condition : :class:`.BooleanExpression`
+        Condition to test.
+    consequent : :class:`.Expression`
+        Branch to return if the condition is ``True``.
+    alternate : :class:`.Expression`
+        Branch to return if the condition is ``False``.
+    missing_false : :obj:`.bool`
+        If ``True``, treat missing `condition` as ``False``.
+
+    See Also
+    --------
+    :func:`.case`, :func:`.switch`, :func:`.if_else`
+
+    Returns
+    -------
+    :class:`.Expression`
+        One of `consequent`, `alternate`, or missing, based on `condition`.
+    """
+    return if_else(condition, consequent, alternate, missing_false)
+
+
+@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
+def if_else(condition,
+            consequent,
+            alternate,
+            missing_false: bool = False):
+    """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
+
+    Examples
+    --------
+
+    >>> x = 5
+    >>> hl.eval(hl.if_else(x < 2, 'Hi', 'Bye'))
+    'Bye'
+
+    >>> a = hl.literal([1, 2, 3, 4])
+    >>> hl.eval(hl.if_else(hl.len(a) > 0, 2.0 * a, a / 2.0))
     [2.0, 4.0, 6.0, 8.0]
 
     Notes
@@ -277,13 +331,13 @@ def cond(condition,
 
     consequent, alternate, success = unify_exprs(consequent, alternate)
     if not success:
-        raise TypeError(f"'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+        raise TypeError(f"'if_else' and 'cond' require the 'consequent' and 'alternate' arguments to have the same type\n"
                         f"    consequent: type '{consequent.dtype}'\n"
                         f"    alternate:  type '{alternate.dtype}'")
     assert consequent.dtype == alternate.dtype
 
     return construct_expr(If(condition._ir, consequent._ir, alternate._ir),
-                              consequent.dtype, indices, aggregations)
+                          consequent.dtype, indices, aggregations)
 
 
 def case(missing_false: bool=False) -> 'hail.expr.builders.CaseBuilder':
@@ -1626,9 +1680,7 @@ def or_else(a, b):
         raise TypeError(f"'or_else' requires the 'a' and 'b' arguments to have the same type\n"
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
-    assert a.dtype == b.dtype
-    indices, aggregations = unify_all(a, b)
-    return construct_expr(Coalesce(a._ir, b._ir), a.dtype, indices, aggregations)
+    return coalesce(a, b)
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
@@ -1742,7 +1794,7 @@ def pnorm(x) -> Float64Expression:
 
     Notes
     -----
-    Returns the left-tail probability `p` = Prob(:math:Z < x) with :math:Z a standard normal random variable.
+    Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z` a standard normal random variable.
 
     Parameters
     ----------
@@ -1753,6 +1805,94 @@ def pnorm(x) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("pnorm", tfloat64, x)
+
+
+@typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pT(x, n, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative probability function of a `t-distribution <https://en.wikipedia.org/wiki/Student%27s_t-distribution>`__ with `n` degrees of freedom.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.pT(0, 10))
+    0.5
+
+    >>> hl.eval(hl.pT(1, 10))
+    0.82955343384897
+
+    >>> hl.eval(hl.pT(1, 10, lower_tail=False))
+    0.17044656615103004
+
+    >>> hl.eval(hl.pT(1, 10, log_p=True))
+    -0.186867754489647
+
+    Notes
+    -----
+    If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is
+    a t-distributed random variable with `n` degrees of freedom. If `lower_tail`
+    is false, returns Prob(:math:`X` > `x`).
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    n : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Degrees of freedom of the t-distribution.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("pT", tfloat64, x, n, lower_tail, log_p)
+
+
+@typecheck(x=expr_float64, df1=expr_float64, df2=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pF(x, df1, df2, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative probability function of a `F-distribution <https://en.wikipedia.org/wiki/F-distribution>`__ with parameters `df1` and `df2`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.pF(0, 3, 10))
+    0.0
+
+    >>> hl.eval(hl.pF(1, 3, 10))
+    0.5676627969783028
+
+    >>> hl.eval(hl.pF(1, 3, 10, lower_tail=False))
+    0.4323372030216972
+
+    >>> hl.eval(hl.pF(1, 3, 10, log_p=True))
+    -0.566227703842908
+
+    Notes
+    -----
+    If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is
+    a random variable with distribution :math:`F`(df1, df2). If `lower_tail`
+    is false, returns Prob(:math:`X` > `x`).
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    df1 : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Parameter of the F-distribution
+    df2 : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Parameter of the F-distribution
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("pF", tfloat64, x, df1, df2, lower_tail, log_p)
 
 
 @typecheck(x=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
@@ -1802,7 +1942,7 @@ def qchisqtail(p, df) -> Float64Expression:
     Notes
     -----
     Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random
-     variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
+    variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
 
     Parameters
     ----------
@@ -1898,7 +2038,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
     The range includes `start`, but excludes `stop`.
 
     If provided exactly one argument, the argument is interpreted as `stop` and
-    `start` is set to zero. This matches the behavior Python's ``range``.
+    `start` is set to zero. This matches the behavior of Python's ``range``.
 
     Parameters
     ----------
@@ -3581,7 +3721,7 @@ def mean(collection, filter_missing: bool = True) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return collection._filter_missing_method(filter_missing, "mean", tfloat64)
+    return array(collection)._filter_missing_method(filter_missing, "mean", tfloat64)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)))
@@ -3641,7 +3781,7 @@ def product(collection, filter_missing: bool = True) -> NumericExpression:
     -------
     :class:`.NumericExpression`
     """
-    return collection._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
+    return array(collection)._filter_missing_method(filter_missing, "product", collection.dtype.element_type)
 
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
@@ -3672,7 +3812,7 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
     -------
     :class:`.NumericExpression`
     """
-    return collection._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
+    return array(collection)._filter_missing_method(filter_missing, "sum", collection.dtype.element_type)
 
 
 @typecheck(a=expr_array(expr_numeric),
@@ -3850,11 +3990,7 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
 
 
 def _ndarray(collection, row_major=None):
-    """Construct a Hail ndarray from either a `NumPy` ndarray or python value/nested lists.
-    If `row_major` is ``None`` and the input is a `NumPy` ndarray, the ndarray's existing ordering will
-    be used (column major if that's how it is stored and row major otherwise). Otherwise, the array will be stored
-    as specified by `row_major`. Note the exact memory layout is not preserved if it is not in one of the two orderings.
-    If the input is not a `NumPy` ndarray, `row_major` defaults to ``True``.
+    """Construct a Hail ndarray from either a flat Hail array, a `NumPy` ndarray or python value/nested lists.
 
     Parameters
     ----------
@@ -3869,13 +4005,16 @@ def _ndarray(collection, row_major=None):
     def list_shape(x):
         if isinstance(x, list):
             dim_len = builtins.len(x)
-            first, rest = x[0], x[1:]
-            inner_shape = list_shape(first)
-            for e in rest:
-                other_inner_shape = list_shape(e)
-                if inner_shape != other_inner_shape:
-                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
-            return [dim_len] + inner_shape
+            if dim_len != 0:
+                first, rest = x[0], x[1:]
+                inner_shape = list_shape(first)
+                for e in rest:
+                    other_inner_shape = list_shape(e)
+                    if inner_shape != other_inner_shape:
+                        raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+                return [dim_len] + inner_shape
+            else:
+                return [dim_len]
         else:
             return []
 
@@ -3889,31 +4028,35 @@ def _ndarray(collection, row_major=None):
 
         return result
 
-    if isinstance(collection, np.ndarray):
-        if row_major is None:
-            row_major = not collection.flags.f_contiguous
-            flattened = collection.flatten('A')
+    if isinstance(collection, Expression):
+        if isinstance(collection, ArrayNumericExpression):
+            data_expr = collection
+            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
+            ndim = 1
+
+        elif isinstance(collection, NumericExpression):
+            data_expr = array([collection])
+            shape_expr = hl.tuple([])
+            ndim = 0
         else:
-            flattened = collection.flatten('C' if row_major else 'F')
+            raise ValueError(f"{collection} cannot be converted into an ndarray")
 
-        elem_type = np_type_to_hl_type(collection.dtype)
-        data = [to_expr(i.item(), elem_type) for i in flattened]
-        shape = collection.shape
-    elif isinstance(collection, list):
-        shape = list_shape(collection)
-        data = deep_flatten(collection)
     else:
-        shape = []
-        data = [collection]
+        if isinstance(collection, np.ndarray):
+            return hl.literal(collection)
+        elif isinstance(collection, list):
+            shape = list_shape(collection)
+            data = deep_flatten(collection)
+        else:
+            shape = []
+            data = [collection]
 
-    if row_major is None:
-        row_major = True
+        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+        data_expr = hl.array(data) if data else hl.empty_array("float64")
+        ndim = builtins.len(shape)
 
-    shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-    data_expr = hl.array(data)
-    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
-
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
+    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim))
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
@@ -4196,6 +4339,35 @@ def float64(x) -> Float64Expression:
     else:
         return x._method("toFloat64", tfloat64)
 
+@typecheck(x=expr_str)
+def parse_float64(x) -> Float64Expression:
+    """Parse a string as a 64-bit floating point number.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_float64('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
+    1.1
+
+    >>> hl.eval(hl.parse_float64('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid floating point number, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tfloat64`
+
+    """
+    return x._method("toFloat64OrMissing", tfloat64)
+
+
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float32(x) -> Float32Expression:
     """Convert to a 32-bit floating point expression.
@@ -4224,6 +4396,35 @@ def float32(x) -> Float32Expression:
         return x
     else:
         return x._method("toFloat32", tfloat32)
+
+@typecheck(x=expr_str)
+def parse_float32(x) -> Float32Expression:
+    """Parse a string as a 32-bit floating point number.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_float32('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
+    1.1
+
+    >>> hl.eval(hl.parse_float32('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid floating point number, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tfloat32`
+
+    """
+    return x._method("toFloat32OrMissing", tfloat32)
+
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int64(x) -> Int64Expression:
@@ -4254,6 +4455,37 @@ def int64(x) -> Int64Expression:
     else:
         return x._method("toInt64", tint64)
 
+@typecheck(x=expr_str)
+def parse_int64(x) -> Int64Expression:
+    """Parse a string as a 64-bit integer.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_int64('154'))
+    154
+
+    >>> hl.eval(hl.parse_int64('15.4'))
+    None
+
+    >>> hl.eval(hl.parse_int64('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid integer, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tint64`
+
+    """
+    return x._method("toInt64OrMissing", tint64)
+
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int32(x) -> Int32Expression:
@@ -4283,6 +4515,38 @@ def int32(x) -> Int32Expression:
         return x
     else:
         return x._method("toInt32", tint32)
+
+@typecheck(x=expr_str)
+def parse_int32(x) -> Int32Expression:
+    """Parse a string as a 32-bit integer.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_int32('154'))
+    154
+
+    >>> hl.eval(hl.parse_int32('15.4'))
+    None
+
+    >>> hl.eval(hl.parse_int32('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid integer, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tint32`
+
+    """
+    return x._method("toInt32OrMissing", tint32)
+
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def int(x) -> Int32Expression:
@@ -4315,6 +4579,38 @@ def int(x) -> Int32Expression:
     return int32(x)
 
 
+@typecheck(x=expr_str)
+def parse_int(x) -> Int32Expression:
+    """Parse a string as a 32-bit integer.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_int('154'))
+    154
+
+    >>> hl.eval(hl.parse_int('15.4'))
+    None
+
+    >>> hl.eval(hl.parse_int('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid integer, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tint32`
+
+    """
+    return parse_int32(x)
+
+
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
 def float(x) -> Float64Expression:
     """Convert to a 64-bit floating point expression.
@@ -4344,6 +4640,35 @@ def float(x) -> Float64Expression:
     :class:`.NumericExpression` of type :py:data:`.tfloat64`
     """
     return float64(x)
+
+
+@typecheck(x=expr_str)
+def parse_float(x) -> Float64Expression:
+    """Parse a string as a 64-bit floating point number.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.parse_float('1.1'))  # doctest: +SKIP_OUTPUT_CHECK
+    1.1
+
+    >>> hl.eval(hl.parse_float('asdf'))
+    None
+
+    Notes
+    -----
+    If the input is an invalid floating point number, then result of this call will be missing.
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+
+    Returns
+    -------
+    :class:`.NumericExpression` of type :py:data:`.tfloat64`
+
+    """
+    return parse_float64(x)
 
 
 @typecheck(x=expr_oneof(expr_numeric, expr_bool, expr_str))
@@ -4382,6 +4707,40 @@ def bool(x) -> BooleanExpression:
     else:
         return x._method("toBoolean", tbool)
 
+@typecheck(s=expr_str,
+           rna=builtins.bool)
+def reverse_complement(s, rna=False):
+    """Reverses the string and translates base pairs into their complements
+    Examples
+    --------
+    >>> bases = hl.literal('NNGATTACA')
+    >>> hl.eval(hl.reverse_complement(bases))
+    'TGTAATCNN'
+
+    Parameters
+    ----------
+    s : :class:`.StringExpression`
+        Base string.
+    rna : :obj:`bool`
+        If ``True``, pair adenine (A) with uracil (U) instead of thymine (T).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+    s = s.reverse()
+
+    if rna:
+        pairs = [('A', 'U'), ('U', 'A'), ('T', 'A'), ('G', 'C'), ('C', 'G')]
+    else:
+        pairs = [('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')]
+
+    d = {}
+    for b1, b2 in pairs:
+        d[b1] = b2
+        d[b1.lower()] = b2.lower()
+
+    return s.translate(d)
 
 @typecheck(contig=expr_str,
            position=expr_int32,
@@ -4457,6 +4816,29 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     :class:`.BooleanExpression`
     """
     return _func("isValidContig({})".format(reference_genome.name), tbool, contig)
+
+@typecheck(contig=expr_str,
+           reference_genome=reference_genome_type)
+def contig_length(contig, reference_genome='default') -> Int32Expression:
+    """Returns the length of `contig` in `reference_genome`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.contig_length('5', reference_genome='GRCh37'))
+    180915260
+
+    Parameters
+    ----------
+    contig : :class:`.Expression` of type :py:data:`.tstr`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("contigLength({})".format(reference_genome.name), tint32, contig)
+
 
 @typecheck(contig=expr_str,
            position=expr_int32,

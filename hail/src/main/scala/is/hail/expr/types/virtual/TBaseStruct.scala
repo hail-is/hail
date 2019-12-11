@@ -17,17 +17,6 @@ object TBaseStruct {
     */
   def getOrdering(types: Array[Type]): ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.ordering))
-
-  def getMissingness(types: Array[Type], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
-    var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    i
-  }
 }
 
 abstract class TBaseStruct extends Type {
@@ -36,7 +25,7 @@ abstract class TBaseStruct extends Type {
   def types: Array[Type]
 
   def fields: IndexedSeq[Field]
-  
+
   override def children: Seq[Type] = types
 
   def size: Int

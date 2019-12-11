@@ -4,7 +4,7 @@ import is.hail.utils._
 import is.hail.expr.types._
 import is.hail.nativecode.NativeCode
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
-import is.hail.annotations.{Annotation, BroadcastRow, UnsafeRow}
+import is.hail.annotations.{Annotation, BroadcastRow, Region, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
@@ -314,8 +314,7 @@ case class Skat(
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
     val tableType = typ(mv.typ)
-
-    TableValue(tableType, BroadcastRow.empty(ctx), skatRdd)
+    TableValue(ctx, tableType.rowType, tableType.key, skatRdd)
   }
 
   def computeKeyGsWeightRdd(mv: MatrixValue,
@@ -351,7 +350,7 @@ case class Skat(
       val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
 
       if (keyIsDefined && weightIsDefined) {
-        val weight = rv.region.loadDouble(fullRowType.loadField(rv, weightIndex))
+        val weight = Region.loadDouble(fullRowType.loadField(rv, weightIndex))
         if (weight < 0)
           fatal(s"Row weights must be non-negative, got $weight")
         val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv, keyIndex)))

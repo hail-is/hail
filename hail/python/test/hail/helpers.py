@@ -127,3 +127,12 @@ def run_with_cxx_compile():
         return
 
     return wrapper
+
+
+def assert_evals_to(e, v):
+    assert hl.eval(e) == v
+
+
+def assert_all_eval_to(*expr_and_expected):
+    exprs, expecteds = zip(*expr_and_expected)
+    assert_evals_to(hl.tuple(exprs), expecteds)

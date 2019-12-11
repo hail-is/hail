@@ -27,8 +27,8 @@ object Casts {
     (TInt32(), TCall()) -> ((x: Code[Int]) => x))
 
   def get(from: Type, to: Type): Code[_] => Code[_] =
-    casts(from -> to).asInstanceOf[Code[_] => Code[_]]
+    casts(-from -> -to).asInstanceOf[Code[_] => Code[_]]
 
   def valid(from: Type, to: Type): Boolean =
-    casts.contains(from -> to)
+    casts.contains(-from -> -to)
 }

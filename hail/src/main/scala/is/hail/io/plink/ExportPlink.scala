@@ -1,5 +1,6 @@
 package is.hail.io.plink
 
+import is.hail.expr.ir.ExecuteContext
 import java.io.{OutputStream, OutputStreamWriter}
 
 import is.hail.HailContext
@@ -116,7 +117,9 @@ object ExportPlink {
     fs.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
     fs.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false, partFilesOpt = Some(partFiles))
 
-    mv.colsTableValue.export(path + ".fam", header = false)
+    ExecuteContext.scoped { ctx =>
+      mv.colsTableValue(ctx).export(path + ".fam", header = false)
+    }
 
     info(s"wrote $nRecordsWritten variants and $nSamples samples to '$path'")
   }
@@ -148,7 +151,7 @@ class BimAnnotationView(rowType: PStruct) extends View {
   }
 
   def cmPosition(): Double =
-    region.loadDouble(cmPosOffset)
+    Region.loadDouble(cmPosOffset)
 
   def varid(): String = {
     if (cachedVarid == null)

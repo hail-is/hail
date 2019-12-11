@@ -2,8 +2,9 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.{Field, TStruct}
+import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
+import is.hail.expr.types.BaseStruct
+import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -34,6 +35,9 @@ object PStruct {
 
     PStruct(required, sNames.zip(sTypes): _*)
   }
+
+  def canonical(t: Type): PStruct = PType.canonical(t).asInstanceOf[PStruct]
+  def canonical(t: PType): PStruct = PType.canonical(t).asInstanceOf[PStruct]
 }
 
 final case class PStruct(fields: IndexedSeq[PField], override val required: Boolean = false) extends PBaseStruct {
@@ -43,47 +47,30 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
 
   val types: Array[PType] = fields.map(_.typ).toArray
 
-  val fieldRequired: Array[Boolean] = types.map(_.required)
-
-  val fieldIdx: Map[String, Int] =
-    fields.map(f => (f.name, f.index)).toMap
-
-  val fieldNames: Array[String] = fields.map(_.name).toArray
-
   if (!fieldNames.areDistinct()) {
     val duplicates = fieldNames.duplicates()
     fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-  val size: Int = fields.length
-
   override def truncate(newSize: Int): PStruct =
     PStruct(fields.take(newSize), required)
 
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = PBaseStruct.getMissingness(types, missingIdx)
+  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+    codeOrdering(mb, other, null)
+
+  override def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
     assert(other isOfType this)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb)
+    assert(so == null || so.size == types.size)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
   }
-
-  def fieldByName(name: String): PField = fields(fieldIdx(name))
-
-  def index(str: String): Option[Int] = fieldIdx.get(str)
-
-  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
-
-  def hasField(name: String): Boolean = fieldIdx.contains(name)
-
-  def field(name: String): PField = fields(fieldIdx(name))
-
-  def fieldType(name: String): PType = types(fieldIdx(name))
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
@@ -200,6 +187,8 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     PStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
   }
 
+  def identBase: String = "tuple"
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("struct{")
     fields.foreachBetween({ field =>
@@ -262,10 +251,20 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
-    val f = field(fieldName)
-    loadField(region, fieldOffset(offset, f.index), f.index)
-  }
+  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] =
+    loadField(region, offset, fieldIdx(fieldName))
+
+  def loadField(offset: Code[Long], field: String): Code[Long] = loadField(offset, fieldIdx(field))
+
+  def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = isFieldDefined(offset, fieldIdx(field))
+
+  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] = isFieldMissing(offset, fieldIdx(field))
+
+  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] = fieldOffset(offset, fieldIdx(fieldName))
+
+  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] = setFieldPresent(offset, fieldIdx(field))
+
+  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] = setFieldMissing(offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new ArrayBuilder[PField](fields.length)

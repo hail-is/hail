@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils.HailException
 
 object FoldConstants {
-  def apply(ir: BaseIR, canGenerateLiterals: Boolean = true): BaseIR =
+  def apply(ir: BaseIR): BaseIR =
     ExecuteContext.scoped { ctx =>
       RewriteBottomUp(ir, {
         case _: Ref |
@@ -13,9 +13,7 @@ object FoldConstants {
              _: ApplySeeded |
              _: ApplyAggOp |
              _: ApplyScanOp |
-             _: SeqOp |
              _: Begin |
-             _: InitOp |
              _: ArrayRange |
              _: MakeNDArray |
              _: NDArrayShape |
@@ -34,11 +32,10 @@ object FoldConstants {
           ir.children.forall {
             case c: IR => IsConstant(c)
             case _ => false
-          } &&
-          (canGenerateLiterals || CanEmit(ir.typ)) =>
+          } =>
           try {
             Some(
-              Literal.coerce(ir.typ, Interpret(ctx, ir, optimize = false)))
+              Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
           } catch {
             case _: HailException => None
           }

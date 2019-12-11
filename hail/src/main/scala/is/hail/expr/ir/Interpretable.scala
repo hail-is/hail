@@ -1,8 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.virtual.TNDArray
+
 object Interpretable {
   def apply(ir: IR): Boolean = {
-    ir match {
+    !ir.typ.isInstanceOf[TNDArray] &&
+      (ir match {
       case
         _: InitOp2 |
         _: SeqOp2 |
@@ -22,6 +25,6 @@ object Interpretable {
         _: NDArrayMatMul |
         _: NDArrayWrite => false
       case _ => true
-    }
+    })
   }
 }

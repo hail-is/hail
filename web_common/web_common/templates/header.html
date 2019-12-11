@@ -1,0 +1,83 @@
+<div id="header">
+  <a href="{{ notebook_base_url }}/" class="header-link">
+    <b>/</b>
+  </a>
+
+  {% if userdata['developer'] == 1 %}
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<a href="{{ notebook_base_url }}/notebook" class="header-dropdown-link">Notebook</a>
+	<div class="header-dropdown-menu">
+	  <div class="notebook-caret header-dropdown-menu-caret"></div>
+	  <a class="header-dropdown-menu-link" href="{{ notebook_base_url }}/workshop-admin">Workshop Admin</a>
+	  <a class="header-dropdown-menu-link" href="{{ workshop_base_url }}">Workshop</a>
+	</div>
+      </div>
+    </div>
+  {% else %}
+    <a class="header-link" href="{{ notebook_base_url }}/notebook">
+      Notebook
+    </a>
+  {% endif %}
+
+  {% if userdata['developer'] == 1 %}
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
+	<div class="header-dropdown-menu">
+	  <div class="batch-caret header-dropdown-menu-caret"></div>
+	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
+	</div>
+      </div>
+    </div>
+  {% else %}
+    <a class="header-link" href="{{ batch_base_url }}">Batch</a>
+  {% endif %}
+
+  {% if userdata['developer'] == 1 %}
+    <a class="header-link" href="{{ ci_base_url }}">
+      CI
+    </a>
+
+    <a class="header-link" href="{{ scorecard_base_url }}">
+      Scorecard
+    </a>
+
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<span class="disabled-header-dropdown-item">Monitoring</span>
+	<div class="header-dropdown-menu">
+	  <div class="monitoring-caret header-dropdown-menu-caret"></div>
+	  <a target="_blank" class="header-dropdown-menu-link" href="https://internal.hail.is/monitoring/grafana/">
+	    Grafana<i class="material-icons text-icon">open_in_new</i>
+	  </a>
+	  <a target="_blank" class="header-dropdown-menu-link" href="https://internal.hail.is/monitoring/prometheus/">
+	    Prometheus<i class="material-icons text-icon">open_in_new</i>
+	  </a>
+	  <a target="_blank" class="header-dropdown-menu-link" href="https://internal.hail.is/monitoring/kibana/">
+	    Kibana<i class="material-icons text-icon">open_in_new</i>
+	  </a>
+	</div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div id="header-flex"></div>
+
+  {% if userdata %}
+    <a href="{{ notebook_base_url }}/user" class="header-link">
+      <b>{{ userdata["username"] }}</b>
+    </a>
+    |
+    <form action="{{ auth_base_url }}/logout" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button class="button-header-link" type="submit">
+        Log out
+      </button>
+    </form>
+  {% else %}
+    <a class="header-link" href="{{ auth_base_url }}/login">
+      Login
+    </a>
+  {% endif %}
+</div>

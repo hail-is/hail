@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
@@ -17,15 +17,15 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
-  def newState: Code[Unit] = region.getNewRegion(regionSize)
+  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(Code(r := Code.newInstance[Region, Int](regionSize), region.invalidate()), Code._empty)
+  def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(
       regionLoader(r),
-      maxSize := region.loadInt(maxSizeOffset(src)),
-      builder.loadFields(builderStateOffset(src)))
+      maxSize := Region.loadInt(maxSizeOffset(src)),
+      builder.loadFrom(builderStateOffset(src)))
 
   override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     region.isValid.orEmpty(
@@ -33,7 +33,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
         regionStorer(region),
         region.invalidate(),
         Region.storeInt(maxSizeOffset(dest), maxSize),
-        builder.storeFields(builderStateOffset(dest))))
+        builder.storeTo(builderStateOffset(dest))))
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>
@@ -103,7 +103,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
     Code(
-      maxSize := region.loadInt(maxSizeOffset(src)),
+      maxSize := Region.loadInt(maxSizeOffset(src)),
       builder.copyFrom(builderStateOffset(src))
     )
   }

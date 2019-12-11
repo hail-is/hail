@@ -13,6 +13,8 @@ Statistical functions
     binom_test
     pchisqtail
     pnorm
+    pT
+    pF
     ppois
     qchisqtail
     qnorm
@@ -27,6 +29,8 @@ Statistical functions
 .. autofunction:: binom_test
 .. autofunction:: pchisqtail
 .. autofunction:: pnorm
+.. autofunction:: pT
+.. autofunction:: pF
 .. autofunction:: ppois
 .. autofunction:: qchisqtail
 .. autofunction:: qnorm

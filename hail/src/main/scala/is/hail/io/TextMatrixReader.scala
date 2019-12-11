@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{ ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue }
+import is.hail.expr.ir.{ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -28,42 +28,78 @@ object TextMatrixReader {
     }
   }
 
-  def parseHeader(
+  private case class HeaderInfo (
+    headerValues: Array[String],
+    rowFieldNames: Array[String],
+    columnIdentifiers: Array[_] // String or Int
+  ) {
+    val nCols = columnIdentifiers.length
+  }
+
+  private def parseHeader(
     fs: FS,
     file: String,
     sep: Char,
     nRowFields: Int,
-    hasHeader: Boolean
-  ): (Array[String], Int) = {
-    if (hasHeader) {
-      val lines = fs.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
-      lines match {
-        case Array(header, first) =>
-          val nCols = first.split(charRegex(sep), -1).length - nRowFields
-          if (nCols < 0)
-            fatal(s"More row fields ($nRowFields) than columns (${ nRowFields + nCols }) in file: $file")
-          (header.split(charRegex(sep), -1), nCols)
-        case _ =>
-          fatal(s"file in import_matrix contains no data: $file")
-      }
-    } else {
-      val nCols = fs.readFile(file) { s => Source.fromInputStream(s).getLines().next() }.count(_ == sep) + 1
-      (Array(), nCols - nRowFields)
-    }
-  }
+    opts: TextMatrixReaderOptions
+  ): HeaderInfo = {
+    val maybeFirstTwoLines = fs.readFile(file) { s =>
+      Source.fromInputStream(s).getLines().filter(!opts.isComment(_)).take(2).toArray.toSeq }
 
-  def splitHeader(cols: Array[String], nRowFields: Int, nColIDs: Int): (Array[String], Array[_]) = {
-    if (cols.length == nColIDs) {
-      (Array.tabulate(nRowFields)(i => s"f$i"), cols)
-    } else if (cols.length == nColIDs + nRowFields) {
-      (cols.take(nRowFields), cols.drop(nRowFields))
-    } else if (cols.isEmpty) {
-      (Array.tabulate(nRowFields)(i => s"f$i"), Array.range(0, nColIDs))
-    } else
-      fatal(
-        s"""Expected file header to contain all $nColIDs column IDs and
-            | optionally all $nRowFields row field names: found ${ cols.length } header elements.
-           """.stripMargin)
+    (opts.hasHeader, maybeFirstTwoLines) match {
+      case (true, Seq()) =>
+        fatal(s"Expected header in every file, but found empty file: $file")
+      case (true, Seq(header)) =>
+        warn(s"File $file contains a header, but no lines of data.")
+        val headerValues = header.split(sep)
+        if (headerValues.length < nRowFields) {
+          fatal(
+            s"""File ${file} contains one line and you told me it had a header,
+               |so I expected to see at least the ${nRowFields} row field names
+               |on the header line, but instead I only saw ${headerValues.length}
+               |separated values. The header was:
+               |    ${header}""".stripMargin)
+        }
+        HeaderInfo(
+          headerValues,
+          headerValues.slice(0, nRowFields),
+          headerValues.drop(nRowFields))
+      case (true, Seq(header, dataLine)) =>
+        val headerValues = header.split(sep)
+        val nHeaderValues = headerValues.length
+        val nSeparatedValues = dataLine.split(sep).length
+        if (nHeaderValues + nRowFields == nSeparatedValues) {
+          HeaderInfo(
+            headerValues,
+            rowFieldNames = Array.tabulate(nRowFields)(i => s"f$i"),
+            columnIdentifiers = headerValues)
+        } else if (nHeaderValues == nSeparatedValues) {
+          HeaderInfo(
+            headerValues,
+            rowFieldNames = headerValues.slice(0, nRowFields),
+            columnIdentifiers = headerValues.drop(nRowFields))
+        } else {
+          fatal(
+            s"""In file $file, expected the header line to match either:
+               |    rowField0 rowField1 ... rowField${nRowFields} colId0 colId1 ...
+               |or
+               |    colId0 colId1 ...
+               |Instead the first two lines were:
+               |    ${header.truncate}
+               |    ${dataLine.truncate}
+               |The first line contained ${nHeaderValues} separated values and the
+               |second line contained ${nSeparatedValues} separated values.""".stripMargin)
+        }
+      case (false, Seq()) =>
+        warn(s"File $file is empty and has no header, so we assume no columns.")
+        HeaderInfo(Array(), Array.tabulate(nRowFields)(i => s"f$i"), Array())
+      case (false, firstLine +: _) =>
+        val nSeparatedValues = firstLine.split(sep).length
+        HeaderInfo(
+          Array(),
+          Array.tabulate(nRowFields)(i => s"f$i"),
+          Array.range(0, nSeparatedValues - nRowFields))
+    }
   }
 
   def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (RVDPartitioner, Array[Int]) = {
@@ -82,7 +118,11 @@ object TextMatrixReader {
     (new RVDPartitioner(Array(kType.fieldNames(0)), kType, ranges), keepPartitions.result())
   }
 
-  def verifyRowFields(fieldNames: Array[String], fieldTypes: Map[String, Type]): TStruct = {
+  def verifyRowFields(
+    fileName: String,
+    fieldNames: Array[String],
+    fieldTypes: Map[String, Type]
+  ): TStruct = {
     val headerDups = fieldNames.duplicates()
     if (headerDups.nonEmpty)
       fatal(s"Found following duplicate row fields in header: \n    ${ headerDups.mkString("\n    ") }")
@@ -90,12 +130,16 @@ object TextMatrixReader {
     val fields: Array[(String, Type)] = fieldNames.map { name =>
       fieldTypes.get(name) match {
         case Some(t) => (name, t)
-        case None => fatal(
-          s"""row field $name not found in provided row_fields dictionary.
-             |    expected fields:
+        case None =>
+          val rowFieldsAsPython = fieldTypes
+            .map { case (fieldName, typ) => s"'${fieldName}': ${typ.toString}" }
+            .mkString("{", ",\n       ", "}")
+          fatal(
+          s"""In file $fileName, found a row field, $name, that is not in `row_fields':
+             |    row fields found in file:
              |      ${ fieldNames.mkString("\n      ") }
-             |    found fields:
-             |      ${ fieldTypes.keys.mkString("\n      ") }
+             |    row_fields:
+             |      ${ rowFieldsAsPython }
            """.stripMargin)
       }
     }
@@ -122,8 +166,9 @@ object TextMatrixReader {
                 fatal(
                   s"""invalid header: lengths of headers differ.
                      |    ${ hd1.length } elements in ${ paths(0) }
+                     |        ${hd1.truncate}
                      |    ${ hd.length } elements in ${ fileByPartition(i) }
-               """.stripMargin
+                     |        ${hd.truncate}""".stripMargin
                 )
               }
               hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
@@ -143,6 +188,8 @@ object TextMatrixReader {
   }
 }
 
+case class TextMatrixReaderOptions(comment: Array[String], hasHeader: Boolean) extends TextReaderOptions
+
 case class TextMatrixReader(
   paths: Array[String],
   nPartitions: Option[Int],
@@ -152,7 +199,8 @@ case class TextMatrixReader(
   hasHeader: Boolean,
   separatorStr: String,
   gzipAsBGZip: Boolean,
-  addRowId: Boolean
+  addRowId: Boolean,
+  comment: Array[String]
 ) extends MatrixHybridReader {
   import TextMatrixReader._
   private[this] val hc = HailContext.get
@@ -175,24 +223,27 @@ case class TextMatrixReader(
     t.isOfType(TFloat64())
   })
 
+  val opts = TextMatrixReaderOptions(comment, hasHeader)
 
-  private[this] val (header1, nCols) = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, hasHeader)
-  private[this] val (rowFieldNames, colIDs) = splitHeader(header1, rowFields.size, nCols)
-  if (addRowId && rowFieldNames.contains("row_id")) {
+  private[this] val headerInfo = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, opts)
+  if (addRowId && headerInfo.rowFieldNames.contains("row_id")) {
     fatal(
       s"""If no key is specified, `import_matrix_table`, uses 'row_id'
          |as the key, please provide a key or choose a different row field name.\n
-         |  Row field names: ${rowFieldNames}""".stripMargin)
+         |  Row field names: ${headerInfo.rowFieldNames}""".stripMargin)
   }
-  private[this] val rowFieldTypeWithoutRowId = verifyRowFields(rowFieldNames, rowFields)
+  private[this] val rowFieldTypeWithoutRowId = verifyRowFields(
+    resolvedPaths.head, headerInfo.rowFieldNames, rowFields)
   private[this] val rowFieldType =
     if (addRowId) TStruct("row_id" -> TInt64()) ++ rowFieldTypeWithoutRowId
     else rowFieldTypeWithoutRowId
-  private[this] val header1Bc = hc.backend.broadcast(header1)
+  private[this] val header1Bc = hc.backend.broadcast(headerInfo.headerValues)
   if (hasHeader)
-    warnDuplicates(colIDs.asInstanceOf[Array[String]])
+    warnDuplicates(headerInfo.columnIdentifiers.asInstanceOf[Array[String]])
   private[this] val lines = HailContext.maybeGZipAsBGZip(gzipAsBGZip) {
+    val localOpts = opts
     sc.textFilesLines(resolvedPaths, nPartitions.getOrElse(sc.defaultMinPartitions))
+      .filter(line => !localOpts.isComment(line.value))
   }
   private[this] val fileByPartition = lines.partitions.map(p => partitionPath(p))
   private[this] val firstPartitions = fileByPartition.scanLeft(0) {
@@ -206,7 +257,7 @@ case class TextMatrixReader(
     header1Bc,
     separator)
 
-  def columnCount = Some(nCols)
+  def columnCount = Some(headerInfo.nCols)
 
   def partitionCounts = Some(_partitionCounts)
 
@@ -223,7 +274,7 @@ case class TextMatrixReader(
     val compiledLineParser = new CompiledLineParser(
       rowFieldType,
       requestedType,
-      nCols,
+      headerInfo.nCols,
       missingValue,
       separator,
       _partitionCounts,
@@ -235,8 +286,8 @@ case class TextMatrixReader(
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      RVD.unkeyed(requestedType.rowType.physicalType, rdd)
-    val globalValue = makeGlobalValue(ctx, requestedType, colIDs.map(Row(_)))
+      RVD.unkeyed(PStruct.canonical(requestedType.rowType), rdd)
+    val globalValue = makeGlobalValue(ctx, requestedType, headerInfo.columnIdentifiers.map(Row(_)))
     TableValue(tr.typ, globalValue, rvd)
   }
 }
@@ -267,7 +318,7 @@ class CompiledLineParser(
     .map(f => f.typ.asInstanceOf[PArray])
   @transient private[this] val rowFieldsType = requestedRowType
     .dropFields(Set(MatrixType.entriesIdentifier))
-  @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]
+  @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]("text_matrix_reader")
   @transient private[this] val mb = fb.apply_method
   @transient private[this] val region = fb.arg1
   @transient private[this] val _filename = fb.arg2
@@ -282,7 +333,7 @@ class CompiledLineParser(
   fb.addInitInstructions(Code(
     pos := 0,
     filename := Code._null,
-    lineNumber := 0,
+    lineNumber := 0L,
     line := Code._null,
     srvb.init()))
 
@@ -318,14 +369,14 @@ class CompiledLineParser(
       msg, filename, lineNumber, pos, pos + 1))
 
   private[this] def numericValue(c: Code[Char]): Code[Int] =
-    ((c < '0') || (c > '9')).mux(
+    ((c < const('0')) || (c > const('9'))).mux(
       parseError(const("invalid character '")
         .concat(c.toS)
         .concat("' in integer literal")),
-      (c - '0').toI)
+      (c - const('0')).toI)
 
   private[this] def endField(p: Code[Int]): Code[Boolean] =
-    p.ceq(line.length) || line(p).ceq(separator)
+    p.ceq(line.length()) || line(p).ceq(const(separator))
 
   private[this] def endField(): Code[Boolean] =
     endField(pos)
@@ -370,7 +421,7 @@ class CompiledLineParser(
       parseError("empty integer literal"),
       Code(
         mul := 1,
-        (line(pos).ceq('-')).mux(
+        (line(pos).ceq(const('-'))).mux(
           Code(
             mul := -1,
             pos := pos + 1),
@@ -393,7 +444,7 @@ class CompiledLineParser(
       parseError(const("empty long literal at ")),
       Code(
         mul := 1L,
-        (line(pos).ceq('-')).mux(
+        (line(pos).ceq(const('-'))).mux(
           mul := -1L,
           pos := pos + 1),
         c := line(pos),
@@ -401,7 +452,7 @@ class CompiledLineParser(
         pos := pos + 1,
         Code.whileLoop(!endField(),
           c := line(pos),
-          v := v * 10 + numericValue(c).toL,
+          v := v * 10L + numericValue(c).toL,
           pos := pos + 1),
         v * mul))
   }
@@ -445,6 +496,7 @@ class CompiledLineParser(
     val ab = new ArrayBuilder[Code[_]]()
     while (inputIndex < onDiskRowFieldsType.size) {
       val onDiskField = onDiskRowFieldsType.fields(inputIndex)
+      val onDiskPType = PType.canonical(onDiskField.typ) // will always be optional
       val requestedField =
         if (outputIndex < rowFieldsType.size)
           rowFieldsType.fields(outputIndex)
@@ -453,15 +505,15 @@ class CompiledLineParser(
       if (requestedField == null || onDiskField.name != requestedField.name) {
         if (onDiskField.name != "row_id") {
           ab += Code(
-            skipType(mb, onDiskField.typ.physicalType),
+            skipType(mb, onDiskPType),
             pos := pos + 1)
         }
       } else {
-        assert(onDiskField.typ.physicalType == requestedField.typ)
+        assert(onDiskPType == requestedField.typ)
         val parseAndAddField =
           if (onDiskField.name == "row_id") srvb.addLong(lineNumber)
           else Code(
-            parseType(mb, srvb, onDiskField.typ.physicalType),
+            parseType(mb, srvb, onDiskPType),
             pos := pos + 1)
         ab += (pos < line.length).mux(
           parseAndAddField,

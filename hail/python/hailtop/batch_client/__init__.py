@@ -1,6 +1,7 @@
-from . import client, aioclient
+from . import client, aioclient, validate
 
 __all__ = [
     'client',
-    'aioclient'
+    'aioclient',
+    'validate'
 ]

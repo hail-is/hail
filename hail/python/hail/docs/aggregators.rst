@@ -26,6 +26,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     array_sum
     mean
     approx_quantiles
+    approx_median
     stats
     product
     fraction
@@ -57,6 +58,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: array_sum
 .. autofunction:: mean
 .. autofunction:: approx_quantiles
+.. autofunction:: approx_median
 .. autofunction:: stats
 .. autofunction:: product
 .. autofunction:: fraction

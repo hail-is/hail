@@ -3,8 +3,5 @@
 **/*~
 **/__pycache__
 .pytest_cache/
-batch.log
 build
 dist
-logs
-batch-secrets

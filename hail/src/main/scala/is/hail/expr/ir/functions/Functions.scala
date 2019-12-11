@@ -21,8 +21,8 @@ object IRFunctionRegistry {
     userAddedFunctions.clear()
   }
 
-  val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)] =
-    new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)]
+  val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Boolean, Seq[IR] => IR)] =
+    new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Boolean, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Boolean, Seq[IR] => IR)]
 
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
@@ -30,8 +30,8 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction): Unit =
     codeRegistry.addBinding(f.name, f)
 
-  def addIR(name: String, argTypes: Seq[Type], retType: Type, f: Seq[IR] => IR): Unit =
-    irRegistry.addBinding(name, (argTypes, retType, f))
+  def addIR(name: String, argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit =
+    irRegistry.addBinding(name, (argTypes, retType, alwaysInline, f))
 
   def pyRegisterIR(mname: String,
     argNames: java.util.ArrayList[String],
@@ -40,7 +40,7 @@ object IRFunctionRegistry {
     val argTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
     userAddedFunctions += ((mname, (body.typ, argTypes)))
     addIR(mname,
-      argTypes, IRParser.parseType(retType), { args =>
+      argTypes, IRParser.parseType(retType), false, { args =>
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
@@ -68,18 +68,19 @@ object IRFunctionRegistry {
     lookupInRegistry(codeRegistry, name, rt, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
 
   def lookupConversion(name: String, rt: Type, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    type Conversion = (Seq[Type], Type, Seq[IR] => IR)
+    type Conversion = (Seq[Type], Type, Boolean, Seq[IR] => IR)
     val findIR: (Conversion, Seq[Type]) => Boolean = {
-      case ((ts, _, _), t2s) =>
+      case ((ts, _, _, _), t2s) =>
         ts.length == args.length && {
           ts.foreach(_.clear())
           (ts, t2s).zipped.forall(_.unify(_))
         }
     }
     val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, rt, args, findIR).map {
-      case (_, _, conversion) => args =>
+      case (_, _, inline, conversion) => args =>
         val x = ApplyIR(name, args)
         x.conversion = conversion
+        x.inline = inline
         x
     }
 
@@ -122,7 +123,7 @@ object IRFunctionRegistry {
     def dtype(t: Type): String = s"""dtype("${ StringEscapeUtils.escapeString(t.toString) }\")"""
 
     irRegistry.foreach { case (name, fns) =>
-        fns.foreach { case (argTypes, retType, f) =>
+        fns.foreach { case (argTypes, retType, _, f) =>
           println(s"""register_function("${ StringEscapeUtils.escapeString(name) }", (${ argTypes.map(dtype).mkString(",") }), ${ dtype(retType) })""")
         }
     }
@@ -198,7 +199,13 @@ abstract class RegistryFunctions {
     case _: TFloat32 => identity[Code[_]]
     case _: TFloat64 => identity[Code[_]]
     case _: TString => c =>
-      r.region.appendString(coerce[String](c))
+      val bytes = r.mb.newLocal[Array[Byte]]
+      val v = r.mb.newLocal[Long]
+      Code(
+        bytes := coerce[String](c).invoke[Array[Byte]]("getBytes"),
+        v := PBinary.allocate(r.region, bytes.length()),
+        PBinary.store(v, bytes),
+        v)
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
       val srvb = new StagedRegionValueBuilder(r, t)
@@ -259,9 +266,12 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(rType.subst()) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
-      override def apply(r: EmitRegion, args: (PType, Code[_])*): Code[_] = impl(r, returnPType(args.map(_._1)), args.toArray)
+      override def apply(r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
+        unify(args.map(_._1.virtualType))
+        impl(r, returnPType(args.map(_._1), returnType.subst()), args.toArray)
+      }
     })
   }
 
@@ -274,9 +284,12 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(rType.subst()) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
-      override def apply(r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = impl(r, returnPType(args.map(_._1)), args.toArray)
+      override def apply(r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
+        unify(args.map(_._1.virtualType))
+        impl(r, returnPType(args.map(_._1), returnType.subst()), args.toArray)
+      }
     })
   }
 
@@ -294,6 +307,7 @@ abstract class RegistryFunctions {
       case TArray(_: TFloat64, _) => classTag[IndexedSeq[Double]]
       case TArray(_: TString, _) => classTag[IndexedSeq[String]]
       case TSet(_: TString, _) => classTag[Set[String]]
+      case TDict(_: TString, _: TString, _) => classTag[Map[String, String]]
       case t => TypeToIRIntermediateClassTag(t)
     }
 
@@ -321,8 +335,8 @@ abstract class RegistryFunctions {
     }
   }
 
-  def registerIR(mname: String, argTypes: Array[Type], retType: Type)(f: Seq[IR] => IR) {
-    IRFunctionRegistry.addIR(mname, argTypes, retType, f)
+  def registerIR(mname: String, argTypes: Array[Type], retType: Type, inline: Boolean = false)(f: Seq[IR] => IR) {
+    IRFunctionRegistry.addIR(mname, argTypes, retType, inline, f)
   }
 
   def registerCode(mname: String, rt: Type, pType: PType)(impl: EmitRegion => Code[_]): Unit =
@@ -417,9 +431,12 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(rType.subst()) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
-      def applySeeded(seed: Long, r: EmitRegion, args: (PType, Code[_])*): Code[_] = impl(r, returnPType(args.map(_._1)), seed, args.toArray)
+      def applySeeded(seed: Long, r: EmitRegion, args: (PType, Code[_])*): Code[_] = {
+        unify(args.map(_._1.virtualType))
+        impl(r, returnPType(args.map(_._1), returnType.subst()), seed, args.toArray)
+      }
 
       def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
         val setup = args.map(_._2.setup)
@@ -434,7 +451,7 @@ abstract class RegistryFunctions {
   }
 
   def registerSeeded(mname: String, rType: Type, pt: PType)(impl: (EmitRegion, PType, Long) => Code[_]): Unit =
-    registerSeeded(mname, Array[Type](), rType, (_: Seq[PType]) => pt) { case (r, rt, seed, array) => impl(r, rt, seed) }
+    registerSeeded(mname, Array[Type](), rType, if (pt == null) null else (_: Seq[PType]) => pt) { case (r, rt, seed, array) => impl(r, rt, seed) }
 
   def registerSeeded[A1](mname: String, arg1: Type, rType: Type, pt: PType => PType)(impl: (EmitRegion, PType, Long, (PType, Code[A1])) => Code[_]): Unit =
     registerSeeded(mname, Array(arg1), rType, unwrappedApply(pt)) {
@@ -470,7 +487,7 @@ sealed abstract class IRFunction {
 
   def returnType: Type
 
-  def returnPType(argTypes: Seq[PType]): PType
+  def returnPType(argTypes: Seq[PType], returnType: Type): PType
 
   override def toString: String = s"$name(${ argTypes.mkString(", ") }): $returnType"
 
@@ -502,7 +519,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
     val unified = unify(args.map(_.virtualType) :+ rt)
     assert(unified)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
-    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
+    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(rt))
     methodbuilder.emit(apply(EmitRegion.default(methodbuilder), args.zip(ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }): _*))
     methodbuilder
   }

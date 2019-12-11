@@ -1,0 +1,24 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ci-agent
+rules:
+- apiGroups: [""]
+  resources: ["services", "pods", "pods/log", "secrets"]
+  verbs: ["*"]
+- apiGroups: ["extensions", "apps"]
+  resources: ["deployments"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ci-agent
+subjects:
+- kind: ServiceAccount
+  name: ci-agent
+  namespace: {{ batch_pods_ns.name }}
+roleRef:
+  kind: Role
+  name: ci-agent
+  apiGroup: ""

@@ -13,6 +13,7 @@ case object PBooleanRequired extends PBoolean(true)
 class PBoolean(override val required: Boolean) extends PType {
   lazy val virtualType: TBoolean = TBoolean(required)
 
+  def _asIdent = "bool"
   def _toPretty = "Boolean"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -21,13 +22,13 @@ class PBoolean(override val required: Boolean) extends PType {
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
+      java.lang.Boolean.compare(Region.loadBoolean(o1), Region.loadBoolean(o2))
     }
   }
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    new CodeOrdering {
+    new CodeOrderingCompareConsistentWithOthers {
       type T = Boolean
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =

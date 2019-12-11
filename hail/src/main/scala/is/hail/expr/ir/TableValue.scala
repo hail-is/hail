@@ -4,19 +4,16 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
-import is.hail.io.{CodecSpec, exportTypes}
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
 import is.hail.utils._
-import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
-import is.hail.io.fs.FS
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
@@ -24,27 +21,35 @@ object TableValue {
     val tt = TableType(rowType.virtualType, key, TStruct.empty())
     TableValue(tt,
       BroadcastRow.empty(ctx),
-      RVD.coerce(RVDType(rowType, key), rdd))
+      RVD.coerce(RVDType(rowType, key), rdd, ctx))
   }
 
   def apply(ctx: ExecuteContext, rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     val tt = TableType(rowType, key, TStruct.empty())
     TableValue(tt,
         BroadcastRow.empty(ctx),
-        RVD.coerce(tt.canonicalRVDType, rdd))
+        RVD.coerce(tt.canonicalRVDType, rdd, ctx))
   }
 
-  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue =
-    apply(ctx, rowType, key, ContextRDD.weaken[RVDContext](rdd).toRegionValues(rowType))
-
-  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue =
-    TableValue(typ, globals, RVD.coerce(typ.canonicalRVDType, ContextRDD.weaken[RVDContext](rdd).toRegionValues(typ.rowType)))
+  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue = {
+    val canonicalRowType = PStruct.canonical(rowType)
+    val tt = TableType(rowType, key, TStruct.empty())
+    TableValue(tt,
+      BroadcastRow.empty(ctx),
+      RVD.coerce(
+        RVDType(canonicalRowType, key),
+        ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType),
+        ctx))
+  }
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
-  require(typ.rowType == rvd.rowType, s"mismatch:\n  typ: ${ typ.rowType }\n  rvd: ${ rvd.rowType }")
-  require(rvd.typ.key.startsWith(typ.key))
-  require(typ.globalType == globals.t.virtualType)
+  if (typ.rowType != rvd.rowType)
+    throw new RuntimeException(s"row mismatch:\n  typ: ${ typ.rowType.parsableString() }\n  rvd: ${ rvd.rowType.parsableString() }")
+  if (!rvd.typ.key.startsWith(typ.key))
+    throw new RuntimeException(s"key mismatch:\n  typ: ${ typ.key }\n  rvd: ${ rvd.typ.key }")
+  if (typ.globalType != globals.t.virtualType)
+    throw new RuntimeException(s"globals mismatch:\n  typ: ${ typ.globalType.parsableString() }\n  val: ${ globals.t.virtualType.parsableString() }")
 
   def rdd: RDD[Row] =
     rvd.toRows
@@ -62,18 +67,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
-  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
     assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 
-    val codecSpec =
-      if (codecSpecJSONStr != null) {
-        implicit val formats = AbstractRVDSpec.formats
-        val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
-        codecSpecJSON.extract[CodecSpec]
-      } else
-        CodecSpec.default
+    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
     if (overwrite)
       fs.delete(path, recursive = true)
@@ -84,8 +83,9 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, codecSpec, Array(globals.javaValue))
+    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, bufferSpec, Array(globals.javaValue))
 
+    val codecSpec = TypedCodecSpec(rvd.rowPType, bufferSpec)
     val partitionCounts = rvd.write(path + "/rows", "../index", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
@@ -111,7 +111,6 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
       s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
       s"to $path")
-
   }
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
@@ -150,7 +149,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   }
 
   def rename(globalMap: Map[String, String], rowMap: Map[String, String]): TableValue = {
-    TableValue(typ, globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
+    TableValue(typ.copy(
+      rowType = typ.rowType.rename(rowMap),
+      globalType = typ.globalType.rename(globalMap),
+      key = typ.key.map(k => rowMap.getOrElse(k, k))),
+      globals.copy(t = globals.t.rename(globalMap)), rvd = rvd.cast(rvd.rowPType.rename(rowMap)))
   }
 
   def toMatrixValue(colKey: IndexedSeq[String],

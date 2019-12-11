@@ -81,6 +81,8 @@ object Children {
       Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
+    case ArrayFold2(a, accum, valueName, seq, result) =>
+      Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
     case ArrayScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
     case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
@@ -120,10 +122,6 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp(i, args, aggSig) =>
-      i +: args
-    case SeqOp(i, args, _) =>
-      i +: args
     case InitOp2(_, args, _) => args
     case SeqOp2(_, args, _) => args
     case _: ResultOp2 => none

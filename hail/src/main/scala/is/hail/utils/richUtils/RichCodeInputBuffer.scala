@@ -42,7 +42,7 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
     else if (n < 5)
       Code(
         Code((0 until n).map(i =>
-          toRegion.storeByte(toOff + const(i), in.readByte())): _*),
+          Region.storeByte(toOff + const(i), in.readByte())): _*),
         // for type
         Code._empty)
     else

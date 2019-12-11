@@ -4,6 +4,9 @@ import java.io.PrintStream
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
+import is.hail.annotations.Region
+import is.hail.expr.types.physical.PTuple
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -159,19 +162,38 @@ object Code {
     }
   }
 
-  def whileLoop(condition: Code[Boolean], body: Code[_]*): Code[Unit] = {
-    new Code[Unit] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        val l1 = new LabelNode
-        val l2 = new LabelNode
-        val l3 = new LabelNode
-        il += l1
-        condition.toConditional.emitConditional(il, l2, l3)
-        il += l2
-        body.foreach(_.emit(il))
-        il += new JumpInsnNode(GOTO, l1)
-        il += l3
+  def whileLoop(cond: Code[Boolean], body: Code[_]*): Code[Unit] = {
+    import is.hail.asm4s.joinpoint._
+    JoinPoint.CallCC[Unit] { (jb, break) =>
+      val continue = jb.joinPoint()
+      val loopBody = jb.joinPoint()
+      continue.define { _ => JoinPoint.mux(cond, loopBody, break) }
+      loopBody.define { _ => Code(Code(body: _*), continue(())) }
+      continue(())
+    }
+  }
+
+  def forLoop(init: Code[Unit], cond: Code[Boolean], increment: Code[Unit], body: Code[Unit]): Code[Unit] = {
+    Code(
+      init,
+      Code.whileLoop(cond,
+        body,
+        increment
+      )
+    )
+  }
+
+  def switch[T: TypeInfo](target: Code[Int], dflt: Code[T], cases: Seq[Code[T]]): Code[T] = {
+    import is.hail.asm4s.joinpoint._
+    JoinPoint.CallCC[Code[T]] { (jb, ret) =>
+      def thenReturn(c: Code[T]): JoinPoint[Unit] = {
+        val j = jb.joinPoint()
+        j.define { _ => ret(c) }
+        j
       }
+      JoinPoint.switch(target,
+        thenReturn(dflt),
+        cases.map(thenReturn))
     }
   }
 
@@ -316,6 +338,8 @@ object Code {
   }
 
   def foreach[A](it: Seq[A])(f: A => Code[_]): Code[Unit] = Code(it.map(f): _*).asInstanceOf[Code[Unit]]
+
+  def currentTimeMillis(): Code[Long] = Code.invokeStatic[java.lang.System, Long]("currentTimeMillis")
 }
 
 trait Code[+T] {
@@ -488,6 +512,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def /(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IDIV))
 
+  def %(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IREM))
+
   def >(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGT, rhs)
 
   def >=(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPGE, rhs)
@@ -540,6 +566,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def *(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LMUL))
 
   def /(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LDIV))
+
+  def %(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LREM))
 
   def compare(rhs: Code[Long]): Code[Int] = Code(lhs, rhs, new InsnNode(LCMP))
 

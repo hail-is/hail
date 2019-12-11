@@ -16,7 +16,7 @@ import org.apache.spark.sql.Row
 
 class AggregatorsSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats = ExecStrategy.compileOnly
 
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
@@ -201,19 +201,15 @@ class AggregatorsSuite extends HailSuite {
     expected: Seq[T]
   ): Unit = {
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(eltType))
-    val aggregable = a.map(Row(_))
 
-    val tp = TableParallelize(MakeStruct(FastSeq(
-      ("rows", Literal(TArray(TStruct("foo" -> TArray(eltType))), a.map(Row(_)))),
-      ("global", MakeStruct(FastSeq())))))
+    val aggregable = a.map(Row(_))
+    val structType = TStruct("foo" -> TArray(eltType))
 
     assertEvalsTo(
-      TableAggregate(
-        tp,
-        AggArrayPerElement(GetField(Ref("row", tp.typ.rowType), "foo"), "elt", "_",
-          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", eltType)), aggSig), None, isScan = false)),
-      (aggregable, TStruct("a" -> TArray(eltType))),
-      expected)(ExecStrategy.interpretOnly)
+        AggArrayPerElement(Ref("foo", TArray(eltType)), "elt", "_",
+          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", eltType)), aggSig), None, isScan = false),
+      (aggregable, structType),
+      expected)
   }
 
   @Test
@@ -534,87 +530,6 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(Call2(0, 1), Call2(1, 1), null))
   }
 
-  @Test def linearRegression1x() {
-    runAggregator(LinearRegression(),
-      TStruct("y" -> TFloat64(), "x" -> TArray(TFloat64())),
-      FastIndexedSeq(
-        Row(null, FastIndexedSeq(-1.0)),
-        Row(0.0, null),
-        Row(null, null),
-        Row(0.22848042, FastIndexedSeq(0.2575928)),
-        Row(0.09159706, FastIndexedSeq(-0.3445442)),
-        Row(-0.43881935, FastIndexedSeq(1.6590146)),
-        Row(-0.99106171, FastIndexedSeq(-1.1688806)),
-        Row(2.12823289, FastIndexedSeq(0.5587043))),
-      Row(FastIndexedSeq(0.35676677),
-        FastIndexedSeq(0.52953367),
-        FastIndexedSeq(0.67373766),
-        FastIndexedSeq(0.53740536),
-        1.137675,
-        0.1019152,
-        -0.122606,
-        0.4539225,
-        0.5374053,
-        5L),
-      constrArgs = FastIndexedSeq(I32(1), I32(0)),
-      initOpArgs = None,
-      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(TFloat64())))
-    )
-  }
-
-  @Test def linearRegression2x() {
-    runAggregator(LinearRegression(),
-      TStruct("y" -> TFloat64(), "x" -> TArray(TFloat64())),
-      FastIndexedSeq(
-        Row(null, FastIndexedSeq(1, 1.0)),
-        Row(0.0, null),
-        Row(null, null),
-        Row(0.22848042, FastIndexedSeq(1, 0.2575928)),
-        Row(0.09159706, FastIndexedSeq(1, -0.3445442)),
-        Row(-0.43881935, FastIndexedSeq(1, 1.6590146)),
-        Row(-0.99106171, FastIndexedSeq(1, -1.1688806)),
-        Row(2.12823289, FastIndexedSeq(1, 0.5587043))),
-      Row(FastIndexedSeq(0.14069227, 0.32744807),
-        FastIndexedSeq(0.59410817, 0.61833778),
-        FastIndexedSeq(0.23681254, 0.52956181),
-        FastIndexedSeq(0.82805147, 0.63310173),
-        1.301565,
-        0.08548734,
-        -0.2193502,
-        0.2804357,
-        0.6331017,
-        5L),
-      constrArgs = FastIndexedSeq(I32(2), I32(1)),
-      initOpArgs = None,
-      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(TFloat64())))
-    )
-  }
-
-  @Test def linearRegression2xRequired() {
-    runAggregator(LinearRegression(),
-      TStruct("y" -> TFloat64(), "x" -> TArray(+TFloat64())),
-      FastIndexedSeq(
-        Row(0.22848042, FastIndexedSeq(1, 0.2575928)),
-        Row(0.09159706, FastIndexedSeq(1, -0.3445442)),
-        Row(-0.43881935, FastIndexedSeq(1, 1.6590146)),
-        Row(-0.99106171, FastIndexedSeq(1, -1.1688806)),
-        Row(2.12823289, FastIndexedSeq(1, 0.5587043))),
-      Row(FastIndexedSeq(0.14069227, 0.32744807),
-        FastIndexedSeq(0.59410817, 0.61833778),
-        FastIndexedSeq(0.23681254, 0.52956181),
-        FastIndexedSeq(0.82805147, 0.63310173),
-        1.301565,
-        0.08548734,
-        -0.2193502,
-        0.2804357,
-        0.6331017,
-        5L),
-      constrArgs = FastIndexedSeq(I32(2), I32(1)),
-      initOpArgs = None,
-      seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(+TFloat64())))
-    )
-  }
-
   def runKeyedAggregator(
     op: AggOp,
     key: IR,
@@ -792,18 +707,6 @@ class AggregatorsSuite extends HailSuite {
       (agg, aggType),
       expected
     )
-  }
-
-  @Test def downsample() {
-    runAggregator(Downsample(),
-      TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())),
-      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5500.0, 5500.0, FastIndexedSeq("5500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")),
-        Row(9200.0, 9200.0, FastIndexedSeq("9200")), Row(9400.0, 9400.0, FastIndexedSeq("9400")), Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
-      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")), Row(9400.0, 9400.0, FastIndexedSeq("9400")),
-        Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
-      FastIndexedSeq(10),
-      None,
-      seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
   }
 
   @Test def downsampleWhenEmpty(): Unit = {

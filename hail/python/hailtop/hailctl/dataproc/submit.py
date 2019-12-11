@@ -6,10 +6,11 @@ import zipfile
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('script', type=str)
+    parser.add_argument('script', type=str, help="Path to script.")
     parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
     parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
+    parser.add_argument('--gcloud_configuration', help='Google Cloud configuration to submit job (defaults to currently set configuration).')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
@@ -60,6 +61,8 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         '--py-files={}'.format(pyfiles),
         '--properties={}'.format(properties)
     ]
+    if args.gcloud_configuration:
+        cmd.append('--configuration={}'.format(args.gcloud_configuration))
 
     # append arguments to pass to the Hail script
     if pass_through_args:

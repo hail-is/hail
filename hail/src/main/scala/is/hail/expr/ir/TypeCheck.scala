@@ -25,15 +25,24 @@ object TypeCheck {
     }
   }
 
-  private def check(tir: TableIR): Unit = tir.children
-    .iterator
-    .zipWithIndex
-    .foreach {
-      case (child: IR, i) => check(child, NewBindings(tir, i))
-      case (tir: TableIR, _) => check(tir)
-      case (mir: MatrixIR, _) => check(mir)
-      case (bmir: BlockMatrixIR, _) => check(bmir)
+  private def check(tir: TableIR): Unit = {
+    tir match {
+      case TableMapRows(child, newRow) =>
+        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
+        assert(child.typ.key.forall(newFieldSet.contains))
+      case _ =>
     }
+
+    tir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => check(child, NewBindings(tir, i))
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
+  }
 
 
   private def check(mir: MatrixIR): Unit = mir.children
@@ -77,7 +86,10 @@ object TypeCheck {
       case Str(x) =>
       case Literal(_, _) =>
       case Void() =>
-      case Cast(v, typ) => assert(Casts.valid(v.typ, typ))
+      case Cast(v, typ) => if (!Casts.valid(v.typ, typ))
+        throw new RuntimeException(s"invalid cast:\n  " +
+          s"child type: ${ v.typ.parsableString() }\n  " +
+          s"cast type:  ${ typ.parsableString() }")
       case CastRename(v, typ) =>
         if (!v.typ.canCastTo(typ))
           throw new RuntimeException(s"invalid cast:\n  " +
@@ -166,7 +178,7 @@ object TypeCheck {
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType  body.typ)
       case x@NDArrayReindex(nd, indexExpr) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         val nInputDims = coerce[TNDArray](nd.typ).nDims
@@ -188,7 +200,7 @@ object TypeCheck {
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]
         val rType = r.typ.asInstanceOf[TNDArray]
-        assert(lType.elementType == rType.elementType)
+        assert(lType.elementType == rType.elementType, "element type did not match")
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
@@ -206,7 +218,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TIterable])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = -coerce[TIterable](orderedCollection.typ).elementType
-        assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))
+        assert(-elem.typ == (if (onKey) elt match {
+          case t: TBaseStruct => -t.types(0)
+          case t: TInterval => -t.pointType
+        } else elt))
       case x@GroupByKey(collection) =>
         val telt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         val td = coerce[TDict](x.typ)
@@ -225,6 +240,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
+      case x@ArrayFold2(a, accum, valueName, seq, res) =>
+        assert(a.typ.isInstanceOf[TStreamable])
+        assert(x.typ == res.typ)
+        assert(accum.zip(seq).forall { case ((_, z), s) => s.typ == z.typ })
       case x@ArrayScan(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
@@ -254,12 +273,6 @@ object TypeCheck {
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32()))
-      case x@InitOp(i, args, aggSig) =>
-        assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
-        assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(i, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.seqOpArgs)
-        assert(i.typ.isInstanceOf[TInt32])
       case x@InitOp2(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.initOpArgs)
       case x@SeqOp2(_, args, aggSig) =>
@@ -332,7 +345,8 @@ object TypeCheck {
       case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
-      case TableCollect(_) =>
+      case TableCollect(child) =>
+        assert(child.typ.key.isEmpty)
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>

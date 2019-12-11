@@ -1,0 +1,70 @@
+steps:
+ - kind: createNamespace
+   name: default_ns
+   namespaceName: default
+   public: true
+ - kind: buildImage
+   name: inline_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && apt-get install -y git
+   contextPath: .
+ - kind: runImage
+   name: run_inline_image
+   image:
+     valueFrom:
+       inline_image.image
+   script: |
+     git init
+   dependsOn:
+     - inline_image
+ - kind: buildImage
+   name: base_image
+   dockerFile: docker/Dockerfile.base
+   contextPath: .
+   publishAs: base
+ - kind: buildImage
+   name: service_base_image
+   dockerFile: docker/Dockerfile.service-base
+   contextPath: .
+   publishAs: service-base
+   dependsOn:
+    - base_image
+ - kind: buildImage
+   name: hello_image
+   dockerFile: ci/test/resources/Dockerfile
+   contextPath: .
+   publishAs: ci-hello
+   dependsOn:
+    - service_base_image
+ - kind: runImage
+   name: check_hello
+   image:
+     valueFrom: hello_image.image
+   script: |
+     set -ex
+     python3 -m flake8 /hello/hello.py
+   dependsOn:
+     - hello_image
+ - kind: createDatabase
+   name: hello_database
+   databaseName: hello
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: deploy_hello
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/test/resources/deployment.yaml
+   wait:
+    - kind: Service
+      name: hello
+      for: alive
+   dependsOn:
+    - default_ns
+    - hello_image
+    - check_hello
+    - hello_database

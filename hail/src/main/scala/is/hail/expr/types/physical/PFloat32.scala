@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, TypeInfo, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
@@ -13,9 +13,12 @@ import scala.reflect.{ClassTag, _}
 case object PFloat32Optional extends PFloat32(false)
 case object PFloat32Required extends PFloat32(true)
 
-class PFloat32(override val required: Boolean) extends PType {
+class PFloat32(override val required: Boolean) extends PNumeric {
   lazy val virtualType: TFloat32 = TFloat32(required)
 
+  override type NType = PFloat32
+
+  def _asIdent = "float32"
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -24,7 +27,7 @@ class PFloat32(override val required: Boolean) extends PType {
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
+      java.lang.Float.compare(Region.loadFloat(o1), Region.loadFloat(o2))
     }
   }
 
@@ -49,6 +52,16 @@ class PFloat32(override val required: Boolean) extends PType {
   }
 
   override def byteSize: Long = 4
+
+  override def zero = coerce[PFloat32](const(0.0f))
+
+  override def add(a: Code[_], b: Code[_]): Code[PFloat32] = {
+    coerce[PFloat32](coerce[Float](a) + coerce[Float](b))
+  }
+
+  override def multiply(a: Code[_], b: Code[_]): Code[PFloat32] = {
+    coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
+  }
 }
 
 object PFloat32 {

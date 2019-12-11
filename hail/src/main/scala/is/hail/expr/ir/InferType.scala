@@ -24,7 +24,7 @@ object InferType {
       case Ref(_, t) => t
       case RelationalRef(_, t) => t
       case RelationalLet(_, _, body) => body.typ
-      case In(_, t) => t
+      case In(_, t) => t.virtualType
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
       case MakeNDArray(data, shape, _) =>
@@ -34,8 +34,6 @@ object InferType {
       case _: StreamRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid
-      case _: InitOp => TVoid
-      case _: SeqOp => TVoid
       case _: InitOp2 => TVoid
       case _: SeqOp2 => TVoid
       case _: CombOp2 => TVoid
@@ -103,6 +101,7 @@ object InferType {
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
+      case ArrayFold2(_, _, _, _, result) => result.typ
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         coerce[TStreamable](a.typ).copyStreamable(zero.typ)
@@ -114,13 +113,14 @@ object InferType {
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
       case NDArrayShape(nd) =>
-        TTuple(nd.typ.required, List.tabulate(nd.typ.asInstanceOf[TNDArray].nDims)(_ => TInt64()):_*)
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        ndType.representation.fieldType("shape").asInstanceOf[TTuple].setRequired(ndType.required)
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
-        TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
+        TNDArray(body.typ.setRequired(true), coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
       case NDArrayAgg(nd, axes) =>
@@ -131,8 +131,10 @@ object InferType {
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
       case NDArraySlice(nd, slices) =>
         val childTyp = coerce[TNDArray](nd.typ)
-        val remainingDims = coerce[TTuple](slices.typ).types.filter(_.isInstanceOf[TTuple])
-        TNDArray(childTyp.elementType, Nat(remainingDims.length))
+        val slicesTyp = coerce[TTuple](slices.typ)
+        val tuplesOnly = slicesTyp.types.collect { case x: TTuple => x}
+        val remainingDims = Nat(tuplesOnly.length)
+        TNDArray(childTyp.elementType, remainingDims)
       case NDArrayMatMul(l, r) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
@@ -146,9 +148,9 @@ object InferType {
         TDict(key.typ, aggIR.typ)
       case AggArrayPerElement(a, _, _, aggBody, _, _) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
-        AggOp.getType(aggSig)
+        aggSig.returnType
       case ApplyScanOp(_, _, _, aggSig) =>
-        AggOp.getType(aggSig)
+        aggSig.returnType
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

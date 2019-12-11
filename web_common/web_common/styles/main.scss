@@ -1,0 +1,299 @@
+@import "variables.scss";
+
+html {
+    box-sizing: border-box;
+}
+*,
+*:before,
+*:after {
+    box-sizing: inherit;
+}
+
+body {
+    font-family: "Open Sans", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-font-smmothing: grayscale;
+    input::placeholder {
+        -webkit-font-smoothing: antialiased;
+        -moz-font-smmothing: grayscale;
+    }
+    margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin: 0.5rem 0;
+}
+
+input {
+    /* Not sure why, input elements in tables sometimes don't display
+       border without this, see workshop.hail.is/login page. */
+    padding: 1px;
+}
+
+.stacked-header {
+    margin: 0 0 0.5rem 0;
+}
+
+button {
+    font-family: inherit;
+    font-size: 1rem;
+    background: none;
+    border: 1px solid $black;
+    border-radius: 3px;
+    margin: 0;
+    cursor: pointer;
+    &:focus {
+	outline: 0;
+    }
+    &:active,
+    &:hover {
+	outline: 0;
+        color: $devil-gray;
+	border-color: $devil-gray;
+    }
+}
+
+a {
+    color: #07c;
+    text-decoration: none;
+    &:active,
+    &:hover {
+        text-decoration: underline;
+        /* color: #3af */
+        
+    }
+}
+
+.header-link {
+    padding: 15px 15px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
+.disabled-header-item {
+    padding: 15px 15px;
+    color: $devil-gray;
+    white-space: nowrap;
+}
+
+.button-header-link {
+    /* remove button styling, add link, header-link styling */
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: $black;
+    white-space: nowrap;
+    padding: 15px 15px;
+}
+
+.header-dropdown-item-margin {
+    margin: 6px;
+}
+
+.disabled-header-dropdown-item {
+    padding: 9px 9px;
+    color: $devil-gray;
+    white-space: nowrap;
+}
+
+.header-dropdown-link {
+    padding: 9px 9px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
+.header-dropdown {
+    display: block;
+
+    &:active,
+    &:hover {
+	.header-dropdown-menu {
+	    display: block;
+	}
+    }
+}
+
+.header-dropdown-menu-caret {
+    position: absolute;
+    /* big enough to contain ::after */
+    width: 100px;
+    /* Chrome doesn't seem to handle exact overlap.  Depending on the zoom
+       level, there is a thin border or overhang artifacts.  The extra
+       0.1 appears to fully covers the border.  Firefox looks correct
+       at 15px and this creates a slight overhang at high zoom.  */
+    height: 15.1px;
+    overflow: hidden;
+    top: -15px;
+}
+
+.header-dropdown-menu-caret:after {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    transform: rotate(45deg);
+    /* abs(header-dropdown top) - width / 2
+       15px - 20px / 2 = 5px
+       plus 2px to make triangle slightly smaller */
+    top: 7px;
+    /* left: (header-dropdown-item width) / 2 + padding - width / 2 */
+    background-color: white;
+    border: 1px solid black;
+}
+
+.notebook-caret:after {
+    /* 74 (measured width of Notebook) / 2 + 9 - 20 / 2 = 38px */
+    left: 36px;
+}
+
+.batch-caret:after {
+    /* 42 (measured width of Batch) / 2 + 9 - 20 / 2 = 20px */
+    left: 20px;
+}
+
+.monitoring-caret:after {
+    /* 82 (measured width of Monitoring) / 2 + 9 - 20 / 2 = 42px */
+    left: 40px;
+}
+
+.header-dropdown-menu {
+    position: absolute;
+    display: none;
+    border-radius: 3px;
+    background-color: white;
+    border: 1px solid black;
+    /* height of triangle + 5px spacing
+       12px = 7px + 5px */
+    margin-top: 12px;
+}
+
+.header-dropdown-menu-link {
+    display: block;
+    padding: 8px;
+    color: $black;
+    white-space: nowrap;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: $devil-gray;
+    }
+}
+
+#main {
+    display: flex;
+    flex-direction: column;
+}
+
+#header {
+    display: flex;
+    align-items: center;
+}
+
+#header-flex {
+    flex-grow: 1;
+}
+
+#content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0 8px 8px 8px;
+}
+
+.text-icon {
+    /* baseline of material icons is messed up, see:
+       https://github.com/google/material-design-icons/issues/206 */
+    vertical-align: middle;
+    font-size: 0.8rem;
+}
+
+.data-table {
+    min-width: 480px;
+    border-spacing: 2px;
+    thead {
+	color: $white;
+	background-color: #888;
+    }
+    th {
+        white-space: nowrap;
+	padding: 3px 10px;
+    }
+    tr {
+        &:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    }
+    tbody tr:hover {
+        background-color: #ddd;
+    }
+}
+
+.numeric-cell {
+    text-align: right;
+}
+
+.searchbar {
+    width: 40%;
+}
+
+.searchbar-table {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.gh-number {
+    color: #6a737d;
+}
+
+#message {
+    border: 1px solid;
+    border-radius: 3px;
+    padding: 10px;
+    margin-bottom: 1rem;
+}
+
+.message-error {
+    color: red;
+    border-color: red;
+    background-color: #ffeaea;
+}
+
+.message-info {
+    color: green;
+    border-color: green;
+    background-color: #eaffea;
+}
+
+.dangerous {
+    color: red;
+    border-color: red;
+    &:active,
+    &:hover {
+        text-decoration: none;
+        color: #f66;
+        border-color: #f66;
+    }
+}
+
+.attributes {
+    margin-left: 1rem;
+}
+
+/* viewport centered */
+.vcentered {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    transform: translate(-50%, -50%);
+}

@@ -3,12 +3,12 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, Interpret, LowerMatrixIR, MatrixValue}
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
+import is.hail.variant.{Call, RegionValueVariant}
 
 import scala.io.Source
 
@@ -23,22 +23,22 @@ object ExportVCF {
   def strVCF(sb: StringBuilder, elementType: PType, m: Region, offset: Long) {
     elementType match {
       case PInt32(_) =>
-        val x = m.loadInt(offset)
+        val x = Region.loadInt(offset)
         sb.append(x)
       case PInt64(_) =>
-        val x = m.loadLong(offset)
+        val x = Region.loadLong(offset)
         if (x > Int.MaxValue || x < Int.MinValue)
           fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) " +
             s"or less than Int.MinValue (-2^31). Found $x.")
         sb.append(x)
       case PFloat32(_) =>
-        val x = m.loadFloat(offset)
+        val x = Region.loadFloat(offset)
         if (x.isNaN)
           sb += '.'
         else
           sb.append(x.formatted("%.5e"))
       case PFloat64(_) =>
-        val x = m.loadDouble(offset)
+        val x = Region.loadDouble(offset)
         if (x.isNaN)
           sb += '.'
         else
@@ -46,7 +46,7 @@ object ExportVCF {
       case PString(_) =>
         sb.append(PString.loadString(m, offset))
       case PCall(_) =>
-        val c = m.loadInt(offset)
+        val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
       case _ =>
         fatal(s"VCF does not support type $elementType")
@@ -85,7 +85,7 @@ object ExportVCF {
           true
         }
       case PBoolean(_) =>
-        if (m.loadBoolean(offset)) {
+        if (Region.loadBoolean(offset)) {
           if (wroteLast)
             sb += ';'
           sb.append(f.name)
@@ -215,19 +215,6 @@ object ExportVCF {
 
   def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
     getAttributes(k1, attributes).flatMap(_.get(k2))
-
-  def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
-    getAttributes(k1, k2, attributes).flatMap(_.get(k3))
-
-  def apply(mt: MatrixTable, path: String, append: Option[String] = None,
-    exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExecuteContext.scoped { ctx =>
-
-      ExportVCF(Interpret(mt.lit, ctx, optimize = false)
-        .toMatrixValue(mt.colKey),
-        path, append, exportType, metadata)
-    }
-  }
 
   def apply(mv: MatrixValue, path: String, append: Option[String],
     exportType: Int, metadata: Option[VCFMetadata]) {
@@ -418,7 +405,7 @@ object ExportVCF {
 
         if (qualExists && fullRowType.isFieldDefined(rv, qualIdx)) {
           val qualOffset = fullRowType.loadField(rv, qualIdx)
-          sb.append(m.loadDouble(qualOffset).formatted("%.2f"))
+          sb.append(Region.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
 

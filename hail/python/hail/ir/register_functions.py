@@ -9,6 +9,8 @@ def register_reference_genome_functions(rg):
     register_session_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
     register_session_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
+    register_session_function(f"contigLength({rg})", (dtype("str"),), dtype("int32"))
+
     register_session_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
     register_session_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
 
@@ -21,7 +23,6 @@ def register_functions():
     register_function("median", (dtype("set<?T:numeric>"),), dtype("?T"))
     register_function("median", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("uniqueMinIndex", (dtype("array<?T>"),), dtype("int32"))
-    register_function("mean", (dtype("set<?T:numeric>"),), dtype("float64"))
     register_function("mean", (dtype("array<?T:numeric>"),), dtype("float64"))
     register_function("toFloat32", (dtype("?T:numeric"),), dtype("float32"))
     register_function("uniqueMaxIndex", (dtype("array<?T>"),), dtype("int32"))
@@ -57,7 +58,6 @@ def register_functions():
     register_function("nanmax", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("max_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("nanmax_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
-    register_function("product", (dtype("set<?T:numeric>"),), dtype("?T"))
     register_function("product", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("toInt32", (dtype("?T:numeric"),), dtype("int32"))
     register_function("extend", (dtype("array<?T>"),dtype("array<?T>"),), dtype("array<?T>"))
@@ -103,7 +103,6 @@ def register_functions():
     register_function("nanmin", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("min_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("nanmin_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
-    register_function("sum", (dtype("set<?T:numeric>"),), dtype("?T"))
     register_function("sum", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("toInt64", (dtype("?T:numeric"),), dtype("int64"))
     register_function("contains", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("bool"))

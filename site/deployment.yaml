@@ -29,6 +29,15 @@ spec:
                     values:
                     - site
               topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: preemptible
+                operator: In
+                values:
+                - "true"
       tolerations:
        - key: preemptible
          value: "true"
@@ -73,3 +82,13 @@ spec:
     resource:
       name: cpu
       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: site
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: site

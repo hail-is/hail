@@ -11,7 +11,7 @@ import scala.reflect.{ClassTag, classTag}
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
   lazy val physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)
 
-  lazy val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
+  lazy val elementType: TBaseStruct = (+TStruct("key" -> keyType, "value" -> valueType)).asInstanceOf[TBaseStruct]
 
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 

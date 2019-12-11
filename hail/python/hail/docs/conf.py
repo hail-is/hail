@@ -39,15 +39,25 @@ needs_sphinx = '1.5.4'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
-    'sphinx.ext.mathjax',
+    'sphinxcontrib.katex',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
     'nbsphinx',
-    'IPython.sphinxext.ipython_console_highlighting', # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
+    # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
+    'IPython.sphinxext.ipython_console_highlighting',
     'sphinx.ext.napoleon'
 ]
 
-mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
+katex_css_path = \
+    'https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css'
+katex_js_path = \
+    'https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js'
+katex_autorender_path = \
+    'https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js'
+katex_inline = [r'\(', r'\)']
+katex_display = [r'\[', r'\]']
+katex_prerender = False
+katex_options = ''
 
 nbsphinx_timeout = 300
 nbsphinx_allow_errors = False
@@ -168,23 +178,19 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-#html_theme = 'alabaster'
-#html_theme = 'basic'
 html_theme = 'sphinx_rtd_theme'
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-#html_theme_options = {
-#}
+
 html_theme_options = {
     'collapse_navigation': True,
     'display_version': True
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
-#html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-html_theme_path = ["_themes",]
+html_theme_path = ["_themes", ]
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
@@ -238,7 +244,7 @@ html_last_updated_fmt = ''
 # Custom sidebar templates, maps document names to template names.
 #
 html_sidebars = {
-    '**': [ 'globaltoc.html', 'localtoc.html', 'searchbox.html']
+    '**': ['globaltoc.html', 'localtoc.html', 'searchbox.html']
 }
 
 # Additional templates that should be rendered to pages, maps page names to
@@ -303,21 +309,21 @@ htmlhelp_basename = 'haildoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-     # The paper size ('letterpaper' or 'a4paper').
-     #
-     # 'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    #
+    # 'papersize': 'letterpaper',
 
-     # The font size ('10pt', '11pt' or '12pt').
-     #
-     # 'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    #
+    # 'pointsize': '10pt',
 
-     # Additional stuff for the LaTeX preamble.
-     #
-     # 'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    #
+    # 'preamble': '',
 
-     # Latex figure (float) alignment
-     #
-     # 'figure_align': 'htbp',
+    # Latex figure (float) alignment
+    #
+    # 'figure_align': 'htbp',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
@@ -401,3 +407,17 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #
 # texinfo_no_detailmenu = False
+
+
+def autodoc_skip_member(app, what, name, obj, skip, options):
+    exclusions = ('__delattr__', '__dict__', '__dir__', '__doc__', '__format__',
+                  '__getattribute__', '__hash__', '__init__',
+                  '__init_subclass__', '__new__', '__reduce__', '__reduce_ex__',
+                  '__repr__', '__setattr__', '__sizeof__', '__str__',
+                  '__subclasshook__', '__weakref__')
+    exclude = name in exclusions
+    return skip or exclude
+
+
+def setup(app):
+    app.connect('autodoc-skip-member', autodoc_skip_member)

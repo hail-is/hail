@@ -6,7 +6,7 @@ import scala.collection.immutable.IndexedSeq
 import scala.reflect.ClassTag
 
 
-class MultiArray2[T](val n1: Int,
+class MultiArray2[@specialized(Int, Long, Float, Double, Boolean) T](val n1: Int,
                      val n2: Int,
                      val a: Array[T]) extends Serializable with Iterable[T] {
 

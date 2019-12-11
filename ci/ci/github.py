@@ -6,14 +6,17 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
+from hailtop.config import get_deploy_config
+from hailtop.utils import check_shell, check_shell_output
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
-from .environment import SELF_HOSTNAME
-from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
+
 
 repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
+
+CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
 
 
 class Repo:
@@ -322,7 +325,7 @@ mkdir -p {shq(repo_dir)}
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
+                callback=CALLBACK_URL)
             config.build(batch, self, scope='test')
             batch = await batch.submit()
             self.batch = batch
@@ -356,16 +359,14 @@ mkdir -p {shq(repo_dir)}
 
         if self.batch is None:
             # find the latest non-cancelled batch for source
-            attrs = {
-                'test': '1',
-                'target_branch': self.target_branch.branch.short_str(),
-                'source_sha': self.source_sha
-            }
-            batches = await batch_client.list_batches(attributes=attrs)
+            batches = batch_client.list_batches(
+                f'test=1 '
+                f'target_branch={self.target_branch.branch.short_str()} '
+                f'source_sha={self.source_sha}')
 
             min_batch = None
             failed = None
-            for b in batches:
+            async for b in batches:
                 try:
                     s = await b.status()
                 except Exception as err:
@@ -602,21 +603,17 @@ class WatchedBranch(Code):
             return
 
         if self.deploy_batch is None:
-            running_deploy_batches = await batch_client.list_batches(
-                complete=False,
-                attributes={
-                    'deploy': '1',
-                    'target_branch': self.branch.short_str()
-                })
+            running_deploy_batches = batch_client.list_batches(
+                f'!complete deploy=1 target_branch={self.branch.short_str()}')
+            running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
-                deploy_batches = await batch_client.list_batches(
-                    attributes={
-                        'deploy': '1',
-                        'target_branch': self.branch.short_str(),
-                        'sha': self.sha
-                    })
+                deploy_batches = batch_client.list_batches(
+                    f'deploy=1 '
+                    f'target_branch={self.branch.short_str()} '
+                    f'sha={self.sha}')
+                deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
@@ -681,14 +678,10 @@ class WatchedBranch(Code):
             await pr._heal(batch_client, dbpool, pr == merge_candidate)
 
         # cancel orphan builds
-        running_batches = await batch_client.list_batches(
-            complete=False,
-            attributes={
-                'test': '1',
-                'target_branch': self.branch.short_str()
-            })
+        running_batches = batch_client.list_batches(
+            f'!complete test=1 target_branch={self.branch.short_str()}')
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
-        for batch in running_batches:
+        async for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
@@ -719,7 +712,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
+                callback=CALLBACK_URL)
             config.build(deploy_batch, self, scope='deploy')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch

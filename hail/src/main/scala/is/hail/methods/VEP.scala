@@ -21,6 +21,7 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.io.Source
 
 case class VEPConfiguration(
@@ -144,6 +145,8 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           env.put(key, value)
         }
 
+        val warnContext = new mutable.HashSet[String]
+
         val rvv = new RegionValueVariant(localRowType)
         it
           .map { rv =>
@@ -183,7 +186,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
                 } else {
                   try {
                     val jv = JsonMethods.parse(s)
-                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
+                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature, warnContext = warnContext)
                     val variantString = inputQuery(a).asInstanceOf[String]
                     if (variantString == null)
                       fatal(s"VEP generated null variant string" +

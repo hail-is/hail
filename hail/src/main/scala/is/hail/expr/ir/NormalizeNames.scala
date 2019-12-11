@@ -104,6 +104,15 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newAccumName = gen()
         val newValueName = gen()
         ArrayFold(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
+      case ArrayFold2(a, accum, valueName, seq, res) =>
+        val newValueName = gen()
+        val (accNames, newAcc) = accum.map { case (old, ir) =>
+          val newName = gen()
+          ((old, newName), (newName, normalize(ir)))
+        }.unzip
+        val resEnv = env.bindEval(accNames: _*)
+        val seqEnv = resEnv.bindEval(valueName, newValueName)
+        ArrayFold2(normalize(a), newAcc, newValueName, seq.map(normalize(_, seqEnv)), normalize(res, resEnv))
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()

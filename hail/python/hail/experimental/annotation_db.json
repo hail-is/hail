@@ -1,0 +1,121 @@
+{"DANN":
+ {"description": "DANN: a deep learning approach for annotating the pathogenicity of genetic variants.",
+  "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4341060/",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/DANN.GRCh37.ht",
+     "version": "GRCh37"},
+    {"url":"gs://hail-common/datasets/1/DANN.GRCh38.ht",
+     "version": "GRCh38"}]},
+ "CADD":
+ {"description": "CADD: an algorithm designed to annotate both coding and non-coding variants.",
+  "url": "http://europepmc.org/abstract/med/11384848",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/CADD.v1.4.GRCh37.ht",
+     "version": "1.4-GRCh37"},
+    {"url":"gs://hail-common/datasets/1/CADD.v1.4.GRCh38.ht",
+     "version": "1.4-GRCh38"}]},
+ "Ensembl_homo_sapiens_reference_genome":
+ {"description": "Ensembl: a genome browser for vertebrate genomes that supports research in comparative genomics, evolution, sequence variation and transcriptional regulation.",
+  "url": "https://useast.ensembl.org/index.html",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht",
+     "version": "95-GRCh37"},
+    {"url":"gs://hail-common/datasets/1/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht",
+     "version": "95-GRCh38"}]},
+ "Ensembl_homo_sapiens_low_complexity_regions":
+ {"description": "Ensembl: a genome browser for vertebrate genomes that supports research in comparative genomics, evolution, sequence variation and transcriptional regulation.",
+  "url": "https://useast.ensembl.org/index.html",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht",
+     "version": "95-GRCh37"},
+    {"url":"gs://hail-common/datasets/1/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht",
+     "version": "95-GRCh38"}]},
+ "gencode":
+ {"description": "GENCODE: aims to identify all gene features in the human genome using a combination of computational analysis, manual annotation, and experimental validation.",
+  "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3431492/",
+  "key_properties": [],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/gencode.v19.annotation.GRCh37.ht",
+     "version": "GRCh37"},
+    {"url":"gs://hail-common/datasets/1/gencode.v31.annotation.GRCh38.ht",
+     "version": "GRCh38"}]},
+ "gnomad_lof_metrics":
+ {"description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
+  "url": "https://gnomad.broadinstitute.org/",
+  "key_properties": ["gene"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/gnomad_v2.1.1_lof_metrics_by_gene.ht",
+     "version": "2.1.1"}]},
+ "gnomad_exome_sites":
+ {"description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
+  "url": "https://gnomad.broadinstitute.org/",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url":"gs://gnomad-public/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht",
+     "version": "2.1.1-GRCh37"},
+    {"url":"gs://gnomad-public/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht",
+     "version": "2.1.1-GRCh38"}]},
+ "gnomad_genome_sites":
+ {"description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
+  "url": "https://gnomad.broadinstitute.org/",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url":"gs://gnomad-public/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht",
+     "version": "2.1.1-GRCh37"},
+    {"url":"gs://gnomad-public/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht",
+     "version": "2.1.1-GRCh38"}]},
+ "clinvar_gene_summary":
+ {"description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
+  "url": "https://www.ncbi.nlm.nih.gov/clinvar/",
+  "key_properties": ["gene", "unique"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/gene_specific_summary_2019-07.txt.gz.ht",
+     "version": "2019-07"}]},
+ "clinvar_variant_summary":
+ {"description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
+  "url": "https://www.ncbi.nlm.nih.gov/clinvar/",
+  "key_properties": [],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/variant_summary_2019-07.GRCh37.txt.gz.ht",
+     "version": "2019-07-GRCh37"},
+    {"url":"gs://hail-common/datasets/1/variant_summary_2019-07.GRCh38.txt.gz.ht",
+     "version": "2019-07-GRCh38"}]},
+ "dbNSFP_variants":
+ {"description": "dbNSFP: a database developed for functional prediction and annotation of all nsSNVs in the human genome.",
+  "url": "https://sites.google.com/site/jpopgen/dbNSFP",
+  "key_properties": [],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/dbnsfp4.0a.GRCh37.ht",
+     "version": "4.0-GRCh37"},
+    {"url":"gs://hail-common/datasets/1/dbnsfp4.0a.GRCh38.ht",
+     "version": "4.0-GRCh38"}]},
+ "dbNSFP_genes":
+ {"description": "dbNSFP: a database developed for functional prediction and annotation of all nsSNVs in the human genome.",
+  "url": "https://sites.google.com/site/jpopgen/dbNSFP",
+  "key_properties": ["gene", "unique"],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht",
+     "version": "4.0"}]},
+ "gerp_scores":
+ {"description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
+  "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
+  "key_properties": ["unique"],
+  "versions": [
+    {"url": "gs://hail-common/datasets/1/GERP_scores.GERP++.GRCh37.ht",
+     "version": "GRCh37"},
+    {"url":"gs://hail-common/datasets/1/GERP_scores.GERP++.GRCh38.ht",
+     "version": "GRCh38"}]},
+ "gerp_elements":
+ {"description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
+  "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
+  "key_properties": [],
+  "versions": [
+    {"url":"gs://hail-common/datasets/1/GERP_elements.GERP++.GRCh37.ht",
+     "version": "GRCh37"},
+    {"url":"gs://hail-common/datasets/1/GERP_elements.GERP++.GRCh38.ht",
+     "version": "GRCh38"}]}
+}

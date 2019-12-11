@@ -2,9 +2,11 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.{EmitMethodBuilder, IRParser}
+import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, IRParser, SortOrder}
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{BaseType, EncodedType}
+import is.hail.expr.types.{BaseType, Requiredness}
+import is.hail.expr.types.encoded.EType
+import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -152,11 +154,9 @@ object PType {
       case PVoid => PVoid
     }
   }
-
-  def canonical(t: EncodedType): PType = canonical(t.virtualType)
 }
 
-abstract class PType extends BaseType with Serializable {
+abstract class PType extends BaseType with Serializable with Requiredness {
   self =>
 
   def virtualType: Type
@@ -182,6 +182,10 @@ abstract class PType extends BaseType with Serializable {
       (signature, (a, toIns) => toIns)
   }
 
+  def asIdent: String = (if (required) "r_" else "o_") + _asIdent
+
+  def _asIdent: String
+
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
       sb.append("+")
@@ -194,7 +198,17 @@ abstract class PType extends BaseType with Serializable {
     sb.append(_toPretty)
   }
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
+  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+    codeOrdering(mb, this)
+
+  def codeOrdering(mb: EmitMethodBuilder, so: SortOrder): CodeOrdering =
+    codeOrdering(mb, this, so)
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: SortOrder): CodeOrdering =
+    so match {
+      case Ascending => codeOrdering(mb, other)
+      case Descending => codeOrdering(mb, other).reverse
+    }
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering
 
@@ -205,8 +219,6 @@ abstract class PType extends BaseType with Serializable {
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   def fundamentalType: PType = this
-
-  def required: Boolean
 
   final def unary_+(): PType = setRequired(true)
 
@@ -261,13 +273,14 @@ abstract class PType extends BaseType with Serializable {
     }
   }
 
-  final def isPrimitive: Boolean = {
-    fundamentalType.isInstanceOf[PBoolean] ||
-      fundamentalType.isInstanceOf[PInt32] ||
+  final def isPrimitive: Boolean =
+    fundamentalType.isInstanceOf[PBoolean] || isNumeric
+
+  final def isNumeric: Boolean =
+    fundamentalType.isInstanceOf[PInt32] ||
       fundamentalType.isInstanceOf[PInt64] ||
       fundamentalType.isInstanceOf[PFloat32] ||
       fundamentalType.isInstanceOf[PFloat64]
-  }
 
   def containsPointers: Boolean = false
 
@@ -276,17 +289,19 @@ abstract class PType extends BaseType with Serializable {
     t.physicalType
   }
 
-  def deepOptional(): PType =
+  def deepInnerRequired(required: Boolean): PType =
     this match {
-      case t: PArray => PArray(t.elementType.deepOptional())
-      case t: PSet => PSet(t.elementType.deepOptional())
-      case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
+      case t: PArray =>  PArray(t.elementType.deepInnerRequired(true), required)
+      case t: PSet => PSet(t.elementType.deepInnerRequired(true), required)
+      case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
+        PStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
       case t: PTuple =>
-        PTuple(t.types.map(_.deepOptional()): _*)
+        PTuple(required, t.types.map(_.deepInnerRequired(true)): _*)
+      case t: PInterval =>
+        PInterval(t.pointType.deepInnerRequired(true), required)
       case t =>
-        t.setRequired(false)
+        t.setRequired(required)
     }
 
   def unify(concrete: PType): Boolean = {

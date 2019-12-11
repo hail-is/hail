@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth
@@ -16,7 +16,9 @@ spec:
         app: auth
         hail.is/sha: "{{ code.sha }}"
     spec:
-      priorityClassName: infrastructure
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -27,6 +29,15 @@ spec:
                     values:
                     - auth
               topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: preemptible
+                operator: In
+                values:
+                - "true"
       tolerations:
        - key: preemptible
          value: "true"
@@ -60,6 +71,12 @@ spec:
             readOnly: true
          ports:
           - containerPort: 5000
+         readinessProbe:
+           httpGet:
+             path: /healthcheck
+             port: 5000
+           initialDelaySeconds: 5
+           periodSeconds: 5
       volumes:
        - name: deploy-config
          secret:
@@ -108,3 +125,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: auth
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: auth

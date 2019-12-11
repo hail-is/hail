@@ -28,9 +28,14 @@ def block_matrices_tofiles(bms: List[BlockMatrix], prefix: str, overwrite: bool 
            delimiter=str,
            header=nullable(str),
            add_index=bool,
-           compression=nullable(enumeration('gz', 'bgz')))
+           compression=nullable(enumeration('gz', 'bgz')),
+           custom_filenames=nullable(sequenceof(str)))
 def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False,
                           delimiter: str = '\t', header: Optional[str] = None,  add_index: bool = False,
-                          compression: Optional[str] = None):
-    writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression)
+                          compression: Optional[str] = None, custom_filenames=None):
+
+    if custom_filenames:
+        assert len(custom_filenames) == len(bms), "Number of block matrices and number of custom filenames must be equal"
+
+    writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression, custom_filenames)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))

@@ -1,14 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
-import is.hail.expr.types._
-import is.hail.rvd.RVD
-import is.hail.TestUtils._
 import is.hail.expr.types.virtual.{TArray, TInt32, TInt64}
-import is.hail.table.Table
 import is.hail.utils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
 
@@ -54,7 +51,7 @@ class RandomFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  val counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32())
+  def counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32())
   val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L, TInt32())
 
   def mapped2(n: Int, npart: Int) = TableMapRows(
@@ -93,11 +90,13 @@ class RandomFunctionsSuite extends HailSuite {
       Interval(Row(10), Row(14), false, true))
     val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
-    val repartitioned = mapped.repartition(newPartitioner)
-    val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner)
+    ExecuteContext.scoped { ctx =>
+      val repartitioned = mapped.repartition(newPartitioner, ctx)
+      val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner, ctx)
 
-    assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
-    assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())
+      assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
+      assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())
+    }
   }
 
   @Test def testInterpretIncrementsCorrectly() {
@@ -135,7 +134,7 @@ class RandomFunctionsSuite extends HailSuite {
           "counter" -> counter)))
 
     val expected = Interpret(tir, ctx).rvd.toRows.collect()
-    val actual = new Table(hc, tir).rdd.collect()
+    val actual = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(tir), "rows"), false)
 
     assert(expected.sameElements(actual))
   }

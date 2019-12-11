@@ -3,6 +3,7 @@ import argparse
 
 from . import login
 from . import logout
+from . import auth_list
 
 
 def parser():
@@ -18,13 +19,20 @@ def parser():
     logout_parser = subparsers.add_parser(
         'logout',
         help='Revoke Hail credentials.',
-        description='Obtain Hail credentials.')
+        description='Revoke Hail credentials.')
+    list_parser = subparsers.add_parser(
+        'list',
+        help='List Hail credentials.',
+        description='List Hail credentials.')
 
     login_parser.set_defaults(module='login')
     login.init_parser(login_parser)
 
     logout_parser.set_defaults(module='logout')
     logout.init_parser(logout_parser)
+
+    list_parser.set_defaults(module='list')
+    auth_list.init_parser(list_parser)
 
     return main_parser
 
@@ -36,6 +44,7 @@ def main(args):
     jmp = {
         'login': login,
         'logout': logout,
+        'list': auth_list,
     }
 
     args, pass_through_args = parser().parse_known_args(args=args)

@@ -1,0 +1,3 @@
+recursive-include web_common/templates *
+recursive-include web_common/static *
+recursive-include web_common/styles *

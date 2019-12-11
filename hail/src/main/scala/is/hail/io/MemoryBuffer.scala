@@ -65,12 +65,14 @@ final class MemoryBuffer extends Serializable {
     end += 8
   }
 
-  def writeBytes(region: Region, off: Long, n: Int) {
+  def writeBytes(off: Long, n: Int) {
     if (end + n > capacity)
       grow(n)
     Memory.memcpy(mem, end, off, n)
     end += n
   }
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = writeBytes(off, n)
 
   def readByte(): Byte = {
     assert(pos + 1 <= end)

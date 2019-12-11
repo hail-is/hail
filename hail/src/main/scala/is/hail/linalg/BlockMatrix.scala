@@ -86,7 +86,7 @@ object BlockMatrix {
   val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
   val bufferSpec: BufferSpec =
     new BlockingBufferSpec(32 * 1024,
-      new LZ4BlockBufferSpec(32 * 1024,
+      new LZ4FastBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec))
   
   def apply(sc: SparkContext, gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =
@@ -133,7 +133,7 @@ object BlockMatrix {
   
   // uniform or Gaussian
   def random(hc: HailContext, nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
-    seed: Int = 0, gaussian: Boolean): M =
+    seed: Long = 0, gaussian: Boolean): M =
     BlockMatrix(hc.sc, GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
       val blockSeed = seed + 15485863 * pi // millionth prime
@@ -201,6 +201,10 @@ object BlockMatrix {
     }
   }
 
+  def negationOp: BDM[Double] => BDM[Double] = -_
+
+  def reverseScalarDiv(r: BDM[Double], l: Double): BDM[Double] = l /:/ r
+
   object ops {
 
     implicit class Shim(l: M) {
@@ -261,7 +265,8 @@ object BlockMatrix {
     delimiter: String,
     header: Option[String],
     addIndex: Boolean,
-    compression: Option[String]): Unit = {
+    compression: Option[String],
+    customFilenames: Option[Array[String]]): Unit = {
     val fs = HailContext.sFS
 
     if (overwrite)
@@ -273,14 +278,19 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val bcFS = HailContext.bcFS
+    
+    val nameFunction = customFilenames match {
+      case None => i: Int => StringUtils.leftPad(i.toString, d, '0') + ".tsv"
+      case Some(filenames) => filenames.apply(_)
+    }
 
-    val extension = compression.map(x => "." + x).getOrElse("")
+    val compressionExtension = compression.map(x => "." + x).getOrElse("")
 
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
-        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv" + extension
+        val path = prefix + "/" + nameFunction(i) + compressionExtension
 
         using(
           new PrintWriter(
@@ -474,7 +484,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
-    val (Row(starts, stops), _) = ExecuteContext.scoped { ctx => CompileAndEvaluate[Row](ctx, startsAndStops) }
+    val Row(starts, stops) = ExecuteContext.scoped { ctx => CompileAndEvaluate[Row](ctx, startsAndStops) }
 
     filterRowIntervals(
       starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
@@ -1511,8 +1521,9 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     })
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-    val (blockRow, newBlockCol) = newGP.blockCoordinates(newGP.partitionToBlock(split.index))
-    val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
+    val blockIndex = newGP.partitionToBlock(split.index)
+    val (blockRow, newBlockCol) = newGP.blockCoordinates(blockIndex)
+    val (blockNRows, newBlockNCols) = newGP.blockDims(blockIndex)
     val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
     val newBlock = BDM.zeros[Double](blockNRows, newBlockNCols)
     var j = 0
@@ -1536,7 +1547,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           val ei = endIndices(colRangeIndex)
           k = j + ei - si
 
-          newBlock(::, j until k) := block(::, si until ei)
+          newBlock(::, j until k) := block(0 until newBlock.rows, si until ei)
 
           j = k
           colRangeIndex += 1
@@ -1862,7 +1873,7 @@ class WriteBlocksRDD(path: String,
                 val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
                 if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
                   val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-                  data(j) = region.loadDouble(fieldOffset)
+                  data(j) = Region.loadDouble(fieldOffset)
                 } else {
                   val rowIdx = blockRow * blockSize + i
                   fatal(s"Cannot create BlockMatrix: missing value at row $rowIdx and col $colIdx")

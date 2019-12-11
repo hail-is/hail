@@ -44,6 +44,7 @@ Import data from a non-Hail format into a Hail format.
     import_plink
     import_table
     import_vcf
+    import_gvcfs
 
 .. _methods_impex_read:
 
@@ -73,5 +74,6 @@ Read data from a Hail format.
 .. autofunction:: import_plink
 .. autofunction:: import_table
 .. autofunction:: import_vcf
+.. autofunction:: import_gvcfs
 .. autofunction:: read_matrix_table
 .. autofunction:: read_table

@@ -12,7 +12,7 @@
 
 {% if pagename == "annotation_database_ui" %}
 {%- set css_files = css_files + [ '_static/annotationdb/annotationdb.css'] %}
-{%- set script_files = script_files + ['_static/annotationdb/clipboard.min.js', '_static/annotationdb/annotationdb.js'] %}
+{%- set script_files = script_files + ['_static/annotationdb/clipboard.min.js','_static/hail_version.js','_static/annotationdb/annotationdb.js'] %}
 {% endif %}
 
 <!DOCTYPE html>
@@ -40,8 +40,8 @@
     {% endif %}
 
   {% endif %}
-  
   <script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
+
   <link rel='stylesheet' href='/vendors/bootstrap/css/bootstrap.min.css' type='text/css'/>
 
   {# RTD hosts this file, so just load on non RTD builds #}
@@ -188,14 +188,13 @@
   {% include "versions.html" %}
 
   {% if not embedded %}
-
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
             URL_ROOT:'{{ url_root }}',
             VERSION:'{{ release|e }}',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'{{ '' if no_search_suffix else file_suffix }}',
-            HAS_SOURCE:  {{ has_source|lower }},
+            HAS_SOURCE:  '{{ has_source|lower }}',
             SOURCELINK_SUFFIX: '{{ sourcelink_suffix }}'
         };
     </script>
@@ -229,14 +228,15 @@
 
   {%- block footer %} {% endblock %}
 
-  <script>
-    function search() {
+  <script type="text/javascript">
+  function search() {
       var search = $('[name=q]')
       search.val('')
       search.focus()
       return false;
     }
-    Mousetrap.bind('/', search)
+    Mousetrap.bind('/', search);
   </script>
+  <script src="{{ pathto('_static/goto.js', 1) }}"></script>
 </body>
 </html>

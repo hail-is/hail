@@ -1,3 +1,2 @@
-recursive-include batch/templates *
-recursive-include batch/static *
-recursive-include batch/js *
+recursive-include batch/front_end/templates *
+recursive-include batch/driver/templates *

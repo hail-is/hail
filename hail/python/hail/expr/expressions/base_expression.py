@@ -1,12 +1,111 @@
 from typing import *
 
+import numpy as np
+
 from hail.expr import expressions
 from hail.expr.types import *
+from hail.expr.types import from_numpy
 from hail.ir import *
 from hail.typecheck import linked_list
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
+
+from hail.expr.types import summary_type
+
+class Summary(object):
+    def __init__(self, type, count, summ_fields, nested, header=None):
+        self.count = count
+        self.summ_fields = summ_fields
+        self.nested = nested
+        self.type = type
+        self.header = header
+
+    @staticmethod
+    def pct(x):
+        return f'{x*100:.2f}%'
+
+    @staticmethod
+    def format(x):
+        if isinstance(x, float):
+            return f'{x:.2f}'
+        else:
+            return str(x)
+
+    def __str__(self):
+        return self._ascii_string(depth=0, prefix=None)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _repr_html_(self):
+        return self._html_string(prefix=None)
+
+    def _ascii_string(self, depth, prefix):
+        spacing = '  ' * depth
+
+        summary = ''
+        if self.header:
+            summary += f'\n{spacing}{self.header}'
+
+        if prefix is not None:
+            summary += f'\n\n{spacing}- {prefix} ({summary_type(self.type)}):'
+
+        if len(self.summ_fields) > 0:
+            max_n_len = max(len(n) for n in self.summ_fields.keys())
+            for name, v in self.summ_fields.items():
+                summary += f'\n{spacing}  {name.rjust(max_n_len)}: {self.format(v)}'
+        for name, field in self.nested.items():
+            if prefix is not None:
+                name = f'{prefix}{name}'
+            summary += field._ascii_string(depth + 1, prefix=name)
+
+        return summary
+
+    def _html_string(self, prefix):
+        import html
+        summary = ''
+        if self.header:
+            summary += f'<p>{self.header}</p>'
+        if prefix is not None:
+            summary += f'<b>{html.escape(prefix)}</b> (<i>{html.escape(summary_type(self.type))}</i>):'
+
+        summary += '<ul>'
+        if len(self.summ_fields) > 0:
+            summary += '<table><tbody>'
+            for name, v in self.summ_fields.items():
+                summary += f'<tr><td>{html.escape(name)}</td><td>{html.escape(self.format(v))}</td></tr>'
+            summary += '</tbody></table>'
+        for name, field in self.nested.items():
+            if prefix is not None:
+                name = f'{prefix}{name}'
+            summary += '<li>' + field._html_string(prefix=name) + '</li>'
+        summary += '</ul>'
+
+        return summary
+
+
+class NamedSummary(object):
+    def __init__(self, summary, name, header):
+        self.header = header
+        self.name = name
+        self.summary = summary
+
+    def __str__(self):
+        s = self.summary._ascii_string(depth=0, prefix=self.name)
+        if self.header:
+            s = f'{self.header}\n======' + s
+        return s
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _repr_html_(self):
+        import html
+        s = self.summary._html_string(prefix=self.name)
+        if self.header:
+            s = f'<h3>{html.escape(self.header)}</h3>' + s
+        return s
 
 
 class ExpressionException(Exception):
@@ -82,6 +181,9 @@ def impute_type(x):
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with values of types {} ".format(list(vts)))
         return tdict(unified_key_type, unified_value_type)
+    elif isinstance(x, np.ndarray):
+        element_type = from_numpy(x.dtype)
+        return tndarray(element_type, x.ndim)
     elif x is None:
         raise ExpressionException("Hail cannot impute the type of 'None'")
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
@@ -96,6 +198,9 @@ def to_expr(e, dtype=None) -> 'Expression':
         if dtype and not dtype == e.dtype:
             raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
         return e
+    return cast_expr(e, dtype)
+
+def cast_expr(e, dtype=None) -> 'Expression':
     if not dtype:
         dtype = impute_type(e)
     x = _to_expr(e, dtype)
@@ -307,6 +412,7 @@ class Expression(object):
         self._type = type
         self._indices = indices
         self._aggregations = aggregations
+        self._summary = None
 
     def describe(self, handler=print):
         """Print information about type, index, and dependencies."""
@@ -741,6 +847,7 @@ class Expression(object):
         1:3	["A","C"]	1/1	0/1	0/1	0/0
         1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
+
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
@@ -750,6 +857,7 @@ class Expression(object):
         1:3	["A","C"]	1/1	0/1	0/1	0/0
         1:4	["A","C"]	1/1	0/1	1/1	1/1
         <BLANKLINE>
+
         >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
@@ -760,6 +868,7 @@ class Expression(object):
         2	0
         3	2
         <BLANKLINE>
+
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
         ...     for line in f:
@@ -770,6 +879,7 @@ class Expression(object):
         1:3	["A","C"]	4.3765e-01
         1:4	["A","C"]	7.6300e-01
         <BLANKLINE>
+
         >>> mt = small_mt
         >>> small_mt.bn.export('output/bn.tsv')
         >>> with open('output/bn.tsv', 'r') as f:
@@ -905,39 +1015,68 @@ class Expression(object):
             return hl.eval(e)
         return e
 
-    def summarize(self):
+    def _extra_summary_fields(self, agg_result):
+        return {}
+
+    def _summary_fields(self, agg_result, top):
+        if top:
+            return {}, self._nested_summary(agg_result[2], top)
+        n_missing = agg_result[0]
+        n_defined = agg_result[1]
+        tot = n_missing + n_defined
+        missing_value_str = str(n_missing) if n_missing == 0 else f'{n_missing} ({(n_missing / tot) * 100:.2f}%)'
+        defined_value_str = str(n_defined) if n_defined == 0 else f'{n_defined} ({(n_defined / tot) * 100:.2f}%)'
+        if n_defined == 0:
+            return {'Non-missing': defined_value_str, 'Missing': missing_value_str}, {}
+        return {'Non-missing': defined_value_str, 'Missing': missing_value_str,
+                **self._extra_summary_fields(agg_result[2])}, self._nested_summary(agg_result[2], top)
+
+    def _nested_summary(self, agg_result, top):
+        return {}
+
+    def _summary_aggs(self):
+        return hl.null(hl.tint32)
+
+    def _all_summary_aggs(self):
+        return hl.tuple((
+            hl.agg.filter(hl.is_missing(self), hl.agg.count()),
+            hl.agg.filter(hl.is_defined(self), hl.agg.count()),
+            self._summary_aggs()))
+
+    def _summarize(self, agg_res=None, *, name=None, header=None, top=False):
+        src = self._indices.source
+        summary_header = None
+        if src is None or len(self._indices.axes) == 0:
+            raise ValueError("Cannot summarize a scalar expression")
+        if agg_res is None:
+            count, agg_res = self._aggregation_method()(hl.tuple((hl.agg.count(), self._all_summary_aggs())))
+            summary_header = f'{count} records.'
+        sum_fields, nested = self._summary_fields(agg_res, top)
+        summary = Summary(self._type, agg_res[0], sum_fields, nested, header=summary_header)
+        if name is None and header is None:
+            return summary
+        else:
+            return NamedSummary(summary, name, header)
+
+    def summarize(self, handler=None):
         """Compute and print summary information about the expression.
 
         .. include:: _templates/experimental.rst
         """
-        src =self._indices.source
-        if src is None or len(self._indices.axes) == 0:
-            raise ValueError("Cannot summarize a scalar expression")
 
-        selector, agg_f = self._selector_and_agg_method()
-
+        src = self._indices.source
         if self in src._fields:
             field_name = src._fields_inverse[self]
             prefix = field_name
-            t = selector(field_name)
         else:
-            field_name = Env.get_uid()
             if self._ir.is_nested_field:
                 prefix = self._ir.name
             else:
                 prefix = '<expr>'
-            t = selector(**{field_name: self})
-        computations, printers = hl.expr.generic_summary(t[field_name], prefix)
-        results = agg_f(t)(computations)
 
-        for name, fields in printers:
-            print(f'* {name}:')
-
-            max_k_len = max(len(f) for f in fields)
-            for k, v in fields.items():
-                print(f'    {k.rjust(max_k_len)} : {v(results)}')
-            print()
-
+        if handler is None:
+            handler = hl.utils.default_handler()
+        handler(self._summarize(name=prefix))
 
     def _selector_and_agg_method(self):
         src = self._indices.source

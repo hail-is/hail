@@ -9,7 +9,6 @@ import is.hail.expr.types.virtual.{TFloat64, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype, HardCallView}
 import org.apache.spark.rdd.RDD
@@ -29,10 +28,10 @@ object IBDInfo {
     fromRegionValue(rv.region, rv.offset)
 
   def fromRegionValue(region: Region, offset: Long): IBDInfo = {
-    val Z0 = region.loadDouble(pType.loadField(region, offset, 0))
-    val Z1 = region.loadDouble(pType.loadField(region, offset, 1))
-    val Z2 = region.loadDouble(pType.loadField(region, offset, 2))
-    val PI_HAT = region.loadDouble(pType.loadField(region, offset, 3))
+    val Z0 = Region.loadDouble(pType.loadField(region, offset, 0))
+    val Z1 = Region.loadDouble(pType.loadField(region, offset, 1))
+    val Z2 = Region.loadDouble(pType.loadField(region, offset, 2))
+    val PI_HAT = Region.loadDouble(pType.loadField(region, offset, 3))
     IBDInfo(Z0, Z1, Z2, PI_HAT)
   }
 }
@@ -62,9 +61,9 @@ object ExtendedIBDInfo {
 
   def fromRegionValue(region: Region, offset: Long): ExtendedIBDInfo = {
     val ibd = IBDInfo.fromRegionValue(region, pType.loadField(region, offset, 0))
-    val ibs0 = region.loadLong(pType.loadField(region, offset, 1))
-    val ibs1 = region.loadLong(pType.loadField(region, offset, 2))
-    val ibs2 = region.loadLong(pType.loadField(region, offset, 3))
+    val ibs0 = Region.loadLong(pType.loadField(region, offset, 1))
+    val ibs1 = Region.loadLong(pType.loadField(region, offset, 2))
+    val ibs2 = Region.loadLong(pType.loadField(region, offset, 3))
     ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
   }
 }
@@ -304,26 +303,6 @@ object IBD {
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
   private val ibdKey = FastIndexedSeq("i", "j")
 
-  def toKeyTable(hc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
-    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(hc, ktRdd, ibdPType, FastIndexedSeq("i", "j"))
-  }
-
-  def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
-    val rvd = tv.rvd
-    rvd.map { rv =>
-      val region = rv.region
-      val i = PString.loadString(region, ibdPType.loadField(rv, 0))
-      val j = PString.loadString(region, ibdPType.loadField(rv, 1))
-      val ibd = IBDInfo.fromRegionValue(region, ibdPType.loadField(rv, 2))
-      val ibs0 = region.loadLong(ibdPType.loadField(rv, 3))
-      val ibs1 = region.loadLong(ibdPType.loadField(rv, 4))
-      val ibs2 = region.loadLong(ibdPType.loadField(rv, 5))
-      val eibd = ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
-      ((i, j), eibd)
-    }
-  }
-
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
     val rvRowType = input.rvRowType
     val rvRowPType = input.rvRowPType
@@ -336,7 +315,7 @@ object IBD {
 
     (rv: RegionValue) => {
       val isDefined = rvRowPType.isFieldDefined(rv, idx)
-      val maf = rv.region.loadDouble(rvRowPType.loadField(rv, idx))
+      val maf = Region.loadDouble(rvRowPType.loadField(rv, idx))
       if (!isDefined) {
         val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")

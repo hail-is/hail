@@ -1,12 +1,11 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.annotations.RegionValue
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils._
-import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 object RegressionUtils {  
@@ -34,7 +33,7 @@ object RegressionUtils {
         val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, k)
         if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
           val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-          val e = region.loadDouble(fieldOffset)
+          val e = Region.loadDouble(fieldOffset)
           sum += e
           data(offset + j) = e
         } else
@@ -79,11 +78,6 @@ object RegressionUtils {
 
     (DenseVector(y.data), covs, completeSamples)
   }
-
-  def getPhenosCovCompleteSamples(
-    mv: MatrixTable,
-    yFields: Array[String],
-    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(mv, yFields, covFields)
 
   def getPhenosCovCompleteSamples(
     mv: MatrixValue,

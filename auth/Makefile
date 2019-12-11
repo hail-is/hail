@@ -5,20 +5,12 @@ AUTH_LATEST = gcr.io/$(PROJECT)/auth:latest
 AUTH_IMAGE = gcr.io/$(PROJECT)/auth:$(shell docker images -q --no-trunc auth:latest | sed -e 's,[^:]*:,,')
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python python3
-
-PY_FILES := $(shell find auth -iname \*.py -not -exec git check-ignore -q {} \; -print)
-
-flake8-stmp: $(PY_FILES)
-	$(PYTHON) -m flake8 auth
-	touch $@
-
-pylint-stmp: $(PY_FILES)
-	$(PYTHON) -m pylint --rcfile ../pylintrc auth --score=n
-	touch $@
+PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear python3
 
 .PHONY: check
-check: flake8-stmp pylint-stmp
+check:
+	$(PYTHON) -m flake8 auth
+	$(PYTHON) -m pylint --rcfile ../pylintrc auth --score=n
 
 .PHONY: build
 build:
@@ -42,4 +34,3 @@ deploy: push
 .PHONY:
 clean:
 	rm -f Dockerfile.out deployment.yaml.out
-	rm -f flake8-stmp pylint-stmp
