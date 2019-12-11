@@ -135,7 +135,7 @@ def zeros(shape, dtype=hl.tfloat64):
 
        Parameters
        ----------
-       shape: `tuple` or :class:`.TupleExpression`
+       shape : `tuple` or :class:`.TupleExpression`
             Desired shape.
        dtype : :class:`.HailType`
             Desired hail type.
