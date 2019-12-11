@@ -818,9 +818,9 @@ async def ui_get_job(request, userdata):
 
 
 @routes.get('/billing_projects')
-@prom_async_time(REQUEST_BILLING_PROJECTS_UI)
+@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_users_only()
-async def ui_get_job(request, userdata):
+async def ui_get_billing_projects(request, userdata):
     db = app['db']
     billing_projects = {}
     async for record in db.execute_and_fetchone(
