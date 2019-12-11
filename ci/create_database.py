@@ -132,7 +132,7 @@ async def migrate(database_name, db, i, migration):
             await check_shell(f'python3 {script}')
         else:
             await check_shell(f'''
-mysql --defaults-extra-file=/sql-config/sql-config.cnf <{script}
+mysql --defaults-extra-file=$HAIL_DATABASE_CONFIG_FILE <{script}
 ''')
 
         await db.just_execute(
