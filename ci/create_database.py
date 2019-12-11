@@ -44,8 +44,6 @@ async def create_database(create_database_config):
         sql_config = json.loads(f.read())
 
     namespace = create_database_config['namespace']
-    scope = create_database_config['scope']
-    code_short_str = create_database_config['code_short_str']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
 
@@ -56,10 +54,17 @@ async def create_database(create_database_config):
         await write_user_config(namespace, database_name, 'user', sql_config)
         return
 
+    scope = create_database_config['scope']
+    _name = create_database_config['database_name']
+    admin_username = create_database_config['admin_username']
+    user_username = create_database_config['user_username']
+
     db = Database()
     await db.async_init()
 
     if scope == 'deploy':
+        assert _name == database_name
+
         # create if not exists
         rows = db.execute_and_fetchall(
             "SHOW DATABASES LIKE '{database_name}';")
@@ -67,14 +72,6 @@ async def create_database(create_database_config):
         if len(rows) > 0:
             assert len(rows) == 1
             return
-
-        _name = database_name
-        admin_username = f'{database_name}-admin'
-        user_username = f'{database_name}-user'
-    else:
-        _name = f'{code_short_str}-{database_name}-{generate_token()}'
-        admin_username = generate_token()
-        user_username = generate_token()
 
     admin_password = secrets.token_urlsafe(16)
     user_password = secrets.token_urlsafe(16)

@@ -1026,11 +1026,17 @@ class CreateDatabase2Step(Step):
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if self.cant_create_database:
             self._name = None
+            self.admin_username = None
+            self.user_username = None
         elif params.scope == 'deploy':
             self._name = database_name
+            self.admin_username = f'{database_name}-admin'
+            self.user_username = f'{database_name}-user'
         else:
             assert params.scope == 'test'
             self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
+            self.admin_username = generate_token()
+            self.user_username = generate_token()
 
         self.admin_secret_name = f'sql-{self.database_name}-admin-config'
         self.user_secret_name = f'sql-{self.database_name}-user-config'
@@ -1060,8 +1066,10 @@ class CreateDatabase2Step(Step):
         create_database_config = {
             'namespace': self.namespace,
             'scope': scope,
-            'code_short_str': code.short_str(),
             'database_name': self.database_name,
+            '_name': self._name,
+            'admin_username': self.admin_username,
+            'user_username': self.user_username,
             'cant_create_database': self.cant_create_database,
             'migrations': self.migrations
         }
@@ -1103,8 +1111,8 @@ set -ex
 
 cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
 DROP DATABASE \\`{self._name}\\`;
-DROP USER '{self.database_name}-admin';
-DROP USER '{self.database_name}-user';
+DROP USER '{self.admin_username}';
+DROP USER '{self.user_username}';
 EOF
 '''
 
