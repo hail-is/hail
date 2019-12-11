@@ -132,7 +132,7 @@ async def migrate(database_name, db, i, migration):
             await check_shell(f'python3 {script}')
         else:
             await check_shell(f'''
-mysql --defaults-extra-file=$HAIL_DATABASE_CONFIG_FILE <{script}
+mysql --defaults-extra-file=/sql-config.cnf <{script}
 ''')
 
         await db.just_execute(
@@ -166,17 +166,18 @@ async def async_main():
 
     admin_secret_name = f'sql-{database_name}-admin-config'
     out, _ = await check_shell_output(
-        f'''
-kubectl -n {namespace} get -o jsonpath={{.data.sql-config\\\\.json}} secret {shq(admin_secret_name)} \\
-  | base64 -d
+            f'''
+kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
 ''')
+    admin_secret = json.loads(out)
 
-    with open('sql-config.json', 'w') as f:
-        f.write(out.decode('utf-8'))
+    with open('/sql-config.json', 'wb') as f:
+        f.write(base64.b64decode(x['data']['sql-config.json']))
 
-    config_file = f'{os.getcwd()}/sql-config.json'
-    print(f'database config file {config_file}')
-    os.environ['HAIL_DATABASE_CONFIG_FILE'] = config_file
+    with open('/sql-config.cnf', 'wb') as f:
+        f.write(base64.b64decode(x['data']['sql-config.cnf']))
+
+    os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
 
     db = Database()
     await db.async_init()
