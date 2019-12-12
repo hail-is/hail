@@ -15,3 +15,8 @@ def make_ndarray_bench():
     ht = hl.utils.range_table(200_000)
     ht = ht.annotate(x=hl._nd.array(hl.range(200_000)))
     ht._force_count()
+
+@benchmark()
+def ndarray_matmul_benchmark():
+    arr = hl._nd.arange(4096 * 4096).reshape((4096, 4096))
+    hl.eval(arr @ arr)
