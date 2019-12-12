@@ -335,18 +335,11 @@ object EmitStream {
         case NA(_) =>
           missing
 
-        case (_: Ref | _: In) =>
-          val (m, v, eltType) = streamIR match {
-            case In(i, t@PStream(e, _)) =>
-              val EmitTriplet(_, m, v) = emitter.normalArgument(i, t)
-              (m, v, e)
-            case Ref(x, TStream(e, _)) =>
-              val (_, m, v) = env.lookup(x)
-              (m, v, e.physicalType)
-          }
+        case In(i, t@PStream(eltPType, _)) =>
+          val EmitTriplet(_, m, v) = emitter.normalArgument(i, t)
           fromIterator[RegionValue]
             .map { (rv: Code[RegionValue]) =>
-              present(Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset")))
+              present(Region.loadIRIntermediate(eltPType)(rv.invoke[Long]("getOffset")))
             }
             .guardParam { (_, k) =>
               m.mux(k(None), k(Some(coerce[Iterator[RegionValue]](v))))
