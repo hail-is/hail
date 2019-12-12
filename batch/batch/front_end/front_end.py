@@ -863,12 +863,12 @@ WHERE billing_projects.name = %s;
         (billing_project, user, billing_project))
     if not row:
         set_message(session, f'No such billing project {billing_project}.', 'error')
-        raise web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+        raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
     assert row['billing_project'] == billing_project
 
     if row['user'] is None:
         set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
     await db.just_execute(
         '''
@@ -878,7 +878,7 @@ WHERE billing_project = %s AND user = %s;
         (billing_project, user))
 
     set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -906,11 +906,11 @@ WHERE billing_projects.name = %s;
         (billing_project, user, billing_project))
     if row is None:
         set_message(session, f'No such billing project {billing_project}.', 'error')
-        raise web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+        raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
     if row['user'] is not None:
         set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
     await db.execute_insertone(
         '''
@@ -920,7 +920,7 @@ VALUES (%s, %s);
         (billing_project, user))
 
     set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.post('/billing_projects/add')
@@ -942,7 +942,7 @@ WHERE name = %s;
         (billing_project))
     if row is not None:
         set_message(session, f'Billing project {billing_project} already exists.', 'error')
-        raise web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+        raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
     await db.execute_insertone(
         '''
@@ -952,7 +952,7 @@ VALUES (%s);
         (billing_project))
 
     set_message(session, f'Added billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.get('')
