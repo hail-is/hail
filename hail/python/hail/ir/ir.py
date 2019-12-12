@@ -1564,7 +1564,7 @@ class InsertFields(IR):
     def construct_with_deduplication(old, fields, field_order):
         dd = defaultdict(int)
         for k, v in fields:
-            if isinstance(v, GetField):
+            if isinstance(v, GetField) and not isinstance(v.o, Ref):
                 dd[v.o] += 1
 
         replacements = {}
