@@ -110,3 +110,7 @@ def main(args, pass_through_args):
         for cmd in cmds:
             print(cmd)
             check_call(cmd)
+
+    if not wheel and not modify_args and pass_through_args:
+        sys.stderr.write('ERROR: found pass-through arguments but not known modification args.')
+        sys.exit(1)
