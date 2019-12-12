@@ -339,6 +339,15 @@ object Simplify {
       assert(x2.typ == x.typ)
       x2
 
+    case x@InsertFields(SelectFields(struct, selectFields), insertFields, _) if
+    insertFields.exists { case (name, f) => f == GetField(struct, name) } =>
+      val fields = x.typ.fieldNames
+      val insertNames = insertFields.map(_._1).toSet
+      val (oldFields, newFields) =
+        insertFields.partition {  case (name, f) => f == GetField(struct, name) }
+      val preservedFields = selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
+      InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields))
+
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
