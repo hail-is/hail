@@ -567,6 +567,31 @@ object EmitStream {
       emitStream(streamIR0, env0),
       streamIR0.pType.asInstanceOf[PStreamable].elementType)
   }
+
+  private[ir] def multiplicity(root: IR, refName: String): Int = {
+    var uses = 0
+    def traverse(ir: BaseIR, mult: Int): Unit = ir match {
+      case Ref(name, _) => if (refName == name) uses += mult
+      case Let(_, v, b) => traverse(v, 2); traverse(b, mult)
+      case ArrayMap(a, _, b) => traverse(a, mult); traverse(b, 2)
+      case ArrayFilter(a, _, b) => traverse(a, mult); traverse(b, 2)
+      case ArrayFlatMap(a, _, b) => traverse(a, mult); traverse(b, 2)
+      case ArrayLeftJoinDistinct(l, r, _, _, c, j) =>
+        traverse(l, mult); traverse(r, mult); traverse(c, 2); traverse(j, 2)
+      case ArrayScan(a, z, _, _, b) =>
+        traverse(a, mult); traverse(z, 2); traverse(b, 2)
+      case ArrayAggScan(a, _, q) =>
+        traverse(a, mult); traverse(q, 2)
+      case ir: IR =>
+        Children(ir).foreach(traverse(_, 2))
+      case _ =>
+    }
+    traverse(root, 1)
+    uses min 2
+  }
+
+  def isIterationLinear(ir: IR, refName: String): Boolean =
+    multiplicity(ir, refName) <= 1
 }
 
 case class EmitStream(

@@ -353,4 +353,30 @@ class EmitStreamSuite extends HailSuite {
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
     assert(f2(null) == null)
   }
+
+  @Test def testMultiplicity() {
+    val target = Ref("target", TStream(TInt32()))
+    val i = Ref("i", TInt32())
+    for ((ir, v) <- Seq(
+      StreamRange(0, 10, 1) -> 0,
+      target -> 1,
+      Let("x", True(), target) -> 1,
+      ArrayMap(target, "i", i) -> 1,
+      ArrayMap(ArrayMap(target, "i", i), "i", i * i) -> 1,
+      ArrayFilter(target, "i", ArrayFold(StreamRange(0, i, 1), 0, "a", "i", i)) -> 1,
+      ArrayFilter(StreamRange(0, 5, 1), "i", ArrayFold(target, 0, "a", "i", i)) -> 2,
+      ArrayFlatMap(target, "i", StreamRange(0, i, 1)) -> 1,
+      ArrayFlatMap(StreamRange(0, 5, 1), "i", target) -> 2,
+      ArrayLeftJoinDistinct(target, StreamRange(0, 5, 1), "l", "r", 0, 0) -> 1,
+      ArrayLeftJoinDistinct(
+        StreamRange(0, 5, 1),
+        ArrayFlatMap(target, "i", MakeStream(Seq(), TStream(TInt32()))),
+        "l", "r", 0, 0) -> 1,
+      ArrayLeftJoinDistinct(target, target, "l", "r", 0, 0) -> 2,
+      ArrayScan(ArrayMap(target, "i", i), 0, "a", "i", i) -> 1,
+      ArrayScan(ArrayScan(target, 0, "a", "i", i), 0, "a", "i", i) -> 1
+    )) {
+      assert(EmitStream.multiplicity(ir, "target") == v, Pretty(ir))
+    }
+  }
 }

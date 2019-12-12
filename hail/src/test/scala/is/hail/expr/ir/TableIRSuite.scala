@@ -476,5 +476,9 @@ class TableIRSuite extends HailSuite {
         // 0,0,0,0,0,5,5,5,5,5,...
         Row((i / 5) * 5)
       }, Row()))
+
+    interceptAssertion("must iterate over the partition exactly once") {
+      collect(TableMapPartitions(table, "part", ArrayFlatMap(part, "_", part)))
+    }
   }
 }

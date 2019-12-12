@@ -979,6 +979,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
 case class TableMapPartitions(child: TableIR, name: String, body: IR) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${body.typ}")
+  assert(EmitStream.isIterationLinear(body, name), "must iterate over the partition exactly once")
   val bodyType = body.typ.asInstanceOf[TStream]
   val newRowType = bodyType.elementType.asInstanceOf[TStruct]
   lazy val typ = child.typ.copy(rowType = newRowType)
