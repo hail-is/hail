@@ -146,7 +146,6 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
         jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
         conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
 
-
     conf.set('spark.jars', ','.join(jars))
     conf.set('spark.driver.extraClassPath', ','.join(jars))
     conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
@@ -212,7 +211,7 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     classpath = ":".join(classpath_jars)
 
     cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint"]
-    print(cmd)
+    #print(cmd)
 
     def preexec_func():
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -229,8 +228,6 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     hailpkg = getattr(jvm, 'is').hail
 
     backend = DistributedBackend(gateway)
-
-    print((hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations))
 
     jhc = hailpkg.HailContext.createDistributed(
         hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations
