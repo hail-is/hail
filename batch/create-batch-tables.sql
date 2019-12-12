@@ -359,6 +359,9 @@ BEGIN
             (SELECT SUM(cores_mcpu) FROM jobs
              WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
             0);
+      UPDATE jobs
+        SET jobs.state = IF(jobs.n_pending_parents = 0, 'Ready', 'Pending')
+        WHERE jobs.batch_id = in_batch_id;
       COMMIT;
       SELECT 0 as rc;
     ELSE

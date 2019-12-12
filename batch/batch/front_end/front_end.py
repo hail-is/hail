@@ -457,7 +457,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
 
-                state = 'Ready' if len(parent_ids) == 0 else 'Pending'
+                state = 'Pending'
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(spec),
@@ -587,7 +587,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
     if not record['closed']:
-        raise web.HTTPBadRequest(reason='cannot cancel open batch {batch_id}')
+        raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}')
 
     await db.execute_update(
         'UPDATE batches SET cancelled = closed WHERE id = %s;', (batch_id,))
