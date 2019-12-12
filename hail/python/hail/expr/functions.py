@@ -185,6 +185,9 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     if dtype is None:
         dtype = impute_type(x)
 
+    if isinstance(x, np.generic):
+        x = x.item()
+
     try:
         dtype._traverse(x, typecheck_expr)
     except TypeError as e:
