@@ -150,7 +150,7 @@ LIMIT 50;
 
     jobs = [job_record_to_dict(job)
             async for job
-            in db.execute_and_fetchall(sql, sql_args)]
+            in db.select_and_fetchall(sql, sql_args)]
 
     if len(jobs) == 50:
         last_job_id = jobs[-1]['job_id']
@@ -168,7 +168,7 @@ async def get_jobs(request, userdata):
     user = userdata['username']
 
     db = request.app['db']
-    record = await db.execute_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
@@ -229,7 +229,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
-    record = await db.execute_and_fetchone('''
+    record = await db.select_and_fetchone('''
 SELECT jobs.state, jobs.spec, ip_address
 FROM jobs
 INNER JOIN batches
@@ -240,7 +240,7 @@ LEFT JOIN instances
   ON attempts.instance_name = instances.name
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                           (user, batch_id, job_id))
+                                          (user, batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
@@ -333,7 +333,7 @@ LIMIT 50;
 
     batches = [batch_record_to_dict(batch)
                async for batch
-               in db.execute_and_fetchall(sql, sql_args)]
+               in db.select_and_fetchall(sql, sql_args)]
 
     if len(batches) == 50:
         last_batch_id = batches[-1]['id']
@@ -381,7 +381,7 @@ async def create_jobs(request, userdata):
 
     async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
         async with timer.step('fetch batch'):
-            record = await db.execute_and_fetchone(
+            record = await db.select_and_fetchone(
                 '''
 SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
@@ -473,27 +473,22 @@ WHERE user = %s AND id = %s AND NOT deleted;
                             (batch_id, job_id, k, v))
 
         async with timer.step('insert jobs'):
-            async with db.pool.acquire() as conn:
-                await conn.begin()
-                async with conn.cursor() as cursor:
-                    await cursor.executemany('''
+            async with db.start() as tx:
+                await tx.execute_many('''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-                                             jobs_args)
-                async with conn.cursor() as cursor:
-                    await cursor.executemany('''
+                                      jobs_args)
+                await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                                             job_parents_args)
-                async with conn.cursor() as cursor:
-                    await cursor.executemany('''
+                                      job_parents_args)
+                await tx.execute_many('''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
-                                             job_attributes_args)
-                await conn.commit()
+                                      job_attributes_args)
 
         return web.Response()
 
@@ -515,48 +510,41 @@ async def create_batch(request, userdata):
     billing_project = batch_spec['billing_project']
 
     attributes = batch_spec.get('attributes')
-    async with db.pool.acquire() as conn:
-        await conn.begin()
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                '''
-INSERT IGNORE INTO user_resources (user) VALUES (%s);
-''',
-                (user,))
-
-        async with conn.cursor() as cursor:
-            now = time_msecs()
-            await cursor.execute(
-                '''
+    async with db.start() as tx:
+        rows = tx.execute_and_fetchall(
+            '''
 SELECT * FROM billing_project_users
 WHERE billing_project = %s AND user = %s
 ''',
-                (billing_project, user))
-            rows = await cursor.fetchall()
-            if len(rows) != 1:
-                assert len(rows) == 0
-                raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+            (billing_project, user))
+        rows = [row async for row in rows]
+        if len(rows) != 1:
+            assert len(rows) == 0
+            raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
 
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                '''
+        await tx.just_execute(
+            '''
+INSERT IGNORE INTO user_resources (user) VALUES (%s);
+''',
+            (user,))
+
+        now = time_msecs()
+        id = await tx.execute_insertone(
+            '''
 INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-                (json.dumps(userdata), user, billing_project, json.dumps(attributes),
-                 batch_spec.get('callback'), batch_spec['n_jobs'],
-                 now))
-            id = cursor.lastrowid
+            (json.dumps(userdata), user, billing_project, json.dumps(attributes),
+             batch_spec.get('callback'), batch_spec['n_jobs'],
+             now))
 
         if attributes:
-            async with conn.cursor() as cursor:
-                await cursor.executemany(
-                    '''
+            await tx.execute_many(
+                '''
 INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
-                    [(id, k, v) for k, v in attributes.items()])
-        await conn.commit()
+                [(id, k, v) for k, v in attributes.items()])
 
     return web.json_response({'id': id})
 
@@ -564,7 +552,7 @@ VALUES (%s, %s, %s)
 async def _get_batch(app, batch_id, user):
     db = app['db']
 
-    record = await db.execute_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
@@ -578,7 +566,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 async def _cancel_batch(app, batch_id, user):
     db = app['db']
 
-    record = await db.execute_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
@@ -631,7 +619,7 @@ async def close_batch(request, userdata):
     app = request.app
     db = app['db']
 
-    record = await db.execute_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
@@ -673,7 +661,7 @@ async def delete_batch(request, userdata):
     app = request.app
     db = app['db']
 
-    record = await db.execute_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT closed FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
@@ -780,7 +768,7 @@ async def _get_job_running_status(record):
 async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
-    record = await db.execute_and_fetchone('''
+    record = await db.select_and_fetchone('''
 SELECT jobs.*, ip_address
 FROM jobs
 INNER JOIN batches
@@ -791,7 +779,7 @@ LEFT JOIN instances
   ON attempts.instance_name = instances.name
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                           (user, batch_id, job_id))
+                                          (user, batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
 
@@ -851,7 +839,7 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    row = await db.execute_and_fetchone(
+    row = await db.select_and_fetchone(
         'SELECT worker_type, worker_cores, instance_id, internal_token FROM globals;')
 
     app['worker_type'] = row['worker_type']

@@ -88,7 +88,7 @@ def activating_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
-        record = await db.execute_and_fetchone(
+        record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND activation_token = %s;',
             (instance.name, activation_token))
         if not record:
@@ -119,7 +119,7 @@ def active_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
-        record = await db.execute_and_fetchone(
+        record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND token = %s;',
             (instance.name, token))
         if not record:
@@ -143,7 +143,7 @@ async def close_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -164,7 +164,7 @@ async def cancel_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -186,7 +186,7 @@ async def delete_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -299,7 +299,7 @@ async def get_index(request, userdata):
     db = app['db']
     instance_pool = app['inst_pool']
 
-    ready_cores = await db.execute_and_fetchone(
+    ready_cores = await db.select_and_fetchone(
         'SELECT * FROM ready_cores;')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
@@ -423,7 +423,7 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    row = await db.execute_and_fetchone(
+    row = await db.select_and_fetchone(
         'SELECT instance_id, internal_token FROM globals;')
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
