@@ -516,7 +516,7 @@ async def create_batch(request, userdata):
         rows = tx.execute_and_fetchall(
             '''
 SELECT * FROM billing_project_users
-WHERE billing_project = %s AND user = %s
+WHERE billing_project = %s AND user = %s;
 ''',
             (billing_project, user))
         rows = [row async for row in rows]
@@ -854,7 +854,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
         '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
-LEFT JOIN (billing_project_users
+LEFT JOIN (SELECT * FROM billing_project_users
     WHERE billing_project = %s AND user = %s) AS t
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
@@ -898,7 +898,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
         '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
-LEFT JOIN (billing_project_users
+LEFT JOIN (SELECT * FROM billing_project_users
     WHERE billing_project = %s AND user = %s) AS t
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
