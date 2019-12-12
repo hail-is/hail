@@ -9,6 +9,11 @@ object HailJVMEntrypoint {
      val gatewayServer = new GatewayServer(HailJVMEntrypoint)
      gatewayServer.start()
      println("Started gateway server")
+     val successFileName = args(0)
+     println("Success file is " + successFileName)
+
+     val successFile = new java.io.File(successFileName)
+     successFile.createNewFile()
 
      while (System.in.read() != -1) {
        // Do nothing, just keeping it alive.

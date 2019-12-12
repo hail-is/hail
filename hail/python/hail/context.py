@@ -16,6 +16,7 @@ from hail.typecheck import nullable, typecheck, enumeration
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, scala_object
 from hail.backend import Backend, ServiceBackend, SparkBackend, DistributedBackend
+from hail.utils.misc import new_local_temp_file
 
 
 class HailContext(object):
@@ -210,8 +211,9 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     classpath_jars = spark_jars_path_list + [hail_jar]
     classpath = ":".join(classpath_jars)
 
-    cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint"]
-    #print(cmd)
+    success_file_path = new_local_temp_file()
+
+    cmd = ["java", "-cp", f"{classpath}", "is.hail.gateway.HailJVMEntrypoint", success_file_path]
 
     def preexec_func():
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -219,8 +221,8 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
 
     from py4j.java_gateway import JavaGateway, GatewayParameters
 
-    # TODO Need to have the Java server tell Python it's started.
-    time.sleep(1)
+    while not os.path.exists(success_file_path):
+        time.sleep(.1)
 
     gateway_params = GatewayParameters(auto_convert=True)
     gateway = JavaGateway(gateway_parameters=gateway_params)
@@ -228,6 +230,12 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     hailpkg = getattr(jvm, 'is').hail
 
     backend = DistributedBackend(gateway)
+
+    py_version = version()
+
+    if log is None:
+        log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+                                        suffix=f'-{py_version}.log')
 
     jhc = hailpkg.HailContext.createDistributed(
         hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations
@@ -339,9 +347,6 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     if log is None:
         log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
                                         suffix=f'-{py_version}.log')
-    # version = read_version_info()
-    # hail.__version__ = version
-
     if _backend:
         HailContext(_backend, None, default_reference, global_seed, log, quiet)
     else:
