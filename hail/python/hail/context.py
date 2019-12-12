@@ -27,11 +27,6 @@ class HailContext(object):
         self._warn_cols_order = True
         self._warn_entries_order = True
 
-        py_version = version()
-
-        if log is None:
-            log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
-                                            suffix=f'-{py_version}.log')
         self._log = log
         self._jhc = jhc
 
@@ -59,6 +54,7 @@ class HailContext(object):
             self._default_ref = ReferenceGenome.read(default_reference)
 
         jar_version = self._jhc.version()
+        py_version = version()
 
         if jar_version != py_version:
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
@@ -204,7 +200,7 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
 
 def init_distributed_backend(hostname, log, quiet, append, min_block_size,
                              branching_factor, tmp_dir, default_reference,
-                             global_seed, optimizer_iterations = 3):
+                             global_seed, optimizer_iterations=3):
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = [jar for jar in os.listdir(spark_jars_path)]
@@ -232,7 +228,9 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
     jvm = gateway.jvm
     hailpkg = getattr(jvm, 'is').hail
 
-    backend = DistributedBackend(jvm, gateway)
+    backend = DistributedBackend(gateway)
+
+    print((hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations))
 
     jhc = hailpkg.HailContext.createDistributed(
         hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations
@@ -261,7 +259,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          min_block_size=0, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
-         _optimizer_iterations=None,
+         _optimizer_iterations=3,
          _backend=None):
     """Initialize Hail and Spark.
 
@@ -339,12 +337,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             raise FatalError('Hail has already been initialized, restart session '
                              'or stop Hail to change configuration.')
 
-    version = read_version_info()
-    hail.__version__ = version 
+    py_version = version()
 
     if log is None:
         log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
-                                        suffix=f'-{version}.log')
+                                        suffix=f'-{py_version}.log')
+    # version = read_version_info()
+    # hail.__version__ = version
 
     if _backend:
         HailContext(_backend, None, default_reference, global_seed, log, quiet)
@@ -354,12 +353,12 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             service_backend = ServiceBackend()
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
-            # init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
-            #                          tmp_dir, default_reference, global_seed, _optimizer_iterations)
-            init_spark_backend(sc, app_name, master, local, log, quiet, append,
-                               min_block_size, branching_factor, tmp_dir,
-                               default_reference, idempotent, global_seed,
-                               _optimizer_iterations)
+            init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
+                                     tmp_dir, default_reference, global_seed, _optimizer_iterations)
+            # init_spark_backend(sc, app_name, master, local, log, quiet, append,
+            #                    min_block_size, branching_factor, tmp_dir,
+            #                    default_reference, idempotent, global_seed,
+            #                    _optimizer_iterations)
 
 
 def _find_hail_jar():
