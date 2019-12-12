@@ -1406,8 +1406,12 @@ class Table(ExprContainer):
                        s)
 
     @staticmethod
-    def _hl_format(v, truncate):
+    def _hl_format_old(v, truncate):
         return hl.bind(lambda s: Table._hl_trunc(s, truncate), Table._hl_repr(v))
+
+    @staticmethod
+    def _hl_format(v, truncate):
+        return hl._showstr(v, truncate)
 
     @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc), n_rows=nullable(int))
     def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None):

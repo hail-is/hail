@@ -20,6 +20,8 @@ class TString(override val required: Boolean) extends Type {
     sb.append("str")
   }
 
+  override def _showStr(a: Annotation): String = "\"" + a.asInstanceOf[String] + "\""
+
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
