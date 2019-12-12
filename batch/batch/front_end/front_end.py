@@ -55,6 +55,7 @@ REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/j
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
 REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
+REQUEST_TIME_POST_ADD_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/add', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -912,7 +913,7 @@ WHERE billing_projects.name = %s;
         set_message(session, 'User {user} is already member of billing project {billing_project}.', 'info')
         return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
 
-    await db.execute_and_insertone(
+    await db.execute_insertone(
         '''
 INSERT INTO billing_project_users(billing_project, user)
 VALUES (%s, %s);
@@ -920,6 +921,38 @@ VALUES (%s, %s);
         (billing_project, user))
 
     set_message(session, 'Added user {user} to billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+
+
+@routes.post('/billing_projects/add')
+@prom_async_time(REQUEST_TIME_POST_ADD_BILLING_PROJECT_UI)
+@check_csrf_token
+@web_authenticated_users_only()
+async def post_add_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+
+    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
+    row = await db.execute_and_fetchone(
+        '''
+SELECT 1 FROM billing_projects
+WHERE name = %s;
+''',
+        (billing_project))
+    if row is not None:
+        set_message(session, ' Billing project {billing_project} already exists.', 'error')
+        raise web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+
+    await db.execute_insertone(
+        '''
+INSERT INTO billing_projects(name)
+VALUES (%s);
+''',
+        (billing_project))
+
+    set_message(session, 'Added billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
 
 
