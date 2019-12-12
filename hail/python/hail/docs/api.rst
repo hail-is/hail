@@ -34,6 +34,7 @@ Modules
     aggregators <aggregators>
     scans <scans>
     methods <methods/index>
+    nd <nd/index>
     utils <utils/index>
     linalg <linalg/index>
     stats <stats/index>
