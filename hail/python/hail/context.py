@@ -21,7 +21,6 @@ from hail.utils.misc import new_local_temp_file
 
 class HailContext(object):
 
-
     def __init__(self, backend, jhc, default_reference, global_seed, log, quiet):
         self._backend = backend
 
@@ -198,9 +197,9 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
     HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
 
-def init_distributed_backend(hostname, log, quiet, append, min_block_size,
-                             branching_factor, tmp_dir, default_reference,
-                             global_seed, optimizer_iterations=3):
+def init_distributed_backend(hostname, log=None, quiet=False, append=False, min_block_size=0,
+                             branching_factor=50, tmp_dir='/tmp', default_reference='GRCh37',
+                             global_seed=6348563392232659379, optimizer_iterations=3):
     spark_home = _find_spark_home()
     spark_jars_path = os.path.join(spark_home, "jars")
     spark_jars_list = [jar for jar in os.listdir(spark_jars_path)]
@@ -241,7 +240,7 @@ def init_distributed_backend(hostname, log, quiet, append, min_block_size,
         hostname, log, quiet, append, min_block_size, branching_factor, tmp_dir, optimizer_iterations
     )
 
-    return HailContext(backend, jhc, default_reference, global_seed, log, quiet)
+    HailContext(backend, jhc, default_reference, global_seed, log, quiet)
 
 
 @typecheck(sc=nullable(SparkContext),
@@ -355,12 +354,10 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             service_backend = ServiceBackend()
             HailContext(service_backend, None, default_reference, global_seed, log, quiet)
         else:
-            init_distributed_backend("localhost", log, quiet, append, min_block_size, branching_factor,
-                                     tmp_dir, default_reference, global_seed, _optimizer_iterations)
-            # init_spark_backend(sc, app_name, master, local, log, quiet, append,
-            #                    min_block_size, branching_factor, tmp_dir,
-            #                    default_reference, idempotent, global_seed,
-            #                    _optimizer_iterations)
+            init_spark_backend(sc, app_name, master, local, log, quiet, append,
+                               min_block_size, branching_factor, tmp_dir,
+                               default_reference, idempotent, global_seed,
+                               _optimizer_iterations)
 
 
 def _find_hail_jar():
