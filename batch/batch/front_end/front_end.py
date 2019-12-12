@@ -831,7 +831,7 @@ async def ui_get_billing_projects(request, userdata):
     async for record in db.execute_and_fetchall(
             'SELECT * FROM billing_projects;'):
         name = record['name']
-        billing_projects[name] = {}
+        billing_projects[name] = []
     async for record in db.execute_and_fetchall(
             'SELECT * FROM billing_project_users;'):
         billing_project = record['billing_project']
