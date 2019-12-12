@@ -929,7 +929,8 @@ VALUES (%s, %s);
 @web_authenticated_users_only()
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
-    billing_project = request.match_info['billing_project']
+    post = await request.post()
+    billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
 
