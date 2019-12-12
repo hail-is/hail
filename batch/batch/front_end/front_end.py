@@ -55,7 +55,7 @@ REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/j
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
 REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
-REQUEST_TIME_POST_ADD_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/add', verb="POST")
+REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/create', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -923,11 +923,11 @@ VALUES (%s, %s);
     return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
-@routes.post('/billing_projects/add')
-@prom_async_time(REQUEST_TIME_POST_ADD_BILLING_PROJECT_UI)
+@routes.post('/billing_projects/create')
+@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI)
 @check_csrf_token
 @web_authenticated_users_only()
-async def post_add_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
 
