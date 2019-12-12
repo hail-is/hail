@@ -53,6 +53,8 @@ REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
+REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
+REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -824,7 +826,7 @@ async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
     billing_projects = {}
     async for record in db.execute_and_fetchall(
-        'SELECT * FROM billing_project_users;'):
+            'SELECT * FROM billing_project_users;'):
         billing_project = record['billing_project']
         user = record['user']
         if billing_project not in billing_projects:
@@ -834,6 +836,91 @@ async def ui_get_billing_projects(request, userdata):
         'billing_projects': billing_projects
     }
     return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+
+
+@routes.post('/billing_projects/{billing_project}/users/{user}/remove')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI)
+@check_csrf_token
+@web_authenticated_users_only()
+async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    user = request.match_info['user']
+
+    session = await aiohttp_session.get_session(request)
+
+    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
+    row = await db.execute_and_fetchone(
+        '''
+SELECT billing_projects.name as billing_project, user
+FROM billing_projects
+LEFT JOIN (billing_project_users
+    WHERE billing_project = %s AND user = %s) AS t
+  ON billing_projects.name = t.billing_project
+WHERE billing_projects.name = %s;
+''',
+        (billing_project, user, billing_project))
+    if not row:
+        set_message(session, 'No such billing project {billing_project}.', 'error')
+        raise web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+    assert len(row) == 1
+    assert row['billing_project'] == billing_project
+
+    if row['user'] is None:
+        set_message(session, 'User {user} is not member of billing project {billing_project}.', 'info')
+        return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+
+    await db.just_execute(
+        '''
+DELETE FROM billing_project_users
+WHERE billing_project = %s AND user = %s;
+''',
+        (billing_project, user))
+
+    set_message(session, 'Removed user {user} from billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+
+
+@routes.post('/billing_projects/{billing_project}/users/add')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI)
+@check_csrf_token
+@web_authenticated_users_only()
+async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    post = await request.post()
+    user = post['user']
+    billing_project = request.match_info['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+
+    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
+    row = await db.execute_and_fetchone(
+        '''
+SELECT billing_projects.name as billing_project, user
+FROM billing_projects
+LEFT JOIN (billing_project_users
+    WHERE billing_project = %s AND user = %s) AS t
+  ON billing_projects.name = t.billing_project
+WHERE billing_projects.name = %s;
+''',
+        (billing_project, user, billing_project))
+    if row is None:
+        set_message(session, 'No such billing project {billing_project}.', 'error')
+        raise web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+
+    if row['user'] is not None:
+        set_message(session, 'User {user} is already member of billing project {billing_project}.', 'info')
+        return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
+
+    await db.execute_and_insertone(
+        '''
+INSERT INTO billing_project_users(billing_project, user)
+VALUES (%s, %s);
+''',
+        (billing_project, user))
+
+    set_message(session, 'Added user {user} to billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.url('batch', f'/billing_projects'))
 
 
 @routes.get('')

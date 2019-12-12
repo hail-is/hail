@@ -8,6 +8,7 @@
 	  <tr>
 	    <th>Billing Project</th>
 	    <th>User</th>
+	    <th></th>
 	  </tr>
 	</thead>
 	<tbody>
@@ -15,13 +16,32 @@
 	  <tr>
 	    <td>{{ billing_project }}</td>
 	    <td></td>
+	    <td></td>
 	  </tr>
 	  {% for user in billing_projects[billing_project] %}
 	  <tr>
 	    <td></td>
 	    <td>{{ user }}</td>
+	    <td>
+              <form action="{{ base_path }}/billing_projects/{{ billing_project }}/users/{{ user }}/remove" method="POST">
+		<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+		<button>
+		  Remove
+		</button>
+	      </form>
+	    </td>
 	  </tr>
 	  {% endfor %}
+          <form action="{{ base_path }}/billing_projects/{{ billing_project }}/users/add" method="POST">
+	    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+	    <tr>
+	      <td></td>
+	      <td><input type="text" name="user"></td>
+	      <td>
+		<button>Add</button>
+	      </td>
+	    </tr>
+	  </form>
 	  {% endfor %}
 	</tbody>
       </table>
