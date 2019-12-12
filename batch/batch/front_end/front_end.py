@@ -825,13 +825,17 @@ async def ui_get_job(request, userdata):
 @web_authenticated_users_only()
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
+
+    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
     billing_projects = {}
+    async for record in db.execute_and_fetchall(
+            'SELECT * FROM billing_projects;'):
+        name = record['name']
+        billing_projects[name] = {}
     async for record in db.execute_and_fetchall(
             'SELECT * FROM billing_project_users;'):
         billing_project = record['billing_project']
         user = record['user']
-        if billing_project not in billing_projects:
-            billing_projects[billing_project] = []
         billing_projects[billing_project].append(user)
     page_context = {
         'billing_projects': billing_projects
@@ -950,7 +954,7 @@ WHERE name = %s;
 INSERT INTO billing_projects(name)
 VALUES (%s);
 ''',
-        (billing_project))
+        (billing_project,))
 
     set_message(session, f'Added billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
