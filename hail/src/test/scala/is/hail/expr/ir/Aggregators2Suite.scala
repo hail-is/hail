@@ -337,9 +337,8 @@ class Aggregators2Suite extends HailSuite {
     // test inside of aggregation
     val tr = TableRange(10000, 5)
     val ta = TableAggregate(tr, ApplyAggOp(FastIndexedSeq(19),
-      None,
       FastIndexedSeq(invoke("str", TString(), GetField(Ref("row", tr.typ.rowType), "idx")), I32(9999) - GetField(Ref("row", tr.typ.rowType), "idx")),
-      AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(TString(), TInt32()))))
+      AggSignature2(TakeBy(), FastSeq(TInt32()), FastSeq(TString(), TInt32()), None)))
 
     assertEvalsTo(ta, (0 until 19).map(i => (9999 - i).toString).toFastIndexedSeq)(ExecStrategy.interpretOnly)
   }
@@ -697,9 +696,8 @@ class Aggregators2Suite extends HailSuite {
             GetField(Ref("va", t.rowType), "row_idx") < I32(5),
             Ref("bar", TInt32()).toL + Ref("bar", TInt32()).toL + ApplyAggOp(
               FastIndexedSeq(),
-              None,
               FastIndexedSeq(GetField(Ref("va", t.rowType), "row_idx").toL),
-              AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))),
+              AggSignature2(Sum(), FastSeq(), FastSeq(TInt64()), None)),
             false))))),
       Some(FastIndexedSeq()))))
     assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)

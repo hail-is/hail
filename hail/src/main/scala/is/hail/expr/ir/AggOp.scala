@@ -20,7 +20,9 @@ case class AggSignature2(
   op: AggOp,
   initOpArgs: Seq[Type],
   seqOpArgs: Seq[Type],
-  nested: Option[Seq[AggSignature2]])
+  nested: Option[Seq[AggSignature2]]) {
+  lazy val returnType: Type = agg.Extract.getType(this)
+}
 
 sealed trait AggOp { }
 final case class ApproxCDF() extends AggOp

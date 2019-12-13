@@ -261,15 +261,13 @@ class EmitStreamSuite extends HailSuite {
         assert(aggregate(inp) == expected, Pretty(ir))
     }
 
-    def scanOp(op: AggOp, initArgs: Option[Seq[IR]], opArgs: Seq[IR]): ApplyScanOp =
+    def scanOp(op: AggOp, initArgs: Seq[IR], opArgs: Seq[IR]): ApplyScanOp =
       ApplyScanOp(
-        FastIndexedSeq(),
-        initArgs.map(_.toFastIndexedSeq),
+        initArgs.toFastIndexedSeq,
         opArgs.toFastIndexedSeq,
-        AggSignature(op,
-          Seq(),
-          initArgs.map(_.map(_.typ)),
-          opArgs.map(_.typ)))
+        AggSignature2(op,
+          initArgs.map(_.typ),
+          opArgs.map(_.typ), None))
 
     val pairType = TStruct("x" -> TCall(), "y" -> TInt32())
     val intsType = TArray(TInt32())
@@ -280,7 +278,7 @@ class EmitStreamSuite extends HailSuite {
         GetField(Ref("foo", pairType), "y") +
           GetField(
             scanOp(CallStats(),
-              Some(Seq(I32(2))),
+              Seq(I32(2)),
               Seq(GetField(Ref("foo", pairType), "x"))
             ),
             "AN")
@@ -295,9 +293,9 @@ class EmitStreamSuite extends HailSuite {
       ArrayAggScan(
         ArrayAggScan(ToStream(In(0, intsType)),
           "i",
-          scanOp(Sum(), None, Seq(Ref("i", TInt32()).toL))),
+          scanOp(Sum(), Seq(), Seq(Ref("i", TInt32()).toL))),
         "x",
-        scanOp(Max(), None, Seq(Ref("x", TInt64())))
+        scanOp(Max(), Seq(), Seq(Ref("x", TInt64())))
       ),
       intsType,
       FastIndexedSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->

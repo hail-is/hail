@@ -371,9 +371,8 @@ object Simplify {
       TableAggregate(child,
         ApplyAggOp(
           FastIndexedSeq(),
-          None,
           FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
-          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
+          AggSignature2(Sum(), FastSeq(), FastSeq(TInt64()), None)))
 
     case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
       I64(r.fileMetadata.map(_.nVariants).sum)
@@ -680,14 +679,13 @@ object Simplify {
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
+      val aggSig = AggSignature2(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ), None)
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
             MakeStruct(Seq(
               "row" -> ApplyAggOp(
                 FastIndexedSeq(I32(n.toInt)),
-                None,
                 Array(row, keyStruct),
                 aggSig))),
             MakeStruct(Seq()), // aggregate to one row
@@ -850,7 +848,7 @@ object Simplify {
     // prune and fuse anyway.
     case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va")
       && !Exists.inIR(newRow2, {
-      case a: ApplyAggOp => a.initOpArgs.exists(_.exists(Mentions(_, "va"))) // Lowering produces invalid IR
+      case a: ApplyAggOp => a.initOpArgs.exists(Mentions(_, "va")) // Lowering produces invalid IR
       case _ => false
     }) =>
       val uid = genUID()

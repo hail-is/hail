@@ -285,10 +285,14 @@ object TypeCheck {
         xs.foreach { x =>
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == AggOp.getType(aggSig))
-      case x@ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == AggOp.getType(aggSig))
+      case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        assert(x.typ == aggSig.returnType)
+        assert(initOpArgs.map(_.typ) == aggSig.initOpArgs)
+        assert(seqOpArgs.map(_.typ) == aggSig.seqOpArgs)
+      case x@ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        assert(x.typ == aggSig.returnType)
+        assert(initOpArgs.map(_.typ) == aggSig.initOpArgs)
+        assert(seqOpArgs.map(_.typ) == aggSig.seqOpArgs)
       case x@MakeStruct(fields) =>
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)

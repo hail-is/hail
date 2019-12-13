@@ -111,32 +111,18 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyClass(aggSig.op))
           sb += '\n'
-          prettySeq(ctorArgs, depth + 2)
-          sb += '\n'
-          initOpArgs match {
-            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
-            case None =>
-              sb.append(" " * (depth + 2))
-              sb.append("None")
-          }
+          prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyClass(aggSig.op))
           sb += '\n'
-          prettySeq(ctorArgs, depth + 2)
-          sb += '\n'
-          initOpArgs match {
-            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
-            case None =>
-              sb.append(" " * (depth + 2))
-              sb.append("None")
-          }
+          prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
         case InitOp2(i, args, aggSig) =>
