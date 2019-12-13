@@ -237,6 +237,7 @@ class Container:
             if self.port is not None:
                 async with self.step('configuring_port'):
                     c = await docker_call_retry(self.container.show)
+                    log.info(f'port c {c}')
                     host_port = c['NetworkSettings']['Ports'][f'{self.port}/tcp'][0]['HostPort']
                     with open(f'{self.job.port_host_path()}/config', 'w') as f:
                         f.write(json.dumps({
