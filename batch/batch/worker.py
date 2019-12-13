@@ -444,7 +444,7 @@ class Job:
         port = job_spec.get('port')
         self.mount_network = port is not None
         if self.mount_network:
-            main_volume_mounts.append(f'{self.network_host_path()}:/net')
+            main_volume_mounts.append(f'{self.network_host_path()}:/network')
 
         env = []
         for item in job_spec.get('env', []):
