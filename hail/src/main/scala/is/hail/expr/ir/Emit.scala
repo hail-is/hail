@@ -1468,10 +1468,10 @@ private class Emit(
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
         val infoDGEQRFResult = mb.newLocal[Int]
-        val infoDGEQRFErrorTest = (infoDGEQRFResult < 0)
+        val infoDGEQRFErrorTest = (infoDGEQRFResult cne  0)
           .orEmpty(Code._fatal(const("LAPACK error DGEQRF. Error code = ").concat(infoDGEQRFResult.toS)))
 
-        val alwaysNeeded = Code(
+        val computeHAndTau = Code(
           ndAddress := ndt.value[Long],
 
           // Make some space for the column major form (which means copying the input)
@@ -1526,7 +1526,7 @@ private class Emit(
           val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb)
           val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
-          val computeRaw = Code(
+          val constructHAndTauTuple = Code(
             rawOutputSrvb.start(),
             rawOutputSrvb.addIRIntermediate(hPType)(h),
             rawOutputSrvb.advance(),
@@ -1536,8 +1536,8 @@ private class Emit(
           )
 
           Code(
-            alwaysNeeded,
-            computeRaw
+            computeHAndTau,
+            constructHAndTauTuple
           )
         }
         else {
@@ -1582,7 +1582,7 @@ private class Emit(
 
           if (mode == "r") {
             Code(
-              alwaysNeeded,
+              computeHAndTau,
               computeR
             )
           }
@@ -1599,7 +1599,8 @@ private class Emit(
             val qDataAddress = mb.newField[Long]
 
             val infoDORGQRResult = mb.newField[Int]
-            val infoDORQRErrorTest = (infoDORGQRResult < 0).orEmpty(Code._fatal(const("LAPACK error DORGQR. Error code = ").concat(infoDORGQRResult.toS)))
+            val infoDORQRErrorTest = (infoDORGQRResult cne 0)
+              .orEmpty(Code._fatal(const("LAPACK error DORGQR. Error code = ").concat(infoDORGQRResult.toS)))i
 
             val qCondition = const(mode == "complete") && (M > N)
             val numColsToUse = qCondition.mux(M, K)
@@ -1608,7 +1609,6 @@ private class Emit(
             val qNumElements = M * numColsToUse
 
             val computeCompleteOrReduced = Code(
-              infoDORGQRResult := 1,
               qCondition.mux(
                 Code(
                   aAddressDORGQR := ndPType.data.pType.allocate(region, qNumElements.toI),
@@ -1660,7 +1660,7 @@ private class Emit(
             )
 
             Code(
-              alwaysNeeded,
+              computeHAndTau,
               rNDArrayAddress := computeR,
               computeCompleteOrReduced
             )
