@@ -1465,14 +1465,15 @@ private class Emit(
         val workAddress = mb.newField[Long]
         val aAddressDGEQRF = mb.newField[Long] // Should be column major
         val rDataAddress = mb.newField[Long]
-        val aNumElements = ndPType.numElements(shapeArray, mb)
+        val aNumElements = mb.newField[Long]
 
         val infoDGEQRFResult = mb.newLocal[Int]
-        val infoDGEQRFErrorTest = (infoDGEQRFResult cne  0)
-          .orEmpty(Code._fatal(const("LAPACK error DGEQRF. Error code = ").concat(infoDGEQRFResult.toS)))
+        val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne  0)
+          .orEmpty(Code._fatal(const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
 
         val computeHAndTau = Code(
           ndAddress := ndt.value[Long],
+          aNumElements := ndPType.numElements(shapeArray, mb),
 
           // Make some space for the column major form (which means copying the input)
           aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
@@ -1493,7 +1494,7 @@ private class Emit(
             LWORKAddress,
             -1
           ),
-          infoDGEQRFErrorTest,
+          infoDGEQRFErrorTest("Failed size query."),
 
           workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
@@ -1507,7 +1508,7 @@ private class Emit(
             LWORK
           ),
           Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
-          infoDGEQRFErrorTest
+          infoDGEQRFErrorTest("Failed to compute H and Tau.")
         )
 
         val result = if (mode == "raw") {
@@ -1599,8 +1600,8 @@ private class Emit(
             val qDataAddress = mb.newField[Long]
 
             val infoDORGQRResult = mb.newField[Int]
-            val infoDORQRErrorTest = (infoDORGQRResult cne 0)
-              .orEmpty(Code._fatal(const("LAPACK error DORGQR. Error code = ").concat(infoDORGQRResult.toS)))i
+            val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
+              .orEmpty(Code._fatal(const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS)))
 
             val qCondition = const(mode == "complete") && (M > N)
             val numColsToUse = qCondition.mux(M, K)
@@ -1630,7 +1631,7 @@ private class Emit(
                 LWORKAddress,
                 -1
               ),
-              infoDORQRErrorTest,
+              infoDORQRErrorTest("Failed size query."),
 
               workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
@@ -1645,7 +1646,7 @@ private class Emit(
                 LWORK
               ),
               Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
-              infoDORQRErrorTest,
+              infoDORQRErrorTest("Failed to compute Q."),
 
               qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
