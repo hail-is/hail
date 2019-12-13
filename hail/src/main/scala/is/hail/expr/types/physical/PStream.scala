@@ -19,7 +19,6 @@ trait PStreamable extends PIterable {
       case _ => false
     }
   }
-
 }
 
 final case class PStream(elementType: PType, override val required: Boolean = false) extends PStreamable {

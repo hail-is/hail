@@ -491,7 +491,6 @@ private class Emit(
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
       case x@ArrayRef(a, i) =>
         val typ = x.typ
-        val ti = typeToTypeInfo(typ)
         val pArray = coerce[PStreamable](a.pType).asPArray
         val ati = coerce[Long](typeToTypeInfo(pArray))
         val codeA = emit(a)
@@ -534,7 +533,7 @@ private class Emit(
           Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        strict(PContainer.loadLength(coerce[Long](codeA.v)), codeA)
+        strict(PCanonicalArray.loadLength(coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)

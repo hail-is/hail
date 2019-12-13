@@ -1,21 +1,11 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{UnsafeUtils, _}
-import is.hail.check.Gen
+import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TSet
-import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
-
-final case class PSet(elementType: PType, override val required: Boolean = false) extends PContainer {
+final case class PSet(elementType: PType, required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(elementType, required )) {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
-
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
-  override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
   def _asIdent = s"set_of_${elementType.asIdent}"
   def _toPretty = s"Set[$elementType]"
