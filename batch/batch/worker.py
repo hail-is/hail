@@ -59,6 +59,26 @@ deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker = aiodocker.Docker()
 
+port_allocator = None
+
+worker = None
+
+
+class PortAllocator:
+    def __init__(self):
+        self.ports = list(range(46572, 10))
+        self.cond = asyncio.Condition()
+
+    async def allocate(self):
+        while True:
+            if self.ports:
+                return self.ports.pop()
+            await self.cond.wait()
+
+    def free(self, port):
+        self.ports.append(port)
+        self.cond.notify()
+
 
 async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
@@ -132,6 +152,7 @@ class Container:
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
         self.port = self.spec.get('port')
+        self.host_port = None
 
         self.container = None
         self.state = 'pending'
@@ -154,15 +175,20 @@ class Container:
                            'Memory': self.memory_in_bytes}
         }
 
+        env = self.spec.get('env', [])
+
         if self.port is not None:
+            assert self.host_port is not None
             config['PortBindings'] = {
                 f'{self.port}/tcp': [{
                     'HostIp': '',
-                    'HostPort': ''
+                    'HostPort': self.host_port
                 }]
             }
+            env = list(env)
+            env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
+            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
 
-        env = self.spec.get('env')
         if env:
             config['Env'] = env
 
@@ -227,24 +253,16 @@ class Container:
                         if e.status == 404:
                             await docker_call_retry(docker.images.pull, self.image)
 
+            if self.port is not None:
+                async with self.step('allocating_port'):
+                    self.host_port = await port_allocator.allocate()
+
             async with self.step('creating'):
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
-
-            if self.port is not None:
-                async with self.step('configuring_port'):
-                    c = await docker_call_retry(self.container.show)
-                    log.info(f'port c {c}')
-                    host_port = c['NetworkSettings']['Ports'][f'{self.port}/tcp'][0]['HostPort']
-                    with open(f'{self.job.port_host_path()}/config', 'w') as f:
-                        f.write(json.dumps({
-                            'ip': IP_ADDRESS,
-                            'port': self.port,
-                            'host_port': host_port
-                        }))
 
             async with cpu_sem(self.cpu_in_mcpu):
                 async with self.step('runtime', state=None):
@@ -305,6 +323,10 @@ class Container:
                 self.container = None
             except Exception:
                 log.exception('while deleting up container, ignoring')
+
+        if self.host_port is not None:
+            port_allocator.free(self.host_port)
+            self.host_port = None
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -399,9 +421,6 @@ class Job:
     def io_host_path(self):
         return f'{self.scratch}/io'
 
-    def port_host_path(self):
-        return f'{self.scratch}/port'
-
     def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
         self.user = user
@@ -442,11 +461,6 @@ class Job:
                 if secret.get('mount_in_copy', False):
                     copy_volume_mounts.append(volume_mount)
 
-        port = job_spec.get('port')
-        self.mount_port = port is not None
-        if self.mount_port:
-            main_volume_mounts.append(f'{self.port_host_path()}:/port')
-
         env = []
         for item in job_spec.get('env', []):
             env.append(f'{item["name"]}={item["value"]}')
@@ -468,6 +482,7 @@ class Job:
             'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
+        port = job_spec.get('port')
         if port:
             main_spec['port'] = port
         containers['main'] = Container(self, 'main', main_spec)
@@ -499,8 +514,6 @@ class Job:
 
             if self.mount_io:
                 os.makedirs(self.io_host_path())
-            if self.mount_port:
-                os.makedirs(self.port_host_path())
 
             if self.secrets:
                 for secret in self.secrets:
@@ -821,11 +834,17 @@ class Worker:
                                       project=PROJECT, credentials=credentials)
 
 
-worker = Worker()
+async def async_main():
+    global port_allocator, worker
+
+    port_allocator = PortAllocator()
+    worker = Worker()
+    worker.run()
+
+    docker.close()
 
 loop = asyncio.get_event_loop()
-loop.run_until_complete(worker.run())
-loop.run_until_complete(docker.close())
+loop.run_until_complete(async_main())
 loop.run_until_complete(loop.shutdown_asyncgens())
 loop.close()
 log.info(f'closed')
