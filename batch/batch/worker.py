@@ -187,7 +187,7 @@ class Container:
             config['PortBindings'] = {
                 f'{self.port}/tcp': [{
                     'HostIp': '',
-                    'HostPort': self.host_port
+                    'HostPort': str(self.host_port)
                 }]
             }
             env = list(env)
