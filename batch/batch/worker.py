@@ -69,7 +69,7 @@ async def docker_call_retry(f, *args, **kwargs):
             if e.status == 408 or e.status == 503:
                 log.exception('in docker call, retrying')
             elif e.status == 500 and ("request canceled while waiting for connection" in e.message
-                                      or "device or resource busy" in e.message):
+                                      or "error creating overlay mount" in e.message):
                 log.exception('in docker call, retrying')
             else:
                 raise
