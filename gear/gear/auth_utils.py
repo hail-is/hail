@@ -3,20 +3,17 @@ import base64
 
 
 async def insert_user(dbpool, spec):
+    assert all(k in spec for k in ('state', 'username'))
+
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(
-                '''
-INSERT INTO user_data (username, user_id, developer, gsa_email, bucket_name, gsa_key_secret_name, jwt_secret_name,
-    service_account)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                f'''
+INSERT INTO users ({', '.join(spec.keys())})
+VALUES ({', '.join([f'%({k})s' for k in spec.keys()])})
 ''',
-                (spec['username'], spec['user_id'], spec.get('developer', 0), spec['gsa_email'], spec['bucket_name'], spec['gsa_key_secret_name'], spec['jwt_secret_name'],
-                 spec.get('service_account')))
-
-        async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * FROM user_data WHERE user_id = %s', (spec['user_id'],))
-            return await cursor.fetchone()
+                spec)
+            return cursor.lastrowid
 
 
 # 2592000s = 30d

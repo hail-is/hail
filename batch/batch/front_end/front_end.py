@@ -13,7 +13,6 @@ from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
 from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
@@ -30,7 +29,7 @@ from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_m
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE
+from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
 
 from . import schemas
 
@@ -376,7 +375,7 @@ async def create_jobs(request, userdata):
         'username': user,
         'bucket_name': userdata['bucket_name'],
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
-        'jwt_secret_name': userdata['jwt_secret_name']
+        'tokens_secret_name': userdata['tokens_secret_name']
     }
 
     async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
@@ -826,12 +825,6 @@ async def index(request, userdata):
 
 
 async def on_startup(app):
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -854,8 +847,8 @@ async def on_startup(app):
     }
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
-    app['log_store'] = LogStore(bucket_name, instance_id, pool, credentials=credentials)
+        '/gsa-key/key.json')
+    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
 
 async def on_cleanup(app):
