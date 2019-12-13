@@ -66,6 +66,8 @@ worker = None
 
 class PortAllocator:
     def __init__(self):
+        # random unallocated ports take from
+        # https://stackoverflow.com/questions/10476987/best-tcp-port-number-range-for-internal-applications
         self.ports = list(range(46572, 10))
         self.cond = asyncio.Condition()
 
@@ -839,9 +841,9 @@ async def async_main():
 
     port_allocator = PortAllocator()
     worker = Worker()
-    worker.run()
+    await worker.run()
 
-    docker.close()
+    await docker.close()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())
