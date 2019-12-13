@@ -1,41 +1,106 @@
-import builtins
 from typing import Callable
 
 import hail as hl
 import hail.ir as ir
-from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all, expr_bool
+from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all
 from hail.expr.types import hail_type
 from hail.typecheck import anytype, typecheck
 from hail.utils.java import Env
 
-# FIXME, infer loop type?
-@typecheck(f=anytype, typ=hail_type, exprs=expr_any)
-def loop(f: Callable, typ, *exprs):
-    """Expression for writing tail recursive expressions.
-    Example
-    -------
-    To find the sum of all the numbers from n=1...10:
-    >>> x = hl.experimental.loop(lambda recur, acc, n: hl.cond(n > 10, acc, recur(acc + n, n + 1)), hl.tint32, 0, 0)
-    >>> hl.eval(x)
-    55
+@typecheck(f=anytype, typ=hail_type, args=expr_any)
+def loop(f: Callable, typ, *args):
+    """Define and call a tail-recursive function with given arguments.
 
     Notes
     -----
-    The first argument to the lambda is a marker for the recursive call.
+    The argument `f` must be a function where the first argument defines the
+    recursive call, and the remaining arguments are the arguments to the
+    recursive function, e.g. to define the recursive function
+
+    :math:`f(x, y) = \begin{cases}
+        y & \textrm{if } x \equiv 0 \\
+        f(x - 1, y + x) & \textrm{otherwise}
+        \end{cases}`
+
+    we would write:
+    >>> f = lambda recur, x, y: hl.cond(x == 0, y, recur(x - 1, y + x))
+
+    Full recursion is not supported, and any non-tail-recursive methods will
+    throw an error when called.
+
+    This means that the result of any recursive call within the function must
+    also be the result of the entire function, without modification. Let's
+    consider two different recursive definitions for the triangle function
+    :math:`f(x) = 0 + 1 + \dots + x`:
+
+    >>> def triangle1(x):
+    ...     if x == 1:
+    ...         return x
+    ...     return x + triangle1(x - 1)
+
+    >>> def triangle2(x, total):
+    ...     if x == 0:
+    ...         return total
+    ...     return triangle2(x - 1, total + x)
+
+    The first function definition, `triangle1`, will call itself and then add x.
+    This is an example of a non-tail recursive function, since `triangle1(9)`
+    needs to modify the result of the inner recursive call to `triangle1(8)` by
+    adding 9 to the result.
+
+    The second function is tail recursive: the result of `triangle2(9, 0)` is
+    the same as the result of the inner recursive call, `triangle2(8, 9)`.
+
+    Example
+    -------
+    To find the sum of all the numbers from n=1...10:
+    >>> triangle_f = lambda f, x, total: hl.cond(n == 0, total, f(x - 1, total + x))
+    >>> x = hl.experimental.loop(triangle_f, hl.tint32, 0, 10)
+    >>> hl.eval(x)
+    55
+
+    Let's say we want to find the root of a polynomial equation:
+    >>> def polynomial(x):
+    ...     return 5 * x**3 - 2 * x - 1
+
+    We'll use `Newton's method<https://en.wikipedia.org/wiki/Newton%27s_method>`
+    to find it, so we'll also define the derivative:
+
+    >>> def derivative(x):
+    ...     return 15 * x**2 - 2
+
+    and starting at :math:`x_0 = 0`, we'll compute the next step :math:`x_{i+1} = x_i - \frac{f(x_i)}{f'(x_i)}`
+    until the difference between :math:`x_{i}` and :math:`x_{i+1}` falls below
+    our convergence threshold:
+
+    >>> threshold = 0.005
+    >>> def find_root(f, guess, error):
+    ...     converged = hl.is_defined(error) & (error < threshold)
+    ...     new_guess = guess - (polynomial(guess) / derivative(guess))
+    ...     new_error = hl.abs(new_guess - guess)
+    ...     return hl.cond(converged, guess, f(new_guess, new_error))
+    >>> x = hl.experimental.loop(find_root, hl.tfloat, 0.0, hl.null(hl.tfloat))
+    >>> hl.eval(x)
+    0.8052291984599675
+
+    Warning
+    -------
+    Using arguments of a type other than numeric types and booleans can cause
+    memory issues if if you expect the recursive call to happen many times.
 
     Parameters
     ----------
     f : function ( (marker, *args) -> :class:`.Expression`
         Function of one callable marker, denoting where the recursive call (or calls) is located,
-        and many `exprs`, the loop variables.
+        and many `args`, the loop variables.
     typ : :obj:`str` or :class:`.HailType`
         Type the loop returns.
-    exprs : variable-length args of :class:`.Expression`
+    args : variable-length args of :class:`.Expression`
         Expressions to initialize the loop values.
     Returns
     -------
     :class:`.Expression`
-        Result of the loop with `exprs` as initial loop values.
+        Result of the loop with `args` as initial loop values.
     """
 
     loop_name = Env.get_uid()
@@ -46,7 +111,6 @@ def loop(f: Callable, typ, *exprs):
         return any([contains_recursive_call(c) for c in non_recursive.children])
 
     def check_tail_recursive(loop_ir):
-        print(str(loop_ir))
         if isinstance(loop_ir, ir.If):
             if contains_recursive_call(loop_ir.cond):
                 raise TypeError("branch condition can't contain recursive call!")
@@ -61,10 +125,10 @@ def loop(f: Callable, typ, *exprs):
 
     @typecheck(recur_exprs=expr_any)
     def make_loop(*recur_exprs):
-        if len(recur_exprs) != len(exprs):
+        if len(recur_exprs) != len(args):
             raise TypeError('Recursive call in loop has wrong number of arguments')
         err = None
-        for i, (rexpr, expr) in enumerate(zip(recur_exprs, exprs)):
+        for i, (rexpr, expr) in enumerate(zip(recur_exprs, args)):
             if rexpr.dtype != expr.dtype:
                 if err is None:
                     err = 'Type error in recursive call,'
@@ -79,14 +143,14 @@ def loop(f: Callable, typ, *exprs):
     uid_irs = []
     loop_vars = []
 
-    for expr in exprs:
+    for expr in args:
         uid = Env.get_uid()
         loop_vars.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uid_irs.append((uid, expr._ir))
 
     loop_f = to_expr(f(make_loop, *loop_vars))
     check_tail_recursive(loop_f._ir)
-    indices, aggregations = unify_all(*exprs, loop_f)
+    indices, aggregations = unify_all(*args, loop_f)
     if loop_f.dtype != typ:
         raise TypeError(f"requested type {typ} does not match inferred type {loop_f.typ}")
     return construct_expr(ir.TailLoop(loop_name, loop_f._ir, uid_irs), loop_f.dtype, indices, aggregations)

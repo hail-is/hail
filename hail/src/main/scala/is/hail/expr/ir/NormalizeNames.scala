@@ -85,7 +85,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case Some(n) => n
           case None =>
             if (!allowFreeVariables)
-              throw new RuntimeException(s"found free variable in normalize: $name")
+              throw new RuntimeException(s"found free loop variable in normalize: $name")
             else
               name
         }
