@@ -61,28 +61,24 @@ class AggFunc(object):
     @typecheck_method(agg_op=str,
                       seq_op_args=sequenceof(expr_any),
                       ret_type=hail_type,
-                      constructor_args=sequenceof(expr_any),
-                      init_op_args=nullable(sequenceof(expr_any)))
-    def __call__(self, agg_op, seq_op_args, ret_type, constructor_args=(), init_op_args=None):
-        args = constructor_args if init_op_args is None else constructor_args + init_op_args
-        indices, aggregations = unify_all(*seq_op_args, *args)
+                      init_op_args=sequenceof(expr_any))
+    def __call__(self, agg_op, seq_op_args, ret_type, init_op_args=()):
+        indices, aggregations = unify_all(*seq_op_args, *init_op_args)
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
-        for a in seq_op_args + args:
+        for a in seq_op_args + init_op_args:
             _check_agg_bindings(a, self._agg_bindings)
 
         if self._as_scan:
             ir = ApplyScanOp(agg_op,
-                             [expr._ir for expr in constructor_args],
-                             None if init_op_args is None else [expr._ir for expr in init_op_args],
+                             [expr._ir for expr in init_op_args],
                              [expr._ir for expr in seq_op_args])
             aggs = aggregations
         else:
             ir = ApplyAggOp(agg_op,
-                            [expr._ir for expr in constructor_args],
-                            None if init_op_args is None else [expr._ir for expr in init_op_args],
+                            [expr._ir for expr in init_op_args],
                             [expr._ir for expr in seq_op_args])
-            aggs = aggregations.push(Aggregation(*seq_op_args, *args))
+            aggs = aggregations.push(Aggregation(*seq_op_args, *init_op_args))
         return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
 
     @typecheck_method(f=func_spec(1, expr_any),
@@ -250,7 +246,7 @@ def approx_cdf(expr, k=100):
     """
     res = _agg_func('ApproxCDF', [hl.float64(expr)],
                     tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
-                    constructor_args=[k])
+                    init_op_args=[k])
     conv = {
         tint32: lambda x: x.map(hl.int),
         tint64: lambda x: x.map(hl.int64),
@@ -1196,7 +1192,7 @@ def call_stats(call, alleles) -> StructExpression:
                 AN=tint32,
                 homozygote_count=tarray(tint32))
 
-    return _agg_func('CallStats', [call], t, [], init_op_args=[n_alleles])
+    return _agg_func('CallStats', [call], t, init_op_args=[n_alleles])
 
 _bin_idx_f = None
 _result_from_hist_agg_f = None
@@ -1316,7 +1312,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     elif isinstance(label, StringExpression):
         label = hl.array([label])
     return _agg_func('Downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
-                     constructor_args=[n_divisions])
+                     init_op_args=[n_divisions])
 
 
 @typecheck(gp=expr_array(expr_float64))

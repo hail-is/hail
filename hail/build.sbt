@@ -42,7 +42,7 @@ lazy val root = (project in file(".")).
         , hadoopClient
         , "net.jpountz.lz4" % "lz4" % "1.3.0"
         , "org.scalanlp" %% "breeze-natives" % si.breezeVersion
-        , "com.github.samtools" % "htsjdk" % "2.18.0"
+        , "com.github.samtools" % "htsjdk" % "2.21.0"
         , "org.slf4j" % "slf4j-api" % "1.7.25"
         , "org.http4s" %% "http4s-core" % "0.12.3"
         , "org.http4s" %% "http4s-server" % "0.12.3"

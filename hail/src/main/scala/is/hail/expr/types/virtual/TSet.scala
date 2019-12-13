@@ -44,6 +44,12 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   lazy val ordering: ExtendedOrdering = ExtendedOrdering.setOrdering(elementType.ordering)
 
+  override def _showStr(a: Annotation): String =
+    a.asInstanceOf[Set[Annotation]]
+      .map { case elt => elementType.showStr(elt) }
+      .mkString("{", ",", "}")
+
+
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)

@@ -11,7 +11,6 @@ import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
@@ -21,7 +20,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
 
 from .instance_pool import InstancePool
@@ -88,7 +87,7 @@ def activating_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
-        record = await db.execute_and_fetchone(
+        record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND activation_token = %s;',
             (instance.name, activation_token))
         if not record:
@@ -119,7 +118,7 @@ def active_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
-        record = await db.execute_and_fetchone(
+        record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND token = %s;',
             (instance.name, token))
         if not record:
@@ -143,7 +142,7 @@ async def close_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -164,7 +163,7 @@ async def cancel_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -186,7 +185,7 @@ async def delete_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -208,7 +207,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address)
     await instance.mark_healthy()
 
-    with open('/batch-gsa-key/privateKeyData', 'r') as f:
+    with open('/gsa-key/key.json', 'r') as f:
         key = json.loads(f.read())
     return web.json_response({
         'token': token,
@@ -299,7 +298,7 @@ async def get_index(request, userdata):
     db = app['db']
     instance_pool = app['inst_pool']
 
-    ready_cores = await db.execute_and_fetchone(
+    ready_cores = await db.select_and_fetchone(
         'SELECT * FROM ready_cores;')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
@@ -390,13 +389,22 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
+@routes.get('/user_resources')
+@web_authenticated_developers_only()
+async def get_user_resources(request, userdata):
+    app = request.app
+    user_resources = await app['scheduler'].compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
+                            reverse=True)
+    page_context = {
+        'user_resources': user_resources
+    }
+    return await render_template('batch-driver', request, userdata,
+                                 'user_resources.html', page_context)
+
+
 async def on_startup(app):
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -408,7 +416,7 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    row = await db.execute_and_fetchone(
+    row = await db.select_and_fetchone(
         'SELECT instance_id, internal_token FROM globals;')
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
@@ -419,7 +427,7 @@ async def on_startup(app):
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
+        '/gsa-key/key.json')
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
 
@@ -429,7 +437,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    log_store = LogStore(bucket_name, instance_id, pool, credentials=credentials)
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)

@@ -157,7 +157,8 @@ def is_transient_error(e):
     elif isinstance(e, aiohttp.ClientOSError):
         if (e.errno == errno.ETIMEDOUT or
                 e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH):
+                e.errno == errno.EHOSTUNREACH or
+                e.errno == errno.ECONNRESET):
             return True
     elif isinstance(e, aiohttp.ServerTimeoutError):
         return True

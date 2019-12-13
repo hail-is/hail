@@ -11,7 +11,7 @@ from .fs import FS
 class GoogleCloudStorageFS(FS):
     def __init__(self):
         if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
-            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/gsa-key/privateKeyData'
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/gsa-key/key.json'
 
         self.client = gcsfs.core.GCSFileSystem(secure_serialize=True)
 
