@@ -131,6 +131,8 @@ class Container:
         self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
+        self.port = self.spec.get('port')
+
         self.container = None
         self.state = 'pending'
         self.error = None
@@ -151,6 +153,14 @@ class Container:
                            'CpuQuota': self.cpu_in_mcpu * 100,
                            'Memory': self.memory_in_bytes}
         }
+
+        if self.port is not None:
+            config['PortBindings'] = {
+                f'{port}/tcp': [{
+                        'HostIp': '',
+                        'HostPort': ''
+                    }]
+            }
 
         env = self.spec.get('env')
         if env:
@@ -223,6 +233,17 @@ class Container:
                 self.container = await docker_call_retry(
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
+
+            if self.port is not None:
+                async with self.step('configuring_port'):
+                    c = await docker_call_retry(self.container.show)
+                    host_port = c['NetworkSettings']['Ports'][f'{self.port}/tcp'][0]['HostPort']
+                    with open(f'{self.job.network_host_path()}/config', 'w') as f:
+                        f.write(json.dumps({
+                            'ip': IP_ADDRESS,
+                            'port': self.port,
+                            'host_port': host_port
+                        }))
 
             async with cpu_sem(self.cpu_in_mcpu):
                 async with self.step('runtime', state=None):
@@ -377,6 +398,9 @@ class Job:
     def io_host_path(self):
         return f'{self.scratch}/io'
 
+    def network_host_path(self):
+        return f'{self.scratch}/network'
+
     def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
         self.user = user
@@ -401,13 +425,11 @@ class Job:
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
-        if pvc_size or input_files or output_files:
-            self.mount_io = True
+        self.mount_io = (pvc_size or input_files or output_files)
+        if mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
-        else:
-            self.mount_io = False
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
@@ -418,6 +440,11 @@ class Job:
                 # this will be the user gsa-key
                 if secret.get('mount_in_copy', False):
                     copy_volume_mounts.append(volume_mount)
+
+        port = job_spec.get('port')
+        self.mount_network = port is not None
+        if self.mount_network:
+            main_volume_mounts.append(f'{self.network_host_path()}:/net')
 
         env = []
         for item in job_spec.get('env', []):
@@ -440,6 +467,8 @@ class Job:
             'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
+        if port:
+            main_spec['port'] = port
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
@@ -469,6 +498,8 @@ class Job:
 
             if self.mount_io:
                 os.makedirs(self.io_host_path())
+            if self.mount_network:
+                os.makedirs(self.network_host_path())
 
             if self.secrets:
                 for secret in self.secrets:
