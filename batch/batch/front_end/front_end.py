@@ -898,7 +898,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
     session = await aiohttp_session.get_session(request)
 
     async with db.start() as tx:
-        row = await db.execute_and_fetchone(
+        row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
@@ -939,7 +939,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     session = await aiohttp_session.get_session(request)
 
     async with db.start() as tx:
-        row = await db.execute_and_fetchone(
+        row = await tx.execute_and_fetchone(
             '''
 SELECT 1 FROM billing_projects
 WHERE name = %s;
