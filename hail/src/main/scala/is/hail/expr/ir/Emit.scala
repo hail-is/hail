@@ -1441,6 +1441,7 @@ private class Emit(
         emitter.emit(outputPType)
 
       case x@NDArrayQR(nd, mode) =>
+        // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
         val ndt = emit(nd)
         val ndAddress = mb.newField[Long]
         val ndPType = nd.pType.asInstanceOf[PNDArray]
@@ -1510,7 +1511,6 @@ private class Emit(
         )
 
         val result = if (mode == "raw") {
-          // Raw returns the column major form of A as is.
           val rawPType = x.pType.asInstanceOf[PTuple]
           val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
           val hPType = rawPType.types(0).asInstanceOf[PNDArray]
@@ -1544,18 +1544,6 @@ private class Emit(
           val currRow = mb.newField[Int]
           val currCol = mb.newField[Int]
 
-          //This block assumes rDataAddress is a row major ndarray.
-          val zeroOutCorner =
-            Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
-              Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
-                (currRow > currCol).orEmpty(
-                  Region.storeDouble(
-                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currRow * N.toI + currCol),
-                    0.0)
-                )
-              )
-            )
-
           val (rPType, rShapeArray) = if (mode == "r") {
             (x.pType.asInstanceOf[PNDArray], Array(K, N))
           } else if (mode == "complete") {
@@ -1569,6 +1557,18 @@ private class Emit(
           val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
           val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
 
+          //This block assumes rDataAddress is a row major ndarray.
+          val zeroOutLowerTriangle =
+            Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
+              Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
+                (currRow > currCol).orEmpty(
+                  Region.storeDouble(
+                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currRow * N.toI + currCol),
+                    0.0)
+                )
+              )
+            )
+
           val computeR = Code(
             // Note: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
             // results in these elements being ignored. When everything is column major all the time should be easy to fix.
@@ -1576,7 +1576,7 @@ private class Emit(
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
             rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
               rDataAddress, M, N, mb),
-            zeroOutCorner,
+            zeroOutLowerTriangle,
             rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
 
@@ -1586,8 +1586,7 @@ private class Emit(
               computeR
             )
           }
-          else if (mode == "complete" || mode =="reduced") {
-            // In complete and reduced mode, compute R based on the current A, then pass A to `dorgqr` to compute Q
+          else if (mode == "complete" || mode == "reduced") {
             val crPType = x.pType.asInstanceOf[PTuple]
             val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region)
 
@@ -1665,8 +1664,7 @@ private class Emit(
               rNDArrayAddress := computeR,
               computeCompleteOrReduced
             )
-          }
-          else {
+          } else {
             throw new HailException(s"Unsupported QR mode $mode")
           }
         }

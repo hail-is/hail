@@ -65,7 +65,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       shape.foldLeft(const(1L))(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: Array[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = {srvb =>
+  def makeShapeBuilder(shapeArray: Array[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     coerce[Unit](Code(
       srvb.start(),
       Code(shapeArray.map(shapeElement => Code(

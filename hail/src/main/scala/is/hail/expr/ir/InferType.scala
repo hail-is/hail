@@ -146,8 +146,7 @@ object InferType {
           TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(1), false))
         } else if (mode == "r") {
           TNDArray(TFloat64(), Nat(2), false)
-        }
-        else {
+        } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
       case NDArrayWrite(_, _) => TVoid

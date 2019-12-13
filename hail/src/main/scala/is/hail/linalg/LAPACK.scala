@@ -45,7 +45,6 @@ object LAPACK {
     }
   }
 
-  // Return info
   def dgeqrf(M: Int, N: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {
     val mInt = new IntByReference(M)
     val nInt = new IntByReference(N)
@@ -56,7 +55,6 @@ object LAPACK {
     infoInt.getValue()
   }
 
-  // Return info
   def dorgqr(M: Int, N: Int, K: Int, A: Long, LDA: Int, TAU: Long, WORK: Long, LWORK: Int): Int = {
     val mInt = new IntByReference(M)
     val nInt = new IntByReference(N)
@@ -73,10 +71,10 @@ object LAPACK {
     val minor = new IntByReference()
     val patch = new IntByReference()
 
-    TryAll({
+    TryAll {
       libInstance.ilaver(major, minor, patch)
       s"${major.getValue}.${minor.getValue}.${patch.getValue}"
-    })
+    }
   }
 }
 
