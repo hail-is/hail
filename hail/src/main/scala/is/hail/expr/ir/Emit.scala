@@ -1587,7 +1587,7 @@ private class Emit(
               computeR
             )
           }
-          else if (mode == "complete" || mode == "reduced") {
+          else {
             val crPType = x.pType.asInstanceOf[PTuple]
             val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region)
 
@@ -1665,8 +1665,6 @@ private class Emit(
               rNDArrayAddress := computeR,
               computeCompleteOrReduced
             )
-          } else {
-            throw new HailException(s"Unsupported QR mode $mode")
           }
         }
         EmitTriplet(ndt.setup, ndt.m, result)
