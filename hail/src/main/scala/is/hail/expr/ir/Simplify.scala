@@ -261,7 +261,7 @@ object Simplify {
 
     case top@Let(x, Let(y, yVal, yBody), xBody) if (x != y) => Let(y, yVal, Let(x, yBody, xBody))
 
-    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if {
+    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if x.typ.size < 500  && {
       val r = Ref(name, x.typ)
       val nfSet = newFields.map(_._1).toSet
 
