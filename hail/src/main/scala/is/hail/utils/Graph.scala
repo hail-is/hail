@@ -66,7 +66,8 @@ object Graph {
         val resultType = t.asInstanceOf[PTuple]
 
         val rvb = new RegionValueBuilder()
-          (l: Any, r: Any) => {
+
+        (l: Any, r: Any) => {
           region.clear()
           rvb.set(region)
 
