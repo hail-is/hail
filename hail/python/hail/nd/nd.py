@@ -194,8 +194,10 @@ def qr(nd, mode="reduced"):
     """Performs a QR decomposition.
 
     :param nd: A 2 dimensional ndarray, shape(M, N)
-    :param mode: One of "reduced", "complete", "r", or "raw"
-        If K = min(M, N), then
+    :param mode: One of "reduced", "complete", "r", or "raw".
+
+        If K = min(M, N), then:
+
         - `reduced`: returns q and r with dimensions (M, K), (K, N)
         - `complete`: returns q and r with dimensions (M, M), (M, N)
         - `r`: returns only r with dimensions (K, N)
