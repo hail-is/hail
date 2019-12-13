@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 from shlex import quote as shq
 import logging
 import asyncio
@@ -67,6 +68,11 @@ async def docker_call_retry(f, *args, **kwargs):
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
+                log.exception('in docker call, retrying')
+            # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+            # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
+            elif e.status == 500 and ("request canceled while waiting for connection" in e.message
+                                      or re.match("error creating overlay mount.*device or resource busy", e.message)):
                 log.exception('in docker call, retrying')
             else:
                 raise
