@@ -1819,7 +1819,7 @@ class Table(ExprContainer):
         of these structs can be accessed similarly to fields on a table, using dot
         methods (``struct.foo``) or string indexing (``struct['foo']``).
 
-        de
+        Warning
         -------
         Using this method can cause out of memory errors. Only collect small tables.
 
