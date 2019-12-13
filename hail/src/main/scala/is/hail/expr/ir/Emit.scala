@@ -1449,13 +1449,13 @@ private class Emit(
         val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
         val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_)).toArray
 
-        val sizeQueryAddress = mb.newLocal[Long]
+        val LWORKAddress = mb.newLocal[Long]
 
         val M = shapeArray(0)
         val N = shapeArray(1)
         val K = (M < N).mux(M, N)
         val LDA = M // Possible stride tricks could change this in the future.
-        val LWORK = Region.loadDouble(sizeQueryAddress).toI
+        val LWORK = Region.loadDouble(LWORKAddress).toI
 
         val dataAddress = ndPType.data.load(region, ndAddress)
 
@@ -1467,7 +1467,8 @@ private class Emit(
         val aNumElements = ndPType.numElements(shapeArray, mb)
 
         val infoDGEQRFResult = mb.newLocal[Int]
-        val infoDGEQRFErrorTest = (infoDGEQRFResult < 0).orEmpty(Code._fatal(const("LAPACK error DGEQRF. Error code = ").concat(infoDGEQRFResult.toS)))
+        val infoDGEQRFErrorTest = (infoDGEQRFResult < 0)
+          .orEmpty(Code._fatal(const("LAPACK error DGEQRF. Error code = ").concat(infoDGEQRFResult.toS)))
 
         val alwaysNeeded = Code(
           ndAddress := ndt.value[Long],
@@ -1480,7 +1481,7 @@ private class Emit(
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
 
-          sizeQueryAddress := ndPType.data.pType.allocate(region, 1), // One double, just to hold size query results
+          LWORKAddress := region.allocate(8L, 8L),
 
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
@@ -1488,7 +1489,7 @@ private class Emit(
             ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
             LDA.toI,
             tauPType.elementOffset(tauAddress, K.toI, 0),
-            sizeQueryAddress,
+            LWORKAddress,
             -1
           ),
           infoDGEQRFErrorTest,
@@ -1627,7 +1628,7 @@ private class Emit(
                 ndPType.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
                 LDA.toI,
                 tauPType.firstElementOffset(tauAddress, K.toI),
-                sizeQueryAddress,
+                LWORKAddress,
                 -1
               ),
               infoDORQRErrorTest,
