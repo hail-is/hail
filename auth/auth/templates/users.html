@@ -39,16 +39,8 @@
 	<td class="numeric-cell">{{ user['id'] }}</td>
 	<td>{{ user['username'] }}</td>
 	<td>{{ user['state'] }}</td>
-	<td class="numeric-cell">
-	  {% if user['is_developer'] is not none %}
-	  {{ user['is_developer'] }}
-	  {% endif %}
-	</td>
-	<td class="numeric-cell">
-	  {% if user['is_service_account'] is not none %}
-	  {{ user['is_service_account'] }}
-	  {% endif %}
-	</td>
+	<td class="numeric-cell">{{ user['is_developer'] }}</td>
+	<td class="numeric-cell">{{ user['is_service_account'] }}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -4,8 +4,8 @@ CREATE TABLE `users` (
   -- creating, active, deleting, deleted
   `username` varchar(255) NOT NULL,
   `email` varchar(255) DEFAULT NULL,
-  `is_developer` tinyint(1) DEFAULT NULL,
-  `is_service_account` tinyint(1) DEFAULT NULL,
+  `is_developer` tinyint(1) NOT NULL DEFAULT 0,
+  `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
   -- session
   `tokens_secret_name` varchar(255) DEFAULT NULL,
   -- gsa
