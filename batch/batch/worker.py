@@ -78,7 +78,7 @@ class PortAllocator:
             async with self.cond:
                 await self.cond.wait()
 
-    def free(self, port):
+    async def free(self, port):
         self.ports.append(port)
         async with self.cond:
             self.cond.notify()
@@ -329,7 +329,7 @@ class Container:
                 log.exception('while deleting up container, ignoring')
 
         if self.host_port is not None:
-            port_allocator.free(self.host_port)
+            await port_allocator.free(self.host_port)
             self.host_port = None
 
     async def delete(self):
