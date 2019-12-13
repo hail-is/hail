@@ -977,9 +977,13 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   }
 }
 
-case class TableMapPartitions(child: TableIR, name: String, body: IR) extends TableIR {
+case class TableMapPartitions(child: TableIR,
+  globalName: String,
+  partitionStreamName: String,
+  body: IR
+) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${body.typ}")
-  assert(EmitStream.isIterationLinear(body, name), "must iterate over the partition exactly once")
+  assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
   val bodyType = body.typ.asInstanceOf[TStream]
   val newRowType = bodyType.elementType.asInstanceOf[TStruct]
   lazy val typ = child.typ.copy(rowType = newRowType)
@@ -990,24 +994,33 @@ case class TableMapPartitions(child: TableIR, name: String, body: IR) extends Ta
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableMapPartitions = {
     assert(newChildren.length == 2)
-    TableMapPartitions(newChildren(0).asInstanceOf[TableIR], name, newChildren(1).asInstanceOf[IR])
+    TableMapPartitions(newChildren(0).asInstanceOf[TableIR],
+      globalName, partitionStreamName, newChildren(1).asInstanceOf[IR])
   }
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val childPType = PStream(child.typ.rowType.physicalType, true)
+    val partitionPType = PStream(child.typ.rowType.physicalType, true)
+    val globalPType = typ.globalType.physicalType
     val newRowPType = newRowType.physicalType
-    val makeIterator = CompileIterator[Iterator[RegionValue]](
+    val makeIterator = CompileIterator[Long, Iterator[RegionValue]](
       ctx,
-      childPType,
-      Subst(body, BindingEnv(Env(name -> In(0, childPType))))
-    )
+      globalPType, partitionPType,
+      Subst(body, BindingEnv(Env(
+        globalName -> In(0, globalPType),
+        partitionStreamName -> In(1, partitionPType)))))
 
-    val itF = { (idx: Int, consumerCtx: RVDContext, it: Iterator[RegionValue]) =>
+    val tv = child.execute(ctx)
+    val globalsOff = tv.globals.value.offset
+
+    val itF = { (idx: Int, consumerCtx: RVDContext, partition: Iterator[RegionValue]) =>
       val consumerRegion = consumerCtx.region
       val producerRegion = consumerCtx.freshRegion
       val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
-      makeIterator(idx, producerRegion, it, false).map { rv =>
+      makeIterator(idx, producerRegion,
+        globalsOff, false,
+        partition, false
+      ).map { rv =>
         rvb.set(consumerRegion)
         rvb.start(newRowPType)
         rvb.addRegionValue(newRowPType, rv)
@@ -1016,7 +1029,6 @@ case class TableMapPartitions(child: TableIR, name: String, body: IR) extends Ta
       }
     }
 
-    val tv = child.execute(ctx)
     tv.copy(
       typ = typ,
       rvd = tv.rvd

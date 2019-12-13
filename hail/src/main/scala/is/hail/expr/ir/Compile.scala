@@ -400,10 +400,30 @@ object CompileIterator {
         GenericTypeInfo[Region], GenericTypeInfo[RegionValue],
         GenericTypeInfo[T0], GenericTypeInfo[Boolean]),
       None)
-    (idx, r, v1, m1) => {
+    (idx, r, v0, m0) => {
       val stepper = makeStepper(idx, r)
       new RegionValueIteratorWrapper {
-        def step(rv: RegionValue): Boolean = stepper(r, rv, v1, m1)
+        def step(rv: RegionValue): Boolean = stepper(r, rv, v0, m0)
+      }
+    }
+  }
+
+  def apply[T0: TypeInfo, T1: TypeInfo](
+    ctx: ExecuteContext,
+    typ0: PType, typ1: PType,
+    ir: IR
+  ): (Int, Region, T0, Boolean, T1, Boolean) => Iterator[RegionValue] = {
+    val makeStepper = compileStepper[AsmFunction6[Region, RegionValue, T0, Boolean, T1, Boolean, Boolean]](
+      ctx, ir,
+      Array[MaybeGenericTypeInfo[_]](
+        GenericTypeInfo[Region], GenericTypeInfo[RegionValue],
+        GenericTypeInfo[T0], GenericTypeInfo[Boolean],
+        GenericTypeInfo[T1], GenericTypeInfo[Boolean]),
+      None)
+    (idx, r, v0, m0, v1, m1) => {
+      val stepper = makeStepper(idx, r)
+      new RegionValueIteratorWrapper {
+        def step(rv: RegionValue): Boolean = stepper(r, rv, v0, m0, v1, m1)
       }
     }
   }

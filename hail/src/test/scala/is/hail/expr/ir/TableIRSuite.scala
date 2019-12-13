@@ -436,32 +436,39 @@ class TableIRSuite extends HailSuite {
   @Test def testTableMapPartitions() {
     implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
 
+    val table =
+      TableKeyBy(
+        TableMapGlobals(
+          TableRange(20, nPartitions = 4),
+          MakeStruct(Seq("greeting" -> Str("Hello")))),
+        IndexedSeq(), false)
+
     val rowType = TStruct("idx" -> TInt32())
     val row2Type = TStruct("str" -> TString())
-
-    val table = TableKeyBy(TableRange(20, nPartitions = 4), IndexedSeq(), false)
+    val greeting = GetField(Ref("g", TStruct("greeting" -> TString())), "greeting")
     val part = Ref("part", TStream(rowType))
     val row = Ref("row", rowType)
     val acc = Ref("acc", rowType)
 
     assertEvalsTo(
       collect(
-        TableMapPartitions(table, "part",
+        TableMapPartitions(table, "g", "part",
           ArrayFlatMap(
-            ArrayMap(part, "row", MakeStruct(Seq("str" -> Str("world")))),
+            ArrayMap(part, "row",
+              MakeStruct(Seq("str" -> Str("world")))),
             "row2",
             MakeStream(Seq(
-              MakeStruct(Seq("str" -> Str("Hello"))),
+              MakeStruct(Seq("str" -> greeting)),
               MakeStruct(Seq("str" -> GetField(Ref("row2", row2Type), "str")))
             ), TStream(row2Type))))
       ),
       Row(IndexedSeq.tabulate(40) { i =>
         Row(if (i % 2 == 0) "Hello" else "world")
-      }, Row()))
+      }, Row("Hello")))
 
     assertEvalsTo(
       collect(
-        TableMapPartitions(table, "part",
+        TableMapPartitions(table, "g", "part",
           // replace every row in partition with the first row
           ArrayFilter(
             ArrayScan(part,
@@ -475,10 +482,10 @@ class TableIRSuite extends HailSuite {
         // 0,1,2,3,4,5,6,7,8,9,... ==>
         // 0,0,0,0,0,5,5,5,5,5,...
         Row((i / 5) * 5)
-      }, Row()))
+      }, Row("Hello")))
 
     interceptAssertion("must iterate over the partition exactly once") {
-      collect(TableMapPartitions(table, "part", ArrayFlatMap(part, "_", part)))
+      collect(TableMapPartitions(table, "g", "part", ArrayFlatMap(part, "_", part)))
     }
   }
 }
