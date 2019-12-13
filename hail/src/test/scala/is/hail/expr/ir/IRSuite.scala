@@ -3000,7 +3000,7 @@ class IRSuite extends HailSuite {
 
   @Test def testSimpleTailLoop(): Unit = {
     val triangleSum: IR = TailLoop("f",
-      FastIndexedSeq("x" -> In(0, TInt32()), "accum" -> I32(0)),
+      FastIndexedSeq("x" -> In(0, TInt32()), "accum" -> In(1, TInt32())),
       If(Ref("x", TInt32()) <= I32(0),
         Ref("accum", TInt32()),
         Recur("f",
@@ -3009,7 +3009,9 @@ class IRSuite extends HailSuite {
             Ref("accum", TInt32()) + Ref("x", TInt32())),
           TInt32())))
 
-    assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32()), 15)
+    assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32(), 0 -> TInt32()), 15)
+    assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32(), (null, TInt32())), null)
+    assertEvalsTo(triangleSum, FastIndexedSeq((null, TInt32()),  0 -> TInt32()), null)
   }
 
   @Test def testNestedTailLoop(): Unit = {
