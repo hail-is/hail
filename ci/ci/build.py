@@ -81,6 +81,7 @@ class BuildConfiguration:
     def __init__(self, code, config_str, scope, requested_step_names=None):
         config = yaml.safe_load(config_str)
         name_step = {}
+        all_steps = []
         self.steps = []
 
         if requested_step_names:
@@ -90,10 +91,11 @@ class BuildConfiguration:
             step_params = StepParameters(code, scope, step_config, name_step)
             step = Step.from_json(step_params)
             name_step[step.name] = step
+            all_steps.append(step)
             if not step.run_if_requested:
                 self.steps.append(step)
 
-        # transitively close requested_step_names over dependenies
+        # transitively close requested_step_names over dependencies
         if requested_step_names:
             visited = set()
 
@@ -105,7 +107,7 @@ class BuildConfiguration:
 
             for step_name in requested_step_names:
                 request(name_step[step_name])
-            self.steps = [s for s in self.steps if s in visited]
+            self.steps = [s for s in all_steps if s in visited]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
