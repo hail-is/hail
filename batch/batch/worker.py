@@ -75,11 +75,13 @@ class PortAllocator:
         while True:
             if self.ports:
                 return self.ports.pop()
-            await self.cond.wait()
+            async with self.cond:
+                await self.cond.wait()
 
     def free(self, port):
         self.ports.append(port)
-        self.cond.notify()
+        async with self.cond:
+            self.cond.notify()
 
 
 async def docker_call_retry(f, *args, **kwargs):
