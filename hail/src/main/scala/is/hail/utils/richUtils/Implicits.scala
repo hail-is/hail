@@ -119,4 +119,6 @@ trait Implicits {
   implicit def toRichCodeOutputBuffer(out: Code[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 
   implicit def toRichCodeArray[T](arr: Array[Code[T]]): RichCodeArray[T] = new RichCodeArray[T](arr)
+
+  implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
 }

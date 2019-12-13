@@ -1130,9 +1130,7 @@ private class Emit(
           Region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
       case In(i, typ) =>
-        EmitTriplet(Code._empty,
-          mb.getArg[Boolean](normalArgumentPosition(i) + 1),
-          mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
+        normalArgument(i, typ)
       case Die(m, typ) =>
         val cm = emit(m)
         EmitTriplet(
@@ -1965,8 +1963,11 @@ private class Emit(
       value)
   }
 
-  private def normalArgumentPosition(idx: Int): Int = {
-    1 + nSpecialArguments + idx * 2
+  private[ir] def normalArgument(idx: Int, pType: PType): EmitTriplet = {
+    val i = 1 + nSpecialArguments + idx * 2
+    EmitTriplet(Code._empty,
+      mb.getArg[Boolean](i + 1),
+      mb.getArg(i)(typeToTypeInfo(pType)))
   }
 
   def deforestNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {

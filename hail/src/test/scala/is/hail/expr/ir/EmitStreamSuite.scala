@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, RegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
@@ -14,34 +14,64 @@ import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
 
-  private def compileStream(streamIR: IR, inputPType: PType): Any => IndexedSeq[Any] = {
-    val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]("eval_stream")
+  private def compileStream[F >: Null : TypeInfo, A](
+    streamIR: IR,
+    inputTypes: Seq[PType]
+  )(call: (F, Region, A) => Long): A => IndexedSeq[Any] = {
+    val argTypeInfos = new ArrayBuilder[MaybeGenericTypeInfo[_]]
+    argTypeInfos += GenericTypeInfo[Region]()
+    inputTypes.foreach { t =>
+      argTypeInfos ++= Seq(GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
+    }
+    val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
       EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
-    val eltPType = stream.elementType
-    fb.emit {
-      val ait = stream.toArrayIterator(mb)
-      val arrayt = ait.toEmitTriplet(mb, PArray(eltPType))
+    mb.emit {
+      val arrayt = stream
+        .toArrayIterator(mb)
+        .toEmitTriplet(mb, PArray(stream.elementType))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
-    ({ arg: Any => Region.scoped { r =>
-      val off =
-        if(arg == null)
-          f(0, r)(r, 0L, true)
-        else
-          f(0, r)(r, ScalaToRegionValue(r, inputPType, arg), false)
-      if(off == 0L)
+    (arg: A) => Region.scoped { r =>
+      val off = call(f(0, r), r, arg)
+      if (off == 0L)
         null
       else
-        SafeRow.read(PArray(eltPType), r, off).asInstanceOf[IndexedSeq[Any]]
-    } })
+        SafeRow.read(PArray(stream.elementType), r, off).asInstanceOf[IndexedSeq[Any]]
+    }
   }
 
-  private def evalStream(streamIR: IR): IndexedSeq[Any] =
-    compileStream(streamIR, PStruct.empty())(null)
+  private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
+    type F = AsmFunction3[Region, Long, Boolean, Long]
+    compileStream[F, Any](ir, Seq(inputType)) { (f: F, r: Region, arg: Any) =>
+      if (arg == null)
+        f(r, 0L, true)
+      else
+        f(r, ScalaToRegionValue(r, inputType, arg), false)
+    }
+  }
+
+  private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
+    type F = AsmFunction3[Region, Iterator[RegionValue], Boolean, Long]
+    compileStream[F, Iterator[Any]](ir, Seq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
+      val rv = RegionValue(r)
+      val rvi = new Iterator[RegionValue] {
+        def hasNext: Boolean = it.hasNext
+        def next(): RegionValue = {
+          rv.setOffset(ScalaToRegionValue(r, streamType.elementType, it.next()))
+          rv
+        }
+      }
+      f(r, rvi, it == null)
+    }
+  }
+
+  private def evalStream(ir: IR): IndexedSeq[Any] =
+    compileStream[AsmFunction1[Region, Long], Unit](ir, Seq()) { (f, r, _) => f(r) }
+      .apply(())
 
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
@@ -301,5 +331,26 @@ class EmitStreamSuite extends HailSuite {
       FastIndexedSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->
         IndexedSeq(null, 0L, 2L, 7L, 15L, 15L, 15L, 16L, 17L)
     )
+  }
+
+  @Test def testEmitFromIterator() {
+    val intsPType = PStream(PInt32Required)
+
+    val f1 = compileStreamWithIter(
+      ArrayScan(In(0, intsPType),
+        zero = 0,
+        "a", "x", Ref("a", TInt32()) + Ref("x", TInt32()) * Ref("x", TInt32())
+      ), intsPType)
+    assert(f1((1 to 4).iterator) == IndexedSeq(0, 1, 1+4, 1+4+9, 1+4+9+16))
+    assert(f1(Iterator.empty) == IndexedSeq(0))
+    assert(f1(null) == null)
+
+    val f2 = compileStreamWithIter(
+      ArrayFlatMap(
+        In(0, intsPType),
+        "n", StreamRange(0, Ref("n", TInt32()), 1)
+      ), intsPType)
+    assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
+    assert(f2(null) == null)
   }
 }
