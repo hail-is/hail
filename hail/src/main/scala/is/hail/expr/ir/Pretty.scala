@@ -26,18 +26,6 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyAggSignature(aggSig: AggSignature): String = {
-    val sb = new StringBuilder
-    sb += '('
-    sb.append(prettyClass(aggSig.op))
-    sb += ' '
-    sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
-    sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb += ')'
-    sb.result()
-  }
-
   val MAX_VALUES_TO_LOG: Int = 25
 
   def apply(ir: BaseIR, elideLiterals: Boolean = false): String = {

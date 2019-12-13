@@ -3,13 +3,9 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir
-import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
@@ -17,16 +13,11 @@ import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods
-
-import scala.collection.mutable
 
 object MatrixIR {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {

@@ -519,16 +519,6 @@ object IRParser {
   def agg_op(it: TokenIterator): AggOp =
     AggOp.fromString(identifier(it))
 
-  def agg_signature(env: TypeParserEnvironment)(it: TokenIterator): AggSignature = {
-    punctuation(it, "(")
-    val op = agg_op(it)
-    val ctorArgs = type_exprs(env)(it).map(t => -t)
-    val initOpArgs = opt(it, type_exprs(env)).map(_.map(t => -t))
-    val seqOpArgs = type_exprs(env)(it).map(t => -t)
-    punctuation(it, ")")
-    AggSignature(op, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs)
-  }
-
   def agg_signature2(env: TypeParserEnvironment)(it: TokenIterator): AggSignature2 = {
     punctuation(it, "(")
     val op = agg_op(it)
