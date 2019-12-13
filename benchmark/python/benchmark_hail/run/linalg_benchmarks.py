@@ -17,6 +17,16 @@ def make_ndarray_bench():
     ht._force_count()
 
 @benchmark()
-def ndarray_matmul_benchmark():
-    arr = hl._nd.arange(4096 * 4096).reshape((4096, 4096))
+def ndarray_addition_benchmark():
+    arr = hl._nd.ones((1024, 1024))
+    hl.eval(arr + arr)
+
+@benchmark()
+def ndarray_matmul_int64_benchmark():
+    arr = hl._nd.arange(1024 * 1024).map(hl.int64).reshape((1024, 1024))
+    hl.eval(arr @ arr)
+
+@benchmark()
+def ndarray_matmul_float64_benchmark():
+    arr = hl._nd.arange(1024 * 1024).map(hl.float64).reshape((1024, 1024))
     hl.eval(arr @ arr)
