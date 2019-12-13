@@ -156,10 +156,10 @@ class Container:
 
         if self.port is not None:
             config['PortBindings'] = {
-                f'{port}/tcp': [{
-                        'HostIp': '',
-                        'HostPort': ''
-                    }]
+                f'{self.port}/tcp': [{
+                    'HostIp': '',
+                    'HostPort': ''
+                }]
             }
 
         env = self.spec.get('env')
@@ -238,7 +238,7 @@ class Container:
                 async with self.step('configuring_port'):
                     c = await docker_call_retry(self.container.show)
                     host_port = c['NetworkSettings']['Ports'][f'{self.port}/tcp'][0]['HostPort']
-                    with open(f'{self.job.network_host_path()}/config', 'w') as f:
+                    with open(f'{self.job.port_host_path()}/config', 'w') as f:
                         f.write(json.dumps({
                             'ip': IP_ADDRESS,
                             'port': self.port,
@@ -398,8 +398,8 @@ class Job:
     def io_host_path(self):
         return f'{self.scratch}/io'
 
-    def network_host_path(self):
-        return f'{self.scratch}/network'
+    def port_host_path(self):
+        return f'{self.scratch}/port'
 
     def __init__(self, batch_id, user, gsa_key, job_spec):
         self.batch_id = batch_id
@@ -426,7 +426,7 @@ class Job:
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
         self.mount_io = (pvc_size or input_files or output_files)
-        if mount_io:
+        if self.mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
@@ -442,9 +442,9 @@ class Job:
                     copy_volume_mounts.append(volume_mount)
 
         port = job_spec.get('port')
-        self.mount_network = port is not None
-        if self.mount_network:
-            main_volume_mounts.append(f'{self.network_host_path()}:/network')
+        self.mount_port = port is not None
+        if self.mount_port:
+            main_volume_mounts.append(f'{self.port_host_path()}:/port')
 
         env = []
         for item in job_spec.get('env', []):
@@ -498,8 +498,8 @@ class Job:
 
             if self.mount_io:
                 os.makedirs(self.io_host_path())
-            if self.mount_network:
-                os.makedirs(self.network_host_path())
+            if self.mount_port:
+                os.makedirs(self.port_host_path())
 
             if self.secrets:
                 for secret in self.secrets:

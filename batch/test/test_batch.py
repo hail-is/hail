@@ -408,7 +408,7 @@ class Test(unittest.TestCase):
 
     def test_port(self):
         builder = self.client.create_batch()
-        j = builder.create_job('ubuntu:18.04', ['cat', '/network/config'], port=5000)
+        j = builder.create_job('ubuntu:18.04', ['cat', '/port/config'], port=5000)
         b = builder.submit()
         batch = b.wait()
         assert batch['state'] == 'success', batch
