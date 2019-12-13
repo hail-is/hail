@@ -17,7 +17,7 @@ object PLocus {
 }
 
 abstract class PLocus extends ComplexPType {
-  val rgBc: BroadcastRG
+  def rgBc: BroadcastRG
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
 
