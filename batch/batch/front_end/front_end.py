@@ -826,17 +826,17 @@ async def ui_get_job(request, userdata):
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
 
-    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
     billing_projects = {}
-    async for record in db.execute_and_fetchall(
-            'SELECT * FROM billing_projects;'):
-        name = record['name']
-        billing_projects[name] = []
-    async for record in db.execute_and_fetchall(
-            'SELECT * FROM billing_project_users;'):
-        billing_project = record['billing_project']
-        user = record['user']
-        billing_projects[billing_project].append(user)
+    async with db.start(read_only=True) as tx:
+        async for record in tx.execute_and_fetchall(
+                'SELECT * FROM billing_projects;'):
+            name = record['name']
+            billing_projects[name] = []
+        async for record in tx.execute_and_fetchall(
+                'SELECT * FROM billing_project_users;'):
+            billing_project = record['billing_project']
+            user = record['user']
+            billing_projects[billing_project].append(user)
     page_context = {
         'billing_projects': billing_projects
     }
@@ -854,9 +854,9 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
     session = await aiohttp_session.get_session(request)
 
-    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
-    row = await db.execute_and_fetchone(
-        '''
+    async with db.start() as tx:
+        row = await tx.execute_and_fetchone(
+            '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
@@ -864,22 +864,22 @@ LEFT JOIN (SELECT * FROM billing_project_users
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
 ''',
-        (billing_project, user, billing_project))
-    if not row:
-        set_message(session, f'No such billing project {billing_project}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
-    assert row['billing_project'] == billing_project
+            (billing_project, user, billing_project))
+        if not row:
+            set_message(session, f'No such billing project {billing_project}.', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        assert row['billing_project'] == billing_project
 
-    if row['user'] is None:
-        set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        if row['user'] is None:
+            set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
+            return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
-    await db.just_execute(
-        '''
+        await tx.just_execute(
+            '''
 DELETE FROM billing_project_users
 WHERE billing_project = %s AND user = %s;
 ''',
-        (billing_project, user))
+            (billing_project, user))
 
     set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
@@ -897,9 +897,9 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
     session = await aiohttp_session.get_session(request)
 
-    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
-    row = await db.execute_and_fetchone(
-        '''
+    async with db.start() as tx:
+        row = await db.execute_and_fetchone(
+            '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
@@ -907,21 +907,21 @@ LEFT JOIN (SELECT * FROM billing_project_users
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
 ''',
-        (billing_project, user, billing_project))
-    if row is None:
-        set_message(session, f'No such billing project {billing_project}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            (billing_project, user, billing_project))
+        if row is None:
+            set_message(session, f'No such billing project {billing_project}.', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
-    if row['user'] is not None:
-        set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        if row['user'] is not None:
+            set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
+            return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
-    await db.execute_insertone(
-        '''
+        await tx.execute_insertone(
+            '''
 INSERT INTO billing_project_users(billing_project, user)
 VALUES (%s, %s);
 ''',
-        (billing_project, user))
+            (billing_project, user))
 
     set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
@@ -938,23 +938,23 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 
     session = await aiohttp_session.get_session(request)
 
-    # FIXME make this a transaction, waiting on https://github.com/hail-is/hail/pull/7641
-    row = await db.execute_and_fetchone(
-        '''
+    async with db.start() as tx:
+        row = await db.execute_and_fetchone(
+            '''
 SELECT 1 FROM billing_projects
 WHERE name = %s;
 ''',
-        (billing_project))
-    if row is not None:
-        set_message(session, f'Billing project {billing_project} already exists.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            (billing_project))
+        if row is not None:
+            set_message(session, f'Billing project {billing_project} already exists.', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
-    await db.execute_insertone(
-        '''
+        await tx.execute_insertone(
+            '''
 INSERT INTO billing_projects(name)
 VALUES (%s);
 ''',
-        (billing_project,))
+            (billing_project,))
 
     set_message(session, f'Added billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
