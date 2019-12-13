@@ -68,7 +68,8 @@ class PortAllocator:
     def __init__(self):
         # random unallocated ports take from
         # https://stackoverflow.com/questions/10476987/best-tcp-port-number-range-for-internal-applications
-        self.ports = list(range(46572, 10))
+        port_base = 46572
+        self.ports = list(range(port_base, port_base + 10))
         self.cond = asyncio.Condition()
 
     async def allocate(self):
