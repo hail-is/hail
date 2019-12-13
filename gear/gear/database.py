@@ -131,7 +131,7 @@ class Database:
         self.pool = None
 
     async def async_init(self, config_file=None, maxsize=10):
-        self.pool = await create_database_pool(config_File=config_file, autocommit=False, maxsize=maxsize)
+        self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
 
     def start(self, read_only=False):
         return TransactionAsyncContextManager(self.pool, read_only)
