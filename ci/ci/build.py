@@ -89,8 +89,9 @@ class BuildConfiguration:
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
             step = Step.from_json(step_params)
-            self.steps.append(step)
             name_step[step.name] = step
+            if not step.run_if_requested:
+                self.steps.append(step)
 
         # transitively close requested_step_names over dependenies
         if requested_step_names:
@@ -140,6 +141,7 @@ class Step(abc.ABC):
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
 
