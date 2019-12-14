@@ -157,9 +157,11 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
             limits={'cpu': cpu, 'memory': memory})
 
     pod_spec = kube.client.V1PodSpec(
-        node_selector={
-            'preemptible': 'false'
-        },
+        tolerations=[
+            kube.client.V1Toleration(
+                key='preemptible',
+                value='true')
+        ],
         service_account_name=service_account_name,
         containers=[
             kube.client.V1Container(
