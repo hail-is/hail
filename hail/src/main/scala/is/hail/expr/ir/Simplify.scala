@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.utils._
@@ -758,10 +759,12 @@ object Simplify {
       //     })))
       //   TableKeyBy(TableFilter(child, pred), keys, isSorted)
 
-    case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
-      && tr.spec.indexed(tr.path)
-      && tr.options.forall(_.filterIntervals)
-      && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
+    case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true)
+      if HailContext.get.flags.get("filter_intervals_on_read") != null
+        && canRepartition
+        && tr.spec.indexed(tr.path)
+        && tr.options.forall(_.filterIntervals)
+        && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
@@ -774,10 +777,12 @@ object Simplify {
       }
       TableRead(t, false, TableNativeReader(tr.path, Some(newOpts), tr.spec))
 
-    case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true) if canRepartition
-      && tr.specLeft.indexed(tr.pathLeft)
-      && tr.options.forall(_.filterIntervals)
-      && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
+    case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true)
+      if HailContext.get.flags.get("filter_intervals_on_read") != null
+        && canRepartition
+        && tr.specLeft.indexed(tr.pathLeft)
+        && tr.options.forall(_.filterIntervals)
+        && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
