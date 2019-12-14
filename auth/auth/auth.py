@@ -224,7 +224,7 @@ async def rest_callback(request):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute("SELECT * FROM users WHERE email = %s; AND state = 'active'", email)
+            await cursor.execute("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
             users = await cursor.fetchall()
 
     if len(users) != 1:
