@@ -100,7 +100,7 @@ class BuildConfiguration:
             visited = set()
 
             def request(step):
-                if step not in visited:
+                if step not in visited and (not step.run_if_requested or step in requested_step_names):
                     visited.add(step)
                     for s2 in step.deps:
                         request(s2)
