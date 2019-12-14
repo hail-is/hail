@@ -967,25 +967,25 @@ object IRParser {
         AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
-        val initOpArgs = ir_value_exprs(env)(it)
-        val seqOpArgs = ir_value_exprs(env)(it)
+        val nInitOps = int32_literal(it)
+        val (initOpArgs, seqOpArgs) = ir_value_children(env)(it).splitAt(nInitOps)
         val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
         ApplyAggOp(initOpArgs, seqOpArgs, aggSig)
       case "ApplyScanOp" =>
         val aggOp = agg_op(it)
-        val initOpArgs = ir_value_exprs(env)(it)
-        val seqOpArgs = ir_value_exprs(env)(it)
+        val nInitOps = int32_literal(it)
+        val (initOpArgs, seqOpArgs) = ir_value_children(env)(it).splitAt(nInitOps)
         val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
         ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
       case "InitOp2" =>
         val i = int32_literal(it)
-        val aggSig = physical_agg_signature(env.typEnv)(it)
-        val args = ir_value_exprs(env)(it)
+        val aggSig = agg_signature(env.typEnv)(it)
+        val args = ir_value_children(env)(it)
         InitOp2(i, args, aggSig)
       case "SeqOp2" =>
         val i = int32_literal(it)
-        val aggSig = physical_agg_signature(env.typEnv)(it)
-        val args = ir_value_exprs(env)(it)
+        val aggSig = agg_signature(env.typEnv)(it)
+        val args = ir_value_children(env)(it)
         SeqOp2(i, args, aggSig)
       case "CombOp2" =>
         val i1 = int32_literal(it)
@@ -1019,8 +1019,8 @@ object IRParser {
         val old = ir_value_expr(env)(it)
         SelectFields(old, fields)
       case "InsertFields" =>
-        val old = ir_value_expr(env)(it)
         val fieldOrder = opt(it, string_literals)
+        val old = ir_value_expr(env)(it)
         val fields = named_value_irs(env)(it)
         InsertFields(old, fields, fieldOrder.map(_.toFastIndexedSeq))
       case "GetField" =>

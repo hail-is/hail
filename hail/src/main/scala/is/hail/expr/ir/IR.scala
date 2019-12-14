@@ -316,6 +316,14 @@ final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
+object ApplyAggOrScanOp {
+  def unapply(node: IR): Option[(IndexedSeq[IR], IndexedSeq[IR], AggSignature)] = node match {
+    case x: ApplyAggOp => Some((x.initOpArgs, x.seqOpArgs, x.aggSig))
+    case x: ApplyScanOp => Some((x.initOpArgs, x.seqOpArgs, x.aggSig))
+    case _ => None
+  }
+}
+
 final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
@@ -338,6 +346,14 @@ final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignat
 final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
 final case class CombOp2(i1: Int, i2: Int, aggSig: PhysicalAggSignature) extends IR
 final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
+
+object SerializeOrDeserializeAggs {
+  def unapply(node: IR): Option[(Int, Int, BufferSpec, IndexedSeq[PhysicalAggSignature])] = node match {
+    case x: SerializeAggs => Some((x.startIdx, x.serializedIdx, x.spec, x.aggSigs))
+    case x: DeserializeAggs => Some((x.startIdx, x.serializedIdx, x.spec, x.aggSigs))
+    case _ => None
+  }
+}
 
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
