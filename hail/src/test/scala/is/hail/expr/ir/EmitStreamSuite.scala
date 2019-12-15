@@ -41,7 +41,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def evalStream(streamIR: IR): IndexedSeq[Any] =
-    compileStream(streamIR, PStruct.empty())(null)
+    compileStream(streamIR, PStruct())(null)
 
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")

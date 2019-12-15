@@ -45,15 +45,13 @@ object PType {
   }
 
   def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] = {
-    for (fields <- genFields(required, genFieldType)) yield {
+    for (fields <- genFields(required, genFieldType)) yield
       PStruct(fields, required)
-    }
   }
 
   def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
-    for (fields <- genFields(required, genFieldType)) yield {
+    for (fields <- genFields(required, genFieldType)) yield
       PTuple(required, fields.map(_.typ): _*)
-    }
   }
 
   private val defaultRequiredGenRatio = 0.2
@@ -72,7 +70,7 @@ object PType {
 
   def genSized(size: Int, required: Boolean, genPStruct: Gen[PStruct]): Gen[PType] =
     if (size < 1)
-      Gen.const(PStruct.empty(required))
+      Gen.const(PStruct(required))
     else if (size < 2)
       genScalar(required)
     else {
@@ -171,13 +169,13 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   }
 
   def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
-    PStruct.empty().unsafeInsert(typeToInsert, path)
+    PStruct().unsafeInsert(typeToInsert, path)
 
   def insert(signature: PType, fields: String*): (PType, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: PType, path: List[String]): (PType, Inserter) = {
     if (path.nonEmpty)
-      PStruct.empty().insert(signature, path)
+      PStruct().insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
