@@ -11,14 +11,6 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
   def _toPretty = s"Dict[$keyType, $valueType]"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("dict<")
-    keyType.pyString(sb)
-    sb.append(", ")
-    valueType.pyString(sb)
-    sb.append('>')
-  }
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Dict[")
     keyType.pretty(sb, indent, compact)

@@ -8,12 +8,6 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
   def _asIdent = s"set_of_${elementType.asIdent}"
   def _toPretty = s"Set[$elementType]"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("set<")
-    elementType.pyString(sb)
-    sb.append('>')
-  }
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Set[")
     elementType.pretty(sb, indent, compact)

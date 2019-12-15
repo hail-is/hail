@@ -23,4 +23,12 @@ abstract class PDict extends PContainer {
     assert(other isOfType this)
     CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
+
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("dict<")
+    keyType.pyString(sb)
+    sb.append(", ")
+    valueType.pyString(sb)
+    sb.append('>')
+  }
 }
