@@ -1,6 +1,6 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, UnsafeUtils}
+import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
@@ -20,7 +20,7 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
 
   val missingIdx = new Array[Int](size)
   val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
-  val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
+  val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PCanonicalBaseStruct.alignment(types)
