@@ -2,7 +2,6 @@ package is.hail.expr.types.physical
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   override val elementType = PStruct(required = true, "key" -> keyType, "value" -> valueType)
-  override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
   val arrayRep: PArray = PCanonicalArray(elementType, required)
 

@@ -9,7 +9,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 
 class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
-  val resultType = PArray(elemType, required = true)
+  val resultType = PArray(elemType, required = false)
 
   class State(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
     val r = fb.newField[Region]
@@ -69,5 +69,4 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
     srvb.addArray(resultType, state.bll.writeToSRVB(_))
-
 }

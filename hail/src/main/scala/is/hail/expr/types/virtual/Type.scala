@@ -194,6 +194,18 @@ abstract class Type extends BaseType with Serializable with Requiredness {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
+  def _showStr(a: Annotation): String = str(a)
+
+  def showStr(a: Annotation): String = if (a == null) "NA" else _showStr(a)
+
+  def showStr(a: Annotation, trunc: Int): String = {
+    val s = showStr(a)
+    if (s.length > trunc)
+      s.substring(0, trunc - 3) + "..."
+    else
+      s
+  }
+
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genNonmissingValue: Gen[Annotation] = ???

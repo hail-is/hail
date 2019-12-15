@@ -123,6 +123,12 @@ object StringFunctions extends RegistryFunctions {
       unwrapReturn(r, rt)(str)
     }
 
+    registerCodeWithMissingness("showStr", tv("T"), TInt32(), TString(), null) { case (r, rt, (aT, a), (_, trunc)) =>
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
+      val str = r.mb.getType(aT.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
+      EmitTriplet(trunc.setup, trunc.m, unwrapReturn(r, rt)(str))
+    }
+
     registerCodeWithMissingness("json", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
       val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
       val json = r.mb.getType(aT.virtualType).invoke[Any, JValue]("toJSON", annotation)

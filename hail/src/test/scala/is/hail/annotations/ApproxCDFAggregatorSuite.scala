@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.annotations.aggregators._
+import is.hail.expr.ir.agg._
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 

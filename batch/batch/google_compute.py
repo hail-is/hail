@@ -24,7 +24,7 @@ class EntryIterator:
         self.entries = None
 
     async def async_init(self):
-        row = await self.db.execute_and_fetchone('SELECT * FROM `gevents_mark`;')
+        row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
         if row['mark']:
             self.mark = row['mark']
         else:

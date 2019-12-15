@@ -107,7 +107,7 @@ or :mod:`scipy`.
 Hail has many subclasses of :class:`.Expression` -- one for each Hail type. Each
 subclass has its own constructor method. For example, if we have a list of Python
 integers, we can convert this to a Hail :class:`.ArrayNumericExpression` with
-:func:`.array`:
+:func:`~hail.expr.functions.array`:
 
     >>> a = hl.array([1, 2, -3, 0, 5])
     >>> a
@@ -128,7 +128,7 @@ Hail arrays can be indexed and sliced like Python lists or :mod:`numpy` arrays:
     >>> a[1:-1]
     <ArrayNumericExpression of type array<int32>>
 
-In addition to constructor methods like :func:`.array` and :func:`.bool`,
+In addition to constructor methods like :func:`~hail.expr.functions.array` and :func:`.bool`,
 Hail expressions can also be constructed with the :func:`.literal` method,
 which will impute the type of of the expression.
 

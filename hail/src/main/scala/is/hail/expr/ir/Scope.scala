@@ -7,7 +7,7 @@ object UsesAggEnv {
     case AggFilter(_, _, false) => i == 0
     case AggExplode(_, _, _, false) => i == 0
     case AggArrayPerElement(_, _, _, _, _, false) => i == 0
-    case ApplyAggOp(ctor, initOp, _, _) => i >= ctor.length + initOp.map(_.length).getOrElse(0)
+    case ApplyAggOp(initOp, _, _) => i >= initOp.length
     case _ => false
   }
 }
@@ -19,7 +19,7 @@ object UsesScanEnv {
     case AggFilter(_, _, true) => i == 0
     case AggExplode(_, _, _, true) => i == 0
     case AggArrayPerElement(_, _, _, _, _, true) => i == 0
-    case ApplyScanOp(ctor, initOp, _, _) => i >= ctor.length + initOp.map(_.length).getOrElse(0)
+    case ApplyScanOp(initOp, _, _) => i >= initOp.length
     case _ => false
   }
 }

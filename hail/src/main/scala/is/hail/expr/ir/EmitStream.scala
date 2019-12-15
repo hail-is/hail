@@ -4,9 +4,11 @@ import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.expr.types.virtual.TStream
+import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 
 import scala.language.existentials
+import scala.reflect.ClassTag
 
 object EmitStream {
   sealed trait Init[+S]
@@ -294,6 +296,26 @@ object EmitStream {
     }
   }
 
+  def fromIterator[A <: AnyRef : ClassTag]: Parameterized[Code[Iterator[A]], Code[A]] =
+    new Parameterized[Code[Iterator[A]], Code[A]] {
+      type S = Code[Iterator[A]]
+      val stateP: ParameterPack[S] = implicitly
+      def emptyState: S = Code.invokeScalaObject[Iterator[Nothing]](Iterator.getClass, "empty")
+      def length(s0: S): Option[Code[Int]] = None
+
+      def init(mb: MethodBuilder, jb: JoinPointBuilder, iter: S)(
+        k: Init[S] => Code[Ctrl]
+      ): Code[Ctrl] =
+        k(Start(iter))
+
+      def step(mb: MethodBuilder, jb: JoinPointBuilder, iter: S)(
+        k: Step[Code[A], S] => Code[Ctrl]
+      ): Code[Ctrl] =
+        iter.hasNext.mux(
+          ParameterPack.let(mb, iter.next()) { elt => k(Yield(elt, iter)) },
+          k(EOS))
+    }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -312,6 +334,16 @@ object EmitStream {
       streamIR match {
         case NA(_) =>
           missing
+
+        case In(i, t@PStream(eltPType, _)) =>
+          val EmitTriplet(_, m, v) = emitter.normalArgument(i, t)
+          fromIterator[RegionValue]
+            .map { (rv: Code[RegionValue]) =>
+              present(Region.loadIRIntermediate(eltPType)(rv.invoke[Long]("getOffset")))
+            }
+            .guardParam { (_, k) =>
+              m.mux(k(None), k(Some(coerce[Iterator[RegionValue]](v))))
+            }
 
         case MakeStream(elements, t) =>
           val e = t.elementType.physicalType

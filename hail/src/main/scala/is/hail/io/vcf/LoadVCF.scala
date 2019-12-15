@@ -7,6 +7,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -28,7 +29,6 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
-
 import is.hail.io.fs.FS
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
@@ -1251,13 +1251,13 @@ object LoadVCF {
     makeContext: () => C
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
   )(lines: ContextRDD[RVDContext, WithContext[String]],
-    t: Type,
+    rowPType: PStruct,
     rgBc: Option[BroadcastValue[ReferenceGenome]],
     contigRecoding: Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
   ): ContextRDD[RVDContext, RegionValue] = {
-    val hasRSID = t.isInstanceOf[TStruct] && t.asInstanceOf[TStruct].hasField("rsid")
+    val hasRSID = rowPType.hasField("rsid")
     lines.cmapPartitions { (ctx, it) =>
       new Iterator[RegionValue] {
         val region = ctx.region
@@ -1274,7 +1274,7 @@ object LoadVCF {
             val line = lwc.value
             try {
               val vcfLine = new VCFLine(line, arrayElementsRequired)
-              rvb.start(t.physicalType)
+              rvb.start(rowPType)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, hasRSID, skipInvalidLoci)
               if (present) {
@@ -1553,7 +1553,7 @@ case class MatrixVCFReader(
 
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
-  val fullRVDType: RVDType = RVDType(fullType.rowType.physicalType, fullType.key)
+  val fullRVDType: RVDType = fullType.canonicalRVDType
 
   private lazy val lines = {
     HailContext.maybeGZipAsBGZip(gzAsBGZ) {
@@ -1562,13 +1562,13 @@ case class MatrixVCFReader(
   }
 
   private def coercer(ctx: ExecuteContext) = RVD.makeCoercer(
-    fullMatrixType.canonicalTableType.canonicalRVDType,
+    fullRVDType,
     1,
     parseLines(
       () => ()
     )((c, l, rvb) => ()
     )(lines,
-      fullMatrixType.rowKeyStruct,
+      fullRVDType.rowType.subsetTo(fullMatrixType.rowKeyStruct).asInstanceOf[PStruct],
       referenceGenome.map(_.broadcast),
       contigRecoding,
       arrayElementsRequired,
@@ -1576,10 +1576,6 @@ case class MatrixVCFReader(
     ctx)
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val localCallFields = callFields
-    val localFloatType = entryFloatType
-    val headerLinesBc = hc.backend.broadcast(headerLines1)
-
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
@@ -1588,17 +1584,18 @@ case class MatrixVCFReader(
     val dropSamples = !requestedType.rowType.hasField(LowerMatrixIR.entriesFieldName)
     val localSampleIDs: Array[String] = if (dropSamples) Array.empty[String] else sampleIDs
 
+    val rvdType = requestedType.canonicalRVDType
     val rvd = if (tr.dropRows)
-      RVD.empty(sc, requestedType.canonicalRVDType)
+      RVD.empty(sc, rvdType)
     else
       coercer(ctx).coerce(
-        requestedType.canonicalRVDType,
+        rvdType,
         parseLines { () =>
           new ParseLineContext(requestedType,
             localInfoFlagFieldNames,
             localSampleIDs.length)
         } { (c, l, rvb) => LoadVCF.parseLine(c, l, rvb, dropSamples) }(
-          lines, requestedType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
+          lines, rvdType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
         ))
 
     val globalValue = makeGlobalValue(ctx, requestedType, sampleIDs.map(Row(_)))
@@ -1767,6 +1764,7 @@ class VCFsReader(
     val localInfoFlagFieldNames = header1.infoFlagFields
     val localTyp = typ
     val tt = localTyp.canonicalTableType
+    val rvdType = tt.canonicalRVDType
 
     val lines = ContextRDD.weaken[RVDContext](
       new PartitionedVCFRDD(hc.sc, file, partitions)
@@ -1779,9 +1777,9 @@ class VCFsReader(
         sampleIDs.length)
     } { (c, l, rvb) =>
       LoadVCF.parseLine(c, l, rvb)
-    }(lines, tt.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
+    }(lines, rvdType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
 
-    val rvd = RVD(tt.canonicalRVDType,
+    val rvd = RVD(rvdType,
       partitioner,
       parsedLines)
 
