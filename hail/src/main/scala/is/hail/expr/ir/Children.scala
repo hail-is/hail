@@ -130,10 +130,10 @@ object Children {
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>
       xs
-    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
-    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
+    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(fields) =>

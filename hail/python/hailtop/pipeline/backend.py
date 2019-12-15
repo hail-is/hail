@@ -32,7 +32,7 @@ class LocalBackend(Backend):
     tmp_dir: :obj:`str`, optional
         Temporary directory to use.
     gsa_key_file :obj:`str`, optional
-        Mount a file with a gsa key to `/gsa-key/privateKeyData`. Only used if a
+        Mount a file with a gsa key to `/gsa-key/key.json`. Only used if a
         task specifies a docker image. This option will override the value set by
         the environment variable `HAIL_PIPELINE_GSA_KEY_FILE`.
     extra_docker_run_flags :obj:`str`, optional
@@ -54,7 +54,7 @@ class LocalBackend(Backend):
         if gsa_key_file is None:
             gsa_key_file = os.environ.get('HAIL_PIPELINE_GSA_KEY_FILE')
         if gsa_key_file is not None:
-            flags += f' -v {gsa_key_file}:/gsa-key/privateKeyData'
+            flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
 
@@ -221,7 +221,7 @@ class BatchBackend(Backend):
         bash_flags = 'set -e' + ('x' if verbose else '') + '; '
 
         activate_service_account = 'gcloud -q auth activate-service-account ' \
-                                   '--key-file=/gsa-key/privateKeyData'
+                                   '--key-file=/gsa-key/key.json'
 
         def copy_input(r):
             if isinstance(r, InputResourceFile):

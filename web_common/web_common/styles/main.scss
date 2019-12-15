@@ -151,9 +151,9 @@ a {
     border: 1px solid black;
 }
 
-.notebook-caret:after {
-    /* 74 (measured width of Notebook) / 2 + 9 - 20 / 2 = 38px */
-    left: 36px;
+.auth-caret:after {
+    /* 35 (measured width of Auth) / 2 + 9 - 20 / 2 = 17px */
+    left: 17px;
 }
 
 .batch-caret:after {
@@ -164,6 +164,11 @@ a {
 .monitoring-caret:after {
     /* 82 (measured width of Monitoring) / 2 + 9 - 20 / 2 = 42px */
     left: 40px;
+}
+
+.notebook-caret:after {
+    /* 74 (measured width of Notebook) / 2 + 9 - 20 / 2 = 38px */
+    left: 36px;
 }
 
 .header-dropdown-menu {

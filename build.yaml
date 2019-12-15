@@ -84,6 +84,21 @@ steps:
      python3 -m pylint --rcfile pylintrc web_common
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: copy_files
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+   outputs:
+     - from: /io/repo/auth/delete-auth-tables.sql
+       to: /auth/
+   dependsOn:
+     - base_image
  - kind: createDatabase
    name: test_database_instance
    databaseName: test-instance
@@ -110,8 +125,8 @@ steps:
     - base_image
     - test_database_instance
  - kind: createDatabase
-   name: users_database
-   databaseName: users
+   name: auth_database
+   databaseName: auth
    namespace:
      valueFrom: default_ns.name
    dependsOn:
@@ -122,6 +137,26 @@ steps:
    contextPath: auth
    dependsOn:
     - base_image
+ - kind: runImage
+   name: cleanup_auth_tables
+   image:
+     valueFrom: base_image.image
+   script: |
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/delete-auth-tables.sql
+   scopes:
+     - dev
+   inputs:
+    - from: /auth/delete-auth-tables.sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   dependsOn:
+     - default_ns
+     - base_image
+     - copy_files
  - kind: deploy
    name: create_auth_tables
    namespace:
@@ -135,7 +170,7 @@ steps:
    dependsOn:
      - default_ns
      - create_auth_tables_image
-     - users_database
+     - auth_database
  - kind: runImage
    name: create_deploy_config
    image:
@@ -215,29 +250,23 @@ steps:
          dbpool = await create_database_pool()
          tokens = get_tokens()
          user_spec = json.loads(sys.argv[1])
-         userdata = await insert_user(dbpool, user_spec)
+         user_id = await insert_user(dbpool, user_spec)
          deploy_config = get_deploy_config()
          auth_ns = deploy_config.service_ns('auth')
-         tokens[auth_ns] = await create_session(dbpool, userdata['id'])
+         tokens[auth_ns] = await create_session(dbpool, user_id)
          tokens.write()
      async_to_blocking(main())
      EOF
-     # create batch
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers batch-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
-         python3 create-session.py '{"username":"batch","user_id":"hail|batch","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"batch-gsa-key","jwt_secret_name":"batch-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic batch-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created batch
+     # batch, auth gsa keys
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "auth-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      # create ci
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
          rm -f /user-tokens/tokens.json
          kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
          kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
-         python3 create-session.py '{"username":"ci","user_id":"hail|ci","service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","jwt_secret_name":"ci-tokens"}'
+         python3 create-session.py '{"state":"active","username":"ci","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"ci-gsa-key","tokens_secret_name":"ci-tokens"}'
          kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
      fi
      # created ci
@@ -246,19 +275,19 @@ steps:
      if [[ $N = 0 ]]; then
          # if test-tokens does not exist
          rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"username":"test","user_id":"hail|test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-tokens"}'
+         python3 create-session.py '{"state":"active","username":"test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-tokens"}'
          kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
      fi
-     # created test-tokens
-     # create test-dev-tokens
+     # created test
+     # create test-dev
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
          # if test-dev-tokens does not exist
          rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"username":"testdev","user_id":"hail|testdev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","jwt_secret_name":"test-dev-tokens","developer":1}'
+         python3 create-session.py '{"state":"active","username":"testdev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-1c9nm","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-dev-tokens","is_developer":1}'
          kubectl -n {{ batch_pods_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
      fi
-     # created test-dev-tokens
+     # created test-dev
    scopes:
     - test
     - dev
@@ -268,7 +297,7 @@ steps:
        valueFrom: default_ns.name
    secrets:
     - name:
-        valueFrom: users_database.user_secret_name
+        valueFrom: auth_database.user_secret_name
       namespace:
         valueFrom: default_ns.name
       mountPath: /sql-config
@@ -280,7 +309,7 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_default_admin_admin
-    - users_database
+    - auth_database
     - service_base_image
     - create_auth_tables
     - create_deploy_config
@@ -696,10 +725,11 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - batch_pods_ns
     - create_deploy_config
     - create_session_key
     - deploy_router
-    - users_database
+    - auth_database
     - create_auth_tables
     - auth_image
     - create_dummy_oauth2_client_secret
@@ -935,7 +965,7 @@ steps:
      valueFrom: base_image.image
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
      gsutil -m cp -r /io/test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    inputs:
     - from: /pipeline/test
@@ -983,7 +1013,7 @@ steps:
    alwaysRun: true
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
      gsutil -m rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
    secrets:
     # hail|test-batch
@@ -1198,7 +1228,8 @@ steps:
    alwaysRun: true     
    script: |
      set -ex
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     set +e
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="value(name)" \

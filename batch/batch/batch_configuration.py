@@ -10,3 +10,4 @@ assert PROJECT != ''
 ZONE = os.environ['ZONE']
 assert ZONE != ''
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
+BATCH_BUCKET_NAME = os.environ['HAIL_BATCH_BUCKET_NAME']

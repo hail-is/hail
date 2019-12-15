@@ -1,24 +1,14 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{UnsafeUtils, _}
-import is.hail.check.Gen
+import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
-import is.hail.utils._
-import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
+final case class PDict(keyType: PType, valueType: PType, required: Boolean = false)
+  extends PArrayBackedContainer(PCanonicalArray(PStruct(required = true, "key" -> keyType, "value" -> valueType), required)) {
+  val elementType = arrayRep.elementType.asInstanceOf[PStruct]
 
-final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false) extends PContainer {
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
-
-  val elementType: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
-
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
-  override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
   def _toPretty = s"Dict[$keyType, $valueType]"

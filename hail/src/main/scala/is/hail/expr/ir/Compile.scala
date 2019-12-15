@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import java.io.PrintWriter
 
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
@@ -70,8 +69,6 @@ object Compile {
 
     val ab = new ArrayBuilder[MaybeGenericTypeInfo[_]]()
     ab += GenericTypeInfo[Region]()
-    if (nSpecialArgs == 2)
-      ab += GenericTypeInfo[Array[RegionValueAggregator]]()
     args.foreach { case (_, t, _) =>
       ab += GenericTypeInfo()(typeToTypeInfo(t))
       ab += GenericTypeInfo[Boolean]()
@@ -266,8 +263,6 @@ object CompileWithAggregators2 {
 
     val ab = new ArrayBuilder[MaybeGenericTypeInfo[_]]()
     ab += GenericTypeInfo[Region]()
-    if (nSpecialArgs == 2)
-      ab += GenericTypeInfo[Array[RegionValueAggregator]]()
     args.foreach { case (_, t, _) =>
       ab += GenericTypeInfo()(typeToTypeInfo(t))
       ab += GenericTypeInfo[Boolean]()

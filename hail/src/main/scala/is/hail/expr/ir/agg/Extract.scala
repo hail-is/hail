@@ -98,7 +98,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 
 object Extract {
   def liftScan(ir: IR): IR = ir match {
-    case ApplyScanOp(a, b, c, d) => ApplyAggOp(a, b, c, d)
+    case ApplyScanOp(init, seq, sig) => ApplyAggOp(init, seq, sig)
     case x => MapIR(liftScan)(x)
   }
 
@@ -198,13 +198,8 @@ object Extract {
         extract(body)
       case x: ApplyAggOp =>
         val i = ab.length
-        val newSig = AggSignature2(
-          x.aggSig.op,
-          x.aggSig.constructorArgs ++ x.aggSig.initOpArgs.getOrElse(FastSeq.empty),
-          x.aggSig.seqOpArgs,
-          None)
-        ab += InitOp2(i, x.constructorArgs ++ x.initOpArgs.getOrElse[IndexedSeq[IR]](FastIndexedSeq()), newSig)
-        seqBuilder += SeqOp2(i, x.seqOpArgs, newSig)
+        ab += InitOp2(i, x.initOpArgs, x.aggSig)
+        seqBuilder += SeqOp2(i, x.seqOpArgs, x.aggSig)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new ArrayBuilder[IR]()
