@@ -21,8 +21,6 @@ abstract class PContainer extends PIterable {
 
   def storeLength(region: Region, aoff: Long, length: Int): Unit
 
-  def storeLength(aoff: Long, length: Int): Unit
-
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit]
 
   def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit]

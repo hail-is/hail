@@ -7,8 +7,6 @@ import is.hail.expr.types.virtual.TSet
 final case class PSet(elementType: PType, required: Boolean = false) extends PArrayBackedContainer(PCanonicalArray(elementType, required )) {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
-  override val fundamentalType: PArray = PCanonicalArray(elementType.fundamentalType, required)
-
   def _asIdent = s"set_of_${elementType.asIdent}"
   def _toPretty = s"Set[$elementType]"
 

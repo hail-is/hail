@@ -170,14 +170,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg -> env.bindAgg(elementName, newElementName)
         AggArrayPerElement(normalize(a, aEnv), newElementName, newIndexName, normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName)), knownLength.map(normalize(_, env)), isScan)
-      case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        ApplyAggOp(ctorArgs.map(a => normalize(a)),
-          initOpArgs.map(_.map(a => normalize(a))),
+      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        ApplyAggOp(
+          initOpArgs.map(a => normalize(a)),
           seqOpArgs.map(a => normalize(a, env.promoteAgg)),
           aggSig)
-      case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        ApplyScanOp(ctorArgs.map(a => normalize(a)),
-          initOpArgs.map(_.map(a => normalize(a))),
+      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        ApplyScanOp(
+          initOpArgs.map(a => normalize(a)),
           seqOpArgs.map(a => normalize(a, env.promoteScan)),
           aggSig)
       case Uniroot(argname, function, min, max) =>

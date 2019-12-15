@@ -29,4 +29,5 @@ Expressions
     StringExpression
     StructExpression
     TupleExpression
-
+    NDArrayExpression
+    NDArrayNumericExpression

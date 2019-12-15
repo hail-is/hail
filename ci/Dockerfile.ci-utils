@@ -1,4 +1,4 @@
-FROM {{ base_image.image }}
+FROM {{ service_base_image.image }}
 
 RUN apt-get update && \
   apt-get -y install docker.io && \
@@ -6,3 +6,4 @@ RUN apt-get update && \
 
 COPY jinja2_render.py .
 COPY wait-for.py .
+COPY create_database.py .

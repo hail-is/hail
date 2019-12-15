@@ -55,6 +55,11 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
   def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
 
+  override def _showStr(a: Annotation): String =
+    a.asInstanceOf[Map[Annotation, Annotation]]
+      .map { case (k, v) => s"${keyType.showStr(k)}:${valueType.showStr(v)}}" }
+      .mkString("{", ",", "}")
+
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =

@@ -191,6 +191,8 @@ class Step(abc.ABC):
             return DeployStep.from_json(params)
         if kind == 'createDatabase':
             return CreateDatabaseStep.from_json(params)
+        if kind == 'createDatabase2':
+            return CreateDatabase2Step.from_json(params)
         raise ValueError(f'unknown build step kind: {kind}')
 
     def __eq__(self, other):
@@ -826,6 +828,11 @@ class CreateDatabaseStep(Step):
         else:
             database_server_config_namespace = DEFAULT_NAMESPACE
 
+        if params.scope == 'dev':
+            database_server_config_namespace = params.code.namespace
+        else:
+            database_server_config_namespace = DEFAULT_NAMESPACE
+
         self.secrets = [{
             'namespace': database_server_config_namespace,
             'name': 'database-server-config',
@@ -854,10 +861,10 @@ class CreateDatabaseStep(Step):
 
     def build_cant_create_database(self, batch, code, scope):  # pylint: disable=unused-argument
         script = f'''
-kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.admin_secret_name)}
+kubectl -n {shq(self.namespace)} delete --ignore-not-found=true secret {shq(self.admin_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
 
-kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.user_secret_name)}
+kubectl -n {shq(self.namespace)} delete --ignore-not-found=true secret {shq(self.user_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=/sql-config/sql-config.json --from-file=/sql-config/sql-config.cnf
 '''
 
@@ -893,6 +900,7 @@ fi
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
+echo create database, admin and user...
 cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
 CREATE DATABASE \\`{self._name}\\`;
 
@@ -902,9 +910,6 @@ GRANT ALL ON \\`{self._name}\\`.* TO '{self.admin_username}'@'%';
 CREATE USER '{self.user_username}'@'%' IDENTIFIED BY '$USER_PASSWORD';
 GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON \\`{self._name}\\`.* TO '{self.user_username}'@'%';
 EOF
-
-echo create database, admin and user...
-echo "$SQL_SCRIPT" | mysql --defaults-extra-file=/sql-config/sql-config.cnf
 
 echo create admin secret...
 cat > sql-config.json <<EOF
@@ -925,7 +930,7 @@ user={self.admin_username}
 password="$ADMIN_PASSWORD"
 database={self._name}
 EOF
-kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.admin_secret_name)}
+kubectl -n {shq(self.namespace)} delete --ignore-not-found=true secret {shq(self.admin_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo create user secret...
@@ -947,7 +952,7 @@ user={self.user_username}
 password="$USER_PASSWORD"
 database={self._name}
 EOF
-kubectl -n {shq(self.namespace)} delete secret --ignore-not-found {shq(self.user_secret_name)}
+kubectl -n {shq(self.namespace)} delete --ignore-not-found=true secret {shq(self.user_secret_name)}
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo database = {shq(self._name)}
@@ -993,6 +998,132 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=self.secrets,
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
+                                    parents=parents,
+                                    always_run=True)
+
+
+class CreateDatabase2Step(Step):
+    def __init__(self, params, database_name, namespace, migrations, inputs):
+        super().__init__(params)
+        # FIXME validate
+        self.database_name = database_name
+        self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
+        self.migrations = migrations
+        self.inputs = inputs
+        self.job = None
+
+        if params.scope == 'dev':
+            self.database_server_config_namespace = params.code.namespace
+        else:
+            self.database_server_config_namespace = DEFAULT_NAMESPACE
+
+        self.cant_create_database = is_test_deployment or params.scope == 'dev'
+
+        # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
+        if self.cant_create_database:
+            self._name = None
+            self.admin_username = None
+            self.user_username = None
+        elif params.scope == 'deploy':
+            self._name = database_name
+            self.admin_username = f'{database_name}-admin'
+            self.user_username = f'{database_name}-user'
+        else:
+            assert params.scope == 'test'
+            self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
+            self.admin_username = generate_token()
+            self.user_username = generate_token()
+
+        self.admin_secret_name = f'sql-{self.database_name}-admin-config'
+        self.user_secret_name = f'sql-{self.database_name}-user-config'
+
+    def wrapped_job(self):
+        if self.job:
+            return [self.job]
+        return []
+
+    @staticmethod
+    def from_json(params):
+        json = params.json
+        return CreateDatabase2Step(params,
+                                   json['databaseName'],
+                                   json['namespace'],
+                                   json['migrations'],
+                                   json.get('inputs'))
+
+    def config(self, scope):  # pylint: disable=unused-argument
+        return {
+            'token': self.token,
+            'admin_secret_name': self.admin_secret_name,
+            'user_secret_name': self.user_secret_name
+        }
+
+    def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        create_database_config = {
+            'namespace': self.namespace,
+            'scope': scope,
+            'database_name': self.database_name,
+            '_name': self._name,
+            'admin_username': self.admin_username,
+            'user_username': self.user_username,
+            'cant_create_database': self.cant_create_database,
+            'migrations': self.migrations
+        }
+
+        create_script = f'''
+set -ex
+
+python3 create_database.py {shq(json.dumps(create_database_config))}
+'''
+
+        if self.inputs:
+            input_files = []
+            for i in self.inputs:
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+        else:
+            input_files = None
+
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', create_script],
+                                    attributes={'name': self.name},
+                                    secrets=[{
+                                        'namespace': self.database_server_config_namespace,
+                                        'name': 'database-server-config',
+                                        'mount_path': '/sql-config'
+                                    }],
+                                    service_account={
+                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'name': 'ci-agent'
+                                    },
+                                    input_files=input_files,
+                                    parents=self.deps_parents())
+
+    def cleanup(self, batch, scope, parents):
+        if scope in ['deploy', 'dev']:
+            return
+
+        cleanup_script = f'''
+set -ex
+
+cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
+DROP DATABASE \\`{self._name}\\`;
+DROP USER '{self.admin_username}';
+DROP USER '{self.user_username}';
+EOF
+'''
+
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', cleanup_script],
+                                    attributes={'name': f'cleanup_{self.name}'},
+                                    secrets=[{
+                                        'namespace': self.database_server_config_namespace,
+                                        'name': 'database-server-config',
+                                        'mount_path': '/sql-config'
+                                    }],
                                     service_account={
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'

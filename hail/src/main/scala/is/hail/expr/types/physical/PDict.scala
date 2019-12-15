@@ -10,8 +10,6 @@ final case class PDict(keyType: PType, valueType: PType, required: Boolean = fal
 
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
-  override val fundamentalType: PArray = PCanonicalArray(elementType.fundamentalType, required)
-
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
   def _toPretty = s"Dict[$keyType, $valueType]"
 

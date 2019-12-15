@@ -13,6 +13,8 @@ abstract class PArrayBackedContainer(val arrayRep: PArray) extends PContainer {
 
   override lazy val byteSize: Long = arrayRep.byteSize
 
+  override lazy val fundamentalType = PCanonicalArray(elementType.fundamentalType, required)
+
   def loadLength(region: Region, aoff: Long): Int =
     arrayRep.loadLength(region, aoff)
 
@@ -27,9 +29,6 @@ abstract class PArrayBackedContainer(val arrayRep: PArray) extends PContainer {
 
   def storeLength(region: Region, aoff: Long, length: Int): Unit =
     arrayRep.storeLength(region, aoff, length)
-
-  def storeLength(aoff: Long, length: Int): Unit =
-    arrayRep.storeLength(aoff, length)
 
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     arrayRep.storeLength(aoff, length)

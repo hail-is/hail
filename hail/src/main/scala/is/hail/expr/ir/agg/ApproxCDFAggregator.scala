@@ -1,6 +1,5 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.aggregators.{QuantilesAggregator, RegionValueApproxCDFAggregator}
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
@@ -15,7 +14,7 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   val region: Code[Region] = r.load()
 
   val storageType: PStruct = PStruct(true, ("id", PInt32Required), ("initialized", PBooleanRequired), ("k", PInt32Required))
-  private val aggr = fb.newField[RegionValueApproxCDFAggregator]("aggr")
+  private val aggr = fb.newField[ApproxCDFStateManager]("aggr")
 
   private val initialized = fb.newField[Boolean]("initialized")
   private val initializedOffset: Code[Long] => Code[Long] = storageType.loadField(_, "initialized")
@@ -31,7 +30,7 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
       Code._fatal("approx_cdf already initialized"),
       Code(
         this.k := k,
-        aggr := Code.newInstance[RegionValueApproxCDFAggregator, Int](this.k),
+        aggr := Code.newInstance[ApproxCDFStateManager, Int](this.k),
         id := region.storeJavaObject(aggr),
         this.initialized := true
       )
@@ -39,11 +38,11 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   }
 
   def seq(x: Code[Double]): Code[Unit] = {
-    aggr.invoke[Double, Unit]("checkedSeq", x)
+    aggr.invoke[Double, Unit]("seqOp", x)
   }
 
   def comb(other: ApproxCDFState): Code[Unit] = {
-    aggr.invoke[RegionValueApproxCDFAggregator, Unit]("checkedComb", other.aggr)
+    aggr.invoke[ApproxCDFStateManager, Unit]("combOp", other.aggr)
   }
 
   def result(srvb: StagedRegionValueBuilder): Code[Unit] = {
@@ -60,7 +59,7 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
       id := Region.loadInt(idOffset(src)),
       initialized := Region.loadBoolean(initializedOffset(src)),
       initialized.orEmpty(Code(
-        aggr := Code.checkcast[RegionValueApproxCDFAggregator](region.lookupJavaObject(id)),
+        aggr := Code.checkcast[ApproxCDFStateManager](region.lookupJavaObject(id)),
         k := Region.loadInt(kOffset(src)))
       ))
 
@@ -90,8 +89,8 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
         k := ib.readInt(),
         initialized.orEmpty(
           Code(
-            aggr := Code.invokeScalaObject[Int, InputBuffer, RegionValueApproxCDFAggregator](
-              RegionValueApproxCDFAggregator.getClass, "deserializeFrom", k, ib),
+            aggr := Code.invokeScalaObject[Int, InputBuffer, ApproxCDFStateManager](
+              ApproxCDFStateManager.getClass, "deserializeFrom", k, ib),
             id := region.storeJavaObject(aggr)
           )
         ))
@@ -100,7 +99,7 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   override def copyFrom(src: Code[Long]): Code[Unit] = {
     Code(
       k := Region.loadInt(kOffset(src)),
-      aggr := Code.newInstance[RegionValueApproxCDFAggregator, Int](k),
+      aggr := Code.newInstance[ApproxCDFStateManager, Int](k),
       id := region.storeJavaObject(aggr),
       this.initialized := true
     )

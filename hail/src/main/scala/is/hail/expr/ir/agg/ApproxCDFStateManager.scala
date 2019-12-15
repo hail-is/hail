@@ -1,4 +1,4 @@
-package is.hail.annotations.aggregators
+package is.hail.expr.ir.agg
 
 import is.hail.annotations._
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PInt64, PStruct, PType}
@@ -462,9 +462,9 @@ class ApproxCDFCombiner(
   }
 }
 
-object RegionValueApproxCDFAggregator {
-  def deserializeFrom(k: Int, ib: InputBuffer): RegionValueApproxCDFAggregator = {
-    val a = new RegionValueApproxCDFAggregator(k)
+object ApproxCDFStateManager {
+  def deserializeFrom(k: Int, ib: InputBuffer): ApproxCDFStateManager = {
+    val a = new ApproxCDFStateManager(k)
     a.n = ib.readLong()
     a.combiner = ApproxCDFCombiner.deserializeFrom(ib)
     a
@@ -487,7 +487,7 @@ object RegionValueApproxCDFAggregator {
  * represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
  * `values(i)` occupying indices `ranks(i)` to `ranks(i+1)` (again half-open).
  */
-class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
+class ApproxCDFStateManager(val k: Int) {
   val m: Int = 8
   val growthRate: Int = 4
   val eager: Boolean = false
@@ -537,7 +537,7 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
     initLevelsCapacity,
     QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m),
     relError)
-  private[aggregators] var capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
+  private[agg] var capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
 
   def levels: Array[Int] = combiner.levels
 
@@ -547,13 +547,9 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
 
   def levelsCapacity = combiner.maxNumLevels
 
-  private[aggregators] def capacity: Int = combiner.capacity
+  private[agg] def capacity: Int = combiner.capacity
 
-  def seqOp(region: Region, x: Double, missing: Boolean) {
-    if (!missing) checkedSeq(x)
-  }
-
-  def checkedSeq(x: Double): Unit = {
+  def seqOp(x: Double): Unit = {
     if (combiner.isFull) {
       if (eager)
         compactEager()
@@ -565,16 +561,12 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
     combiner.push(x)
   }
 
-  def combOp(other: RegionValueAggregator) {
-    checkedComb(other.asInstanceOf[RegionValueApproxCDFAggregator])
-  }
-
-  def checkedComb(other: RegionValueApproxCDFAggregator) {
+  def combOp(other: ApproxCDFStateManager) {
     assert(m == other.m)
     if (other.numLevels == 1) {
       var i = other.levels(0)
       while (i < other.levels(1)) {
-        checkedSeq(other.items(i))
+        seqOp(other.items(i))
         i += 1
       }
     } else {
@@ -582,7 +574,7 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
     }
   }
 
-  private[aggregators] def makeCdf(): (IndexedSeq[Double], IndexedSeq[Long]) = {
+  private[agg] def makeCdf(): (IndexedSeq[Double], IndexedSeq[Long]) = {
     val (values, ranks) = combiner.computeCDF()
 
     assert(ranks.last == n)
@@ -663,7 +655,7 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
         combiner.capacity + m * growthRate)
   }
 
-  private def merge(other: RegionValueApproxCDFAggregator) {
+  private def merge(other: ApproxCDFStateManager) {
     val finalN = n + other.n
     val ub = QuantilesAggregator.ubOnNumLevels(finalN)
 
@@ -680,17 +672,6 @@ class RegionValueApproxCDFAggregator(val k: Int) extends RegionValueAggregator {
 
   private def computeTotalCapacity(numLevels: Int): Int =
     QuantilesAggregator.computeTotalCapacity(numLevels, k, m)
-
-  override def newInstance(): RegionValueApproxCDFAggregator = {
-    new RegionValueApproxCDFAggregator(k)
-  }
-
-  override def copy(): RegionValueApproxCDFAggregator = {
-    val newAgg = newInstance()
-    newAgg.n = n
-    newAgg.combiner = combiner.copy()
-    newAgg
-  }
 
   def serializeTo(ob: OutputBuffer): Unit = {
     ob.writeLong(n)
