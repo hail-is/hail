@@ -14,10 +14,10 @@ import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
 
-  private def compileStream[F >: Null : TypeInfo, AA](
+  private def compileStream[F >: Null : TypeInfo, A](
     streamIR: IR,
     inputTypes: Seq[PType]
-  )(call: (F, Region, AA) => Long): AA => IndexedSeq[Any] = {
+  )(call: (F, Region, A) => Long): A => IndexedSeq[Any] = {
     val argTypeInfos = new ArrayBuilder[MaybeGenericTypeInfo[_]]
     argTypeInfos += GenericTypeInfo[Region]()
     inputTypes.foreach { t =>
@@ -35,7 +35,7 @@ class EmitStreamSuite extends HailSuite {
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
-    (arg: AA) => Region.scoped { r =>
+    (arg: A) => Region.scoped { r =>
       val off = call(f(0, r), r, arg)
       if (off == 0L)
         null
