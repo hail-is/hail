@@ -20,8 +20,6 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   override val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PCanonicalBaseStruct.alignment(types)
 
-  def identBase: String = "tuple"
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")
     types.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
