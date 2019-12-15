@@ -6,9 +6,6 @@ import is.hail.utils._
 final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PTuple with PCanonicalBaseStruct {
   val types = _types.map(_.typ).toArray
 
-  val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
-  val nFields: Int = fields.size
-
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
   def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
@@ -30,15 +27,6 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     types.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
     sb += ']'
   }
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("tuple(")
-    fields.foreachBetween({ field =>
-      field.typ.pyString(sb)
-    }) { sb.append(", ")}
-    sb.append(')')
-  }
-
 
   override val fundamentalType: PTuple = {
     val fundamentalFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.fundamentalType))

@@ -47,6 +47,8 @@ abstract class PTuple extends PBaseStruct {
   def _types: IndexedSeq[PTupleField]
 
   lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
+  val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
+  val nFields: Int = fields.size
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
@@ -57,9 +59,17 @@ abstract class PTuple extends PBaseStruct {
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so)
   }
 
-  def copy(required: Boolean): PTuple
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("tuple(")
+    fields.foreachBetween({ field =>
+      field.typ.pyString(sb)
+    }) { sb.append(", ")}
+    sb.append(')')
+  }
 
-  def nFields: Int
+  def identBase: String = "tuple"
+
+  def copy(required: Boolean): PTuple
 
   def fieldIndex: Map[Int, Int]
 }

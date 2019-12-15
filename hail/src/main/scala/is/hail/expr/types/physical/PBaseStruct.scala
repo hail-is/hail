@@ -30,26 +30,6 @@ trait PBaseStruct extends PType {
 
   def size: Int
 
-//  def _toPretty: String = {
-//    val sb = new StringBuilder
-//    _pretty(sb, 0, compact = true)
-//    sb.result()
-//  }
-//
-//  def identBase: String
-//  def _asIdent: String = {
-//    val sb = new StringBuilder
-//    sb.append(identBase)
-//    sb.append("_of_")
-//    types.foreachBetween { ty =>
-//      sb.append(ty.asIdent)
-//    } {
-//      sb.append("AND")
-//    }
-//    sb.append("END")
-//    sb.result()
-//  }
-
   def isIsomorphicTo(other: PBaseStruct): Boolean
 
   def isPrefixOf(other: PBaseStruct): Boolean

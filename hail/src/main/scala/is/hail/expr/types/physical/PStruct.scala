@@ -4,9 +4,12 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
+import is.hail.utils.{prettyIdentifier,_}
 import org.apache.spark.sql.Row
 
 object PStruct {
+  def empty(required: Boolean = false): PStruct = PCanonicalStruct.empty(required)
+
   def apply(required: Boolean, args: (String, PType)*): PStruct = PCanonicalStruct(required, args:_*)
 
   def apply(args: IndexedSeq[PField], required: Boolean = false): PStruct =
@@ -29,6 +32,18 @@ abstract class PStruct extends PBaseStruct {
     assert(other isOfType this)
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
+  }
+
+  def identBase: String = "tuple"
+
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("struct{")
+    fields.foreachBetween({ field =>
+      sb.append(prettyIdentifier(field.name))
+      sb.append(": ")
+      field.typ.pyString(sb)
+    }) { sb.append(", ")}
+    sb.append('}')
   }
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct
