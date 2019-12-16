@@ -54,7 +54,7 @@ def loop(f: Callable, typ, *args):
     Example
     -------
     To find the sum of all the numbers from n=1...10:
-    >>> triangle_f = lambda f, x, total: hl.cond(n == 0, total, f(x - 1, total + x))
+    >>> triangle_f = lambda f, x, total: hl.cond(x == 0, total, f(x - 1, total + x))
     >>> x = hl.experimental.loop(triangle_f, hl.tint32, 0, 10)
     >>> hl.eval(x)
     55
