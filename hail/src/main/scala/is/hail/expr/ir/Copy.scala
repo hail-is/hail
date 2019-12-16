@@ -195,19 +195,19 @@ object Copy {
       case x: DeserializeAggs => x
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
+      case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
+        assert(args.length == x.nInitArgs + x.nSeqOpArgs)
         ApplyAggOp(
-          args.take(x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
-          args.takeRight(x.nSeqOpArgs),
+          args.take(x.nInitArgs),
+          args.drop(x.nInitArgs),
           aggSig)
-      case x@ApplyScanOp(_, initOpArgs, _, aggSig) =>
+      case x@ApplyScanOp(initOpArgs, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
+        assert(args.length == x.nInitArgs + x.nSeqOpArgs)
         ApplyScanOp(
-          args.take(x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
-          args.takeRight(x.nSeqOpArgs),
+          args.take(x.nInitArgs),
+          args.drop(x.nInitArgs),
           aggSig)
       case MakeTuple(fields) =>
         assert(fields.length == newChildren.length)

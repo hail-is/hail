@@ -19,6 +19,9 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      tolerations:
+       - key: preemptible
+         value: "false"
       containers:
         - name: ci
           image: "{{ ci_image.image }}"

@@ -137,7 +137,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
         wrapped_node_t = ttuple(node_t)
         l = construct_variable('l', wrapped_node_t)
         r = construct_variable('r', wrapped_node_t)
-        tie_breaker_expr = hl.int64(tie_breaker(l[0], r[0]))
+        tie_breaker_expr = hl.float64(tie_breaker(l[0], r[0]))
         t, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_str = str(tie_breaker_expr._ir)
     else:

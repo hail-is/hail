@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+  <h1>Create User</h1>
+  <form action="{{ base_path }}/users" method="POST">
+    <div>Username: <input name="username" /></div>
+    <div>Email: <input name="email" /></div>
+    <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>  
+    <button>
+      Create
+    </button>
+  </form>
+
+  <h1>Delete User</h1>
+  <form action="{{ base_path }}/users/delete" method="POST">
+    <div>User ID: <input name="id" /></div>
+    <div>Username: <input name="username" /></div>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>  
+    <button  class="dangerous">
+      Delete
+    </button>
+  </form>
+
+  <h1>Users</h1>
+  <table class="data-table">
+    <thead>
+      <tr>
+	<th>ID</th>
+	<th>Username</th>
+	<th>State</th>
+	<th>Developer</th>
+	<th>Robot</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+	<td class="numeric-cell">{{ user['id'] }}</td>
+	<td>{{ user['username'] }}</td>
+	<td>{{ user['state'] }}</td>
+	<td class="numeric-cell">{{ user['is_developer'] }}</td>
+	<td class="numeric-cell">{{ user['is_service_account'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

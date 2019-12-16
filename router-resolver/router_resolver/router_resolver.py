@@ -45,7 +45,7 @@ async def auth(request):
             async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
                                    headers=headers) as resp:
                 userdata = await resp.json()
-                if userdata['developer'] != 1:
+                if userdata['is_developer'] != 1:
                     raise web.HTTPUnauthorized()
     except Exception:
         log.exception('getting userinfo')

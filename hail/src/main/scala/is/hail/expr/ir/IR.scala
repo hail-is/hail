@@ -291,30 +291,20 @@ final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
-final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
-  assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
-  assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
-  assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature2) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
 
-  def nConstructorArgs = constructorArgs.length
-
-  def hasInitOp = initOpArgs.isDefined
+  def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
 }
 
-final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
-  assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsAgg(_)))
-  assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
-  assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature2) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
 
-  def nConstructorArgs = constructorArgs.length
-
-  def hasInitOp = initOpArgs.isDefined
+  def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
 }

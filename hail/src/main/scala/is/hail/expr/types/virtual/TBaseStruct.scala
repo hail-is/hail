@@ -69,6 +69,15 @@ abstract class TBaseStruct extends Type {
 
   def truncate(newSize: Int): TBaseStruct
 
+  override def _showStr(a: Annotation): String = {
+    if (types.isEmpty)
+      "()"
+    else {
+      Array.tabulate(size)(i => types(i).showStr(a.asInstanceOf[Row].get(i)))
+        .mkString("(", ",", ")")
+    }
+  }
+
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = {

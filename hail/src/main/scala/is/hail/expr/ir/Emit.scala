@@ -4,7 +4,6 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators._
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
@@ -492,7 +491,6 @@ private class Emit(
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
       case x@ArrayRef(a, i) =>
         val typ = x.typ
-        val ti = typeToTypeInfo(typ)
         val pArray = coerce[PStreamable](a.pType).asPArray
         val ati = coerce[Long](typeToTypeInfo(pArray))
         val codeA = emit(a)
@@ -535,7 +533,7 @@ private class Emit(
           Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        strict(PContainer.loadLength(coerce[Long](codeA.v)), codeA)
+        strict(a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
@@ -1131,9 +1129,7 @@ private class Emit(
           Region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
       case In(i, typ) =>
-        EmitTriplet(Code._empty,
-          mb.getArg[Boolean](normalArgumentPosition(i) + 1),
-          mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
+        normalArgument(i, typ)
       case Die(m, typ) =>
         val cm = emit(m)
         EmitTriplet(
@@ -2196,8 +2192,11 @@ private class Emit(
       value)
   }
 
-  private def normalArgumentPosition(idx: Int): Int = {
-    1 + nSpecialArguments + idx * 2
+  private[ir] def normalArgument(idx: Int, pType: PType): EmitTriplet = {
+    val i = 1 + nSpecialArguments + idx * 2
+    EmitTriplet(Code._empty,
+      mb.getArg[Boolean](i + 1),
+      mb.getArg(i)(typeToTypeInfo(pType)))
   }
 
   def deforestNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {

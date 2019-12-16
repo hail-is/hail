@@ -15,19 +15,19 @@ def array(input_array):
     Examples
     --------
 
-    >>> hl.eval(hl._nd.array([1, 2, 3, 4]))
+    >>> hl.eval(hl.nd.array([1, 2, 3, 4]))
     array([1, 2, 3, 4], dtype=int32)
 
-    >>> hl.eval(hl._nd.array([[1, 2, 3], [4, 5, 6]]))
+    >>> hl.eval(hl.nd.array([[1, 2, 3], [4, 5, 6]]))
     array([[1, 2, 3],
        [4, 5, 6]], dtype=int32)
 
-    >>> hl.eval(hl._nd.array(np.identity(3)))
+    >>> hl.eval(hl.nd.array(np.identity(3)))
     array([[1., 0., 0.],
        [0., 1., 0.],
        [0., 0., 1.]])
 
-    >>> hl.eval(hl._nd.array(hl.range(10, 20)))
+    >>> hl.eval(hl.nd.array(hl.range(10, 20)))
     array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19], dtype=int32)
 
     Parameters
@@ -49,13 +49,13 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.eval(hl._nd.arange(10))
+    >>> hl.eval(hl.nd.arange(10))
     array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=int32)
 
-    >>> hl.eval(hl._nd.arange(3, 10))
+    >>> hl.eval(hl.nd.arange(3, 10))
     array([3, 4, 5, 6, 7, 8, 9], dtype=int32)
 
-    >>> hl.eval(hl._nd.arange(0, 10, step=3))
+    >>> hl.eval(hl.nd.arange(0, 10, step=3))
     array([0, 3, 6, 9], dtype=int32)
 
     Notes
@@ -91,11 +91,11 @@ def full(shape, value, dtype=None):
 
     Create a 5 by 7 NDArray of type :py:data:`.tfloat64` 9s.
 
-    >>> hl._nd.full((5, 7), 9)
+    >>> hl.nd.full((5, 7), 9)
 
     It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
-    >>> hl._nd.full((5, 7), 9, dtype=hl.tint32)
+    >>> hl.nd.full((5, 7), 9, dtype=hl.tint32)
 
     Parameters
     ----------
@@ -127,11 +127,11 @@ def zeros(shape, dtype=hl.tfloat64):
 
        Create a 5 by 7 NDArray of type :py:data:`.tfloat64` zeros.
 
-       >>> hl._nd.zeros((5, 7))
+       >>> hl.nd.zeros((5, 7))
 
        It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
-       >>> hl._nd.zeros((5, 7), dtype=hl.tfloat32)
+       >>> hl.nd.zeros((5, 7), dtype=hl.tfloat32)
 
 
        Parameters
@@ -162,11 +162,11 @@ def ones(shape, dtype=hl.tfloat64):
 
        Create a 5 by 7 NDArray of type :py:data:`.tfloat64` ones.
 
-       >>> hl._nd.ones((5, 7))
+       >>> hl.nd.ones((5, 7))
 
        It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
-       >>> hl._nd.ones((5, 7), dtype=hl.tfloat32)
+       >>> hl.nd.ones((5, 7), dtype=hl.tfloat32)
 
 
        Parameters

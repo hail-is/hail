@@ -157,9 +157,9 @@ object InferType {
       case AggGroupBy(key, aggIR, _) =>
         TDict(key.typ, aggIR.typ)
       case AggArrayPerElement(a, _, _, aggBody, _, _) => TArray(aggBody.typ)
-      case ApplyAggOp(_, _, _, aggSig) =>
+      case ApplyAggOp(_, _, aggSig) =>
         aggSig.returnType
-      case ApplyScanOp(_, _, _, aggSig) =>
+      case ApplyScanOp(_, _, aggSig) =>
         aggSig.returnType
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>

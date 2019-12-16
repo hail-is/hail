@@ -17,4 +17,10 @@ object UnsafeUtils {
     assert((alignment & (alignment - 1)) == 0) // power of 2
     (offset + (alignment - 1)) & ~(alignment - 1)
   }
+
+  def packBitsToBytes(nBits: Int): Int =
+    (nBits + 7) >>> 3
+
+  def packBitsToBytes(nBits: Code[Int]): Code[Int] =
+    (nBits + 7) >>> 3
 }

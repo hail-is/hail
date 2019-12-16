@@ -519,16 +519,6 @@ object IRParser {
   def agg_op(it: TokenIterator): AggOp =
     AggOp.fromString(identifier(it))
 
-  def agg_signature(env: TypeParserEnvironment)(it: TokenIterator): AggSignature = {
-    punctuation(it, "(")
-    val op = agg_op(it)
-    val ctorArgs = type_exprs(env)(it).map(t => -t)
-    val initOpArgs = opt(it, type_exprs(env)).map(_.map(t => -t))
-    val seqOpArgs = type_exprs(env)(it).map(t => -t)
-    punctuation(it, ")")
-    AggSignature(op, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs)
-  }
-
   def agg_signature2(env: TypeParserEnvironment)(it: TokenIterator): AggSignature2 = {
     punctuation(it, "(")
     val op = agg_op(it)
@@ -843,18 +833,16 @@ object IRParser {
         AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
-        val ctorArgs = ir_value_exprs(env)(it)
-        val initOpArgs = opt(it, ir_value_exprs(env))
+        val initOpArgs = ir_value_exprs(env)(it)
         val seqOpArgs = ir_value_exprs(env)(it)
-        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
-        ApplyAggOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
+        val aggSig = AggSignature2(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
+        ApplyAggOp(initOpArgs, seqOpArgs, aggSig)
       case "ApplyScanOp" =>
         val aggOp = agg_op(it)
-        val ctorArgs = ir_value_exprs(env)(it)
-        val initOpArgs = opt(it, ir_value_exprs(env))
+        val initOpArgs = ir_value_exprs(env)(it)
         val seqOpArgs = ir_value_exprs(env)(it)
-        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
-        ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
+        val aggSig = AggSignature2(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
+        ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
       case "InitOp2" =>
         val i = int32_literal(it)
         val aggSig = agg_signature2(env.typEnv)(it)
