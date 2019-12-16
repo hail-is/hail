@@ -2,7 +2,6 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.utils._
 
 trait PBaseStruct extends PType {
   def types: Array[PType]
@@ -27,23 +26,6 @@ trait PBaseStruct extends PType {
   def field(name: String): PField = fields(fieldIdx(name))
 
   def fieldType(name: String): PType = types(fieldIdx(name))
-
-  def identBase: String
-  def _asIdent: String = {
-    println("Starting")
-    val sb = new StringBuilder
-    sb.append(identBase)
-    sb.append("_of_")
-    types.foreachBetween { ty =>
-      sb.append(ty.asIdent)
-    } {
-      sb.append("AND")
-    }
-    sb.append("END")
-    val l = sb.result()
-    println("END")
-    l
-  }
 
   lazy val size: Int = fields.length
 
