@@ -46,12 +46,12 @@ trait PCanonicalBaseStruct extends PBaseStruct {
 
   lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
-  val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
-  val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PCanonicalBaseStruct.alignment(types)
+  lazy val missingIdx = new Array[Int](size)
+  lazy val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  lazy val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
+  lazy val byteOffsets = new Array[Long](size)
+  override lazy val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override lazy val alignment: Long = PCanonicalBaseStruct.alignment(types)
 
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
