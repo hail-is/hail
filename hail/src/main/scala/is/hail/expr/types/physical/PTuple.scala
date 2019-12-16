@@ -10,11 +10,11 @@ import is.hail.utils._
 case class PTupleField(index: Int, typ: PType)
 
 object PTuple {
-  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toFastIndexedSeq, required)
+  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t) }.toIndexedSeq, required)
 
   def apply(args: IndexedSeq[PTupleField], required: Boolean = false): PTuple = PCanonicalTuple(args, required)
 
-  def apply(args: PType*): PTuple = PCanonicalTuple(args.zipWithIndex.map { case (a, i) => PTupleField(i, a)}.toFastIndexedSeq, required = false)
+  def apply(args: PType*): PTuple = PCanonicalTuple(args.zipWithIndex.map { case (a, i) => PTupleField(i, a) }.toIndexedSeq, required = false)
 }
 
 abstract class PTuple extends PBaseStruct {
