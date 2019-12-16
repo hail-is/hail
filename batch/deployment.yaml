@@ -23,6 +23,9 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
       - name: batch-driver
         image: {{ batch_image.image }}
@@ -114,6 +117,9 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -124,15 +130,6 @@ spec:
                     values:
                     - auth
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 50
-            preference:
-              matchExpressions:
-              - key: preemptible
-                operator: In
-                values:
-                - "true"
       containers:
       - name: batch
         image: {{ batch_image.image }}
@@ -208,9 +205,6 @@ spec:
        - name: gsa-key
          secret:
            secretName: batch-gsa-key
-      tolerations:
-       - key: preemptible
-         value: "true"
 ---
 apiVersion: v1
 kind: Service

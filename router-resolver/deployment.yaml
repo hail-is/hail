@@ -45,6 +45,9 @@ spec:
     spec:
       serviceAccountName: router-resolver
       priorityClassName: infrastructure
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -55,18 +58,6 @@ spec:
                     values:
                     - router-resolver
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 50
-            preference:
-              matchExpressions:
-              - key: preemptible
-                operator: In
-                values:
-                - "true"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
