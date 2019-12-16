@@ -69,7 +69,7 @@ object PType {
 
   def genSized(size: Int, required: Boolean, genPStruct: Gen[PStruct]): Gen[PType] =
     if (size < 1)
-      Gen.const(PStruct(required))
+      Gen.const(PStruct.empty(required))
     else if (size < 2)
       genScalar(required)
     else {

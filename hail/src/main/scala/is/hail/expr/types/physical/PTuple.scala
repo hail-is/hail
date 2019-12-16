@@ -62,7 +62,7 @@ class CodePTuple(
     pType.isFieldMissing(offset, i)
   }
 
-  private def withTypesAndIndices = (0 until pType.nFields).map(i => (pType.types(i), apply(i), i))
+  def withTypesAndIndices = (0 until pType.nFields).map(i => (pType.types(i), apply(i), i))
 
   def withTypes = withTypesAndIndices.map(x => (x._1, x._2))
 
