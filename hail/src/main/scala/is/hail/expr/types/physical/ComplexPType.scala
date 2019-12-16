@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.UnsafeOrdering
 
 trait ComplexPType extends PType {
-  def representation: PType
+  val representation: PType
 
   override def byteSize: Long = representation.byteSize
 

@@ -21,7 +21,7 @@ abstract class PLocus extends PType {
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
 
-  def representation: PStruct
+  val representation: PStruct
 
   def rg: ReferenceGenome
 

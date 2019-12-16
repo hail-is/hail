@@ -18,7 +18,7 @@ abstract class PInterval extends PType {
 
   lazy val virtualType: TInterval = TInterval(pointType.virtualType, required)
 
-  def representation: PStruct
+  val representation: PStruct
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
