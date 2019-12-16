@@ -24,6 +24,28 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.29
+
+Released 2019-11-17
+
+### Bug fixes
+- (hail#7229) Fixed `hl.maximal_independent_set` tie breaker functionality. See linked pull request for details.
+- (hail#7732) Fixed Hail's internal semantic version comparison to prevent attempting to read unsupported file versions.
+- (hail#7731) Disables filter intervals pushdown.
+- (hail#7642) Fix crash when constant-folding functions that throw errors.
+- (hail#7611) Fix `hl.hadoop_ls` to handle glob patterns correctly.
+
+### Performance improvements
+- (hail#7719) Generate more efficient IR for `Table.flatten`
+
+### New features
+- (hail#7686) Added `comment` argument to `import_matrix_table`, allowing lines with certain prefixes to be ignored.
+- (hail#7688) Added experimental support for `NDArrayExpression`s in new `hl.nd` module.
+- (hail#7608) `hl.grep` now has a `show` argument that allows users to either print the results (default) or return a dictionary of the results.
+
+### `hailctl dataproc`
+- (hail#7717) Throw error when mispelling arguments instead of silently quitting.
+
 ## Version 0.2.28
 
 Released 2019-11-22
