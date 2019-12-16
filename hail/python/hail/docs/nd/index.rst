@@ -20,10 +20,12 @@ This is a recently added, experimental module. We would love to hear what use ca
     full
     zeros
     ones
+    qr
 
 .. autofunction:: array
 .. autofunction:: arange
 .. autofunction:: full
 .. autofunction:: zeros
 .. autofunction:: ones
+.. autofunction:: qr
 
