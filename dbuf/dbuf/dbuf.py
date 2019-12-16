@@ -1,19 +1,16 @@
-import aiohttp as ah
+import aiohttp
 import aiohttp.web as web
 import argparse
 import asyncio
-import concurrent
 import os
 import shutil
-import signal
 import struct
-import sys
 
+import hailtop.utils as utils
 from hailtop.config import get_deploy_config
 
 from . import aiofiles as af
 from .logging import log
-from .retry_forever import retry_forever
 
 
 class Session:
@@ -155,8 +152,8 @@ class Server:
             web.post('/s/{session}/get', self.get),
             web.post('/s/{session}/getmany', self.getmany),
             web.delete('/s/{session}', self.delete),
-            web.post('/w', self.post_worker),
-            web.get('/w', self.get_workers),
+            web.post('/w', self.register_worker),
+            web.get('/w', self.list_workers),
             web.get('/healthcheck', self.healthcheck),
         ])
         self.app.on_cleanup.append(self.cleanup)
@@ -175,12 +172,12 @@ class Server:
             log.info(f'server {server.name} bound to {server.binding_host}:{server.port}')
             if server.leader != server.name:
                 async def join_cluster():
-                    async with ah.ClientSession(raise_for_status=True,
-                                                timeout=ah.ClientTimeout(total=60)) as cs:
+                    async with aiohttp.ClientSession(raise_for_status=True,
+                                                     timeout=aiohttp.ClientTimeout(total=60)) as cs:
                         async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
-                await retry_forever(
+                await utils.retry_forever(
                     join_cluster,
                     lambda exc: f'could not join cluster with leader {server.leader} at {server.leader_url} due to {exc}')
             while True:
@@ -197,8 +194,8 @@ class Server:
 
     async def create(self, request):
         session_id = await self.dbuf.new_session()
-        async with ah.ClientSession(raise_for_status=True,
-                                    timeout=ah.ClientTimeout(total=60)) as cs:
+        async with aiohttp.ClientSession(raise_for_status=True,
+                                         timeout=aiohttp.ClientTimeout(total=60)) as cs:
             async def call(worker):
                 worker_url = self.deploy_config.base_url(worker)
                 async with cs.post(f'{worker_url}/s') as resp:
@@ -241,23 +238,23 @@ class Server:
         session_id = int(request.match_info['session'])
         if session_id in self.dbuf.sessions:
             await self.dbuf.delete_session(session_id)
-            async with ah.ClientSession(raise_for_status=True,
-                                        timeout=ah.ClientTimeout(total=60)) as cs:
+            async with aiohttp.ClientSession(raise_for_status=True,
+                                             timeout=aiohttp.ClientTimeout(total=60)) as cs:
                 async def call(worker):
                     worker_url = self.deploy_config.base_url(worker)
                     async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
                         assert resp.status == 200
                         await resp.text()
-                await asyncio.gather(*[call(worker) for worker in self.workers])
+                await utils.bounded_gather(*[call(worker) for worker in self.workers])
         return web.Response()
 
-    async def post_worker(self, request):
+    async def register_worker(self, request):
         worker = await request.text()
         log.info(f'new worker: {worker} + {self.workers}')
         self.workers.add(worker)
         return web.json_response(list(self.workers))
 
-    async def get_workers(self, request):
+    async def list_workers(self, request):
         return web.json_response([self.name] + list(self.workers))
 
     async def healthcheck(self, request):
@@ -269,7 +266,7 @@ class Server:
 
 parser = argparse.ArgumentParser(description='distributed buffer')
 parser.add_argument('--name', type=str, help='my name in k8s, e.g. dbuf-0.dbuf', default='localhost')
-parser.add_argument('--leader', type=str, help='directory in which to store data', required=False)
+parser.add_argument('--leader', type=str, help='a deploy_config name that points to a dbuf leader', required=False)
 parser.add_argument('--data-dir', type=str, help='directory in which to store data', default='/tmp/shuffler')
 parser.add_argument('--host', type=str, help='host to bind to', default='0.0.0.0')
 parser.add_argument('--port', type=str, help='port to bind to', default='80')
