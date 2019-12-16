@@ -1426,6 +1426,20 @@ private class Emit(
             innerMethod.invoke()
           }
         }
+
+        val codeToEmit = if (lPType.elementType.isInstanceOf[PFloat64] && lPType.nDims == 2) {
+          // Steps:
+          // 1. Get the data addresses of both of the inputs
+          // 2. Copy them into a new space.
+          // 3. Call DGEMM
+          // 4. Construct a new output PNDArray.
+          val leftDataAddress = lPType.data.load(region, leftND)
+          val rightDataAddress = rPType.data.load(region, rightND)
+          
+          ???
+        } else {
+          emitter.emit(outputPType)
+        }
         emitter.emit(outputPType)
 
       case x@NDArrayQR(nd, mode) =>
