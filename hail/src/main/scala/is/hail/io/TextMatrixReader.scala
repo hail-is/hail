@@ -210,7 +210,7 @@ case class TextMatrixReader(
   assert(separatorStr.length == 1)
   private[this] val separator = separatorStr.charAt(0)
   private[this] val rowFields = rowFieldsStr.mapValues(IRParser.parseType(_))
-  private[this] val entryType = TStruct(true, "x" -> IRParser.parseType(entryTypeStr))
+  private[this] val entryType = TStruct("x" -> IRParser.parseType(entryTypeStr))
   private[this] val resolvedPaths = fs.globAll(paths)
   require(entryType.size == 1, "entryType can only have 1 field")
   if (resolvedPaths.isEmpty)
