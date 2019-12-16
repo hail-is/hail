@@ -30,9 +30,9 @@ Released 2019-11-17
 
 ### Bug fixes
 - (hail#7229) Fixed `hl.maximal_independent_set` tie breaker functionality. See linked pull request for details.
-- (hail#7732) Fixed Hail's internal semantic version comparison to prevent attempting to read unsupported file versions.
-- (hail#7642) Fix crash when constant-folding functions that throw errors.
-- (hail#7611) Fix `hl.hadoop_ls` to handle glob patterns correctly.
+- (hail#7732) Fixed incompatibility with old files leading to incorrect data read when filtering intervals after `read_matrix_table`.
+- (hail#7642) Fixed crash when constant-folding functions that throw errors.
+- (hail#7611) Fixed `hl.hadoop_ls` to handle glob patterns correctly.
 
 ### Performance improvements
 - (hail#7719) Generate more efficient IR for `Table.flatten`
