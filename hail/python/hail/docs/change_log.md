@@ -33,6 +33,7 @@ Released 2019-11-17
 - (hail#7732) Fixed incompatibility with old files leading to incorrect data read when filtering intervals after `read_matrix_table`.
 - (hail#7642) Fixed crash when constant-folding functions that throw errors.
 - (hail#7611) Fixed `hl.hadoop_ls` to handle glob patterns correctly.
+- (hail#7653) Fixed crash in `ld_prune` by unfiltering missing GTs. 
 
 ### Performance improvements
 - (hail#7719) Generate more efficient IR for `Table.flatten`
