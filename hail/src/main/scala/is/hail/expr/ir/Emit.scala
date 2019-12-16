@@ -1552,7 +1552,7 @@ private class Emit(
           } else if (mode == "reduced") {
             (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], Array(K, N))
           } else {
-            throw new HailException(s"Unsupported QR mode $mode")
+            throw new AssertionError(s"Unsupported QR mode $mode")
           }
 
           val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
