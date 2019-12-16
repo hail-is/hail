@@ -31,7 +31,6 @@ Released 2019-11-17
 ### Bug fixes
 - (hail#7229) Fixed `hl.maximal_independent_set` tie breaker functionality. See linked pull request for details.
 - (hail#7732) Fixed Hail's internal semantic version comparison to prevent attempting to read unsupported file versions.
-- (hail#7731) Disables filter intervals pushdown.
 - (hail#7642) Fix crash when constant-folding functions that throw errors.
 - (hail#7611) Fix `hl.hadoop_ls` to handle glob patterns correctly.
 
