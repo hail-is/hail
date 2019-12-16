@@ -3252,3 +3252,12 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.tuple((3, 4, 5, 10))[1:]) == (4, 5, 10)
         assert hl.eval(hl.tuple((3, 4, 5, 10))[0:4:2]) == (3, 5)
         assert hl.eval(hl.tuple((3, 4, 5, 10))[-2:]) == (5, 10)
+
+    def test_numpy_conversions(self):
+        assert hl.eval(np.int32(3)) == 3
+        assert hl.eval(np.int64(1234)) == 1234
+        assert hl.eval(np.bool(True))
+        assert not hl.eval(np.bool(False))
+        assert np.allclose(hl.eval(np.float32(3.4)), 3.4)
+        assert np.allclose(hl.eval(np.float64(8.89)), 8.89)
+        assert hl.eval(np.str("cat")) == "cat"
