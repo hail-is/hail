@@ -57,7 +57,6 @@ trait PCanonicalBaseStruct extends PBaseStruct {
 
   def identBase: String
   def _asIdent: String = {
-    println("Starting")
     val sb = new StringBuilder
     sb.append(identBase)
     sb.append("_of_")
@@ -67,9 +66,7 @@ trait PCanonicalBaseStruct extends PBaseStruct {
       sb.append("AND")
     }
     sb.append("END")
-    val l = sb.result()
-    println("END")
-    l
+    sb.result()
   }
 
   def allocate(region: Region): Long =
