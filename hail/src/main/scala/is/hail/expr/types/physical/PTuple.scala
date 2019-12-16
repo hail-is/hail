@@ -21,8 +21,8 @@ abstract class PTuple extends PBaseStruct {
   def _types: IndexedSeq[PTupleField]
 
   lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
-  val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
-  val nFields: Int = fields.size
+  lazy val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
+  lazy val nFields: Int = fields.size
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
