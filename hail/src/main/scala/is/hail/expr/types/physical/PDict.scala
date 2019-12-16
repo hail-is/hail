@@ -16,7 +16,7 @@ abstract class PDict extends PContainer {
 
   def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict
 
-  def elementType: PStruct = ???
+  def elementType: PStruct
   override def fundamentalType: PArray = ???
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
