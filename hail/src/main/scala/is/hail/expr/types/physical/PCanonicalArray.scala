@@ -8,24 +8,6 @@ import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
-object PCanonicalArray  {
-  def loadLength(aoff: Long): Int =
-    Region.loadInt(aoff)
-
-  def loadLength(aoff: Code[Long]): Code[Int] =
-    Region.loadInt(aoff)
-
-  def storeLength(aoff: Long, length: Int): Unit =
-    Region.storeInt(aoff, length)
-
-  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
-    Region.storeInt(aoff, length)
-
-  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
-
-  def nMissingBytes(len: Int): Long = (len + 7L) >>> 3
-}
-
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
@@ -61,27 +43,32 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def copy(elementType: PType = this.elementType, required: Boolean = this.required): PCanonicalArray = PCanonicalArray(elementType, required)
 
   def loadLength(region: Region, aoff: Long): Int =
-    PCanonicalArray.loadLength(aoff)
+    loadLength(aoff)
 
   def loadLength(aoff: Long): Int =
-    PCanonicalArray.loadLength(aoff)
+    Region.loadInt(aoff)
 
   def loadLength(aoff: Code[Long]): Code[Int] =
-    PCanonicalArray.loadLength(aoff)
+    Region.loadInt(aoff)
 
   def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
-    PCanonicalArray.loadLength(aoff)
+    loadLength(aoff)
 
   def storeLength(region: Region, aoff: Long, length: Int): Unit =
-    PCanonicalArray.storeLength(aoff, length)
+    storeLength(aoff, length)
 
-  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
-    PCanonicalArray.storeLength(aoff, length)
+  def storeLength(aoff: Long, length: Int): Unit =
+    Region.storeInt(aoff, length)
 
   def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
     storeLength(aoff, length)
 
-  def nMissingBytes(len: Code[Int]): Code[Int] = PCanonicalArray.nMissingBytes(len)
+  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
+    Region.storeInt(aoff, length)
+
+  def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
+
+  def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)
 
   private def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
@@ -94,7 +81,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + PCanonicalArray.nMissingBytes(length), elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), elementType.alignment)
 
   private def _elementsOffset(length: Code[Int]): Code[Long] =
     if (elementType.required)
@@ -215,7 +202,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
-    Region.setMemory(aoff + lengthHeaderBytes, PCanonicalArray.nMissingBytes(length), value)
+    Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
   }
 
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {

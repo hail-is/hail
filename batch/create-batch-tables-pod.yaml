@@ -3,6 +3,9 @@ kind: Pod
 metadata:
   name: create-batch-tables
 spec:
+  tolerations:
+   - key: preemptible
+     value: "true"
   containers:
   - name: create-batch-tables
     image: "{{ batch_tables_image.image }}"
