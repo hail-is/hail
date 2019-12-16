@@ -124,6 +124,13 @@ class Tests(unittest.TestCase):
                          jj=hl.struct(id=ht.j, rank=hl.rand_norm(0, 1)))
         hl.maximal_independent_set(ht.ii, ht.jj).count()
 
+    @skip_unless_spark_backend()
+    def test_maximal_independent_set_on_floats(self):
+        t = hl.utils.range_table(1).annotate(l = hl.struct(s="a", x=3.0), r = hl.struct(s="b", x=2.82))
+        expected = [hl.Struct(node=hl.Struct(s="a", x=3.0))]
+        actual = hl.maximal_independent_set(t.l, t.r, keep=False, tie_breaker=lambda l,r: l.x - r.x).collect()
+        assert actual == expected
+
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 
