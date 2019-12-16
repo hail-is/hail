@@ -207,7 +207,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
     PCanonicalStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  override val fundamentalType: PStruct = {
+  val structFundamentalType: PStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })

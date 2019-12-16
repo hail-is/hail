@@ -48,7 +48,8 @@ abstract class PStruct extends PBaseStruct {
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct
 
-  override def fundamentalType: PStruct = ???
+  protected def structFundamentalType: PStruct
+  override def fundamentalType: PStruct = structFundamentalType
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter)
 
