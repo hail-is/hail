@@ -8,9 +8,7 @@ import yaml
 from .cluster_config import ClusterConfig
 
 DEFAULT_PROPERTIES = {
-    "spark:spark.driver.maxResultSize": "0",
     "spark:spark.task.maxFailures": "20",
-    "spark:spark.kryoserializer.buffer.max": "1g",
     "spark:spark.driver.extraJavaOptions": "-Xss4M",
     "spark:spark.executor.extraJavaOptions": "-Xss4M",
     "hdfs:dfs.replication": "1",

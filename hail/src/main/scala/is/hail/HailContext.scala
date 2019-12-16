@@ -96,6 +96,9 @@ object HailContext {
     conf.set("spark.logConf", "true")
     conf.set("spark.ui.showConsoleProgress", "false")
 
+    conf.set("spark.kryoserializer.buffer.max", "1g")
+    conf.set("spark.driver.maxResultSize", "0")
+
     conf.set(
       "spark.hadoop.io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
