@@ -24,7 +24,7 @@ abstract class PTuple extends PBaseStruct {
   lazy val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
   lazy val nFields: Int = fields.size
 
-  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {

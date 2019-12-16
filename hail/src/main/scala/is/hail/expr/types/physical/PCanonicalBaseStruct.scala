@@ -69,11 +69,6 @@ trait PCanonicalBaseStruct extends PBaseStruct {
     sb.result()
   }
 
-  def codeOrdering(mb: EmitMethodBuilder, so: Array[SortOrder]): CodeOrdering =
-    codeOrdering(mb, this, so)
-
-  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering
-
   def allocate(region: Region): Long =
     region.allocate(alignment, byteSize)
 

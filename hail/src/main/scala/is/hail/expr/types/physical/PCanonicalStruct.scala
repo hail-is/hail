@@ -41,15 +41,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   override def truncate(newSize: Int): PStruct =
     PCanonicalStruct(fields.take(newSize), required)
 
-  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
-    codeOrdering(mb, other, null)
-
-  override def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
-    assert(other isOfType this)
-    assert(so == null || so.size == types.size)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
-  }
-
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
     val (t, i) = unsafeInsert(typeToInsert, path)
