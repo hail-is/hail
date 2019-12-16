@@ -116,18 +116,3 @@ object ContainsScan {
     }
   })
 }
-
-object Extract {
-  private def extract(node: BaseIR, visitor: BaseIR => Boolean, ab: ArrayBuilder[BaseIR]) {
-    if (visitor(node))
-      ab += node
-    else
-      node.children.foreach(extract(_, visitor, ab))
-  }
-
-  def apply(node: BaseIR, visitor: BaseIR => Boolean): Array[BaseIR] = {
-    val ab = new ArrayBuilder[BaseIR]()
-    extract(node, visitor, ab)
-    ab.result()
-  }
-}
