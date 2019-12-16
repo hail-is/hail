@@ -468,7 +468,7 @@ class RunImageStep(Step):
                 if o.get('directory') != 'archive':
                     batch_copy_source = o["from"]
                 else:
-                    batch_copy_source = f'/io/{self.token}/o["to"]'
+                    batch_copy_source = f'/io/{self.token}/{o["to"]}'
                     copy_outputs += f'tar -czf {batch_copy_source} {o["from"]}'
                 output_files.append((batch_copy_source,
                                      f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
