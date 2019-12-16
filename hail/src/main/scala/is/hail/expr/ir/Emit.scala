@@ -433,13 +433,15 @@ private class Emit(
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newField[Boolean]()
         val x = coerce[Any](mb.newField(name)(vti))
-        val codeV = emit(value)
+        val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, codeV) =>
+          Code(codeV.setup,
+            mx := codeV.m,
+            x := mx.mux(defaultValue(value.typ), codeV.v))
+        }
         val bodyenv = env.bind(name, (vti, mx.load(), x.load()))
         val codeBody = emit(body, env = bodyenv)
         val setup = Code(
-          codeV.setup,
-          mx := codeV.m,
-          x := mx.mux(defaultValue(value.typ), codeV.v),
+          storeV,
           codeBody.setup)
 
         EmitTriplet(setup, codeBody.m, codeBody.v)
