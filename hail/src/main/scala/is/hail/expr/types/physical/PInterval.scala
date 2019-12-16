@@ -13,12 +13,12 @@ object PInterval {
   def apply(pointType: PType, required: Boolean = false) = PCanonicalInterval(pointType, required)
 }
 
-abstract class PInterval extends ComplexPType {
+abstract class PInterval extends PType {
   val pointType: PType
 
   lazy val virtualType: TInterval = TInterval(pointType.virtualType, required)
 
-  def representation: PStruct = ???
+  def representation: PStruct
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

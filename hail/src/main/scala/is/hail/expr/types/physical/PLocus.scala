@@ -16,10 +16,12 @@ object PLocus {
   def apply(rgBc: BroadcastRG, required: Boolean = false): PLocus = PCanonicalLocus(rgBc, required)
 }
 
-abstract class PLocus extends ComplexPType {
+abstract class PLocus extends PType {
   def rgBc: BroadcastRG
 
   lazy val virtualType: TLocus = TLocus(rgBc, required)
+
+  def representation: PStruct
 
   def rg: ReferenceGenome
 

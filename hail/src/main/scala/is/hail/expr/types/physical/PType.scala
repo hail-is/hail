@@ -25,7 +25,7 @@ object PType {
 
   val genRequiredScalar: Gen[PType] = genScalar(true)
 
-  def genComplexType(required: Boolean): Gen[ComplexPType] = {
+  def genComplexType(required: Boolean): Gen[PType] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
       PLocus(rg, required))
     val others = Array(PCall(required))
