@@ -4,14 +4,25 @@ import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
 
-final case class PDict(keyType: PType, valueType: PType, required: Boolean = false)
-  extends PArrayBackedContainer(PCanonicalArray(PStruct(required = true, "key" -> keyType, "value" -> valueType), required)) {
-  val elementType = arrayRep.elementType.asInstanceOf[PStruct]
+object PDict {
+  def apply(keyType: PType, valueType: PType, required: Boolean = false) = PCanonicalDict(keyType, valueType, required)
+}
 
+abstract class PDict extends PContainer {
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
-  def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
-  def _toPretty = s"Dict[$keyType, $valueType]"
+  val keyType: PType
+  val valueType: PType
+
+  def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict
+
+  def elementType: PStruct
+  override def fundamentalType: PArray = ???
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
+  }
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("dict<")
@@ -19,21 +30,5 @@ final case class PDict(keyType: PType, valueType: PType, required: Boolean = fal
     sb.append(", ")
     valueType.pyString(sb)
     sb.append('>')
-  }
-
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Dict[")
-    keyType.pretty(sb, indent, compact)
-    if (compact)
-      sb += ','
-    else
-      sb.append(", ")
-    valueType.pretty(sb, indent, compact)
-    sb.append("]")
-  }
-
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
 }

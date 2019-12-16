@@ -18,6 +18,9 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       priorityClassName: infrastructure
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -28,9 +31,6 @@ spec:
                     values:
                     - router
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router
          image: "{{ monitoring_router_image.image }}"

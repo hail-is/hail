@@ -3,6 +3,9 @@ kind: Pod
 metadata:
   name: delete-batch-tables
 spec:
+  tolerations:
+   - key: preemptible
+     value: "true"
   containers:
   - name: delete-batch-tables
     image: "{{ batch_tables_image.image }}"

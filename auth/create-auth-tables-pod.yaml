@@ -3,6 +3,9 @@ kind: Pod
 metadata:
   name: create-auth-tables
 spec:
+  tolerations:
+   - key: preemptible
+     value: "true"
   containers:
   - name: create-auth-tables
     image: "{{ create_auth_tables_image.image }}"

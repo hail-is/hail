@@ -19,7 +19,8 @@ case class SemanticVersion(major: Int, minor: Int, patch: Int) extends Ordered[S
       Integer.compare(major, that.major)
     else if (minor != that.minor)
       Integer.compare(minor, that.minor)
-    Integer.compare(patch, that.patch)
+    else
+      Integer.compare(patch, that.patch)
   }
 }
 
