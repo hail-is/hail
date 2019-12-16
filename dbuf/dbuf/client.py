@@ -1,5 +1,4 @@
 import random
-import asyncio
 import aiohttp
 import collections
 import struct
@@ -75,7 +74,7 @@ class DBufClient:
             off += n2
         return result
 
-    async def getmany(self, keys, retry_delay=1):
+    async def getmany(self, keys):
         servers = collections.defaultdict(list)
         results = [None for _ in keys]
         for i, key in enumerate(keys):
@@ -101,21 +100,18 @@ class DBufClient:
                     'POST',
                     f'{server_url}/s/{self.id}/getmany',
                     json=[x[0] for x in batch])
-                assert resp.status == 200
                 data = await resp.read()
                 for v, j in zip(self._decode(data), (x[1] for x in batch)):
                     results[j] = v
-        await asyncio.gather(*[get_from_server(server, keys)
-                               for server, keys in servers.items()])
+        await utils.bounded_gather(*[get_from_server(server, keys)
+                                     for server, keys in servers.items()])
         return results
 
     async def delete(self):
-        async with self.aiosession.delete(self.session_url) as resp:
-            assert resp.status == 200
+        await self.aiosession.delete(self.session_url)
 
     async def get_workers(self):
         async with self.aiosession.get(f'{self.root_url}/w') as resp:
-            assert resp.status == 200
             return await resp.json()
 
 
@@ -160,7 +156,6 @@ class DBufAppender:
             'POST',
             self.session_url,
             data=buf[0:cursor])
-        assert resp.status == 200
         server, file_id, pos, _ = await resp.json()
         self.keys[key_range] = [(server, file_id, pos + off, size)
                                 for off, size in zip(offs, sizes)]
