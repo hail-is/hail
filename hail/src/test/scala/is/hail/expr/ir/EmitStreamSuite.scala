@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, RegionValue}
 import is.hail.asm4s.{AsmFunction1, AsmFunction3, Code, GenericTypeInfo, MaybeGenericTypeInfo, TypeInfo}
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
