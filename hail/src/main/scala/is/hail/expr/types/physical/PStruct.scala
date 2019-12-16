@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
-import is.hail.utils.{prettyIdentifier,_}
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object PStruct {
