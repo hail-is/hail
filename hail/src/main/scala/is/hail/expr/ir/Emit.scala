@@ -9,6 +9,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.linalg.LAPACK
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1435,6 +1436,236 @@ private class Emit(
         }
         emitter.emit(outputPType)
 
+      case x@NDArrayQR(nd, mode) =>
+        // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
+        val ndt = emit(nd)
+        val ndAddress = mb.newField[Long]
+        val ndPType = nd.pType.asInstanceOf[PNDArray]
+
+        val shapeAddress = ndPType.shape.load(region, ndAddress)
+        val shapeTuple = new CodePTuple(ndPType.shape.pType, region, shapeAddress)
+        val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_)).toArray
+
+        val LWORKAddress = mb.newLocal[Long]
+
+        val M = shapeArray(0)
+        val N = shapeArray(1)
+        val K = (M < N).mux(M, N)
+        val LDA = M // Possible stride tricks could change this in the future.
+        val LWORK = Region.loadDouble(LWORKAddress).toI
+
+        val dataAddress = ndPType.data.load(region, ndAddress)
+
+        val tauPType = PArray(PFloat64Required, true)
+        val tauAddress = mb.newField[Long]
+        val workAddress = mb.newField[Long]
+        val aAddressDGEQRF = mb.newField[Long] // Should be column major
+        val rDataAddress = mb.newField[Long]
+        val aNumElements = mb.newField[Long]
+
+        val infoDGEQRFResult = mb.newLocal[Int]
+        val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne  0)
+          .orEmpty(Code._fatal(const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
+
+        val computeHAndTau = Code(
+          ndAddress := ndt.value[Long],
+          aNumElements := ndPType.numElements(shapeArray, mb),
+
+          // Make some space for the column major form (which means copying the input)
+          aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
+          ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
+          ndPType.copyRowMajorToColumnMajor(dataAddress, aAddressDGEQRF, M, N, mb),
+
+          tauAddress := tauPType.allocate(region, K.toI),
+          tauPType.stagedInitialize(tauAddress, K.toI),
+
+          LWORKAddress := region.allocate(8L, 8L),
+
+          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
+            M.toI,
+            N.toI,
+            ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+            LDA.toI,
+            tauPType.elementOffset(tauAddress, K.toI, 0),
+            LWORKAddress,
+            -1
+          ),
+          infoDGEQRFErrorTest("Failed size query."),
+
+          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
+
+          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
+            M.toI,
+            N.toI,
+            ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+            LDA.toI,
+            tauPType.elementOffset(tauAddress, K.toI, 0),
+            workAddress,
+            LWORK
+          ),
+          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
+          infoDGEQRFErrorTest("Failed to compute H and Tau.")
+        )
+
+        val result = if (mode == "raw") {
+          val rawPType = x.pType.asInstanceOf[PTuple]
+          val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region)
+          val hPType = rawPType.types(0).asInstanceOf[PNDArray]
+          val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
+
+          val hShapeArray = Array(N, M)
+          val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray)
+          val hStridesBuilder = hPType.makeDefaultStridesBuilder(hShapeArray, mb)
+
+          val tauShapeBuilder = tauPType.makeShapeBuilder(Array(K))
+          val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(Array(K), mb)
+
+          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb)
+          val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
+
+          val constructHAndTauTuple = Code(
+            rawOutputSrvb.start(),
+            rawOutputSrvb.addIRIntermediate(hPType)(h),
+            rawOutputSrvb.advance(),
+            rawOutputSrvb.addIRIntermediate(tauPType)(tau),
+            rawOutputSrvb.advance(),
+            rawOutputSrvb.end()
+          )
+
+          Code(
+            computeHAndTau,
+            constructHAndTauTuple
+          )
+        }
+        else {
+          val currRow = mb.newField[Int]
+          val currCol = mb.newField[Int]
+
+          val (rPType, rShapeArray) = if (mode == "r") {
+            (x.pType.asInstanceOf[PNDArray], Array(K, N))
+          } else if (mode == "complete") {
+            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], Array(M, N))
+          } else if (mode == "reduced") {
+            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], Array(K, N))
+          } else {
+            throw new AssertionError(s"Unsupported QR mode $mode")
+          }
+
+          val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
+          val rStridesBuilder = rPType.makeDefaultStridesBuilder(rShapeArray, mb)
+
+          //This block assumes rDataAddress is a row major ndarray.
+          val zeroOutLowerTriangle =
+            Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
+              Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
+                (currRow > currCol).orEmpty(
+                  Region.storeDouble(
+                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currRow * N.toI + currCol),
+                    0.0)
+                )
+              )
+            )
+
+          val computeR = Code(
+            // Note: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
+            // results in these elements being ignored. When everything is column major all the time should be easy to fix.
+            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI),
+            rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
+            rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
+              rDataAddress, M, N, mb),
+            zeroOutLowerTriangle,
+            rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
+          )
+
+          if (mode == "r") {
+            Code(
+              computeHAndTau,
+              computeR
+            )
+          }
+          else {
+            val crPType = x.pType.asInstanceOf[PTuple]
+            val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region)
+
+            val qPType = crPType.types(0).asInstanceOf[PNDArray]
+            val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
+            val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
+            val qStridesBuilder = qPType.makeDefaultStridesBuilder(qShapeArray, mb)
+
+            val rNDArrayAddress = mb.newField[Long]
+            val qDataAddress = mb.newField[Long]
+
+            val infoDORGQRResult = mb.newField[Int]
+            val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
+              .orEmpty(Code._fatal(const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS)))
+
+            val qCondition = const(mode == "complete") && (M > N)
+            val numColsToUse = qCondition.mux(M, K)
+            val aAddressDORGQR = mb.newField[Long]
+
+            val qNumElements = M * numColsToUse
+
+            val computeCompleteOrReduced = Code(
+              qCondition.mux(
+                Code(
+                  aAddressDORGQR := ndPType.data.pType.allocate(region, qNumElements.toI),
+                  qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI),
+                  Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+                    qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L)
+                ),
+                aAddressDORGQR := aAddressDGEQRF
+              ),
+
+              // Query optimal size for work array
+              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
+                M.toI,
+                numColsToUse.toI,
+                K.toI,
+                ndPType.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
+                LDA.toI,
+                tauPType.firstElementOffset(tauAddress, K.toI),
+                LWORKAddress,
+                -1
+              ),
+              infoDORQRErrorTest("Failed size query."),
+
+              workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
+
+              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
+                M.toI,
+                numColsToUse.toI,
+                K.toI,
+                ndPType.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
+                LDA.toI,
+                tauPType.elementOffset(tauAddress, K.toI, 0),
+                workAddress,
+                LWORK
+              ),
+              Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
+              infoDORQRErrorTest("Failed to compute Q."),
+
+              qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
+              qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
+              qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
+
+              crOutputSrvb.start(),
+              crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
+              crOutputSrvb.advance(),
+              crOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
+              crOutputSrvb.advance(),
+              crOutputSrvb.end()
+            )
+
+            Code(
+              computeHAndTau,
+              rNDArrayAddress := computeR,
+              computeCompleteOrReduced
+            )
+          }
+        }
+        EmitTriplet(ndt.setup, ndt.m, result)
+
+
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
@@ -2133,12 +2364,12 @@ private class Emit(
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val storeElementIndex = mb.newField[Long]
 
-            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndex(storeElementIndex, childShapeCached, region, mb)
+            val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndexRowMajor(storeElementIndex, childShapeCached, region, mb)
 
             assert(newIdxVars.length == childEmitter.nDims)
 
             Code(
-              storeElementIndex := x.pType.linearizeIndices(idxVars, reshapedShapeArray, region, mb),
+              storeElementIndex := x.pType.linearizeIndicesRowMajor(idxVars, reshapedShapeArray, region, mb),
               newIdxVarsSetup,
               childEmitter.outputElement(newIdxVars)
             )
