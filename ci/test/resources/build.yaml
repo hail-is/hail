@@ -130,6 +130,22 @@ steps:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
+ - kind: runImage
+   name: checkout_this_repo
+   image:
+     valueFrom: git_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+   outputs:
+    - from: /io/repo
+      to: /repo
+      directory: archive
+   dependsOn:
+     - git_image
  - kind: createDatabase2
    name: hello2_database
    databaseName: hello2
@@ -139,13 +155,16 @@ steps:
     - name: insert
       script: /io/sql/insert.py
    inputs:
-    - from: /repo/ci/test/resources/sql
+    - from: /repo
       to: /io/
+      directory: archive
+      extract:
+        - ci/test/resources/sql
    namespace:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
-    - copy_files
+    - checkout_this_repo
  - kind: runImage
    name: test_hello2_database
    image:
