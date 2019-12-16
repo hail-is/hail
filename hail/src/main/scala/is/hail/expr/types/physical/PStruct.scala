@@ -25,10 +25,10 @@ object PStruct {
 abstract class PStruct extends PBaseStruct {
   lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)), required)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+  final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
+  final def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
     assert(other isOfType this)
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
@@ -73,7 +73,7 @@ abstract class PStruct extends PBaseStruct {
 
   def loadField(offset: Code[Long], field: String): Code[Long]
 
-  def isFieldDefined(offset: Code[Long], field: String): Code[Boolean]
+  final def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = !isFieldMissing(offset, field)
 
   def isFieldMissing(offset: Code[Long], field: String): Code[Boolean]
 
