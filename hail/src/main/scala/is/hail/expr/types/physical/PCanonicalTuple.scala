@@ -1,6 +1,4 @@
 package is.hail.expr.types.physical
-
-import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
 final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PTuple with PCanonicalBaseStruct {
@@ -12,13 +10,6 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
 
   override def truncate(newSize: Int): PTuple =
     PCanonicalTuple(_types.take(newSize), required)
-
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
-  val nMissingBytes = (nMissing + 7) >>> 3
-  val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PCanonicalBaseStruct.alignment(types)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")

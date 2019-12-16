@@ -3,7 +3,6 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, Region, UnsafeInserter}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
-import is.hail.expr.types.BaseStruct
 import is.hail.utils.{ArrayBuilder, fatal, plural, prettyIdentifier}
 import org.apache.spark.sql.Row
 import is.hail.utils._
@@ -41,13 +40,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
 
   override def truncate(newSize: Int): PStruct =
     PCanonicalStruct(fields.take(newSize), required)
-
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
-  val nMissingBytes = (nMissing + 7) >>> 3
-  val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PCanonicalBaseStruct.alignment(types)
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
