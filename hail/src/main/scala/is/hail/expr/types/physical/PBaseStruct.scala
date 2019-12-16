@@ -44,7 +44,7 @@ trait PBaseStruct extends PType {
 
   def nMissingBytes: Int
 
-  protected def missingIdx: Array[Int]
+  def missingIdx: Array[Int]
 
   def byteOffsets: Array[Long]
 
