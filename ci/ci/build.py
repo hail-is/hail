@@ -465,7 +465,7 @@ class RunImageStep(Step):
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                if i.get('directory') != 'archive':
+                if o.get('directory') != 'archive':
                     batch_copy_source = o["from"]
                 else:
                     batch_copy_source = f'/io/{self.token}/o["to"]'
