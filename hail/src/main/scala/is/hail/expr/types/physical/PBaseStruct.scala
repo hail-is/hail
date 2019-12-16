@@ -2,26 +2,24 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
-import is.hail.utils._
 
 trait PBaseStruct extends PType {
   def types: Array[PType]
 
   def fields: IndexedSeq[PField]
 
-  def fieldRequired: Array[Boolean]
+  lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
   lazy val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
-  def fieldNames: Array[String]
+  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
   def fieldByName(name: String): PField = fields(fieldIdx(name))
 
-  def index(str: String): Option[Int]
+  def index(str: String): Option[Int] = fieldIdx.get(str)
 
-  def selfField(name: String): Option[PField]
+  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
@@ -41,6 +39,38 @@ trait PBaseStruct extends PType {
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
   def truncate(newSize: Int): PBaseStruct
+
+  override def unsafeOrdering(): UnsafeOrdering =
+    unsafeOrdering(this)
+
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
+    require(this.isOfType(rightType))
+
+    val right = rightType.asInstanceOf[PBaseStruct]
+    val fieldOrderings: Array[UnsafeOrdering] =
+      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r)}
+
+    new UnsafeOrdering {
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+        var i = 0
+        while (i < types.length) {
+          val leftDefined = isFieldDefined(r1, o1, i)
+          val rightDefined = right.isFieldDefined(r2, o2, i)
+
+          if (leftDefined && rightDefined) {
+            val c = fieldOrderings(i).compare(r1, loadField(r1, o1, i), r2, right.loadField(r2, o2, i))
+            if (c != 0)
+              return c
+          } else if (leftDefined != rightDefined) {
+            val c = if (leftDefined) -1 else 1
+            return c
+          }
+          i += 1
+        }
+        0
+      }
+    }
+  }
 
   def nMissingBytes: Int
 

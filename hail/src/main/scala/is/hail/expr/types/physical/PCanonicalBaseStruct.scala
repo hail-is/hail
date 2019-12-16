@@ -42,20 +42,12 @@ object PCanonicalBaseStruct {
 }
 
 trait PCanonicalBaseStruct extends PBaseStruct {
-  lazy val fieldRequired: Array[Boolean] = types.map(_.required)
-
-  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
-
   lazy val missingIdx = new Array[Int](size)
   lazy val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   lazy val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
   lazy val byteOffsets = new Array[Long](size)
   override lazy val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override lazy val alignment: Long = PCanonicalBaseStruct.alignment(types)
-
-  def index(str: String): Option[Int] = fieldIdx.get(str)
-
-  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
 
   def _toPretty: String = {
     val sb = new StringBuilder
@@ -81,38 +73,6 @@ trait PCanonicalBaseStruct extends PBaseStruct {
     codeOrdering(mb, this, so)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering
-
-  override def unsafeOrdering(): UnsafeOrdering =
-    unsafeOrdering(this)
-
-  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(this.isOfType(rightType))
-
-    val right = rightType.asInstanceOf[PBaseStruct]
-    val fieldOrderings: Array[UnsafeOrdering] =
-      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r)}
-
-    new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        var i = 0
-        while (i < types.length) {
-          val leftDefined = isFieldDefined(r1, o1, i)
-          val rightDefined = right.isFieldDefined(r2, o2, i)
-
-          if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, loadField(r1, o1, i), r2, right.loadField(r2, o2, i))
-            if (c != 0)
-              return c
-          } else if (leftDefined != rightDefined) {
-            val c = if (leftDefined) -1 else 1
-            return c
-          }
-          i += 1
-        }
-        0
-      }
-    }
-  }
 
   def allocate(region: Region): Long = {
     region.allocate(alignment, byteSize)
