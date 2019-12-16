@@ -244,11 +244,11 @@ object ExportVCF {
           case _: TStruct => mv.rvRowPType.field("info").typ.asInstanceOf[PStruct]
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
-            PStruct()
+            PStruct.empty()
         }
       } else {
         warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
-        PStruct()
+        PStruct.empty()
       }
 
     val rg = mv.referenceGenome

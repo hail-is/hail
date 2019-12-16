@@ -168,13 +168,13 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   }
 
   def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
-    PStruct().unsafeInsert(typeToInsert, path)
+    PStruct.empty().unsafeInsert(typeToInsert, path)
 
   def insert(signature: PType, fields: String*): (PType, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: PType, path: List[String]): (PType, Inserter) = {
     if (path.nonEmpty)
-      PStruct().insert(signature, path)
+      PStruct.empty().insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
