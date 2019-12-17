@@ -11,10 +11,10 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   val types = _types.map(_.typ).toArray
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
-  lazy val missingIdx = new Array[Int](size)
-  lazy val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
-  lazy val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
-  lazy val byteOffsets = new Array[Long](size)
+  val missingIdx = new Array[Int](size)
+  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
+  val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
