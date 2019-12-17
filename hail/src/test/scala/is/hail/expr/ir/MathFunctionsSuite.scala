@@ -38,6 +38,15 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(ir, -3.0)
   }
 
+  @Test def pyUniroot() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
+    val fn = ApplyBinaryPrimOp(Subtract(), invoke("**", TFloat64(), Ref("x", TFloat64()), F64(2)), F64(3))
+    val ir = Uniroot("x", fn, F64(0), F64(10))
+
+    println(eval(ir))
+  }
+
   @Test def unirootWithRegionManipulation() {
     implicit val execStrats = ExecStrategy.javaOnly
 

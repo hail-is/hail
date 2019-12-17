@@ -5105,8 +5105,11 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
 
 @typecheck(f=func_spec(1, expr_float64),
            min=expr_float64,
-           max=expr_float64)
-def uniroot(f: Callable, min, max):
+           max=expr_float64,
+           max_iter=builtins.int,
+           epsilon=builtins.float,
+           base_tolerance=builtins.float)
+def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e-16, base_tolerance=1.220703e-4):
     """Finds a root of the function `f` within the interval `[min, max]`.
 
     Examples
@@ -5134,12 +5137,62 @@ def uniroot(f: Callable, min, max):
         The root of the function `f`.
     """
 
-    new_id = Env.get_uid()
-    lambda_result = to_expr(f(construct_variable(new_id, hl.tfloat64)))
+    def error_if_missing(x):
+        res = f(x)
+        return (case()
+                .when(is_defined(res), res)
+                .or_error(format("'uniroot': value of f(x) is missing for x = %.1e", x)))
+    wrapped_f = hl.experimental.define_function(error_if_missing, 'float')
 
-    indices, aggregations = unify_all(lambda_result, min, max)
-    ir = Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
-    return construct_expr(ir, lambda_result._type, indices, aggregations)
+    def uniroot(recur, a, b, c, fa, fb, fc, prev, iterations_remaining):
+        tol = 2 * epsilon * abs(b) + base_tolerance / 2
+        cb = c - b
+        t1 = fb / fc
+        t2 = fb / fa
+        q1 = fa / fc  # = t1 / t2
+        pq = cond(
+            a == c,
+            (cb * t1) / (t1 - 1.0),  # linear
+            -t2 * (cb * q1 * (q1 - t1) - (b-a)*(t1 - 1.0)) /
+            ((q1 - 1.0) * (t1 - 1.0) * (t2 - 1.0)))  # quadratic
+
+        interpolated = cond((sign(pq) == sign(cb))
+                            & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]
+                            & (abs(pq) < abs(prev / 2)),  # pq not too large
+                            pq, cb / 2)
+
+        new_step = cond(
+            (abs(prev) >= tol) & (abs(fa) > abs(fb)),  # try interpolation
+            interpolated, cb / 2)
+
+        new_b = b + cond(new_step < 0, hl.min(new_step, -tol), hl.max(new_step, tol))
+        new_fb = wrapped_f(new_b)
+
+        return cond(
+            iterations_remaining == 0,
+            null('float'),
+            cond(abs(fc) < abs(fb),
+                 recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
+                 cond((abs(cb / 2) <= tol) | (fb == 0),
+                      b,  # acceptable approximation found
+                      cond(sign(new_fb) == sign(fc),  # use c = a for next iteration if signs match
+                           recur(b, new_b, a, fb, new_fb, fa, new_step, iterations_remaining - 1),
+                           recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
+                           ))))
+
+    fmin = wrapped_f(min)
+    fmax = wrapped_f(max)
+    run_loop = hl.experimental.define_function(
+        lambda min, max, fmin, fmax:
+        hl.experimental.loop(uniroot, 'float',
+                             min, max, min, fmin, fmax, fmin, max - min, max_iter),
+        'float', 'float', 'float', 'float')
+
+    return (case()
+            .when(min < max, case()
+                  .when(fmin * fmax <= 0, run_loop(min, max, fmin, fmax))
+                  .or_error(format("sign of endpoints must have opposite signs, got: f(min) = %.1e, f(max) = %.1e", fmin, fmax)))
+            .or_error(format("min must be less than max in call to uniroot, got: min %.1e, max %.1e", min, max)))
 
 
 @typecheck(f=expr_str, args=expr_any)
