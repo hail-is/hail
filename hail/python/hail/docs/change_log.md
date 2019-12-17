@@ -36,7 +36,7 @@ Released 2019-12-17
 - (hail#7653) Fixed crash in `ld_prune` by unfiltering missing GTs. 
 
 ### Performance improvements
-- (hail#7719) Generate more efficient IR for `Table.flatten`
+- (hail#7719) Generate more efficient IR for `Table.flatten`.
 - (hail#7740) Method wrapping large let bindings to keep method size down.
 
 ### New features
@@ -46,6 +46,8 @@ Released 2019-12-17
 
 ### `hailctl dataproc`
 - (hail#7717) Throw error when mispelling arguments instead of silently quitting.
+
+---
 
 ## Version 0.2.28
 
