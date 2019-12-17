@@ -37,6 +37,7 @@ Released 2019-12-17
 
 ### Performance improvements
 - (hail#7719) Generate more efficient IR for `Table.flatten`
+- (hail#7740) Method wrapping large let bindings to keep method size down.
 
 ### New features
 - (hail#7686) Added `comment` argument to `import_matrix_table`, allowing lines with certain prefixes to be ignored.
