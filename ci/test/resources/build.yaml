@@ -83,7 +83,7 @@ steps:
    image: ubuntu:18.04
    script: |
      cd io
-     diff archived-foo/data recursive-foo/data
+     diff archived-foo/data data
      cat uncompressed-file
    inputs:
      - from: /foo.tgz
@@ -92,7 +92,7 @@ steps:
        extract:
          - foo/data
      - from: /foo
-       to: /io/recursive-foo
+       to: /io/
        directory: recursive
      - from: /uncompressed-file
        to: /io/uncompressed-file
