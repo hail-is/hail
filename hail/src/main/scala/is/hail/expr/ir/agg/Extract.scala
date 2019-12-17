@@ -15,18 +15,18 @@ import scala.language.{existentials, postfixOps}
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature]) {
+case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggSignature]) {
   val typ: PTuple = PTuple(aggs.map(Extract.getPType): _*)
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
-    def aggCommutes(agg: AggSignature): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
+    def aggCommutes(agg: PhysicalAggSignature): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
 
     aggs.forall(aggCommutes)
   }
 
   def shouldTreeAggregate: Boolean = {
-    def containsBigAggregator(agg: AggSignature): Boolean = agg.nested.exists(_.exists(containsBigAggregator)) || (agg.op match {
+    def containsBigAggregator(agg: PhysicalAggSignature): Boolean = agg.nested.exists(_.exists(containsBigAggregator)) || (agg.op match {
       case AggElements() => true
       case AggElementsLengthCheck() => true
       case Downsample() => true
@@ -125,7 +125,7 @@ object Extract {
     lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb) }
   }
 
-  def compatible(sig1: AggSignature, sig2: AggSignature): Boolean = (sig1.op, sig2.op) match {
+  def compatible(sig1: PhysicalAggSignature, sig2: PhysicalAggSignature): Boolean = (sig1.op, sig2.op) match {
     case (AggElements(), AggElements()) |
          (AggElementsLengthCheck(), AggElements()) |
          (AggElements(), AggElementsLengthCheck()) |
@@ -134,43 +134,59 @@ object Extract {
     case _ => sig1 == sig2
   }
 
-  def getAgg(aggSig: AggSignature): StagedAggregator = aggSig match {
-    case AggSignature(Sum(), _, Seq(t), _) =>
-      new SumAggregator(t.physicalType)
-    case AggSignature(Product(), _, Seq(t), _) =>
-      new ProductAggregator(t.physicalType)
-    case AggSignature(Min(), _, Seq(t), _) =>
-      new MinAggregator(t.physicalType)
-    case AggSignature(Max(), _, Seq(t), _) =>
-      new MaxAggregator(t.physicalType)
-    case AggSignature(Count(), _, _, _) =>
+  def getResultType(aggSig: AggSignature): Type = aggSig match {
+    case AggSignature(Sum(), _, Seq(t), _) => t
+    case AggSignature(Product(), _, Seq(t), _) => t
+    case AggSignature(Min(), _, Seq(t), _) => t
+    case AggSignature(Max(), _, Seq(t), _) => t
+    case AggSignature(Count(), _, _, _) => TInt64()
+    case AggSignature(Take(), _, Seq(t), _) => TArray(t)
+    case AggSignature(CallStats(), _, _, _) => CallStatsState.resultType.virtualType
+    case AggSignature(TakeBy(), _, Seq(value, key), _) => TArray(value)
+    case AggSignature(PrevNonnull(), _, Seq(t), _) => t
+    case AggSignature(CollectAsSet(), _, Seq(t), _) => TSet(t)
+    case AggSignature(Collect(), _, Seq(t), _) => TArray(t)
+    case AggSignature(LinearRegression(), _, _, _) =>
+      LinearRegressionAggregator.resultType.virtualType
+    case AggSignature(ApproxCDF(), _, _, _) => QuantilesAggregator.resultType.virtualType
+    case AggSignature(Downsample(), _, Seq(_, _, label), _) => DownsampleAggregator.resultType
+    case _ => throw new UnsupportedExtraction(aggSig.toString)  }
+
+  def getAgg(aggSig: PhysicalAggSignature): StagedAggregator = aggSig match {
+    case PhysicalAggSignature(Sum(), _, Seq(t), _) =>
+      new SumAggregator(t)
+    case PhysicalAggSignature(Product(), _, Seq(t), _) =>
+      new ProductAggregator(t)
+    case PhysicalAggSignature(Min(), _, Seq(t), _) =>
+      new MinAggregator(t)
+    case PhysicalAggSignature(Max(), _, Seq(t), _) =>
+      new MaxAggregator(t)
+    case PhysicalAggSignature(Count(), _, _, _) =>
       CountAggregator
-    case AggSignature(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
-    case AggSignature(CallStats(), _, Seq(tCall: TCall), _) => new CallStatsAggregator(tCall.physicalType)
-    case AggSignature(TakeBy(), _, Seq(value, key), _) => new TakeByAggregator(value.physicalType, key.physicalType)
-    case AggSignature(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
+    case PhysicalAggSignature(Take(), _, Seq(t), _) => new TakeAggregator(t)
+    case PhysicalAggSignature(CallStats(), _, Seq(tCall: PCall), _) => new CallStatsAggregator(tCall)
+    case PhysicalAggSignature(TakeBy(), _, Seq(value, key), _) => new TakeByAggregator(value, key)
+    case PhysicalAggSignature(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
       val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
-    case AggSignature(AggElements(), _, _, Some(nestedAggs)) =>
+    case PhysicalAggSignature(AggElements(), _, _, Some(nestedAggs)) =>
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)
-    case AggSignature(PrevNonnull(), _, Seq(t), _) =>
-      new PrevNonNullAggregator(t.physicalType)
-    case AggSignature(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
+    case PhysicalAggSignature(PrevNonnull(), _, Seq(t), _) =>
+      new PrevNonNullAggregator(t)
+    case PhysicalAggSignature(Group(), _, Seq(kt, PVoid), Some(nestedAggs)) =>
       new GroupedAggregator(PType.canonical(kt), nestedAggs.map(getAgg).toArray)
-    case AggSignature(CollectAsSet(), _, Seq(t), _) =>
+    case PhysicalAggSignature(CollectAsSet(), _, Seq(t), _) =>
       new CollectAsSetAggregator(PType.canonical(t))
-    case AggSignature(Collect(), _, Seq(t), _) =>
-      new CollectAggregator(t.physicalType)
-    case AggSignature(LinearRegression(), _, _, _) =>
+    case PhysicalAggSignature(Collect(), _, Seq(t), _) =>
+      new CollectAggregator(t)
+    case PhysicalAggSignature(LinearRegression(), _, _, _) =>
       LinearRegressionAggregator
-    case AggSignature(ApproxCDF(), _, _, _) => new ApproxCDFAggregator
-    case AggSignature(Downsample(), _, Seq(_, _, label), _) => new DownsampleAggregator(label.physicalType.asInstanceOf[PArray])
+    case PhysicalAggSignature(ApproxCDF(), _, _, _) => new ApproxCDFAggregator
+    case PhysicalAggSignature(Downsample(), _, Seq(_, _, label), _) => new DownsampleAggregator(label.asInstanceOf[PArray])
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
-  def getPType(aggSig: AggSignature): PType = getAgg(aggSig).resultType
-
-  def getType(aggSig: AggSignature): Type = getPType(aggSig).virtualType
+  def getPType(aggSig: PhysicalAggSignature): PType = getAgg(aggSig).resultType
 
   def apply(ir: IR, resultName: String): Aggs = {
     val ab = new ArrayBuilder[InitOp2]()
@@ -180,7 +196,7 @@ object Extract {
     val postAgg = extract(ir, ab, seq, let, ref)
     val initOps = ab.result()
     val aggs = initOps.map(_.aggSig)
-    val rt = TTuple(aggs.map(Extract.getType): _*)
+    val rt = TTuple(aggs.map(_.returnType.virtualType): _*)
     ref._typ = rt
 
     Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), aggs)
@@ -198,8 +214,9 @@ object Extract {
         extract(body)
       case x: ApplyAggOp =>
         val i = ab.length
-        ab += InitOp2(i, x.initOpArgs, x.aggSig)
-        seqBuilder += SeqOp2(i, x.seqOpArgs, x.aggSig)
+        val psig = x.aggSig.toPhysical(x.initOpArgs.map(_.pType), x.seqOpArgs.map(_.pType))
+        ab += InitOp2(i, x.initOpArgs, psig)
+        seqBuilder += SeqOp2(i, x.seqOpArgs, psig)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new ArrayBuilder[IR]()
@@ -229,10 +246,10 @@ object Extract {
         val initOps = newAggs.result()
         val aggs = initOps.map(_.aggSig)
 
-        val rt = TDict(key.typ, TTuple(aggs.map(Extract.getType): _*))
+        val rt = TDict(key.typ, TTuple(aggs.map(_.returnType.virtualType): _*))
         newRef._typ = -rt.elementType
 
-        val aggSig = AggSignature(Group(), Seq(TVoid), FastSeq(key.typ, TVoid), Some(aggs))
+        val aggSig = PhysicalAggSignature(Group(), Seq(PVoid), FastSeq(key.pType, PVoid), Some(aggs))
         ab += InitOp2(i, FastIndexedSeq(Begin(initOps)), aggSig)
         seqBuilder += SeqOp2(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig)
 
@@ -253,14 +270,14 @@ object Extract {
         val initOps = newAggs.result()
         val aggs = initOps.map(_.aggSig)
 
-        val rt = TArray(TTuple(aggs.map(Extract.getType): _*))
+        val rt = TArray(TTuple(aggs.map(_.returnType.virtualType): _*))
         newRef._typ = -rt.elementType
 
-        val aggSigCheck = AggSignature(
+        val aggSigCheck = PhysicalAggSignature(
           AggElementsLengthCheck(),
-          knownLength.map(l => FastSeq(l.typ)).getOrElse(FastSeq()) :+ TVoid,
-          FastSeq(TInt32()), Some(aggs))
-        val aggSig = AggSignature(AggElements(), FastSeq[Type](), FastSeq(TInt32(), TVoid), Some(aggs))
+          knownLength.map(l => FastSeq(l.pType)).getOrElse(FastSeq()) :+ PVoid,
+          FastSeq(PInt32()), Some(aggs))
+        val aggSig = PhysicalAggSignature(AggElements(), FastSeq[PType](), FastSeq(PInt32(), PVoid), Some(aggs))
 
         val aRef = Ref(genUID(), a.typ)
         val iRef = Ref(genUID(), TInt32())

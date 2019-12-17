@@ -1,16 +1,36 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.agg.Extract
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 
 case class AggSignature(
   op: AggOp,
   initOpArgs: Seq[Type],
   seqOpArgs: Seq[Type],
-  nested: Option[Seq[AggSignature]]) {
-  lazy val returnType: Type = agg.Extract.getType(this)
+  nested: Option[Seq[AggSignature]] = None) {
+  lazy val returnType: Type = agg.Extract.getResultType(this)
+  def toPhysical(initOpTypes: Seq[PType], seqOpTypes: Seq[PType]): PhysicalAggSignature = {
+    assert(nested.isEmpty)
+    (initOpTypes, initOpArgs).zipped.foreach { case (pt, t) => pt.virtualType == t }
+    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => pt.virtualType == t }
+    PhysicalAggSignature(op, initOpTypes, seqOpTypes, None)
+  }
 }
 
-sealed trait AggOp { }
+case class PhysicalAggSignature(
+  op: AggOp,
+  physicalInitOpArgs: Seq[PType],
+  physicalSeqOpArgs: Seq[PType],
+  nested: Option[Seq[PhysicalAggSignature]]) {
+  def initOpArgs: Seq[Type] = physicalInitOpArgs.map(_.virtualType)
+
+  def seqOpArgs: Seq[Type] = physicalSeqOpArgs.map(_.virtualType)
+
+  lazy val returnType: PType = Extract.getAgg(this).resultType
+}
+
+sealed trait AggOp {}
 final case class ApproxCDF() extends AggOp
 final case class CallStats() extends AggOp
 final case class Collect() extends AggOp

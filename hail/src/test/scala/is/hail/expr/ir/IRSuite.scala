@@ -2335,8 +2335,10 @@ class IRSuite extends HailSuite {
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()), None)
 
-    val callStatsSig2 = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()), None)
-    val collectSig2 = AggSignature(CallStats(), Seq(), Seq(TInt32()), None)
+    def canonical(ts: Type*): IndexedSeq[PType] = ts.map(PType.canonical).toFastIndexedSeq
+
+    val callStatsSig2 = PhysicalAggSignature(CallStats(), canonical(TInt32()), canonical(TCall()), None)
+    val collectSig2 = PhysicalAggSignature(CallStats(), canonical(), canonical(TInt32()), None)
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), Seq(TFloat64(), TInt32()), None)
 

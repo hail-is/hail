@@ -25,7 +25,7 @@ object Emit {
     emit(ctx: ExecuteContext, ir, fb, Env.empty, nSpecialArguments, None)
   }
 
-  def apply(ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, aggs: Option[Array[AggSignature]] = None) {
+  def apply(ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, aggs: Option[Array[PhysicalAggSignature]] = None) {
     val triplet = emit(ctx, ir, fb, Env.empty, nSpecialArguments, aggs)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
@@ -41,7 +41,7 @@ object Emit {
     fb: EmitFunctionBuilder[_],
     env: E,
     nSpecialArguments: Int,
-    aggs: Option[Array[AggSignature]]): EmitTriplet = {
+    aggs: Option[Array[PhysicalAggSignature]]): EmitTriplet = {
     TypeCheck(ir)
     val container = aggs.map { a =>
       val c = fb.addAggStates(a)
@@ -58,7 +58,7 @@ object Emit {
 }
 
 object AggContainer {
-  def fromVars(aggs: Array[AggSignature], fb: EmitFunctionBuilder[_], region: ClassFieldRef[Region], off: ClassFieldRef[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+  def fromVars(aggs: Array[PhysicalAggSignature], fb: EmitFunctionBuilder[_], region: ClassFieldRef[Region], off: ClassFieldRef[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
     val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a).createState(fb)).toArray)
     val aggState = new agg.TupleAggregatorState(fb, states, region, off)
 
@@ -75,11 +75,11 @@ object AggContainer {
 
     (AggContainer(aggs, aggState), setup, cleanup)
   }
-  def fromFunctionBuilder(aggs: Array[AggSignature], fb: EmitFunctionBuilder[_], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+  def fromFunctionBuilder(aggs: Array[PhysicalAggSignature], fb: EmitFunctionBuilder[_], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
     fromVars(aggs, fb, fb.newField[Region](s"${varPrefix}_top_region"), fb.newField[Long](s"${varPrefix}_off"))
 }
 
-case class AggContainer(aggs: Array[AggSignature], container: agg.TupleAggregatorState) {
+case class AggContainer(aggs: Array[PhysicalAggSignature], container: agg.TupleAggregatorState) {
 
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
