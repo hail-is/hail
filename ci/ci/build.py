@@ -485,7 +485,7 @@ class RunImageStep(Step):
                     'mount_path': mount_path
                 })
 
-        final_script = ';\n'.join([f'mkdir -p /io/{self.token}', *copy_inputs, rendered_script, *copy_outputs])
+        final_script = '\n\n'.join([f'mkdir -p /io/{self.token}', *copy_inputs, rendered_script, *copy_outputs])
 
         self.job = batch.create_job(
             self.image,
