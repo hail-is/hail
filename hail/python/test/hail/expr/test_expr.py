@@ -2858,6 +2858,7 @@ class Tests(unittest.TestCase):
 
     def test_uniroot(self):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3)), 1)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3)), 2.718281828459045, delta=1.220703e-4)
 
     def test_pT(self):
         self.assert_evals_to(hl.pT(0, 10), 0.5)
