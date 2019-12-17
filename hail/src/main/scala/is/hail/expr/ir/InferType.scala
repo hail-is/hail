@@ -54,6 +54,10 @@ object InferType {
         body.typ
       case AggLet(name, value, body, _) =>
         body.typ
+      case TailLoop(_, _, body) =>
+        body.typ
+      case Recur(_, _, typ) =>
+        typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
       case ApplyUnaryPrimOp(op, v) =>

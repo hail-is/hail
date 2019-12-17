@@ -172,6 +172,8 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
   }
 }
 
+case class LoopRef(m: ClassFieldRef[Boolean], v: ClassFieldRef[_], tempM: LocalRef[Boolean], tempV: LocalRef[_])
+
 abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {
   type MB <: MethodBuilder
 
@@ -271,7 +273,8 @@ private class Emit(
         def estimatedSize: Int = ir.size * opSize
 
         def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, EmitRegion.default(mbLike.emit.mb), container))
+          // wrapped methods can't contain uses of Recur
+          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, EmitRegion.default(mbLike.emit.mb), container, None))
       }
     }
 
@@ -311,10 +314,13 @@ private class Emit(
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
-  private[ir] def emit(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): EmitTriplet = {
+  private[ir] def emit(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): EmitTriplet =
+    emit(ir, env, er, container, None)
 
-    def emit(ir: IR, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container): EmitTriplet =
-      this.emit(ir, env, er, container)
+  private def emit(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[Array[LoopRef]]]): EmitTriplet = {
+
+    def emit(ir: IR, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[Array[LoopRef]]] = loopEnv): EmitTriplet =
+      this.emit(ir, env, er, container, loopEnv)
 
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
@@ -1805,6 +1811,43 @@ private class Emit(
               ctxab.invoke[Array[Array[Byte]]]("result"),
               baos.invoke[Array[Byte]]("toByteArray")),
             decodeResult))
+      case x@TailLoop(name, args, body) =>
+        val loopRefs = args.map { case (name, ir) =>
+          val ti = typeToTypeInfo(ir.typ)
+          ti -> LoopRef(mb.newField[Boolean], mb.newField()(ti), mb.newLocal[Boolean], mb.newLocal()(ti))
+        }
+
+        val storeInitArgs = args.zip(loopRefs).map { case ((_, ir), (_, loopref)) =>
+          val t = emit(ir)
+          Code(t.setup, loopref.m := t.m, (!loopref.m).orEmpty(loopref.v := t.value))
+        }
+
+        val label = new CodeLabel
+        val m = mb.newField[Boolean]
+        val v = mb.newField()(typeToTypeInfo(x.typ))
+
+        val argEnv = env
+          .bind(args.zip(loopRefs).map { case ((name, _), (ti, ref)) => (name, (ti, ref.m.load(), ref.v.load())) } : _*)
+          .bind(name, (typeToTypeInfo(x.typ), const(false), label.goto))
+
+        val newLoopEnv = loopEnv.getOrElse(Env.empty)
+        val bodyT = emit(body, argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRefs.map(_._2).toArray)))
+        val bodyF = Code(
+          bodyT.setup,
+          m := bodyT.m,
+          (!m).orEmpty(v := bodyT.value))
+
+        EmitTriplet(Code(storeInitArgs, label, bodyF), m, v)
+
+      case Recur(name, args, _) =>
+        val (_, _, jump) = env.lookup(name)
+        val refs = loopEnv.get.lookup(name)
+        val storeTempArgs = Array.tabulate(refs.length) { i =>
+          val t = emit(args(i), env.delete(name), loopEnv = None)
+          Code(t.setup, refs(i).tempM := t.m, refs(i).tempV.storeAny(refs(i).tempM.mux(defaultValue(args(i).typ), t.v)))
+        }
+        val moveArgs = refs.map( ref =>  Code(ref.m := ref.tempM, ref.v.storeAny(ref.tempV)) )
+        EmitTriplet(Code(Code(storeTempArgs ++ moveArgs: _*), coerce[Unit](jump)), const(false), Code._empty)
     }
   }
 
@@ -1870,7 +1913,7 @@ private class Emit(
     }
 
   private def emitOldArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
-    def emit(ir: IR, env: E = env) = this.emit(ir, env, er, container)
+    def emit(ir: IR, env: E = env) = this.emit(ir, env, er, container, None)
 
     def emitArrayIterator(ir: IR, env: E = env) =
       this.emitOldArrayIterator(ir, env, er, container)
@@ -2128,9 +2171,9 @@ private class Emit(
         val postAgg = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
           context = "ArrayAggScan/StagedExtractAggregators/perElt", ctx)
 
-        val codeInit = this.emit(init, env, er, Some(newContainer))
-        val codeSeq = this.emit(perElt, bodyEnv, er, Some(newContainer))
-        val newElt = this.emit(postAgg, bodyEnv, er, Some(newContainer))
+        val codeInit = this.emit(init, env, er, Some(newContainer), None)
+        val codeSeq = this.emit(perElt, bodyEnv, er, Some(newContainer), None)
+        val newElt = this.emit(postAgg, bodyEnv, er, Some(newContainer), None)
 
         val it = emitArrayIterator(a)
         val ae = { cont: Emit.F =>
