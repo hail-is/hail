@@ -29,7 +29,7 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     sb += ']'
   }
 
-  override val fundamentalType: PTuple = {
+  lazy val tupleFundamentalType: PTuple = {
     val fundamentalFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.fundamentalType))
     if ((_types, fundamentalFieldTypes).zipped
       .forall { case (t, ft) => t == ft })

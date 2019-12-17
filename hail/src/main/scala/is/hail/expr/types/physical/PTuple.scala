@@ -26,6 +26,9 @@ abstract class PTuple extends PBaseStruct {
   lazy val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
   lazy val nFields: Int = fields.size
 
+  protected def tupleFundamentalType: PTuple
+  override lazy val fundamentalType: PTuple = tupleFundamentalType
+
   def copy(required: Boolean): PTuple
 
   final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =

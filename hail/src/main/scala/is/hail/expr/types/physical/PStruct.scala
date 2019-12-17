@@ -75,7 +75,6 @@ abstract class PStruct extends PBaseStruct {
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct
 
   protected def structFundamentalType: PStruct
-
   override lazy val fundamentalType: PStruct = structFundamentalType
 
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long]
