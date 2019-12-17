@@ -53,7 +53,7 @@ sealed trait IR extends BaseIR {
     cp
   }
 
-  def size: Int = 1 + children.map {
+  lazy val size: Int = 1 + children.map {
       case x: IR => x.size
       case _ => 0
     }.sum
