@@ -9,7 +9,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.linalg.LAPACK
+import is.hail.linalg.{BLAS, LAPACK}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1435,7 +1435,53 @@ private class Emit(
           // 4. Construct a new output PNDArray.
           val leftDataAddress = lPType.data.load(region, leftND)
           val rightDataAddress = rPType.data.load(region, rightND)
-          
+
+          val leftColumnMajorAddress = mb.newLocal[Long]
+          val rightColumnMajorAddress = mb.newLocal[Long]
+          val answerColumnMajorAddress = mb.newLocal[Long]
+          val answerRowMajorAddress = mb.newField[Long]
+          val M = leftShapeArray(lPType.nDims - 2)
+          val N = rightShapeArray(rPType.nDims - 1)
+          val K = leftShapeArray(lPType.nDims - 1)
+
+          // TODO Are these right?
+          val LDA = M
+          val LDB = K
+          val LDC = M
+
+
+          val block = Code(
+            leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * 8L),
+            rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * 8L),
+            answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * 8L),
+
+
+            lPType.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, ???, ???, mb),
+            rPType.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, ???, ???, mb),
+
+            //DGEMM
+            Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+              "N",
+              "N",
+              M.toI,
+              N.toI,
+              K.toI,
+              1.0,
+              leftColumnMajorAddress,
+              LDA.toI,
+              rightColumnMajorAddress,
+              LDB.toI,
+              1.0,
+              answerColumnMajorAddress,
+              LDC.toI
+            ),
+            answerRowMajorAddress := outputPType.data.pType.allocate(region, (M * N).toI),
+            outputPType.data.pType.stagedInitialize(answerRowMajorAddress, (M * N).toI),
+            //outputPType.copyRowMajorToColumnMajor()
+            lPType.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.load(region, answerRowMajorAddress), ???, ???, mb)
+          )
+          // TODO Make sure we free!
+
           ???
         } else {
           emitter.emit(outputPType)
