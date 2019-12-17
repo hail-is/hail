@@ -31,11 +31,11 @@ steps:
      COPY archived-foo/foo/data data1
      COPY recursive-foo/foo/data data2
      RUN diff data1 data2
-EOF
+     EOF
 
      cat >data <<EOF
      some data
-EOF
+     EOF
 
      git add Dockerfile
      git commit -m "first commit"
@@ -44,7 +44,7 @@ EOF
 
      cat >uncompressed-file <<EOF
      this is an uncompressed file
-EOF
+     EOF
    outputs:
      - from: /io/foo
        to: /foo.tgz
