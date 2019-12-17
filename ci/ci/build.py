@@ -441,7 +441,7 @@ class RunImageStep(Step):
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
-        copy_inputs = ''
+        copy_inputs = []
         input_files = None
         if self.inputs:
             input_files = []
@@ -453,14 +453,14 @@ class RunImageStep(Step):
                     batch_copy_destination = f'/io/{self.token}/i["from"]'
                     actual_destination = shq(f'{i["to"]}')
                     if 'extract' not in i:
-                        copy_inputs += f'tar -xzf {batch_copy_destination} -C {actual_destination}'
+                        copy_inputs.append(f'tar -xzf {batch_copy_destination} -C {actual_destination}')
                     else:
                         patterns = ' '.join(shq(f) for f in i.get('extract'))
-                        copy_inputs += f'tar -xzf {batch_copy_destination} -C {actual_destination} {patterns}'
+                        copy_inputs.append(f'tar -xzf {batch_copy_destination} -C {actual_destination} {patterns}')
                 input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}',
                                     batch_copy_destination))
 
-        copy_outputs = ''
+        copy_outputs = []
         output_files = None
         if self.outputs:
             output_files = []
@@ -469,7 +469,7 @@ class RunImageStep(Step):
                     batch_copy_source = o["from"]
                 else:
                     batch_copy_source = f'/io/{self.token}/{o["to"]}'
-                    copy_outputs += f'tar -czf {batch_copy_source} {o["from"]}'
+                    copy_outputs.append(f'tar -czf {batch_copy_source} {o["from"]}')
                 output_files.append((batch_copy_source,
                                      f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
 
@@ -485,9 +485,11 @@ class RunImageStep(Step):
                     'mount_path': mount_path
                 })
 
+        final_script = ';\n'.join([*copy_inputs, rendered_script, *copy_outputs])
+
         self.job = batch.create_job(
             self.image,
-            command=['bash', '-c', rendered_script],
+            command=['bash', '-c', final_script],
             resources=self.resources,
             attributes={'name': self.name},
             input_files=input_files,
