@@ -26,10 +26,10 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.29
 
-Released 2019-11-17
+Released 2019-12-17
 
 ### Bug fixes
-- (hail#7229) Fixed `hl.maximal_independent_set` tie breaker functionality. See linked pull request for details.
+- (hail#7229) Fixed `hl.maximal_independent_set` tie breaker functionality.
 - (hail#7732) Fixed incompatibility with old files leading to incorrect data read when filtering intervals after `read_matrix_table`.
 - (hail#7642) Fixed crash when constant-folding functions that throw errors.
 - (hail#7611) Fixed `hl.hadoop_ls` to handle glob patterns correctly.
