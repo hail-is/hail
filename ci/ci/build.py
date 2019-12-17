@@ -450,7 +450,7 @@ class RunImageStep(Step):
                 if i.get('directory') != 'archive':
                     batch_copy_destination = i["to"]
                 else:
-                    batch_copy_destination = f'/io/{self.token}/i["from"]'
+                    batch_copy_destination = f'/io/{self.token}/{i["from"]}'
                     actual_destination = shq(f'{i["to"]}')
                     if 'extract' not in i:
                         copy_inputs.append(f'tar -xzf {batch_copy_destination} -C {actual_destination}')
