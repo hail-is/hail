@@ -1,11 +1,12 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region, UnsafeInserter}
+import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
-import is.hail.utils.{ArrayBuilder, fatal, plural, prettyIdentifier}
-import org.apache.spark.sql.Row
+import is.hail.expr.types.BaseStruct
+import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
+import org.apache.spark.sql.Row
+import collection.JavaConverters._
 
 object PCanonicalStruct {
   private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
@@ -21,12 +22,24 @@ object PCanonicalStruct {
       .toFastIndexedSeq,
       required)
 
+  def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PStruct = {
+    val sNames = names.asScala.toArray
+    val sTypes = types.asScala.toArray
+    if (sNames.length != sTypes.length)
+      fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
+
+    PCanonicalStruct(required, sNames.zip(sTypes): _*)
+  }
+
   def apply(args: (String, PType)*): PStruct =
     PCanonicalStruct(false, args:_*)
+
+  def canonical(t: Type): PStruct = PType.canonical(t).asInstanceOf[PStruct]
+  def canonical(t: PType): PStruct = PType.canonical(t).asInstanceOf[PStruct]
 }
 
-final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PStruct with PCanonicalBaseStruct {
-  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
+final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PStruct {
+  assert(fields.zipWithIndex.forall  { case (f, i) => f.index == i })
 
   val types: Array[PType] = fields.map(_.typ).toArray
 
@@ -35,6 +48,13 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
+
+  val missingIdx = new Array[Int](size)
+  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  val nMissingBytes = (nMissing + 7) >>> 3
+  val byteOffsets = new Array[Long](size)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = PBaseStruct.alignment(types)
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
 
@@ -198,7 +218,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
     PCanonicalStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  val structFundamentalType: PStruct = {
+  lazy val structFundamentalType: PStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })

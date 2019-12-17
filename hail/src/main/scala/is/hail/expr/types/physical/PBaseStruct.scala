@@ -2,11 +2,48 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
+import is.hail.utils._
 
-trait PBaseStruct extends PType {
-  def types: Array[PType]
+object PBaseStruct {
+  def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
+    assert(byteOffsets.length == types.length)
+    val bp = new BytePacker()
 
-  def fields: IndexedSeq[PField]
+    var offset: Long = nMissingBytes
+    types.zipWithIndex.foreach { case (t, i) =>
+      val fSize = t.byteSize
+      val fAlignment = t.alignment
+
+      bp.getSpace(fSize, fAlignment) match {
+        case Some(start) =>
+          byteOffsets(i) = start
+        case None =>
+          val mod = offset % fAlignment
+          if (mod != 0) {
+            val shift = fAlignment - mod
+            bp.insertSpace(shift, offset)
+            offset += (fAlignment - mod)
+          }
+          byteOffsets(i) = offset
+          offset += fSize
+      }
+    }
+    offset
+  }
+
+  def alignment(types: Array[PType]): Long = {
+    if (types.isEmpty)
+      1
+    else
+      types.map(_.alignment).max
+  }
+}
+
+abstract class PBaseStruct extends PType {
+  val types: Array[PType]
+
+  val fields: IndexedSeq[PField]
 
   lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
@@ -27,7 +64,32 @@ trait PBaseStruct extends PType {
 
   def fieldType(name: String): PType = types(fieldIdx(name))
 
-  lazy val size: Int = fields.length
+  def size: Int = fields.length
+
+  def _toPretty: String = {
+    val sb = new StringBuilder
+    _pretty(sb, 0, compact = true)
+    sb.result()
+  }
+
+  def identBase: String
+  def _asIdent: String = {
+    val sb = new StringBuilder
+    sb.append(identBase)
+    sb.append("_of_")
+    types.foreachBetween { ty =>
+      sb.append(ty.asIdent)
+    } {
+      sb.append("AND")
+    }
+    sb.append("END")
+    sb.result()
+  }
+
+  def codeOrdering(mb: EmitMethodBuilder, so: Array[SortOrder]): CodeOrdering =
+    codeOrdering(mb, this, so)
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering
 
   def isIsomorphicTo(other: PBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)
@@ -72,15 +134,19 @@ trait PBaseStruct extends PType {
     }
   }
 
+  def nMissing: Int
+
   def nMissingBytes: Int
 
   def missingIdx: Array[Int]
 
   def byteOffsets: Array[Long]
 
-  def allocate(region: Region): Long
+  def allocate(region: Region): Long = {
+    region.allocate(alignment, byteSize)
+  }
 
-  def allocate(region: Code[Region]): Code[Long]
+  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
@@ -195,4 +261,6 @@ trait PBaseStruct extends PType {
       case _ => fieldOffset
     }
   }
+
+  override def containsPointers: Boolean = types.exists(_.containsPointers)
 }

@@ -1,10 +1,22 @@
 package is.hail.expr.types.physical
+import is.hail.annotations.UnsafeUtils
+import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
-final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PTuple with PCanonicalBaseStruct {
-  val types = _types.map(_.typ).toArray
+object PCanonicalTuple {
+  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
+}
 
+final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PTuple {
+  val types = _types.map(_.typ).toArray
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
+
+  lazy val missingIdx = new Array[Int](size)
+  lazy val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  lazy val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
+  lazy val byteOffsets = new Array[Long](size)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = PBaseStruct.alignment(types)
 
   def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
 

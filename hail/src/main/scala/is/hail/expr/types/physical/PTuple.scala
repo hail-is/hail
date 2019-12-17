@@ -10,19 +10,23 @@ import is.hail.utils._
 case class PTupleField(index: Int, typ: PType)
 
 object PTuple {
-  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t) }.toIndexedSeq, required)
-
   def apply(args: IndexedSeq[PTupleField], required: Boolean = false): PTuple = PCanonicalTuple(args, required)
 
-  def apply(args: PType*): PTuple = PCanonicalTuple(args.zipWithIndex.map { case (a, i) => PTupleField(i, a) }.toIndexedSeq, required = false)
+  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(required, args:_*)
+
+  def apply(args: PType*): PTuple = PCanonicalTuple(false, args:_*)
 }
 
 abstract class PTuple extends PBaseStruct {
-  def _types: IndexedSeq[PTupleField]
+  val _types: IndexedSeq[PTupleField]
+  val fieldIndex: Map[Int, Int]
 
   lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
+
   lazy val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
   lazy val nFields: Int = fields.size
+
+  def copy(required: Boolean): PTuple
 
   final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
@@ -33,6 +37,8 @@ abstract class PTuple extends PBaseStruct {
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so)
   }
 
+  def identBase: String = "tuple"
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("tuple(")
     fields.foreachBetween({ field =>
@@ -40,12 +46,6 @@ abstract class PTuple extends PBaseStruct {
     }) { sb.append(", ")}
     sb.append(')')
   }
-
-  def identBase: String = "tuple"
-
-  def copy(required: Boolean): PTuple
-
-  def fieldIndex: Map[Int, Int]
 }
 
 class CodePTuple(
