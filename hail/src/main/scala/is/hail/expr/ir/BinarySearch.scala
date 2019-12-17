@@ -14,7 +14,7 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, keyOnly: Boolean) {
       case t: PBaseStruct =>
         require(t.size == 2)
         t
-      case t: PInterval => t.representation
+      case t: PInterval => t.representation.asInstanceOf[PStruct]
     }
     val kt = ttype.types(0)
     val findMB = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])

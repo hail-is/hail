@@ -10,7 +10,7 @@ object PCall {
   def apply(required: Boolean = false): PCall = PCanonicalCall(required)
 }
 
-abstract class PCall extends PType {
+abstract class PCall extends ComplexPType {
   lazy val virtualType: TCall = TCall(required)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {

@@ -9,7 +9,7 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval with ComplexPType {
+final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
     def _asIdent = s"interval_of_${pointType.asIdent}"
     def _toPretty = s"""Interval[$pointType]"""
 
