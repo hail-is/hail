@@ -29,7 +29,7 @@ steps:
      FROM ubuntu:18.04
      COPY uncompressed-file .
      COPY archived-foo/foo/data data1
-     COPY recursive-foo/foo/data data2
+     COPY foo/data data2
      RUN diff data1 data2
      EOF
 
@@ -59,7 +59,7 @@ steps:
      - git_image
  - kind: buildImage
    name: verify_copy_inputs_for_build_image_works
-   dockerFile: /recursive-foo/Dockerfile
+   dockerFile: /Dockerfile
    contextPath: .
    inputs:
      - from: /foo.tgz
@@ -68,7 +68,7 @@ steps:
        extract:
          - foo/data
      - from: /foo
-       to: /recursive-foo
+       to: /
        directory: recursive
      - from: /uncompressed-file
        to: /uncompressed-file
