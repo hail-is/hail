@@ -469,7 +469,7 @@ class RunImageStep(Step):
                     batch_copy_source = o["from"]
                 else:
                     batch_copy_source = f'/io/{self.token}/{o["to"]}'
-                    copy_outputs.append(f'tar -czf {batch_copy_source} {o["from"]}')
+                    copy_outputs.append(f'tar -czf {batch_copy_source} -C {os.path.dirname(o["from"])} {o["from"]}')
                 output_files.append((batch_copy_source,
                                      f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
 
@@ -1119,15 +1119,28 @@ set -ex
 python3 create_database.py {shq(json.dumps(create_database_config))}
 '''
 
+        copy_inputs = []
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                assert 'extract' not in i or i.get('directory') == 'archive'
+                if i.get('directory') != 'archive':
+                    batch_copy_destination = i["to"]
+                else:
+                    batch_copy_destination = f'/io/{self.token}/{i["from"]}'
+                    actual_destination = shq(f'{i["to"]}')
+                    if 'extract' not in i:
+                        copy_inputs.append(f'tar -xzf {batch_copy_destination} -C {actual_destination}')
+                    else:
+                        patterns = ' '.join(shq(f) for f in i.get('extract'))
+                        copy_inputs.append(f'tar -xzf {batch_copy_destination} -C {actual_destination} {patterns}')
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}',
+                                    batch_copy_destination))
         else:
             input_files = None
 
         self.job = batch.create_job(CI_UTILS_IMAGE,
-                                    command=['bash', '-c', create_script],
+                                    command=['bash', '-c', '\n\n'.join([*copy_inputs, create_script])],
                                     attributes={'name': self.name},
                                     secrets=[{
                                         'namespace': self.database_server_config_namespace,
