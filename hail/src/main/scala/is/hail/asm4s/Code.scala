@@ -727,6 +727,19 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     Code(lhs, new InsnNode(ARRAYLENGTH))
 }
 
+class CodeLabel() extends Code[Unit] {
+  val n = new LabelNode
+  def emit(il: Growable[AbstractInsnNode]): Unit = {
+    il += n
+  }
+
+  def goto: Code[Unit] = new Code[Unit] {
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
+      il += new JumpInsnNode(GOTO, n)
+    }
+  }
+}
+
 object Invokeable {
   def apply[T](cls: Class[T], c: Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
     cls,

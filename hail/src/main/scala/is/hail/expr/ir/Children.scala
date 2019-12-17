@@ -31,6 +31,10 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
+    case TailLoop(_, args, body) =>
+      args.map(_._2).toFastIndexedSeq :+ body
+    case Recur(_, args, _) =>
+      args.toFastIndexedSeq
     case Ref(name, typ) =>
       none
     case RelationalRef(_, _) =>
