@@ -45,6 +45,7 @@ steps:
      cat >uncompressed-file <<EOF
      this is an uncompressed file
      EOF
+     # without a newline after EOF bash things the heredoc is unterminated
    outputs:
      - from: /io/foo
        to: /foo.tgz
