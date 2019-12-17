@@ -38,11 +38,24 @@ object BLAS {
       assert(Math.abs(norm - 5.0) < .1)
     }
   }
+
+  def dgemm(TRANSA: String, TRANSB: String, M: Int, N: Int, K: Int, ALPHA: Double, A: Long, LDA: Int, B: Long, LDB: Int, BETA: Double, C: Long, LDC: Int) = {
+    val mInt = new IntByReference(M)
+    val nInt = new IntByReference(N)
+    val kInt = new IntByReference(K)
+    val alphaDouble = new DoubleByReference(ALPHA)
+    val LDAInt = new IntByReference(LDA)
+    val LDBInt = new IntByReference(LDB)
+    val betaDouble = new DoubleByReference(BETA)
+    val LDCInt = new IntByReference(LDC)
+    // JNA seems to expect strings instead of some sort of CharByReference class.
+
+    libraryInstance.dgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
+  }
 }
 
 trait BLASLibrary extends Library {
-  // Not clear on types for TRANSA and TRANSB. Maybe they can be regular chars?
-  def dgemm(TRANSA: IntByReference, TRANSB: IntByReference, M: IntByReference, N: IntByReference, K: IntByReference,
+  def dgemm(TRANSA: String, TRANSB: String, M: IntByReference, N: IntByReference, K: IntByReference,
     ALPHA: DoubleByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference,
     BETA: DoubleByReference, C: Long, LDC: IntByReference)
 
