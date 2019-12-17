@@ -96,6 +96,8 @@ steps:
        directory: recursive
      - from: /uncompressed-file
        to: /io/uncompressed-file
+   dependsOn:
+     - git_image
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
