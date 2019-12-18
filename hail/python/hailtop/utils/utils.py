@@ -188,7 +188,6 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
         try:
             return await session.request(method, url, **kwargs)
         except Exception as e:
-            log.info(f'retrying transient error {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
