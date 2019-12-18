@@ -8,6 +8,10 @@ import is.hail.expr.types.virtual.TNDArray
 import is.hail.utils._
 import is.hail.asm4s._
 
+final class StaticallyKnownField[T, U](
+  val pType: T,
+  val load: (Code[Region], Code[Long]) => Code[U]
+)
 
 final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)

@@ -44,15 +44,13 @@ object PType {
   }
 
   def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] = {
-    for (fields <- genFields(required, genFieldType)) yield {
+    for (fields <- genFields(required, genFieldType)) yield
       PStruct(fields, required)
-    }
   }
 
   def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
-    for (fields <- genFields(required, genFieldType)) yield {
+    for (fields <- genFields(required, genFieldType)) yield
       PTuple(required, fields.map(_.typ): _*)
-    }
   }
 
   private val defaultRequiredGenRatio = 0.2
