@@ -116,12 +116,8 @@ class Session:
 
 
 class Sessions:
-    @staticmethod
-    async def make(bufsize, aiofiles, data_dir):
-        await aiofiles.mkdir(data_dir)
-        return Sessions(bufsize, data_dir, aiofiles)
-
     def __init__(self, bufsize, data_dir, aiofiles):
+        os.mkdir(data_dir)
         # consensus
         self.next_session = 0
         # local
@@ -175,7 +171,7 @@ class Server:
     @staticmethod
     async def serve(name, bufsize, data_dir, leader, binding_host='0.0.0.0', port=5000):
         aiofiles = af.AIOFiles()
-        dbuf = await Sessions.make(bufsize, aiofiles, f'{data_dir}/{port}')
+        dbuf = Sessions(bufsize, f'{data_dir}/{port}', aiofiles)
         server = Server(name, binding_host, port, leader, dbuf, aiofiles)
         prefixed_app = server.deploy_config.prefix_application(server.app, server.name)
 
@@ -291,7 +287,7 @@ bufsize = args.bufsize * 1024 * 1024
 try:
     shutil.rmtree(args.data_dir, ignore_errors=True)
     os.mkdir(args.data_dir)
-    loop.run_until_complete(Server.serve(
-        args.name, bufsize, args.data_dir, args.leader, args.host, args.port))
+    Server.serve(
+        args.name, bufsize, args.data_dir, args.leader, args.host, args.port)
 finally:
     shutil.rmtree(args.data_dir, ignore_errors=True)
