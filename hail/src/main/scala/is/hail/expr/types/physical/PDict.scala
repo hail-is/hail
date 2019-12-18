@@ -24,6 +24,8 @@ abstract class PDict extends PContainer {
     CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
 
+  override def unsafeOrdering: UnsafeOrdering = unsafeOrdering(this)
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("dict<")
     keyType.pyString(sb)

@@ -1,6 +1,6 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{CodeOrdering, Region, UnsafeOrdering}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.BaseStruct
@@ -33,6 +33,8 @@ final case class PTuple(_types: IndexedSeq[PTupleField], override val required: 
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so)
   }
+
+  override def unsafeOrdering: UnsafeOrdering = unsafeOrdering(this)
 
   override def truncate(newSize: Int): PTuple =
     PTuple(_types.take(newSize), required)
