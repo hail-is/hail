@@ -11,13 +11,9 @@ object PSet {
 abstract class PSet extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
-<<<<<<< HEAD
-  override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
-=======
   def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet
 
   def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
->>>>>>> e9379d7b23d97d58b9866d6b1b828349173a49c2
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

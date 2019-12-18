@@ -287,7 +287,7 @@ object Region {
         while (i < length) {
           v.enterElement(i)
           if (pt.isElementDefined(aoff, i))
-            visit(t.elementType, pt.loadElementAddress(aoff, length, i), v)
+            visit(t.elementType, pt.loadElement(aoff, length, i), v)
           else
             v.visitMissing(t.elementType)
           i += 1
