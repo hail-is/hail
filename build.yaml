@@ -1283,9 +1283,9 @@ steps:
      valueFrom: dbuf_test_image.image
    script: |
      set -ex
-     python3 scale_test.py dbuf-0.dbuf 10 1 40000 10000
+     python3 scale_test.py dbuf-0.dbuf 10 1 40000 1000
    resources:
-     memory: "16G"
+     memory: "3G"
      cpu: "1"
    secrets:
     - name: gce-deploy-config
