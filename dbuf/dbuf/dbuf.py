@@ -175,7 +175,7 @@ class Server:
         server = Server(name, binding_host, port, leader, dbuf, aiofiles)
         prefixed_app = server.deploy_config.prefix_application(server.app, server.name)
 
-        async def join_cluster():
+        async def join_cluster(garbage):
             if server.leader != server.name:
                 async def make_request():
                     async with aiohttp.ClientSession(raise_for_status=True,
