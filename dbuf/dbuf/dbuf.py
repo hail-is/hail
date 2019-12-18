@@ -245,7 +245,8 @@ class Server:
                     async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
                         assert resp.status == 200
                         await resp.text()
-                await utils.bounded_gather(*[call(worker) for worker in self.workers])
+                await utils.bounded_gather(*[lambda: call(worker)
+                                             for worker in self.workers])
         return web.Response()
 
     async def register_worker(self, request):

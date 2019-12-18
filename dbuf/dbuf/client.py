@@ -103,7 +103,7 @@ class DBufClient:
                 data = await resp.read()
                 for v, j in zip(self._decode(data), (x[1] for x in batch)):
                     results[j] = v
-        await utils.bounded_gather(*[get_from_server(server, keys)
+        await utils.bounded_gather(*[lambda: get_from_server(server, keys)
                                      for server, keys in servers.items()])
         return results
 
