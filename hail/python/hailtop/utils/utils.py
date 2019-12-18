@@ -208,15 +208,3 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
 
 async def collect_agen(agen):
     return [x async for x in agen]
-
-
-async def retry_forever(f, msg=None):
-    delay = 0.1
-    while True:
-        try:
-            await f()
-            break
-        except Exception as exc:
-            if msg:
-                log.warning(msg(exc), exc_info=True)
-        await sleep_and_backoff(delay)
