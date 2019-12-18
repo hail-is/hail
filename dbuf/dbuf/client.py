@@ -38,10 +38,11 @@ class DBufClient:
         self.max_bufsize = max_bufsize
 
     async def create(self):
-        resp = await utils.request_retry_transient_errors(
-            self.aiosession,
-            'POST',
-            f'{self.root_url}/s')
+        # resp = await utils.request_retry_transient_errors(
+        #     self.aiosession,
+        #     'POST',
+        #     f'{self.root_url}/s')
+        resp = await self.aiosession.request('POST', f'{self.root_url}/s')
         assert resp.status == 200
         self.id = int(await resp.text())
         self.session_url = f'{self.root_url}/s/{self.id}'
