@@ -59,7 +59,6 @@ spec:
           imagePullPolicy: Always
           ports:
            - name: port
-             hostPort: 80
              containerPort: 80
 ---
 apiVersion: v1
