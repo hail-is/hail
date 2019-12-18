@@ -289,9 +289,9 @@ args = parser.parse_args()
 loop = asyncio.get_event_loop()
 bufsize = args.bufsize * 1024 * 1024
 try:
-    shutil.rmtree(args.data_dir)
+    shutil.rmtree(args.data_dir, ignore_errors=True)
     os.mkdir(args.data_dir)
     loop.run_until_complete(Server.serve(
         args.name, bufsize, args.data_dir, args.leader, args.host, args.port))
 finally:
-    shutil.rmtree(args.data_dir)
+    shutil.rmtree(args.data_dir, ignore_errors=True)
