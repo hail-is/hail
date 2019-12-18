@@ -96,6 +96,9 @@ object HailContext {
     conf.set("spark.logConf", "true")
     conf.set("spark.ui.showConsoleProgress", "false")
 
+    conf.set("spark.kryoserializer.buffer.max", "1g")
+    conf.set("spark.driver.maxResultSize", "0")
+
     conf.set(
       "spark.hadoop.io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
@@ -851,7 +854,6 @@ class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
       "lower" -> null,
-      "newaggs" -> "1",
       "max_leader_scans" -> "1000",
       "jvm_bytecode_dump" -> null
     )

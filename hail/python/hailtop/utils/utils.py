@@ -157,7 +157,8 @@ def is_transient_error(e):
     elif isinstance(e, aiohttp.ClientOSError):
         if (e.errno == errno.ETIMEDOUT or
                 e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH):
+                e.errno == errno.EHOSTUNREACH or
+                e.errno == errno.ECONNRESET):
             return True
     elif isinstance(e, aiohttp.ServerTimeoutError):
         return True
@@ -191,7 +192,7 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
                 pass
             else:
                 raise
-        delay = sleep_and_backoff(delay)
+        delay = await sleep_and_backoff(delay)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):
@@ -202,3 +203,7 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
             log.exception('request failed with transient exception: {method} {url}')
             raise web.HTTPServiceUnavailable()
         raise
+
+
+async def collect_agen(agen):
+    return [x async for x in agen]

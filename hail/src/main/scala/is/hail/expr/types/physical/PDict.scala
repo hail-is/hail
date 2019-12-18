@@ -1,23 +1,29 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{UnsafeUtils, _}
-import is.hail.check.Gen
+import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
-import is.hail.utils._
-import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
+object PDict {
+  def apply(keyType: PType, valueType: PType, required: Boolean = false) = PCanonicalDict(keyType, valueType, required)
+}
 
-final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false) extends PContainer {
+abstract class PDict extends PContainer {
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
 
-  val elementType: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
+  val keyType: PType
+  val valueType: PType
 
-  override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
+  def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict
 
-  def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
-  def _toPretty = s"Dict[$keyType, $valueType]"
+  def elementType: PStruct
+
+  def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
+  }
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("dict<")
@@ -25,21 +31,5 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
     sb.append(", ")
     valueType.pyString(sb)
     sb.append('>')
-  }
-
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Dict[")
-    keyType.pretty(sb, indent, compact)
-    if (compact)
-      sb += ','
-    else
-      sb.append(", ")
-    valueType.pretty(sb, indent, compact)
-    sb.append("]")
-  }
-
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
 }

@@ -135,6 +135,8 @@ abstract class PBaseStruct extends PType {
     }
   }
 
+  def nMissing: Int
+
   def nMissingBytes: Int
 
   def missingIdx: Array[Int]
@@ -263,8 +265,3 @@ abstract class PBaseStruct extends PType {
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
 }
-
-final class StaticallyKnownField[T, U](
-  val pType: T,
-  val load: (Code[Region], Code[Long]) => Code[U]
-)

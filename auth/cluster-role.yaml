@@ -1,0 +1,21 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: auth-driver
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "secrets"]
+  verbs: ["*"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: auth-driver
+subjects:
+- kind: ServiceAccount
+  name: auth-driver
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: auth-driver
+  apiGroup: rbac.authorization.k8s.io

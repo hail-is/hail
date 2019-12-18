@@ -10,7 +10,7 @@ import aiohttp_session
 import aiomysql
 import uvloop
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-from hailtop.utils import humanize_timedelta_msecs
+from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
@@ -103,15 +103,17 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
     page_context = {}
     page_context['repo'] = wb.branch.repo.short_str()
-    page_context['number'] = pr.number
+    page_context['pr'] = pr
     # FIXME
     if pr.batch:
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
-            for j in status['jobs']:
+            jobs = await collect_agen(pr.batch.jobs())
+            for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
                 j['exit_code'] = Job.exit_code(j)
             page_context['batch'] = status
+            page_context['jobs'] = jobs
             # [4:] strips off gs:/
             page_context['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
         else:
@@ -119,12 +121,9 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))
 
     batch_client = request.app['batch_client']
-    batches = await batch_client.list_batches(
-        attributes={
-            'test': '1',
-            'pr': pr_number
-        })
-    batches = sorted(batches, key=lambda b: b.id, reverse=True)
+    batches = batch_client.list_batches(
+        f'test=1 pr={pr_number}')
+    batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
@@ -134,7 +133,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
-    batches = await batch_client.list_batches()
+    batches = [b async for b in batch_client.list_batches()]
     statuses = [await b.status() for b in batches]
     page_context = {
         'batches': statuses
@@ -149,11 +148,13 @@ async def get_batch(request, userdata):
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
-    for j in status['jobs']:
+    jobs = await collect_agen(b.jobs())
+    for j in jobs:
         j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
         j['exit_code'] = Job.exit_code(j)
     page_context = {
-        'batch': status
+        'batch': status,
+        'jobs': jobs
     }
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
@@ -316,7 +317,7 @@ async def on_startup(app):
         timeout=aiohttp.ClientTimeout(total=60))
     app['client_session'] = session
     app['github_client'] = gh_aiohttp.GitHubAPI(session, 'ci', oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient(session=session)
+    app['batch_client'] = await BatchClient('ci', session=session)
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())

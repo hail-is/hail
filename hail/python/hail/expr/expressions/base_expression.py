@@ -181,6 +181,8 @@ def impute_type(x):
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with values of types {} ".format(list(vts)))
         return tdict(unified_key_type, unified_value_type)
+    elif isinstance(x, np.generic):
+        return from_numpy(x.dtype)
     elif isinstance(x, np.ndarray):
         element_type = from_numpy(x.dtype)
         return tndarray(element_type, x.ndim)

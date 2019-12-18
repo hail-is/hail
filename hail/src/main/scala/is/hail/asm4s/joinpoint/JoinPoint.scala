@@ -13,7 +13,7 @@ case class Ctrl(n: Nothing)
 
 object JoinPoint {
   // equivalent but produces better bytecode than 'cond.mux(j1(arg), j2(arg))'
-  def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
+  def mux[A](arg: A, cond: CodeConditional, j1: JoinPoint[A], j2: JoinPoint[A])(
     implicit ap: ParameterPack[A]
   ): Code[Ctrl] = {
     ensureStackIndicator(j1.stackIndicator)
@@ -21,10 +21,18 @@ object JoinPoint {
     new Code[Ctrl] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         ap.push(arg).emit(il)
-        cond.toConditional.emitConditional(il, j1.label, j2.label)
+        cond.emitConditional(il, j1.label, j2.label)
       }
     }
   }
+
+  def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
+    implicit ap: ParameterPack[A]
+  ): Code[Ctrl] =
+    mux(arg, cond.toConditional, j1, j2)
+
+  def mux(cond: CodeConditional, j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
+    mux((), cond, j1, j2)
 
   def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
     mux((), cond, j1, j2)

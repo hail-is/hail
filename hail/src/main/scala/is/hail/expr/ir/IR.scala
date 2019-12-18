@@ -155,6 +155,12 @@ final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) exte
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
+
+// Recur can't exist outside of loop
+// Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
+final case class TailLoop(name: String, params: Seq[(String, IR)], body: IR) extends IR
+final case class Recur(name: String, args: Seq[IR], _typ: Type) extends IR
+
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
 final case class RelationalRef(name: String, _typ: Type) extends IR
 
@@ -281,6 +287,8 @@ final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
 final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
 
+final case class NDArrayQR(nd: IR, mode: String) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
@@ -289,44 +297,31 @@ final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
-final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
-  assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
-  assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
-  assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
 
-  def nConstructorArgs = constructorArgs.length
-
-  def hasInitOp = initOpArgs.isDefined
+  def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
 }
 
-final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
-  assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsAgg(_)))
-  assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
-  assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
 
-  def nConstructorArgs = constructorArgs.length
-
-  def hasInitOp = initOpArgs.isDefined
+  def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
 }
 
-final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
 
-final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
-final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
-final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR
-final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature2]) extends IR
-
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR

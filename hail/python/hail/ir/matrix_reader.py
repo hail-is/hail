@@ -218,7 +218,8 @@ class TextMatrixReader(MatrixReader):
                       has_header=bool,
                       separator=str,
                       gzip_as_bgzip=bool,
-                      add_row_id=bool)
+                      add_row_id=bool,
+                      comment=sequenceof(str))
     def __init__(self,
                  paths,
                  n_partitions,
@@ -228,7 +229,8 @@ class TextMatrixReader(MatrixReader):
                  has_header,
                  separator,
                  gzip_as_bgzip,
-                 add_row_id):
+                 add_row_id,
+                 comment):
         self.paths = wrap_to_list(paths)
         self.n_partitions = n_partitions
         self.row_fields = row_fields
@@ -238,6 +240,7 @@ class TextMatrixReader(MatrixReader):
         self.separator = separator
         self.gzip_as_bgzip = gzip_as_bgzip
         self.add_row_id = add_row_id
+        self.comment = comment
 
     def render(self, r):
         reader = {'name': 'TextMatrixReader',
@@ -250,11 +253,12 @@ class TextMatrixReader(MatrixReader):
                   'hasHeader': self.has_header,
                   'separatorStr': self.separator,
                   'gzipAsBGZip': self.gzip_as_bgzip,
-                  'addRowId': self.add_row_id}
+                  'addRowId': self.add_row_id,
+                  'comment': self.comment}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
-        return isinstance(other, MatrixBGENReader) and \
+        return isinstance(other, TextMatrixReader) and \
             self.paths == other.paths and \
             self.n_partitions == other.n_partitions and \
             self.row_fields == other.row_fields and \
@@ -263,7 +267,8 @@ class TextMatrixReader(MatrixReader):
             self.has_header == other.has_header and \
             self.separator == other.separator and \
             self.gzip_as_bgzip == other.gzip_as_bgzip and \
-            self.add_row_id == other.add_row_id
+            self.add_row_id == other.add_row_id and \
+            self.comment == other.comment
 
 
 class MatrixPLINKReader(MatrixReader):

@@ -7,9 +7,10 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
+import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.expr.types.MatrixType
-import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -22,7 +23,8 @@ object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
   val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile = Value
 
-  val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val compileOnly: Set[ExecStrategy] = Set(JvmCompile)
+  val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
   val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
@@ -197,30 +199,27 @@ object TestUtils {
       val argsPType = PType.canonical(argsType)
       agg match {
         case Some((aggElements, aggType)) =>
-          val aggVar = genUID()
-          val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
-            env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
-          }
+          val aggElementVar = genUID()
+          val aggArrayVar = genUID()
           val aggPType = PType.canonical(aggType)
-          val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](ctx,
-            argsVar, argsPType,
-            argsVar, argsPType,
-            aggVar, aggPType,
-            MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
-            (i, x) => x,
-            (i, x) => x)
+          val aggArrayPType = PArray(aggPType)
+
+          val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
+            env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
+          }
+          val aggIR = ArrayAgg(Ref(aggArrayVar, aggArrayPType.virtualType),
+            aggElementVar,
+            MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
           val (resultType2, f) = Compile[Long, Long, Long](ctx,
-            "AGGR", aggResultType,
             argsVar, argsPType,
-            postAggIR,
+            aggArrayVar, aggArrayPType,
+            aggIR,
             print = bytecodePrinter)
           assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
             val rvb = new RegionValueBuilder(region)
-
-            // copy args into region
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
@@ -231,51 +230,15 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            // aggregate
-            i = 0
-            rvAggs.foreach(_.clear())
-            initOps(0, region)(region, rvAggs, argsOff, false)
-            var seqOpF = seqOps(0, region)
-            while (i < (aggElements.length / 2)) {
-              // FIXME use second region for elements
-              rvb.start(aggPType)
-              rvb.addAnnotation(aggType, aggElements(i))
-              val aggElementOff = rvb.end()
-
-              seqOpF(region, rvAggs, argsOff, false, aggElementOff, false)
-
-              i += 1
+            rvb.start(aggArrayPType)
+            rvb.startArray(aggElements.length)
+            aggElements.foreach { r =>
+              rvb.addAnnotation(aggType, r)
             }
+            rvb.endArray()
+            val aggOff = rvb.end()
 
-            val rvAggs2 = rvAggs.map(_.newInstance())
-            rvAggs2.foreach(_.clear())
-            initOps(0, region)(region, rvAggs2, argsOff, false)
-            seqOpF = seqOps(1, region)
-            while (i < aggElements.length) {
-              // FIXME use second region for elements
-              rvb.start(aggPType)
-              rvb.addAnnotation(aggType, aggElements(i))
-              val aggElementOff = rvb.end()
-
-              seqOpF(region, rvAggs2, argsOff, false, aggElementOff, false)
-
-              i += 1
-            }
-
-            rvAggs.zip(rvAggs2).foreach { case (agg1, agg2) => agg1.combOp(agg2) }
-
-            // build aggregation result
-            rvb.start(aggResultType)
-            rvb.startTuple()
-            i = 0
-            while (i < rvAggs.length) {
-              rvAggs(i).result(rvb)
-              i += 1
-            }
-            rvb.endTuple()
-            val aggResultsOff = rvb.end()
-
-            val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
+            val resultOff = f(0, region)(region, argsOff, false, aggOff, false)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], region, resultOff).get(0)
           }
 
@@ -307,24 +270,20 @@ object TestUtils {
   }
 
   def assertEvalSame(x: IR) {
-    assertEvalSame(x, Env.empty, FastIndexedSeq(), None)
+    assertEvalSame(x, Env.empty, FastIndexedSeq())
   }
 
   def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]) {
-    assertEvalSame(x, Env.empty, args, None)
+    assertEvalSame(x, Env.empty, args)
   }
 
-  def assertEvalSame(x: IR, agg: (IndexedSeq[Row], TStruct)) {
-    assertEvalSame(x, Env.empty, FastIndexedSeq(), Some(agg))
-  }
-
-  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]) {
+  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]) {
     val t = x.typ
 
     val (i, i2, c) = ExecuteContext.scoped { ctx =>
-      val i = Interpret[Any](ctx, x, env, args, agg)
-      val i2 = Interpret[Any](ctx, x, env, args, agg, optimize = false)
-      val c = eval(x, env, args, agg)
+      val i = Interpret[Any](ctx, x, env, args)
+      val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
+      val c = eval(x, env, args, None)
       (i, i2, c)
     }
 
@@ -378,8 +337,12 @@ object TestUtils {
       filteredExecStrats.foreach { strat =>
         try {
           val res = strat match {
-            case ExecStrategy.Interpret => Interpret[Any](ctx, x, env, args, agg)
-            case ExecStrategy.InterpretUnoptimized => Interpret[Any](ctx, x, env, args, agg, optimize = false)
+            case ExecStrategy.Interpret =>
+              assert(agg.isEmpty)
+              Interpret[Any](ctx, x, env, args)
+            case ExecStrategy.InterpretUnoptimized =>
+              assert(agg.isEmpty)
+              Interpret[Any](ctx, x, env, args, optimize = false)
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
               eval(x, env, args, agg, bytecodePrinter =
@@ -403,14 +366,14 @@ object TestUtils {
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, regex: String) {
-    assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], None, regex)
+    assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
   }
 
-  def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
+  def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
     ExecuteContext.scoped { ctx =>
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg))
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg, optimize = false))
-      interceptException[E](regex)(eval(x, env, args, agg))
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
+      interceptException[E](regex)(eval(x, env, args, None))
     }
   }
 
@@ -419,19 +382,19 @@ object TestUtils {
   }
 
   def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String) {
-    assertThrows[HailException](x, Env.empty[(Any, Type)], args, None, regex)
+    assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
   }
 
-  def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
-    assertThrows[HailException](x, env, args, agg, regex)
+  def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
+    assertThrows[HailException](x, env, args, regex)
   }
 
-  def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
-    interceptException[E](regex)(eval(x, env, args, agg))
+  def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
+    interceptException[E](regex)(eval(x, env, args, None))
   }
 
   def assertCompiledThrows[E <: Throwable : Manifest](x: IR, regex: String) {
-    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], None, regex)
+    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
   }
 
   def assertCompiledFatal(x: IR, regex: String) {

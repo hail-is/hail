@@ -401,12 +401,12 @@ def ld_score_regression(weight_expr,
             mt.__step1_h2 * hl.agg.mean(mt.__n) / M])
 
     # step 1 block jackknife
-    mt = mt.annotate_cols(__step1_block_betas=[
-        hl.agg.filter((mt.__step1_block != i) & mt.__in_step1,
-                      hl.agg.linreg(y=mt.__y,
-                                    x=[1.0, mt.__x],
-                                    weight=mt.__w).beta)
-        for i in range(n_blocks)])
+    mt = mt.annotate_cols(__step1_block_betas=hl.agg.array_agg(
+        lambda i: hl.agg.filter((mt.__step1_block != i) & mt.__in_step1,
+                                hl.agg.linreg(y=mt.__y,
+                                              x=[1.0, mt.__x],
+                                              weight=mt.__w).beta),
+        hl.range(n_blocks)))
 
     mt = mt.annotate_cols(__step1_block_betas_bias_corrected=hl.map(
         lambda x: n_blocks * mt.__step1_betas - (n_blocks - 1) * x,
@@ -451,12 +451,12 @@ def ld_score_regression(weight_expr,
             mt.__step2_h2 * hl.agg.mean(mt.__n)/M])
 
     # step 2 block jackknife
-    mt = mt.annotate_cols(__step2_block_betas=[
-        hl.agg.filter((mt.__step2_block != i) & mt.__in_step2,
-                      hl.agg.linreg(y=mt.__y - mt.__step1_betas[0],
-                                    x=[mt.__x],
-                                    weight=mt.__w).beta[0])
-        for i in range(n_blocks)])
+    mt = mt.annotate_cols(__step2_block_betas=hl.agg.array_agg(
+        lambda i: hl.agg.filter((mt.__step2_block != i) & mt.__in_step2,
+                                hl.agg.linreg(y=mt.__y - mt.__step1_betas[0],
+                                              x=[mt.__x],
+                                              weight=mt.__w).beta[0]),
+        hl.range(n_blocks)))
 
     mt = mt.annotate_cols(__step2_block_betas_bias_corrected=hl.map(
         lambda x: n_blocks * mt.__step2_betas[1] - (n_blocks - 1) * x,

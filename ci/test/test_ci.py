@@ -29,5 +29,5 @@ async def test_deploy():
                 await asyncio.sleep(5)
             return deploy_state
 
-        deploy_state = await asyncio.wait_for(wait_forever(), timeout=10 * 60)
+        deploy_state = await asyncio.wait_for(wait_forever(), timeout=20 * 60)
         assert deploy_state == 'success', deploy_state

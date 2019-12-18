@@ -41,7 +41,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   private val initArray: Code[Unit] =
     Code(
       region.setNumParents((lenRef + 1) * nStates),
-      aoff := region.allocate(arrayType.contentsAlignment, arrayType.contentsByteSize(lenRef)),
+      aoff := arrayType.allocate(region, lenRef),
       Region.storeAddress(typ.fieldOffset(off, 1), aoff),
       arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(region, off, 1))
@@ -126,7 +126,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   def copyFromAddress(src: Code[Long]): Code[Unit] = {
     val srcOff = fb.newField[Long]
     val initOffset = typ.loadField(srcOff, 0)
-    val eltOffset = arrayType.loadElementAddress(typ.loadField(srcOff, 1), idx)
+    val eltOffset = arrayType.loadElement(region, typ.loadField(srcOff, 1), idx)
 
     Code(
       srcOff := src,

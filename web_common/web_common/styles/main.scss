@@ -151,19 +151,24 @@ a {
     border: 1px solid black;
 }
 
-.notebook-caret:after {
-    /* 74 (measured width of Notebook) / 2 + 9 - 20 / 2 = 38px */
-    left: 36px;
+.auth-caret:after {
+    /* 35 (measured width of Auth) / 2 + 9 - 20 / 2 = 17px */
+    left: 17px;
 }
 
-.batch2-caret:after {
-    /* 52 (measured width of Batch2) / 2 + 9 - 20 / 2 = 25px */
-    left: 25px;
+.batch-caret:after {
+    /* 42 (measured width of Batch) / 2 + 9 - 20 / 2 = 20px */
+    left: 20px;
 }
 
 .monitoring-caret:after {
     /* 82 (measured width of Monitoring) / 2 + 9 - 20 / 2 = 42px */
     left: 40px;
+}
+
+.notebook-caret:after {
+    /* 74 (measured width of Notebook) / 2 + 9 - 20 / 2 = 38px */
+    left: 36px;
 }
 
 .header-dropdown-menu {

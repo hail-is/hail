@@ -26,18 +26,6 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyAggSignature(aggSig: AggSignature): String = {
-    val sb = new StringBuilder
-    sb += '('
-    sb.append(prettyClass(aggSig.op))
-    sb += ' '
-    sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
-    sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb += ')'
-    sb.result()
-  }
-
   val MAX_VALUES_TO_LOG: Int = 25
 
   def apply(ir: BaseIR, elideLiterals: Boolean = false): String = {
@@ -67,7 +55,7 @@ object Pretty {
       sb += ')'
     }
 
-    def prettyAggSignature2(aggSig: AggSignature2, depth: Int): String = {
+    def prettyAggSignature(aggSig: AggSignature, depth: Int): String = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.op))
@@ -82,12 +70,12 @@ object Pretty {
       sb.result()
     }
 
-    def prettyAggSeq(sigs: Seq[AggSignature2], depth: Int) {
+    def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
       sb.append(" " * depth)
       sb += '('
       sigs.foreach { x =>
         sb += '\n'
-        prettyAggSignature2(x, depth + 2)
+        prettyAggSignature(x, depth + 2)
       }
       sb += ')'
     }
@@ -111,60 +99,32 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyClass(aggSig.op))
           sb += '\n'
-          prettySeq(ctorArgs, depth + 2)
-          sb += '\n'
-          initOpArgs match {
-            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
-            case None =>
-              sb.append(" " * (depth + 2))
-              sb.append("None")
-          }
+          prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyClass(aggSig.op))
           sb += '\n'
-          prettySeq(ctorArgs, depth + 2)
-          sb += '\n'
-          initOpArgs match {
-            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
-            case None =>
-              sb.append(" " * (depth + 2))
-              sb.append("None")
-          }
+          prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
-        case SeqOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
         case InitOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          prettyAggSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case SeqOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          prettyAggSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case CombOp2(i1, i2, aggSig) =>
@@ -173,7 +133,7 @@ object Pretty {
           sb += ' '
           sb.append(i2)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          prettyAggSignature(aggSig, depth + 2)
         case ResultOp2(i, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -233,6 +193,8 @@ object Pretty {
                 )
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case TailLoop(name, args, _) => prettyIdentifier(name) + " " + prettyIdentifiers(args.map(_._1).toFastIndexedSeq)
+            case Recur(name, _, t) => prettyIdentifier(name) + " " + t.parsableString()
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)

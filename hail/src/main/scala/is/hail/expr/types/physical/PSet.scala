@@ -1,35 +1,32 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{UnsafeUtils, _}
-import is.hail.check.Gen
+import is.hail.annotations._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TSet
-import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
+object PSet {
+  def apply(elementType: PType, required: Boolean = false) = PCanonicalSet(elementType, required)
+}
 
-final case class PSet(elementType: PType, override val required: Boolean = false) extends PContainer {
+abstract class PSet extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType, required)
 
+<<<<<<< HEAD
   override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
+=======
+  def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet
 
-  def _asIdent = s"set_of_${elementType.asIdent}"
-  def _toPretty = s"Set[$elementType]"
+  def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
+>>>>>>> e9379d7b23d97d58b9866d6b1b828349173a49c2
+
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+    assert(other isOfType this)
+    CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
+  }
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("set<")
     elementType.pyString(sb)
     sb.append('>')
-  }
-
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Set[")
-    elementType.pretty(sb, indent, compact)
-    sb.append("]")
-  }
-
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
   }
 }

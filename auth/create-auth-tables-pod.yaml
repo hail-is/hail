@@ -3,6 +3,9 @@ kind: Pod
 metadata:
   name: create-auth-tables
 spec:
+  tolerations:
+   - key: preemptible
+     value: "true"
   containers:
   - name: create-auth-tables
     image: "{{ create_auth_tables_image.image }}"
@@ -12,8 +15,8 @@ spec:
      - |
        set -ex
        # index creation isn't idempotent, don't create if a table exists
-       USER_DATA=$(echo "SHOW TABLES LIKE 'user_data';" | mysql --defaults-extra-file=/auth-admin-secret/sql-config.cnf -s)
-       if [ "$USER_DATA" != "user_data" ]; then
+       USER_DATA=$(echo "SHOW TABLES LIKE 'users';" | mysql --defaults-extra-file=/auth-admin-secret/sql-config.cnf -s)
+       if [ "$USER_DATA" != "users" ]; then
          mysql --defaults-extra-file=/auth-admin-secret/sql-config.cnf < ./create-auth-tables.sql
        fi
        echo 'show tables;' | mysql --defaults-extra-file=/auth-admin-secret/sql-config.cnf
@@ -25,5 +28,5 @@ spec:
   volumes:
     - name: auth-admin-secret
       secret:
-        secretName: "{{ users_database.admin_secret_name }}"
+        secretName: "{{ auth_database.admin_secret_name }}"
   restartPolicy: Never

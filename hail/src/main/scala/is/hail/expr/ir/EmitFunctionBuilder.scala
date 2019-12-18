@@ -260,14 +260,14 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggSignature2] = _
+  private[this] var _aggSigs: Array[AggSignature] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggSignature2]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: Array[AggSignature]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
@@ -531,11 +531,33 @@ class EmitFunctionBuilder[F >: Null](
   override def newMethod[R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](), typeInfo[R])
 
+  def newMethod[R: TypeInfo](prefix: String)(body: MethodBuilder => Code[R]): Code[R] = {
+    val mb = newMethod(prefix, Array[TypeInfo[_]](), typeInfo[R])
+    mb.emit(body(mb))
+    mb.invoke[R]()
+  }
+
   override def newMethod[A: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
 
+  def newMethod[A: TypeInfo, R: TypeInfo](prefix: String)(
+    body: (MethodBuilder, Code[A]) => Code[R]
+  ): Code[A] => Code[R] = {
+    val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    mb.emit(body(mb, mb.getArg[A](1)))
+    a => mb.invoke[R](a)
+  }
+
   override def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+
+  def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String)(
+    body: (MethodBuilder, Code[A], Code[B]) => Code[R]
+  ): (Code[A], Code[B]) => Code[R] = {
+    val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+    mb.emit(body(mb, mb.getArg[A](1).load(), mb.getArg[B](2).load()))
+    (a, b) => mb.invoke[R](a, b)
+  }
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])

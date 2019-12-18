@@ -109,7 +109,7 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         env = [kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE',
                                     value='/deploy-config/deploy-config.json')]
 
-        jwt_secret_name = userdata['jwt_secret_name']
+        tokens_secret_name = userdata['tokens_secret_name']
         gsa_key_secret_name = userdata['gsa_key_secret_name']
         volumes = [
             kube.client.V1Volume(
@@ -123,7 +123,7 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
             kube.client.V1Volume(
                 name='user-tokens',
                 secret=kube.client.V1SecretVolumeSource(
-                    secret_name=jwt_secret_name))
+                    secret_name=tokens_secret_name))
         ]
         volume_mounts = [
             kube.client.V1VolumeMount(
@@ -157,6 +157,11 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
             limits={'cpu': cpu, 'memory': memory})
 
     pod_spec = kube.client.V1PodSpec(
+        tolerations=[
+            kube.client.V1Toleration(
+                key='preemptible',
+                value='true')
+        ],
         service_account_name=service_account_name,
         containers=[
             kube.client.V1Container(

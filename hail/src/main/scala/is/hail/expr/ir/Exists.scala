@@ -70,6 +70,21 @@ object ContainsAgg {
   })
 }
 
+object ContainsAggIntermediate {
+  def apply(root: IR): Boolean = (root match {
+    case _: ResultOp2 => true
+    case _: SeqOp2 => true
+    case _: InitOp2 => true
+    case _: CombOp2 => true
+    case _: DeserializeAggs => true
+    case _: SerializeAggs => true
+    case _ => false
+  }) || root.children.exists {
+    case child: IR => ContainsAggIntermediate(child)
+    case _ => false
+  }
+}
+
 object AggIsCommutative {
   def apply(op: AggOp): Boolean = op match {
     case Take() | Collect() | PrevNonnull() | TakeBy() => false
@@ -79,7 +94,7 @@ object AggIsCommutative {
 
 object ContainsNonCommutativeAgg {
   def apply(root: IR): Boolean = root match {
-    case ApplyAggOp(_, _, _, sig) => !AggIsCommutative(sig.op)
+    case ApplyAggOp(_, _, sig) => !AggIsCommutative(sig.op)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _ => root.children.exists {
@@ -100,19 +115,4 @@ object ContainsScan {
       case _ => false
     }
   })
-}
-
-object Extract {
-  private def extract(node: BaseIR, visitor: BaseIR => Boolean, ab: ArrayBuilder[BaseIR]) {
-    if (visitor(node))
-      ab += node
-    else
-      node.children.foreach(extract(_, visitor, ab))
-  }
-
-  def apply(node: BaseIR, visitor: BaseIR => Boolean): Array[BaseIR] = {
-    val ab = new ArrayBuilder[BaseIR]()
-    extract(node, visitor, ab)
-    ab.result()
-  }
 }

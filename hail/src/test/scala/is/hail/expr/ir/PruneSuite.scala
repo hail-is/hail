@@ -541,9 +541,9 @@ class PruneSuite extends HailSuite {
 
   @Test def testAggLetMemo() {
     checkMemo(AggLet("foo", ref,
-      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(
         SelectFields(Ref("foo", ref.typ), Seq("a"))),
-        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(ref.typ))), false),
+        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ), None)), false),
       TArray(justA), Array(justA, null))
     checkMemo(AggLet("foo", ref, True(), false), TBoolean(), Array(empty, null))
   }
@@ -652,8 +652,8 @@ class PruneSuite extends HailSuite {
     val select = SelectFields(Ref("x", t), Seq("c"))
     checkMemo(AggFilter(
       ApplyComparisonOp(LT(TInt32(), TInt32()), GetField(Ref("x", t), "a"), I32(0)),
-      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
-        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(select.typ), None)),
       false),
       TArray(TStruct("c" -> TString())),
       Array(null, TArray(TStruct("c" -> TString()))))
@@ -664,8 +664,8 @@ class PruneSuite extends HailSuite {
     val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
     checkMemo(AggExplode(Ref("x", t),
       "foo",
-      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
-        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(select.typ), None)),
       false),
       TArray(TStruct("a" -> TInt32())),
       Array(TArray(TStruct("a" -> TInt32())),
@@ -678,8 +678,8 @@ class PruneSuite extends HailSuite {
     checkMemo(AggArrayPerElement(Ref("x", t),
       "foo",
       "bar",
-      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
-        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(select.typ), None)),
       None,
       false),
       TArray(TArray(TStruct("a" -> TInt32()))),
@@ -983,9 +983,9 @@ class PruneSuite extends HailSuite {
 
   @Test def testAggLetRebuild() {
     checkRebuild(AggLet("foo", NA(ref.typ),
-      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(
         SelectFields(Ref("foo", ref.typ), Seq("a"))),
-        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(ref.typ))), false), subsetTS("b"),
+        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ), None)), false), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[AggLet]
         ir.value.typ == subsetTS("a")

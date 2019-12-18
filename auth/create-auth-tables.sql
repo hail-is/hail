@@ -1,22 +1,23 @@
-CREATE TABLE `user_data` (
+CREATE TABLE `users` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `state` VARCHAR(100) NOT NULL,
+  -- creating, active, deleting, deleted
   `username` varchar(255) NOT NULL,
-  `user_id` varchar(255) NOT NULL,
   `email` varchar(255) DEFAULT NULL,
-  `developer` tinyint(1) DEFAULT NULL,
-  `service_account` tinyint(1) DEFAULT NULL,
+  `is_developer` tinyint(1) NOT NULL DEFAULT 0,
+  `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
+  -- session
+  `tokens_secret_name` varchar(255) DEFAULT NULL,
+  -- gsa
+  `gsa_email` varchar(255) DEFAULT NULL,
+  `gsa_key_secret_name` varchar(255) DEFAULT NULL,
+  -- bucket
+  `bucket_name` varchar(255) DEFAULT NULL,
+  -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
-  `gsa_email` varchar(255) NOT NULL,
-  `ksa_name` varchar(255) DEFAULT NULL,
-  `bucket_name` varchar(255) NOT NULL,
-  `gsa_key_secret_name` varchar(255) NOT NULL,
-  `jwt_secret_name` varchar(255) NOT NULL,
-  `sql_user_secret` varchar(255) DEFAULT NULL,
-  `sql_admin_secret` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `user_id` (`user_id`),
-  KEY `email` (`email`),
-  KEY `username` (`username`)
+  UNIQUE KEY `email` (`email`),
+  UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE `sessions` (
@@ -25,7 +26,7 @@ CREATE TABLE `sessions` (
   `max_age_secs` INT(11) UNSIGNED DEFAULT NULL,
   `created` TIMESTAMP DEFAULT NOW(),
   PRIMARY KEY (`session_id`),
-  FOREIGN KEY (`user_id`) REFERENCES user_data(id) ON DELETE CASCADE
+  FOREIGN KEY (`user_id`) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE EVENT `purge_sessions`

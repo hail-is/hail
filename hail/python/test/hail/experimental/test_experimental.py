@@ -293,6 +293,13 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    def test_mt_full_outer_join_self(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        jmt = hl.experimental.full_outer_join_mt(mt, mt)
+        assert jmt.filter_cols(hl.is_defined(jmt.left_col) & hl.is_defined(jmt.right_col)).count_cols() == mt.count_cols()
+        assert jmt.filter_rows(hl.is_defined(jmt.left_row) & hl.is_defined(jmt.right_row)).count_rows() == mt.count_rows()
+        assert jmt.filter_entries(hl.is_defined(jmt.left_entry) & hl.is_defined(jmt.right_entry)).entries().count() == mt.entries().count()
+
     def test_block_matrices_tofiles(self):
         data = [
             np.random.rand(11*12),
@@ -340,3 +347,37 @@ class Tests(unittest.TestCase):
             a = arrs[i]
             a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
             self.assertTrue(np.array_equal(a, a2))
+
+    def test_loop(self):
+        def triangle(n):
+            return hl.experimental.loop(
+                lambda f, x, c: hl.cond(x > 0, f(x - 1, c + x), c),
+                hl.tint32, n, 0)
+
+        assert_evals_to(triangle(20), sum(range(21)))
+        assert_evals_to(triangle(0), 0)
+        assert_evals_to(triangle(-1), 0)
+
+        def fails_typecheck(regex, f):
+            with self.assertRaisesRegex(TypeError, regex):
+                hl.eval(hl.experimental.loop(f, hl.tint32, 1))
+
+        fails_typecheck("outside of tail position",
+                        lambda f, x: x + f(x))
+        fails_typecheck("wrong number of arguments",
+                        lambda f, x: f(x, x + 1))
+        fails_typecheck("bound value",
+                        lambda f, x: hl.bind(lambda x: x, f(x)))
+        fails_typecheck("branch condition",
+                        lambda f, x: hl.cond(f(x) == 0, x, 1))
+        fails_typecheck("Type error",
+                        lambda f, x: hl.cond(x == 0, f("foo"), 1))
+
+    def test_nested_loops(self):
+        def triangle_loop(n, add_f):
+            recur = lambda f, x, c: hl.cond(x <= n, f(x + 1, add_f(x, c)), c)
+            return hl.experimental.loop(recur, hl.tint32, 0, 0)
+
+        assert_evals_to(triangle_loop(5, lambda x, c: c + x), 15)
+        assert_evals_to(triangle_loop(5, lambda x, c: c + triangle_loop(x, lambda x2, c2: c2 + x2)), 15 + 10 + 6 + 3 + 1)
+

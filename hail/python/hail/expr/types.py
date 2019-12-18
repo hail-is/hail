@@ -696,7 +696,7 @@ class tarray(HailType):
     See Also
     --------
     :class:`.ArrayExpression`, :class:`.CollectionExpression`,
-    :func:`.array`, :ref:`sec-collection-functions`
+    :func:`~hail.expr.functions.array`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(element_type=hail_type)

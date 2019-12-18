@@ -1409,7 +1409,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     return p
 
 
-@typecheck(entry_field=expr_any, row_field=nullable(oneof(expr_numeric, expr_locus)), column_field=nullable(expr_str),
+@typecheck(entry_field=expr_any, row_field=nullable(oneof(expr_numeric, expr_locus())), column_field=nullable(expr_str),
            window=int, plot_width=int, plot_height=int)
 def visualize_missingness(entry_field, row_field=None, column_field=None,
                           window=6000000, plot_width=1800, plot_height=900):

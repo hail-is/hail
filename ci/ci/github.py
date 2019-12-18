@@ -359,16 +359,14 @@ mkdir -p {shq(repo_dir)}
 
         if self.batch is None:
             # find the latest non-cancelled batch for source
-            attrs = {
-                'test': '1',
-                'target_branch': self.target_branch.branch.short_str(),
-                'source_sha': self.source_sha
-            }
-            batches = await batch_client.list_batches(attributes=attrs)
+            batches = batch_client.list_batches(
+                f'test=1 '
+                f'target_branch={self.target_branch.branch.short_str()} '
+                f'source_sha={self.source_sha}')
 
             min_batch = None
             failed = None
-            for b in batches:
+            async for b in batches:
                 try:
                     s = await b.status()
                 except Exception as err:
@@ -414,7 +412,7 @@ mkdir -p {shq(repo_dir)}
         if (not self.batch or
                 (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
 
-            if on_deck or self.target_branch.n_running_batches < 4:
+            if on_deck or self.target_branch.n_running_batches < 8:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
                     await self._start_build(dbpool, batch_client)
@@ -605,21 +603,17 @@ class WatchedBranch(Code):
             return
 
         if self.deploy_batch is None:
-            running_deploy_batches = await batch_client.list_batches(
-                complete=False,
-                attributes={
-                    'deploy': '1',
-                    'target_branch': self.branch.short_str()
-                })
+            running_deploy_batches = batch_client.list_batches(
+                f'!complete deploy=1 target_branch={self.branch.short_str()}')
+            running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
-                deploy_batches = await batch_client.list_batches(
-                    attributes={
-                        'deploy': '1',
-                        'target_branch': self.branch.short_str(),
-                        'sha': self.sha
-                    })
+                deploy_batches = batch_client.list_batches(
+                    f'deploy=1 '
+                    f'target_branch={self.branch.short_str()} '
+                    f'sha={self.sha}')
+                deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
@@ -684,14 +678,10 @@ class WatchedBranch(Code):
             await pr._heal(batch_client, dbpool, pr == merge_candidate)
 
         # cancel orphan builds
-        running_batches = await batch_client.list_batches(
-            complete=False,
-            attributes={
-                'test': '1',
-                'target_branch': self.branch.short_str()
-            })
+        running_batches = batch_client.list_batches(
+            f'!complete test=1 target_branch={self.branch.short_str()}')
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
-        for batch in running_batches:
+        async for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')

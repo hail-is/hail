@@ -13,166 +13,26 @@ import is.hail.utils._
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 
-object TableMapIRNew {
-
-  def apply(ctx: ExecuteContext, tv: TableValue, newRow: IR): TableValue = {
-    val typ = tv.typ
-
-    val scanRef = genUID()
-    val extracted = Extract.apply(CompileWithAggregators.liftScan(newRow), scanRef)
-    val nAggs = extracted.nAggs
-
-    if (extracted.aggs.isEmpty)
-      throw new UnsupportedExtraction("no scans to extract in TableMapRows")
-
-    val scanInitNeedsGlobals = Mentions(extracted.init, "global")
-    val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, "global")
-    val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
-
-    val globalsBc =
-      if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
-        tv.globals.broadcast
-      else
-        null
-
-    val spec = BufferSpec.defaultUncompressed
-
-    // Order of operations:
-    // 1. init op on all aggs and serialize to byte array.
-    // 2. load in init op on each partition, seq op over partition, serialize.
-    // 3. load in partition aggregations, comb op as necessary, serialize.
-    // 4. load in partStarts, calculate newRow based on those results.
-
-    val (_, initF) = ir.CompileWithAggregators2[Long, Unit](ctx,
-      extracted.aggs,
-      "global", tv.globals.t,
-      Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
-
-    val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
-      extracted.aggs,
-      "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
-      "row", typ.rowType.physicalType,
-      extracted.eltOp(ctx))
-
-    val read = extracted.deserialize(ctx, spec)
-    val write = extracted.serialize(ctx, spec)
-    val combOpF = extracted.combOpF(ctx, spec)
-
-    val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
-      extracted.aggs,
-      "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
-      "row", typ.rowType.physicalType,
-      Let(scanRef, extracted.results, extracted.postAggIR))
-    assert(rTyp.virtualType == newRow.typ)
-
-    // 1. init op on all aggs and write out to initPath
-    val initAgg = Region.scoped { aggRegion =>
-      Region.scoped { fRegion =>
-        val init = initF(0, fRegion)
-        init.newAggState(aggRegion)
-        init(fRegion, tv.globals.value.offset, false)
-        init.getSerializedAgg(0)
-      }
-    }
-
-    // 2. load in init op on each partition, seq op over partition, write out.
-    val scanPartitionAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-      val globalRegion = ctx.freshRegion
-      val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
-
-      Region.smallScoped { aggRegion =>
-        val seq = eltSeqF(i, globalRegion)
-
-        seq.setAggState(aggRegion, read(aggRegion, initAgg))
-        it.foreach { rv =>
-          seq(rv.region, globals, false, rv.offset, false)
-          ctx.region.clear()
-        }
-        Iterator.single(write(aggRegion, seq.getAggOffset()))
-      }
-    }, HailContext.get.flags.get("max_leader_scans").toInt)
-
-
-    // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
-    val scanAggCount = tv.rvd.getNumPartitions
-    val partitionIndices = new Array[Long](scanAggCount)
-    val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
-    HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
-      partAggs.zipWithIndex.foreach { case (x, i) =>
-        if (i < scanAggCount) {
-          partitionIndices(i) = os.getPos
-          os.writeInt(x.length)
-          os.write(x, 0, x.length)
-          os.hflush()
-        }
-      }
-    }
-
-    val bcFS = HailContext.get.bcFS
-
-    // 4. load in partStarts, calculate newRow based on those results.
-    val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
-      val globalRegion = ctx.freshRegion
-      val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-        globalsBc.value.readRegionValue(globalRegion)
-      else
-        0
-      val partitionAggs = bcFS.value.readFileNoCompression(scanAggsPerPartitionFile) { is =>
-        is.seek(filePosition)
-        val aggSize = is.readInt()
-        val partAggs = new Array[Byte](aggSize)
-        var nread = is.read(partAggs, 0, aggSize)
-        var r = nread
-        while (r > 0 && nread < aggSize) {
-          r = is.read(partAggs, nread, aggSize - nread)
-          if (r > 0) nread += r
-        }
-        if (nread != aggSize) {
-          fatal(s"aggs read wrong number of bytes: $nread vs $aggSize")
-        }
-        partAggs
-      }
-
-      val aggRegion = ctx.freshRegion
-      val newRow = f(i, globalRegion)
-      val seq = eltSeqF(i, globalRegion)
-      var aggOff = read(aggRegion, partitionAggs)
-
-      it.map { rv =>
-        newRow.setAggState(aggRegion, aggOff)
-        val off = newRow(rv.region, globals, false, rv.offset, false)
-        seq.setAggState(aggRegion, newRow.getAggOffset())
-        seq(rv.region, globals, false, rv.offset, false)
-        aggOff = seq.getAggOffset()
-        rv.setOffset(off)
-        rv
-      }
-    }
-    tv.copy(
-      typ = typ.copy(rowType = rTyp.virtualType.asInstanceOf[TStruct]),
-      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
-  }
-}
-
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature2]) {
+case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature]) {
   val typ: PTuple = PTuple(aggs.map(Extract.getPType): _*)
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
-    def aggCommutes(agg: AggSignature2): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
+    def aggCommutes(agg: AggSignature): Boolean = agg.nested.forall(_.forall(aggCommutes)) && AggIsCommutative(agg.op)
+
     aggs.forall(aggCommutes)
   }
 
   def shouldTreeAggregate: Boolean = {
-    def containsBigAggregator(agg: AggSignature2): Boolean = agg.nested.exists(_.exists(containsBigAggregator)) || (agg.op match {
+    def containsBigAggregator(agg: AggSignature): Boolean = agg.nested.exists(_.exists(containsBigAggregator)) || (agg.op match {
       case AggElements() => true
       case AggElementsLengthCheck() => true
       case Downsample() => true
       case _ => false
     })
+
     aggs.exists(containsBigAggregator)
   }
 
@@ -237,6 +97,11 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 }
 
 object Extract {
+  def liftScan(ir: IR): IR = ir match {
+    case ApplyScanOp(init, seq, sig) => ApplyAggOp(init, seq, sig)
+    case x => MapIR(liftScan)(x)
+  }
+
   def partitionDependentLets(lets: Array[AggLet], name: String): (Array[AggLet], Array[AggLet]) = {
     val depBindings = mutable.HashSet.empty[String]
     depBindings += name
@@ -257,10 +122,10 @@ object Extract {
 
   def addLets(ir: IR, lets: Array[AggLet]): IR = {
     assert(lets.areDistinct())
-    lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb)}
+    lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb) }
   }
 
-  def compatible(sig1: AggSignature2, sig2: AggSignature2): Boolean = (sig1.op, sig2.op) match {
+  def compatible(sig1: AggSignature, sig2: AggSignature): Boolean = (sig1.op, sig2.op) match {
     case (AggElements(), AggElements()) |
          (AggElementsLengthCheck(), AggElements()) |
          (AggElements(), AggElementsLengthCheck()) |
@@ -269,41 +134,43 @@ object Extract {
     case _ => sig1 == sig2
   }
 
-  def getAgg(aggSig: AggSignature2): StagedAggregator = aggSig match {
-    case AggSignature2(Sum(), _, Seq(t), _) =>
+  def getAgg(aggSig: AggSignature): StagedAggregator = aggSig match {
+    case AggSignature(Sum(), _, Seq(t), _) =>
       new SumAggregator(t.physicalType)
-    case AggSignature2(Product(), _, Seq(t), _) =>
+    case AggSignature(Product(), _, Seq(t), _) =>
       new ProductAggregator(t.physicalType)
-    case AggSignature2(Min(), _, Seq(t), _) =>
+    case AggSignature(Min(), _, Seq(t), _) =>
       new MinAggregator(t.physicalType)
-    case AggSignature2(Max(), _, Seq(t), _) =>
+    case AggSignature(Max(), _, Seq(t), _) =>
       new MaxAggregator(t.physicalType)
-    case AggSignature2(Count(), _, _, _) =>
+    case AggSignature(Count(), _, _, _) =>
       CountAggregator
-    case AggSignature2(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
-    case AggSignature2(CallStats(), _, Seq(tCall: TCall), _) => new CallStatsAggregator(tCall.physicalType)
-    case AggSignature2(TakeBy(), _, Seq(value, key), _) => new TakeByAggregator(value.physicalType, key.physicalType)
-    case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
+    case AggSignature(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
+    case AggSignature(CallStats(), _, Seq(tCall: TCall), _) => new CallStatsAggregator(tCall.physicalType)
+    case AggSignature(TakeBy(), _, Seq(value, key), _) => new TakeByAggregator(value.physicalType, key.physicalType)
+    case AggSignature(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
       val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
-    case AggSignature2(AggElements(), _, _, Some(nestedAggs)) =>
+    case AggSignature(AggElements(), _, _, Some(nestedAggs)) =>
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)
-    case AggSignature2(PrevNonnull(), _, Seq(t), _) =>
+    case AggSignature(PrevNonnull(), _, Seq(t), _) =>
       new PrevNonNullAggregator(t.physicalType)
-    case AggSignature2(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
+    case AggSignature(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
       new GroupedAggregator(PType.canonical(kt), nestedAggs.map(getAgg).toArray)
-    case AggSignature2(CollectAsSet(), _, Seq(t), _) =>
+    case AggSignature(CollectAsSet(), _, Seq(t), _) =>
       new CollectAsSetAggregator(PType.canonical(t))
-    case AggSignature2(Collect(), _, Seq(t), _) =>
+    case AggSignature(Collect(), _, Seq(t), _) =>
       new CollectAggregator(t.physicalType)
-    case AggSignature2(ApproxCDF(), _, _, _) => new ApproxCDFAggregator
-    case AggSignature2(Downsample(), _, Seq(_, _, label), _) => new DownsampleAggregator(label.physicalType.asInstanceOf[PArray])
+    case AggSignature(LinearRegression(), _, _, _) =>
+      LinearRegressionAggregator
+    case AggSignature(ApproxCDF(), _, _, _) => new ApproxCDFAggregator
+    case AggSignature(Downsample(), _, Seq(_, _, label), _) => new DownsampleAggregator(label.physicalType.asInstanceOf[PArray])
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
-  def getPType(aggSig: AggSignature2): PType = getAgg(aggSig).resultType
+  def getPType(aggSig: AggSignature): PType = getAgg(aggSig).resultType
 
-  def getType(aggSig: AggSignature2): Type = getPType(aggSig).virtualType
+  def getType(aggSig: AggSignature): Type = getPType(aggSig).virtualType
 
   def apply(ir: IR, resultName: String): Aggs = {
     val ab = new ArrayBuilder[InitOp2]()
@@ -331,13 +198,8 @@ object Extract {
         extract(body)
       case x: ApplyAggOp =>
         val i = ab.length
-        val newSig = AggSignature2(
-          x.aggSig.op,
-          x.aggSig.constructorArgs ++ x.aggSig.initOpArgs.getOrElse(FastSeq.empty),
-          x.aggSig.seqOpArgs,
-          None)
-        ab += InitOp2(i, x.constructorArgs ++ x.initOpArgs.getOrElse[IndexedSeq[IR]](FastIndexedSeq()), newSig)
-        seqBuilder += SeqOp2(i, x.seqOpArgs, newSig)
+        ab += InitOp2(i, x.initOpArgs, x.aggSig)
+        seqBuilder += SeqOp2(i, x.seqOpArgs, x.aggSig)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new ArrayBuilder[IR]()
@@ -370,7 +232,7 @@ object Extract {
         val rt = TDict(key.typ, TTuple(aggs.map(Extract.getType): _*))
         newRef._typ = -rt.elementType
 
-        val aggSig = AggSignature2(Group(), Seq(TVoid), FastSeq(key.typ, TVoid), Some(aggs))
+        val aggSig = AggSignature(Group(), Seq(TVoid), FastSeq(key.typ, TVoid), Some(aggs))
         ab += InitOp2(i, FastIndexedSeq(Begin(initOps)), aggSig)
         seqBuilder += SeqOp2(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig)
 
@@ -394,11 +256,11 @@ object Extract {
         val rt = TArray(TTuple(aggs.map(Extract.getType): _*))
         newRef._typ = -rt.elementType
 
-        val aggSigCheck = AggSignature2(
+        val aggSigCheck = AggSignature(
           AggElementsLengthCheck(),
           knownLength.map(l => FastSeq(l.typ)).getOrElse(FastSeq()) :+ TVoid,
           FastSeq(TInt32()), Some(aggs))
-        val aggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq(TInt32(), TVoid), Some(aggs))
+        val aggSig = AggSignature(AggElements(), FastSeq[Type](), FastSeq(TInt32(), TVoid), Some(aggs))
 
         val aRef = Ref(genUID(), a.typ)
         val iRef = Ref(genUID(), TInt32())
@@ -432,9 +294,11 @@ object Extract {
               transformed)))
 
       case x: ArrayAgg =>
-        throw new UnsupportedExtraction("array agg")
+        assert(!ContainsScan(x))
+        x
       case x: ArrayAggScan =>
-        throw new UnsupportedExtraction("array scan")
+        assert(!ContainsAgg(x))
+        x
       case _ => MapIR(extract)(ir)
     }
   }

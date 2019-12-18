@@ -53,7 +53,8 @@ object ForwardLets {
           (refs.size == 1 &&
             nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
             !ContainsScan(value) &&
-            !ContainsAgg(value))
+            !ContainsAgg(value)) &&
+            !ContainsAggIntermediate(value)
       }
 
       def mapRewrite(): IR = ir.copy(ir.children

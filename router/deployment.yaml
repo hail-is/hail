@@ -44,30 +44,30 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: batch2
+  name: batch
   labels:
-    app: batch2
+    app: batch
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: batch2
+    app: batch
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: batch2-driver
+  name: batch-driver
   labels:
-    app: batch2-driver
+    app: batch-driver
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: batch2-driver
+    app: batch-driver
 ---
 apiVersion: v1
 kind: Service
@@ -217,6 +217,9 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -227,18 +230,6 @@ spec:
                     values:
                     - router
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 50
-            preference:
-              matchExpressions:
-              - key: preemptible
-                operator: In
-                values:
-                - "true"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router
          image: {{ router_image.image }}

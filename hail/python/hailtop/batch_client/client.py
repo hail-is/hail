@@ -7,6 +7,18 @@ def async_to_blocking(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
+def sync_anext(ait):
+    return async_to_blocking(ait.__anext__())
+
+
+def agen_to_blocking(agen):
+    while True:
+        try:
+            yield sync_anext(agen)
+        except StopAsyncIteration:
+            break
+
+
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -72,9 +84,6 @@ class Job:
     def status(self):
         return async_to_blocking(self._async_job.status())
 
-    def batch2_status(self):
-        return async_to_blocking(self._async_job.batch2_status())
-
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
@@ -103,8 +112,11 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
-    def status(self, include_jobs=True):
-        return async_to_blocking(self._async_batch.status(include_jobs=include_jobs))
+    def status(self):
+        return async_to_blocking(self._async_batch.status())
+
+    def jobs(self):
+        return agen_to_blocking(self._async_batch.jobs())
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
@@ -154,22 +166,18 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self, deploy_config=None, session=None, headers=None,
-                 _token=None):
+    def __init__(self, billing_project, deploy_config=None, session=None,
+                 headers=None, _token=None):
         self._async_client = async_to_blocking(
-            aioclient.BatchClient(deploy_config, session, headers=headers, _token=_token))
+            aioclient.BatchClient(billing_project, deploy_config, session, headers=headers, _token=_token))
 
     @property
     def bucket(self):
         return self._async_client.bucket
 
-    def _refresh_k8s_state(self):
-        async_to_blocking(self._async_client._refresh_k8s_state())
-
-    def list_batches(self, complete=None, success=None, attributes=None):
-        batches = async_to_blocking(
-            self._async_client.list_batches(complete=complete, success=success, attributes=attributes))
-        return [Batch.from_async_batch(b) for b in batches]
+    def list_batches(self, q=None):
+        for b in agen_to_blocking(self._async_client.list_batches(q)):
+            yield Batch.from_async_batch(b)
 
     def get_job(self, batch_id, job_id):
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))

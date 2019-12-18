@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{ ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue }
+import is.hail.expr.ir.{ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -41,12 +41,12 @@ object TextMatrixReader {
     file: String,
     sep: Char,
     nRowFields: Int,
-    hasHeader: Boolean
+    opts: TextMatrixReaderOptions
   ): HeaderInfo = {
     val maybeFirstTwoLines = fs.readFile(file) { s =>
-      Source.fromInputStream(s).getLines().take(2).toSeq }
+      Source.fromInputStream(s).getLines().filter(!opts.isComment(_)).take(2).toArray.toSeq }
 
-    (hasHeader, maybeFirstTwoLines) match {
+    (opts.hasHeader, maybeFirstTwoLines) match {
       case (true, Seq()) =>
         fatal(s"Expected header in every file, but found empty file: $file")
       case (true, Seq(header)) =>
@@ -188,6 +188,8 @@ object TextMatrixReader {
   }
 }
 
+case class TextMatrixReaderOptions(comment: Array[String], hasHeader: Boolean) extends TextReaderOptions
+
 case class TextMatrixReader(
   paths: Array[String],
   nPartitions: Option[Int],
@@ -197,7 +199,8 @@ case class TextMatrixReader(
   hasHeader: Boolean,
   separatorStr: String,
   gzipAsBGZip: Boolean,
-  addRowId: Boolean
+  addRowId: Boolean,
+  comment: Array[String]
 ) extends MatrixHybridReader {
   import TextMatrixReader._
   private[this] val hc = HailContext.get
@@ -207,7 +210,7 @@ case class TextMatrixReader(
   assert(separatorStr.length == 1)
   private[this] val separator = separatorStr.charAt(0)
   private[this] val rowFields = rowFieldsStr.mapValues(IRParser.parseType(_))
-  private[this] val entryType = TStruct(true, "x" -> IRParser.parseType(entryTypeStr))
+  private[this] val entryType = TStruct("x" -> IRParser.parseType(entryTypeStr))
   private[this] val resolvedPaths = fs.globAll(paths)
   require(entryType.size == 1, "entryType can only have 1 field")
   if (resolvedPaths.isEmpty)
@@ -220,8 +223,9 @@ case class TextMatrixReader(
     t.isOfType(TFloat64())
   })
 
+  val opts = TextMatrixReaderOptions(comment, hasHeader)
 
-  private[this] val headerInfo = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, hasHeader)
+  private[this] val headerInfo = parseHeader(fs, resolvedPaths.head, separator, rowFields.size, opts)
   if (addRowId && headerInfo.rowFieldNames.contains("row_id")) {
     fatal(
       s"""If no key is specified, `import_matrix_table`, uses 'row_id'
@@ -237,7 +241,9 @@ case class TextMatrixReader(
   if (hasHeader)
     warnDuplicates(headerInfo.columnIdentifiers.asInstanceOf[Array[String]])
   private[this] val lines = HailContext.maybeGZipAsBGZip(gzipAsBGZip) {
+    val localOpts = opts
     sc.textFilesLines(resolvedPaths, nPartitions.getOrElse(sc.defaultMinPartitions))
+      .filter(line => !localOpts.isComment(line.value))
   }
   private[this] val fileByPartition = lines.partitions.map(p => partitionPath(p))
   private[this] val firstPartitions = fileByPartition.scanLeft(0) {

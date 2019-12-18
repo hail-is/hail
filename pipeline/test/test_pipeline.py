@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import tempfile
 
-from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
+from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
@@ -291,7 +291,7 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
-        self.backend = BatchBackend()
+        self.backend = BatchBackend('test')
 
     def tearDown(self):
         self.backend.close()
@@ -417,10 +417,3 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input}')
         p.write_output(input, f'{gcs_output_dir}/hello.txt')
         p.run(verbose=True)
-
-    def test_failed_job_error_msg(self):
-        with self.assertRaises(PipelineException):
-            p = self.pipeline()
-            t = p.new_task()
-            t.command('false')
-            p.run()

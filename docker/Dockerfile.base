@@ -15,8 +15,9 @@ RUN apt-get update && \
     jq \
     openjdk-8-jdk-headless \
     python \
-    python3 python3-pip && \
-  rm -rf /var/lib/apt/lists/*
+    python3 python3-pip \
+    liblapack3 \
+  && rm -rf /var/lib/apt/lists/*
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \

@@ -25,15 +25,24 @@ object TypeCheck {
     }
   }
 
-  private def check(tir: TableIR): Unit = tir.children
-    .iterator
-    .zipWithIndex
-    .foreach {
-      case (child: IR, i) => check(child, NewBindings(tir, i))
-      case (tir: TableIR, _) => check(tir)
-      case (mir: MatrixIR, _) => check(mir)
-      case (bmir: BlockMatrixIR, _) => check(bmir)
+  private def check(tir: TableIR): Unit = {
+    tir match {
+      case TableMapRows(child, newRow) =>
+        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
+        assert(child.typ.key.forall(newFieldSet.contains))
+      case _ =>
     }
+
+    tir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => check(child, NewBindings(tir, i))
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
+  }
 
 
   private def check(mir: MatrixIR): Unit = mir.children
@@ -108,6 +117,23 @@ object TypeCheck {
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case RelationalRef(_, _) =>
+      case x@TailLoop(_, _, body) =>
+        assert(x.typ == body.typ)
+        def checkRecurOnlyInTail(node: IR, tailPosition: Boolean): Boolean = {
+          if (node.isInstanceOf[Recur] && !tailPosition)
+            false
+          else
+            node.children.zipWithIndex
+              .filterNot { case (c, _) => c.isInstanceOf[TailLoop] || !c.isInstanceOf[IR] }
+              .forall { case (c, i) =>
+                checkRecurOnlyInTail(c.asInstanceOf[IR], tailPosition && InTailPosition(node, i))
+              }
+          }
+        assert(checkRecurOnlyInTail(body, true))
+      case x@Recur(name, args, typ) =>
+        val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
+        assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t == ir.typ } )
+        assert(typ == rt)
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
       case x@ApplyUnaryPrimOp(op, v) =>
@@ -195,6 +221,10 @@ object TypeCheck {
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
+      case x@NDArrayQR(nd, mode) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.elementType.isInstanceOf[TFloat64])
+        assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))
@@ -264,12 +294,6 @@ object TypeCheck {
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32()))
-      case x@InitOp(i, args, aggSig) =>
-        assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
-        assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(i, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.seqOpArgs)
-        assert(i.typ.isInstanceOf[TInt32])
       case x@InitOp2(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.initOpArgs)
       case x@SeqOp2(_, args, aggSig) =>
@@ -282,10 +306,14 @@ object TypeCheck {
         xs.foreach { x =>
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == AggOp.getType(aggSig))
-      case x@ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == AggOp.getType(aggSig))
+      case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        assert(x.typ == aggSig.returnType)
+        assert(initOpArgs.map(_.typ) == aggSig.initOpArgs)
+        assert(seqOpArgs.map(_.typ) == aggSig.seqOpArgs)
+      case x@ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        assert(x.typ == aggSig.returnType)
+        assert(initOpArgs.map(_.typ) == aggSig.initOpArgs)
+        assert(seqOpArgs.map(_.typ) == aggSig.seqOpArgs)
       case x@MakeStruct(fields) =>
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)

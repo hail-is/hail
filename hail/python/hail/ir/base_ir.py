@@ -146,11 +146,11 @@ class BaseIR(Renderable):
     def uses_agg_capability(cls) -> bool:
         return False
 
-    def child_context_without_bindings(self, i: int, parent_context):
+    def renderable_child_context_without_bindings(self, i: int, parent_context):
         (eval_c, agg_c, scan_c) = parent_context
-        if self.uses_agg_context(i):
+        if self.renderable_uses_agg_context(i):
             return (agg_c, None, None)
-        elif self.uses_scan_context(i):
+        elif self.renderable_uses_scan_context(i):
             return (scan_c, None, None)
         else:
             return parent_context
@@ -159,7 +159,7 @@ class BaseIR(Renderable):
         return self.renderable_child_context(self.renderable_idx_of_child(i), parent_context, default_value)
 
     def renderable_child_context(self, i: int, parent_context, default_value=None):
-        base = self.child_context_without_bindings(i, parent_context)
+        base = self.renderable_child_context_without_bindings(i, parent_context)
         eval_b = self.bindings(i, default_value)
         agg_b = self.agg_bindings(i, default_value)
         scan_b = self.scan_bindings(i, default_value)

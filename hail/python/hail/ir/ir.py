@@ -388,6 +388,72 @@ class TopLevelReference(Ref):
         self._type = env[self.name]
 
 
+class TailLoop(IR):
+
+    @typecheck_method(name=str, body=IR, params=sequenceof(sized_tupleof(str, IR)))
+    def __init__(self, name, body, params):
+        super().__init__(*([v for n, v in params] + [body]))
+        self.name = name
+        self.params = params
+        self.body = body
+
+    def copy(self, *children):
+        params = children[:-1]
+        body = children[-1]
+        assert len(params) == len(self.params)
+        return TailLoop(self.name, [(n, v) for (n, _), v in zip(self.params, params)], body)
+
+    def head_str(self):
+        return f'{escape_id(self.name)} ({" ".join([escape_id(n) for n, _ in self.params])})'
+
+    def _eq(self, other):
+        return self.name == other.name
+
+    def _compute_type(self, env, agg_env):
+        self._type = self.body._compute_type(env, agg_env)
+
+    @property
+    def bound_variables(self):
+        return {n for n, _ in self.params} | {self.name} | super().bound_variables
+
+    def _compute_type(self, env, agg_env):
+        self.body._compute_type(_env_bind(env, self.bindings(len(self.params))), agg_env)
+        self._type = self.body.typ
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == len(self.params):
+            if default_value is None:
+                return {self.name: None, **{n: v.typ for n, v in self.params}}
+            else:
+                value = default_value
+                return {self.name: value, **{n: value for n, _ in self.params}}
+        else:
+            return {}
+
+
+class Recur(IR):
+    @typecheck_method(name=str, args=sequenceof(IR), return_type=hail_type)
+    def __init__(self, name, args, return_type):
+        super().__init__(*args)
+        self.name = name
+        self.args = args
+        self.return_type = return_type
+        self._free_vars = {name}
+
+    def copy(self, args):
+        return Recur(self.name, args, self.return_type)
+
+    def head_str(self):
+        return f'{escape_id(self.name)} {self.return_type._parsable_string()}'
+
+    def _eq(self, other):
+        return other.name == self.name
+
+    def _compute_type(self, env, agg_env):
+        assert self.name in env
+        self._type = self.return_type
+
+
 class ApplyBinaryPrimOp(IR):
     @typecheck_method(op=str, l=IR, r=IR)
     def __init__(self, op, l, r):
@@ -725,6 +791,32 @@ class NDArrayMatMul(IR):
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
         from hail.expr.expressions import unify_types
         self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
+
+class NDArrayQR(IR):
+    @typecheck_method(nd=IR, mode=str)
+    def __init__(self, nd, mode):
+        super().__init__(nd)
+        self.nd = nd
+        self.mode = mode
+
+    @typecheck_method(nd=IR, mode=str)
+    def copy(self):
+        return NDArrayQR(self.nd, self.mode)
+
+    def head_str(self):
+        return f'"{self.mode}"'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+
+        if self.mode in ["complete", "reduced"]:
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2))
+        elif self.mode == "raw":
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1))
+        elif self.mode == "r":
+            self._type = tndarray(tfloat64, 2)
+        else:
+            raise ValueError("Cannot compute type for mode: " + self.mode)
 
 
 class NDArrayWrite(IR):
@@ -1344,28 +1436,20 @@ def _register(registry, name, f):
 _aggregator_registry = defaultdict(list)
 
 
-def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
-    _register(_aggregator_registry, name, (ctor_params, init_params, seq_params, ret_type))
+def register_aggregator(name, init_params, seq_params, ret_type):
+    _register(_aggregator_registry, name, (init_params, seq_params, ret_type))
 
 
-def lookup_aggregator_return_type(name, ctor_args, init_args, seq_args):
+def lookup_aggregator_return_type(name, init_args, seq_args):
     if name in _aggregator_registry:
         fns = _aggregator_registry[name]
         for f in fns:
-            (ctor_params, init_params, seq_params, ret_type) = f
-            for p in ctor_params:
+            (init_params, seq_params, ret_type) = f
+            for p in init_params:
                 p.clear()
-            if init_params:
-                for p in init_params:
-                    p.clear()
             for p in seq_params:
                 p.clear()
-            if init_params:
-                init_match = all(p.unify(a) for p, a in zip(init_params, init_args))
-            else:
-                init_match = init_args is None
-            if (init_match
-                    and all(p.unify(a) for p, a in zip(ctor_params, ctor_args))
+            if (all(p.unify(a) for p, a in zip(init_params, init_args))
                     and all(p.unify(a) for p, a in zip(seq_params, seq_args))):
                 return ret_type.subst()
     raise KeyError(f'aggregator {name}({ ",".join([str(t) for t in seq_args]) }) not found')
@@ -1373,25 +1457,20 @@ def lookup_aggregator_return_type(name, ctor_args, init_args, seq_args):
 
 class BaseApplyAggOp(IR):
     @typecheck_method(agg_op=str,
-                      constructor_args=sequenceof(IR),
-                      init_op_args=nullable(sequenceof(IR)),
+                      init_op_args=sequenceof(IR),
                       seq_op_args=sequenceof(IR))
-    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
-        init_op_children = [] if init_op_args is None else init_op_args
-        super().__init__(*constructor_args, *init_op_children, *seq_op_args)
+    def __init__(self, agg_op, init_op_args, seq_op_args):
+        super().__init__(*init_op_args, *seq_op_args)
         self.agg_op = agg_op
-        self.constructor_args = constructor_args
         self.init_op_args = init_op_args
         self.seq_op_args = seq_op_args
 
     def copy(self, *args):
         new_instance = self.__class__
         n_seq_op_args = len(self.seq_op_args)
-        n_constructor_args = len(self.constructor_args)
-        constr_args = args[:n_constructor_args]
-        init_op_args = args[n_constructor_args:-n_seq_op_args]
+        init_op_args = args[:len(self.init_op_args)]
         seq_op_args = args[-n_seq_op_args:]
-        return new_instance(self.agg_op, constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args)
+        return new_instance(self.agg_op, init_op_args, seq_op_args)
 
     def head_str(self):
         return f'{self.agg_op}'
@@ -1402,8 +1481,7 @@ class BaseApplyAggOp(IR):
 
     def render_children(self, r):
         return [
-            ParensRenderer(self.constructor_args),
-            RenderableStr('None') if not self.init_op_args else ParensRenderer(self.init_op_args),
+            ParensRenderer(self.init_op_args),
             ParensRenderer(self.seq_op_args)
         ]
 
@@ -1415,41 +1493,32 @@ class BaseApplyAggOp(IR):
     def __eq__(self, other):
         return isinstance(other, self.__class__) and \
                other.agg_op == self.agg_op and \
-               other.constructor_args == self.constructor_args and \
                other.init_op_args == self.init_op_args and \
                other.seq_op_args == self.seq_op_args
 
     def __hash__(self):
         return hash(tuple([self.agg_op,
-                           tuple(self.constructor_args),
-                           tuple(self.init_op_args) if self.init_op_args is not None else hash(None),
+                           tuple(self.init_op_args),
                            tuple(self.seq_op_args)]))
 
     def _compute_type(self, env, agg_env):
-        for a in self.constructor_args:
+        for a in self.init_op_args:
             a._compute_type(env, agg_env)
-        if self.init_op_args:
-            for a in self.init_op_args:
-                a._compute_type(env, agg_env)
         for a in self.seq_op_args:
             a._compute_type(agg_env, None)
 
         self._type = lookup_aggregator_return_type(
             self.agg_op,
-            [a.typ for a in self.constructor_args],
-            [a.typ for a in self.init_op_args] if self.init_op_args else None,
+            [a.typ for a in self.init_op_args],
             [a.typ for a in self.seq_op_args])
 
     def renderable_new_block(self, i: int) -> bool:
-        return i <= 1
+        return i == 0
 
     def renderable_idx_of_child(self, i: int) -> int:
-        n = len(self.constructor_args)
-        if i < n:
+        if i < len(self.init_op_args):
             return 0
-        if i < n + (len(self.init_op_args) if self.init_op_args is not None else 0):
-            return 1
-        return 2
+        return 1
 
     @classmethod
     def uses_agg_capability(cls) -> bool:
@@ -1458,26 +1527,24 @@ class BaseApplyAggOp(IR):
 
 class ApplyAggOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
-                      constructor_args=sequenceof(IR),
-                      init_op_args=nullable(sequenceof(IR)),
+                      init_op_args=sequenceof(IR),
                       seq_op_args=sequenceof(IR))
-    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
-        super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
+    def __init__(self, agg_op, init_op_args, seq_op_args):
+        super().__init__(agg_op, init_op_args, seq_op_args)
 
     def renderable_uses_agg_context(self, i: int):
-        return i == 2
+        return i == 1
 
 
 class ApplyScanOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
-                      constructor_args=sequenceof(IR),
-                      init_op_args=nullable(sequenceof(IR)),
+                      init_op_args=sequenceof(IR),
                       seq_op_args=sequenceof(IR))
-    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
-        super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
+    def __init__(self, agg_op, init_op_args, seq_op_args):
+        super().__init__(agg_op, init_op_args, seq_op_args)
 
     def renderable_uses_scan_context(self, i: int):
-        return i == 2
+        return i == 1
 
 
 class Begin(IR):
@@ -1564,7 +1631,7 @@ class InsertFields(IR):
     def construct_with_deduplication(old, fields, field_order):
         dd = defaultdict(int)
         for k, v in fields:
-            if isinstance(v, GetField):
+            if isinstance(v, GetField) and not isinstance(v.o, Ref):
                 dd[v.o] += 1
 
         replacements = {}
@@ -2355,12 +2422,9 @@ def subst(ir, env, agg_env):
                           _subst(ir.agg_ir, agg_env),
                           ir.is_scan)
     elif isinstance(ir, ApplyAggOp):
-        subst_constr_args = [x.map_ir(lambda x: _subst(x)) for x in ir.constructor_args]
-        subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in
-                              ir.init_op_args] if ir.init_op_args else ir.init_op_args
+        subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in ir.init_op_args]
         subst_seq_op_args = [subst(x, agg_env, {}) for x in ir.seq_op_args]
         return ApplyAggOp(ir.agg_op,
-                          subst_constr_args,
                           subst_init_op_args,
                           subst_seq_op_args)
     else:

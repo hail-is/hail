@@ -3,7 +3,6 @@ package is.hail.expr.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
 import is.hail.expr.types.physical.PArray
-import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
@@ -40,6 +39,11 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
+
+  override def _showStr(a: Annotation): String =
+    a.asInstanceOf[IndexedSeq[Annotation]]
+      .map(elt => elementType.showStr(elt))
+      .mkString("[", ",", "]")
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

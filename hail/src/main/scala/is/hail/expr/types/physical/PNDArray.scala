@@ -8,6 +8,10 @@ import is.hail.expr.types.virtual.TNDArray
 import is.hail.utils._
 import is.hail.asm4s._
 
+final class StaticallyKnownField[T, U](
+  val pType: T,
+  val load: (Code[Region], Code[Long]) => Code[U]
+)
 
 final case class PNDArray(elementType: PType, nDims: Int, override val required: Boolean = false) extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
@@ -63,6 +67,16 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   def numElements(shape: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
       shape.foldLeft(const(1L))(_ * _)
+  }
+
+  def makeShapeBuilder(shapeArray: Array[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+    coerce[Unit](Code(
+      srvb.start(),
+      Code(shapeArray.map(shapeElement => Code(
+        srvb.addLong(shapeElement),
+        srvb.advance()
+      )):_*)
+    ))
   }
 
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = { srvb =>
@@ -121,7 +135,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def linearizeIndices(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def linearizeIndicesRowMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
     val index = mb.newField[Long]
     val elementsInProcessedDimensions = mb.newField[Long]
     Code(
@@ -137,7 +151,7 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
     )
   }
 
-  def unlinearizeIndex(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
     val elementsInProcessedDimensions = mb.newField[Long]
@@ -155,6 +169,38 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
       }
     )
     (createShape, newIndices.map(_.load()))
+  }
+
+  def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
+    val rowIndex = mb.newField[Long]
+    val colIndex = mb.newField[Long]
+    val rowMajorCoord = nCols * rowIndex + colIndex
+    val colMajorCoord = nRows * colIndex + rowIndex
+    val rowMajorFirstElementAddress = this.data.pType.firstElementOffset(rowMajorAddress, (nRows * nCols).toI)
+    val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
+    val currentElement = Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)
+
+    Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
+      Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
+        Region.storeDouble(targetFirstElementAddress + colMajorCoord * 8L, currentElement)
+      )
+    )
+  }
+
+  def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
+    val rowIndex = mb.newField[Long]
+    val colIndex = mb.newField[Long]
+    val rowMajorCoord = nCols * rowIndex + colIndex
+    val colMajorCoord = nRows * colIndex + rowIndex
+    val colMajorFirstElementAddress = this.data.pType.firstElementOffset(colMajorAddress, (nRows * nCols).toI)
+    val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
+    val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
+
+    Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
+      Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
+        Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, currentElement)
+      )
+    )
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),

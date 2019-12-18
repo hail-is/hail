@@ -4,10 +4,11 @@ import subprocess as sp
 import uuid
 import time
 from shlex import quote as shq
-from hailtop.batch_client.client import BatchClient, Job
+import webbrowser
+from hailtop.config import get_deploy_config
+from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, TaskResourceFile
-from .utils import PipelineException
 
 
 class Backend:
@@ -31,7 +32,7 @@ class LocalBackend(Backend):
     tmp_dir: :obj:`str`, optional
         Temporary directory to use.
     gsa_key_file :obj:`str`, optional
-        Mount a file with a gsa key to `/gsa-key/privateKeyData`. Only used if a
+        Mount a file with a gsa key to `/gsa-key/key.json`. Only used if a
         task specifies a docker image. This option will override the value set by
         the environment variable `HAIL_PIPELINE_GSA_KEY_FILE`.
     extra_docker_run_flags :obj:`str`, optional
@@ -53,7 +54,7 @@ class LocalBackend(Backend):
         if gsa_key_file is None:
             gsa_key_file = os.environ.get('HAIL_PIPELINE_GSA_KEY_FILE')
         if gsa_key_file is not None:
-            flags += f' -v {gsa_key_file}:/gsa-key/privateKeyData'
+            flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
 
@@ -187,13 +188,13 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self):
-        self._batch_client = BatchClient()
+    def __init__(self, billing_project):
+        self._batch_client = BatchClient(billing_project)
 
     def close(self):
         self._batch_client.close()
 
-    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit, wait=True, open=False):  # pylint: disable-msg=R0915
         build_dag_start = time.time()
 
         bucket = self._batch_client.bucket
@@ -220,7 +221,7 @@ class BatchBackend(Backend):
         bash_flags = 'set -e' + ('x' if verbose else '') + '; '
 
         activate_service_account = 'gcloud -q auth activate-service-account ' \
-                                   '--key-file=/gsa-key/privateKeyData'
+                                   '--key-file=/gsa-key/key.json'
 
         def copy_input(r):
             if isinstance(r, InputResourceFile):
@@ -334,25 +335,15 @@ class BatchBackend(Backend):
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
-        status = batch.wait()
+            print('')
 
-        if status['state'] == 'success':
-            print('Pipeline completed successfully!')
-            return
+        deploy_config = get_deploy_config()
+        url = deploy_config.url('batch', f'/batches/{batch.id}')
+        print(f'Submitted batch {batch.id}, see {url}')
 
-        failed_jobs = [(j, Job.exit_code(j)) for j in status['jobs']]
-        failed_jobs = [((j['batch_id'], j['job_id']), Job._get_exit_codes(j)) for j, ec in failed_jobs if ec != 0]
-
-        fail_msg = ''
-        for jid, ec in failed_jobs:
-            ec = Job.exit_code(ec)
-            job = self._batch_client.get_job(*jid)
-            log = job.log()
-            name = job.status()['attributes'].get('name', None)
-            fail_msg += (
-                f"Job {jid} failed with exit code {ec}:\n"
-                f"  Task name:\t{name}\n"
-                f"  Command:\t{jobs_to_command[jid]}\n"
-                f"  Log:\t{log}\n")
-
-        raise PipelineException(fail_msg)
+        if open:
+            webbrowser.open(url)
+        if wait:
+            print(f'Waiting for batch {batch.id}...')
+            status = batch.wait()
+            print(f'Batch {batch.id} complete: {status["state"]}')

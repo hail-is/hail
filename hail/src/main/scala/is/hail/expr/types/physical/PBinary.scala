@@ -84,6 +84,8 @@ object PBinary {
 
   def contentAlignment: Long = 4
 
+  def lengthHeaderBytes: Long = 4
+
   def contentByteSize(length: Int): Long = 4 + length
 
   def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
@@ -102,9 +104,9 @@ object PBinary {
 
   def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
 
-  def bytesOffset(boff: Long): Long = boff + 4
+  def bytesOffset(boff: Long): Long = boff + lengthHeaderBytes
 
-  def bytesOffset(boff: Code[Long]): Code[Long] = boff + 4L
+  def bytesOffset(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentAlignment, contentByteSize(length))

@@ -31,6 +31,10 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
+    case TailLoop(_, args, body) =>
+      args.map(_._2).toFastIndexedSeq :+ body
+    case Recur(_, args, _) =>
+      args.toFastIndexedSeq
     case Ref(name, typ) =>
       none
     case RelationalRef(_, _) =>
@@ -107,6 +111,8 @@ object Children {
       Array(nd)
     case NDArrayMatMul(l, r) =>
       Array(l, r)
+    case NDArrayQR(nd, _) =>
+      Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>
@@ -122,10 +128,6 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp(i, args, aggSig) =>
-      i +: args
-    case SeqOp(i, args, _) =>
-      i +: args
     case InitOp2(_, args, _) => args
     case SeqOp2(_, args, _) => args
     case _: ResultOp2 => none
@@ -134,10 +136,10 @@ object Children {
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>
       xs
-    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
-    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
+    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(fields) =>
