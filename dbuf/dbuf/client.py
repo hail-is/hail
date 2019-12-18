@@ -19,7 +19,7 @@ class DBufClient:
     def __init__(self,
                  leader_name,
                  id=None,
-                 max_bufsize=10*1024*1024 - 1,
+                 max_bufsize=10 * 1024 * 1024 - 1,
                  deploy_config=None,
                  rng=None):
         if not deploy_config:
@@ -38,11 +38,10 @@ class DBufClient:
         self.max_bufsize = max_bufsize
 
     async def create(self):
-        # resp = await utils.request_retry_transient_errors(
-        #     self.aiosession,
-        #     'POST',
-        #     f'{self.root_url}/s')
-        resp = await self.aiosession.request('POST', f'{self.root_url}/s')
+        resp = await utils.request_retry_transient_errors(
+            self.aiosession,
+            'POST',
+            f'{self.root_url}/s')
         assert resp.status == 200
         self.id = int(await resp.text())
         self.session_url = f'{self.root_url}/s/{self.id}'
@@ -71,7 +70,7 @@ class DBufClient:
         while off < len(byte_array):
             n2 = struct.unpack_from("i", byte_array, off)[0]
             off += 4
-            result.append(byte_array[off:(off+n2)])
+            result.append(byte_array[off:(off + n2)])
             off += n2
         return result
 
@@ -135,7 +134,7 @@ class DBufAppender:
         assert n < len(self.buf)
         if self.cursor + n > len(self.buf):
             await self.flush()
-        self.buf[self.cursor:(self.cursor+n)] = data
+        self.buf[self.cursor:(self.cursor + n)] = data
         self.offs.append(self.cursor)
         self.sizes.append(n)
         self.cursor += n
@@ -148,7 +147,7 @@ class DBufAppender:
         sizes = self.sizes
         cursor = self.cursor
         n_keys = len(self.keys)
-        key_range = slice(n_keys, n_keys+len(self.offs))
+        key_range = slice(n_keys, n_keys + len(self.offs))
         self.keys.extend(None for _ in self.offs)
         self.buf = bytearray(len(self.buf))
         self.offs = []

@@ -13,20 +13,6 @@ from . import aiofiles as af
 from .logging import log
 
 
-async def retry_forever(f, msg=None):
-    delay = 0.1
-    while True:
-        try:
-            await f()
-            break
-        except Exception as exc:
-            log.error('wtf')
-            if msg:
-                log.error('wtf2')
-                log.info(msg(exc), exc_info=True)
-        await utils.sleep_and_backoff(delay)
-
-
 class Session:
     @staticmethod
     async def make(bufsize, data_dir, id, aiofiles):
@@ -183,7 +169,7 @@ class Server:
                         async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
-                await retry_forever(
+                await utils.retry_forever(
                     make_request,
                     lambda exc: f'could not join cluster with leader {server.leader} at {server.leader_url} due to {exc}')
                 log.info(f'joined cluster lead by {server.leader}')
