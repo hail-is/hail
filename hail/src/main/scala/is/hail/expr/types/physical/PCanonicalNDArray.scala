@@ -6,7 +6,7 @@ import is.hail.asm4s.{Code, MethodBuilder, _}
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
 
-  def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
+  val _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
   override def _toPretty = throw new NotImplementedError("Only _pretty should be called.")
 
@@ -35,7 +35,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     (r, off) => representation.loadField(r, off, "data")
   )
 
-  val representation: PStruct = {
+  lazy val representation: PStruct = {
     PStruct(required,
       ("flags", flags.pType),
       ("offset", offset.pType),
@@ -44,13 +44,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       ("data", data.pType))
   }
 
-  override def byteSize: Long = representation.byteSize
+  override lazy val byteSize: Long = representation.byteSize
 
-  override def alignment: Long = representation.alignment
+  override lazy val alignment: Long = representation.alignment
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
 
-  override def fundamentalType: PType = representation.fundamentalType
+  override lazy val fundamentalType: PType = representation.fundamentalType
 
   def numElements(shape: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
     shape.foldLeft(const(1L))(_ * _)
