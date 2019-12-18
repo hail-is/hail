@@ -1,5 +1,3 @@
-print('what')
-
 import random
 import time
 import argparse
@@ -8,15 +6,9 @@ import logging
 import numpy as np
 import struct
 
-print('the')
-
 import dbuf.client
 
-print('fuck')
-
 import hailtop.utils as utils
-
-print('fuck fuck fuck fuck')
 
 log = logging.getLogger('dbuf_scale_test')
 
@@ -96,8 +88,6 @@ async def main():
                                for j, (x, y) in enumerate(zip(xs, ys))
                                if x != y]
 
-
-print('what the actual fuck')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())

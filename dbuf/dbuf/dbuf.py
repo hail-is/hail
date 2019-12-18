@@ -247,13 +247,14 @@ class Server:
             await self.dbuf.delete_session(session_id)
             async with aiohttp.ClientSession(raise_for_status=True,
                                              timeout=aiohttp.ClientTimeout(total=60)) as cs:
-                async def call(worker):
-                    worker_url = self.deploy_config.base_url(worker)
-                    async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
-                        assert resp.status == 200
-                        await resp.text()
-                await utils.bounded_gather(*[lambda: call(worker)
-                                             for worker in self.workers])
+                def call(worker):
+                    async def f():
+                        worker_url = self.deploy_config.base_url(worker)
+                        async with cs.delete(f'{worker_url}/s/{session_id}') as resp:
+                            assert resp.status == 200
+                            await resp.text()
+                    return f
+                await utils.bounded_gather(*[call(worker) for worker in self.workers])
         return web.Response()
 
     async def register_worker(self, request):

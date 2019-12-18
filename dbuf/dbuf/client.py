@@ -81,31 +81,34 @@ class DBufClient:
         for i, key in enumerate(keys):
             servers[key[0]].append((key, i))
 
-        async def get_from_server(server, keys):
-            server_url = self.deploy_config.base_url(server)
-            i = 0
-            while i < len(keys):
-                batch = []
-                size = 0
+        def get_from_server(server, keys):
+            async def f():
+                server_url = self.deploy_config.base_url(server)
+                i = 0
                 while i < len(keys):
-                    assert keys[i][0][3] < self.max_bufsize
-                    if size + keys[i][0][3] < self.max_bufsize:
-                        batch.append(keys[i])
-                        size += keys[i][0][3]
-                        i += 1
-                    else:
-                        break
+                    batch = []
+                    size = 0
+                    while i < len(keys):
+                        assert keys[i][0][3] < self.max_bufsize
+                        if size + keys[i][0][3] < self.max_bufsize:
+                            batch.append(keys[i])
+                            size += keys[i][0][3]
+                            i += 1
+                        else:
+                            break
 
-                resp = await utils.request_retry_transient_errors(
-                    self.aiosession,
-                    'POST',
-                    f'{server_url}/s/{self.id}/getmany',
-                    json=[x[0] for x in batch])
-                data = await resp.read()
-                for v, j in zip(self._decode(data), (x[1] for x in batch)):
-                    results[j] = v
-        await utils.bounded_gather(*[lambda: get_from_server(server, keys)
+                    resp = await utils.request_retry_transient_errors(
+                        self.aiosession,
+                        'POST',
+                        f'{server_url}/s/{self.id}/getmany',
+                        json=[x[0] for x in batch])
+                    data = await resp.read()
+                    for v, j in zip(self._decode(data), (x[1] for x in batch)):
+                        results[j] = v
+            return f
+        await utils.bounded_gather(*[get_from_server(server, keys)
                                      for server, keys in servers.items()])
+        assert all(x is not None for x in results), results
         return results
 
     async def delete(self):

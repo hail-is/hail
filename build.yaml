@@ -1283,11 +1283,7 @@ steps:
      valueFrom: dbuf_test_image.image
    script: |
      set -ex
-     echo what the heck
-     python3 scale_test.py dbuf-0.dbuf 10 1 40000 1000 &
-     ps
-     echo hello
-     wait
+     python3 scale_test.py dbuf-0.dbuf 10 1 40000 1000
    resources:
      memory: "3G"
      cpu: "1"
