@@ -15,7 +15,7 @@ def download(data_dir, filename):
     # Note: the below does not work on batch due to docker/ssl problems
     # dest = os.path.join(data_dir, filename)
     # urlretrieve(url, dest)
-    subprocess.check_call(['wget', url, f'--directory-prefix={data_dir}', '--nv'])
+    subprocess.check_call(['wget', url, f'--directory-prefix={data_dir}', '-nv'])
     logging.info(f'done: {filename}')
 
 
