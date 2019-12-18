@@ -101,7 +101,7 @@ case class MatrixValue(
   private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
     val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", globals.t, bufferSpec, Array(globals.javaValue))
 
-    AbstractRVDSpec.writeSingle(fs, path + "/globals", PStruct(), bufferSpec, Array[Annotation](Row()))
+    AbstractRVDSpec.writeSingle(fs, path + "/globals", PStruct.empty(), bufferSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,

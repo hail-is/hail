@@ -155,6 +155,12 @@ final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) exte
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
+
+// Recur can't exist outside of loop
+// Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
+final case class TailLoop(name: String, params: Seq[(String, IR)], body: IR) extends IR
+final case class Recur(name: String, args: Seq[IR], _typ: Type) extends IR
+
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
 final case class RelationalRef(name: String, _typ: Type) extends IR
 
@@ -280,6 +286,8 @@ final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
 final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
+
+final case class NDArrayQR(nd: IR, mode: String) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 

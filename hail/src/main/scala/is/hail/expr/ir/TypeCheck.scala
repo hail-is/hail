@@ -117,6 +117,23 @@ object TypeCheck {
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case RelationalRef(_, _) =>
+      case x@TailLoop(_, _, body) =>
+        assert(x.typ == body.typ)
+        def checkRecurOnlyInTail(node: IR, tailPosition: Boolean): Boolean = {
+          if (node.isInstanceOf[Recur] && !tailPosition)
+            false
+          else
+            node.children.zipWithIndex
+              .filterNot { case (c, _) => c.isInstanceOf[TailLoop] || !c.isInstanceOf[IR] }
+              .forall { case (c, i) =>
+                checkRecurOnlyInTail(c.asInstanceOf[IR], tailPosition && InTailPosition(node, i))
+              }
+          }
+        assert(checkRecurOnlyInTail(body, true))
+      case x@Recur(name, args, typ) =>
+        val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
+        assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t == ir.typ } )
+        assert(typ == rt)
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
       case x@ApplyUnaryPrimOp(op, v) =>
@@ -204,6 +221,10 @@ object TypeCheck {
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
+      case x@NDArrayQR(nd, mode) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.elementType.isInstanceOf[TFloat64])
+        assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))

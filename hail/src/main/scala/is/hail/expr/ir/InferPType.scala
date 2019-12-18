@@ -119,6 +119,15 @@ object InferPType {
 
         body.pType2
       }
+      case TailLoop(_, args, body) =>
+        args.foreach { case (_, ir) => InferPType(ir, env) }
+        InferPType(body, env.bind(args.map { case (n, ir) => n -> ir.pType2 }: _*))
+        body.pType2
+      case Recur(_, args, typ) =>
+        // FIXME: This may be difficult to infer properly from a bottom-up pass.
+        args.foreach { a => InferPType(a, env) }
+        PType.canonical(typ)
+
       case ApplyBinaryPrimOp(op, l, r) => {
           InferPType(l, env)
           InferPType(r, env)
@@ -318,6 +327,14 @@ object InferPType {
         val lTyp = coerce[PNDArray](l.pType2)
         val rTyp = coerce[PNDArray](r.pType2)
         PNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
+      }
+      case NDArrayQR(nd, mode) => {
+        InferPType(nd, env)
+        mode match {
+          case "r" => PNDArray(PFloat64Required, 2)
+          case "raw" => PTuple(PNDArray(PFloat64Required, 2), PNDArray(PFloat64Required, 1))
+          case "reduced" | "complete" => PTuple(PNDArray(PFloat64Required, 2), PNDArray(PFloat64Required, 2))
+        }
       }
       case NDArrayWrite(_, _) => PVoid
       case MakeStruct(fields) => PStruct(true, fields.map {

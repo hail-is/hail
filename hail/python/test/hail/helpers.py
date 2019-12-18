@@ -130,7 +130,9 @@ def run_with_cxx_compile():
 
 
 def assert_evals_to(e, v):
-    assert hl.eval(e) == v
+    res = hl.eval(e)
+    if res != v:
+        raise ValueError(f'  actual: {res}\n  expected: {v}')
 
 
 def assert_all_eval_to(*expr_and_expected):

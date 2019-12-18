@@ -193,6 +193,8 @@ object Pretty {
                 )
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case TailLoop(name, args, _) => prettyIdentifier(name) + " " + prettyIdentifiers(args.map(_._1).toFastIndexedSeq)
+            case Recur(name, _, t) => prettyIdentifier(name) + " " + t.parsableString()
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)

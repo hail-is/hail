@@ -2,10 +2,9 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, IRParser, SortOrder}
+import is.hail.expr.ir.{EmitMethodBuilder, IRParser, SortOrder}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, Requiredness}
-import is.hail.expr.types.encoded.EType
 import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -70,7 +69,7 @@ object PType {
 
   def genSized(size: Int, required: Boolean, genPStruct: Gen[PStruct]): Gen[PType] =
     if (size < 1)
-      Gen.const(PStruct(required))
+      Gen.const(PStruct.empty(required))
     else if (size < 2)
       genScalar(required)
     else {
@@ -169,13 +168,13 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   }
 
   def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
-    PStruct().unsafeInsert(typeToInsert, path)
+    PStruct.empty().unsafeInsert(typeToInsert, path)
 
   def insert(signature: PType, fields: String*): (PType, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: PType, path: List[String]): (PType, Inserter) = {
     if (path.nonEmpty)
-      PStruct().insert(signature, path)
+      PStruct.empty().insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
@@ -234,7 +233,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
         case PFloat32(_) => PFloat32(required)
         case PFloat64(_) => PFloat64(required)
         case PString(_) => PString(required)
-        case PCall(_) => PCall(required)
+        case t: PCall => t.copy(required)
         case t: PArray => t.copy(required = required)
         case t: PSet => t.copy(required = required)
         case t: PDict => t.copy(required = required)
@@ -254,7 +253,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
       case PFloat32(_) => t == PFloat32Optional || t == PFloat32Required
       case PFloat64(_) => t == PFloat64Optional || t == PFloat64Required
       case PString(_) => t == PStringOptional || t == PStringRequired
-      case PCall(_) => t == PCallOptional || t == PCallRequired
+      case _: PCall => t.isInstanceOf[PCall]
       case t2: PLocus => t.isInstanceOf[PLocus] && t.asInstanceOf[PLocus].rg == t2.rg
       case t2: PInterval => t.isInstanceOf[PInterval] && t.asInstanceOf[PInterval].pointType.isOfType(t2.pointType)
       case t2: PStruct =>

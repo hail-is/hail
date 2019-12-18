@@ -4,8 +4,9 @@ import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.types import HailType
 from hail.typecheck import *
-from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, Int64Expression, cast_expr
+from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, expr_ndarray, Int64Expression, cast_expr, construct_expr
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
+from hail.ir import NDArrayQR
 
 
 def array(input_array):
@@ -186,3 +187,42 @@ def ones(shape, dtype=hl.tfloat64):
            ndarray of the specified size full of ones.
        """
     return full(shape, 1, dtype)
+
+
+@typecheck(nd=expr_ndarray(), mode=str)
+def qr(nd, mode="reduced"):
+    """Performs a QR decomposition.
+
+    :param nd: A 2 dimensional ndarray, shape(M, N)
+    :param mode: One of "reduced", "complete", "r", or "raw".
+
+        If K = min(M, N), then:
+
+        - `reduced`: returns q and r with dimensions (M, K), (K, N)
+        - `complete`: returns q and r with dimensions (M, M), (M, N)
+        - `r`: returns only r with dimensions (K, N)
+        - `raw`: returns h, tau with dimensions (N, M), (K,)
+
+    Returns
+    -------
+    - q: ndarray of float64
+        A matrix with orthonormal columns.
+    - r: ndarray of float64
+        The upper-triangular matrix R.
+    - (h, tau): ndarrays of float64
+        The array h contains the Householder reflectors that generate q along with r. The tau array contains scaling factors for the reflectors
+    """
+
+    assert nd.ndim == 2, "QR decomposition requires 2 dimensional ndarray"
+
+    if mode not in ["reduced", "r", "raw", "complete"]:
+        raise ValueError(f"Unrecognized mode '{mode}' for QR decomposition")
+
+    float_nd = nd.map(lambda x: hl.float64(x))
+    ir = NDArrayQR(float_nd._ir, mode)
+    if mode == "raw":
+        return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 1)))
+    elif mode == "r":
+        return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
+    elif mode in ["complete", "reduced"]:
+        return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))

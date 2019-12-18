@@ -1,15 +1,19 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region, UnsafeInserter}
+import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.BaseStruct
-import is.hail.expr.types.virtual.Type
-import is.hail.utils.{ArrayBuilder, fatal, plural, prettyIdentifier}
-import org.apache.spark.sql.Row
+import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
+import org.apache.spark.sql.Row
+import collection.JavaConverters._
 
 object PCanonicalStruct {
+  private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
+  private val optionalEmpty = PCanonicalStruct(Array.empty[PField], false)
+
+  def empty(required: Boolean = false): PStruct = if (required) requiredEmpty else optionalEmpty
+
   def apply(required: Boolean, args: (String, PType)*): PStruct =
     PCanonicalStruct(args
       .iterator
@@ -17,12 +21,25 @@ object PCanonicalStruct {
       .map { case ((n, t), i) => PField(n, t, i) }
       .toFastIndexedSeq,
       required)
+
+  def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PStruct = {
+    val sNames = names.asScala.toArray
+    val sTypes = types.asScala.toArray
+    if (sNames.length != sTypes.length)
+      fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
+
+    PCanonicalStruct(required, sNames.zip(sTypes): _*)
+  }
+
+  def apply(args: (String, PType)*): PStruct =
+    PCanonicalStruct(false, args:_*)
+
+  def canonical(t: Type): PStruct = PType.canonical(t).asInstanceOf[PStruct]
+  def canonical(t: PType): PStruct = PType.canonical(t).asInstanceOf[PStruct]
 }
 
-final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PStruct with PCanonicalBaseStruct {
-  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
-
-  def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
+final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PStruct {
+  assert(fields.zipWithIndex.forall  { case (f, i) => f.index == i })
 
   val types: Array[PType] = fields.map(_.typ).toArray
 
@@ -32,24 +49,17 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-  override def truncate(newSize: Int): PStruct =
-    PCanonicalStruct(fields.take(newSize), required)
-
   val missingIdx = new Array[Int](size)
   val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PCanonicalBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PCanonicalBaseStruct.alignment(types)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = PBaseStruct.alignment(types)
 
-  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
-    codeOrdering(mb, other, null)
+  def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
 
-  override def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
-    assert(other isOfType this)
-    assert(so == null || so.size == types.size)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
-  }
+  override def truncate(newSize: Int): PStruct =
+    PCanonicalStruct(fields.take(newSize), required)
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
@@ -94,7 +104,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
           })
 
         case None =>
-          val (insertedFieldType, fieldInserter) = PCanonicalStruct(Array.empty[PField], required).unsafeInsert(typeToInsert, path.tail)
+          val (insertedFieldType, fieldInserter) = PStruct.empty().unsafeInsert(typeToInsert, path.tail)
 
           (appendKey(key, insertedFieldType), { (region, offset, rvb, inserter) =>
             rvb.startStruct()
@@ -127,7 +137,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     assert(fieldIdx.contains(key))
     val index = fieldIdx(key)
     if (fields.length == 1)
-      PCanonicalStruct(Array.empty[PField], required)
+      PCanonicalStruct.empty()
     else {
       val newFields = Array.fill[PField](fields.length - 1)(null)
       for (i <- 0 until index)
@@ -149,14 +159,12 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
 
 
   def rename(m: Map[String, String]): PStruct = {
-    val newFieldsBuilder = new ArrayBuilder[PField]()
-    var idx = 0
+    val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
     fields.foreach { fd =>
       val n = fd.name
-      newFieldsBuilder += PField(m.getOrElse(n, n), fd.typ, idx)
-      idx += 1
+      newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
-    PCanonicalStruct(newFieldsBuilder.result(), required)
+    PCanonicalStruct(newFieldsBuilder.result(): _*)
   }
 
   def ++(that: PStruct): PStruct = {
@@ -165,19 +173,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     if (overlapping.nonEmpty)
       fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
 
-    PCanonicalStruct(required, fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)):_*)
-  }
-
-  def identBase: String = "tuple"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("struct{")
-    fields.foreachBetween({ field =>
-      sb.append(prettyIdentifier(field.name))
-      sb.append(": ")
-      field.typ.pyString(sb)
-    }) { sb.append(", ")}
-    sb.append('}')
+    PCanonicalStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
@@ -205,7 +201,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   }
 
   def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row) = {
-    val t = PCanonicalStruct(required, keep.map { n =>
+    val t = PCanonicalStruct(keep.map { n =>
       n -> field(n).typ
     }: _*)
 
@@ -220,9 +216,9 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     selectFields(fieldNames.filter(!names.contains(_)))
 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
-    PCanonicalStruct(required, keep.map(i => fieldNames(i) -> types(i)):_*)
+    PCanonicalStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  override val fundamentalType: PStruct = {
+  lazy val structFundamentalType: PStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })
@@ -236,8 +232,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     loadField(region, offset, fieldIdx(fieldName))
 
   def loadField(offset: Code[Long], field: String): Code[Long] = loadField(offset, fieldIdx(field))
-
-  def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = isFieldDefined(offset, fieldIdx(field))
 
   def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] = isFieldMissing(offset, fieldIdx(field))
 
