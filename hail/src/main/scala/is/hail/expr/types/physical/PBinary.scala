@@ -70,7 +70,7 @@ abstract class PBinary extends PType {
 }
 
 object PBinary {
-  def apply(required: Boolean = false): PBinary = PCanonicalBinary.apply(required)
+  def apply(required: Boolean = false): PBinary = if(required) PBinaryRequired else PBinaryOptional
 
   def unapply(t: PBinary): Option[Boolean] = PCanonicalBinary.unapply(t)
 

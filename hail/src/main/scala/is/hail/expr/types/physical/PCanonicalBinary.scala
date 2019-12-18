@@ -24,7 +24,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 }
 
 object PCanonicalBinary {
-  def apply(required: Boolean = false): PBinary = if (required) PCanonicalBinaryRequired else PCanonicalBinaryOptional
+  def apply(required: Boolean = false): PBinary = new PCanonicalBinary(required)
 
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 
