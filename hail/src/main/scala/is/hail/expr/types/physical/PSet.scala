@@ -13,7 +13,8 @@ abstract class PSet extends PContainer {
 
   def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet
 
-  override def fundamentalType: PArray = ???
+  protected val setFundamentalType: PArray
+  override lazy val fundamentalType: PArray = setFundamentalType
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

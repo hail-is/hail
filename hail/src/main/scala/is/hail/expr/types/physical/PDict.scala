@@ -17,7 +17,9 @@ abstract class PDict extends PContainer {
   def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict
 
   def elementType: PStruct
-  override def fundamentalType: PArray = ???
+
+  protected val dictFundamentalType: PArray
+  override lazy val fundamentalType: PArray = dictFundamentalType
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
