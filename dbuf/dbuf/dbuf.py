@@ -169,7 +169,7 @@ class Server:
         self.app.on_cleanup.append(self.cleanup)
 
     @staticmethod
-    async def serve(name, bufsize, data_dir, leader, binding_host='0.0.0.0', port=5000):
+    def serve(name, bufsize, data_dir, leader, binding_host='0.0.0.0', port=5000):
         aiofiles = af.AIOFiles()
         dbuf = Sessions(bufsize, f'{data_dir}/{port}', aiofiles)
         server = Server(name, binding_host, port, leader, dbuf, aiofiles)
