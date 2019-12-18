@@ -12,7 +12,7 @@ class TakeByAggregatorSuite extends HailSuite {
   @Test def testPointers() {
     for ((size, n) <- Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) {
       val fb = EmitFunctionBuilder[Region, Long]("test_pointers")
-      val tba = new TakeByRVAS(PString(true), PInt64Optional, PArray(PString(true), required = true), fb)
+      val tba = new TakeByRVAS(PStringRequired, PInt64Optional, PArray(PStringRequired, required = true), fb)
       Region.scoped { r =>
         val argR = fb.getArg[Region](1).load()
         val i = fb.newField[Long]

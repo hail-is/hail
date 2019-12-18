@@ -6,6 +6,9 @@ import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TString
 
+case object PStringOptional extends PCanonicalString(false)
+case object PStringRequired extends PCanonicalString(true)
+
 abstract class PString extends PType {
   lazy val virtualType: TString = TString(required)
 

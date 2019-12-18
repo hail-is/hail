@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
 
-final case class PCanonicalString(override val required: Boolean) extends PString {
+case class PCanonicalString(override val required: Boolean) extends PString {
   def _asIdent = "string"
   def _toPretty = "String"
 
