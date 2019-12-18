@@ -15,6 +15,4 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
-
-
 }
