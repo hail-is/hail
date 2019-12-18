@@ -39,7 +39,7 @@ async def main():
 
     n = args.n
 
-    max_bufsize = args.bufsize*1024*1024
+    max_bufsize = args.bufsize * 1024 * 1024
 
     print('dbuf scale test')
     print(args)
@@ -88,6 +88,8 @@ async def main():
                                for j, (x, y) in enumerate(zip(xs, ys))
                                if x != y]
 
+
+print('what the actual fuck')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
