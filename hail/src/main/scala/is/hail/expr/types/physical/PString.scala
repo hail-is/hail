@@ -20,7 +20,7 @@ abstract class PString extends PType {
     PBinary(required).codeOrdering(mb, PBinary(other.required))
   }
 
-  val stringFundamentalType: PBinary
+  protected val stringFundamentalType: PBinary
   override lazy val fundamentalType: PBinary = stringFundamentalType
 }
 
