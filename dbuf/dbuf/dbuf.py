@@ -177,27 +177,24 @@ class Server:
         aiofiles = af.AIOFiles()
         dbuf = await Sessions.make(bufsize, aiofiles, f'{data_dir}/{port}')
         server = Server(name, binding_host, port, leader, dbuf, aiofiles)
-        try:
-            prefixed_app = server.deploy_config.prefix_application(server.app, server.name)
-            runner = web.AppRunner(prefixed_app)
-            await runner.setup()
-            site = web.TCPSite(runner, host=server.binding_host, port=server.port)
-            await site.start()
-            log.info(f'server {server.name} bound to {server.binding_host}:{server.port}')
+        prefixed_app = server.deploy_config.prefix_application(server.app, server.name)
+
+        async def join_cluster():
             if server.leader != server.name:
-                async def join_cluster():
+                async def make_request():
                     async with aiohttp.ClientSession(raise_for_status=True,
                                                      timeout=aiohttp.ClientTimeout(total=60)) as cs:
                         async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
                 await retry_forever(
-                    join_cluster,
+                    make_request,
                     lambda exc: f'could not join cluster with leader {server.leader} at {server.leader_url} due to {exc}')
-            while True:
-                await asyncio.sleep(1 << 16)
-        finally:
-            await runner.cleanup()
+                log.info(f'joined cluster lead by {server.leader}')
+
+        prefixed_app.on_startup.append(join_cluster)
+
+        web.run_app(prefixed_app, host=server.binding_host, port=server.port)
 
     def session(self, request):
         session_id = int(request.match_info['session'])
