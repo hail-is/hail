@@ -6,7 +6,7 @@ import is.hail.asm4s.{Code, MethodBuilder, _}
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
 
-  val _asIdent: String = s"ndarray_of_${elementType.asIdent}"
+  def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
   override def _toPretty = throw new NotImplementedError("Only _pretty should be called.")
 
