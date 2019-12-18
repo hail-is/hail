@@ -294,7 +294,7 @@ class EmitStreamSuite extends HailSuite {
       ApplyScanOp(
         initArgs.toFastIndexedSeq,
         opArgs.toFastIndexedSeq,
-        AggSignature2(op,
+        AggSignature(op,
           initArgs.map(_.typ),
           opArgs.map(_.typ), None))
 

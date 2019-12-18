@@ -2017,7 +2017,7 @@ class IRSuite extends HailSuite {
   @Test def testArrayAgg() {
     implicit val execStrats = ExecStrategy.compileOnly
 
-    val sumSig = AggSignature2(Sum(), Seq(), Seq(TInt64()), None)
+    val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64()), None)
     assertEvalsTo(
       ArrayAgg(
         ArrayMap(ArrayRange(I32(0), I32(4), I32(1)), "x", Cast(Ref("x", TInt32()), TInt64())),
@@ -2045,7 +2045,7 @@ class IRSuite extends HailSuite {
                 Cast(Ref("y", TInt64()), TInt32()),
                 Cast(Ref("y", TInt64()), TInt32())), // reference y twice to prevent forwarding
                 TArray(TInt32()))),
-              AggSignature2(Collect(), FastIndexedSeq(), FastIndexedSeq(TArray(TInt32())), None)),
+              AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TArray(TInt32())), None)),
             MakeArray(FastSeq(Ref("x", TInt32())), TArray(TInt32()))),
           isScan = false
         )
@@ -2067,7 +2067,7 @@ class IRSuite extends HailSuite {
         GetField(ApplyScanOp(
           FastIndexedSeq(I32(2)),
           FastIndexedSeq(GetField(Ref("foo", eltType), "x")),
-          AggSignature2(CallStats(), FastIndexedSeq(TInt32()), FastIndexedSeq(TCall()), None)
+          AggSignature(CallStats(), FastIndexedSeq(TInt32()), FastIndexedSeq(TCall()), None)
         ), "AN"))
 
     assertEvalsTo(ir,
@@ -2233,7 +2233,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val table = TableRange(3, 2)
-    val countSig = AggSignature2(Count(), Seq(), Seq(), None)
+    val countSig = AggSignature(Count(), Seq(), Seq(), None)
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
     assertEvalsTo(TableAggregate(table, MakeStruct(Seq("foo" -> count))), Row(3L))
   }
@@ -2242,7 +2242,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val matrix = MatrixIR.range(hc, 5, 5, None)
-    val countSig = AggSignature2(Count(), Seq(), Seq(), None)
+    val countSig = AggSignature(Count(), Seq(), Seq(), None)
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count))), Row(25L))
   }
@@ -2305,18 +2305,18 @@ class IRSuite extends HailSuite {
 
     val call = Ref("call", TCall())
 
-    val collectSig = AggSignature2(Collect(), Seq(), Seq(TInt32()), None)
+    val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32()), None)
 
-    val sumSig = AggSignature2(Sum(), Seq(), Seq(TInt32()), None)
+    val sumSig = AggSignature(Sum(), Seq(), Seq(TInt32()), None)
 
-    val callStatsSig = AggSignature2(CallStats(), Seq(TInt32()), Seq(TCall()), None)
+    val callStatsSig = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()), None)
 
-    val callStatsSig2 = AggSignature2(CallStats(), Seq(TInt32()), Seq(TCall()), None)
-    val collectSig2 = AggSignature2(CallStats(), Seq(), Seq(TInt32()), None)
+    val callStatsSig2 = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()), None)
+    val collectSig2 = AggSignature(CallStats(), Seq(), Seq(TInt32()), None)
 
-    val takeBySig = AggSignature2(TakeBy(), Seq(TInt32()), Seq(TFloat64(), TInt32()), None)
+    val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), Seq(TFloat64(), TInt32()), None)
 
-    val countSig = AggSignature2(Count(), Seq(), Seq(), None)
+    val countSig = AggSignature(Count(), Seq(), Seq(), None)
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
     val table = TableRange(100, 10)
@@ -2522,7 +2522,7 @@ class IRSuite extends HailSuite {
           F32(-5.2f)))
       )
 
-      val collectSig = AggSignature2(Collect(), Seq(), Seq(TInt32()), None)
+      val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32()), None)
       val collect = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig)
 
       val newRowAnn = MakeStruct(FastIndexedSeq("count_row" -> collect))
@@ -2893,7 +2893,7 @@ class IRSuite extends HailSuite {
     val ir = TableAggregate(RelationalLetTable("x",
       Literal(t, FastIndexedSeq(Row(1))),
       TableParallelize(MakeStruct(FastSeq("rows" -> RelationalRef("x", t), "global" -> MakeStruct(FastSeq()))))),
-      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature2(Count(), FastIndexedSeq(), FastIndexedSeq(), None)))
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), FastIndexedSeq(), None)))
     assertEvalsTo(ir, 1L)
   }
 
@@ -2912,7 +2912,7 @@ class IRSuite extends HailSuite {
     val ir = MatrixAggregate(RelationalLetMatrixTable("x",
       Literal(t, FastIndexedSeq(Row(1))),
       m),
-      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature2(Count(), FastIndexedSeq(), FastIndexedSeq(), None)))
+      ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), FastIndexedSeq(), None)))
     assertEvalsTo(ir, 1L)
   }
 
