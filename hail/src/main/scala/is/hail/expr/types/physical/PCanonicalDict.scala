@@ -5,8 +5,6 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   val arrayRep: PArray = PCanonicalArray(elementType, required)
 
-  override lazy val fundamentalType = PCanonicalArray(elementType.fundamentalType, required)
-
   def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict =
     PCanonicalDict(keyType, valueType, required)
 
