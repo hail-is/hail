@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.annotations.Region
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.ExecuteContext
 import is.hail.utils.{ExecutionTimer, TempDir}
 import is.hail.io.fs.FS
@@ -13,14 +14,16 @@ object HailSuite {
     HailContext.createDistributed(host, logFile = "/tmp/hail.log")
 
   def withSparkBackend(): HailContext =
+    val sc = new SparkContext(
+      HailContext.createSparkConf(
+        appName = "Hail.TestNG",
+        master = Option(System.getProperty("hail.master")),
+        local = "local[2]",
+        blockSize = 0)
+        .set("spark.unsafe.exceptionOnMemoryLeak", "true"))
+    val sparkBackend = new SparkBackend(sc)
     HailContext(
-      sc = new SparkContext(
-        HailContext.createSparkConf(
-          appName = "Hail.TestNG",
-          master = Option(System.getProperty("hail.master")),
-          local = "local[2]",
-          blockSize = 0)
-          .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
+      sparkBackend,
       logFile = "/tmp/hail.log")
 
 
