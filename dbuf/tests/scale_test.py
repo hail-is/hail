@@ -41,16 +41,21 @@ async def main():
 
     max_bufsize = args.bufsize*1024*1024
 
+    print('dbuf scale test')
+    print(args)
     async with dbuf.client.DBufClient(args.cluster_leader, max_bufsize=max_bufsize, rng=random.Random(0)) as client:
+        print('creating session')
         await client.create()
 
         def bytearray_with_index(i):
             b = bytearray(args.size)
             struct.pack_into('l', b, 0, i)
             return b
+        print('creating data')
         data = [bytearray_with_index(i) for i in range(n * args.reqs)]
         data_for_worker = list(utils.grouped(args.reqs, data))
 
+        print(f'starting test')
         start = time.time()
         keys, times = utils.unzip(await asyncio.gather(
             *[write(data_for_worker[i], args, client) for i in range(n)]))
