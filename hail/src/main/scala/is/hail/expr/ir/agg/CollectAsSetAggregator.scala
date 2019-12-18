@@ -162,7 +162,7 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
     other.foreach { (km, kv) => state.insert(km, kv) }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
-    srvb.addArray(resultType.fundamentalType.asPArray, sab =>
+    srvb.addArray(resultType.arrayFundamentalType.asPArray, sab =>
       Code(
         sab.start(state.size),
         state.foreach { (km, kv) =>
