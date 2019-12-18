@@ -18,8 +18,7 @@ abstract class PDict extends PContainer {
 
   def elementType: PStruct
 
-  protected val dictFundamentalType: PArray
-  override lazy val fundamentalType: PArray = dictFundamentalType
+  def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
