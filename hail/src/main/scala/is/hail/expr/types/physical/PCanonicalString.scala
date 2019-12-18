@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
 
-case class PCanonicalString(override val required: Boolean) extends PString {
+class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
   def _toPretty = "String"
 
@@ -15,6 +15,8 @@ case class PCanonicalString(override val required: Boolean) extends PString {
 }
 
 object PCanonicalString {
+  def apply(required: Boolean = false) = new PCanonicalString(required)
+
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 
   def loadString(boff: Long): String = {
