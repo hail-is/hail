@@ -13,7 +13,7 @@ object HailSuite {
   def withDistributedBackend(host: String): HailContext =
     HailContext.createDistributed(host, logFile = "/tmp/hail.log")
 
-  def withSparkBackend(): HailContext =
+  def withSparkBackend(): HailContext = {
     val sc = new SparkContext(
       HailContext.createSparkConf(
         appName = "Hail.TestNG",
@@ -25,6 +25,7 @@ object HailSuite {
     HailContext(
       sparkBackend,
       logFile = "/tmp/hail.log")
+  }
 
 
   lazy val hc: HailContext = {
