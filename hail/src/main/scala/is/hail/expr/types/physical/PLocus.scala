@@ -25,7 +25,11 @@ abstract class PLocus extends ComplexPType {
 
   def contig(region: Code[Region], off: Code[Long]): Code[Long]
 
+  def contigType: PString
+
   def position(region: Code[Region], off: Code[Long]): Code[Int]
+
+  def positionType: PInt32
 
   def copy(required: Boolean): PLocus
 }

@@ -26,7 +26,7 @@ abstract class PTuple extends PBaseStruct {
   lazy val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
   lazy val nFields: Int = fields.size
 
-  protected def tupleFundamentalType: PTuple
+  protected val tupleFundamentalType: PTuple
   override lazy val fundamentalType: PTuple = tupleFundamentalType
 
   def copy(required: Boolean): PTuple

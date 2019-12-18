@@ -151,7 +151,7 @@ object LocusFunctions extends RegistryFunctions {
     val locusClass = Locus.getClass
 
     registerCode("contig", tlocus("T"), TString(),
-      (x: PType) => -x.asInstanceOf[PLocus].representation.asInstanceOf[PStruct].field("contig").typ) {
+      (x: PType) => -x.asInstanceOf[PLocus].contigType) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.contig(r.region, locus)
     }

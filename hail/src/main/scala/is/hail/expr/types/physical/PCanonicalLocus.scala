@@ -15,7 +15,7 @@ object PCanonicalLocus {
 
   def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
 
-  def representation(required: Boolean = false): PStruct = PStruct(
+  private def representation(required: Boolean = false): PStruct = PStruct(
     required,
     "contig" -> PString(required = true),
     "position" -> PInt32(required = true))
@@ -44,7 +44,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
     def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
 
+    lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
+
     def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
+
+    lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(): UnsafeOrdering = {

@@ -56,7 +56,7 @@ object UnsafeRow {
   def readLocus(region: Region, offset: Long, t: PLocus): Locus = {
     val ft = t.representation.asInstanceOf[PStruct]
     Locus(
-      readString(region, ft.loadField(region, offset, 0), ft.types(0).asInstanceOf[PString]),
+      readString(region, ft.loadField(region, offset, 0), t.contigType),
       Region.loadInt(ft.loadField(region, offset, 1)))
   }
 
