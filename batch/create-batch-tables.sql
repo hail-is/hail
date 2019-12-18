@@ -173,13 +173,13 @@ BEGIN
 
   SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
 
-  UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
-  WHERE id = NEW.batch_id;
-
   UPDATE jobs
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+
+  UPDATE batches
+  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
+  WHERE id = NEW.batch_id;
 END $$
 
 CREATE TRIGGER jobs_after_insert AFTER INSERT ON jobs
@@ -350,15 +350,15 @@ BEGIN
     WHERE batch_id = in_batch_id;
 
     IF actual_n_jobs = expected_n_jobs THEN
-      UPDATE batches SET closed = 1 WHERE id = in_batch_id;
-      UPDATE batches SET time_completed = in_timestamp
-        WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       UPDATE ready_cores
         SET ready_cores_mcpu = ready_cores_mcpu +
           COALESCE(
             (SELECT SUM(cores_mcpu) FROM jobs
              WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
             0);
+      UPDATE batches SET closed = 1 WHERE id = in_batch_id;
+      UPDATE batches SET time_completed = in_timestamp
+        WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       COMMIT;
       SELECT 0 as rc;
     ELSE
@@ -396,10 +396,10 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
-    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
     UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
+    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc, in_instance_name;
   ELSE
@@ -442,7 +442,7 @@ BEGIN
     UPDATE attempts
       SET end_time = new_end_time, reason = new_reason, instance_name = NULL
       WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
-    UPDATE jobs SET state = 'Ready', attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;      
+    UPDATE jobs SET state = 'Ready', attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc;
   ELSE

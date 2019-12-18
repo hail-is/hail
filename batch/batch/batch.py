@@ -5,6 +5,7 @@ import aiohttp
 import secrets
 import base64
 import traceback
+import pymysql
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
@@ -14,6 +15,19 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
 from .utils import cost_from_msec_mcpu
 
 log = logging.getLogger('batch')
+
+
+async def retry_deadlock(f):
+    delay = 0.1
+    while True:
+        try:
+            return await f()
+        except pymysql.err.OperationalError as exc:
+            if exc.args[0] == 1213:
+                log.warn(f'retrying deadlock: {exc}', exc_info=True)
+            else:
+                raise
+        delay = await sleep_and_backoff(delay)
 
 
 def batch_record_to_dict(record):
@@ -93,12 +107,14 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
 
     now = time_msecs()
 
-    rv = await check_call_procedure(
-        db,
-        'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
-        (batch_id, job_id, attempt_id, new_state,
-         json.dumps(status) if status is not None else None,
-         start_time, end_time, reason, now))
+    async def f():
+        await check_call_procedure(
+            db,
+            'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
+            (batch_id, job_id, attempt_id, new_state,
+             json.dumps(status) if status is not None else None,
+             start_time, end_time, reason, now))
+    rv = retry_deadlock(f)
 
     log.info(f'mark_job_complete returned {rv} for job {id}')
 
@@ -131,13 +147,15 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, start_time):
 
     log.info(f'mark job {id} started')
 
-    await db.execute_update(
-        '''
+    async def f():
+        await db.execute_update('''
 UPDATE attempts
 SET start_time = %s
 WHERE batch_id = %s AND job_id = %s AND attempt_id = %s;
 ''',
-        (start_time, batch_id, job_id, attempt_id))
+                                (start_time, batch_id, job_id, attempt_id))
+
+    await retry_deadlock(f)
 
 
 def job_record_to_dict(record, running_status=None):
