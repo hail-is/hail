@@ -9,7 +9,7 @@ final case class PCanonicalString(override val required: Boolean) extends PStrin
 
   override def byteSize: Long = 8
 
-  val stringFundamentalType: PBinary = PBinary(required)
+  lazy val stringFundamentalType: PBinary = PBinary(required)
 
   override def containsPointers: Boolean = true
 }
