@@ -23,12 +23,12 @@ abstract class PString extends PType {
     PBinary(required).codeOrdering(mb, PBinary(other.required))
   }
 
-  protected val stringFundamentalType: PBinary
-  override lazy val fundamentalType: PBinary = stringFundamentalType
+  protected val binaryFundamentalType: PBinary
+  override lazy val fundamentalType: PBinary = binaryFundamentalType
 }
 
 object PString {
-  def apply(required: Boolean = false): PString = PCanonicalString(required)
+  def apply(required: Boolean = false): PString = if (required) PStringRequired else PStringOptional
 
   def unapply(t: PString): Option[Boolean] = PCanonicalString.unapply(t)
 

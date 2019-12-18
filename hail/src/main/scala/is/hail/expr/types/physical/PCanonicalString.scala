@@ -9,7 +9,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def byteSize: Long = 8
 
-  lazy val stringFundamentalType: PBinary = PBinary(required)
+  lazy val binaryFundamentalType: PBinary = PBinary(required)
 
   override def containsPointers: Boolean = true
 }
