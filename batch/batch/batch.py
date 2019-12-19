@@ -114,7 +114,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
             (batch_id, job_id, attempt_id, new_state,
              json.dumps(status) if status is not None else None,
              start_time, end_time, reason, now))
-    rv = retry_deadlock(f)
+    rv = await retry_deadlock(f)
 
     log.info(f'mark_job_complete returned {rv} for job {id}')
 
