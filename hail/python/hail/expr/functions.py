@@ -5194,8 +5194,8 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
     return (case()
             .when(min < max, case()
                   .when(fmin * fmax <= 0, run_loop(min, max, fmin, fmax))
-                  .or_error(format("sign of endpoints must have opposite signs, got: f(min) = %.1e, f(max) = %.1e", fmin, fmax)))
-            .or_error(format("min must be less than max in call to uniroot, got: min %.1e, max %.1e", min, max)))
+                  .or_error(format("'uniroot': sign of endpoints must have opposite signs, got: f(min) = %.1e, f(max) = %.1e", fmin, fmax)))
+            .or_error(format("'uniroot': min must be less than max in call to uniroot, got: min %.1e, max %.1e", min, max)))
 
 
 @typecheck(f=expr_str, args=expr_any)
