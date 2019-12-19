@@ -21,7 +21,7 @@ spec:
          python3 ./insert-batch-globals.py {{ scope }}
          mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-billing-projects.sql
          {% if scope == 'dev' %}
-         mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
+         mysql --defaults-extra-file=/sql-config/sql-config.cnf <<'EOF'
        INSERT INTO `billing_projects` (`name`)
        VALUES ("hail");
 
