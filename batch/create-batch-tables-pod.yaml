@@ -22,12 +22,12 @@ spec:
          mysql --defaults-extra-file=/sql-config/sql-config.cnf < ./create-billing-projects.sql
          {% if scope == 'dev' %}
          mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
-         INSERT INTO `billing_projects` (`name`)
-         VALUES ("hail");
+       INSERT INTO `billing_projects` (`name`)
+       VALUES ("hail");
 
-         INSERT INTO `billing_project_users` (`billing_project`, `user`)
-         VALUES ("hail", "{{ default_ns.name }}");
-         EOF
+       INSERT INTO `billing_project_users` (`billing_project`, `user`)
+       VALUES ("hail", "{{ default_ns.name }}");
+       EOF
          {% endif %}
        fi
     volumeMounts:
