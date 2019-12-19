@@ -54,10 +54,7 @@ class InstancePool:
         log.info('initializing instance pool')
 
         row = await self.db.select_and_fetchone(
-            'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size '
-            'FROM globals '
-            'WHERE instance_id = %s;',
-            self.instance_id)
+            'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size FROM globals;')
 
         self.worker_type = row['worker_type']
         self.worker_cores = row['worker_cores']
