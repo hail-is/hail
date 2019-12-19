@@ -42,7 +42,6 @@ class DBufClient:
             self.aiosession,
             'POST',
             f'{self.root_url}/s')
-        assert resp.status == 200
         self.id = int(await resp.text())
         self.session_url = f'{self.root_url}/s/{self.id}'
         return self.id
@@ -61,7 +60,6 @@ class DBufClient:
             'POST',
             f'{server_url}/s/{self.id}/get',
             json=key)
-        assert resp.status == 200
         return await resp.read()
 
     def _decode(self, byte_array):
