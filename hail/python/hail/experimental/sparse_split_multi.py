@@ -71,8 +71,12 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
     the actual split_multi function also doesn't handle that case).
 
     It also checks that min-repping will not change the locus and will error if
-    it does. (I believe the VCF combiner checks that this holds true,
-    currently.)
+    it does.
+
+    Unlike the normal split_multi function. Sparse split multi will not filter
+    ``*`` alleles. This is because a row with a bi-allelic spanning deletion
+    may contain ref blocks that start at this position for other samples. And filtering
+    the ref block will remove
 
     Parameters
     ----------
