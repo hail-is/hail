@@ -1386,7 +1386,9 @@ private class Emit(
 
         val eVti = typeToTypeInfo(numericElementType.virtualType)
 
-        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, lT.m || rT.m) {
+        val isMissing = lT.m || rT.m
+
+        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, isMissing) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val element = coerce[Any](mb.newField("matmul_element")(eVti))
             val k = mb.newField[Long]
@@ -1455,9 +1457,9 @@ private class Emit(
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * 8L),
             answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * 8L),
 
-
-            lPType.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, ???, ???, mb),
-            rPType.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, ???, ???, mb),
+            // TODO Won't work unless I region allocate and initialize.
+            lPType.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, N, mb),
+            rPType.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, N, mb),
 
             //DGEMM
             Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
@@ -1478,11 +1480,12 @@ private class Emit(
             answerRowMajorAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorAddress, (M * N).toI),
             //outputPType.copyRowMajorToColumnMajor()
-            lPType.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.load(region, answerRowMajorAddress), ???, ???, mb)
+            lPType.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.load(region, answerRowMajorAddress), M, N, mb),
+            outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorAddress, mb)
           )
           // TODO Make sure we free!
 
-          ???
+          EmitTriplet(missingSetup, isMissing, block)
         } else {
           emitter.emit(outputPType)
         }
