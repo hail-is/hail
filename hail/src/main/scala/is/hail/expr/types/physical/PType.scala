@@ -246,7 +246,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
 
   final def isOfType(t: PType): Boolean = {
     this match {
-      case PBinary(_) => t == PBinaryOptional || t == PBinaryRequired
+      case PBinary(_) => t == PCanonicalBinaryOptional || t == PCanonicalBinaryRequired
       case PBoolean(_) => t == PBooleanOptional || t == PBooleanRequired
       case PInt32(_) => t == PInt32Optional || t == PInt32Required
       case PInt64(_) => t == PInt64Optional || t == PInt64Required

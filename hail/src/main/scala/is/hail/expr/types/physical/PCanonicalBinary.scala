@@ -1,15 +1,8 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.CodeOrdering
-import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TBinary
 import is.hail.utils._
-
-import scala.reflect.{ClassTag, _}
 
 case object PCanonicalBinaryOptional extends PCanonicalBinary(false)
 case object PCanonicalBinaryRequired extends PCanonicalBinary(true)
@@ -24,7 +17,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 }
 
 object PCanonicalBinary {
-  def apply(required: Boolean = false): PBinary = new PCanonicalBinary(required)
+  def apply(required: Boolean = false): PBinary = if (required) PCanonicalBinaryRequired else PCanonicalBinaryOptional
 
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 

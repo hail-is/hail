@@ -11,9 +11,6 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-case object PBinaryOptional extends PCanonicalBinary(false)
-case object PBinaryRequired extends PCanonicalBinary(true)
-
 abstract class PBinary extends PType {
   lazy val virtualType: TBinary = TBinary(required)
 
@@ -70,7 +67,7 @@ abstract class PBinary extends PType {
 }
 
 object PBinary {
-  def apply(required: Boolean = false): PBinary = if(required) PBinaryRequired else PBinaryOptional
+  def apply(required: Boolean = false): PBinary = PCanonicalBinary(required)
 
   def unapply(t: PBinary): Option[Boolean] = PCanonicalBinary.unapply(t)
 
