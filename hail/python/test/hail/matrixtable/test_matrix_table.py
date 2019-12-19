@@ -326,6 +326,12 @@ class Tests(unittest.TestCase):
         cs = mt.group_cols_by(mt.s).aggregate(cs = hl.agg.call_stats(mt.GT, mt.alleles))
         cs._force_count_rows() # should run without error
 
+    def test_aggregate_cols_scope_violation(self):
+        mt = get_dataset()
+        with pytest.raises(hl.expr.ExpressionException) as exc:
+            mt.aggregate_cols(hl.agg.filter(False, hl.agg.sum(mt.GT.is_non_ref())))
+        assert "scope violation" in str(exc.value)
+
     def test_aggregate_rows_by(self):
         mt = hl.utils.range_matrix_table(4, 2)
         mt = (mt.annotate_rows(group=mt.row_idx < 2)
