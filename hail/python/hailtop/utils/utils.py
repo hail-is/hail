@@ -191,7 +191,7 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
-                log.warning(f'encountered 10 errors, most recent one was {e}', exc_info=True)
+                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
