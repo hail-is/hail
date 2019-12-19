@@ -5124,12 +5124,24 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
 
     If no root can be found, the result of this call will be `NA` (missing).
 
+    :func:`.uniroot` returns an estimate for a root with accuracy
+    `4 * epsilon * abs(x) + tolerance`.
+
+    4*EPSILON*abs(x) + tol
+
     Parameters
     ----------
     f : function ( (arg) -> :class:`.Float64Expression`)
         Must return a :class:`.Float64Expression`.
     min : :class:`.Float64Expression`
     max : :class:`.Float64Expression`
+    max_iter : `int`
+        The maximum number of iterations before giving up.
+    epsilon : `float`
+        The scaling factor in the accuracy of the root found.
+    tolerance : `float`
+        The constant factor in approximate accuracy of the root found.
+
 
     Returns
     -------
