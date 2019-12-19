@@ -22,13 +22,13 @@ abstract class PNDArray extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
   assert(elementType.required, "elementType must be required")
 
-  override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
+  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
   val flags: StaticallyKnownField[PInt32Required.type, Int]
   val offset: StaticallyKnownField[PInt32Required.type, Int]
   val shape: StaticallyKnownField[PTuple, Long]
   val strides: StaticallyKnownField[PTuple, Long]
-  val data: StaticallyKnownField[PArray, Long]
+  val data: StaticallyKnownField[PArray, Long]g
 
   val representation: PStruct
 
