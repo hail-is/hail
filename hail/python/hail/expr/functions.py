@@ -5108,8 +5108,8 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
            max=expr_float64,
            max_iter=builtins.int,
            epsilon=builtins.float,
-           base_tolerance=builtins.float)
-def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e-16, base_tolerance=1.220703e-4):
+           tolerance=builtins.float)
+def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e-16, tolerance=1.220703e-4):
     """Finds a root of the function `f` within the interval `[min, max]`.
 
     Examples
@@ -5137,6 +5137,9 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
         The root of the function `f`.
     """
 
+    # Based on:
+    # https://github.com/wch/r-source/blob/e5b21d0397c607883ff25cca379687b86933d730/src/library/stats/src/zeroin.c
+
     def error_if_missing(x):
         res = f(x)
         return (case()
@@ -5145,7 +5148,7 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
     wrapped_f = hl.experimental.define_function(error_if_missing, 'float')
 
     def uniroot(recur, a, b, c, fa, fb, fc, prev, iterations_remaining):
-        tol = 2 * epsilon * abs(b) + base_tolerance / 2
+        tol = 2 * epsilon * abs(b) + tolerance / 2
         cb = c - b
         t1 = fb / fc
         t2 = fb / fa
@@ -5175,8 +5178,8 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
                  recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
                  cond((abs(cb / 2) <= tol) | (fb == 0),
                       b,  # acceptable approximation found
-                      cond(sign(new_fb) == sign(fc),  # use c = a for next iteration if signs match
-                           recur(b, new_b, a, fb, new_fb, fa, new_step, iterations_remaining - 1),
+                      cond(sign(new_fb) == sign(fc),  # use c = b for next iteration if signs match
+                           recur(b, new_b, b, fb, new_fb, fb, new_step, iterations_remaining - 1),
                            recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
                            ))))
 

@@ -19,7 +19,6 @@ object FoldConstants {
              _: NDArrayShape |
              _: NDArrayReshape |
              _: NDArraySlice |
-             _: NDArraySlice |
              _: NDArrayMap |
              _: NDArrayMap2 |
              _: NDArrayReindex |
