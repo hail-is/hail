@@ -120,6 +120,9 @@ def loop(f: Callable, typ, *args):
             if contains_recursive_call(loop_ir.value):
                 raise TypeError("bound value used in other expression can't contain recursive call!")
             check_tail_recursive(loop_ir.body)
+        elif isinstance(loop_ir, ir.TailLoop):
+            if any(contains_recursive_call(x) for n, x in loop_ir.params):
+                raise TypeError("parameters passed to inner loop can't contain recursive call!")
         elif not isinstance(loop_ir, ir.Recur) and contains_recursive_call(loop_ir):
             raise TypeError("found recursive expression outside of tail position!")
 

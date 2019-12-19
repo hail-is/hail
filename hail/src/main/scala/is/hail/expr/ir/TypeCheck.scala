@@ -117,19 +117,19 @@ object TypeCheck {
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case RelationalRef(_, _) =>
-      case x@TailLoop(_, _, body) =>
+      case x@TailLoop(name, _, body) =>
         assert(x.typ == body.typ)
-        def checkRecurOnlyInTail(node: IR, tailPosition: Boolean): Boolean = {
-          if (node.isInstanceOf[Recur] && !tailPosition)
-            false
-          else
+        def recurInTail(node: IR, tailPosition: Boolean): Boolean = node match {
+          case x: Recur =>
+            x.name != name || tailPosition
+          case _ =>
             node.children.zipWithIndex
-              .filterNot { case (c, _) => c.isInstanceOf[TailLoop] || !c.isInstanceOf[IR] }
-              .forall { case (c, i) =>
-                checkRecurOnlyInTail(c.asInstanceOf[IR], tailPosition && InTailPosition(node, i))
+              .forall {
+                case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
+                case _ => true
               }
           }
-        assert(checkRecurOnlyInTail(body, true))
+        assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>
         val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
         assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t == ir.typ } )
