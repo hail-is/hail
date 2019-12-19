@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TBoolean
 
@@ -15,6 +15,8 @@ class PBoolean(override val required: Boolean) extends PType {
 
   def _asIdent = "bool"
   def _toPretty = "Boolean"
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("bool")

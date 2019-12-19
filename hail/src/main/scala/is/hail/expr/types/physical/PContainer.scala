@@ -11,6 +11,14 @@ abstract class PContainer extends PIterable {
 
   def contentsAlignment: Long
 
+  def afterLengthHeaderAddress(aoff: Long): Long
+
+  def afterLengthHeaderAddress(aoff: Code[Long]): Code[Long]
+
+  def dataByteSize(length: Code[Int]): Code[Long]
+
+  def dataByteSize(length: Int): Long
+
   def loadLength(region: Region, aoff: Long): Int
 
   def loadLength(aoff: Long): Int
@@ -82,6 +90,8 @@ abstract class PContainer extends PIterable {
   def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long
 
   def loadElement(region: Region, aoff: Long, i: Int): Long
+
+  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
 
   def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
 

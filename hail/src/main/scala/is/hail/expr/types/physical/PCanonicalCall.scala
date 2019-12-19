@@ -1,5 +1,6 @@
 package is.hail.expr.types.physical
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.variant.Genotype
@@ -13,6 +14,8 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
     }
 
     val representation: PType = PInt32(required)
+
+    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
     def copy(required: Boolean = this.required): PCall = PCanonicalCall(required)
 

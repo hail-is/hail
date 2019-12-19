@@ -186,7 +186,7 @@ class PContainerTest extends HailSuite {
       val value = fb.getArg[Long](2)
 
       try {
-        fb.emit(destType.copyFromType(fb, codeRegion, sourceType, value))
+        fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value))
 
         val f = fb.result()()
         val copyOff = f(region, srcOffset)

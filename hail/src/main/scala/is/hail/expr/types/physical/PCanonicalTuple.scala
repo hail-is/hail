@@ -1,5 +1,6 @@
 package is.hail.expr.types.physical
-import is.hail.annotations.UnsafeUtils
+import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
@@ -17,6 +18,8 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
   def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
 

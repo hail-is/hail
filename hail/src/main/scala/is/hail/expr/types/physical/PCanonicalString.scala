@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, MethodBuilder}
 
 class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
@@ -10,6 +10,8 @@ class PCanonicalString(val required: Boolean) extends PString {
   override def byteSize: Long = 8
 
   lazy val binaryFundamentalType: PBinary = PBinary(required)
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
   override def containsPointers: Boolean = true
 }

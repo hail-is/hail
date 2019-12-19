@@ -66,6 +66,22 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     Region.storeInt(aoff, length)
 
+  def afterLengthHeaderAddress(aoff: Long) = {
+    aoff + lengthHeaderBytes
+  }
+
+  def afterLengthHeaderAddress(aoff: Code[Long]) = {
+    aoff + const(lengthHeaderBytes)
+  }
+
+  def dataByteSize(length: Code[Int]): Code[Long] = {
+    length.toL * elementByteSize
+  }
+
+  def dataByteSize(length: Int): Long = {
+    length * elementByteSize
+  }
+
   def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
 
   def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)
@@ -169,6 +185,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
 
+  def nextElementAddress(currentOffset: Long) =
+    currentOffset + elementByteSize
+
+  def nextElementAddress(currentOffset: Code[Long]) =
+    currentOffset + elementByteSize
+
   def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
@@ -181,7 +203,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadElement(region: Region, aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
 
-  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+    loadElementAddress(aoff, length, i)
+
+  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -365,6 +390,75 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       destOff := allocate(region, loadLength(srcOff)),
       Region.copyFrom(srcOff, destOff, contentsByteSize(loadLength(srcOff))),
       destOff
+    )
+  }
+
+  // TODO: non-shallow copy
+  // TODO: handle PBaseStruct, PBinary
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = {
+    assert(this.isOfType(sourcePType))
+
+    if (this == sourcePType) {
+      return sourceOffset
+    }
+
+    val sourceType = sourcePType.asInstanceOf[PContainer]
+    val destOffset: ClassFieldRef[Long] = mb.newField[Long]
+    val numberOfElements = mb.newField[Int]
+    val currentElementAddress = mb.newField[Long]
+    val currentIdx= mb.newField[Int]
+    var c = Code(
+      numberOfElements := sourceType.loadLength(sourceOffset),
+      destOffset := this.allocate(region, numberOfElements)
+    )
+
+    c = Code(c, storeLength(destOffset, numberOfElements))
+    c = Code(c, stagedInitialize(destOffset, numberOfElements))
+    c = Code(c, currentElementAddress := this.firstElementOffset(destOffset, numberOfElements))
+
+    if (this.elementType == sourceType.elementType) {
+      return Code(
+        c,
+        Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceOffset), currentElementAddress, sourceType.dataByteSize(numberOfElements)),
+        destOffset
+      )
+    }
+
+    var loopBody = if (sourceType.elementType.isPrimitive) {
+      sourceType.storeShallow(
+        sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
+        currentElementAddress
+      )
+    } else {
+      Region.storeAddress(
+        currentElementAddress,
+        this.elementType.copyFromType(
+          mb,
+          region,
+          sourceType.elementType.asInstanceOf[PContainer],
+          sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
+          forceShallow
+        )
+      )
+    }
+
+    if(!this.elementType.required) {
+      loopBody = sourceType.isElementMissing(sourceOffset, currentIdx).mux(this.setElementMissing(destOffset, currentIdx), loopBody)
+    } else {
+      c = Code(c, sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(
+        "Found missing values. Cannot copy to type whose elements are required."
+      )))
+    }
+
+    Code(
+      c,
+      currentIdx.store(0),
+      Code.whileLoop(currentIdx < numberOfElements,
+        loopBody,
+        currentElementAddress := this.nextElementAddress(currentElementAddress),
+        currentIdx := currentIdx + const(1)
+      ),
+      destOffset
     )
   }
 }

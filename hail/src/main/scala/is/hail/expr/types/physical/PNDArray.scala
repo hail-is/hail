@@ -29,6 +29,8 @@ final case class PNDArray(elementType: PType, nDims: Int, override val required:
 
   override def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
 
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
+
   @transient lazy val flags = new StaticallyKnownField(PInt32Required, (r, off) => Region.loadInt(representation.loadField(r, off, "flags")))
   @transient lazy val offset = new StaticallyKnownField(
     PInt32Required,

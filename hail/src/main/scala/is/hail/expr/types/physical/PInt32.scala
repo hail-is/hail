@@ -50,6 +50,8 @@ class PInt32(override val required: Boolean) extends PIntegral {
     }
   }
 
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
+
   override def byteSize: Long = 4
 
   override def zero = coerce[PInt32](const(0))

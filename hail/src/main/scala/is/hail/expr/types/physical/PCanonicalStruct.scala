@@ -1,11 +1,12 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
+
 import collection.JavaConverters._
 
 object PCanonicalStruct {
@@ -55,6 +56,8 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
 

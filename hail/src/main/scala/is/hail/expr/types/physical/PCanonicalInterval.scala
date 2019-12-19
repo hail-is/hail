@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, _}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TInterval
@@ -30,6 +30,8 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       "end" -> pointType,
       "includesStart" -> PBooleanRequired,
       "includesEnd" -> PBooleanRequired)
+
+    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
     def copy(required: Boolean = this.required): PInterval = PCanonicalInterval(this.pointType, required)
 

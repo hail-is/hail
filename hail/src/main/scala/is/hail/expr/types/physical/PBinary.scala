@@ -21,6 +21,8 @@ class PBinary(override val required: Boolean) extends PType {
   def _asIdent = "binary"
   def _toPretty = "Binary"
 
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
+
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       val l1 = PBinary.loadLength(r1, o1)

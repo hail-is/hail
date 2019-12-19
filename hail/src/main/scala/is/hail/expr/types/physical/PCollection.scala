@@ -1,7 +1,8 @@
 package is.hail.expr.types.physical
 
-trait PCollection {
-  def nMissingBytes: Int
-  def loadLength: Int
-  def lengthHeaderBytes: Long
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, MethodBuilder}
+
+trait CopyableCollection {
+//  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long]
 }

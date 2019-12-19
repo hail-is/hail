@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.CodeOrdering
+import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TStream
 
@@ -44,6 +45,8 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")

@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{Code, MethodBuilder, const}
 import is.hail.expr.ir.EmitMethodBuilder
 
 trait PArrayBackedContainer extends PContainer {
@@ -16,6 +16,16 @@ trait PArrayBackedContainer extends PContainer {
   override lazy val byteSize: Long = arrayRep.byteSize
 
   override lazy val fundamentalType = PCanonicalArray(elementType.fundamentalType, required)
+
+  def afterLengthHeaderAddress(aoff: Long) =
+    arrayRep.afterLengthHeaderAddress(aoff)
+
+  def afterLengthHeaderAddress(aoff: Code[Long]) =
+    arrayRep.afterLengthHeaderAddress(aoff)
+
+  def dataByteSize(length: Code[Int]): Code[Long] = arrayRep.dataByteSize(length)
+
+  def dataByteSize(length: Int): Long = arrayRep.dataByteSize(length)
 
   def loadLength(region: Region, aoff: Long): Int =
     arrayRep.loadLength(region, aoff)
@@ -110,6 +120,9 @@ trait PArrayBackedContainer extends PContainer {
   def loadElement(aoff: Long, length: Int, i: Int): Long =
     arrayRep.loadElement(aoff, length, i)
 
+  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+    arrayRep.loadElementAddress(aoff, length, i)
+
   def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long =
     arrayRep.loadElement(region, aoff, length, i)
 
@@ -164,7 +177,12 @@ trait PArrayBackedContainer extends PContainer {
   def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] =
     arrayRep.copyFrom(mb, region, srcOff)
 
-  override def unsafeOrdering: UnsafeOrdering = unsafeOrdering(this)
+  override def unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(rightType: PType): UnsafeOrdering = arrayRep.unsafeOrdering(rightType)
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering =
+    arrayRep.unsafeOrdering(rightType)
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] =
+    arrayRep.copyFromType(mb, region, sourcePType, sourceOffset, forceShallow)
 }

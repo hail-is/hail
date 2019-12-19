@@ -1,8 +1,7 @@
 package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
-
 import is.hail.annotations._
-import is.hail.asm4s.{Code, coerce}
+import is.hail.asm4s.{Code, MethodBuilder, coerce}
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TLocus
@@ -37,6 +36,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       sb.append(prettyIdentifier(rg.name))
       sb.append('>')
     }
+
+    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
 
     def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
 

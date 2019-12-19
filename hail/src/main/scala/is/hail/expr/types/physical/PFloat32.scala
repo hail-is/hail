@@ -31,6 +31,8 @@ class PFloat32(override val required: Boolean) extends PNumeric {
     }
   }
 
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
+
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrdering {

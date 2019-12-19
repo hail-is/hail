@@ -152,18 +152,6 @@ object PType {
       case PVoid => PVoid
     }
   }
-
-  def storeShallow(value: Code[Long], sourceType: PType, destOffset: Code[Long]): Code[Unit] = sourceType.fundamentalType match {
-    case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(value))
-    case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(value))
-    case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(value))
-    case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(value))
-    case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(value))
-    case _: PBaseStruct => Region.copyFrom(value, destOffset, sourceType.byteSize)
-    case _: PArray => Region.storeAddress(destOffset, value)
-    case _: PBinary => Region.storeAddress(destOffset, value)
-    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
-  }
 }
 
 abstract class PType extends BaseType with Serializable with Requiredness {
@@ -316,5 +304,19 @@ abstract class PType extends BaseType with Serializable with Requiredness {
 
   def unify(concrete: PType): Boolean = {
     this.isOfType(concrete)
+  }
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long]
+
+  def storeShallow(value: Code[Long], destOffset: Code[Long]): Code[Unit] = this.fundamentalType match {
+    case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(value))
+    case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(value))
+    case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(value))
+    case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(value))
+    case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(value))
+    case _: PBaseStruct => Region.copyFrom(value, destOffset, this.byteSize)
+    case _: PArray => Region.storeAddress(destOffset, value)
+    case _: PBinary => Region.storeAddress(destOffset, value)
+    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 }
