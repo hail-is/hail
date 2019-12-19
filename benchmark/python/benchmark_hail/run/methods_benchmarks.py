@@ -19,7 +19,7 @@ def import_vcf_count_rows(vcf):
 
 @benchmark(args=profile_25.handle('mt'))
 def export_vcf(mt_path):
-    mt = hl.read_matrix_table(hl.read_matrix_table(mt_path))
+    mt = hl.read_matrix_table(mt_path)
     out = hl.utils.new_temp_file(suffix='vcf.bgz')
     hl.export_vcf(mt, out)
 

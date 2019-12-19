@@ -1,9 +1,10 @@
 import os
+import random
 import sys
 
-from hailtop import pipeline as pl
-from benchmark_hail.run.utils import list_benchmarks
 from benchmark_hail.run.resources import all_resources
+from benchmark_hail.run.utils import list_benchmarks
+from hailtop import pipeline as pl
 
 if __name__ == '__main__':
     if len(sys.argv) != 6:
@@ -38,17 +39,23 @@ if __name__ == '__main__':
     print(f'generating {len(all_benchmarks)} * {N_REPLICATES} = '
           f'{len(all_benchmarks) * N_REPLICATES} individual benchmark tasks')
 
+    task_fs = []
     for benchmark in all_benchmarks:
         for replicate in range(N_REPLICATES):
-            t = p.new_task(name=f'{benchmark.name}_{replicate}')
-            t.command('mkdir -p benchmark-resources')
-            for resource_group in benchmark.groups:
-                resource_task = resource_tasks[resource_group]
-                t.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
-                t.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
-            t.command(f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
-                      f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {benchmark.name}')
-            all_output.append(t.ofile)
+            task_fs.append((benchmark.name, replicate, benchmark.groups))
+
+    random.shuffle(task_fs)
+
+    for name, replicate, groups in task_fs:
+        t = p.new_task(name=f'{name}_{replicate}')
+        t.command('mkdir -p benchmark-resources')
+        for resource_group in groups:
+            resource_task = resource_tasks[resource_group]
+            t.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
+            t.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
+        t.command(f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
+                  f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
+        all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
