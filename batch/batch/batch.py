@@ -108,7 +108,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, new_state, status
     now = time_msecs()
 
     async def f():
-        await check_call_procedure(
+        return await check_call_procedure(
             db,
             'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s);',
             (batch_id, job_id, attempt_id, new_state,
