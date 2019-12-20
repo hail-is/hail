@@ -381,3 +381,17 @@ class Tests(unittest.TestCase):
         assert_evals_to(triangle_loop(5, lambda x, c: c + x), 15)
         assert_evals_to(triangle_loop(5, lambda x, c: c + triangle_loop(x, lambda x2, c2: c2 + x2)), 15 + 10 + 6 + 3 + 1)
 
+        n1 = 5
+        calls_recur_from_nested_loop = hl.experimental.loop(
+            lambda f, x1, c1:
+            hl.cond(x1 <= n1,
+                    hl.experimental.loop(
+                        lambda f2, x2, c2:
+                        hl.cond(x2 <= x1,
+                                f2(x2 + 1, c2 + x2),
+                                f(x1 + 1, c1 + c2)),
+                        'int32', 0, 0),
+                    c1),
+            'int32', 0, 0)
+
+        assert_evals_to(calls_recur_from_nested_loop, 15 + 10 + 6 + 3 + 1)

@@ -574,7 +574,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
     if not record['closed']:
-        raise web.HTTPBadRequest(reason='cannot cancel open batch {batch_id}')
+        raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}')
 
     await db.execute_update(
         'UPDATE batches SET cancelled = closed WHERE id = %s;', (batch_id,))
@@ -722,7 +722,7 @@ async def ui_cancel_batch(request, userdata):
     user = userdata['username']
     await _cancel_batch(request.app, batch_id, user)
     session = await aiohttp_session.get_session(request)
-    set_message(session, 'Batch {batch_id} cancelled.', 'info')
+    set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
