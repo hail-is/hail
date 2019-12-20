@@ -454,9 +454,10 @@ def test_ndarray_matmul():
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
         (m @ m, np_m @ np_m),
-        #(m_f32 @ m_f32, np_m_f32 @ np_m_f32),
+        (m_f32 @ m_f32, np_m_f32 @ np_m_f32),
         (m_f64 @ m_f64, np_m_f64 @ np_m_f64),
         (m @ m.T, np_m @ np_m.T),
+        (m_f64 @ m_f64.T, np_m_f64 @ np_m_f64.T),
         (r @ r.T, np_r @ np_r.T),
         #(r_f64 @ r_f64.T, np_r_f64 @ np_r_f64.T),
         (v @ m, np_v @ np_m),
