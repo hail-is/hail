@@ -1430,11 +1430,6 @@ private class Emit(
         }
 
         val codeToEmit = if (lPType.elementType.isInstanceOf[PFloat64] && lPType.nDims == 2) {
-          // Steps:
-          // 1. Get the data addresses of both of the inputs
-          // 2. Copy them into a new space.
-          // 3. Call DGEMM
-          // 4. Construct a new output PNDArray.
           val leftDataAddress = lPType.data.load(region, leftND)
           val rightDataAddress = rPType.data.load(region, rightND)
 
@@ -1462,26 +1457,6 @@ private class Emit(
             LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, N, mb),
             LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, N, mb),
 
-            Code._println("Begin left"),
-            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
-              Code._println(Region.loadDouble(leftColumnMajorAddress + (i * 8L)).toS)
-            ),
-            Code._println("End left"),
-
-            Code._println("Begin right"),
-            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
-              Code._println(Region.loadDouble(rightColumnMajorAddress + (i * 8L)).toS)
-            ),
-            Code._println("End right"),
-
-            Code._println("C before dgemm"),
-            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
-              Code._println(Region.loadDouble(answerColumnMajorAddress + (i * 8L)).toS)
-            ),
-            Code._println("End C before dgemm"),
-
-            Code._println("Calling dgemm"),
-            //DGEMM
             Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
               "N",
               "N",
@@ -1493,19 +1468,13 @@ private class Emit(
               LDA.toI,
               rightColumnMajorAddress,
               LDB.toI,
-              1.0,
+              0.0,
               answerColumnMajorAddress,
               LDC.toI
             ),
-            Code._println("Finished dgemm"),
-            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
-              Code._println(Region.loadDouble(answerColumnMajorAddress + (i * 8L)).toS)
-            ),
             answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
-            Code._println("initialized the output array"),
             LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, mb),
-            Code._println("Copied column major to row major"),
             outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorPArrayAddress, mb)
           )
           // TODO Make sure we free!
