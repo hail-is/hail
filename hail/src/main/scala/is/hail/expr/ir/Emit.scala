@@ -9,7 +9,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.linalg.{BLAS, LAPACK}
+import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1441,7 +1441,7 @@ private class Emit(
           val leftColumnMajorAddress = mb.newLocal[Long]
           val rightColumnMajorAddress = mb.newLocal[Long]
           val answerColumnMajorAddress = mb.newLocal[Long]
-          val answerRowMajorAddress = mb.newField[Long]
+          val answerRowMajorPArrayAddress = mb.newField[Long]
           val M = leftShapeArray(lPType.nDims - 2)
           val N = rightShapeArray(rPType.nDims - 1)
           val K = leftShapeArray(lPType.nDims - 1)
@@ -1451,16 +1451,36 @@ private class Emit(
           val LDB = K
           val LDC = M
 
+          val i = mb.newField[Long]
 
           val block = Code(
+            shapeSetup,
             leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * 8L),
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * 8L),
             answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * 8L),
 
-            // TODO Won't work unless I region allocate and initialize.
-            lPType.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, N, mb),
-            rPType.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, N, mb),
+            LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, N, mb),
+            LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, N, mb),
 
+            Code._println("Begin left"),
+            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
+              Code._println(Region.loadDouble(leftColumnMajorAddress + (i * 8L)).toS)
+            ),
+            Code._println("End left"),
+
+            Code._println("Begin right"),
+            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
+              Code._println(Region.loadDouble(rightColumnMajorAddress + (i * 8L)).toS)
+            ),
+            Code._println("End right"),
+
+            Code._println("C before dgemm"),
+            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
+              Code._println(Region.loadDouble(answerColumnMajorAddress + (i * 8L)).toS)
+            ),
+            Code._println("End C before dgemm"),
+
+            Code._println("Calling dgemm"),
             //DGEMM
             Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
               "N",
@@ -1477,11 +1497,16 @@ private class Emit(
               answerColumnMajorAddress,
               LDC.toI
             ),
-            answerRowMajorAddress := outputPType.data.pType.allocate(region, (M * N).toI),
-            outputPType.data.pType.stagedInitialize(answerRowMajorAddress, (M * N).toI),
-            //outputPType.copyRowMajorToColumnMajor()
-            lPType.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.load(region, answerRowMajorAddress), M, N, mb),
-            outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorAddress, mb)
+            Code._println("Finished dgemm"),
+            Code.forLoop(i := 0L, i < (M * N), i := i + 1L,
+              Code._println(Region.loadDouble(answerColumnMajorAddress + (i * 8L)).toS)
+            ),
+            answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
+            outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
+            Code._println("initialized the output array"),
+            LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, mb),
+            Code._println("Copied column major to row major"),
+            outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorPArrayAddress, mb)
           )
           // TODO Make sure we free!
 
@@ -1489,7 +1514,8 @@ private class Emit(
         } else {
           emitter.emit(outputPType)
         }
-        emitter.emit(outputPType)
+        codeToEmit
+        //emitter.emit(outputPType)
 
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
