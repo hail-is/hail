@@ -1445,7 +1445,7 @@ private class Emit(
           }
         }
 
-        if (lPType.elementType.isInstanceOf[PFloat64] && lPType.nDims == 2) {
+        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2) {
           val leftDataAddress = lPType.data.load(region, leftND)
           val rightDataAddress = rPType.data.load(region, rightND)
 
@@ -1461,34 +1461,57 @@ private class Emit(
           val LDB = K
           val LDC = M
 
+          val i = mb.newField[Long]
+
+          val elementByteSize = lPType.elementType.byteSize
 
           val multiplyViaDGEMM = Code(
             shapeSetup,
-            leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * 8L),
-            rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * 8L),
-            answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * 8L),
+            leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
+            rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
+            answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
 
-            LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, N, mb),
-            LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, N, mb),
-
-            Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
-              "N",
-              "N",
-              M.toI,
-              N.toI,
-              K.toI,
-              1.0,
-              leftColumnMajorAddress,
-              LDA.toI,
-              rightColumnMajorAddress,
-              LDB.toI,
-              0.0,
-              answerColumnMajorAddress,
-              LDC.toI
-            ),
+            LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, N, lPType.elementType, mb),
+            LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, N, lPType.elementType, mb),
+            {
+              lPType.elementType match {
+                case PFloat32(_) =>
+                  Code.invokeScalaObject[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
+                    "N",
+                    "N",
+                    M.toI,
+                    N.toI,
+                    K.toI,
+                    1.0f,
+                    leftColumnMajorAddress,
+                    LDA.toI,
+                    rightColumnMajorAddress,
+                    LDB.toI,
+                    0.0f,
+                    answerColumnMajorAddress,
+                    LDC.toI
+                  )
+                case PFloat64(_) =>
+                  Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+                    "N",
+                    "N",
+                    M.toI,
+                    N.toI,
+                    K.toI,
+                    1.0,
+                    leftColumnMajorAddress,
+                    LDA.toI,
+                    rightColumnMajorAddress,
+                    LDB.toI,
+                    0.0,
+                    answerColumnMajorAddress,
+                    LDC.toI
+                  )
+              }
+            },
             answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
-            LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, mb),
+            LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, lPType.elementType, mb),
             Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()),
