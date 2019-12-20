@@ -1204,30 +1204,6 @@ private class Emit(
         val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.apply(er, codeArgs: _*)
-      case x@Uniroot(argname, fn, min, max) =>
-        val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
-        val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, PFloat64())), env, missingError)
-
-        val localF = mb.newField[AsmFunction3[Region, Double, Boolean, Double]]
-        val codeMin = emit(min)
-        val codeMax = emit(max)
-
-        val res = mb.newLocal[java.lang.Double]
-
-        val setup = Code(codeMin.setup, codeMax.setup)
-        val m = (codeMin.m || codeMax.m).mux(
-          Code(
-            localF := Code._null,
-            res := Code._null,
-            const(true)),
-          Code(
-            localF := asmfunction.newInstance(),
-            res := Code.invokeScalaObject[Region, AsmFunction3[Region, Double, Boolean, Double], Double, Double, java.lang.Double](
-              MathFunctions.getClass,
-              "iruniroot", region, localF, codeMin.value[Double], codeMax.value[Double]),
-            res.isNull))
-
-        EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val xP = x.pType
         val dataContainer = dataIR.pType
@@ -1883,25 +1859,6 @@ private class Emit(
 
     sort.emit(Code(setup, m.mux(Code._fatal("Result of sorting function cannot be missing."), v)))
     f.apply_method.emit(Code(sort.invoke(fregion, f.getArg[T](1), false, f.getArg[T](2), false)))
-    f
-  }
-
-  private def getAsDependentFunction[A1: TypeInfo, R: TypeInfo](
-    ir: IR, argEnv: Env[IR], env: Emit.E, errorMsg: String
-  ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
-    val (newIR, getEnv) = capturedReferences(Subst(ir, BindingEnv(argEnv)))
-    val f = mb.fb.newDependentFunction[Region, A1, Boolean, R]
-
-    val newEnv = getEnv(env, f)
-
-    // FIXME: This shouldn't take aggs but might want to?
-    val foo = new Emit(ctx, f.apply_method, 1)
-    val EmitTriplet(setup, m, v) = foo.emit(newIR, newEnv, EmitRegion.default(f.apply_method), None)
-
-    val call = Code(
-      setup,
-      m.mux(Code._fatal(errorMsg), v))
-    f.emit(call)
     f
   }
 
