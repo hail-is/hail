@@ -33,7 +33,7 @@ Released 2019-12-20
 - (hail#7764) Fixed `mt.entry_field.take` performance regression.
 
 ### New features
-- (hail#7614) Added experimental support for loops with `hl.experimental.loop`
+- (hail#7614) Added experimental support for loops with `hl.experimental.loop`.
 
 ### Miscellaneous
 - (hail#7745) Changed `export_vcf` to only use scientific notation when necessary.
