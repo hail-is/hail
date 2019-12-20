@@ -28,7 +28,7 @@ abstract class PNDArray extends PType {
   val offset: StaticallyKnownField[PInt32Required.type, Int]
   val shape: StaticallyKnownField[PTuple, Long]
   val strides: StaticallyKnownField[PTuple, Long]
-  val data: StaticallyKnownField[PArray, Long]g
+  val data: StaticallyKnownField[PArray, Long]
 
   val representation: PStruct
 
