@@ -395,10 +395,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   // TODO: non-shallow copy
   // TODO: handle PBaseStruct, PBinary
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceDeep: Boolean = false): Code[Long] = {
     assert(this.isOfType(sourcePType))
 
+    // TODO: deep copy here if needed
     if (this == sourcePType) {
+      if(forceDeep) {
+        return this.copyFrom(mb, region, sourceOffset)
+      }
+
       return sourceOffset
     }
 
@@ -416,7 +421,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     c = Code(c, stagedInitialize(destOffset, numberOfElements))
     c = Code(c, currentElementAddress := this.firstElementOffset(destOffset, numberOfElements))
 
+    // if the
     if (this.elementType == sourceType.elementType) {
+      println("EQUALS")
       return Code(
         c,
         Region.copyFrom(sourceType.afterLengthHeaderAddress(sourceOffset), currentElementAddress, sourceType.dataByteSize(numberOfElements)),
@@ -425,11 +432,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
     var loopBody = if (sourceType.elementType.isPrimitive) {
+      println("In element block")
       sourceType.storeShallow(
         sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
         currentElementAddress
       )
     } else {
+      println("In store address block")
       Region.storeAddress(
         currentElementAddress,
         this.elementType.copyFromType(
@@ -442,13 +451,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       )
     }
 
-    if(!this.elementType.required) {
-      loopBody = sourceType.isElementMissing(sourceOffset, currentIdx).mux(this.setElementMissing(destOffset, currentIdx), loopBody)
-    } else {
-      c = Code(c, sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(
-        "Found missing values. Cannot copy to type whose elements are required."
-      )))
-    }
+//    if(!this.elementType.required) {
+//      println("Not required")
+//      loopBody = sourceType.isElementMissing(sourceOffset, currentIdx).mux(this.setElementMissing(destOffset, currentIdx), loopBody)
+//    } else {
+//      c = Code(c, sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(
+//        "Found missing values. Cannot copy to type whose elements are required."
+//      )))
+//    }
 
     Code(
       c,

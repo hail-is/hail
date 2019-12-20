@@ -205,18 +205,26 @@ class PContainerTest extends HailSuite {
     }
 
     testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
-    // Such tests, where array is null are not currently possible due to ArrayStack.top semantics (ScalaToRegionValue)
-    // testArrayCopy(PArray(PInt32()), PArray(PInt32()), null, false)
-    testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
-    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
     testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
-    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
-    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
-    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
+    testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
+    testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false)
+    println("Testing upcast")
 
-    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(true))),
-      FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true)
     testArrayCopy(PArray(PArray(PInt64(true), true)), PArray(PArray(PInt64(false))),
       FastIndexedSeq(FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
+    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
+
+    println("Testing downcase")
+    // Such tests, where array is null are not currently possible due to ArrayStack.top semantics (ScalaToRegionValue)
+    // testArrayCopy(PArray(PInt32()), PArray(PInt32()), null, false)
+
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
+
+    println("testing errors")
+    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
+    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(true))),
+      FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true)
+
   }
 }
