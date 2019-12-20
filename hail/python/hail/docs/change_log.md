@@ -24,6 +24,22 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.30
+
+Released 2019-12-20
+
+### Performance
+- (hail#7771) Fixed extreme performance regression in scans. 
+- (hail#7764) Fixed `mt.entry_field.take` performance regression.
+
+### New features
+- (hail#7614) Added experimental support for loops with `hl.experimental.loop`.
+
+### Miscellaneous
+- (hail#7745) Changed `export_vcf` to only use scientific notation when necessary.
+
+---
+
 ## Version 0.2.29
 
 Released 2019-12-17
