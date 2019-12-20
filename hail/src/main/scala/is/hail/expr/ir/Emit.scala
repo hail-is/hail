@@ -1445,7 +1445,7 @@ private class Emit(
           }
         }
 
-        val codeToEmit = if (lPType.elementType.isInstanceOf[PFloat64] && lPType.nDims == 2) {
+        if (lPType.elementType.isInstanceOf[PFloat64] && lPType.nDims == 2) {
           val leftDataAddress = lPType.data.load(region, leftND)
           val rightDataAddress = rPType.data.load(region, rightND)
 
@@ -1457,14 +1457,12 @@ private class Emit(
           val N = rightShapeArray(rPType.nDims - 1)
           val K = leftShapeArray(lPType.nDims - 1)
 
-          // TODO Are these right?
           val LDA = M
           val LDB = K
           val LDC = M
 
-          val i = mb.newField[Long]
 
-          val block = Code(
+          val multiplyViaDGEMM = Code(
             shapeSetup,
             leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * 8L),
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * 8L),
@@ -1491,16 +1489,16 @@ private class Emit(
             answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
             LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, mb),
+            Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
+            Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
+            Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()),
             outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorPArrayAddress, mb)
           )
-          // TODO Make sure we free!
 
-          EmitTriplet(missingSetup, isMissing, block)
+          EmitTriplet(missingSetup, isMissing, multiplyViaDGEMM)
         } else {
           emitter.emit(outputPType)
         }
-        codeToEmit
-        //emitter.emit(outputPType)
 
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
