@@ -356,7 +356,7 @@ class Tests(unittest.TestCase):
 
         def triangle_with_tuple(n):
             return hl.experimental.loop(
-                lambda f, xc: hl.cond(x > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]),
+                lambda f, xc: hl.cond(xc[0] > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]),
                 hl.tint32, (n, 0))
 
         for triangle in [triangle_with_ints, triangle_with_tuple]:
