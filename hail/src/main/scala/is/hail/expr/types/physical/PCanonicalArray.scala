@@ -391,6 +391,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
+  // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     if (this == sourcePType && !forceDeep) {
@@ -415,11 +416,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         dstAddress
       )
     }
-    
-    // src/dest are unequal
 
-    val currentElementAddress = mb.newField[Long]
-    val currentIdx = mb.newField[Int]
+    val currentElementAddress = mb.newLocal[Long]
+    val currentIdx = mb.newLocal[Int]
     var shallowLoop: Code[_] = sourceType.elementType.storeShallow(
       currentElementAddress,
       sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
@@ -442,14 +441,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       }
     }
 
-    c = Code(
-      c,
-      this.stagedInitialize(dstAddress, numberOfElements),
-      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements)
-    )
-
     Code(
       c,
+      this.stagedInitialize(dstAddress, numberOfElements),
+      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
       currentIdx := const(0),
       Code.whileLoop(currentIdx < numberOfElements,
         Code(
