@@ -183,6 +183,12 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] =
-    arrayRep.copyFromType(mb, region, sourcePType, sourceOffset, forceShallow)
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] =
+    arrayRep.copyFromType(mb, region, sourcePType, sourceOffset, allowDowncast, forceDeep)
+
+  def nextElementAddress(currentOffset: Long) =
+    arrayRep.nextElementAddress(currentOffset)
+
+  def nextElementAddress(currentOffset: Code[Long]) =
+    arrayRep.nextElementAddress(currentOffset)
 }

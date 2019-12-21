@@ -37,7 +37,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       sb.append('>')
     }
 
-    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
+    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
 
     def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
 

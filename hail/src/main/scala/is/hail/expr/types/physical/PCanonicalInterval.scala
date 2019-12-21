@@ -31,8 +31,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       "includesStart" -> PBooleanRequired,
       "includesEnd" -> PBooleanRequired)
 
-    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long] = ???
-
     def copy(required: Boolean = this.required): PInterval = PCanonicalInterval(this.pointType, required)
 
     def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
@@ -68,4 +66,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def includeEnd(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
+
+    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
 }

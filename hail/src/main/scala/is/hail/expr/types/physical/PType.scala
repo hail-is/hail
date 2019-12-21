@@ -161,7 +161,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
 
   def unsafeOrdering(): UnsafeOrdering = ???
 
-  def isCanonical: Boolean = PType.canonical(this) == this  // will recons, may need to rewrite this method
+  def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
@@ -289,7 +289,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
 
   def deepInnerRequired(required: Boolean): PType =
     this match {
-      case t: PArray =>  PArray(t.elementType.deepInnerRequired(true), required)
+      case t: PArray => PArray(t.elementType.deepInnerRequired(true), required)
       case t: PSet => PSet(t.elementType.deepInnerRequired(true), required)
       case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
@@ -306,17 +306,19 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     this.isOfType(concrete)
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], forceShallow: Boolean = false): Code[Long]
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long]
 
-  def storeShallow(value: Code[Long], destOffset: Code[Long]): Code[Unit] = this.fundamentalType match {
-    case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(value))
-    case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(value))
-    case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(value))
-    case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(value))
-    case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(value))
-    case _: PBaseStruct => Region.copyFrom(value, destOffset, this.byteSize)
-    case _: PArray => Region.storeAddress(destOffset, value)
-    case _: PBinary => Region.storeAddress(destOffset, value)
-    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+  def storeShallow(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+    this.fundamentalType match {
+      case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(valueAddress))
+      case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(valueAddress))
+      case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(valueAddress))
+      case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(valueAddress))
+      case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(valueAddress))
+      case _: PBaseStruct => Region.copyFrom(valueAddress, destOffset, this.byteSize)
+      case _: PArray => Region.storeAddress(destOffset, valueAddress)
+      case _: PBinary => Region.storeAddress(destOffset, valueAddress)
+      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+    }
   }
 }

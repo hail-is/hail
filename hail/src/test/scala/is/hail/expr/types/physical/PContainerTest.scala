@@ -7,7 +7,10 @@ import is.hail.expr.ir.{EmitFunctionBuilder}
 import is.hail.utils._
 import org.testng.annotations.Test
 
+final case class UnexpectedException(private val message: String = "", private val cause: Throwable = None.orNull) extends Exception(message, cause)
+
 class PContainerTest extends HailSuite {
+
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements)(i => {
       if (i == missingElement - 1)
@@ -175,7 +178,7 @@ class PContainerTest extends HailSuite {
   }
 
   @Test def testArrayCopy() {
-    def testArrayCopy(sourceType: PArray, destType: PArray, sourceValue: IndexedSeq[Any], expectedException: Boolean) {
+    def testArrayCopy(sourceType: PArray, destType: PArray, sourceValue: IndexedSeq[Any], expectedException: Boolean, allowDowncast: Boolean = false) {
       val region = Region()
       val srcRegion = Region()
 
@@ -186,17 +189,25 @@ class PContainerTest extends HailSuite {
       val value = fb.getArg[Long](2)
 
       try {
-        fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value))
+        fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value, allowDowncast))
 
         val f = fb.result()()
         val copyOff = f(region, srcOffset)
         val copy = SafeIndexedSeq(destType, region, copyOff)
+
+        println(s"Copied value: ${copy}")
         assert(copy == sourceValue)
-        log.debug(s"Copied value: ${copy}")
+
+        if(expectedException) {
+          throw new UnexpectedException("Expected exception, but test passed")
+        }
       } catch {
+        case e: UnexpectedException => {
+          throw new Error(e.getMessage)
+        }
         case e: Throwable => {
           if(expectedException) {
-            log.debug(s"Found expected exception: ${e.getMessage}")
+            println(s"Found expected exception: ${e.getMessage}")
           } else {
             throw new Error(e)
           }
@@ -204,27 +215,38 @@ class PContainerTest extends HailSuite {
       }
     }
 
-    testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
-    testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
-    testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
-    testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false)
-    println("Testing upcast")
+//    testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
+//        testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
+//        testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
+//        testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false)
+//    //    println("OK. Testing upcast")
+//
+//    testArrayCopy(PArray(PArray(PInt64(false)), true), PArray(PArray(PInt64(false))),
+//      FastIndexedSeq(FastIndexedSeq(20L,5L,31L,41L)), false)
+//
+//    testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(false))),
+//      FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
+//    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
+//
+//    println("Testing downcase")
+//    // Such tests, where array is null are not currently possible due to ArrayStack.top semantics (ScalaToRegionValue)
+//    // testArrayCopy(PArray(PInt32()), PArray(PInt32()), null, false)
+//
+//    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), true)
+//    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false, allowDowncast = true)
+//
+//    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
 
-    testArrayCopy(PArray(PArray(PInt64(true), true)), PArray(PArray(PInt64(false))),
-      FastIndexedSeq(FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
-    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
+//    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
+    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
+      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
 
-    println("Testing downcase")
-    // Such tests, where array is null are not currently possible due to ArrayStack.top semantics (ScalaToRegionValue)
-    // testArrayCopy(PArray(PInt32()), PArray(PInt32()), null, false)
+    testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(), true), true),
+      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
 
-    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
-    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
 
-    println("testing errors")
-    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
-    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(true))),
-      FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true)
+    testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(true), true), true),
+      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
 
   }
 }
