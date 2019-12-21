@@ -394,6 +394,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     if (this == sourcePType) {
       if(forceDeep) {
+        // TODO: This isn't really a deep copy
         return this.copyFrom(mb, region, sourceOffset)
       }
 
