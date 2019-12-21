@@ -391,23 +391,18 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  // TODO: non-shallow copy
-  // TODO: handle PBaseStruct, PBinary
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    // TODO: deep copy here if needed
     if (this == sourcePType) {
       if(forceDeep) {
-        println("Force deep")
         return this.copyFrom(mb, region, sourceOffset)
       }
-      println("Equals, returning offset")
+
       return sourceOffset
     }
 
     assert(this.isOfType(sourcePType))
 
     val sourceType = sourcePType.asInstanceOf[PContainer]
-
     val numberOfElements = mb.newLocal[Int]
     val destOffset = mb.newLocal[Long]
     var c: Code[_] = Code(
@@ -415,7 +410,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       destOffset := this.allocate(region, numberOfElements)
     )
 
-    // if the requiredeness is the same on the element types we can copy over everything as is
     if (this.elementType == sourceType.elementType) {
       return Code(
         c,
@@ -425,43 +419,47 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
     val currentElementAddress = mb.newField[Long]
-    val currentIdx= mb.newField[Int]
-
     c = Code(
       c,
       this.stagedInitialize(destOffset, numberOfElements),
       currentElementAddress := this.firstElementOffset(destOffset, numberOfElements)
     )
 
+    val currentIdx= mb.newField[Int]
     val loopBody: Code[_] = Code(
-
       if (sourceType.elementType.isPrimitive) {
         Code(
-          Code._println("Is a primitive"),
           sourceType.elementType.storeShallow(
             currentElementAddress,
             sourceType.loadElement(region, sourceOffset, numberOfElements, currentIdx)
           )
         )
       } else {
-        Code(
-          Code._println("Not a primitive"),
-          Region.storeAddress(
-            currentElementAddress,
-            this.elementType.copyFromType(
-              mb,
-              region,
-              sourceType.elementType.asInstanceOf[PContainer],
-              sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
-              forceDeep
-            )
+        Region.storeAddress(
+          currentElementAddress,
+          this.elementType.copyFromType(
+            mb,
+            region,
+            sourceType.elementType.asInstanceOf[PContainer],
+            sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
+            allowDowncast,
+            forceDeep
           )
         )
-
       }
     )
 
-    c = Code(
+    if(this.elementType.required) {
+      if(!allowDowncast) {
+        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
+      }
+
+      c = Code(c, sourceType.hasMissingValues(sourceOffset).orEmpty(
+        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+      ))
+    }
+
+    Code(
       c,
       currentIdx := const(0),
       Code.whileLoop(currentIdx < numberOfElements,
@@ -471,18 +469,5 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       ),
       destOffset
     )
-
-    if(this.elementType.required) {
-      if(!allowDowncast) {
-        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
-      }
-
-      c = Code(sourceType.hasMissingValues(sourceOffset).mux(
-        Code._fatal("Found missing values. Cannot copy to type whose elements are required."),
-        c
-      ))
-    }
-
-    c.asInstanceOf[Code[Long]]
   }
 }

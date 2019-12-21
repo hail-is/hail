@@ -23,7 +23,14 @@ object Interpretable {
         _: NDArrayReindex |
         _: NDArrayAgg |
         _: NDArrayMatMul |
+        _: TailLoop |
+        _: Recur |
         _: NDArrayWrite => false
+      case x: ApplyIR =>
+        !Exists(x.body, {
+          case n: IR => !Interpretable(n)
+          case _ => false
+        })
       case _ => true
     })
   }

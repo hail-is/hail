@@ -215,38 +215,54 @@ class PContainerTest extends HailSuite {
       }
     }
 
-//    testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
-//        testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
-//        testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
-//        testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false)
-//    //    println("OK. Testing upcast")
-//
-//    testArrayCopy(PArray(PArray(PInt64(false)), true), PArray(PArray(PInt64(false))),
-//      FastIndexedSeq(FastIndexedSeq(20L,5L,31L,41L)), false)
-//
-//    testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(false))),
-//      FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
-//    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
-//
-//    println("Testing downcase")
-//    // Such tests, where array is null are not currently possible due to ArrayStack.top semantics (ScalaToRegionValue)
-//    // testArrayCopy(PArray(PInt32()), PArray(PInt32()), null, false)
-//
-//    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), true)
-//    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false, allowDowncast = true)
-//
-//    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
+    // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
 
-//    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
+    testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
+        testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
+        testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
+        testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false)
+
+    testArrayCopy(PArray(PArray(PInt64(false)), true), PArray(PArray(PInt64(false))),
+      FastIndexedSeq(FastIndexedSeq(20L,5L,31L,41L)), false)
+
+    testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(false))),
+      FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
+    testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
+
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), true)
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false, allowDowncast = true)
+    testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
+
+    testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
+
+    val complexNesting = FastIndexedSeq(FastIndexedSeq(FastIndexedSeq(20L,30L,31L,41L), FastIndexedSeq(20L,22L,31L,43L)),
+      FastIndexedSeq(FastIndexedSeq(1L,3L,31L,41L), FastIndexedSeq(0L,30L,17L,41L)))
+    testArrayCopy(PArray(PArray(PArray(PInt64(true), true), true), true), PArray(PArray(PArray(PInt64()))),complexNesting, false)
+    testArrayCopy(PArray(PArray(PArray(PInt64(true), true), true)), PArray(PArray(PArray(PInt64()))),complexNesting, false)
+    testArrayCopy(PArray(PArray(PArray(PInt64(true), true))), PArray(PArray(PArray(PInt64()))),complexNesting, false)
+    testArrayCopy(PArray(PArray(PArray(PInt64(true)))), PArray(PArray(PArray(PInt64()))),complexNesting, false)
+    testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64()))),complexNesting, false)
+    testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true)))),complexNesting, false, allowDowncast = true)
+    testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true))),complexNesting, false, allowDowncast = true)
+    testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true)),complexNesting, false, allowDowncast = true)
+    testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true), true),complexNesting, false, allowDowncast = true)
+
+    testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64())),
+      FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false)
+
     testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
-      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
+      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, false)
+
+    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
+      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true)
+
+    testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
+      FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
 
     testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(), true), true),
-      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
-
+      FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true)
 
     testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(true), true), true),
       FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
-
   }
 }
