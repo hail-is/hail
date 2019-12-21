@@ -195,7 +195,7 @@ class PContainerTest extends HailSuite {
         val copyOff = f(region, srcOffset)
         val copy = SafeIndexedSeq(destType, region, copyOff)
 
-        println(s"Copied value: ${copy}")
+        log.debug(s"Copied value: ${copy}, Source value: ${sourceValue}")
         assert(copy == sourceValue)
 
         if(expectedException) {
@@ -207,7 +207,7 @@ class PContainerTest extends HailSuite {
         }
         case e: Throwable => {
           if(expectedException) {
-            println(s"Found expected exception: ${e.getMessage}")
+            log.debug(s"Found expected exception: ${e.getMessage}")
           } else {
             throw new Error(e)
           }

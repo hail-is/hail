@@ -15,7 +15,9 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
 
     val representation: PType = PInt32(required)
 
-    override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
+    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
+    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] =
+      representation.copyFromType(mb, region, sourcePType, srcAddress, allowDowncast, forceDeep)
 
     def copy(required: Boolean = this.required): PCall = PCanonicalCall(required)
 

@@ -263,5 +263,11 @@ abstract class PBaseStruct extends PType {
     }
   }
 
+  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+    Region.copyFrom(valueAddress, destOffset, this.byteSize)
+  }
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
+
   override def containsPointers: Boolean = types.exists(_.containsPointers)
 }

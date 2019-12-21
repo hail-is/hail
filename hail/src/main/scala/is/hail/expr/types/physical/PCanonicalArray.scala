@@ -391,6 +391,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
+  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+    Region.storeAddress(destOffset, valueAddress)
+  }
+
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
@@ -402,8 +406,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     val sourceType = sourcePType.asInstanceOf[PContainer]
 
+    val dstAddress = mb.newField[Long]
     val numberOfElements = mb.newLocal[Int]
-    val dstAddress = mb.newLocal[Long]
     var c: Code[_] = Code(
       numberOfElements := sourceType.loadLength(srcAddress),
       dstAddress := this.allocate(region, numberOfElements)
@@ -419,7 +423,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     val currentElementAddress = mb.newLocal[Long]
     val currentIdx = mb.newLocal[Int]
-    var shallowLoop: Code[_] = sourceType.elementType.storeShallow(
+    var shallowLoop: Code[_] = sourceType.elementType.fundamentalType.storeShallowAtOffset(
       currentElementAddress,
       sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
     )

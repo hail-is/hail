@@ -14,6 +14,10 @@ class PCanonicalString(val required: Boolean) extends PString {
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
 
   override def containsPointers: Boolean = true
+
+  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+    Region.storeAddress(destOffset, valueAddress)
+  }
 }
 
 object PCanonicalString {
