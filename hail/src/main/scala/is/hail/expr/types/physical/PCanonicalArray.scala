@@ -396,15 +396,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    if (this == sourcePType && !forceDeep) {
+    if (this == srcPType && !forceDeep) {
       return srcAddress
     }
 
-    assert(this.isOfType(sourcePType))
+    assert(srcPType.isInstanceOf[PCanonicalArray])
 
-    val sourceType = sourcePType.asInstanceOf[PContainer]
+    val sourceType = srcPType.asInstanceOf[PCanonicalArray]
 
     val dstAddress = mb.newField[Long]
     val numberOfElements = mb.newLocal[Int]
@@ -456,10 +456,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             // recurse
             Region.storeAddress(
               currentElementAddress,
-              this.elementType.copyFromType(
+              this.elementType.fundamentalType.copyFromType(
                 mb,
                 region,
-                sourceType.elementType,
+                sourceType.elementType.fundamentalType,
                 sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
                 allowDowncast,
                 forceDeep

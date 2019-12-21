@@ -2,9 +2,7 @@ package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
 import is.hail.annotations._
 import is.hail.asm4s.{Code, MethodBuilder, coerce}
-import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TLocus
 import is.hail.utils._
 import is.hail.variant._
 
@@ -26,32 +24,28 @@ object PCanonicalLocus {
 }
 
 final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) extends PLocus {
-    def rg: ReferenceGenome = rgBc.value
+  def rg: ReferenceGenome = rgBc.value
 
-    def _asIdent = "locus"
-    def _toPretty = s"Locus($rg)"
+  def _asIdent = "locus"
+  def _toPretty = s"Locus($rg)"
 
-    override def pyString(sb: StringBuilder): Unit = {
-      sb.append("locus<")
-      sb.append(prettyIdentifier(rg.name))
-      sb.append('>')
-    }
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("locus<")
+    sb.append(prettyIdentifier(rg.name))
+    sb.append('>')
+  }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
-    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] =
-    representation.copyFromType(mb, region, sourcePType, srcAddress, allowDowncast, forceDeep)
+  def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
 
-    def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
+  val representation: PStruct = PCanonicalLocus.representation(required)
 
-    val representation: PStruct = PCanonicalLocus.representation(required)
+  def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
 
-    def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
+  lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 
-    lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
+  def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
 
-    def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
-
-    lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
+  lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(): UnsafeOrdering = {
@@ -106,5 +100,14 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
             codeRG.invoke[String, String, Int]("compare", s1, s2)))
       }
     }
+  }
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    assert(this isOfType srcPType)
+
+    val srcRepPType = srcPType.asInstanceOf[PCanonicalLocus].representation
+
+    representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
   }
 }

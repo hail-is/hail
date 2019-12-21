@@ -15,10 +15,6 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
 
     val representation: PType = PInt32(required)
 
-    def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
-    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] =
-      representation.copyFromType(mb, region, sourcePType, srcAddress, allowDowncast, forceDeep)
-
     def copy(required: Boolean = this.required): PCall = PCanonicalCall(required)
 
     def ploidy(c: Code[Int]): Code[Int] = (c >>> 1) & 0x3
@@ -61,4 +57,12 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
       )
     }
 
+    def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+      allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+      assert(this isOfType srcPType)
+
+      val srcRepPType = srcPType.asInstanceOf[PCanonicalCall].representation
+
+      representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
+    }
 }

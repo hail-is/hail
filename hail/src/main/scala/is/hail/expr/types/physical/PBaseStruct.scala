@@ -267,7 +267,12 @@ abstract class PBaseStruct extends PType {
     Region.copyFrom(valueAddress, destOffset, this.byteSize)
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType,
+  sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    // TODO
+    ???
+  }
+
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
 }
