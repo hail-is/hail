@@ -252,7 +252,7 @@ class PContainerTest extends HailSuite {
         FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false)
 
       testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, false)
+        FastIndexedSeq(FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, false)
 
       testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
         FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true)

@@ -346,30 +346,30 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] = {
+  def hasMissingValues(srcAddress: Code[Long]): Code[Boolean] = {
     if(elementType.required) {
       return const(false)
     }
 
-    Region.containsNonZeroBits(sourceOffset + lengthHeaderBytes, loadLength(sourceOffset).toL)
+    Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toL)
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
     if (sourceType.elementType.required == this.elementType.required) {
-      return sourceOffset
+      return srcAddress
     }
 
     Code(
-      sourceType.hasMissingValues(sourceOffset).orEmpty(Code._fatal(msg)), {
+      sourceType.hasMissingValues(srcAddress).orEmpty(Code._fatal(msg)), {
         val newOffset = mb.newField[Long]
-        val len = sourceType.loadLength(sourceOffset)
+        val len = sourceType.loadLength(srcAddress)
 
         Code(
           newOffset := allocate(r, len),
           stagedInitialize(newOffset, len),
-          Region.copyFrom(sourceType.firstElementOffset(sourceOffset, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+          Region.copyFrom(sourceType.firstElementOffset(srcAddress, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
           newOffset
         )
       }
@@ -391,86 +391,89 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
+  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     if (this == sourcePType && !forceDeep) {
-      return sourceOffset
+      return srcAddress
     }
 
     assert(this.isOfType(sourcePType))
 
     val sourceType = sourcePType.asInstanceOf[PContainer]
+
     val numberOfElements = mb.newLocal[Int]
-    val destOffset = mb.newLocal[Long]
+    val dstAddress = mb.newLocal[Long]
     var c: Code[_] = Code(
-      numberOfElements := sourceType.loadLength(sourceOffset),
-      destOffset := this.allocate(region, numberOfElements)
+      numberOfElements := sourceType.loadLength(srcAddress),
+      dstAddress := this.allocate(region, numberOfElements)
     )
 
-    if (this.elementType == sourceType.elementType && !forceDeep) {
+    if (this.elementType == sourceType.elementType && (!forceDeep || sourceType.elementType.isPrimitive)) {
       return Code(
         c,
-        Region.copyFrom(sourceOffset, destOffset, contentsByteSize(numberOfElements)),
-        destOffset
+        Region.copyFrom(srcAddress, dstAddress, contentsByteSize(numberOfElements)),
+        dstAddress
       )
     }
+    
+    // src/dest are unequal
 
     val currentElementAddress = mb.newField[Long]
+    val currentIdx = mb.newField[Int]
+    var shallowLoop: Code[_] = sourceType.elementType.storeShallow(
+      currentElementAddress,
+      sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
+    )
+
+    if(this.elementType.required) {
+      if(!sourceType.elementType.required) {
+        if(!allowDowncast) {
+          return Code._fatal("Downcast isn't allowed and source elementType isn't required")
+        }
+
+        c = Code(c, sourceType.hasMissingValues(srcAddress).orEmpty(
+          Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+        ))
+      } else if(!this.elementType.required) {
+        shallowLoop = Code(sourceType.isElementMissing(srcAddress, currentIdx).mux(
+          this.setElementMissing(dstAddress, currentIdx),
+          shallowLoop
+        ))
+      }
+    }
+
     c = Code(
       c,
-      this.stagedInitialize(destOffset, numberOfElements),
-      currentElementAddress := this.firstElementOffset(destOffset, numberOfElements)
+      this.stagedInitialize(dstAddress, numberOfElements),
+      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements)
     )
-
-    val currentIdx= mb.newField[Int]
-    val loopBody: Code[_] = Code(
-      if (sourceType.elementType.isPrimitive) {
-        val p = sourceType.elementType.storeShallow(
-          currentElementAddress,
-          sourceType.loadElement(region, sourceOffset, numberOfElements, currentIdx)
-        )
-
-        if(!sourceType.elementType.required && !this.elementType.required) {
-          sourceType.isElementMissing(sourceOffset, currentIdx).mux(
-            this.setElementMissing(destOffset, currentIdx),
-            p
-          )
-        } else {
-          p
-        }
-      } else {
-        Region.storeAddress(
-          currentElementAddress,
-          this.elementType.copyFromType(
-            mb,
-            region,
-            sourceType.elementType.asInstanceOf[PContainer],
-            sourceType.loadElementAddress(sourceOffset, numberOfElements, currentIdx),
-            allowDowncast,
-            forceDeep
-          )
-        )
-      }
-    )
-
-    if(this.elementType.required && !sourceType.elementType.required) {
-      if(!allowDowncast) {
-        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
-      }
-
-      c = Code(c, sourceType.hasMissingValues(sourceOffset).orEmpty(
-        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
-      ))
-    }
 
     Code(
       c,
       currentIdx := const(0),
       Code.whileLoop(currentIdx < numberOfElements,
-        loopBody,
+        Code(
+          if (!sourceType.elementType.isPrimitive) {
+            // recurse
+            Region.storeAddress(
+              currentElementAddress,
+              this.elementType.copyFromType(
+                mb,
+                region,
+                sourceType.elementType,
+                sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+                allowDowncast,
+                forceDeep
+              )
+            )
+          } else {
+            shallowLoop
+          }
+        ),
         currentElementAddress := this.nextElementAddress(currentElementAddress),
         currentIdx := currentIdx + const(1)
       ),
-      destOffset
+      dstAddress
     )
   }
 }
