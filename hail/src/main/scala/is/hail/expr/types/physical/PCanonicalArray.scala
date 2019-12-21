@@ -392,12 +392,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    if (this == sourcePType) {
-      if(forceDeep) {
-        // TODO: This isn't really a deep copy
-        return this.copyFrom(mb, region, sourceOffset)
-      }
-
+    if (this == sourcePType && !forceDeep) {
       return sourceOffset
     }
 
@@ -411,7 +406,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       destOffset := this.allocate(region, numberOfElements)
     )
 
-    if (this.elementType == sourceType.elementType) {
+    if (this.elementType == sourceType.elementType && !forceDeep) {
       return Code(
         c,
         Region.copyFrom(sourceOffset, destOffset, contentsByteSize(numberOfElements)),
@@ -429,12 +424,19 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val currentIdx= mb.newField[Int]
     val loopBody: Code[_] = Code(
       if (sourceType.elementType.isPrimitive) {
-        Code(
-          sourceType.elementType.storeShallow(
-            currentElementAddress,
-            sourceType.loadElement(region, sourceOffset, numberOfElements, currentIdx)
-          )
+        val p = sourceType.elementType.storeShallow(
+          currentElementAddress,
+          sourceType.loadElement(region, sourceOffset, numberOfElements, currentIdx)
         )
+
+        if(!sourceType.elementType.required && !this.elementType.required) {
+          sourceType.isElementMissing(sourceOffset, currentIdx).mux(
+            this.setElementMissing(destOffset, currentIdx),
+            p
+          )
+        } else {
+          p
+        }
       } else {
         Region.storeAddress(
           currentElementAddress,
@@ -450,7 +452,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       }
     )
 
-    if(this.elementType.required) {
+    if(this.elementType.required && !sourceType.elementType.required) {
       if(!allowDowncast) {
         return Code._fatal("Downcast isn't allowed and source elementType isn't required")
       }
