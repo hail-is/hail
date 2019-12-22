@@ -396,7 +396,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
-  // TODO: handle case like FastIndexedSeq(null, FastIndexedSeq(FastIndexedSeq(null))) for PArray(PArray(PInt32())?
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     assert(srcPType.isInstanceOf[PCanonicalArray])
