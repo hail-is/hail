@@ -288,6 +288,9 @@ class PContainerTest extends HailSuite {
       testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(true))),
         FastIndexedSeq(FastIndexedSeq(99L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         allowDowncast = true, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(true))),
+        FastIndexedSeq(FastIndexedSeq(99L), FastIndexedSeq(20L,3L,31L,41L), FastIndexedSeq(1L,2L, null)),
+        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep)
 
       // test complex nesting
       val complexNesting = FastIndexedSeq(
@@ -313,29 +316,6 @@ class PContainerTest extends HailSuite {
         complexNesting, allowDowncast = true, forceDeep = forceDeep)
       testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true), true),
         complexNesting, allowDowncast = true, forceDeep = forceDeep)
-
-
-      // TOOD: decide if needed
-      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64())),
-        FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)),
-        forceDeep = forceDeep)
-
-      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq(FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)),
-        expectRuntimeErr = true, forceDeep = forceDeep)
-
-      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)),
-        expectRuntimeErr = true, forceDeep = forceDeep)
-
-      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)),
-        expectRuntimeErr = true, forceDeep = forceDeep)
-
-      // top-level array requiredeness doesn't matter, because to have source address, need a value from source
-      testArrayCopy(PArray(PArray(PInt64(), true)), PArray(PArray(PInt64(), true), true),
-        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)),
-        forceDeep = forceDeep)
     }
 
     runTests(true)
