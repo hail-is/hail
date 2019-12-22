@@ -274,18 +274,18 @@ class PContainerTest extends HailSuite {
         FastIndexedSeq(FastIndexedSeq(null)), forceDeep = forceDeep)
 
       // test 2D arrays
-      testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(false))),
+      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64())),
         FastIndexedSeq(null, FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         forceDeep = forceDeep)
 
       // test 2D array with missingness
-      testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(false), true)),
+      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         allowDowncast = true, forceDeep = forceDeep)
-      testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(false), true)),
+      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
         FastIndexedSeq(null, FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep)
-      testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(true))),
+      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64(true))),
         FastIndexedSeq(FastIndexedSeq(99L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         allowDowncast = true, forceDeep = forceDeep)
 
