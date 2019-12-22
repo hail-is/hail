@@ -1923,43 +1923,6 @@ class ApplySeeded(IR):
         return True
 
 
-class Uniroot(IR):
-    @typecheck_method(argname=str, function=IR, min=IR, max=IR)
-    def __init__(self, argname, function, min, max):
-        super().__init__(function, min, max)
-        self.argname = argname
-        self.function = function
-        self.min = min
-        self.max = max
-
-    @typecheck_method(function=IR, min=IR, max=IR)
-    def copy(self, function, min, max):
-        return Uniroot(self.argname, function, min, max)
-
-    def head_str(self):
-        return escape_id(self.argname)
-
-    @property
-    def bound_variables(self):
-        return {self.argname} | super().bound_variables
-
-    def _eq(self, other):
-        return other.argname == self.argname
-
-    def _compute_type(self, env, agg_env):
-        self.function._compute_type(_env_bind(env, self.bindings(0)), agg_env)
-        self.min._compute_type(env, agg_env)
-        self.max._compute_type(env, agg_env)
-        self._type = tfloat64
-
-    def renderable_bindings(self, i, default_value=None):
-        if i == 0:
-            value = tfloat64 if default_value is None else default_value
-            return {self.argname: value}
-        else:
-            return {}
-
-
 class TableCount(IR):
     @typecheck_method(child=TableIR)
     def __init__(self, child):

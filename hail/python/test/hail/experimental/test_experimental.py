@@ -349,14 +349,20 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.array_equal(a, a2))
 
     def test_loop(self):
-        def triangle(n):
+        def triangle_with_ints(n):
             return hl.experimental.loop(
                 lambda f, x, c: hl.cond(x > 0, f(x - 1, c + x), c),
                 hl.tint32, n, 0)
 
-        assert_evals_to(triangle(20), sum(range(21)))
-        assert_evals_to(triangle(0), 0)
-        assert_evals_to(triangle(-1), 0)
+        def triangle_with_tuple(n):
+            return hl.experimental.loop(
+                lambda f, xc: hl.cond(xc[0] > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]),
+                hl.tint32, (n, 0))
+
+        for triangle in [triangle_with_ints, triangle_with_tuple]:
+            assert_evals_to(triangle(20), sum(range(21)))
+            assert_evals_to(triangle(0), 0)
+            assert_evals_to(triangle(-1), 0)
 
         def fails_typecheck(regex, f):
             with self.assertRaisesRegex(TypeError, regex):

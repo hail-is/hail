@@ -158,8 +158,6 @@ object Children {
       args.toFastIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
-    case Uniroot(_, fn, min, max) =>
-      Array(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)
     case MatrixMultiWrite(children, _) => children

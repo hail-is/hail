@@ -2406,7 +2406,6 @@ class IRSuite extends HailSuite {
       Die("mumblefoo", TFloat64()),
       invoke("&&", TBoolean(), b, c), // ApplySpecial
       invoke("toFloat64", TFloat64(), i), // Apply
-      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
       TableGetGlobals(table),

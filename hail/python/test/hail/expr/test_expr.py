@@ -2859,6 +2859,8 @@ class Tests(unittest.TestCase):
     def test_uniroot(self):
         tol = 1.220703e-4
 
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.null('float'), tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.null('float'), 3, tolerance=tol)), None)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 

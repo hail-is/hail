@@ -169,7 +169,6 @@ object InferPType {
         })
         a.implementation.returnPType(pTypes, a.returnType)
       }
-      case _: Uniroot => PFloat64()
       case ArrayRef(a, i) => {
         InferPType(a, env)
         InferPType(i, env)

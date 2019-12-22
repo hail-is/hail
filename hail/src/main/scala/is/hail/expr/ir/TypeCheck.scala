@@ -355,10 +355,6 @@ object TypeCheck {
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
-      case Uniroot(name, fn, min, max) =>
-        assert(fn.typ.isInstanceOf[TFloat64])
-        assert(min.typ.isInstanceOf[TFloat64])
-        assert(max.typ.isInstanceOf[TFloat64])
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>

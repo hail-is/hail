@@ -538,14 +538,6 @@ object Interpret {
               fatal(s"error while calling '${ ir.implementation.name }'", e)
           }
         }
-      case Uniroot(functionid, fn, minIR, maxIR) =>
-        val f = { x: Double => interpret(fn, env.bind(functionid, x), args).asInstanceOf[Double] }
-        val min = interpret(minIR, env, args)
-        val max = interpret(maxIR, env, args)
-        if (min == null || max == null)
-          null
-        else
-          stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)

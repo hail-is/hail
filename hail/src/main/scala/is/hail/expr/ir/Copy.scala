@@ -236,9 +236,6 @@ object Copy {
         ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
       case ApplySpecial(fn, args, t) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
-      case Uniroot(argname, _, _, _) =>
-        assert(newChildren.length == 3)
-        Uniroot(argname, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       // from MatrixIR
       case MatrixWrite(_, writer) =>
         assert(newChildren.length == 1)
