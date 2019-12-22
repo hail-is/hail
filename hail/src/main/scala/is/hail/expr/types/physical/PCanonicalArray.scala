@@ -396,79 +396,77 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
+  // TODO: handle case like FastIndexedSeq(null, FastIndexedSeq(FastIndexedSeq(null))) for PArray(PArray(PInt32())?
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    if (this == srcPType && !forceDeep) {
-      return srcAddress
-    }
-
     assert(srcPType.isInstanceOf[PCanonicalArray])
 
     val sourceType = srcPType.asInstanceOf[PCanonicalArray]
 
+    assert(sourceType.elementType.isOfType(this.elementType))
+
+    if (this.elementType == sourceType.elementType) {
+      if(!forceDeep) {
+        return srcAddress
+      }
+
+      if(sourceType.elementType.isPrimitive) {
+        return copyFrom(mb, region, srcAddress)
+      }
+    }
+
     val dstAddress = mb.newField[Long]
     val numberOfElements = mb.newLocal[Int]
+    val currentElementAddress = mb.newLocal[Long]
+    val currentIdx = mb.newLocal[Int]
+
     var c: Code[_] = Code(
       numberOfElements := sourceType.loadLength(srcAddress),
-      dstAddress := this.allocate(region, numberOfElements)
+      dstAddress := this.allocate(region, numberOfElements),
+      this.stagedInitialize(dstAddress, numberOfElements),
+      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
+      currentIdx := const(0)
     )
 
-    if (this.elementType == sourceType.elementType && (!forceDeep || sourceType.elementType.isPrimitive)) {
-      return Code(
-        c,
-        Region.copyFrom(srcAddress, dstAddress, contentsByteSize(numberOfElements)),
-        dstAddress
+    var loop: Code[Unit] = if (!sourceType.elementType.isPrimitive) {
+      // recurse
+      Region.storeAddress(
+        currentElementAddress,
+        this.elementType.copyFromType(
+          mb,
+          region,
+          sourceType.elementType,
+          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+          allowDowncast,
+          forceDeep
+        )
+      )
+    } else {
+      sourceType.elementType.storeShallowAtOffset(
+        currentElementAddress,
+        sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
       )
     }
 
-    val currentElementAddress = mb.newLocal[Long]
-    val currentIdx = mb.newLocal[Int]
-    var shallowLoop: Code[_] = sourceType.elementType.fundamentalType.storeShallowAtOffset(
-      currentElementAddress,
-      sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
-    )
-
-    if(this.elementType.required) {
-      if(!sourceType.elementType.required) {
-        if(!allowDowncast) {
-          return Code._fatal("Downcast isn't allowed and source elementType isn't required")
-        }
-
-        c = Code(c, sourceType.hasMissingValues(srcAddress).orEmpty(
-          Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
-        ))
-      } else if(!this.elementType.required) {
-        shallowLoop = Code(sourceType.isElementMissing(srcAddress, currentIdx).mux(
-          this.setElementMissing(dstAddress, currentIdx),
-          shallowLoop
-        ))
+    if(!sourceType.elementType.required && this.elementType.required) {
+      if (!allowDowncast) {
+        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
       }
+
+      c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
+        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+      ), c)
+    } else if(!this.elementType.required) {
+      loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
+        this.setElementMissing(dstAddress, currentIdx),
+        loop
+      )
     }
 
     Code(
       c,
-      this.stagedInitialize(dstAddress, numberOfElements),
-      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
-      currentIdx := const(0),
       Code.whileLoop(currentIdx < numberOfElements,
-        Code(
-          if (!sourceType.elementType.isPrimitive) {
-            // recurse
-            Region.storeAddress(
-              currentElementAddress,
-              this.elementType.fundamentalType.copyFromType(
-                mb,
-                region,
-                sourceType.elementType.fundamentalType,
-                sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
-                allowDowncast,
-                forceDeep
-              )
-            )
-          } else {
-            shallowLoop
-          }
-        ),
+        loop,
         currentElementAddress := this.nextElementAddress(currentElementAddress),
         currentIdx := currentIdx + const(1)
       ),

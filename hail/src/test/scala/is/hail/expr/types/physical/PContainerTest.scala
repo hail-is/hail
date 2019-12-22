@@ -178,7 +178,8 @@ class PContainerTest extends HailSuite {
   }
 
   @Test def testArrayCopy() {
-    def testArrayCopy(sourceType: PArray, destType: PArray, sourceValue: IndexedSeq[Any], expectedException: Boolean, allowDowncast: Boolean = false) {
+    def testArrayCopy(sourceType: PArray, destType: PArray, sourceValue: IndexedSeq[Any], expectedException: Boolean,
+    allowDowncast: Boolean = false, forceDeep: Boolean = false) {
       val region = Region()
       val srcRegion = Region()
 
@@ -188,86 +189,94 @@ class PContainerTest extends HailSuite {
       val codeRegion = fb.getArg[Region](1).load()
       val value = fb.getArg[Long](2)
 
+      var success = false
       try {
-        fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value, allowDowncast))
+        fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value,
+          allowDowncast = allowDowncast, forceDeep = forceDeep))
 
         val f = fb.result()()
         val copyOff = f(region, srcOffset)
         val copy = SafeIndexedSeq(destType, region, copyOff)
 
-        log.debug(s"Copied value: ${copy}, Source value: ${sourceValue}")
+        println(s"Copied value: ${copy}, Source value: ${sourceValue}")
         assert(copy == sourceValue)
 
-        if(expectedException) {
-          throw new UnexpectedException("Expected exception, but test passed")
-        }
+        success = true
       } catch {
-        case e: UnexpectedException => {
-          throw new Error(e.getMessage)
-        }
         case e: Throwable => {
           if(expectedException) {
-            log.debug(s"Found expected exception: ${e.getMessage}")
+            println(s"Found expected exception: ${e.getMessage}")
           } else {
             throw new Error(e)
           }
         }
+      }
+
+      if(expectedException && success == true) {
+        println("BAD!!!")
+        throw new UnexpectedException("Expected exception, but test passed")
       }
     }
 
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
 
     def runTests(forceDeep: Boolean) {
-      testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false)
-      testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false)
-      testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false)
-      testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false)
+      testArrayCopy(PArray(PInt32()), PArray(PInt32()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, null), false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(), false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PInt32(true)), PArray(PInt32(true)), FastIndexedSeq(), false, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false)), true), PArray(PArray(PInt64(false))),
-        FastIndexedSeq(FastIndexedSeq(20L,5L,31L,41L)), false)
+        FastIndexedSeq(FastIndexedSeq(20L,5L,31L,41L)), false, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(false))),
-        FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false)
-      testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false)
+        FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)), false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4), false, forceDeep = forceDeep)
 
-      testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), true)
-      testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false, allowDowncast = true)
-      testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true)
+      testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), true, forceDeep = forceDeep)
+      testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4), false, allowDowncast = true, forceDeep)
+      testArrayCopy(PArray(PInt32(false)), PArray(PInt32(true)), IndexedSeq(null, 2, 3, 4), true, forceDeep = forceDeep)
 
-      testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true)
+      testArrayCopy(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9), true, forceDeep = forceDeep)
 
       val complexNesting = FastIndexedSeq(FastIndexedSeq(FastIndexedSeq(20L,30L,31L,41L), FastIndexedSeq(20L,22L,31L,43L)),
         FastIndexedSeq(FastIndexedSeq(1L,3L,31L,41L), FastIndexedSeq(0L,30L,17L,41L)))
-      testArrayCopy(PArray(PArray(PArray(PInt64(true), true), true), true), PArray(PArray(PArray(PInt64()))),complexNesting, false)
-      testArrayCopy(PArray(PArray(PArray(PInt64(true), true), true)), PArray(PArray(PArray(PInt64()))),complexNesting, false)
-      testArrayCopy(PArray(PArray(PArray(PInt64(true), true))), PArray(PArray(PArray(PInt64()))),complexNesting, false)
-      testArrayCopy(PArray(PArray(PArray(PInt64(true)))), PArray(PArray(PArray(PInt64()))),complexNesting, false)
-      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64()))),complexNesting, false)
-      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true)))),complexNesting, false, allowDowncast = true)
-      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true))),complexNesting, false, allowDowncast = true)
-      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true)),complexNesting, false, allowDowncast = true)
-      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true), true),complexNesting, false, allowDowncast = true)
+      testArrayCopy(PArray(PArray(PArray(PInt64(true), true), true), true), PArray(PArray(PArray(PInt64()))),complexNesting, false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64(true), true), true)), PArray(PArray(PArray(PInt64()))),complexNesting, false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64(true), true))), PArray(PArray(PArray(PInt64()))),complexNesting, false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64(true)))), PArray(PArray(PArray(PInt64()))),complexNesting, false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64()))),complexNesting, false, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true)))),complexNesting, false, allowDowncast = true, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true))),complexNesting, false, allowDowncast = true, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true)),complexNesting, false, allowDowncast = true, forceDeep = forceDeep)
+      testArrayCopy(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true), true),complexNesting, false, allowDowncast = true, forceDeep = forceDeep)
+
+      testArrayCopy(PArray(PInt64()), PArray(PInt64()),
+        FastIndexedSeq(null), false, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64())),
-        FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false)
+        FastIndexedSeq(FastIndexedSeq(null)), false, forceDeep = forceDeep)
+
+      testArrayCopy(PArray(PArray(PInt64())), PArray(PArray(PInt64())),
+        FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq(FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, false)
+        FastIndexedSeq(FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, false, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true)
+        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false))), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
+        FastIndexedSeq(null, FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(), true), true),
-        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true)
+        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), false, true, forceDeep = forceDeep)
 
       testArrayCopy(PArray(PArray(PInt64(false), true)), PArray(PArray(PInt64(true), true), true),
-        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true)
+        FastIndexedSeq( FastIndexedSeq(20L,null,31L,41L), FastIndexedSeq(null,null,null,null)), true, true, forceDeep = forceDeep)
     }
 
-    runTests(false)
     runTests(true)
+    runTests(false)
   }
 }
