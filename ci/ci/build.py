@@ -104,7 +104,7 @@ class BuildConfiguration:
                         request(s2)
 
             for step_name in requested_step_names:
-                request(name_step.get(step_name))
+                request(name_step[step_name])
             self.steps = [s for s in self.steps if s in visited]
 
     def build(self, batch, code, scope):
@@ -137,7 +137,7 @@ class Step(abc.ABC):
 
         self.name = json['name']
         if 'dependsOn' in json:
-            self.deps = [params.name_step[d] for d in json['dependsOn']]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
