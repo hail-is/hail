@@ -89,10 +89,13 @@ class BuildConfiguration:
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
             step = Step.from_json(step_params)
-            self.steps.append(step)
-            name_step[step.name] = step
+            if not step.run_if_requested or step.name in requested_step_names:
+                self.steps.append(step)
+                name_step[step.name] = step
+            else:
+                name_step[step.name] = None
 
-        # transitively close requested_step_names over dependenies
+        # transitively close requested_step_names over dependencies
         if requested_step_names:
             visited = set()
 
@@ -136,10 +139,11 @@ class Step(abc.ABC):
 
         self.name = json['name']
         if 'dependsOn' in json:
-            self.deps = [params.name_step[d] for d in json['dependsOn']]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
 

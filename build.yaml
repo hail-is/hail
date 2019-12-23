@@ -777,6 +777,7 @@ steps:
       name: delete-batch-tables
       for: completed
       timeout: 120
+   runIfRequested: true
    scopes:
      - dev
    dependsOn:
