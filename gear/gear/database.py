@@ -14,28 +14,7 @@ log = logging.getLogger('gear.database')
 retry_codes = (1213,)
 
 
-def retry_async_generator(f):
-    async def wrapper(*args, **kwargs):
-        delay = 0.1
-        errors = 0
-        while True:
-            try:
-                async for x in f(*args, **kwargs):
-                    yield x
-                return
-            except pymysql.err.OperationalError as e:
-                errors += 1
-                if errors % 10 == 0:
-                    log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
-                if e.args[0] in retry_codes:
-                    pass
-                else:
-                    raise
-            delay = await sleep_and_backoff(delay)
-    return wrapper
-
-
-def retry_coroutine(f):
+def retry(f):
     async def wrapper(*args, **kwargs):
         delay = 0.1
         errors = 0
@@ -135,45 +114,46 @@ class Transaction:
         await aexit(self.conn_context_manager)
         self.conn_context_manager = None
 
-    @retry_coroutine
+    @retry
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
 
-    @retry_coroutine
+    @retry
     async def execute_and_fetchone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
             return await cursor.fetchone()
 
-    @retry_async_generator
     async def execute_and_fetchall(self, sql, args=None):
-        assert self.conn
-        async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
-            while True:
-                rows = await cursor.fetchmany(100)
-                if not rows:
-                    break
-                for row in rows:
-                    yield row
+        async def inner():
+            assert self.conn
+            async with self.conn.cursor() as cursor:
+                await cursor.execute(sql, args)
+                while True:
+                    rows = await cursor.fetchmany(100)
+                    if not rows:
+                        break
+                    for row in rows:
+                        yield row
+        return retry(inner())
 
-    @retry_coroutine
+    @retry
     async def execute_insertone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
             return cursor.lastrowid
 
-    @retry_coroutine
+    @retry
     async def execute_update(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             return await cursor.execute(sql, args)
 
-    @retry_coroutine
+    @retry
     async def execute_many(self, sql, args_array):
         assert self.conn
         async with self.conn.cursor() as cursor:
