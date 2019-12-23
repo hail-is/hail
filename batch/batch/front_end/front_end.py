@@ -822,7 +822,7 @@ async def ui_get_job(request, userdata):
 
 @routes.get('/billing_projects')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
-@web_authenticated_users_only()
+@web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
 
@@ -846,7 +846,7 @@ async def ui_get_billing_projects(request, userdata):
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI)
 @check_csrf_token
-@web_authenticated_users_only()
+@web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -888,7 +888,7 @@ WHERE billing_project = %s AND user = %s;
 @routes.post('/billing_projects/{billing_project}/users/add')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI)
 @check_csrf_token
-@web_authenticated_users_only()
+@web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     post = await request.post()
@@ -930,7 +930,7 @@ VALUES (%s, %s);
 @routes.post('/billing_projects/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI)
 @check_csrf_token
-@web_authenticated_users_only()
+@web_authenticated_developers_only(redirect=False)
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     post = await request.post()
