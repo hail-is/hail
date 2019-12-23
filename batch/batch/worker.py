@@ -160,24 +160,17 @@ class Container:
         self.log = None
 
     def container_config(self):
-        config = {
-            "AttachStdin": False,
-            "AttachStdout": False,
-            "AttachStderr": False,
-            "Tty": False,
-            'OpenStdin': False,
-            'Cmd': self.spec['command'],
-            'Image': self.image,
-            'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100,
-                           'Memory': self.memory_in_bytes}
+        host_config = {
+            'CpuPeriod': 100000,
+            'CpuQuota': self.cpu_in_mcpu * 100,
+            'Memory': self.memory_in_bytes
         }
 
         env = self.spec.get('env', [])
 
         if self.port is not None:
             assert self.host_port is not None
-            config['PortBindings'] = {
+            host_config['PortBindings'] = {
                 f'{self.port}/tcp': [{
                     'HostIp': '',
                     'HostPort': str(self.host_port)
@@ -187,12 +180,22 @@ class Container:
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
             env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
 
-        if env:
-            config['Env'] = env
-
         volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
-            config['HostConfig']['Binds'] = volume_mounts
+            host_config['Binds'] = volume_mounts
+
+        config = {
+            "AttachStdin": False,
+            "AttachStdout": False,
+            "AttachStderr": False,
+            "Tty": False,
+            'OpenStdin': False,
+            'Cmd': self.spec['command'],
+            'Image': self.image,
+            'HostConfig': host_config
+        }
+        if env:
+            config['Env'] = env
 
         return config
 
