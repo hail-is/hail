@@ -66,23 +66,16 @@ worker = None
 
 class PortAllocator:
     def __init__(self):
-        # random unallocated ports take from
-        # https://stackoverflow.com/questions/10476987/best-tcp-port-number-range-for-internal-applications
+        self.ports = asyncio.Queue()
         port_base = 46572
-        self.ports = list(range(port_base, port_base + 10))
-        self.cond = asyncio.Condition()
+        for port in range(port_base, port_base + 10):
+            self.ports.put_nowait(port)
 
     async def allocate(self):
-        while True:
-            if self.ports:
-                return self.ports.pop()
-            async with self.cond:
-                await self.cond.wait()
+        return await self.ports.get()
 
-    async def free(self, port):
-        self.ports.append(port)
-        async with self.cond:
-            self.cond.notify()
+    def free(self, port):
+        self.ports.put_nowait(port)
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -96,8 +89,8 @@ async def docker_call_retry(f, *args, **kwargs):
                 log.exception('in docker call, retrying')
             # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
             # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-            elif e.status == 500 and ("request canceled while waiting for connection" in e.message
-                                      or re.match("error creating overlay mount.*device or resource busy", e.message)):
+            elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
+                                      re.match("error creating overlay mount.*device or resource busy", e.message)):
                 log.exception('in docker call, retrying')
             else:
                 raise
@@ -330,7 +323,7 @@ class Container:
                 log.exception('while deleting up container, ignoring')
 
         if self.host_port is not None:
-            await port_allocator.free(self.host_port)
+            port_allocator.free(self.host_port)
             self.host_port = None
 
     async def delete(self):
