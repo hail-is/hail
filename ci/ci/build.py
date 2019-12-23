@@ -92,6 +92,8 @@ class BuildConfiguration:
             if not step.run_if_requested or step.name in requested_step_names:
                 self.steps.append(step)
                 name_step[step.name] = step
+            else:
+                name_step[step.name] = None
 
         # transitively close requested_step_names over dependencies
         if requested_step_names:
@@ -137,7 +139,7 @@ class Step(abc.ABC):
 
         self.name = json['name']
         if 'dependsOn' in json:
-            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
