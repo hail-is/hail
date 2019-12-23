@@ -89,22 +89,22 @@ class BuildConfiguration:
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
             step = Step.from_json(step_params)
-            name_step[step.name] = step
             if not step.run_if_requested or step.name in requested_step_names:
                 self.steps.append(step)
+                name_step[step.name] = step
 
         # transitively close requested_step_names over dependencies
         if requested_step_names:
             visited = set()
 
             def request(step):
-                if step not in visited:
+                if step and step not in visited:
                     visited.add(step)
                     for s2 in step.deps:
                         request(s2)
 
             for step_name in requested_step_names:
-                request(name_step[step_name])
+                request(name_step.get(step_name))
             self.steps = [s for s in self.steps if s in visited]
 
     def build(self, batch, code, scope):
