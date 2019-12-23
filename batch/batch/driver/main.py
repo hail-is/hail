@@ -8,6 +8,7 @@ from aiohttp import web
 import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
+import prometheus_client as pc
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
@@ -35,6 +36,13 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+
+class PrometheusMetrics:
+    def __init__(self):
+        self.batch_driver_requested_mcpu = pc.Gauge('batch_driver_requested_mcpu', '')
+        self.batch_driver_available_mcpu = pc.Gauge('batch_driver_available_mcpu', '')
+        self.batch_driver_total_mcpu = pc.Gauge('batch_driver_total_mcpu', '')
 
 
 def authorization_token(request):
@@ -447,6 +455,8 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
+
+    app['prometheus'] = PrometheusMetrics()
 
 
 async def on_cleanup(app):
