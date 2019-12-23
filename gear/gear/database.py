@@ -17,16 +17,12 @@ retry_codes = (1213,)
 def retry(f):
     async def wrapper(*args, **kwargs):
         delay = 0.1
-        errors = 0
         while True:
             try:
                 return await f(*args, **kwargs)
             except pymysql.err.OperationalError as e:
-                errors += 1
-                if errors % 10 == 0:
-                    log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
                 if e.args[0] in retry_codes:
-                    pass
+                    log.warning(f'encountered pymysql error, retrying {e}', exc_info=True)
                 else:
                     raise
             delay = await sleep_and_backoff(delay)
@@ -128,17 +124,23 @@ class Transaction:
             return await cursor.fetchone()
 
     async def execute_and_fetchall(self, sql, args=None):
-        async def inner():
-            assert self.conn
-            async with self.conn.cursor() as cursor:
-                await cursor.execute(sql, args)
-                while True:
-                    rows = await cursor.fetchmany(100)
-                    if not rows:
-                        break
-                    for row in rows:
-                        yield row
-        return retry(inner)(sql, args)
+        @retry
+        async def execute(sql, args):
+            return await cursor.execute(sql, args)
+
+        @retry
+        async def fetchmany():
+            return await cursor.fetchmany(100)
+
+        assert self.conn
+        async with self.conn.cursor() as cursor:
+            await execute(sql, args)
+            while True:
+                rows = await fetchmany()
+                if not rows:
+                    break
+                for row in rows:
+                    yield row
 
     @retry
     async def execute_insertone(self, sql, args=None):
