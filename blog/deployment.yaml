@@ -18,9 +18,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
-      tolerations:
-       - key: preemptible
-         value: "false"
+      nodeSelector:
+        preemptible: "false"
       containers:
       - name: blog
         image: ghost:3.0-alpine

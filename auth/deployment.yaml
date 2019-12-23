@@ -48,6 +48,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
@@ -128,6 +130,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
