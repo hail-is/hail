@@ -71,8 +71,8 @@ async def docker_call_retry(f, *args, **kwargs):
                 log.exception('in docker call, retrying')
             # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
             # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-            elif e.status == 500 and ("request canceled while waiting for connection" in e.message
-                                      or re.match("error creating overlay mount.*device or resource busy", e.message)):
+            elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
+                                      re.match("error creating overlay mount.*device or resource busy", e.message)):
                 log.exception('in docker call, retrying')
             else:
                 raise

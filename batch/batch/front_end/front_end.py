@@ -18,7 +18,7 @@ from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    check_csrf_token
+    web_authenticated_developers_only, check_csrf_token
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -52,6 +52,10 @@ REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', ve
 REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
+REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
+REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
+REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/create', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -513,7 +517,7 @@ async def create_batch(request, userdata):
         rows = tx.execute_and_fetchall(
             '''
 SELECT * FROM billing_project_users
-WHERE billing_project = %s AND user = %s
+WHERE billing_project = %s AND user = %s;
 ''',
             (billing_project, user))
         rows = [row async for row in rows]
@@ -814,6 +818,146 @@ async def ui_get_job(request, userdata):
         'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
+
+
+@routes.get('/billing_projects')
+@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
+@web_authenticated_developers_only()
+async def ui_get_billing_projects(request, userdata):
+    db = request.app['db']
+
+    billing_projects = {}
+    async with db.start(read_only=True) as tx:
+        async for record in tx.execute_and_fetchall(
+                'SELECT * FROM billing_projects;'):
+            name = record['name']
+            billing_projects[name] = []
+        async for record in tx.execute_and_fetchall(
+                'SELECT * FROM billing_project_users;'):
+            billing_project = record['billing_project']
+            user = record['user']
+            billing_projects[billing_project].append(user)
+    page_context = {
+        'billing_projects': billing_projects
+    }
+    return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+
+
+@routes.post('/billing_projects/{billing_project}/users/{user}/remove')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    user = request.match_info['user']
+
+    session = await aiohttp_session.get_session(request)
+
+    async with db.start() as tx:
+        row = await tx.execute_and_fetchone(
+            '''
+SELECT billing_projects.name as billing_project, user
+FROM billing_projects
+LEFT JOIN (SELECT * FROM billing_project_users
+    WHERE billing_project = %s AND user = %s) AS t
+  ON billing_projects.name = t.billing_project
+WHERE billing_projects.name = %s;
+''',
+            (billing_project, user, billing_project))
+        if not row:
+            set_message(session, f'No such billing project {billing_project}.', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        assert row['billing_project'] == billing_project
+
+        if row['user'] is None:
+            set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
+            return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+
+        await tx.just_execute(
+            '''
+DELETE FROM billing_project_users
+WHERE billing_project = %s AND user = %s;
+''',
+            (billing_project, user))
+
+    set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+
+
+@routes.post('/billing_projects/{billing_project}/users/add')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    post = await request.post()
+    user = post['user']
+    billing_project = request.match_info['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+
+    async with db.start() as tx:
+        row = await tx.execute_and_fetchone(
+            '''
+SELECT billing_projects.name as billing_project, user
+FROM billing_projects
+LEFT JOIN (SELECT * FROM billing_project_users
+    WHERE billing_project = %s AND user = %s) AS t
+  ON billing_projects.name = t.billing_project
+WHERE billing_projects.name = %s;
+''',
+            (billing_project, user, billing_project))
+        if row is None:
+            set_message(session, f'No such billing project {billing_project}.', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+
+        if row['user'] is not None:
+            set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
+            return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO billing_project_users(billing_project, user)
+VALUES (%s, %s);
+''',
+            (billing_project, user))
+
+    set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+
+
+@routes.post('/billing_projects/create')
+@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    post = await request.post()
+    billing_project = post['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+
+    async with db.start() as tx:
+        row = await tx.execute_and_fetchone(
+            '''
+SELECT 1 FROM billing_projects
+WHERE name = %s;
+''',
+            (billing_project))
+        if row is not None:
+            set_message(session, f'Billing project {billing_project} already exists.', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO billing_projects(name)
+VALUES (%s);
+''',
+            (billing_project,))
+
+    set_message(session, f'Added billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.get('')
