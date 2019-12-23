@@ -827,6 +827,7 @@ steps:
     - batch_pods_ns
     - copy_files
     - base_image
+    - ci_utils_image
     - deploy_batch
  - kind: runImage
    name: create_ci_test_repo
