@@ -768,7 +768,6 @@ steps:
      - default_ns
      - batch_tables_image
      - batch_database
-     - delete_batch_tables
  - kind: deploy
    name: create_batch_tables_2
    namespace:
