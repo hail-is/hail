@@ -18,7 +18,7 @@ from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    check_csrf_token
+    web_authenticated_developers_only, check_csrf_token
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
