@@ -471,9 +471,10 @@ def run():
     setup_aiohttp_jinja2(app, 'batch.driver')
     setup_common_static_routes(routes)
     app.add_routes(routes)
-    app.router.add_get("/metrics", server_stats)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)
+    app2 = deploy_config.prefix_application(app, 'batch-driver')
+    app2.router.add_get("/metrics", server_stats)
+    web.run_app(app2, host='0.0.0.0', port=5000)
