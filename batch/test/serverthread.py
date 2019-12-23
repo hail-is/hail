@@ -18,7 +18,7 @@ class ServerThread(threading.Thread):
         self.host = os.environ['HAIL_BATCH_WORKER_IP']
         self.port = os.environ['HAIL_BATCH_WORKER_PORT']
         self.app = app
-        self.server = make_server(self.host, self.port, app)
+        self.server = make_server(None, 5000, app)
         self.context = app.app_context()
         self.context.push()
 
