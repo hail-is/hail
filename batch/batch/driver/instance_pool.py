@@ -409,7 +409,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
 
                 self.app['prometheus'].batch_driver_requested_mcpu.set(ready_cores_mcpu)
                 self.app['prometheus'].batch_driver_available_mcpu.set(self.live_free_cores_mcpu)
-                self.app['prometheus'].batch_driver_used_mcpu.set(self.worker_cores * 1000)
+                self.app['prometheus'].batch_driver_total_mcpu.set(self.worker_cores * 1000)
 
                 if ready_cores_mcpu > 0:
                     n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
