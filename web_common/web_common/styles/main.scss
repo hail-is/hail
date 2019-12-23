@@ -302,3 +302,30 @@ a {
     left: 50vw;
     transform: translate(-50%, -50%);
 }
+
+.expand-checkbox {
+  display: none;
+}
+
+.expand-label::after {
+  content: ' ';
+  display: inline-block;
+
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 5px solid black;
+
+  margin-left: 5px;
+
+  vertical-align: baseline;
+}
+.expand-checkbox:checked + .expand-label::after {
+  transform: rotate(-90deg);
+}
+
+.expand-content {
+    display: none;
+}
+.expand-checkbox:checked + .expand-label + .expand-content {
+    display: block;
+}
