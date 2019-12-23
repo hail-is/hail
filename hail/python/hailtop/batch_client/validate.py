@@ -16,6 +16,7 @@ import re
 #   'mount_docker_socket': bool,
 #   'output_files': [{"from": str, "to": str}],
 #   'parent_ids': [int],
+#   'port': int,
 #   'pvc_size': str,
 #   'resoures': {
 #     'memory': str,
@@ -33,7 +34,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'resources', 'secrets', 'service_account'
+    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -202,6 +203,11 @@ def validate_job(i, job):
     for j, id in enumerate(parent_ids):
         if not isinstance(id, int):
             raise ValidationError(f'jobs[{i}].parent_ids[{j} is not int')
+
+    if 'port' in job:
+        port = job['port']
+        if not isinstance(port, int):
+            raise ValidationError(f'jobs[{i}].port not int')
 
     if 'pvc_size' in job:
         pvc_size = job['pvc_size']

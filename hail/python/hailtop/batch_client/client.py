@@ -144,7 +144,7 @@ class BatchBuilder:
         return self._async_builder.callback
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
-                   resources=None, secrets=None,
+                   port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if parents:
@@ -152,7 +152,7 @@ class BatchBuilder:
 
         async_job = self._async_builder.create_job(
             image, command, env=env, mount_docker_socket=mount_docker_socket,
-            resources=resources, secrets=secrets,
+            port=port, resources=resources, secrets=secrets,
             service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
