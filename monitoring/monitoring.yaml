@@ -315,7 +315,7 @@ data:
        relabel_configs:
        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
          separator: ;
-         regex: (default|dking);kubernetes;https
+         regex: (default|dking|cseed|jigold);kubernetes;https
          replacement: $1
          action: keep
 
