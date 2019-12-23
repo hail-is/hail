@@ -97,6 +97,10 @@ steps:
    outputs:
      - from: /io/repo/auth/delete-auth-tables.sql
        to: /auth/
+     - from: /io/repo/batch/test
+       to: /batch/
+     - from: /io/repo/pipeline/test
+       to: /pipeline/
    dependsOn:
      - base_image
  - kind: createDatabase
@@ -398,13 +402,6 @@ steps:
    dependsOn:
      - batch_image
  - kind: buildImage
-   name: test_batch_image
-   dockerFile: batch/Dockerfile.test
-   contextPath: .
-   publishAs: test-batch
-   dependsOn:
-     - base_image
- - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
    contextPath: .
@@ -487,8 +484,6 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
-     - from: /io/repo/pipeline/test
-       to: /pipeline/
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -837,25 +832,35 @@ steps:
     - batch_database
     - deploy_auth
     - create_batch_tables
- - kind: deploy
+ - kind: runImage
    name: test_batch
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch/test-batch-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-batch
-      for: completed
-      timeout: 1200
+   image:
+     valueFrom: base_image.image
+   script: |
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     export HAIL_BASE_IMAGE={{ base_image.image }}
+     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_namespace.image }}
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
+   inputs:
+    - from: /batch/test
+      to: /io/
+   port: 5000
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
    dependsOn:
     - default_ns
-    - base_image
     - batch_pods_ns
+    - copy_files
+    - base_image
     - deploy_batch
-    - test_batch_image
-    - ci_utils_image
-    - deploy_ci_agent
-    - deploy_ci_agent_default
  - kind: runImage
    name: create_ci_test_repo
    image:
@@ -976,9 +981,9 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - base_image
-    - build_hail
     - batch_pods_ns
+    - copy_files
+    - base_image
  - kind: runImage
    name: test_pipeline
    image:
@@ -1002,8 +1007,8 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - copy_files
     - service_base_image
-    - build_hail
     - deploy_batch
     - setup_pipeline
  - kind: runImage
