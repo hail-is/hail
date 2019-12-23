@@ -138,7 +138,7 @@ class Transaction:
                         break
                     for row in rows:
                         yield row
-        return retry(inner())
+        return retry(inner)(sql, args)
 
     @retry
     async def execute_insertone(self, sql, args=None):
