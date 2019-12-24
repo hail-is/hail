@@ -165,11 +165,23 @@ class Container:
             'CpuQuota': self.cpu_in_mcpu * 100,
             'Memory': self.memory_in_bytes
         }
+        config = {
+            "AttachStdin": False,
+            "AttachStdout": False,
+            "AttachStderr": False,
+            "Tty": False,
+            'OpenStdin': False,
+            'Cmd': self.spec['command'],
+            'Image': self.image
+        }
 
         env = self.spec.get('env', [])
 
         if self.port is not None:
             assert self.host_port is not None
+            config['ExposedPorts'] = {
+                f'{self.port}/tcp': {}
+            }
             host_config['PortBindings'] = {
                 f'{self.port}/tcp': [{
                     'HostIp': '',
@@ -184,18 +196,10 @@ class Container:
         if volume_mounts:
             host_config['Binds'] = volume_mounts
 
-        config = {
-            "AttachStdin": False,
-            "AttachStdout": False,
-            "AttachStderr": False,
-            "Tty": False,
-            'OpenStdin': False,
-            'Cmd': self.spec['command'],
-            'Image': self.image,
-            'HostConfig': host_config
-        }
         if env:
             config['Env'] = env
+
+        config['HostConfig'] = host_config
 
         return config
 
