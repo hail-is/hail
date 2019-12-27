@@ -46,7 +46,7 @@
 	</div>
 	  </div>
 	<div class='flex-col' style="overflow: scroll;">
-      <table class="data-table" id="batch">
+    <table class="data-table" id="batch">
 	<thead>
 	  <tr>
 	    <th>ID</th>
@@ -87,7 +87,7 @@
 	  </tr>
 	  {% endfor %}
 	</tbody>
-	  </table>
+	</table>
 	</div>
       {% if last_job_id is not none %}
       <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
