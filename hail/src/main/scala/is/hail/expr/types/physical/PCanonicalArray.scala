@@ -410,7 +410,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       }
 
       if(sourceType.elementType.isPrimitive) {
-        return copyFrom(mb, region, srcAddress)
+        return this.copyFrom(mb, region, srcAddress)
       }
     }
 

@@ -267,10 +267,81 @@ abstract class PBaseStruct extends PType {
     Region.copyFrom(valueAddress, destOffset, this.byteSize)
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType,
-  sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    // TODO
-    ???
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    assert(srcPType.isInstanceOf[PCanonicalArray])
+
+    val sourceType = srcPType.asInstanceOf[PCanonicalArray]
+
+    assert(sourceType.elementType.isOfType(this.elementType))
+
+    if (this.elementType == sourceType.elementType) {
+      if(!forceDeep) {
+        return srcAddress
+      }
+
+      if(sourceType.elementType.isPrimitive) {
+        return copyFrom(mb, region, srcAddress)
+      }
+    }
+
+    val dstAddress = mb.newField[Long]
+    val numberOfElements = mb.newLocal[Int]
+    val currentElementAddress = mb.newLocal[Long]
+    val currentIdx = mb.newLocal[Int]
+
+    var c: Code[_] = Code(
+      numberOfElements := sourceType.loadLength(srcAddress),
+      dstAddress := this.allocate(region, numberOfElements),
+      this.stagedInitialize(dstAddress, numberOfElements),
+      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
+      currentIdx := const(0)
+    )
+
+    var loop: Code[Unit] = if (!sourceType.elementType.isPrimitive) {
+      // recurse
+      Region.storeAddress(
+        currentElementAddress,
+        this.elementType.copyFromType(
+          mb,
+          region,
+          sourceType.elementType,
+          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+          allowDowncast,
+          forceDeep
+        )
+      )
+    } else {
+      sourceType.elementType.storeShallowAtOffset(
+        currentElementAddress,
+        sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
+      )
+    }
+
+    if(!sourceType.elementType.required && this.elementType.required) {
+      if (!allowDowncast) {
+        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
+      }
+
+      c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
+        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+      ), c)
+    } else if(!this.elementType.required) {
+      loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
+        this.setElementMissing(dstAddress, currentIdx),
+        loop
+      )
+    }
+
+    Code(
+      c,
+      Code.whileLoop(currentIdx < numberOfElements,
+        loop,
+        currentElementAddress := this.nextElementAddress(currentElementAddress),
+        currentIdx := currentIdx + const(1)
+      ),
+      dstAddress
+    )
   }
 
 
