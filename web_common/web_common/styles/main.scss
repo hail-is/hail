@@ -225,14 +225,13 @@ a {
 .data-table {
     min-width: 600px;
 
-    thead {
+    th {
+        white-space: nowrap;
+        padding: 3px 10px;
         color: $white;
         background-color: #888;
     }
-    th {
-        white-space: nowrap;
-	    padding: 3px 10px;
-    }
+
     tr {
         &:nth-child(even) {
             background-color: #f2f2f2;
