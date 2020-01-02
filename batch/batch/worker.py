@@ -80,6 +80,7 @@ class PortAllocator:
 
 async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
+    docker_error_500_retry_fuel = 1
     while True:
         try:
             return await f(*args, **kwargs)
@@ -91,8 +92,10 @@ async def docker_call_retry(f, *args, **kwargs):
             # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
             # DockerError(500, 'read unix @->@/containerd-shim/moby/b5f4f26dd3f95832ae2232e850903962af5199dac064d296261f2937ba919157/shim.sock: read: connection reset by peer: unknown)'
             # DockerError(500, 'ttrpc: closed: unknown')
-            elif e.status == 500:
-                log.warning('in docker call, retrying', exc_info=True)
+            elif e.status == 500 and docker_error_500_retry_fuel > 0:
+                docker_error_500_retry_fuel -= 1
+                log.warning(f'in docker call, retrying (retries remaining: {docker_error_500_retry_fuel}',
+                            exc_info=True)
             else:
                 raise
         except asyncio.TimeoutError:
