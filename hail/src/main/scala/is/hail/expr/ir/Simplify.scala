@@ -732,6 +732,8 @@ object Simplify {
       TableLeftJoinRightDistinct(TableFilterIntervals(child, intervals, true), TableFilterIntervals(right, intervals, true), root)
     case TableFilterIntervals(TableIntervalJoin(child, right, root, product), intervals, keep) =>
       TableIntervalJoin(TableFilterIntervals(child, intervals, keep), right, root, product)
+    case TableFilterIntervals(TableJoin(left, right, jt, jk), intervals, true) =>
+      TableJoin(TableFilterIntervals(left, intervals, true), TableFilterIntervals(right, intervals, true), jt, jk)
     case TableFilterIntervals(TableExplode(child, path), intervals, keep) =>
       TableExplode(TableFilterIntervals(child, intervals, keep), path)
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
