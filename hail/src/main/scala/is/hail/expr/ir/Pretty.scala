@@ -9,8 +9,8 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 object Pretty {
 
   def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
-    val s = Pretty(ir)
-    if (s.length < maxLen) s else s.substring(0, maxLen)
+    val s = Pretty(ir, elideLiterals = elideLiterals, maxLen = maxLen)
+    if (s.length < maxLen) s else s.substring(0, maxLen) + "..."
   }
 
   def prettyStringLiteral(s: String): String =
@@ -28,7 +28,7 @@ object Pretty {
 
   val MAX_VALUES_TO_LOG: Int = 25
 
-  def apply(ir: BaseIR, elideLiterals: Boolean = false): String = {
+  def apply(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = -1): String = {
     val sb = new StringBuilder
 
     def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
@@ -81,6 +81,9 @@ object Pretty {
     }
 
     def pretty(ir: BaseIR, depth: Int) {
+      if (maxLen > 0 && sb.size > maxLen)
+        return
+
       sb.append(" " * depth)
       sb += '('
 

@@ -155,8 +155,9 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
-      case x@ArrayRef(a, i) =>
+      case x@ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
+        assert(s.typ.isOfType(TString()))
         assert(x.typ == -coerce[TStreamable](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])

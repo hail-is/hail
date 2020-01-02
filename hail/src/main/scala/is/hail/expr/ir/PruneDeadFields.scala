@@ -922,10 +922,12 @@ object PruneDeadFields {
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TStreamable].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
-      case ArrayRef(a, i) =>
+      case ArrayRef(a, i, s) =>
         unifyEnvs(
           memoizeValueIR(a, a.typ.asInstanceOf[TStreamable].copyStreamable(requestedType), memo),
-          memoizeValueIR(i, i.typ, memo))
+          memoizeValueIR(i, i.typ, memo),
+          memoizeValueIR(s, s.typ, memo)
+        )
       case ArrayLen(a) =>
         memoizeValueIR(a, minimal(a.typ), memo)
       case ArrayMap(a, name, body) =>

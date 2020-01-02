@@ -195,7 +195,12 @@ object MakeArray {
 
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
-final case class ArrayRef(a: IR, i: IR) extends IR
+
+object ArrayRef {
+  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
+}
+
+final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
 final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
