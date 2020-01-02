@@ -124,16 +124,16 @@ class Transaction:
             return await cursor.fetchone()
 
     async def execute_and_fetchall(self, sql, args=None):
-        @retry
-        async def execute(sql, args):
-            return await cursor.execute(sql, args)
-
-        @retry
-        async def fetchmany():
-            return await cursor.fetchmany(100)
-
         assert self.conn
         async with self.conn.cursor() as cursor:
+            @retry
+            async def execute(sql, args):
+                return await cursor.execute(sql, args)
+
+            @retry
+            async def fetchmany():
+                return await cursor.fetchmany(100)
+
             await execute(sql, args)
             while True:
                 rows = await fetchmany()
