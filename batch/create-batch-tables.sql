@@ -145,39 +145,15 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 
 DELIMITER $$
 
--- AVOIDING DEADLOCKS
+-- LOCK ACQUISTION ORDER
 --
 -- MySQL 8.0 15.7.5.3 states: "Deadlocks are not dangerous. Just try again.".
---
--- You can make deadlocks more rare by always acquiring table and/or row locks
--- in the same order in every transaction. MySQL has two kinds of locks: "X"
--- (exclusive) and "S" (shared). The former is automatically acquired when
--- executing INSERT, UPDATE, or DELETE. The latter is a acquired by SELECT.
---
--- The MySQL deadlock example (MySQL 8.0 15.7.5.1) introduces an examplary but
--- annoying and confusing example wherein a transaction that previously acquired
--- a shared lock on a row cannot upgrade it to an exclusive lock *even though no
--- other transaction holds a shared lock on that row*.
---
 --
 -- Our strategy below is to attempt to acquire row/table locks in the same order
 -- in every transaction. An easy way to understand the lock order is to execute
 -- this grep statement:
 --
 --     grep -Ee 'CREATE|SELECT|UPDATE|INSERT|DELETE' create-batch-tables.sql
---
--- For example, at time of writing, the attempts_after_update trigger is displayed as:
---
---     CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
---       SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
---       UPDATE jobs
---       UPDATE batches
---
--- We conclude that this trigger has this lock acquisition sequence: S jobs, X
--- jobs, X batches. We prefer to update the jobs table *first* because it
--- minimizes the time between acquiring a shared row lock and an exclusive row
--- lock on the same row. Recall that triggers implicitly execute in (and thus
--- modify the lock acquistion sequence of) every SQL transaction.
 --
 -- In general, we prefer the acquisition order: S/X instances, S jobs, S
 -- attempts, X attempts, X jobs, S/X batches, S/X ready_cores. If a transaction
@@ -186,8 +162,6 @@ DELIMITER $$
 --
 -- See Also:
 --   https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html
---   https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks-handling.html
---   https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlock-example.html
 
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
