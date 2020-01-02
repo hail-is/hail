@@ -327,8 +327,8 @@ private class Emit(
 
     def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) = this.emitArrayIterator(ir, env, er, container)
 
-    def emitDeforestedNDArray(ir: NDArrayIR) =
-      deforestNDArray(resultRegion, ir, env).emit(ir.pType)
+    def emitDeforestedNDArray(ir: IR) =
+      deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
 
     val region = er.region
 
@@ -1344,8 +1344,9 @@ private class Emit(
       case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
-        val lT = emit(lChild)
-        val rT = emit(rChild)
+        // Specifically using emitDeforested because we know that gives a consistent striding.
+        val lT = emitDeforestedNDArray(lChild)
+        val rT = emitDeforestedNDArray(rChild)
 
         val lPType = coerce[PNDArray](lChild.pType)
         val rPType = coerce[PNDArray](rChild.pType)
