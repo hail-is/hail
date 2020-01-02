@@ -437,7 +437,6 @@ def test_ndarray_matmul():
     ones_int32 = hl.nd.array(np_ones_int32)
     ones_float64 = hl.nd.array(np_ones_float64)
 
-
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
         (m @ m, np_m @ np_m),
