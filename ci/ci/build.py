@@ -78,7 +78,7 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, requested_step_names=None):
+    def __init__(self, code, config_str, scope, requested_step_names=()):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
