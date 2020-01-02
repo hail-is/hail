@@ -10,10 +10,11 @@ import is.hail.expr.types.physical.{PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
 import is.hail.io._
 import is.hail.io.index.IndexWriter
-import is.hail.io.{BufferSpec, AbstractTypedCodecSpec, TypedCodecSpec, RichContextRDDRegionValue}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.expr.ir.ExecuteContext
+import is.hail.utils.PartitionCounts.{PCSubsetOffset, getPCSubsetOffset, incrementalPCSubsetOffset}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
@@ -453,7 +454,29 @@ class RVD(
     if (n == 0)
       return RVD.empty(sparkContext, typ)
 
-    val newRDD = crdd.head(n, partitionCounts)
+    val (idxLast, nTake) = partitionCounts match {
+      case Some(pcs) =>
+        getPCSubsetOffset(n, pcs.iterator) match {
+          case Some(PCSubsetOffset(idx, nTake, _)) => idx -> nTake
+          case None => return this
+        }
+      case None =>
+        val PCSubsetOffset(idx, nTake, _) =
+          incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
+            crdd.boundary.runJob(getIteratorSizeWithMaxN(n), _)
+          )
+        idx -> nTake
+    }
+
+    val newRDD = crdd.
+      mapPartitionsWithIndex({ case (i, it) =>
+      if (i == idxLast)
+        it.take(nTake.toInt)
+      else
+        it
+    }, preservesPartitioning = true)
+      .subsetPartitions((0 to idxLast).toArray)
+
     val newNParts = newRDD.getNumPartitions
     assert(newNParts >= 0)
 
@@ -469,7 +492,28 @@ class RVD(
     if (n == 0)
       return RVD.empty(sparkContext, typ)
 
-    val newRDD = crdd.tail(n, partitionCounts)
+    val (idxFirst, nDrop) = partitionCounts match {
+      case Some(pcs) =>
+        getPCSubsetOffset(n, pcs.reverseIterator) match {
+          case Some(PCSubsetOffset(idx, _, nDrop)) => (pcs.length - idx - 1) -> nDrop
+          case None => return this
+        }
+      case None =>
+        val PCSubsetOffset(idx, _, nDrop) =
+          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
+            crdd.boundary.runJob(getIteratorSize, _)
+          )
+        idx -> nDrop
+    }
+
+    val newRDD = crdd.mapPartitionsWithIndex({ case (i, it) =>
+      if (i == idxFirst)
+        it.drop(nDrop.toInt)
+      else
+        it
+    }, preservesPartitioning = true)
+      .subsetPartitions(Array.range(idxFirst, getNumPartitions))
+
     val oldNParts = crdd.getNumPartitions
     val newNParts = newRDD.getNumPartitions
     assert(oldNParts >= newNParts)
