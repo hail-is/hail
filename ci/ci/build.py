@@ -83,7 +83,6 @@ class BuildConfiguration:
         name_step = {}
         self.steps = []
 
-
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
