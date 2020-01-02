@@ -139,11 +139,55 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
   `key` VARCHAR(100) NOT NULL,
   `value` VARCHAR(65535),
   PRIMARY KEY (`batch_id`, `key`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE  
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
 
 DELIMITER $$
+
+-- AVOIDING DEADLOCKS
+--
+-- MySQL 8.0 15.7.5.3 states: "Deadlocks are not dangerous. Just try again.".
+--
+-- You can make deadlocks more rare by always acquiring table and/or row locks
+-- in the same order in every transaction. MySQL has two kinds of locks: "X"
+-- (exclusive) and "S" (shared). The former is automatically acquired when
+-- executing INSERT, UPDATE, or DELETE. The latter is a acquired by SELECT.
+--
+-- The MySQL deadlock example (MySQL 8.0 15.7.5.1) introduces an examplary but
+-- annoying and confusing example wherein a transaction that previously acquired
+-- a shared lock on a row cannot upgrade it to an exclusive lock *even though no
+-- other transaction holds a shared lock on that row*.
+--
+--
+-- Our strategy below is to attempt to acquire row/table locks in the same order
+-- in every transaction. An easy way to understand the lock order is to execute
+-- this grep statement:
+--
+--     grep -Ee 'CREATE|SELECT|UPDATE|INSERT|DELETE' create-batch-tables.sql
+--
+-- For example, at time of writing, the attempts_after_update trigger is displayed as:
+--
+--     CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
+--       SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
+--       UPDATE jobs
+--       UPDATE batches
+--
+-- We conclude that this trigger has this lock acquisition sequence: S jobs, X
+-- jobs, X batches. We prefer to update the jobs table *first* because it
+-- minimizes the time between acquiring a shared row lock and an exclusive row
+-- lock on the same row. Recall that triggers implicitly execute in (and thus
+-- modify the lock acquistion sequence of) every SQL transaction.
+--
+-- In general, we prefer the acquisition order: S/X instances, S jobs, S
+-- attempts, X attempts, X jobs, S/X batches, S/X ready_cores. If a transaction
+-- already has an S lock, prefer upgrading to an exclusive lock even if that
+-- violates the acquisiton order.
+--
+-- See Also:
+--   https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html
+--   https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks-handling.html
+--   https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlock-example.html
 
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
@@ -350,15 +394,15 @@ BEGIN
     WHERE batch_id = in_batch_id;
 
     IF actual_n_jobs = expected_n_jobs THEN
+      UPDATE batches SET closed = 1 WHERE id = in_batch_id;
+      UPDATE batches SET time_completed = in_timestamp
+        WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       UPDATE ready_cores
         SET ready_cores_mcpu = ready_cores_mcpu +
           COALESCE(
             (SELECT SUM(cores_mcpu) FROM jobs
              WHERE jobs.state = 'Ready' AND jobs.batch_id = in_batch_id),
             0);
-      UPDATE batches SET closed = 1 WHERE id = in_batch_id;
-      UPDATE batches SET time_completed = in_timestamp
-        WHERE id = in_batch_id AND n_completed = batches.n_jobs;
       COMMIT;
       SELECT 0 as rc;
     ELSE
@@ -396,10 +440,10 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name;
 
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
+    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
     UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - cur_cores_mcpu;
-    UPDATE instances SET free_cores_mcpu = free_cores_mcpu - cur_cores_mcpu WHERE name = in_instance_name;
-    UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
     SELECT 0 as rc, in_instance_name;
   ELSE
@@ -437,12 +481,12 @@ BEGIN
   FROM attempts WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
 
   IF cur_job_state = 'Running' AND cur_job_instance_name = expected_instance_name THEN
-    UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
-    UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
     UPDATE attempts
       SET end_time = new_end_time, reason = new_reason, instance_name = NULL
       WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = cur_attempt_id;
+    UPDATE instances SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu WHERE name = cur_job_instance_name;
     UPDATE jobs SET state = 'Ready', attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
+    UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + cur_cores_mcpu;
     COMMIT;
     SELECT 0 as rc;
   ELSE
@@ -480,7 +524,7 @@ BEGIN
   FROM attempts
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN    
+  IF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs
     SET state = new_state, status = new_status, attempt_id = NULL
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
