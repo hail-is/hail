@@ -1,15 +1,17 @@
 package is.hail.utils
 
+import java.time.DayOfWeek
 import java.util.Locale
 import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder, TextStyle}
-import java.time.temporal.ChronoField
-import java.time.chrono.{Chronology, ChronoLocalDate}
+import java.time.temporal.{ChronoField, WeekFields}
+import java.time.chrono.{ChronoLocalDate, Chronology}
 
 object DateFormatUtils {
   def parseDateFormat(str: String, locale: Locale): DateTimeFormatter = {
     val fmt = new DateTimeFormatterBuilder
     val chrono = Chronology.ofLocale(locale)
     lazy val _1970 = chrono.date(1970, 1, 1)
+    val SUNDAY_START_ALWAYS = WeekFields.of(DayOfWeek.SUNDAY, 7)
 
     def char(c: Char): Unit = fmt.appendLiteral(c)
 
@@ -40,14 +42,14 @@ object DateFormatUtils {
       case 's' => fmt.appendValue(ChronoField.INSTANT_SECONDS)
       case 'T' => alternating("H:M:S")
       case 't' => char('\t')
-      case 'U' => fmt.appendValue(ChronoField.ALIGNED_WEEK_OF_YEAR, 2) // TODO NOTE: sunday first day
-      case 'u' => fmt.appendValue(ChronoField.DAY_OF_WEEK) // NOTE: 1-7 //TODO
+      case 'U' => fmt.appendValue(SUNDAY_START_ALWAYS.weekOfYear(), 2) //Sunday first day
+      case 'u' => fmt.appendValue(WeekFields.ISO.dayOfWeek()) // Note 1-7, starts on Monday
       case 'v' => alternating("e-b-Y")
       case 'W' => fmt.appendValue(ChronoField.ALIGNED_WEEK_OF_YEAR, 2) // TODO NOTE: monday first day
       case 'w' => fmt.appendValue(ChronoField.DAY_OF_WEEK) // NOTE: 0-6
       case 'Y' => fmt.appendValue(ChronoField.YEAR, 4)
       case 'y' => fmt.appendValueReduced(ChronoField.YEAR, 2, 2, _1970)
-      case 'E' | 'O' => char(c) // Python just keeps the letter when it's unrecognized.
+      case 'E' | 'O' => char(c) // Python just keeps these two letters.
       case 'C' | 'c' | 'V' | 'X' | 'x' | 'Z' | 'z' => throw new HailException("Unsupported time formatting character.")
       case d => fatal(s"invalid time format descriptor: $d")
     }

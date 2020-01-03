@@ -101,7 +101,7 @@ class StringFunctionsSuite extends TestNGSuite {
     // ⊗ = unimplemented
 
     // % A a B b C c E D d e F G g H I j k l M m n p R r S s T t U u V v W w X x Y y Z z
-    // ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ⊗
+    // ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ⊗
 
     Array("%t%%%n%s",                    "\t%\n123456789",                        123456789),
     Array("%m/%d/%y %I:%M:%S %p",        "10/10/97 11:45:23 PM",                  876541523),
@@ -120,7 +120,9 @@ class StringFunctionsSuite extends TestNGSuite {
     Array("%D %l:%M:%S %p",              "10/10/97 11:45:23 PM",                  876541523),
     Array("%D %l:%M:%S %p",              "07/08/19  3:00:01 AM",                  1562569201),
     Array("%F %k:%M:%S",                 "1997-10-10 23:45:23",                   876541523),
-    Array("%F %k:%M:%S",                 "2019-07-08  3:00:01",                   1562569201)
+    Array("%F %k:%M:%S",                 "2019-07-08  3:00:01",                   1562569201),
+    Array("%u",                           "4",                                    100000),
+    Array("%U",                           "00",                                   94750400)
   )
 
   @Test(dataProvider = "time")
