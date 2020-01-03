@@ -110,6 +110,7 @@ class StringFunctionsSuite extends TestNGSuite {
     Array("%Y.%m.%d %H:%M:%S",           "2019.07.08 03:00:01",                   1562569201),
     Array("day %j of %Y. %R:%S",         "day 283 of 1997. 23:45:23",             876541523),
     Array("day %j of %Y. %R:%S",         "day 189 of 2019. 03:00:01",             1562569201),
+    Array("day %j of %Y. %R:%S",         "day 001 of 1970. 22:46:40",             100000),
     Array("%v %T",                       "10-Oct-1997 23:45:23",                  876541523),
     Array("%v %T",                       " 8-Jul-2019 03:00:01",                  1562569201),
     Array("%A, %B %e, %Y. %r",           "Friday, October 10, 1997. 11:45:23 PM", 876541523),
