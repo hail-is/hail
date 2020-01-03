@@ -109,6 +109,7 @@ def test_ndarray_eval():
     nd_expr = hl.nd.array(data_list)
     evaled = hl.eval(nd_expr)
     np_equiv = np.array(data_list, dtype=np.int32)
+    np_equiv_fortran_style = np.asfortranarray(np_equiv)
     assert(np.array_equal(evaled, np_equiv))
     assert(evaled.strides == np_equiv.strides)
 
@@ -120,6 +121,9 @@ def test_ndarray_eval():
 
     assert np.array_equal(evaled_zero_array, zero_array)
     assert zero_array.dtype == evaled_zero_array.dtype
+
+    # Testing correct interpretation of numpy strides
+    assert np.array_equal(hl.eval(hl.literal(np_equiv_fortran_style)), np_equiv_fortran_style)
 
     # Testing from hail arrays
     assert np.array_equal(hl.eval(hl.nd.array(hl.range(6))), np.arange(6))
