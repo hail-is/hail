@@ -655,10 +655,10 @@ class tndarray(HailType):
         data = x.reshape(x.size).tolist()
 
         strides = []
-        running_shape_product = x.itemsize
-        for shape_element in reversed(x.shape):
-            strides.insert(0, running_shape_product)
-            running_shape_product = running_shape_product * (shape_element if shape_element > 0 else 1)
+        axis_one_step_byte_size = x.itemsize
+        for dimension_size in reversed(x.shape):
+            strides.insert(0, axis_one_step_byte_size)
+            axis_one_step_byte_size *= (dimension_size if dimension_size > 0 else 1)
 
         json_dict = {
             "shape": x.shape,
