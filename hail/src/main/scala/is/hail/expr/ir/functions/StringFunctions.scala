@@ -8,8 +8,9 @@ import is.hail.expr.types.physical.{PArray, PBinary, PString}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import java.util.Locale
-import java.time.{LocalDateTime, Instant}
+import java.time.{Instant, LocalDateTime, ZoneId}
 import java.time.temporal.ChronoField
+
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
@@ -85,7 +86,7 @@ object StringFunctions extends RegistryFunctions {
 
   def strftime(fmtStr: String, epochSeconds: Long): String =
     DateFormatUtils.parseDateFormat(fmtStr, locale)
-      .format(Instant.ofEpochSecond(epochSeconds))
+      .format(Instant.ofEpochSecond(epochSeconds).atZone(ZoneId.of("America/New_York")))
 
   def strptime(timeStr: String, fmtStr: String): Long =
     DateFormatUtils.parseDateFormat(fmtStr, locale)
