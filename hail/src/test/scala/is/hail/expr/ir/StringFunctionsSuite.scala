@@ -124,7 +124,7 @@ class StringFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "time")
   def strftime(fmt: String, s: String, t: Long) {
-    assertEvalsTo(invoke("strftime", TString(), Str(fmt), I64(t)), s)
+    assertEvalsTo(invoke("strftime", TString(), Str(fmt), I64(t), Str("America/New_York")), s)
   }
 
   @Test(dataProvider = "time")

@@ -289,3 +289,4 @@ def register_functions():
     register_function("isHomRef", (dtype("call"),), dtype("bool"))
     register_seeded_function("rand_norm", (dtype("float64"),dtype("float64"),), dtype("float64"))
     register_function("chi_squared_test", (dtype("int32"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("struct{p_value: float64, odds_ratio: float64}"))
+    register_function("strftime", (dtype("str"), dtype("int64"), dtype("str")), dtype("str"))

@@ -84,9 +84,9 @@ object StringFunctions extends RegistryFunctions {
 
   private val locale: Locale = Locale.US
 
-  def strftime(fmtStr: String, epochSeconds: Long): String =
+  def strftime(fmtStr: String, epochSeconds: Long, zoneId: String): String =
     DateFormatUtils.parseDateFormat(fmtStr, locale)
-      .format(Instant.ofEpochSecond(epochSeconds).atZone(ZoneId.of("America/New_York")))
+      .format(Instant.ofEpochSecond(epochSeconds).atZone(ZoneId.of(zoneId)))
 
   def strptime(timeStr: String, fmtStr: String): Long =
     DateFormatUtils.parseDateFormat(fmtStr, locale)
@@ -242,7 +242,7 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerWrappedScalaFunction("escapeString", TString(), TString(), null)(thisClass, "escapeString")
-    registerWrappedScalaFunction("strftime", TString(), TInt64(), TString(), null)(thisClass, "strftime")
+    registerWrappedScalaFunction("strftime", TString(), TInt64(), TString(), TString(), null)(thisClass, "strftime")
     registerWrappedScalaFunction("strptime", TString(), TString(), TInt64(), null)(thisClass, "strptime")
   }
 }
