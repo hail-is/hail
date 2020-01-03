@@ -8,17 +8,43 @@
   {% endfor %}
   {% endif %}
   <h2>Jobs</h2>
-    <div class="searchbar-table">
-      <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
-	<input style="vertical-align:text-bottom;" name="q" size=30 type="text"
-	       {% if q %}
+    <div class="flex-col-align-right">
+      <div class="flex-col-align-right">
+	<form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
+	  <input style="vertical-align:text-bottom;" name="q" size=30 type="text"
+		 {% if q %}
 	         value="{{ q }}"
-	       {% else %}
+		 {% else %}
 	         placeholder="Search terms..."
-	       {% endif %}
-	       >
-	<button type="submit">Search</button>
-      </form>
+		 {% endif %}
+		 >
+	  <button type="submit">Search</button>
+	</form>
+	<input id="expand-search-syntax-checkbox" class="expand-checkbox" type="checkbox">
+	<label for="expand-search-syntax-checkbox" class="expand-label">Search Help</label>
+	<div class="expand-content" style="max-width:450px;">
+	  <p>Search jobs with the given search terms.  Return jobs
+	    that match all terms.  Terms:</p>
+	  <ul>
+	    <li>k=v - jobs with an attribute with key k and value v</li>
+	    <li>has:k - jobs that have an attribute with key k</li>
+	    <li>state - jobs in the given state, one of:
+	      <ul>
+		<li>ready</li>
+		<li>running</li>
+		<li>live (ready or running)</li>
+		<li>cancelled</li>
+		<li>error</li>
+		<li>failed</li>
+		<li>bad (error or failed)</li>
+		<li>success</li>
+		<li>done (cancelled, error, failed or success)</li>
+	      </ul>
+	    </li>
+	    <li>!term - jobs not matched by term</li>
+	  </ul>
+	</div>
+      </div>
       <table class="data-table" id="batch">
 	<thead>
 	  <tr>

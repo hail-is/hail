@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
-  val arrayRep = PCanonicalArray(elementType, required )
+  val arrayRep = PCanonicalArray(elementType, required)
 
   def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet = PCanonicalSet(elementType, required)
 

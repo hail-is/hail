@@ -24,7 +24,7 @@ check:
 build-ci-utils:
 	make -C ../docker build
 	-docker pull $(CI_UTILS_LATEST)
-	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
+	python3 jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
 	docker build -t ci-utils -f Dockerfile.ci-utils.out --cache-from ci-utils,$(CI_UTILS_LATEST),base .
 
 .PHONY: push-ci-utils

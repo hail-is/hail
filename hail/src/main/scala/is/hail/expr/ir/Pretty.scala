@@ -55,7 +55,7 @@ object Pretty {
       sb += ')'
     }
 
-    def prettyAggSignature2(aggSig: AggSignature2, depth: Int): String = {
+    def prettyAggSignature(aggSig: AggSignature, depth: Int): String = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.op))
@@ -70,12 +70,12 @@ object Pretty {
       sb.result()
     }
 
-    def prettyAggSeq(sigs: Seq[AggSignature2], depth: Int) {
+    def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
       sb.append(" " * depth)
       sb += '('
       sigs.foreach { x =>
         sb += '\n'
-        prettyAggSignature2(x, depth + 2)
+        prettyAggSignature(x, depth + 2)
       }
       sb += ')'
     }
@@ -117,14 +117,14 @@ object Pretty {
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          prettyAggSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case SeqOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          prettyAggSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case CombOp2(i1, i2, aggSig) =>
@@ -133,7 +133,7 @@ object Pretty {
           sb += ' '
           sb.append(i2)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          prettyAggSignature(aggSig, depth + 2)
         case ResultOp2(i, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -193,6 +193,8 @@ object Pretty {
                 )
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case TailLoop(name, args, _) => prettyIdentifier(name) + " " + prettyIdentifiers(args.map(_._1).toFastIndexedSeq)
+            case Recur(name, _, t) => prettyIdentifier(name) + " " + t.parsableString()
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)
@@ -232,7 +234,6 @@ object Pretty {
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString()
-            case Uniroot(name, _, _, _) => prettyIdentifier(name)
             case CollectDistributedArray(_, _, cname, gname, _) =>
               s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>

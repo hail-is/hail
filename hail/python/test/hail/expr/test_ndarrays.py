@@ -423,6 +423,8 @@ def test_ndarray_matmul():
     np_broadcasted_mat = np.arange(4).reshape((1, 2, 2))
     np_six_dim_tensor = np.arange(3 * 7 * 1 * 9 * 4 * 5).reshape((3, 7, 1, 9, 4, 5))
     np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
+    np_ones_int32 = np.ones((4, 4), dtype=np.int32)
+    np_ones_float64 = np.ones((4, 4), dtype=np.float64)
 
     v = hl.nd.array(np_v)
     m = hl.nd.array(np_m)
@@ -432,6 +434,8 @@ def test_ndarray_matmul():
     broadcasted_mat = hl.nd.array(np_broadcasted_mat)
     six_dim_tensor = hl.nd.array(np_six_dim_tensor)
     five_dim_tensor = hl.nd.array(np_five_dim_tensor)
+    ones_int32 = hl.nd.array(np_ones_int32)
+    ones_float64 = hl.nd.array(np_ones_float64)
 
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
@@ -455,6 +459,8 @@ def test_ndarray_matmul():
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
     assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)) @ hl.nd.array(np.arange(10).reshape(5, 2))) is None
     assert hl.eval(hl.nd.array(np.arange(10).reshape(5, 2)) @ hl.null(hl.tndarray(hl.tint64, 2))) is None
+
+    assert np.array_equal(hl.eval(ones_int32 @ ones_float64), np_ones_int32 @ np_ones_float64)
 
     with pytest.raises(ValueError):
         m @ 5
@@ -518,3 +524,88 @@ def test_ndarray_show():
     hl.nd.arange(6).show()
     hl.nd.arange(6).reshape((2, 3)).show()
     hl.nd.arange(8).reshape((2, 2, 2)).show()
+
+@skip_unless_spark_backend()
+def test_ndarray_qr():
+    def assert_raw_equivalence(hl_ndarray, np_ndarray):
+        ndarray_h, ndarray_tau = hl.eval(hl.nd.qr(hl_ndarray, mode="raw"))
+        np_ndarray_h, np_ndarray_tau = np.linalg.qr(np_ndarray, mode="raw")
+
+        rank = np.linalg.matrix_rank(np_ndarray)
+
+        assert np.allclose(ndarray_h[:, :rank], np_ndarray_h[:, :rank])
+        assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
+
+    def assert_r_equivalence(hl_ndarray, np_ndarray):
+        assert np.allclose(hl.eval(hl.nd.qr(hl_ndarray, mode="r")), np.linalg.qr(np_ndarray, mode="r"))
+
+    def assert_reduced_equivalence(hl_ndarray, np_ndarray):
+        q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="reduced"))
+        nq, nr = np.linalg.qr(np_ndarray, mode="reduced")
+
+        rank = np.linalg.matrix_rank(np_ndarray)
+
+        assert np.allclose(q[:, :rank], nq[:, :rank])
+        assert np.allclose(r, nr)
+        assert np.allclose(q @ r, np_ndarray)
+
+    def assert_complete_equivalence(hl_ndarray, np_ndarray):
+        q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="complete"))
+        nq, nr = np.linalg.qr(np_ndarray, mode="complete")
+
+        rank = np.linalg.matrix_rank(np_ndarray)
+
+        assert np.allclose(q[:, :rank], nq[:, :rank])
+        assert np.allclose(r, nr)
+        assert np.allclose(q @ r, np_ndarray)
+
+    def assert_same_qr(hl_ndarray, np_ndarray):
+        assert_raw_equivalence(hl_ndarray, np_ndarray)
+        assert_r_equivalence(hl_ndarray, np_ndarray)
+        assert_reduced_equivalence(hl_ndarray, np_ndarray)
+        assert_complete_equivalence(hl_ndarray, np_ndarray)
+
+    np_identity4 = np.identity(4)
+    identity4 = hl.nd.array(np_identity4)
+
+    assert_same_qr(identity4, np_identity4)
+
+    np_all3 = np.full((3, 3), 3)
+    all3 = hl.nd.full((3, 3), 3)
+
+    assert_same_qr(all3, np_all3)
+
+    np_nine_square = np.arange(9).reshape((3, 3))
+    nine_square = hl.nd.arange(9).reshape((3, 3))
+
+    assert_same_qr(nine_square, np_nine_square)
+
+    np_wiki_example = np.array([[12, -51, 4],
+                                [6, 167, -68],
+                                [-4, 24, -41]])
+    wiki_example = hl.nd.array(np_wiki_example)
+
+    assert_same_qr(wiki_example, np_wiki_example)
+
+    np_wide_rect = np.arange(12).reshape((3, 4))
+    wide_rect = hl.nd.arange(12).reshape((3, 4))
+
+    assert_same_qr(wide_rect, np_wide_rect)
+
+    np_tall_rect = np.arange(12).reshape((4, 3))
+    tall_rect = hl.nd.arange(12).reshape((4, 3))
+
+    assert_same_qr(tall_rect, np_tall_rect)
+
+    np_single_element = np.array([1]).reshape((1, 1))
+    single_element = hl.nd.array([1]).reshape((1, 1))
+
+    assert_same_qr(single_element, np_single_element)
+
+    with pytest.raises(ValueError) as exc:
+        hl.nd.qr(wiki_example, mode="invalid")
+    assert "Unrecognized mode" in str(exc)
+
+    with pytest.raises(AssertionError) as exc:
+        hl.nd.qr(hl.nd.arange(6))
+    assert "requires 2 dimensional" in str(exc)

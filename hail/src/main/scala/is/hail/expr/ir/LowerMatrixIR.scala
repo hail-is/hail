@@ -381,8 +381,10 @@ object LowerMatrixIR {
         val idx = Ref(genUID(), TInt32())
         val idxSym = Symbol(idx.name)
 
-        val aggTransformer: IRProxy => IRProxy = if (aggs.isEmpty)
-          identity
+        val noOp: (IRProxy => IRProxy, IRProxy => IRProxy) = (identity[IRProxy], identity[IRProxy])
+
+        val (aggOutsideTransformer: (IRProxy => IRProxy), aggInsideTransformer: (IRProxy => IRProxy)) = if (aggs.isEmpty)
+          noOp
         else {
           val aggStruct = MakeStruct(aggs)
 
@@ -404,17 +406,18 @@ object LowerMatrixIR {
           val aggResultRef = Ref(genUID(), aggResultArray.typ)
           val aggResultElementRef = Ref(genUID(), aggResultArray.typ.asInstanceOf[TArray].elementType)
 
-          (x: IRProxy) =>
+          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResultArray.typ)))).apply(_)
+          val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
             let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResultArray.typ))))
               .apply(
                 let.applyDynamicNamed("apply")((aggResultElementRef.name, ArrayRef(aggResultRef, idx))) {
                   aggs.foldLeft[IRProxy](x) { case (acc, (name, _)) => let.applyDynamicNamed("apply")((name, GetField(aggResultElementRef, name)))(acc) }
-                }
-              )
+                })
+          (bindResult, bodyResult)
         }
 
-        val scanTransformer: IRProxy => IRProxy = if (scans.isEmpty)
-          identity
+        val (scanOutsideTransformer: (IRProxy => IRProxy), scanInsideTransformer: (IRProxy => IRProxy)) = if (scans.isEmpty)
+          noOp
         else {
           val scanStruct = MakeStruct(scans)
 
@@ -426,19 +429,19 @@ object LowerMatrixIR {
           val scanResultRef = Ref(genUID(), scanResultArray.typ)
           val scanResultElementRef = Ref(genUID(), scanResultArray.typ.asInstanceOf[TArray].elementType)
 
-          x: IRProxy =>
-            let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(
-              let.applyDynamicNamed("apply")((scanResultElementRef.name, ArrayRef(scanResultRef, idx)))(
-                scans.foldLeft[IRProxy](x) { case (acc, (name, _)) =>
-                  let.applyDynamicNamed("apply")((name, GetField(scanResultElementRef, name)))(acc)
-                }
-              ))
+          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(_)
+          val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
+            let.applyDynamicNamed("apply")((scanResultElementRef.name, ArrayRef(scanResultRef, idx)))(
+              scans.foldLeft[IRProxy](x) { case (acc, (name, _)) =>
+                let.applyDynamicNamed("apply")((name, GetField(scanResultElementRef, name)))(acc)
+              })
+          (bindResult, bodyResult)
         }
 
         loweredChild.mapGlobals('global.insertFields(colsField ->
-          irRange(0, 'global(colsField).len).map(idxSym ~> let(__cols_array = 'global(colsField), sa = '__cols_array(idxSym)) {
-            scanTransformer(aggTransformer(b0))
-          })
+          aggOutsideTransformer(scanOutsideTransformer(irRange(0, 'global(colsField).len).map(idxSym ~> let(__cols_array = 'global(colsField), sa = '__cols_array(idxSym)) {
+            aggInsideTransformer(scanInsideTransformer(b0))
+          })))
         ))
 
       case MatrixFilterEntries(child, pred) =>

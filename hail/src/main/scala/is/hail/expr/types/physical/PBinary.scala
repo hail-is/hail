@@ -11,15 +11,8 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-case object PBinaryOptional extends PBinary(false)
-
-case object PBinaryRequired extends PBinary(true)
-
-class PBinary(override val required: Boolean) extends PType {
+abstract class PBinary extends PType {
   lazy val virtualType: TBinary = TBinary(required)
-
-  def _asIdent = "binary"
-  def _toPretty = "Binary"
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -71,56 +64,42 @@ class PBinary(override val required: Boolean) extends PType {
       }
     }
   }
-
-  override def byteSize: Long = 8
-
-  override def containsPointers: Boolean = true
 }
 
 object PBinary {
-  def apply(required: Boolean = false): PBinary = if (required) PBinaryRequired else PBinaryOptional
+  def apply(required: Boolean = false): PBinary = PCanonicalBinary(required)
 
-  def unapply(t: PBinary): Option[Boolean] = Option(t.required)
+  def unapply(t: PBinary): Option[Boolean] = PCanonicalBinary.unapply(t)
 
-  def contentAlignment: Long = 4
+  def contentAlignment: Long = PCanonicalBinary.contentAlignment
 
-  def lengthHeaderBytes: Long = 4
+  def lengthHeaderBytes: Long = PCanonicalBinary.lengthHeaderBytes
 
-  def contentByteSize(length: Int): Long = 4 + length
+  def contentByteSize(length: Int): Long = PCanonicalBinary.contentByteSize(length)
 
-  def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
+  def contentByteSize(length: Code[Int]): Code[Long] = PCanonicalBinary.contentByteSize(length)
 
-  def loadLength(boff: Long): Int = Region.loadInt(boff)
+  def loadLength(boff: Long): Int = PCanonicalBinary.loadLength(boff)
 
-  def loadLength(region: Region, boff: Long): Int =
-    Region.loadInt(boff)
+  def loadLength(region: Region, boff: Long): Int = PCanonicalBinary.loadLength(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] =
-    Region.loadInt(boff)
+  def loadLength(boff: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(boff)
 
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
+  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(boff)
 
-  def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
+  def storeLength(boff: Long, len: Int): Unit = PCanonicalBinary.storeLength(boff, len)
 
-  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
+  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = PCanonicalBinary.storeLength(boff, len)
 
-  def bytesOffset(boff: Long): Long = boff + lengthHeaderBytes
+  def bytesOffset(boff: Long): Long = PCanonicalBinary.bytesOffset(boff)
 
-  def bytesOffset(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
+  def bytesOffset(boff: Code[Long]): Code[Long] = PCanonicalBinary.bytesOffset(boff)
 
-  def allocate(region: Region, length: Int): Long = {
-    region.allocate(contentAlignment, contentByteSize(length))
-  }
+  def allocate(region: Region, length: Int): Long = PCanonicalBinary.allocate(region, length)
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long] = {
-    region.allocate(const(contentAlignment), contentByteSize(length))
-  }
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long] = PCanonicalBinary.allocate(region, length)
 
-  def store(addr: Long, bytes: Array[Byte]): Unit = {
-    Region.storeInt(addr, bytes.length)
-    Region.storeBytes(bytesOffset(addr), bytes)
-  }
+  def store(addr: Long, bytes: Array[Byte]): Unit = PCanonicalBinary.store(addr, bytes)
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
-    Code.invokeScalaObject[Long, Array[Byte], Unit](PBinary.getClass, "store", addr, bytes)
+  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = PCanonicalBinary.store(addr, bytes)
 }

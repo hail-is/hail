@@ -54,6 +54,10 @@ object InferType {
         body.typ
       case AggLet(name, value, body, _) =>
         body.typ
+      case TailLoop(_, _, body) =>
+        body.typ
+      case Recur(_, _, typ) =>
+        typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
       case ApplyUnaryPrimOp(op, v) =>
@@ -69,7 +73,6 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         a.implementation.unify(argTypes :+ a.returnType)
         a.returnType
-      case _: Uniroot => TFloat64()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         coerce[TStreamable](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
@@ -139,6 +142,16 @@ object InferType {
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)), lTyp.required && rTyp.required)
+      case NDArrayQR(nd, mode) =>
+        if (Array("complete", "reduced").contains(mode)) {
+          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(2), false))
+        } else if (mode == "raw") {
+          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(1), false))
+        } else if (mode == "r") {
+          TNDArray(TFloat64(), Nat(2), false)
+        } else {
+          throw new NotImplementedError(s"Cannot infer type for mode $mode")
+        }
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ

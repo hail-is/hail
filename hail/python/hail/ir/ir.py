@@ -388,6 +388,72 @@ class TopLevelReference(Ref):
         self._type = env[self.name]
 
 
+class TailLoop(IR):
+
+    @typecheck_method(name=str, body=IR, params=sequenceof(sized_tupleof(str, IR)))
+    def __init__(self, name, body, params):
+        super().__init__(*([v for n, v in params] + [body]))
+        self.name = name
+        self.params = params
+        self.body = body
+
+    def copy(self, *children):
+        params = children[:-1]
+        body = children[-1]
+        assert len(params) == len(self.params)
+        return TailLoop(self.name, [(n, v) for (n, _), v in zip(self.params, params)], body)
+
+    def head_str(self):
+        return f'{escape_id(self.name)} ({" ".join([escape_id(n) for n, _ in self.params])})'
+
+    def _eq(self, other):
+        return self.name == other.name
+
+    def _compute_type(self, env, agg_env):
+        self._type = self.body._compute_type(env, agg_env)
+
+    @property
+    def bound_variables(self):
+        return {n for n, _ in self.params} | {self.name} | super().bound_variables
+
+    def _compute_type(self, env, agg_env):
+        self.body._compute_type(_env_bind(env, self.bindings(len(self.params))), agg_env)
+        self._type = self.body.typ
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == len(self.params):
+            if default_value is None:
+                return {self.name: None, **{n: v.typ for n, v in self.params}}
+            else:
+                value = default_value
+                return {self.name: value, **{n: value for n, _ in self.params}}
+        else:
+            return {}
+
+
+class Recur(IR):
+    @typecheck_method(name=str, args=sequenceof(IR), return_type=hail_type)
+    def __init__(self, name, args, return_type):
+        super().__init__(*args)
+        self.name = name
+        self.args = args
+        self.return_type = return_type
+        self._free_vars = {name}
+
+    def copy(self, args):
+        return Recur(self.name, args, self.return_type)
+
+    def head_str(self):
+        return f'{escape_id(self.name)} {self.return_type._parsable_string()}'
+
+    def _eq(self, other):
+        return other.name == self.name
+
+    def _compute_type(self, env, agg_env):
+        assert self.name in env
+        self._type = self.return_type
+
+
 class ApplyBinaryPrimOp(IR):
     @typecheck_method(op=str, l=IR, r=IR)
     def __init__(self, op, l, r):
@@ -725,6 +791,32 @@ class NDArrayMatMul(IR):
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
         from hail.expr.expressions import unify_types
         self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
+
+class NDArrayQR(IR):
+    @typecheck_method(nd=IR, mode=str)
+    def __init__(self, nd, mode):
+        super().__init__(nd)
+        self.nd = nd
+        self.mode = mode
+
+    @typecheck_method(nd=IR, mode=str)
+    def copy(self):
+        return NDArrayQR(self.nd, self.mode)
+
+    def head_str(self):
+        return f'"{self.mode}"'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+
+        if self.mode in ["complete", "reduced"]:
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2))
+        elif self.mode == "raw":
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1))
+        elif self.mode == "r":
+            self._type = tndarray(tfloat64, 2)
+        else:
+            raise ValueError("Cannot compute type for mode: " + self.mode)
 
 
 class NDArrayWrite(IR):
@@ -1829,43 +1921,6 @@ class ApplySeeded(IR):
     @staticmethod
     def is_effectful() -> bool:
         return True
-
-
-class Uniroot(IR):
-    @typecheck_method(argname=str, function=IR, min=IR, max=IR)
-    def __init__(self, argname, function, min, max):
-        super().__init__(function, min, max)
-        self.argname = argname
-        self.function = function
-        self.min = min
-        self.max = max
-
-    @typecheck_method(function=IR, min=IR, max=IR)
-    def copy(self, function, min, max):
-        return Uniroot(self.argname, function, min, max)
-
-    def head_str(self):
-        return escape_id(self.argname)
-
-    @property
-    def bound_variables(self):
-        return {self.argname} | super().bound_variables
-
-    def _eq(self, other):
-        return other.argname == self.argname
-
-    def _compute_type(self, env, agg_env):
-        self.function._compute_type(_env_bind(env, self.bindings(0)), agg_env)
-        self.min._compute_type(env, agg_env)
-        self.max._compute_type(env, agg_env)
-        self._type = tfloat64
-
-    def renderable_bindings(self, i, default_value=None):
-        if i == 0:
-            value = tfloat64 if default_value is None else default_value
-            return {self.argname: value}
-        else:
-            return {}
 
 
 class TableCount(IR):

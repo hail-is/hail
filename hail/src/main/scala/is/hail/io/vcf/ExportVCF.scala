@@ -36,16 +36,16 @@ object ExportVCF {
         if (x.isNaN)
           sb += '.'
         else
-          sb.append(x.formatted("%.5e"))
+          sb.append(x.formatted("%.6g"))
       case PFloat64(_) =>
         val x = Region.loadDouble(offset)
         if (x.isNaN)
           sb += '.'
         else
-          sb.append(x.formatted("%.5e"))
+          sb.append(x.formatted("%.6g"))
       case PString(_) =>
         sb.append(PString.loadString(m, offset))
-      case PCall(_) =>
+      case _: PCall =>
         val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
       case _ =>

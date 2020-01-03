@@ -388,7 +388,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       case None =>
         val PCSubsetOffset(idx, nTake, _) =
           incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
-            runJob(getIteratorSize, _)
+            runJob(getIteratorSizeWithMaxN(n), _)
           )
         idx -> nTake
     }

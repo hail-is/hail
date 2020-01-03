@@ -59,6 +59,24 @@ deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker = aiodocker.Docker()
 
+port_allocator = None
+
+worker = None
+
+
+class PortAllocator:
+    def __init__(self):
+        self.ports = asyncio.Queue()
+        port_base = 46572
+        for port in range(port_base, port_base + 10):
+            self.ports.put_nowait(port)
+
+    async def allocate(self):
+        return await self.ports.get()
+
+    def free(self, port):
+        self.ports.put_nowait(port)
+
 
 async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
@@ -71,8 +89,8 @@ async def docker_call_retry(f, *args, **kwargs):
                 log.exception('in docker call, retrying')
             # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
             # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-            elif e.status == 500 and ("request canceled while waiting for connection" in e.message
-                                      or re.match("error creating overlay mount.*device or resource busy", e.message)):
+            elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
+                                      re.match("error creating overlay mount.*device or resource busy", e.message)):
                 log.exception('in docker call, retrying')
             else:
                 raise
@@ -131,6 +149,9 @@ class Container:
         self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
+        self.port = self.spec.get('port')
+        self.host_port = None
+
         self.container = None
         self.state = 'pending'
         self.error = None
@@ -139,6 +160,30 @@ class Container:
         self.log = None
 
     def container_config(self):
+        host_config = {
+            'CpuPeriod': 100000,
+            'CpuQuota': self.cpu_in_mcpu * 100,
+            'Memory': self.memory_in_bytes
+        }
+
+        env = self.spec.get('env', [])
+
+        if self.port is not None:
+            assert self.host_port is not None
+            host_config['PortBindings'] = {
+                f'{self.port}/tcp': [{
+                    'HostIp': '',
+                    'HostPort': str(self.host_port)
+                }]
+            }
+            env = list(env)
+            env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
+            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
+
+        volume_mounts = self.spec.get('volume_mounts')
+        if volume_mounts:
+            host_config['Binds'] = volume_mounts
+
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
@@ -147,18 +192,10 @@ class Container:
             'OpenStdin': False,
             'Cmd': self.spec['command'],
             'Image': self.image,
-            'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100,
-                           'Memory': self.memory_in_bytes}
+            'HostConfig': host_config
         }
-
-        env = self.spec.get('env')
         if env:
             config['Env'] = env
-
-        volume_mounts = self.spec.get('volume_mounts')
-        if volume_mounts:
-            config['HostConfig']['Binds'] = volume_mounts
 
         return config
 
@@ -216,6 +253,10 @@ class Container:
                     except DockerError as e:
                         if e.status == 404:
                             await docker_call_retry(docker.images.pull, self.image)
+
+            if self.port is not None:
+                async with self.step('allocating_port'):
+                    self.host_port = await port_allocator.allocate()
 
             async with self.step('creating'):
                 config = self.container_config()
@@ -283,6 +324,10 @@ class Container:
                 self.container = None
             except Exception:
                 log.exception('while deleting up container, ignoring')
+
+        if self.host_port is not None:
+            port_allocator.free(self.host_port)
+            self.host_port = None
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -401,13 +446,11 @@ class Job:
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
-        if pvc_size or input_files or output_files:
-            self.mount_io = True
+        self.mount_io = (pvc_size or input_files or output_files)
+        if self.mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
-        else:
-            self.mount_io = False
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
@@ -440,6 +483,9 @@ class Job:
             'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
+        port = job_spec.get('port')
+        if port:
+            main_spec['port'] = port
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
@@ -789,11 +835,17 @@ class Worker:
                                       project=PROJECT, credentials=credentials)
 
 
-worker = Worker()
+async def async_main():
+    global port_allocator, worker
+
+    port_allocator = PortAllocator()
+    worker = Worker()
+    await worker.run()
+
+    await docker.close()
 
 loop = asyncio.get_event_loop()
-loop.run_until_complete(worker.run())
-loop.run_until_complete(docker.close())
+loop.run_until_complete(async_main())
 loop.run_until_complete(loop.shutdown_asyncgens())
 loop.close()
 log.info(f'closed')

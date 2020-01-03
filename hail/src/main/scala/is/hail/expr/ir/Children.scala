@@ -31,6 +31,10 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
+    case TailLoop(_, args, body) =>
+      args.map(_._2).toFastIndexedSeq :+ body
+    case Recur(_, args, _) =>
+      args.toFastIndexedSeq
     case Ref(name, typ) =>
       none
     case RelationalRef(_, _) =>
@@ -107,6 +111,8 @@ object Children {
       Array(nd)
     case NDArrayMatMul(l, r) =>
       Array(l, r)
+    case NDArrayQR(nd, _) =>
+      Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>
@@ -152,8 +158,6 @@ object Children {
       args.toFastIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
-    case Uniroot(_, fn, min, max) =>
-      Array(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)
     case MatrixMultiWrite(children, _) => children

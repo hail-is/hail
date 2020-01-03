@@ -78,7 +78,7 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, requested_step_names=None):
+    def __init__(self, code, config_str, scope, requested_step_names=()):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
@@ -89,10 +89,13 @@ class BuildConfiguration:
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
             step = Step.from_json(step_params)
-            self.steps.append(step)
-            name_step[step.name] = step
+            if not step.run_if_requested or step.name in requested_step_names:
+                self.steps.append(step)
+                name_step[step.name] = step
+            else:
+                name_step[step.name] = None
 
-        # transitively close requested_step_names over dependenies
+        # transitively close requested_step_names over dependencies
         if requested_step_names:
             visited = set()
 
@@ -136,10 +139,11 @@ class Step(abc.ABC):
 
         self.name = json['name']
         if 'dependsOn' in json:
-            self.deps = [params.name_step[d] for d in json['dependsOn']]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
 
@@ -375,12 +379,13 @@ true
 
 
 class RunImageStep(Step):
-    def __init__(self, params, image, script, inputs, outputs, resources, service_account, secrets, always_run):  # pylint: disable=unused-argument
+    def __init__(self, params, image, script, inputs, outputs, port, resources, service_account, secrets, always_run):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
         self.script = script
         self.inputs = inputs
         self.outputs = outputs
+        self.port = port
         self.resources = resources
         if service_account:
             self.service_account = {
@@ -406,6 +411,7 @@ class RunImageStep(Step):
                             json['script'],
                             json.get('inputs'),
                             json.get('outputs'),
+                            json.get('port'),
                             json.get('resources'),
                             json.get('serviceAccount'),
                             json.get('secrets'),
@@ -451,6 +457,7 @@ class RunImageStep(Step):
         self.job = batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
+            port=self.port,
             resources=self.resources,
             attributes={'name': self.name},
             input_files=input_files,

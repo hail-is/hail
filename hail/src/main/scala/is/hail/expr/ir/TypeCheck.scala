@@ -117,6 +117,23 @@ object TypeCheck {
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case RelationalRef(_, _) =>
+      case x@TailLoop(name, _, body) =>
+        assert(x.typ == body.typ)
+        def recurInTail(node: IR, tailPosition: Boolean): Boolean = node match {
+          case x: Recur =>
+            x.name != name || tailPosition
+          case _ =>
+            node.children.zipWithIndex
+              .forall {
+                case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
+                case _ => true
+              }
+          }
+        assert(recurInTail(body, tailPosition = true))
+      case x@Recur(name, args, typ) =>
+        val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
+        assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t == ir.typ } )
+        assert(typ == rt)
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
       case x@ApplyUnaryPrimOp(op, v) =>
@@ -200,10 +217,14 @@ object TypeCheck {
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]
         val rType = r.typ.asInstanceOf[TNDArray]
-        assert(lType.elementType == rType.elementType, "element type did not match")
+        assert(lType.elementType isOfType rType.elementType, "element type did not match")
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
+      case x@NDArrayQR(nd, mode) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.elementType.isInstanceOf[TFloat64])
+        assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))
@@ -334,10 +355,6 @@ object TypeCheck {
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
-      case Uniroot(name, fn, min, max) =>
-        assert(fn.typ.isInstanceOf[TFloat64])
-        assert(min.typ.isInstanceOf[TFloat64])
-        assert(max.typ.isInstanceOf[TFloat64])
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>

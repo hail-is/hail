@@ -2,6 +2,7 @@ import abc
 import logging
 import os
 from urllib.request import urlretrieve
+import subprocess
 
 import hail as hl
 
@@ -10,9 +11,11 @@ gs_curl_root = 'https://storage.googleapis.com/hail-common/benchmark'
 
 def download(data_dir, filename):
     url = os.path.join(gs_curl_root, filename)
-    dest = os.path.join(data_dir, filename)
     logging.info(f'downloading: {filename}')
-    urlretrieve(url, dest)
+    # Note: the below does not work on batch due to docker/ssl problems
+    # dest = os.path.join(data_dir, filename)
+    # urlretrieve(url, dest)
+    subprocess.check_call(['wget', url, f'--directory-prefix={data_dir}', '-nv'])
     logging.info(f'done: {filename}')
 
 
