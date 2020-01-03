@@ -5,12 +5,14 @@ from hail.typecheck import *
 
 @typecheck(format=expr_str,
            time=expr_int64,
-           zone_id=expr_str)
-def strftime(format, time, zone_id):
+           zone_id=expr_str,
+           locale=nullable(expr_str))
+def strftime(format, time, zone_id, locale=None):
     return _func("strftime", hl.tstr, format, time, zone_id)
 
-# @typecheck(string=expr_str,
-#            format=expr_str,
-#            locale=nullable(str))
-# def strptime(format, time, locale=None):
-#     return _func("strptime", hl.tint64, string, format)
+@typecheck(time=expr_str,
+           format=expr_str,
+           zone_id=expr_str,
+           locale=nullable(expr_str))
+def strptime(time, format, zone_id, locale=None):
+    return _func("strptime", hl.tint64, time, format, zone_id)

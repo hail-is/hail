@@ -100,8 +100,8 @@ class StringFunctionsSuite extends TestNGSuite {
     // ■ = tested
     // ⊗ = unimplemented
 
-    // % A a B b C c E D d e F G g H I j k l M m n p R r S s T t U u V v W w X x Y y Z z
-    // ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ⊗
+    // % A a B b C c D d e F G g H I j k l M m n p R r S s T t U u V v W w X x Y y Z z
+    // ■ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ⊗
 
     Array("%t%%%n%s",                    "\t%\n123456789",                        123456789),
     Array("%m/%d/%y %I:%M:%S %p",        "10/10/97 11:45:23 PM",                  876541523),
