@@ -402,7 +402,18 @@ object InferPType {
         InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
         PArray(body.pType2)
       }
-      case _: ReadPartition | _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
+      case If(cond, cnsq, altr) => {
+        InferPType(cond, env)
+        InferPType(cnsq, env)
+        InferPType(altr, env)
+
+        assert((cnsq.pType2 isOfType altr.pType2) && (cond.pType2 isOfType PBoolean()))
+
+        val branchType = getNestedElementPTypes(IndexedSeq(cnsq.pType2, altr.pType2))
+
+        branchType.setRequired(branchType.required && cond.pType2.required)
+      }
+      case _: ReadPartition | _: Coalesce | _: MakeStream => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge

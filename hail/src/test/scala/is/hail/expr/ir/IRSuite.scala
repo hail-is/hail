@@ -723,6 +723,21 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(True(), NA(TInt32()), I32(7)), null)
   }
 
+  @Test def testIfInferPType() {
+    assertPType(If(True(), I32(5), I32(7)), PInt32(true))
+    assertPType(If(True(), NA(TInt32()), I32(7)), PInt32(false))
+    assertPType(If(NA(TBoolean()), I32(5), I32(7)), PInt32(false))
+
+    val requiredElementArray = MakeArray(FastSeq(1, 2, 3), TArray(TInt32()))
+    val cnsqBranch = MakeArray(FastSeq(requiredElementArray, MakeArray(FastSeq(4, 2, 5), TArray(TInt32()))), TArray(TArray(TInt32())))
+
+    val requiredElementArray2 = MakeArray(FastSeq(8, 9, 10, 11), TArray(TInt32()))
+    val altrBranch = MakeArray(FastSeq(MakeArray(FastSeq(1, NA(TInt32()), 3), TArray(TInt32())), requiredElementArray2), TArray(TArray(TInt32())))
+
+    val ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(false), true), true))
+  }
+
   @Test def testIfWithDifferentRequiredness() {
     val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
