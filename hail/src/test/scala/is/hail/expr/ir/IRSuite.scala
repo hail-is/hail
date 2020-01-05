@@ -723,6 +723,30 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(True(), NA(TInt32()), I32(7)), null)
   }
 
+  @Test def testIfInferPType() {
+    assertPType(If(True(), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(true))
+    assertPType(If(True(), In(0, PInt32(false)), In(1, PInt32(true))), PInt32(false))
+    assertPType(If(NA(TBoolean()), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(false))
+
+    var cnsqBranch = In(0, PArray(PArray(PInt32(true), true), true))
+    var altrBranch = In(1, PArray(PArray(PInt32(true), true), true))
+
+    var ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(true), true), true))
+
+    cnsqBranch = In(0, PArray(PArray(PInt32(true), true), true))
+    altrBranch = In(1, PArray(PArray(PInt32(false), true), true))
+
+    ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(false), true), true))
+
+    cnsqBranch = In(0, PArray(PArray(PInt32(true), false), true))
+    altrBranch = In(1, PArray(PArray(PInt32(false), true), true))
+
+    ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(false), false), true))
+  }
+
   @Test def testIfWithDifferentRequiredness() {
     val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
