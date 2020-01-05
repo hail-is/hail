@@ -413,6 +413,7 @@ object InferPType {
 
         branchType.setRequired(branchType.required && cond.pType2.required)
       }
+      case In(_, pType: PType) => pType
       case _: ReadPartition | _: Coalesce | _: MakeStream => throw new Exception("Node not supported")
     }
 
