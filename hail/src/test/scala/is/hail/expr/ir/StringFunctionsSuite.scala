@@ -101,7 +101,7 @@ class StringFunctionsSuite extends TestNGSuite {
     // ⊗ = unimplemented
 
     // % A a B b C c D d e F G g H I j k l M m n p R r S s T t U u V v W w X x Y y Z z
-    // ■ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ■
+    // ■ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ■ ■ ⊗ ■
 
     Array("%t%%%n%s",                                "\t%\n123456789",                              123456789),
     Array("%m/%d/%y %I:%M:%S %p",                    "10/10/97 11:45:23 PM",                        876541523),
@@ -124,7 +124,9 @@ class StringFunctionsSuite extends TestNGSuite {
     Array("ISO 8601 week day %u. %Y.%m.%d %H:%M:%S", "ISO 8601 week day 4. 1970.01.01 22:46:40",    100000),
     Array("Week number %U of %Y. %Y.%m.%d %H:%M:%S", "Week number 00 of 1973. 1973.01.01 10:33:20", 94750400),
     Array("ISO 8601 week #%V. %Y.%m.%d %H:%M:%S",    "ISO 8601 week #53. 2005.01.02 00:00:00",      1104642000),
-    Array("ISO 8601 week #%V. %Y.%m.%d %H:%M:%S",    "ISO 8601 week #01. 2005.01.03 00:00:00",      1104728400)
+    Array("ISO 8601 week #%V. %Y.%m.%d %H:%M:%S",    "ISO 8601 week #01. 2005.01.03 00:00:00",      1104728400),
+    Array("Monday week #%W. %Y.%m.%d %H:%M:%S",      "Monday week #00. 2005.01.02 00:00:00",        1104642000),
+    Array("Monday week #%W. %Y.%m.%d %H:%M:%S",      "Monday week #01. 2005.01.03 00:00:00",        1104728400)
   )
 
   @Test(dataProvider = "time")
