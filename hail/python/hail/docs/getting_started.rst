@@ -14,7 +14,7 @@ Regardless of installation method, you will need:
   Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
   dependency on Spark.
 - Python 3.6 or 3.7. We recommend `Miniconda Python 3.7
-  <https://docs.conda.io/en/latest/miniconda.html>`_ Hail [does not support](https://github.com/hail-is/hail/issues/7513) Python 3.8.
+  <https://docs.conda.io/en/latest/miniconda.html>`_ Hail `does not support <https://github.com/hail-is/hail/issues/7513>`_ Python 3.8.
 
 Regardless of installation method, GNU/Linux users must obtain a recent version
 of the C and C++ standard library:
