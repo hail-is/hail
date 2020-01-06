@@ -667,7 +667,6 @@ class tndarray(HailType):
             "data": data,
             "offset": 0
         }
-
         return json_dict
 
     def clear(self):
