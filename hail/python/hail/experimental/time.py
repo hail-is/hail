@@ -5,9 +5,8 @@ from hail.typecheck import *
 
 @typecheck(format=expr_str,
            time=expr_int64,
-           zone_id=expr_str,
-           locale=nullable(expr_str))
-def strftime(format, time, zone_id, locale=None):
+           zone_id=expr_str)
+def strftime(format, time, zone_id):
     """
     Convert Unix timestamp to a formatted datetime string.
 
@@ -18,6 +17,8 @@ def strftime(format, time, zone_id, locale=None):
 
     A zone id can take one of three forms. It can be an explicit offset, like "+01:00", a relative offset, like "GMT+2",
     or a IANA timezone database (TZDB) identifier, like "America/New_York". Wikipedia maintains a list of TZDB identifiers here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+    Currently, the formatter implicitly uses the "en_US" locale.
 
     Parameters
     ----------
@@ -32,9 +33,8 @@ def strftime(format, time, zone_id, locale=None):
 
 @typecheck(time=expr_str,
            format=expr_str,
-           zone_id=expr_str,
-           locale=nullable(expr_str))
-def strptime(time, format, zone_id, locale=None):
+           zone_id=expr_str)
+def strptime(time, format, zone_id):
     """
     Interpret a formatted datetime string as a Unix timestamp.
 
@@ -45,6 +45,8 @@ def strptime(time, format, zone_id, locale=None):
 
     A zone id can take one of three forms. It can be an explicit offset, like "+01:00", a relative offset, like "GMT+2",
     or a IANA timezone database (TZDB) identifier, like "America/New_York". Wikipedia maintains a list of TZDB identifiers here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+    Currently, the parser implicitly uses the "en_US" locale.
 
     Parameters
     ----------
