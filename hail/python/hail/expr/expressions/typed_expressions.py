@@ -442,8 +442,6 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
-        elif isinstance(item, str):
-            return CollectionExpression.__getitem__(self, item)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
