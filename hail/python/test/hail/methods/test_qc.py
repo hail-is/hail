@@ -269,3 +269,4 @@ class Tests(unittest.TestCase):
         assert r['contigs'] == {'20': 346}
         assert r['n_variants'] == 346
         assert r['r_ti_tv'] == 2.5
+        assert r['allele_counts'] == {2: 346}

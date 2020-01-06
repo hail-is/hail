@@ -1078,7 +1078,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     Notes
     -----
     The result returned if `show` is ``False`` is a  :class:`.Struct` with
-    four fields:
+    five fields:
 
     - `n_variants` (:obj:`int`): Number of variants present in the matrix table.
     - `allele_types` (:obj:`Dict[str, int]`): Number of alternate alleles in
