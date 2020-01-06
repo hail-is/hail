@@ -20,6 +20,7 @@ from .db import DB
 from .compile import compile_comparison_binary, compiled_compare
 from .vcf_combiner import lgt_to_gt
 from .loop import loop
+from .time import strftime, strptime
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -53,4 +54,6 @@ __all__ = ['ld_score',
            'compile_comparison_binary',
            'compiled_compare',
            'lgt_to_gt',
-           'loop']
+           'loop',
+           'strptime',
+           'strftime']
