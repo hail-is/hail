@@ -1,9 +1,32 @@
 import os
 import json
+import pymysql
 import aiomysql
 import logging
 
+from hailtop.utils import sleep_and_backoff
+
+
 log = logging.getLogger('gear.database')
+
+
+# 1213 - Deadlock found when trying to get lock; try restarting transaction
+retry_codes = (1213,)
+
+
+def retry(f):
+    async def wrapper(*args, **kwargs):
+        delay = 0.1
+        while True:
+            try:
+                return await f(*args, **kwargs)
+            except pymysql.err.OperationalError as e:
+                if e.args[0] in retry_codes:
+                    log.warning(f'encountered pymysql error, retrying {e}', exc_info=True)
+                else:
+                    raise
+            delay = await sleep_and_backoff(delay)
+    return wrapper
 
 
 async def aenter(acontext_manager):
@@ -87,11 +110,13 @@ class Transaction:
         await aexit(self.conn_context_manager)
         self.conn_context_manager = None
 
+    @retry
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
 
+    @retry
     async def execute_and_fetchone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
@@ -101,25 +126,36 @@ class Transaction:
     async def execute_and_fetchall(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
+            @retry
+            async def execute(sql, args):
+                return await cursor.execute(sql, args)
+
+            @retry
+            async def fetchmany():
+                return await cursor.fetchmany(100)
+
+            await execute(sql, args)
             while True:
-                rows = await cursor.fetchmany(100)
+                rows = await fetchmany()
                 if not rows:
                     break
                 for row in rows:
                     yield row
 
+    @retry
     async def execute_insertone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
             return cursor.lastrowid
 
+    @retry
     async def execute_update(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             return await cursor.execute(sql, args)
 
+    @retry
     async def execute_many(self, sql, args_array):
         assert self.conn
         async with self.conn.cursor() as cursor:
