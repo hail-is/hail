@@ -554,7 +554,7 @@ class MakeArray(IR):
 
 
 class ArrayRef(IR):
-    @typecheck_method(a=IR, i=IR)
+    @typecheck_method(a=IR, i=IR, s=IR)
     def __init__(self, a, i, s):
         super().__init__(a, i, s)
         self.a = a
