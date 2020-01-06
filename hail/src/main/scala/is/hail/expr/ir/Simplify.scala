@@ -200,7 +200,7 @@ object Simplify {
 
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(a)
 
-    case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
+    case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
     case ArrayFilter(a, _, True()) => a
 

@@ -224,7 +224,7 @@ object Interpret {
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
-      case ArrayRef(a, i) =>
+      case x@ArrayRef(a, i, s) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
         if (aValue == null || iValue == null)
@@ -232,9 +232,17 @@ object Interpret {
         else {
           val a = aValue.asInstanceOf[IndexedSeq[Any]]
           val i = iValue.asInstanceOf[Int]
-          if (i < 0 || i >= a.length)
-            fatal(s"array index out of bounds: $i / ${ a.length }")
-          else
+
+          if (i < 0 || i >= a.length) {
+            val msg = interpret(s, env, args)
+            val prettied = Pretty(x)
+            val irString =
+              if (prettied.size > 100) prettied.take(100) + " ..."
+              else prettied
+            val toAdd = if (msg == "") "" else s"\n----------\nPython traceback:\n${ msg }"
+            fatal(s"array index out of bounds: index=$i, length=${ a.length }" +
+              s"\n----------\nIR:\n${ irString }$s" + toAdd)
+          } else
             a.apply(i)
         }
       case ArrayLen(a) =>

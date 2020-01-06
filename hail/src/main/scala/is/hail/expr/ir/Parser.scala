@@ -664,7 +664,8 @@ object IRParser {
       case "ArrayRef" =>
         val a = ir_value_expr(env)(it)
         val i = ir_value_expr(env)(it)
-        ArrayRef(a, i)
+        val s = ir_value_expr(env)(it)
+        ArrayRef(a, i, s)
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
       case "ArrayRange" =>
         val start = ir_value_expr(env)(it)

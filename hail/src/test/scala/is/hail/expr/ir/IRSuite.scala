@@ -2808,68 +2808,6 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
   }
 
-  @Test def setContainsSegfault(): Unit = {
-    hc // assert initialized
-    val irStr =
-      """
-        |(TableFilter
-        |  (TableMapRows
-        |    (TableKeyBy () False
-        |      (TableMapRows
-        |        (TableKeyBy () False
-        |          (TableMapRows
-        |            (TableRange 1 12)
-        |            (InsertFields
-        |              (Ref row)
-        |              None
-        |              (s
-        |                (Literal Set[String] "[\"foo\"]"))
-        |              (nested
-        |                (NA Struct{elt:String})))))
-        |        (InsertFields
-        |          (Ref row) None)))
-        |    (SelectFields (s nested)
-        |      (Ref row)))
-        |  (Let __uid_1
-        |    (If
-        |      (IsNA
-        |        (GetField s
-        |          (Ref row)))
-        |      (NA Boolean)
-        |      (Let __iruid_1
-        |        (LowerBoundOnOrderedCollection False
-        |          (GetField s
-        |            (Ref row))
-        |          (GetField elt
-        |            (GetField nested
-        |              (Ref row))))
-        |        (If
-        |          (ApplyComparisonOp EQ
-        |            (Ref __iruid_1)
-        |            (ArrayLen
-        |              (ToArray
-        |                (GetField s
-        |                  (Ref row)))))
-        |          (False)
-        |          (ApplyComparisonOp EQ
-        |            (ArrayRef
-        |              (ToArray
-        |                (GetField s
-        |                  (Ref row)))
-        |              (Ref __iruid_1))
-        |            (GetField elt
-        |              (GetField nested
-        |                (Ref row)))))))
-        |    (If
-        |      (IsNA
-        |        (Ref __uid_1))
-        |      (False)
-        |      (Ref __uid_1))))
-      """.stripMargin
-
-    Interpret(ir.IRParser.parse_table_ir(irStr), ctx, optimize = false).rvd.count()
-  }
-
   @Test def testTableGetGlobalsSimplifyRules() {
     implicit val execStrats = ExecStrategy.interpretOnly
 

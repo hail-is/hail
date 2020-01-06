@@ -169,9 +169,10 @@ object InferPType {
         })
         a.implementation.returnPType(pTypes, a.returnType)
       }
-      case ArrayRef(a, i) => {
+      case ArrayRef(a, i, s) => {
         InferPType(a, env)
         InferPType(i, env)
+        InferPType(s, env)
         assert(i.pType2 isOfType PInt32() )
 
         coerce[PStreamable](a.pType2).elementType.setRequired(a.pType2.required && i.pType2.required)

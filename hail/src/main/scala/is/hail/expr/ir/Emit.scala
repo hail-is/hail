@@ -497,22 +497,32 @@ private class Emit(
             srvb.advance())
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
-      case x@ArrayRef(a, i) =>
+      case x@ArrayRef(a, i, s) =>
         val typ = x.typ
         val pArray = coerce[PStreamable](a.pType).asPArray
         val ati = coerce[Long](typeToTypeInfo(pArray))
         val codeA = emit(a)
         val codeI = emit(i)
+        val errorTransformer: Code[String] => Code[String] = s match {
+          case Str("") =>
+            val prettied = Pretty.short(x)
+            (c: Code[String]) =>
+              c.concat("\n----------\nIR:\n").concat(prettied)
+          case Str(s) => (c: Code[String]) => c.concat("\n----------\nPython traceback:\n").concat(const(s))
+          case s =>
+            val codeS = emit(s)
+            (c: Code[String]) =>
+              Code(codeS.setup,
+                codeS.m.mux(c, c
+                  .concat("\n----------\nPython traceback:\n")
+                  .concat(PString.loadString(region, coerce[Long](codeS.v)))))
+        }
         val xma = mb.newLocal[Boolean]()
         val xa = mb.newLocal()(ati)
         val xi = mb.newLocal[Int]
         val len = mb.newLocal[Int]
         val xmi = mb.newLocal[Boolean]()
         val xmv = mb.newLocal[Boolean]()
-        val prettied = Pretty(x)
-        val irString =
-          if (prettied.size > 100) prettied.take(100) + " ..."
-          else prettied
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
@@ -529,13 +539,11 @@ private class Emit(
               len := pArray.loadLength(region, xa),
               (xi < len && xi >= 0).mux(
                 xmv := !pArray.isElementDefined(region, xa, xi),
-                Code._fatal(
-                  const("array index out of bounds: ")
+                Code._fatal(errorTransformer(
+                  const("array index out of bounds: index=")
                     .concat(xi.load().toS)
-                    .concat(" / ")
-                    .concat(len.load().toS)
-                    .concat(". IR: ")
-                    .concat(irString))))))
+                    .concat(", length=")
+                    .concat(len.load().toS)))))))
 
         EmitTriplet(setup, xmv, Code(
           Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa, len, xi))))
