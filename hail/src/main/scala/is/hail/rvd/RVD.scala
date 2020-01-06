@@ -461,9 +461,10 @@ class RVD(
           case None => return this
         }
       case None =>
+        val crddBoundary = crdd.boundary
         val PCSubsetOffset(idx, nTake, _) =
           incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
-            crdd.boundary.runJob(getIteratorSizeWithMaxN(n), _)
+            crddBoundary.runJob(getIteratorSizeWithMaxN(n), _)
           )
         idx -> nTake
     }
@@ -499,9 +500,10 @@ class RVD(
           case None => return this
         }
       case None =>
+        val crddBoundary = crdd.boundary
         val PCSubsetOffset(idx, _, nDrop) =
           incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
-            crdd.boundary.runJob(getIteratorSize, _)
+            crddBoundary.runJob(getIteratorSize, _)
           )
         idx -> nDrop
     }
