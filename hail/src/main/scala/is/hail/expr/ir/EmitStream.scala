@@ -491,12 +491,12 @@ object EmitStream {
   ): Parameterized[P, A] = new Parameterized[P, A] {
     implicit val lsP = left.stateP
     implicit val rsP = right.stateP
-    type S = (left.S, right.S)
+    type S = (Code[Boolean], left.S, right.S)
     val stateP: ParameterPack[S] = implicitly
-    def emptyState: S = (left.emptyState, right.emptyState)
+    def emptyState: S = (true, left.emptyState, right.emptyState)
 
     def length(s0: S): Option[Code[Int]] =
-      (left.length(s0._1) liftedZip right.length(s0._2))
+      (left.length(s0._2) liftedZip right.length(s0._3))
         .map { case (lLen, rLen) => cond.mux(lLen, rLen) }
 
     def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] = {
@@ -506,22 +506,22 @@ object EmitStream {
       start.define { s => k(Start(s)) }
       cond.mux(
         left.init(mb, jb, param) {
-          case Start(s0) => start((s0, right.emptyState))
+          case Start(s0) => start((true, s0, right.emptyState))
           case Missing => missing(())
         },
         right.init(mb, jb, param) {
-          case Start(s0) => start((left.emptyState, s0))
+          case Start(s0) => start((false, left.emptyState, s0))
           case Missing => missing(())
         })
     }
 
     def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] = {
-      val (lS, rS) = state
+      val (useLeft, lS, rS) = state
       val eos = jb.joinPoint()
       val push = jb.joinPoint[(A, left.S, right.S)](mb)
       eos.define { _ => k(EOS) }
-      push.define { case (elt, lS, rS) => k(Yield(elt, (lS, rS))) }
-      cond.mux(
+      push.define { case (elt, lS, rS) => k(Yield(elt, (useLeft, lS, rS))) }
+      useLeft.mux(
         left.step(mb, jb, lS) {
           case Yield(a, lS1) => push((a, lS1, rS))
           case EOS => eos(())
