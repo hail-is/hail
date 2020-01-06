@@ -28,6 +28,8 @@ spec:
        - name: sys
          hostPath:
            path: /sys
+      nodeSelector:
+        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
@@ -499,6 +501,8 @@ spec:
         app: elasticsearch
     spec:
       priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
@@ -700,6 +704,8 @@ spec:
       priorityClassName: infrastructure
       serviceAccountName: filebeat
       terminationGracePeriodSeconds: 30
+      nodeSelector:
+        preemptible: "true"
       tolerations:
         - key: "preemptible"
           value: "true"

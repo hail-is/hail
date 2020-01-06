@@ -19,9 +19,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
-      tolerations:
-       - key: preemptible
-         value: "false"
+      nodeSelector:
+        preemptible: "false"
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"

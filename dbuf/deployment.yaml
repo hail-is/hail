@@ -29,6 +29,8 @@ spec:
          secret:
            optional: false
            secretName: deploy-config
+      nodeSelector:
+        preemptible: "false"
       containers:
         - name: dbuf
           image: {{ dbuf_image.image }}
