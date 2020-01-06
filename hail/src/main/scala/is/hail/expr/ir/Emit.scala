@@ -1445,68 +1445,52 @@ private class Emit(
           val LDA = M
           val LDB = K
           val LDC = M
-
-          val i = mb.newField[Long]
-
+          
           val elementByteSize = lPType.elementType.byteSize
 
           val multiplyViaDGEMM = Code(
             shapeSetup,
-            Code._println("Using S/DGEMM"),
             leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
             answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
 
             LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType, mb),
             LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType, mb),
-            Code._println("Column major left"),
-            Code.forLoop(i := 0L, i < M * K, i := i + 1L,
-              Code._println(Region.loadDouble(leftColumnMajorAddress + (i * 8L)).toS)
-            ),
-            Code._println("Column major right"),
-            Code.forLoop(i := 0L, i < K * N, i := i + 1L,
-              Code._println(Region.loadDouble(rightColumnMajorAddress + (i * 8L)).toS)
-            ),
-            {
-              lPType.elementType match {
-                case PFloat32(_) =>
-                  Code.invokeScalaObject[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
-                    "N",
-                    "N",
-                    M.toI,
-                    N.toI,
-                    K.toI,
-                    1.0f,
-                    leftColumnMajorAddress,
-                    LDA.toI,
-                    rightColumnMajorAddress,
-                    LDB.toI,
-                    0.0f,
-                    answerColumnMajorAddress,
-                    LDC.toI
-                  )
-                case PFloat64(_) =>
-                  Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
-                    "N",
-                    "N",
-                    M.toI,
-                    N.toI,
-                    K.toI,
-                    1.0,
-                    leftColumnMajorAddress,
-                    LDA.toI,
-                    rightColumnMajorAddress,
-                    LDB.toI,
-                    0.0,
-                    answerColumnMajorAddress,
-                    LDC.toI
-                  )
-              }
+
+            lPType.elementType match {
+              case PFloat32(_) =>
+                Code.invokeScalaObject[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
+                  "N",
+                  "N",
+                  M.toI,
+                  N.toI,
+                  K.toI,
+                  1.0f,
+                  leftColumnMajorAddress,
+                  LDA.toI,
+                  rightColumnMajorAddress,
+                  LDB.toI,
+                  0.0f,
+                  answerColumnMajorAddress,
+                  LDC.toI
+                )
+              case PFloat64(_) =>
+                Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+                  "N",
+                  "N",
+                  M.toI,
+                  N.toI,
+                  K.toI,
+                  1.0,
+                  leftColumnMajorAddress,
+                  LDA.toI,
+                  rightColumnMajorAddress,
+                  LDB.toI,
+                  0.0,
+                  answerColumnMajorAddress,
+                  LDC.toI
+                )
             },
-            Code._println("Column major answer"),
-            Code.forLoop(i := 0L, i < M * N, i := i + 1L,
-              Code._println(Region.loadDouble(answerColumnMajorAddress + (i * 8L)).toS)
-            ),
             answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
             LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, lPType.elementType, mb),
