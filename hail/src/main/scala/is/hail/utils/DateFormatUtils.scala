@@ -28,8 +28,6 @@ object DateFormatUtils {
         case 'd' => fmt.appendValue(ChronoField.DAY_OF_MONTH, 2)
         case 'e' => fmt.padNext(2); fmt.appendValue(ChronoField.DAY_OF_MONTH)
         case 'F' => alternating("Y-m-d")
-        case 'G' => spec('Y')
-        case 'g' => spec('y')
         case 'H' => fmt.appendValue(ChronoField.HOUR_OF_DAY, 2)
         case 'I' => fmt.appendValue(ChronoField.CLOCK_HOUR_OF_AMPM, 2)
         case 'j' => fmt.appendValue(ChronoField.DAY_OF_YEAR, 3)
@@ -52,9 +50,10 @@ object DateFormatUtils {
         case 'W' => fmt.appendValue(MONDAY_START_ALWAYS.weekOfYear(), 2) // Monday first day
         case 'Y' => fmt.appendValue(ChronoField.YEAR, 4)
         case 'y' => fmt.appendValueReduced(ChronoField.YEAR, 2, 2, _1970)
+        case 'Z' => fmt.appendZoneId()
         case 'z' => fmt.appendOffsetId()
         case 'E' | 'O' => char(c) // Python just keeps these two letters for whatever reason.
-        case 'C' | 'c' | 'w'| 'X' | 'x' | 'Z' => throw new HailException(s"Currently unsupported time formatting character: $c")
+        case 'C' | 'c' | 'G' | 'g' | 'w'| 'X' | 'x' => throw new HailException(s"Currently unsupported time formatting character: $c")
         case d => fatal(s"invalid time format descriptor: $d")
       }
     }
