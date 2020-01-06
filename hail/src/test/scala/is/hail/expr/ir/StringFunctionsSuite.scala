@@ -101,12 +101,12 @@ class StringFunctionsSuite extends TestNGSuite {
     // ⊗ = unimplemented
 
     // % A a B b C c D d e F G g H I j k l M m n p R r S s T t U u V v W w X x Y y Z z
-    // ■ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ⊗
+    // ■ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ⊗ ⊗ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ⊗ ⊗ ⊗ ⊗ ■ ■ ⊗ ■
 
     Array("%t%%%n%s",                                "\t%\n123456789",                              123456789),
     Array("%m/%d/%y %I:%M:%S %p",                    "10/10/97 11:45:23 PM",                        876541523),
     Array("%m/%d/%y %I:%M:%S %p",                    "07/08/19 03:00:01 AM",                        1562569201),
-    Array("%Y.%m.%d %H:%M:%S",                       "1997.10.10 23:45:23",                         876541523),
+    Array("%Y.%m.%d %H:%M:%S %z",                    "1997.10.10 23:45:23 -04:00",                  876541523),
     Array("%Y.%m.%d %H:%M:%S",                       "2019.07.08 03:00:01",                         1562569201),
     Array("day %j of %Y. %R:%S",                     "day 283 of 1997. 23:45:23",                   876541523),
     Array("day %j of %Y. %R:%S",                     "day 189 of 2019. 03:00:01",                   1562569201),
@@ -122,7 +122,9 @@ class StringFunctionsSuite extends TestNGSuite {
     Array("%F %k:%M:%S",                             "1997-10-10 23:45:23",                         876541523),
     Array("%F %k:%M:%S",                             "2019-07-08  3:00:01",                         1562569201),
     Array("ISO 8601 week day %u. %Y.%m.%d %H:%M:%S", "ISO 8601 week day 4. 1970.01.01 22:46:40",    100000),
-    Array("Week number %U of %Y. %Y.%m.%d %H:%M:%S", "Week number 00 of 1973. 1973.01.01 10:33:20", 94750400)
+    Array("Week number %U of %Y. %Y.%m.%d %H:%M:%S", "Week number 00 of 1973. 1973.01.01 10:33:20", 94750400),
+    Array("ISO 8601 week #%V. %Y.%m.%d %H:%M:%S",    "ISO 8601 week #53. 2005.01.02 00:00:00",      1104642000),
+    Array("ISO 8601 week #%V. %Y.%m.%d %H:%M:%S",    "ISO 8601 week #01. 2005.01.03 00:00:00",      1104728400)
   )
 
   @Test(dataProvider = "time")
