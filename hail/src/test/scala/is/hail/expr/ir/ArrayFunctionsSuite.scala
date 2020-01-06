@@ -208,15 +208,15 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test def indexing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(0)), 0)
-    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(1)), null)
-    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(2)), 2)
-    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(-1)), 2)
-    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(-3)), 0)
-    assertFatal(invoke("indexArray", TInt32(), a, I32(3)), "array index out of bounds")
-    assertFatal(invoke("indexArray", TInt32(), a, I32(-4)), "array index out of bounds")
-    assertEvalsTo(invoke("indexArray", TInt32(), naa, I32(2)), null)
-    assertEvalsTo(invoke("indexArray", TInt32(), a, NA(TInt32())), null)
+    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(0), Str("")), 0)
+    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(1), Str("")), null)
+    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(2), Str("")), 2)
+    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(-1), Str("")), 2)
+    assertEvalsTo(invoke("indexArray", TInt32(), a, I32(-3), Str("")), 0)
+    assertFatal(invoke("indexArray", TInt32(), a, I32(3), Str("")), "array index out of bounds")
+    assertFatal(invoke("indexArray", TInt32(), a, I32(-4), Str("")), "array index out of bounds")
+    assertEvalsTo(invoke("indexArray", TInt32(), naa, I32(2), Str("")), null)
+    assertEvalsTo(invoke("indexArray", TInt32(), a, NA(TInt32()), Str("")), null)
   }
 
   @Test def slicing() {
