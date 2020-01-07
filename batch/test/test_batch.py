@@ -53,9 +53,10 @@ class Test(unittest.TestCase):
 
     def test_msec_mcpu(self):
         builder = self.client.create_batch()
+        resources = {'cpu': '100m'}
         # two jobs so the batch msec_mcpu computation is non-trivial
-        builder.create_job('ubuntu:18.04', ['echo', 'foo'])
-        builder.create_job('ubuntu:18.04', ['echo', 'bar'])
+        builder.create_job('ubuntu:18.04', ['echo', 'foo'], resources=resources)
+        builder.create_job('ubuntu:18.04', ['echo', 'bar'], resources=resources)
         b = builder.submit()
 
         batch = b.wait()
@@ -65,7 +66,7 @@ class Test(unittest.TestCase):
         for job in b.jobs():
             job_status = job['status']
 
-            # tests run at 100mcpu
+            # runs at 100mcpu
             job_msec_mcpu2 = 100 * max(job_status['end_time'] - job_status['start_time'], 0)
             # greater than in case there are multiple attempts
             assert job['msec_mcpu'] >= job_msec_mcpu2, batch
