@@ -67,7 +67,7 @@ async def create_database(create_database_config):
 
         # create if not exists
         rows = db.execute_and_fetchall(
-            "SHOW DATABASES LIKE '{database_name}';")
+            f"SHOW DATABASES LIKE '{database_name}';")
         rows = [row async for row in rows]
         if len(rows) > 0:
             assert len(rows) == 1
