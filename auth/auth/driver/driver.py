@@ -350,7 +350,7 @@ database={config['db']}
             async with conn.cursor() as cursor:
                 await cursor.execute(
                     f'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
-                row = cursor.fetchone()
+                row = await cursor.fetchone()
         if row is not None:
             async with self.db_instance_pool.acquire() as conn:
                 async with conn.cursor() as cursor:
@@ -407,12 +407,13 @@ async def _create_user(app, user, cleanup):
     k8s_client = app['k8s_client']
     google_client = app['google_client']
 
+    alnum = string.ascii_lowercase + string.digits
+    token = ''.join([secrets.choice(alnum) for _ in range(5)])
+    ident_token = f'{user["username"]}-{token}'
     if user['is_developer'] == 1:
         ident = user['username']
     else:
-        alnum = string.ascii_lowercase + string.digits
-        token = ''.join([secrets.choice(alnum) for _ in range(5)])
-        ident = f'{user["username"]}-{token}'
+        ident = ident_token
 
     updates = {
         'state': 'active'
@@ -440,19 +441,9 @@ async def _create_user(app, user, cleanup):
         cleanup.append(gsa.delete)
 
         # length of gsa account_id must be >= 6
-        if len(ident) >= 6:
-            gsa_username = ident
-        else:
-            assert user['is_developer'] == 1
+        assert len(ident_token) >= 6
 
-            alnum = string.ascii_lowercase + string.digits
-            # if we're going to go to the trouble, at least 3
-            # minus one for the dash
-            n_extra_chars = max(3, 6 - len(ident) - 1)
-            token = ''.join([secrets.choice(alnum) for _ in range(n_extra_chars)])
-            gsa_username = f'{ident}-{token}'
-
-        gsa_email, key = await gsa.create(gsa_username)
+        gsa_email, key = await gsa.create(ident_token)
         updates['gsa_email'] = gsa_email
 
         gsa_key_secret_name = f'{ident}-gsa-key'
@@ -465,7 +456,7 @@ async def _create_user(app, user, cleanup):
 
     bucket_name = user['bucket_name']
     if bucket_name is None:
-        bucket_name = f'hail-{ident}'
+        bucket_name = f'hail-{ident_token}'
         bucket = BucketResource(google_client)
         cleanup.append(bucket.delete)
         await bucket.create(bucket_name, gsa_email)
