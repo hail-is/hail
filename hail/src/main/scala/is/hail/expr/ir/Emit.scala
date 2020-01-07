@@ -330,6 +330,10 @@ private class Emit(
     def emitDeforestedNDArray(ir: IR) =
       deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
 
+    def emitNDArrayStandardStrides(ir: IR) =
+      // Currently relying on the fact that emitDeforestedNDArray always emits standard striding.
+      emitDeforestedNDArray(ir)
+
     val region = er.region
 
     (ir: @unchecked) match {
@@ -1344,9 +1348,8 @@ private class Emit(
       case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
-        // Specifically using emitDeforested because we know that gives a consistent striding.
-        val lT = emitDeforestedNDArray(lChild)
-        val rT = emitDeforestedNDArray(rChild)
+        val lT = emitNDArrayStandardStrides(lChild)
+        val rT = emitNDArrayStandardStrides(rChild)
 
         val lPType = coerce[PNDArray](lChild.pType)
         val rPType = coerce[PNDArray](rChild.pType)
@@ -1430,7 +1433,7 @@ private class Emit(
           }
         }
 
-        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2) {
+        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
           val leftDataAddress = lPType.data.load(region, leftND)
           val rightDataAddress = rPType.data.load(region, rightND)
 
