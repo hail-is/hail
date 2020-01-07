@@ -145,6 +145,28 @@ steps:
     - default_ns
     - base_image
     - test_database_instance
+ - kind: runImage
+   name: delete_auth_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
+   inputs:
+    - from: /repo/auth/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /database-server-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
  - kind: createDatabase2
    name: auth_database
    databaseName: auth
@@ -159,6 +181,7 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
+    - delete_auth_tables
  - kind: runImage
    name: create_deploy_config
    image:
@@ -736,10 +759,11 @@ steps:
       mountPath: /database-server-config
    runIfRequested: true
    scopes:
-     - dev
+    - dev
    dependsOn:
-     - default_ns
-     - service_base_image
+    - default_ns
+    - service_base_image
+    - copy_files
  - kind: createDatabase2
    name: ci_database
    databaseName: ci
