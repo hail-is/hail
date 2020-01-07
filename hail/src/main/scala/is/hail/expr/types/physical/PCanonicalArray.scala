@@ -398,9 +398,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(srcPType.isInstanceOf[PCanonicalArray])
+    assert(srcPType.isInstanceOf[PContainer])
 
-    val sourceType = srcPType.asInstanceOf[PCanonicalArray]
+    val sourceType = srcPType.asInstanceOf[PContainer]
 
     assert(sourceType.elementType.isOfType(this.elementType))
 
@@ -447,7 +447,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       )
     }
 
-    if(!sourceType.elementType.required && this.elementType.required) {
+    if(this.elementType.required > sourceType.elementType.required) {
       if (!allowDowncast) {
         return Code._fatal("Downcast isn't allowed and source elementType isn't required")
       }
@@ -455,7 +455,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
         Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
       ), c)
-    } else if(!this.elementType.required) {
+    } else if(!sourceType.elementType.required) {
       loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
         this.setElementMissing(dstAddress, currentIdx),
         loop
