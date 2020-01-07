@@ -523,7 +523,7 @@ WHERE billing_project = %s AND user = %s;
         rows = [row async for row in rows]
         if len(rows) != 1:
             assert len(rows) == 0
-            raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+            raise web.HTTPNotFound(reason=f'unknown billing project {billing_project}')
 
         await tx.just_execute(
             '''
