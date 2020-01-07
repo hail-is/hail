@@ -18,5 +18,6 @@ AUTHORIZED_USERS = {
     'catoverdrive',
     'GreatBrando',
     'johnc1231',
-    'gsarma'
+    'gsarma',
+    'mkveerapen'
 }
