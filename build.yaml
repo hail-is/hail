@@ -208,6 +208,7 @@ steps:
     - dev
    dependsOn:
     - default_ns
+    - service_base_image
     - create_deploy_config
  - kind: runImage
    name: create_session_key
