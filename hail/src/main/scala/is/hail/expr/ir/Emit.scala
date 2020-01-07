@@ -1392,47 +1392,6 @@ private class Emit(
 
         val isMissing = lT.m || rT.m
 
-        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, isMissing) {
-          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val element = coerce[Any](mb.newField("matmul_element")(eVti))
-            val k = mb.newField[Long]
-
-            val (lIndices: Array[Code[Long]], rIndices: Array[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars.toSeq) match {
-              case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
-              case (1, _, stack :+ m) =>
-                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
-                (Array(k.load()), rStackVars :+ k.load() :+ m)
-              case (_, 1, stack :+ n) =>
-                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
-                (lStackVars :+ n :+ k.load(), Array(k.load()))
-              case (_, _, stack :+ n :+ m) => {
-                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
-                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
-                (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
-              }
-            }
-
-            val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
-            val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
-            val kLen = mb.newField[Long]
-
-            val innerMethod = mb.fb.newMethod(eVti)
-
-            val loopCode = Code(
-              k := 0L,
-              kLen := leftShapeArray(lPType.nDims - 1),
-              element := numericElementType.zero,
-              Code.whileLoop(k < kLen,
-                  element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
-                  k := k + 1L
-              ),
-              element
-            )
-            innerMethod.emit(loopCode)
-            innerMethod.invoke()
-          }
-        }
-
         if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
           val leftDataAddress = lPType.data.load(region, leftND)
           val rightDataAddress = rPType.data.load(region, rightND)
@@ -1505,6 +1464,46 @@ private class Emit(
 
           EmitTriplet(missingSetup, isMissing, multiplyViaDGEMM)
         } else {
+          val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, isMissing) {
+            override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+              val element = coerce[Any](mb.newField("matmul_element")(eVti))
+              val k = mb.newField[Long]
+
+              val (lIndices: Array[Code[Long]], rIndices: Array[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars.toSeq) match {
+                case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
+                case (1, _, stack :+ m) =>
+                  val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
+                  (Array(k.load()), rStackVars :+ k.load() :+ m)
+                case (_, 1, stack :+ n) =>
+                  val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                  (lStackVars :+ n :+ k.load(), Array(k.load()))
+                case (_, _, stack :+ n :+ m) => {
+                  val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                  val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
+                  (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
+                }
+              }
+
+              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
+              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
+              val kLen = mb.newField[Long]
+
+              val innerMethod = mb.fb.newMethod(eVti)
+
+              val loopCode = Code(
+                k := 0L,
+                kLen := leftShapeArray(lPType.nDims - 1),
+                element := numericElementType.zero,
+                Code.whileLoop(k < kLen,
+                  element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
+                  k := k + 1L
+                ),
+                element
+              )
+              innerMethod.emit(loopCode)
+              innerMethod.invoke()
+            }
+          }
           emitter.emit(outputPType)
         }
 
