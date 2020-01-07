@@ -89,6 +89,10 @@ steps:
        to: /repo/ci/
      - from: /io/repo/batch/sql
        to: /repo/batch/
+     - from: /io/repo/batch/test
+       to: /repo/batch/
+     - from: /io/repo/pipeline/test
+       to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
    dependsOn:
@@ -810,7 +814,7 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
    inputs:
-    - from: /batch/test
+    - from: /repo/batch/test
       to: /io/
    port: 5000
    secrets:
@@ -947,7 +951,7 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
      gsutil -m cp -r /io/test/resources/*  gs://hail-test-dmk9z/{{ token }}/pipeline/input/
    inputs:
-    - from: /pipeline/test
+    - from: /repo/pipeline/test
       to: /io/
    secrets:
     - name: test-gsa-key
@@ -967,7 +971,7 @@ steps:
      export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
      python3 -m pytest --log-cli-level=INFO -s -v --instafail /io/test/
    inputs:
-    - from: /pipeline/test
+    - from: /repo/pipeline/test
       to: /io/
    secrets:
     - name: gce-deploy-config
