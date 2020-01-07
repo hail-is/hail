@@ -350,7 +350,7 @@ database={config['db']}
             async with conn.cursor() as cursor:
                 await cursor.execute(
                     f'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
-                row = cursor.fetchone()
+                row = await cursor.fetchone()
         if row is not None:
             async with self.db_instance_pool.acquire() as conn:
                 async with conn.cursor() as cursor:
