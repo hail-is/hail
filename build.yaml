@@ -404,6 +404,9 @@ steps:
    dockerFile: ci/Dockerfile.test
    contextPath: .
    publishAs: test-ci
+   scopes:
+    - test
+    - dev
    dependsOn:
      - base_image
  - kind: buildImage
@@ -871,6 +874,9 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
+   scopes:
+    - test
+    - dev
    dependsOn:
     - batch_pods_ns
     - base_image
@@ -920,6 +926,9 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
+   scopes:
+    - test
+    - dev
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -1111,6 +1120,9 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
    alwaysRun: true
+   scopes:
+    - test
+    - dev
    dependsOn:
     - batch_pods_ns
     - base_image
