@@ -46,11 +46,11 @@ CREATE TABLE IF NOT EXISTS `user_resources` (
 
 CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `userdata` VARCHAR(65535) NOT NULL,
+  `userdata` TEXT NOT NULL,
   `user` VARCHAR(100) NOT NULL,
   `billing_project` VARCHAR(100) NOT NULL,
-  `attributes` VARCHAR(65535),
-  `callback` VARCHAR(65535),
+  `attributes` TEXT,
+  `callback` TEXT,
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `closed` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -73,10 +73,10 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
-  `spec` VARCHAR(65535) NOT NULL,
+  `spec` TEXT NOT NULL,
   `always_run` BOOLEAN NOT NULL,
   `cores_mcpu` INT NOT NULL,
-  `status` VARCHAR(65535),
+  `status` TEXT,
   `n_pending_parents` INT NOT NULL,
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS `job_attributes` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `key` VARCHAR(100) NOT NULL,
-  `value` VARCHAR(65535),
+  `value` TEXT,
   PRIMARY KEY (`batch_id`, `job_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
@@ -137,7 +137,7 @@ CREATE INDEX job_attributes_key_value ON `job_attributes` (`key`, `value`(256));
 CREATE TABLE IF NOT EXISTS `batch_attributes` (
   `batch_id` BIGINT NOT NULL,
   `key` VARCHAR(100) NOT NULL,
-  `value` VARCHAR(65535),
+  `value` TEXT,
   PRIMARY KEY (`batch_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
@@ -457,7 +457,7 @@ CREATE PROCEDURE mark_job_complete(
   IN in_job_id INT,
   IN in_attempt_id VARCHAR(40),
   IN new_state VARCHAR(40),
-  IN new_status VARCHAR(65535),
+  IN new_status TEXT,
   IN new_start_time BIGINT,
   IN new_end_time BIGINT,
   IN new_reason VARCHAR(40),

@@ -58,9 +58,9 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
-           value: hail-batch-3jmp5
+           value: hail-batch
 {% else %}
-           value: hail-test-1c9nm
+           value: hail-test-dmk9z
 {% endif %}
         ports:
          - containerPort: 5000
@@ -132,7 +132,7 @@ spec:
                   - key: "app"
                     operator: In
                     values:
-                    - auth
+                    - batch
               topologyKey: "kubernetes.io/hostname"
       containers:
       - name: batch
@@ -164,9 +164,9 @@ spec:
 {% endif %}
          - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
-           value: hail-batch-3jmp5
+           value: hail-batch
 {% else %}
-           value: hail-test-1c9nm
+           value: hail-test-dmk9z
 {% endif %}
         ports:
          - containerPort: 5000

@@ -194,7 +194,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       groupMB.emit(Code(fieldGroup.map { f =>
         if (t.hasField(f.name)) {
           val rf = t.field(f.name)
-          val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb.fb)
+          val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb)
           val rFieldAddr = t.fieldOffset(addrArg, rf.index)
           if (f.typ.required)
             readElemF(regionArg, rFieldAddr, inArg)
