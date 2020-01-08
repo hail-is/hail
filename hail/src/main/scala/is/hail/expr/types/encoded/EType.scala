@@ -66,7 +66,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildInplaceDecoder(pt: PType, fb: EmitFunctionBuilder[_]): StagedInplaceDecoder = {
+  final def buildInplaceDecoder(pt: PType, mb: EmitMethodBuilder): StagedInplaceDecoder = {
+    buildInplaceDecoderMethod(pt, mb.fb).invoke(_, _, _)
+  }
+
+  final def buildInplaceDecoderMethod(pt: PType, fb: EmitFunctionBuilder[_]): EmitMethodBuilder = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: ${ pt.parsableString() }\n  ET: ${ parsableString() }")
     fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
@@ -79,7 +83,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       val in: Code[InputBuffer] = mb.getArg[InputBuffer](3)
       val dec = _buildInplaceDecoder(pt.fundamentalType, mb, region, addr, in)
       mb.emit(dec)
-    }).invoke(_, _, _)
+    })
   }
 
   final def buildSkip(mb: EmitMethodBuilder): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
