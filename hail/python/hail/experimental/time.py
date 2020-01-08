@@ -13,13 +13,13 @@ def strftime(format, time, zone_id):
     Examples
     --------
 
-    >>> hl.eval(htime.strftime("%A, %B %e, %Y. %r", 876541523, "America/New_York"))
-    "Friday, October 10, 1997. 11:45:23 PM"
+    >>> hl.eval(hl.experimental.strftime("%Y.%m.%d %H:%M:%S %z", 1562569201))
+    "2019.07.08 03:00:01 America/New_York"
 
-    >>> hl.eval(htime.strftime("%A, %B %e, %Y. %r", 876541523, "GMT+2"))
+    >>> hl.eval(hl.experimental.strftime("%A, %B %e, %Y. %r", 876541523, "GMT+2"))
     "Saturday, October 11, 1997. 05:45:23 AM"
 
-    >>> hl.eval(htime.strftime("%A, %B %e, %Y. %r", 876541523, "+08:00"))
+    >>> hl.eval(hl.experimental.strftime("%A, %B %e, %Y. %r", 876541523, "+08:00"))
     "Saturday, October 11, 1997. 11:45:23 AM"
 
 
