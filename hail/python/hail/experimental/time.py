@@ -14,7 +14,7 @@ def strftime(format, time, zone_id):
     Examples
     --------
 
-    >>> hl.eval(hl.experimental.strftime("%Y.%m.%d %H:%M:%S %z", 1562569201))
+    >>> hl.eval(hl.experimental.strftime("%Y.%m.%d %H:%M:%S %z", 1562569201, "America/New_York"))
     "2019.07.08 03:00:01 America/New_York"
 
     >>> hl.eval(hl.experimental.strftime("%A, %B %e, %Y. %r", 876541523, "GMT+2"))
