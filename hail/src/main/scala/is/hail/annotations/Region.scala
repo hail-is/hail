@@ -130,7 +130,7 @@ object Region {
 
   def loadBytes(addr: Code[Long], n: Code[Int]): Code[Array[Byte]] = Code.invokeScalaObject[Long, Int, Array[Byte]](Region.getClass, "loadBytes", addr, n)
 
-  def loadBytes(addr: Code[Long], dst: Code[Array[Byte]], dstOff: Code[Long], n: Code[Long]): Unit =
+  def loadBytes(addr: Code[Long], dst: Code[Array[Byte]], dstOff: Code[Long], n: Code[Long]): Code[Unit] =
     Code.invokeScalaObject[Long, Array[Byte], Long, Long, Unit](Region.getClass, "loadBytes", addr, dst, dstOff, n)
 
   def storeBytes(addr: Code[Long], src: Code[Array[Byte]]): Code[Unit] = Code.invokeScalaObject[Long, Array[Byte], Unit](Region.getClass, "storeBytes", addr, src)
