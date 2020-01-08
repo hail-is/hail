@@ -10,6 +10,19 @@ def strftime(format, time, zone_id):
     """
     Convert Unix timestamp to a formatted datetime string.
 
+    Examples
+    --------
+
+    >>> hl.eval(htime.strftime("%A, %B %e, %Y. %r", 876541523, "America/New_York"))
+    "Friday, October 10, 1997. 11:45:23 PM"
+
+    >>> hl.eval(htime.strftime("%A, %B %e, %Y. %r", 876541523, "GMT+2"))
+    "Saturday, October 11, 1997. 05:45:23 AM"
+
+    >>> hl.eval(htime.strftime("%A, %B %e, %Y. %r", 876541523, "+08:00"))
+    "Saturday, October 11, 1997. 11:45:23 AM"
+
+
     Notes
     -----
     The following formatting characters are supported in format strings: A a B b D d e F H I j k l M m n p R r S s T t U u V v W Y y z
