@@ -1742,6 +1742,24 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
   }
 }
 
+case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
+
+  override lazy val typ: TableType = TableType(
+    child.typ.keyType ++ TStruct(("groupedValues", TArray(child.typ.rowType))),
+    child.typ.key,
+    child.typ.globalType)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableGroupWithinPartitions(newChild, n)
+  }
+
+  override def execute(ctx: ExecuteContext): TableValue = ???
+}
+
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
