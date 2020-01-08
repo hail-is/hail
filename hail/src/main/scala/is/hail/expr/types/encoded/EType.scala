@@ -34,7 +34,6 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildEncoderMethod(pt: PType, fb: EmitFunctionBuilder[_]): EmitMethodBuilder = {
     if (!encodeCompatible(pt))
       throw new RuntimeException(s"encode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
-    require(encodeCompatible(pt))
     val ptti = typeToTypeInfo(pt)
     fb.getOrDefineMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
       (pt, this, "ENCODE"),
