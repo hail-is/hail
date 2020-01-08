@@ -508,10 +508,16 @@ class RVD(
         idx -> nDrop
     }
 
-    val newRDD = crdd.mapPartitionsWithIndex({ case (i, it) =>
-      if (i == idxFirst)
-        it.drop(nDrop.toInt)
-      else
+    val newRDD = crdd.cmapPartitionsAndContextWithIndex({ case (i, ctx, f) =>
+      val it = f.next()(ctx)
+      if (i == idxFirst) {
+        (0 until nDrop).foreach { _ =>
+          ctx.region.clear()
+          assert(it.hasNext)
+          it.next()
+        }
+        it
+      } else
         it
     }, preservesPartitioning = true)
       .subsetPartitions(Array.range(idxFirst, getNumPartitions))
