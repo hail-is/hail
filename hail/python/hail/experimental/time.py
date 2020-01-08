@@ -3,6 +3,7 @@ from hail.expr.expressions.expression_typecheck import *
 from hail.expr.functions import _func
 from hail.typecheck import *
 
+
 @typecheck(format=expr_str,
            time=expr_int64,
            zone_id=expr_str)
@@ -44,12 +45,19 @@ def strftime(format, time, zone_id):
     """
     return _func("strftime", hl.tstr, format, time, zone_id)
 
+
 @typecheck(time=expr_str,
            format=expr_str,
            zone_id=expr_str)
 def strptime(time, format, zone_id):
     """
     Interpret a formatted datetime string as a Unix timestamp.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.experimental.strptime("Friday, October 10, 1997. 11:45:23 PM", "%A, %B %e, %Y. %r", "America/New_York"))
+    876541523
 
     Notes
     -----
@@ -61,12 +69,14 @@ def strptime(time, format, zone_id):
 
     Currently, the parser implicitly uses the "en_US" locale.
 
+    This function will fail if there is not enough information in the string to determine a particular timestamp.
+
     Parameters
     ----------
+    time : str or :class:`.Expression` of type :py:data:`.tstr`
+        The string from which to parse the time.
     format : str or :class:`.Expression` of type :py:data:`.tstr`
         The format string describing how to parse the time.
-    time : int of :class:`.Expression` of type :py:data:`.tint64`
-        A long representing the time as a Unix timestamp.
     zone_id: str or :class:`.Expression` of type :py:data:`.tstr`
         An id representing the timezone. See notes above.
     """
