@@ -45,6 +45,7 @@ abstract class PBaseStruct extends PType {
 
   val fields: IndexedSeq[PField]
 
+  lazy val allFieldsRequired: Boolean = types.forall(_.required)
   lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
   lazy val fieldIdx: Map[String, Int] =
@@ -149,31 +150,27 @@ abstract class PBaseStruct extends PType {
   def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, Region.storeByte(off + i.toLong, const(0xFF.toByte)))
-      i += 1
+    if(allFieldsRequired) {
+      return Code._empty
     }
-    c
+
+    Region.setMemory(off, const(nMissingBytes.toLong), const(0xFF.toByte))
   }
 
   def clearMissingBits(region: Region, off: Long) {
-    var i = 0
-    while (i < nMissingBytes) {
-      Region.storeByte(off + i, 0.toByte)
-      i += 1
+    if(allFieldsRequired) {
+      return
     }
+
+    Region.setMemory(off, nMissingBytes.toLong, 0.toByte)
   }
 
   def clearMissingBits(off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, Region.storeByte(off + i.toLong, const(0)))
-      i += 1
+    if(allFieldsRequired) {
+      return Code._empty
     }
-    c
+
+    Region.setMemory(off, const(nMissingBytes.toLong), const(0.toByte))
   }
 
   def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] =
