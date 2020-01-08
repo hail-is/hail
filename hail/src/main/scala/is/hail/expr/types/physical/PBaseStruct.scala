@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.utils._
 
 object PBaseStruct {
-  def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
+  def getContentsByteSizeAndSetOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
     assert(byteOffsets.length == types.length)
     val bp = new BytePacker()
 
@@ -44,6 +44,8 @@ abstract class PBaseStruct extends PType {
   val types: Array[PType]
 
   val fields: IndexedSeq[PField]
+
+  lazy val allFieldsRequired: Boolean = types.forall(_.required)
 
   lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
@@ -144,10 +146,10 @@ abstract class PBaseStruct extends PType {
   def byteOffsets: Array[Long]
 
   def allocate(region: Region): Long = {
-    region.allocate(alignment, byteSize)
+    region.allocate(alignment, this.byteSize)
   }
 
-  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
+  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, this.byteSize)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
@@ -263,25 +265,43 @@ abstract class PBaseStruct extends PType {
     }
   }
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
-    Region.copyFrom(valueAddress, destOffset, this.byteSize)
+  def copyFrom(region: Region, srcOff: Long): Long = {
+    val destOff = allocate(region)
+    Region.copyFrom(srcOff,  destOff, this.byteSize)
+    destOff
+  }
+
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
+    val destOff = mb.newField[Long]
+    Code(
+      destOff := allocate(region),
+      this.storeShallowAtOffset(srcOff,  destOff),
+      destOff
+    )
+  }
+
+  override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
+    Region.copyFrom(srcAddress, destAddress, this.byteSize)
+  }
+
+  override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
+    Region.copyFrom(srcAddress, destAddress, this.byteSize)
   }
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
     allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(srcPType.isInstanceOf[PCanonicalArray])
+    assert(srcPType.isInstanceOf[PBaseStruct])
 
-    val sourceType = srcPType.asInstanceOf[PCanonicalArray]
+    val sourceType = srcPType.asInstanceOf[PBaseStruct]
 
-    assert(sourceType.elementType.isOfType(this.elementType))
+    assert(sourceType.size == this.size)
 
-    if (this.elementType == sourceType.elementType) {
-      if(!forceDeep) {
-        return srcAddress
-      }
+    val destTypes = this.types
+    val srcTypes = sourceType.types
 
-      if(sourceType.elementType.isPrimitive) {
-        return copyFrom(mb, region, srcAddress)
+    if(this.types == sourceType.types) {
+      if(!forceDeep || this.types.forall(_.isPrimitive)) {
+        return this.copyFrom(mb, region, srcAddress)
       }
     }
 
@@ -291,8 +311,7 @@ abstract class PBaseStruct extends PType {
     val currentIdx = mb.newLocal[Int]
 
     var c: Code[_] = Code(
-      numberOfElements := sourceType.loadLength(srcAddress),
-      dstAddress := this.allocate(region, numberOfElements),
+      dstAddress := this.allocate(region),
       this.stagedInitialize(dstAddress, numberOfElements),
       currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
       currentIdx := const(0)

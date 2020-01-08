@@ -8,6 +8,7 @@ import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
+// This is a pointer array, whose byteSize is the size of its pointer
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"Array[$elementType]"
@@ -398,9 +399,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(srcPType.isInstanceOf[PContainer])
+    assert(srcPType.isInstanceOf[PArray])
 
-    val sourceType = srcPType.asInstanceOf[PContainer]
+    val sourceType = srcPType.asInstanceOf[PArray]
 
     assert(sourceType.elementType.isOfType(this.elementType))
 
