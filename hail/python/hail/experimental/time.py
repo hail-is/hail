@@ -56,7 +56,10 @@ def strptime(time, format, zone_id):
     Examples
     --------
 
-    >>> hl.eval(hl.experimental.strptime("Friday, October 10, 1997. 11:45:23 PM", "%A, %B %e, %Y. %r", "America/New_York"))
+    >>> hl.eval(hl.experimental.strptime("07/08/19  3:00:01 AM", "%D %l:%M:%S %p", "America/New_York")
+    1562569201
+
+    >>> hl.eval(hl.experimental.strptime("Saturday, October 11, 1997. 05:45:23 AM", "%A, %B %e, %Y. %r", "GMT+2"))
     876541523
 
     Notes
