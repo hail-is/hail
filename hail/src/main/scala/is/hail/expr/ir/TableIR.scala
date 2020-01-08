@@ -1757,7 +1757,11 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     TableGroupWithinPartitions(newChild, n)
   }
 
-  override def execute(ctx: ExecuteContext): TableValue = ???
+  override def execute(ctx: ExecuteContext): TableValue = {
+    val prev = child.execute(ctx)
+
+    TableValue(ctx, ???, ???, ???)
+  }
 }
 
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) extends TableIR {
